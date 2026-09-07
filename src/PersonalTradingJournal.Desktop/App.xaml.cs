@@ -1,7 +1,10 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Infrastructure.Storage;
+using Serilog;
+using System.IO;
 using System.Windows;
 
 namespace PersonalTradingJournal.Desktop;
@@ -15,39 +18,87 @@ public partial class App : System.Windows.Application
 
     public App()
     {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Services.AddSingleton<LocalApplicationPaths>();
-        builder.Services.AddSingleton<IApplicationPaths>(
-            static serviceProvider => serviceProvider.GetRequiredService<LocalApplicationPaths>());
-        builder.Services.AddTransient<MainWindow>();
+        var applicationPaths = new LocalApplicationPaths();
+        applicationPaths.EnsureDirectoriesExist();
 
-        _host = builder.Build();
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .Enrich.FromLogContext()
+            .WriteTo.File(
+                path: Path.Combine(applicationPaths.LogsDirectory, "ptj-.log"),
+                rollingInterval: RollingInterval.Day,
+                retainedFileCountLimit: 14,
+                outputTemplate:
+                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] " +
+                    "{Message:lj} {Properties:j}{NewLine}{Exception}")
+            .CreateLogger();
+
+        try
+        {
+            HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+            builder.Logging.ClearProviders();
+            builder.Services.AddSingleton(applicationPaths);
+            builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
+            builder.Services.AddTransient<MainWindow>();
+            builder.Services.AddSerilog(Log.Logger, dispose: false);
+
+            _host = builder.Build();
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(exception, "Application host configuration failed");
+            Log.CloseAndFlush();
+            throw;
+        }
     }
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        await _host.StartAsync();
+        Log.Information("Application starting");
 
-        LocalApplicationPaths applicationPaths =
-            _host.Services.GetRequiredService<LocalApplicationPaths>();
-        applicationPaths.EnsureDirectoriesExist();
+        try
+        {
+            await _host.StartAsync();
 
-        MainWindow mainWindow = _host.Services.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+            MainWindow mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            mainWindow.Show();
+
+            Log.Information("Application started");
+        }
+        catch (Exception exception)
+        {
+            Log.Fatal(exception, "Application failed to start");
+            Shutdown(-1);
+        }
     }
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        Log.Information("Application stopping");
+
         try
         {
             await _host.StopAsync();
+            Log.Information("Application stopped");
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Application failed to stop cleanly");
         }
         finally
         {
             _host.Dispose();
-            base.OnExit(e);
+
+            try
+            {
+                await Log.CloseAndFlushAsync();
+            }
+            finally
+            {
+                base.OnExit(e);
+            }
         }
     }
 }
