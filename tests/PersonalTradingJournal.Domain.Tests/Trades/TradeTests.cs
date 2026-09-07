@@ -19,6 +19,8 @@ public sealed class TradeTests
     private static readonly DateTimeOffset CreatedAtUtc =
         new(2026, 9, 7, 20, 0, 0, TimeSpan.Zero);
 
+    private static readonly TradePricingSnapshot Pricing = new(20m, "USD");
+
     [Fact]
     public void BuyFirstExecutionCreatesLongTrade()
     {
@@ -31,6 +33,7 @@ public sealed class TradeTests
         Trade trade = Trade.Start(
             TradingAccountId,
             InstrumentId,
+            Pricing,
             openingExecution,
             CreatedAtUtc);
 
@@ -64,6 +67,7 @@ public sealed class TradeTests
         Assert.Throws<ArgumentException>(() => Trade.Start(
             Guid.Empty,
             InstrumentId,
+            Pricing,
             CreateExecution(),
             CreatedAtUtc));
     }
@@ -74,6 +78,7 @@ public sealed class TradeTests
         Assert.Throws<ArgumentException>(() => Trade.Start(
             TradingAccountId,
             Guid.Empty,
+            Pricing,
             CreateExecution(),
             CreatedAtUtc));
     }
@@ -84,6 +89,7 @@ public sealed class TradeTests
         Assert.Throws<ArgumentNullException>(() => Trade.Start(
             TradingAccountId,
             InstrumentId,
+            Pricing,
             null!,
             CreatedAtUtc));
     }
@@ -94,6 +100,7 @@ public sealed class TradeTests
         Assert.Throws<ArgumentException>(() => Trade.Start(
             TradingAccountId,
             InstrumentId,
+            Pricing,
             CreateExecution(sequence: 2),
             CreatedAtUtc));
     }
@@ -312,6 +319,7 @@ public sealed class TradeTests
         Trade trade = Trade.Start(
             TradingAccountId,
             InstrumentId,
+            Pricing,
             openingExecution,
             CreatedAtUtc);
 
@@ -549,6 +557,7 @@ public sealed class TradeTests
             TradeId,
             TradingAccountId,
             InstrumentId,
+            Pricing,
             [second, first],
             CreatedAtUtc,
             updatedAtUtc);
@@ -568,6 +577,7 @@ public sealed class TradeTests
             TradeId,
             TradingAccountId,
             InstrumentId,
+            Pricing,
             null!,
             CreatedAtUtc,
             CreatedAtUtc));
@@ -668,6 +678,7 @@ public sealed class TradeTests
             id,
             tradingAccountId,
             instrumentId,
+            Pricing,
             [CreateExecution()],
             CreatedAtUtc,
             CreatedAtUtc));
@@ -689,6 +700,7 @@ public sealed class TradeTests
             TradeId,
             TradingAccountId,
             InstrumentId,
+            Pricing,
             [CreateExecution()],
             nonUtcTimestamp,
             nonUtcTimestamp));
@@ -697,25 +709,366 @@ public sealed class TradeTests
             TradeId,
             TradingAccountId,
             InstrumentId,
+            Pricing,
             [CreateExecution()],
             CreatedAtUtc,
             CreatedAtUtc.AddTicks(-1)));
+    }
+
+    [Fact]
+    public void ExposesSuppliedPricingSnapshot()
+    {
+        var pricing = new TradePricingSnapshot(50m, "EUR");
+
+        Trade trade = StartTrade(pricing: pricing);
+
+        Assert.Same(pricing, trade.Pricing);
+    }
+
+    [Fact]
+    public void RejectsNullPricingWhenStartingTrade()
+    {
+        Assert.Throws<ArgumentNullException>(() => Trade.Start(
+            TradingAccountId,
+            InstrumentId,
+            null!,
+            CreateExecution(),
+            CreatedAtUtc));
+    }
+
+    [Fact]
+    public void RejectsNullPricingWhenRehydratingTrade()
+    {
+        Assert.Throws<ArgumentNullException>(() => Trade.Rehydrate(
+            TradeId,
+            TradingAccountId,
+            InstrumentId,
+            null!,
+            [CreateExecution()],
+            CreatedAtUtc,
+            CreatedAtUtc));
+    }
+
+    [Fact]
+    public void RehydrationPreservesPricingSnapshot()
+    {
+        var pricing = new TradePricingSnapshot(5m, "EUR");
+
+        Trade trade = Trade.Rehydrate(
+            TradeId,
+            TradingAccountId,
+            InstrumentId,
+            pricing,
+            [CreateExecution()],
+            CreatedAtUtc,
+            CreatedAtUtc);
+
+        Assert.Same(pricing, trade.Pricing);
+    }
+
+    [Fact]
+    public void CalculatesLongAverageEntryPrice()
+    {
+        Trade trade = StartTrade(
+            side: ExecutionSide.Buy,
+            quantity: 2m,
+            price: 100.125m);
+
+        Assert.Equal(100.125m, trade.AverageEntryPrice);
+    }
+
+    [Fact]
+    public void CalculatesShortAverageEntryPrice()
+    {
+        Trade trade = StartTrade(
+            side: ExecutionSide.Sell,
+            quantity: 2m,
+            price: 100.125m);
+
+        Assert.Equal(100.125m, trade.AverageEntryPrice);
+    }
+
+    [Fact]
+    public void CalculatesWeightedScaleInAverageEntryPrice()
+    {
+        Trade trade = StartTrade(quantity: 1m, price: 100m);
+        AddExecution(trade, 2, ExecutionSide.Buy, 3m, price: 110m);
+
+        Assert.Equal(107.5m, trade.AverageEntryPrice);
+    }
+
+    [Fact]
+    public void AverageExitPriceIsNullBeforeScaleOut()
+    {
+        Trade trade = StartTrade();
+
+        Assert.Null(trade.AverageExitPrice);
+    }
+
+    [Fact]
+    public void CalculatesPartialScaleOutAverageExitPrice()
+    {
+        Trade trade = StartTrade(quantity: 2m, price: 100m);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 110.25m);
+
+        Assert.Equal(110.25m, trade.AverageExitPrice);
+        Assert.Equal(TradeStatus.Open, trade.Status);
+    }
+
+    [Fact]
+    public void OpenTradeDoesNotExposeFinalPnlAfterPartialScaleOut()
+    {
+        Trade trade = StartTrade(quantity: 2m, price: 100m);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 110m);
+
+        Assert.Null(trade.GrossPnL);
+        Assert.Null(trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesProfitableLongFinalPnlAndCosts()
+    {
+        Trade trade = StartTrade(
+            quantity: 1m,
+            commission: 1m,
+            fees: 1m,
+            price: 20_000m);
+        AddExecution(
+            trade,
+            2,
+            ExecutionSide.Sell,
+            1m,
+            price: 20_010m,
+            commission: 1m,
+            fees: 1m);
+
+        Assert.Equal(200m, trade.GrossPnL);
+        Assert.Equal(4m, trade.TotalCosts);
+        Assert.Equal(196m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesLosingLongFinalPnl()
+    {
+        Trade trade = StartTrade(quantity: 1m, price: 20_000m);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 19_990m);
+
+        Assert.Equal(-200m, trade.GrossPnL);
+        Assert.Equal(-200m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesProfitableShortFinalPnl()
+    {
+        Trade trade = StartTrade(
+            side: ExecutionSide.Sell,
+            quantity: 1m,
+            price: 20_000m);
+        AddExecution(trade, 2, ExecutionSide.Buy, 1m, price: 19_990m);
+
+        Assert.Equal(200m, trade.GrossPnL);
+        Assert.Equal(200m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesLosingShortFinalPnl()
+    {
+        Trade trade = StartTrade(
+            side: ExecutionSide.Sell,
+            quantity: 1m,
+            price: 20_000m);
+        AddExecution(trade, 2, ExecutionSide.Buy, 1m, price: 20_010m);
+
+        Assert.Equal(-200m, trade.GrossPnL);
+        Assert.Equal(-200m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesLongScaleInScaleOutEconomics()
+    {
+        Trade trade = StartTrade(quantity: 1m, price: 100m);
+        AddExecution(trade, 2, ExecutionSide.Buy, 3m, price: 110m);
+        AddExecution(trade, 3, ExecutionSide.Sell, 2m, price: 120m);
+        AddExecution(trade, 4, ExecutionSide.Sell, 2m, price: 130m);
+
+        Assert.Equal(107.5m, trade.AverageEntryPrice);
+        Assert.Equal(125m, trade.AverageExitPrice);
+        Assert.Equal(1_400m, trade.GrossPnL);
+        Assert.Equal(1_400m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesShortScaleInScaleOutEconomics()
+    {
+        Trade trade = StartTrade(
+            side: ExecutionSide.Sell,
+            quantity: 1m,
+            price: 130m);
+        AddExecution(trade, 2, ExecutionSide.Sell, 3m, price: 120m);
+        AddExecution(trade, 3, ExecutionSide.Buy, 2m, price: 110m);
+        AddExecution(trade, 4, ExecutionSide.Buy, 2m, price: 100m);
+
+        Assert.Equal(122.5m, trade.AverageEntryPrice);
+        Assert.Equal(105m, trade.AverageExitPrice);
+        Assert.Equal(1_400m, trade.GrossPnL);
+        Assert.Equal(1_400m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesInterleavedLifecyclePnlFromCompleteCashFlows()
+    {
+        Trade trade = StartTrade(quantity: 2m, price: 100m);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 110m);
+        AddExecution(trade, 3, ExecutionSide.Buy, 1m, price: 90m);
+        AddExecution(trade, 4, ExecutionSide.Sell, 2m, price: 105m);
+
+        Assert.Equal(600m, trade.GrossPnL);
+    }
+
+    [Fact]
+    public void CalculatesFractionalQuantityPnlWithoutRoundingInputs()
+    {
+        var pricing = new TradePricingSnapshot(2m, "USD");
+        Trade trade = StartTrade(
+            quantity: 1.5m,
+            price: 100m,
+            pricing: pricing);
+        AddExecution(trade, 2, ExecutionSide.Sell, 0.5m, price: 110m);
+        AddExecution(trade, 3, ExecutionSide.Sell, 1m, price: 120m);
+
+        Assert.Equal(50m, trade.GrossPnL);
+        Assert.Equal(50m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void CalculatesProfitableLongPnlWithNegativePrices()
+    {
+        var pricing = new TradePricingSnapshot(1m, "USD");
+        Trade trade = StartTrade(quantity: 1m, price: -40m, pricing: pricing);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: -30m);
+
+        Assert.Equal(10m, trade.GrossPnL);
+    }
+
+    [Fact]
+    public void CalculatesProfitableShortPnlWithNegativePrices()
+    {
+        var pricing = new TradePricingSnapshot(1m, "USD");
+        Trade trade = StartTrade(
+            side: ExecutionSide.Sell,
+            quantity: 1m,
+            price: -30m,
+            pricing: pricing);
+        AddExecution(trade, 2, ExecutionSide.Buy, 1m, price: -40m);
+
+        Assert.Equal(10m, trade.GrossPnL);
+    }
+
+    [Fact]
+    public void PriceBreakevenTradeCanHaveNegativeNetPnl()
+    {
+        Trade trade = StartTrade(
+            quantity: 1m,
+            commission: 1m,
+            fees: 1m,
+            price: 100m);
+        AddExecution(
+            trade,
+            2,
+            ExecutionSide.Sell,
+            1m,
+            price: 100m,
+            commission: 2m,
+            fees: 1m);
+
+        Assert.Equal(0m, trade.GrossPnL);
+        Assert.Equal(5m, trade.TotalCosts);
+        Assert.Equal(-5m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void PnlRemainsDerivedAsExecutionsAreAdded()
+    {
+        Trade trade = StartTrade(quantity: 1m, price: 100m);
+
+        Assert.Null(trade.GrossPnL);
+        Assert.Null(trade.NetPnL);
+
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 110m);
+
+        Assert.Equal(200m, trade.GrossPnL);
+        Assert.Equal(200m, trade.NetPnL);
+    }
+
+    [Fact]
+    public void HistoricalPnlUsesCapturedPricingSnapshotWithoutInstrumentLookup()
+    {
+        var historicalPricing = new TradePricingSnapshot(20m, "USD");
+        Trade trade = StartTrade(
+            quantity: 1m,
+            price: 20_000m,
+            pricing: historicalPricing);
+        AddExecution(trade, 2, ExecutionSide.Sell, 1m, price: 20_010m);
+
+        Assert.Same(historicalPricing, trade.Pricing);
+        Assert.Equal(200m, trade.GrossPnL);
+        Assert.Equal("USD", trade.Pricing.Currency);
+    }
+
+    [Fact]
+    public void RehydratedTradeDerivesAllEconomicsFromExecutionsAndPricing()
+    {
+        var pricing = new TradePricingSnapshot(5m, "EUR");
+        TradeExecution opening = CreateExecution(
+            1,
+            ExecutionSide.Buy,
+            1m,
+            commission: 0.75m,
+            fees: 0.25m,
+            price: 100m);
+        TradeExecution closing = CreateExecution(
+            2,
+            ExecutionSide.Sell,
+            1m,
+            commission: 1.50m,
+            fees: 0.50m,
+            price: 110m);
+
+        Trade trade = Trade.Rehydrate(
+            TradeId,
+            TradingAccountId,
+            InstrumentId,
+            pricing,
+            [closing, opening],
+            CreatedAtUtc,
+            CreatedAtUtc.AddMinutes(1));
+
+        Assert.Same(pricing, trade.Pricing);
+        Assert.Equal(100m, trade.AverageEntryPrice);
+        Assert.Equal(110m, trade.AverageExitPrice);
+        Assert.Equal(50m, trade.GrossPnL);
+        Assert.Equal(3m, trade.TotalCosts);
+        Assert.Equal(47m, trade.NetPnL);
     }
 
     private static Trade StartTrade(
         ExecutionSide side = ExecutionSide.Buy,
         decimal quantity = 2m,
         decimal commission = 0m,
-        decimal fees = 0m)
+        decimal fees = 0m,
+        decimal price = 20_000m,
+        TradePricingSnapshot? pricing = null)
     {
         return Trade.Start(
             TradingAccountId,
             InstrumentId,
+            pricing ?? Pricing,
             CreateExecution(
                 side: side,
                 quantity: quantity,
                 commission: commission,
-                fees: fees),
+                fees: fees,
+                price: price),
             CreatedAtUtc);
     }
 
@@ -723,14 +1076,20 @@ public sealed class TradeTests
         Trade trade,
         int sequence,
         ExecutionSide side,
-        decimal quantity)
+        decimal quantity,
+        decimal price = 20_000m,
+        decimal commission = 0m,
+        decimal fees = 0m)
     {
         trade.AddExecution(
             CreateExecution(
                 sequence,
                 side,
                 quantity,
-                FirstExecutionAtUtc.AddMinutes(sequence)),
+                FirstExecutionAtUtc.AddMinutes(sequence),
+                commission: commission,
+                fees: fees,
+                price: price),
             CreatedAtUtc.AddMinutes(sequence));
     }
 
@@ -742,7 +1101,8 @@ public sealed class TradeTests
         Guid? tradeId = null,
         Guid? executionId = null,
         decimal commission = 0m,
-        decimal fees = 0m)
+        decimal fees = 0m,
+        decimal price = 20_000m)
     {
         Guid resolvedTradeId = tradeId ?? TradeId;
         DateTimeOffset resolvedExecutedAtUtc =
@@ -757,7 +1117,7 @@ public sealed class TradeTests
                 resolvedExecutedAtUtc,
                 side,
                 quantity,
-                20_000m,
+                price,
                 commission,
                 fees,
                 null,
@@ -771,7 +1131,7 @@ public sealed class TradeTests
             resolvedExecutedAtUtc,
             side,
             quantity,
-            20_000m,
+            price,
             commission,
             fees,
             null,
@@ -790,6 +1150,7 @@ public sealed class TradeTests
             TradeId,
             TradingAccountId,
             InstrumentId,
+            Pricing,
             executions,
             CreatedAtUtc,
             CreatedAtUtc.AddMinutes(1));

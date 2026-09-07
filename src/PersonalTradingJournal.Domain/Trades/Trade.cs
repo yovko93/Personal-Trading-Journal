@@ -14,6 +14,7 @@ public sealed class Trade : AuditableEntity
         Guid id,
         Guid tradingAccountId,
         Guid instrumentId,
+        TradePricingSnapshot pricing,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc)
@@ -27,6 +28,8 @@ public sealed class Trade : AuditableEntity
             instrumentId,
             nameof(instrumentId),
             "An instrument identifier cannot be empty.");
+        ArgumentNullException.ThrowIfNull(pricing);
+        Pricing = pricing;
 
         _executions = OrderAndValidateExecutions(id, executions);
         _readOnlyExecutions = _executions.AsReadOnly();
@@ -35,6 +38,8 @@ public sealed class Trade : AuditableEntity
     public Guid TradingAccountId { get; }
 
     public Guid InstrumentId { get; }
+
+    public TradePricingSnapshot Pricing { get; }
 
     public TradeDirection Direction =>
         _executions[0].Side == ExecutionSide.Buy
@@ -59,18 +64,45 @@ public sealed class Trade : AuditableEntity
 
     public decimal TotalCosts => _executions.Sum(execution => execution.TotalCosts);
 
+    public decimal AverageEntryPrice =>
+        CalculateAveragePrice(GetOpeningSide(Direction))
+        ?? throw new InvalidOperationException(
+            "A trade must contain at least one opening-side execution.");
+
+    public decimal? AverageExitPrice =>
+        CalculateAveragePrice(GetOppositeSide(GetOpeningSide(Direction)));
+
+    public decimal? GrossPnL =>
+        Status == TradeStatus.Closed
+            ? CalculateGrossPnL()
+            : null;
+
+    public decimal? NetPnL
+    {
+        get
+        {
+            decimal? grossPnL = GrossPnL;
+            return grossPnL.HasValue
+                ? checked(grossPnL.Value - TotalCosts)
+                : null;
+        }
+    }
+
     public static Trade Start(
         Guid tradingAccountId,
         Guid instrumentId,
+        TradePricingSnapshot pricing,
         TradeExecution openingExecution,
         DateTimeOffset createdAtUtc)
     {
+        ArgumentNullException.ThrowIfNull(pricing);
         ArgumentNullException.ThrowIfNull(openingExecution);
 
         return new Trade(
             openingExecution.TradeId,
             tradingAccountId,
             instrumentId,
+            pricing,
             [openingExecution],
             createdAtUtc,
             createdAtUtc);
@@ -80,16 +112,19 @@ public sealed class Trade : AuditableEntity
         Guid id,
         Guid tradingAccountId,
         Guid instrumentId,
+        TradePricingSnapshot pricing,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc)
     {
+        ArgumentNullException.ThrowIfNull(pricing);
         ArgumentNullException.ThrowIfNull(executions);
 
         return new Trade(
             id,
             tradingAccountId,
             instrumentId,
+            pricing,
             executions,
             createdAtUtc,
             updatedAtUtc);
@@ -152,11 +187,75 @@ public sealed class Trade : AuditableEntity
 
     private bool IsOpeningSide(ExecutionSide side)
     {
-        return Direction switch
+        return side == GetOpeningSide(Direction);
+    }
+
+    private decimal? CalculateAveragePrice(ExecutionSide side)
+    {
+        decimal weightedPrice = 0m;
+        decimal totalQuantity = 0m;
+
+        foreach (TradeExecution execution in _executions.Where(x => x.Side == side))
         {
-            TradeDirection.Long => side == ExecutionSide.Buy,
-            TradeDirection.Short => side == ExecutionSide.Sell,
+            weightedPrice = checked(
+                weightedPrice + checked(execution.Price * execution.Quantity));
+            totalQuantity = checked(totalQuantity + execution.Quantity);
+        }
+
+        return totalQuantity == 0m
+            ? null
+            : weightedPrice / totalQuantity;
+    }
+
+    private decimal CalculateGrossPnL()
+    {
+        decimal buyQuantity = 0m;
+        decimal sellQuantity = 0m;
+        decimal buyNotional = 0m;
+        decimal sellNotional = 0m;
+
+        foreach (TradeExecution execution in _executions)
+        {
+            decimal executionNotional = checked(execution.Price * execution.Quantity);
+
+            if (execution.Side == ExecutionSide.Buy)
+            {
+                buyQuantity = checked(buyQuantity + execution.Quantity);
+                buyNotional = checked(buyNotional + executionNotional);
+            }
+            else
+            {
+                sellQuantity = checked(sellQuantity + execution.Quantity);
+                sellNotional = checked(sellNotional + executionNotional);
+            }
+        }
+
+        if (buyQuantity != sellQuantity)
+        {
+            throw new InvalidOperationException(
+                "Final trade P&L can only be calculated for a flat position.");
+        }
+
+        return checked(checked(sellNotional - buyNotional) * Pricing.PointValue);
+    }
+
+    private static ExecutionSide GetOpeningSide(TradeDirection direction)
+    {
+        return direction switch
+        {
+            TradeDirection.Long => ExecutionSide.Buy,
+            TradeDirection.Short => ExecutionSide.Sell,
             _ => throw new InvalidOperationException("The trade direction is invalid.")
+        };
+    }
+
+    private static ExecutionSide GetOppositeSide(ExecutionSide side)
+    {
+        return side switch
+        {
+            ExecutionSide.Buy => ExecutionSide.Sell,
+            ExecutionSide.Sell => ExecutionSide.Buy,
+            _ => throw new InvalidOperationException("The execution side is invalid.")
         };
     }
 
