@@ -427,3 +427,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Repository-local .NET CLI and NuGet state
+.tools/
