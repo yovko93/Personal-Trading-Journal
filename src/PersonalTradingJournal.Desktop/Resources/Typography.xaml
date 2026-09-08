@@ -36,4 +36,10 @@
         <Setter Property="FontWeight" Value="Normal" />
         <Setter Property="Foreground" Value="{StaticResource PtjTextMutedBrush}" />
     </Style>
+
+    <Style x:Key="PtjMetricValueTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjPageTitleTextStyle}">
+        <Setter Property="FontSize" Value="28" />
+    </Style>
 </ResourceDictionary>
