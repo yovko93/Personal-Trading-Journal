@@ -94,14 +94,6 @@ public sealed class TradePersistenceMapperTests
         }
     }
 
-    [Fact]
-    public void MapperDoesNotExposeReverseTradeMapping()
-    {
-        Assert.DoesNotContain(
-            typeof(TradePersistenceMapper).GetMethods(),
-            method => method.Name == "ToDomain");
-    }
-
     private static Trade CreateClosedClassifiedTrade()
     {
         Trade trade = StartTrade();

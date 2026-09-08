@@ -22,4 +22,30 @@ public static class TradePersistenceMapper
             UpdatedAtUtc = trade.UpdatedAtUtc,
         };
     }
+
+    public static Trade ToDomain(
+        TradeRecord record,
+        IEnumerable<TradeExecutionRecord> executionRecords)
+    {
+        ArgumentNullException.ThrowIfNull(record);
+        ArgumentNullException.ThrowIfNull(executionRecords);
+
+        var pricing = new TradePricingSnapshot(
+            record.PricingPointValue,
+            record.PricingCurrency);
+
+        IEnumerable<TradeExecution> executions = executionRecords
+            .Select(TradeExecutionPersistenceMapper.ToDomain);
+
+        return Trade.Rehydrate(
+            record.Id,
+            record.TradingAccountId,
+            record.InstrumentId,
+            pricing,
+            record.StrategyId,
+            record.TradingSetupId,
+            executions,
+            record.CreatedAtUtc,
+            record.UpdatedAtUtc);
+    }
 }
