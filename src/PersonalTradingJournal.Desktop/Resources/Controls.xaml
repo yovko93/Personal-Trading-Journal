@@ -69,6 +69,138 @@
         <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
     </Style>
 
+    <Style x:Key="PtjNavigationButtonStyle" TargetType="{x:Type Button}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Padding" Value="{StaticResource PtjButtonPadding}" />
+        <Setter Property="Margin" Value="0,1" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Grid>
+                        <Border x:Name="NavigationChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <Border x:Name="FocusIndicator"
+                                Margin="2"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource PtjCornerRadiusSm}"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="NavigationChrome"
+                                    Property="Background"
+                                    Value="{StaticResource PtjSurfaceElevatedBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="NavigationChrome"
+                                    Property="Background"
+                                    Value="{StaticResource PtjBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusIndicator"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource PtjAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="NavigationChrome" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjNavigationSectionTextStyle" TargetType="{x:Type TextBlock}">
+        <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource PtjTextMutedBrush}" />
+        <Setter Property="Margin" Value="12,16,12,4" />
+    </Style>
+
+    <Style x:Key="PtjScrollBarThumbStyle" TargetType="{x:Type Thumb}">
+        <Setter Property="Background" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Thumb}">
+                    <Border x:Name="ThumbChrome"
+                            Margin="2"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{StaticResource PtjCornerRadiusSm}" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ThumbChrome"
+                                    Property="Background"
+                                    Value="{StaticResource PtjTextMutedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="ThumbChrome"
+                                    Property="Background"
+                                    Value="{StaticResource PtjTextSecondaryBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjScrollBarPageButtonStyle" TargetType="{x:Type RepeatButton}">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type RepeatButton}">
+                    <Border Background="Transparent" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjScrollBarStyle" TargetType="{x:Type ScrollBar}">
+        <Setter Property="Width" Value="12" />
+        <Setter Property="Background" Value="{StaticResource PtjSurfaceBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ScrollBar}">
+                    <Border Background="{TemplateBinding Background}">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                              Style="{StaticResource PtjScrollBarPageButtonStyle}" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource PtjScrollBarThumbStyle}" />
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                              Style="{StaticResource PtjScrollBarPageButtonStyle}" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PtjCardStyle" TargetType="{x:Type Border}">
         <Setter Property="Background" Value="{StaticResource PtjSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource PtjBorderBrush}" />

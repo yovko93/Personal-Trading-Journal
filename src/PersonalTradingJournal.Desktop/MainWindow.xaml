@@ -6,13 +6,121 @@
         xmlns:local="clr-namespace:PersonalTradingJournal.Desktop"
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
-        Height="450"
-        Width="800"
+        Width="1280"
+        Height="800"
+        MinWidth="1000"
+        MinHeight="650"
+        WindowStartupLocation="CenterScreen"
         Style="{StaticResource PtjWindowStyle}">
     <Grid>
-        <TextBlock HorizontalAlignment="Center"
-                   VerticalAlignment="Center"
-                   Style="{StaticResource PtjPageTitleTextStyle}"
-                   Text="{Binding ApplicationTitle}" />
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="252" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Background="{StaticResource PtjSurfaceBrush}"
+                BorderBrush="{StaticResource PtjBorderBrush}"
+                BorderThickness="0,0,1,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Border Padding="24,24,24,20"
+                        BorderBrush="{StaticResource PtjBorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                               Text="{Binding ApplicationTitle}"
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <ScrollViewer Grid.Row="1"
+                              Padding="8"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              PanningMode="VerticalOnly">
+                    <ScrollViewer.Resources>
+                        <Style TargetType="{x:Type ScrollBar}"
+                               BasedOn="{StaticResource PtjScrollBarStyle}" />
+                    </ScrollViewer.Resources>
+                    <StackPanel>
+                        <Button Content="Dashboard"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Notebook"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+
+                        <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
+                                   Text="TRADING" />
+                        <Button Content="Trades"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Journal"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Calendar"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Import"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+
+                        <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
+                                   Text="ANALYSIS" />
+                        <Button Content="Performance"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Strategies"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Mistakes"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Breakdown"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+
+                        <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
+                                   Text="PLANNING" />
+                        <Button Content="Playbook"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Trading Plan"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Rules"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+
+                        <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
+                                   Text="REVIEW" />
+                        <Button Content="Daily Review"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Weekly Review"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Monthly Review"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+
+                        <Button Content="Accounts"
+                                Margin="0,16,0,1"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Settings"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1"
+              Background="{StaticResource PtjBackgroundBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Padding="32,24,32,20"
+                    BorderBrush="{StaticResource PtjBorderBrush}"
+                    BorderThickness="0,0,0,1">
+                <TextBlock Style="{StaticResource PtjPageTitleTextStyle}"
+                           Text="Dashboard" />
+            </Border>
+
+            <Border Grid.Row="1" Padding="32,24">
+                <TextBlock HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="Dashboard content will appear here." />
+            </Border>
+        </Grid>
     </Grid>
 </Window>
