@@ -2,13 +2,15 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation and the core in-memory trading domain model. Database persistence, trading UI workflows, importing, and analytics have not yet been implemented.
+The repository currently contains the application foundation, the core trading domain model, and local EF Core/SQLite persistence. End-user trading workflows, importing, navigation, and analytics have not yet been implemented.
 
 ## Current Status
 
 **Milestone M1 — Foundation: Complete**
 
 **Milestone M2 — Domain Foundation: Complete**
+
+**Milestone M3 — EF Core + SQLite Persistence: Complete**
 
 The completed foundation includes:
 
@@ -31,7 +33,16 @@ The M2 domain foundation includes:
 - storage-agnostic trade-screenshot metadata; and
 - a user-defined trading-mistake catalog with trade-mistake associations.
 
-The next milestone is **M3 — EF Core + SQLite Persistence**. M2 provides domain behavior only: there is no database persistence or end-user trading workflow yet.
+The M3 persistence foundation includes:
+
+- EF Core 10 with a local SQLite `journal.db`;
+- Infrastructure-owned persistence records, configurations, and explicit Domain mapping;
+- an initial EF Core migration applied automatically before the main window is shown;
+- exact decimal round-trips and explicit UTC timestamp provider handling;
+- referential integrity that protects historical references; and
+- migrated-schema and production-wired integration tests.
+
+The next milestone is **M4 — WPF Shell + Navigation**. Persistence is ready, but end-user trade workflows and navigation are not implemented yet.
 
 ## Technology Stack
 
@@ -40,6 +51,8 @@ The next milestone is **M3 — EF Core + SQLite Persistence**. M2 provides domai
 - Microsoft.Extensions.Hosting
 - Microsoft.Extensions.DependencyInjection through the Generic Host
 - Microsoft.Extensions.Logging
+- Entity Framework Core 10
+- SQLite
 - Serilog
 - xUnit
 - GitHub Actions
@@ -66,7 +79,8 @@ tests/
 
 docs/
 ├── architecture.md
-└── domain-model.md
+├── domain-model.md
+└── persistence.md
 
 .github/
 └── workflows/
@@ -75,7 +89,7 @@ docs/
 
 - **Domain** contains the framework-independent M2 trading model, rules, and invariants.
 - **Application** defines application-level orchestration and abstractions, currently including `IApplicationPaths`.
-- **Infrastructure** implements Application abstractions and integrations, currently including local Windows storage paths.
+- **Infrastructure** owns local Windows storage paths and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, and runtime database initialization.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
 - **Desktop** contains the WPF presentation layer and serves as the composition root for hosting, dependency injection, storage initialization, and logging.
 
@@ -124,13 +138,21 @@ PersonalTradingJournal/
 └── backups/
 ```
 
-`journal.db` is currently only a reserved, calculated path. Database persistence has not been implemented, and no persistence component creates this file.
+`journal.db` is the active local SQLite database. EF Core creates it and applies pending migrations automatically during desktop startup.
 
-- `screenshots` exists as a reserved location for future screenshot storage operations. M2 defines only storage-agnostic `TradeScreenshot` metadata; it does not store image files.
+- `screenshots` is reserved for future physical screenshot storage. `TradeScreenshot` metadata is persisted in `journal.db`, while image copying and file lifecycle behavior remain unimplemented.
 - `logs` contains the active application log files.
 - `backups` is reserved for future backup functionality.
 
-Screenshot persistence and backup functionality are not yet implemented.
+Binary screenshot storage and backup workflows are not yet implemented.
+
+## Startup Persistence
+
+Desktop startup starts the Generic Host, applies database migrations, and only then resolves and shows `MainWindow`. A migration failure is logged as a fatal startup error, aborts startup, and prevents the window from being shown. The application does not delete or recreate a failed database automatically.
+
+## Database Schema Changes
+
+Schema changes use EF Core migrations. Keep the `dotnet-ef` version aligned with the project's EF Core version line and see [Persistence](docs/persistence.md) for the migration commands and safety workflow.
 
 ## Logging
 
@@ -156,7 +178,7 @@ GitHub Actions runs the CI workflow:
 
 The repository follows a domain-first design with dependencies directed toward the Domain. Infrastructure implements meaningful Application abstractions, while Desktop remains the composition and presentation layer. The system is local-first today, but the core should remain independent of WPF so a future web or SaaS presentation can evolve without replacing domain and application logic.
 
-Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the detailed rules and [Domain Model](docs/domain-model.md) for the finalized M2 model.
+Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the detailed rules, [Domain Model](docs/domain-model.md) for the trading model, and [Persistence](docs/persistence.md) for database semantics and migration workflow.
 
 ## Documentation Policy
 

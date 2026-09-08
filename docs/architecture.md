@@ -39,9 +39,17 @@ The current example is `IApplicationPaths`. This abstraction belongs in Applicat
 
 ### PersonalTradingJournal.Infrastructure
 
-The Infrastructure project provides implementations of Application abstractions and hosts external concerns such as filesystem integration. Future persistence and import implementations may also belong here when those capabilities are introduced.
+The Infrastructure project implements Application abstractions and owns external technical concerns. Its current responsibilities include:
 
-The current implementation is `LocalApplicationPaths`, which resolves paths under Windows local application data and explicitly creates the required directories. Database persistence does not exist yet.
+- `LocalApplicationPaths` and local directory creation;
+- `JournalDbContext` and EF Core SQLite registration;
+- Infrastructure-owned persistence records and `IEntityTypeConfiguration` mappings;
+- explicit persistence-record/Domain mappers;
+- the SQLite UTC timestamp converter;
+- EF Core migrations and the design-time context factory; and
+- `JournalDatabaseInitializer` for runtime migration application.
+
+Future imports and alternative persistence providers also belong at this boundary when concrete use cases require them.
 
 ### PersonalTradingJournal.Contracts
 
@@ -77,6 +85,28 @@ Desktop
 
 These dependencies are intentional and should not be reversed casually. They keep framework and implementation details outside the core layers.
 
+## Persistence Boundary
+
+The persistence flow is explicit:
+
+```text
+Domain
+  ↑ explicit mapping and Rehydrate(...)
+Infrastructure persistence records
+  ↓
+EF Core
+  ↓
+SQLite
+```
+
+EF Core adapts to the Domain; the Domain does not adapt to EF Core. EF Core materializes mutable Infrastructure records rather than Domain entities. Domain types remain immutable or getter-heavy where appropriate, contain no EF attributes, and have no EF dependency. Infrastructure mappers reconstruct Domain entities through their explicit `Rehydrate(...)` APIs. AutoMapper is not used at this boundary.
+
+M3 deliberately does not introduce a generic `Repository<T>`, a Unit of Work abstraction, or speculative Application repository interfaces. `IDbContextFactory<JournalDbContext>` is Infrastructure persistence machinery, not an invitation for UI code to access the database directly. Application-facing persistence boundaries will be introduced with real use cases in later milestones.
+
+`AddPersistence(...)` registers `IDbContextFactory<JournalDbContext>`. Contexts are short-lived, created per operation, and disposed after use; the desktop application does not retain a long-lived context. Production-wired integration tests verify that writes made through one context are visible through later fresh contexts.
+
+Detailed schema, provider, and migration decisions are documented in [Persistence](persistence.md).
+
 ## Composition Root
 
 `PersonalTradingJournal.Desktop/App.xaml.cs` is the current composition root. It is responsible for:
@@ -87,10 +117,29 @@ These dependencies are intentional and should not be reversed casually. They kee
 - building the Generic Host;
 - registering dependencies;
 - starting the host;
+- resolving and awaiting `JournalDatabaseInitializer.InitializeAsync()`;
 - resolving and showing `MainWindow`; and
 - stopping and disposing the host.
 
 Domain and Application must not know about WPF startup or application lifecycle details.
+
+The startup order is:
+
+```text
+LocalApplicationPaths
+  -> create directories
+  -> configure Serilog
+  -> build Generic Host
+  -> StartAsync
+  -> JournalDatabaseInitializer.InitializeAsync
+  -> resolve and show MainWindow
+```
+
+Runtime initialization uses `Database.MigrateAsync()`, never `EnsureCreated`. Migration exceptions propagate into the existing fatal startup handler, so the main window is not resolved or shown after a migration failure. There is no automatic database deletion, recreation, or destructive recovery fallback.
+
+## Design-Time Persistence Separation
+
+`JournalDbContextDesignTimeFactory` exists only for EF tooling. It creates a context using SQLite `Data Source=:memory:` with foreign keys enabled. It does not use `LocalApplicationPaths`, access the user's `journal.db`, boot WPF, create a physical database, or apply migrations. This separation allows migration generation and model inspection without placing real user storage at risk.
 
 ## Local-First Storage
 
@@ -102,14 +151,14 @@ Local application data is centralized under:
 
 The current paths are:
 
-- `journal.db` — reserved for future SQLite persistence; the file is not currently created;
+- `journal.db` — the active local SQLite store, created and migrated during application startup;
 - `screenshots` — reserved for future trade screenshot files;
 - `logs` — active storage for local rolling logs; and
 - `backups` — reserved for future backup data.
 
 Centralizing these paths gives the application one predictable per-user storage location while keeping Windows-specific resolution in Infrastructure.
 
-Screenshot binary files are intended to live outside the database. Domain stores only an opaque `StorageKey`; it does not interpret that key as a Windows or relative filesystem path. Application and Infrastructure will later map the key to physical storage, with the current local-first design intending to use the screenshot directory above. No `TradeScreenshot` file-storage implementation exists yet, and cloud storage is not implemented.
+Screenshot binary files are intended to live outside the database. `TradeScreenshot` records currently persist metadata and an opaque `StorageKey` in SQLite; Domain does not interpret that key as a Windows or relative filesystem path. Physical image storage, key resolution, and file lifecycle behavior remain deferred, and cloud storage is not implemented.
 
 ## Logging
 
@@ -133,9 +182,9 @@ Testing follows the solution layers:
 
 - **Domain.Tests** contains deterministic tests for the implemented M2 entities, lifecycle rules, calculations, mutations, and invariants.
 - **Application.Tests** covers application and use-case behavior.
-- **Infrastructure.Tests** covers implementation and integration-focused behavior.
+- **Infrastructure.Tests** covers implementation and integration-focused behavior, including local paths, explicit mapper round-trips, real SQLite precision and timestamp queries, relational integrity, migrated temporary databases, runtime initialization, and production-wired full-graph scenarios.
 
-Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure tests verify `LocalApplicationPaths` path construction and directory initialization, including that `journal.db` is not created, using isolated temporary directories rather than the user's real local application data.
+Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure persistence tests use isolated temporary SQLite databases, fresh contexts, and explicit cleanup rather than the user's real local application data. Path-construction tests separately verify that calculating local paths does not itself create `journal.db`.
 
 ## CI
 
@@ -184,7 +233,7 @@ Optional `StrategyId` and `TradingSetupId` classifications are independent dimen
 
 ### Mistakes Are Review Associations
 
-`TradingMistake` is a reusable, user-defined catalog definition. `TradeMistake` is a separate occurrence/association between a trade and a mistake definition, with an optional occurrence-specific note. These concepts do not alter execution history, and neither aggregate owns an association collection. Persistence/Application behavior in M3 must enforce at most one association for each `(TradeId, TradingMistakeId)` pair.
+`TradingMistake` is a reusable, user-defined catalog definition. `TradeMistake` is a separate occurrence/association between a trade and a mistake definition, with an optional occurrence-specific note. These concepts do not alter execution history, and neither aggregate owns an association collection. SQLite persistence enforces at most one association for each `(TradeId, TradingMistakeId)` pair.
 
 ### Process Quality Is Independent from Outcome
 
@@ -202,4 +251,4 @@ ASP.NET Core API ---> Application / Domain
    Web client
 ```
 
-This illustrates an architectural direction only. The ASP.NET Core API, web client, and SaaS capabilities are not implemented.
+This illustrates an architectural direction only. The ASP.NET Core API, web client, and SaaS capabilities are not implemented. A future provider may replace or adapt the current Infrastructure persistence implementation while Domain and Application remain stable; the EF records and SQLite schema are not assumed to be shared directly with future server infrastructure.

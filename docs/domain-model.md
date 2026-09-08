@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document describes the completed M2 in-memory domain model. It records the behavior and boundaries that future application and persistence work must preserve; it does not describe a database schema or an implemented end-user workflow.
+This document describes the domain model established in M2 and preserved by the M3 persistence implementation. It remains focused on domain behavior and boundaries rather than database-provider details or an implemented end-user workflow.
 
 ## Core Principles
 
@@ -125,7 +125,7 @@ A trade may independently reference an optional `StrategyId` and optional `Tradi
 
 `TradeScreenshot` is storage-agnostic metadata associated with a trade through `TradeId`. It remains outside the `Trade` execution aggregate, which has no screenshot collection.
 
-`StorageKey` is an opaque storage identifier, not a Windows path or a promise of any particular physical layout. Domain contains neither binary image data nor file operations. Future Application/Infrastructure behavior will resolve the key and keep image files outside the database; no screenshot storage workflow exists yet.
+`StorageKey` is an opaque storage identifier, not a Windows path or a promise of any particular physical layout. `TradeScreenshot` metadata is persisted in SQLite, but Domain contains neither binary image data nor file operations. Physical image storage remains outside the database and its file-storage workflow is still deferred.
 
 ## Mistakes and Process Quality
 
@@ -133,13 +133,13 @@ A trade may independently reference an optional `StrategyId` and optional `Tradi
 
 `TradeMistake` represents one occurrence/association between a `Trade` and a `TradingMistake`. Its optional `Note` is specific to that occurrence. Neither related aggregate owns an association collection.
 
-Future Application/persistence behavior must allow a specific mistake on a trade at most once by enforcing:
+M3 SQLite persistence allows a specific mistake on a trade at most once by enforcing:
 
 ```text
 UNIQUE (TradeId, TradingMistakeId)
 ```
 
-This uniqueness constraint is a documented M3 requirement and is not implemented in Domain. A causal mistake cost is also deliberately absent: assigning part of a trade's outcome to one mistake requires policy the current model does not define.
+This remains a database integrity rule rather than a Domain collection invariant; no association collection was added to the Domain model. A causal mistake cost is also deliberately absent: assigning part of a trade's outcome to one mistake requires policy the current model does not define.
 
 Process quality and financial outcome are independent. PTJ must support all four combinations:
 
@@ -154,9 +154,9 @@ Profit does not prove correct execution, and loss does not prove poor execution.
 
 The following omissions are intentional M2 scope decisions rather than accidental missing fields:
 
-- EF Core/SQLite persistence, repositories, and migrations;
+- Application repository/use-case abstractions and end-user CRUD workflows;
 - manual trade application workflows and CSV importing;
-- screenshot file operations;
+- physical screenshot file storage and lifecycle operations;
 - initial risk, R-multiple, partial realized P&L, MAE/MFE, and mark-to-market;
 - trading rules, rule violations, and prop-firm rules;
 - journal entries and daily, weekly, or monthly reviews;
@@ -166,9 +166,9 @@ The following omissions are intentional M2 scope decisions rather than accidenta
 - futures contract expiration and rollover modeling; and
 - AI Coach behavior.
 
-## Persistence Requirements for M3
+## Persistence Realization in M3
 
-M3 persistence must preserve the existing domain contract without redesigning it. In particular, it must preserve:
+M3 persistence preserves the existing domain contract without redesigning it, including:
 
 - stable `Guid` identity;
 - UTC audit timestamps and separate historical event timestamps;
@@ -182,4 +182,4 @@ M3 persistence must preserve the existing domain contract without redesigning it
 - uniqueness of `(TradeId, TradingMistakeId)`; and
 - decimal values without arbitrary persistence-layer rounding.
 
-These are persistence constraints, not an EF Core configuration or database schema. M2 defines no migrations, table names, or indexes beyond the explicit future association uniqueness requirement.
+EF Core materializes Infrastructure-owned records, and explicit mappers call the Domain's rehydration APIs. Provider representation, schema, relationships, migrations, and operational workflow are documented in [Persistence](persistence.md).
