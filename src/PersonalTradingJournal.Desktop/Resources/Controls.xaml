@@ -201,23 +201,46 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ScrollBar}">
                     <Border Background="{TemplateBinding Background}">
-                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                        <Track x:Name="PART_Track"
+                               IsDirectionReversed="True"
+                               Orientation="{TemplateBinding Orientation}">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="{x:Static ScrollBar.PageUpCommand}"
+                                <RepeatButton x:Name="DecreasePageButton"
+                                              Command="{x:Static ScrollBar.PageUpCommand}"
                                               Style="{StaticResource PtjScrollBarPageButtonStyle}" />
                             </Track.DecreaseRepeatButton>
                             <Track.Thumb>
                                 <Thumb Style="{StaticResource PtjScrollBarThumbStyle}" />
                             </Track.Thumb>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="{x:Static ScrollBar.PageDownCommand}"
+                                <RepeatButton x:Name="IncreasePageButton"
+                                              Command="{x:Static ScrollBar.PageDownCommand}"
                                               Style="{StaticResource PtjScrollBarPageButtonStyle}" />
                             </Track.IncreaseRepeatButton>
                         </Track>
                     </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_Track"
+                                    Property="IsDirectionReversed"
+                                    Value="False" />
+                            <Setter TargetName="DecreasePageButton"
+                                    Property="Command"
+                                    Value="{x:Static ScrollBar.PageLeftCommand}" />
+                            <Setter TargetName="IncreasePageButton"
+                                    Property="Command"
+                                    Value="{x:Static ScrollBar.PageRightCommand}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto" />
+                <Setter Property="Height" Value="12" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="PtjCardStyle" TargetType="{x:Type Border}">
