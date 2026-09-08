@@ -2,6 +2,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Desktop.ViewModels;
+using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -42,6 +44,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddTransient<DashboardViewModel>();
+            builder.Services.AddTransient<MainWindowViewModel>();
             builder.Services.AddTransient<MainWindow>();
             builder.Services.AddSerilog(Log.Logger, dispose: false);
 

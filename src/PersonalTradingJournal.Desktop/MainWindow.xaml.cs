@@ -1,4 +1,4 @@
-﻿using System.Text;
+using PersonalTradingJournal.Desktop.ViewModels;
 using System.Windows;
 
 namespace PersonalTradingJournal.Desktop;
@@ -8,8 +8,11 @@ namespace PersonalTradingJournal.Desktop;
 /// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    public MainWindow(MainWindowViewModel viewModel)
     {
+        ArgumentNullException.ThrowIfNull(viewModel);
+
         InitializeComponent();
+        DataContext = viewModel;
     }
 }

@@ -1,0 +1,159 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Dashboard.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
+
+        <StackPanel>
+            <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
+                       Text="Overview of your trading performance and activity." />
+
+            <Grid Margin="0,24,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        MinHeight="112"
+                        Margin="0,0,6,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="Net P&amp;L" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource PtjMetricValueTextStyle}"
+                                   Text="—" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1"
+                        MinHeight="112"
+                        Margin="6,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="Win Rate" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource PtjMetricValueTextStyle}"
+                                   Text="—" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2"
+                        MinHeight="112"
+                        Margin="6,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="Profit Factor" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource PtjMetricValueTextStyle}"
+                                   Text="—" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3"
+                        MinHeight="112"
+                        Margin="6,0,0,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="Avg R" />
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource PtjMetricValueTextStyle}"
+                                   Text="—" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border MinHeight="220"
+                    Margin="0,16,0,0"
+                    Style="{StaticResource PtjCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                               Text="Equity Curve" />
+                    <TextBlock Grid.Row="1"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="No trading data yet." />
+                </Grid>
+            </Border>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        MinHeight="160"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                                   Text="Daily P&amp;L" />
+                        <TextBlock Grid.Row="1"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="No trading data yet." />
+                    </Grid>
+                </Border>
+
+                <Border Grid.Column="1"
+                        MinHeight="160"
+                        Margin="8,0,0,0"
+                        Style="{StaticResource PtjCardStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                                   Text="Strategies" />
+                        <TextBlock Grid.Row="1"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="No strategy performance data yet." />
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <Border MinHeight="144"
+                    Margin="0,16,0,0"
+                    Style="{StaticResource PtjCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                               Text="Recent Trades" />
+                    <TextBlock Grid.Row="1"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="No trades recorded yet." />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
