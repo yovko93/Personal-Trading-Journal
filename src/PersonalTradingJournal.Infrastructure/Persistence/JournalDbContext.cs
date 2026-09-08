@@ -17,6 +17,8 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<StrategyRecord> Strategies => Set<StrategyRecord>();
 
+    public DbSet<TradingSetupRecord> TradingSetups => Set<TradingSetupRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -24,5 +26,6 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new InstrumentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingAccountRecordConfiguration());
         modelBuilder.ApplyConfiguration(new StrategyRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradingSetupRecordConfiguration());
     }
 }
