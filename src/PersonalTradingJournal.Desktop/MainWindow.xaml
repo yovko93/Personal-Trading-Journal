@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:navigation="clr-namespace:PersonalTradingJournal.Desktop.Navigation"
         xmlns:local="clr-namespace:PersonalTradingJournal.Desktop"
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
@@ -47,54 +48,90 @@
                     </ScrollViewer.Resources>
                     <StackPanel>
                         <Button Content="Dashboard"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Dashboard}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Notebook"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Notebook}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
 
                         <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
                                    Text="TRADING" />
                         <Button Content="Trades"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Trades}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Journal"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Journal}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Calendar"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Calendar}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Import"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Import}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
 
                         <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
                                    Text="ANALYSIS" />
                         <Button Content="Performance"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Performance}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Strategies"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Strategies}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Mistakes"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Mistakes}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Breakdown"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Breakdown}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
 
                         <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
                                    Text="PLANNING" />
                         <Button Content="Playbook"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Playbook}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Trading Plan"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.TradingPlan}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Rules"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Rules}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
 
                         <TextBlock Style="{StaticResource PtjNavigationSectionTextStyle}"
                                    Text="REVIEW" />
                         <Button Content="Daily Review"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.DailyReview}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Weekly Review"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.WeeklyReview}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Monthly Review"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.MonthlyReview}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
 
                         <Button Content="Accounts"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Accounts}"
                                 Margin="0,16,0,1"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Settings"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Settings}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                     </StackPanel>
                 </ScrollViewer>
@@ -112,14 +149,14 @@
                     BorderBrush="{StaticResource PtjBorderBrush}"
                     BorderThickness="0,0,0,1">
                 <TextBlock Style="{StaticResource PtjPageTitleTextStyle}"
-                           Text="Dashboard" />
+                           Text="{Binding PageTitle}" />
             </Border>
 
             <Border Grid.Row="1" Padding="32,24">
                 <TextBlock HorizontalAlignment="Left"
                            VerticalAlignment="Top"
                            Style="{StaticResource PtjSecondaryTextStyle}"
-                           Text="Dashboard content will appear here." />
+                           Text="{Binding ContentPlaceholder}" />
             </Border>
         </Grid>
     </Grid>
