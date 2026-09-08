@@ -29,6 +29,7 @@ public static class PersistenceServiceCollectionExtensions
             options.UseSqlite(connectionString));
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
+        services.AddTransient<ITradingAccountStore, TradingAccountStore>();
         services.AddTransient<IInstrumentReader, InstrumentReader>();
 
         return services;

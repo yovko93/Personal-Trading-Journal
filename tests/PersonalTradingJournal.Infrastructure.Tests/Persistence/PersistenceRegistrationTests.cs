@@ -84,6 +84,23 @@ public sealed class PersistenceRegistrationTests
     }
 
     [Fact]
+    public void AddPersistenceRegistersTradingAccountStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradingAccountStore firstStore =
+            serviceProvider.GetRequiredService<ITradingAccountStore>();
+        ITradingAccountStore secondStore =
+            serviceProvider.GetRequiredService<ITradingAccountStore>();
+
+        Assert.IsType<TradingAccountStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
     public void AddPersistenceRejectsNullApplicationPaths()
     {
         var services = new ServiceCollection();
