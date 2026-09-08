@@ -25,6 +25,8 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradeExecutionRecord> TradeExecutions => Set<TradeExecutionRecord>();
 
+    public DbSet<TradeScreenshotRecord> TradeScreenshots => Set<TradeScreenshotRecord>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -36,5 +38,6 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TradingMistakeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeExecutionRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeScreenshotRecordConfiguration());
     }
 }
