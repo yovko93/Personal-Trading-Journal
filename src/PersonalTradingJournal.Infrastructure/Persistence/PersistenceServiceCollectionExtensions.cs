@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence;
 
@@ -22,6 +23,7 @@ public static class PersistenceServiceCollectionExtensions
 
         services.AddDbContextFactory<JournalDbContext>(options =>
             options.UseSqlite(connectionString));
+        services.AddTransient<JournalDatabaseInitializer>();
 
         return services;
     }
