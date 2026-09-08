@@ -57,9 +57,17 @@ The Contracts project is reserved for stable DTOs or contracts that may later be
 
 ### PersonalTradingJournal.Desktop
 
-The Desktop project contains the WPF presentation layer and the application composition root. It owns Generic Host lifecycle management, dependency registration, logging composition, and Windows application startup and shutdown.
+The Desktop project contains the WPF presentation layer and the application composition root. It owns:
 
-Trading business logic must not accumulate in this project.
+- WPF Views and presentation ViewModels;
+- the permanent shell and its navigation state;
+- implicit `DataTemplate` ViewModel-to-View resolution;
+- reusable XAML design resources;
+- Generic Host lifecycle management and dependency injection composition;
+- logging composition; and
+- Windows application startup and shutdown.
+
+Trading and domain logic must not accumulate in this project. Practical guidance for extending this layer is documented in [Desktop UI Architecture](desktop-ui.md).
 
 ## Dependency Direction
 
@@ -84,6 +92,38 @@ Desktop
 - Contracts currently has no project dependencies.
 
 These dependencies are intentional and should not be reversed casually. They keep framework and implementation details outside the core layers.
+
+## Desktop Presentation Architecture
+
+`MainWindow` is the permanent application shell. Its XAML owns the sidebar, page header, and content region. Its code-behind is intentionally limited to constructor injection, `InitializeComponent()`, and assigning the injected `MainWindowViewModel` as its `DataContext`; business logic and navigation routing do not belong there.
+
+The shell follows this presentation flow:
+
+```text
+MainWindow
+  -> DataContext: MainWindowViewModel
+       -> CurrentDestination
+       -> NavigateCommand
+       -> PageTitle
+       -> CurrentContentViewModel
+            -> ContentControl
+                 -> implicit DataTemplate
+                      -> View
+```
+
+The ViewModels use `CommunityToolkit.Mvvm`: `ObservableObject` supplies change notification and `RelayCommand<NavigationDestination>` implements the shell command. `NavigationDestination` is Desktop-only presentation state, is not persisted, and has no domain meaning. `CurrentDestination` is the single source of truth for navigation selection; `NavigationSelectionConverter` derives each Button's selected state by comparing it with the Button's command parameter. There is no separate selected-item state.
+
+There is intentionally no `NavigationService` or `INavigationService`. `MainWindowViewModel` is currently the only component that initiates shell navigation, so another abstraction would be premature. A navigation service should be considered only when another ViewModel has a demonstrated need to initiate cross-feature navigation.
+
+`MainWindow` does not construct feature Views. Its `ContentControl` presents `CurrentContentViewModel`, and implicit `DataTemplate` mappings in `App.xaml` resolve `DashboardViewModel` to `DashboardView` and `PlaceholderViewModel` to `PlaceholderView`. The 17 destinations without real workflows share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application use cases.
+
+The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
+
+### Desktop Data-Access Boundary
+
+Desktop may depend on Application abstractions and use cases. Its reference to Infrastructure exists because Desktop is the composition root that wires concrete implementations; it does not authorize feature ViewModels to query `JournalDbContext` directly. M5 and later workflows must expose meaningful Application boundaries instead of creating a `ViewModel -> JournalDbContext` path.
+
+Desktop objects use constructor injection. ViewModels must not locate dependencies through `IServiceProvider` or another service-locator pattern.
 
 ## Persistence Boundary
 
@@ -122,6 +162,8 @@ Detailed schema, provider, and migration decisions are documented in [Persistenc
 - stopping and disposing the host.
 
 Domain and Application must not know about WPF startup or application lifecycle details.
+
+`DashboardViewModel`, `MainWindowViewModel`, and `MainWindow` are created through dependency injection. This keeps construction in the composition root while preserving constructor injection at the presentation boundary.
 
 The startup order is:
 

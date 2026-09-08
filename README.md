@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading domain model, and local EF Core/SQLite persistence. End-user trading workflows, importing, navigation, and analytics have not yet been implemented.
+The repository currently contains the application foundation, the core trading domain model, local EF Core/SQLite persistence, and the WPF shell and navigation foundation. Most end-user feature workflows, importing, data entry, and analytics have not yet been implemented.
 
 ## Current Status
 
@@ -11,6 +11,8 @@ The repository currently contains the application foundation, the core trading d
 **Milestone M2 — Domain Foundation: Complete**
 
 **Milestone M3 — EF Core + SQLite Persistence: Complete**
+
+**Milestone M4 — WPF Shell + Navigation: Complete**
 
 The completed foundation includes:
 
@@ -42,12 +44,24 @@ The M3 persistence foundation includes:
 - referential integrity that protects historical references; and
 - migrated-schema and production-wired integration tests.
 
-The next milestone is **M4 — WPF Shell + Navigation**. Persistence is ready, but end-user trade workflows and navigation are not implemented yet.
+The M4 desktop presentation foundation includes:
+
+- a `CommunityToolkit.Mvvm`-based MVVM foundation;
+- a reusable dark WPF design system and permanent application shell;
+- grouped sidebar navigation, including a top-level Notebook destination;
+- typed `NavigationDestination` state and selected-navigation UX;
+- `ContentControl` hosting with implicit ViewModel-to-View `DataTemplate` mappings;
+- a presentation-only Dashboard shell;
+- shared placeholder content for destinations without implemented workflows; and
+- keyboard, focus, scrolling, and resizing hardening.
+
+The next milestone is **M5 — Accounts + Instruments**. M5 will begin real feature and use-case implementation. Accounts, Trades, Notebook, Journal, analytics, planning, and review destinations remain placeholders, while Dashboard is currently presentation-only.
 
 ## Technology Stack
 
 - .NET 10
 - WPF
+- CommunityToolkit.Mvvm
 - Microsoft.Extensions.Hosting
 - Microsoft.Extensions.DependencyInjection through the Generic Host
 - Microsoft.Extensions.Logging
@@ -79,6 +93,7 @@ tests/
 
 docs/
 ├── architecture.md
+├── desktop-ui.md
 ├── domain-model.md
 └── persistence.md
 
@@ -91,7 +106,7 @@ docs/
 - **Application** defines application-level orchestration and abstractions, currently including `IApplicationPaths`.
 - **Infrastructure** owns local Windows storage paths and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, and runtime database initialization.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
-- **Desktop** contains the WPF presentation layer and serves as the composition root for hosting, dependency injection, storage initialization, and logging.
+- **Desktop** contains the WPF shell, presentation ViewModels and Views, navigation state, shared XAML resources, and the composition root for hosting, dependency injection, storage initialization, and logging.
 
 ## Prerequisites
 
@@ -178,7 +193,7 @@ GitHub Actions runs the CI workflow:
 
 The repository follows a domain-first design with dependencies directed toward the Domain. Infrastructure implements meaningful Application abstractions, while Desktop remains the composition and presentation layer. The system is local-first today, but the core should remain independent of WPF so a future web or SaaS presentation can evolve without replacing domain and application logic.
 
-Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the detailed rules, [Domain Model](docs/domain-model.md) for the trading model, and [Persistence](docs/persistence.md) for database semantics and migration workflow.
+Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the system-level rules, [Desktop UI](docs/desktop-ui.md) for extending the WPF presentation layer, [Domain Model](docs/domain-model.md) for the trading model, and [Persistence](docs/persistence.md) for database semantics and migration workflow.
 
 ## Documentation Policy
 
