@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PersonalTradingJournal.Infrastructure.Persistence.Converters;
 using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence.Configurations;
@@ -23,7 +24,8 @@ public sealed class TradeExecutionRecordConfiguration :
             .IsRequired();
 
         builder.Property(record => record.ExecutedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.Property(record => record.Side)
             .IsRequired()

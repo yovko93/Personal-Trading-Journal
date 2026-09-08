@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PersonalTradingJournal.Infrastructure.Persistence.Converters;
 using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence.Configurations;
@@ -27,9 +28,11 @@ public sealed class StrategyRecordConfiguration : IEntityTypeConfiguration<Strat
             .IsRequired();
 
         builder.Property(record => record.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.Property(record => record.UpdatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
     }
 }

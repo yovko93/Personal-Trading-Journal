@@ -35,6 +35,10 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
         new DateTimeOffset(2026, 9, 2, 10, 0, 0, TimeSpan.Zero)
             .AddTicks(1_234_567);
 
+    private static readonly DateTimeOffset QueryStartUtc =
+        new DateTimeOffset(2026, 9, 30, 23, 59, 59, TimeSpan.Zero)
+            .AddTicks(9_999_998);
+
     [Fact]
     public void ReferenceEntityAuditTimestampsRoundTripExactly()
     {
@@ -356,11 +360,11 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
     [Fact]
     public void DateTimeOffsetEqualityPredicateIsTranslatedBySqlite()
     {
-        DateTimeOffset target = BaseTimestampUtc.AddDays(4).AddTicks(404);
+        DateTimeOffset target = QueryStartUtc.AddTicks(2);
 
         using SqliteConnection connection = OpenConnection();
         DbContextOptions<JournalDbContext> options = CreateOptions(connection);
-        PersistQueryExecutions(options, target);
+        PersistQueryExecutions(options, QueryStartUtc);
 
         using var readContext = new JournalDbContext(options);
         int matchingSequence = readContext.TradeExecutions
@@ -369,48 +373,131 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
             .Select(record => record.Sequence)
             .Single();
 
-        Assert.Equal(2, matchingSequence);
+        Assert.Equal(3, matchingSequence);
     }
 
     [Fact]
-    public void TimestampPropertiesHaveNoInappropriateExplicitConverters()
+    public void DateTimeOffsetOrderingIsServerSideAndTickPrecise()
+    {
+        using SqliteConnection connection = OpenConnection();
+        DbContextOptions<JournalDbContext> options = CreateOptions(connection);
+        PersistQueryExecutions(options, QueryStartUtc);
+
+        using var readContext = new JournalDbContext(options);
+        int[] ascendingSequences = readContext.TradeExecutions
+            .AsNoTracking()
+            .OrderBy(record => record.ExecutedAtUtc)
+            .Select(record => record.Sequence)
+            .ToArray();
+        int[] descendingSequences = readContext.TradeExecutions
+            .AsNoTracking()
+            .OrderByDescending(record => record.ExecutedAtUtc)
+            .Select(record => record.Sequence)
+            .ToArray();
+
+        Assert.Equal([1, 2, 3, 4, 5], ascendingSequences);
+        Assert.Equal([5, 4, 3, 2, 1], descendingSequences);
+    }
+
+    [Fact]
+    public void DateTimeOffsetRangeQueryIsInclusiveAndTickPrecise()
+    {
+        DateTimeOffset fromUtc = QueryStartUtc.AddTicks(1);
+        DateTimeOffset toUtc = QueryStartUtc.AddTicks(3);
+
+        using SqliteConnection connection = OpenConnection();
+        DbContextOptions<JournalDbContext> options = CreateOptions(connection);
+        PersistQueryExecutions(options, QueryStartUtc);
+
+        using var readContext = new JournalDbContext(options);
+        int[] matchingSequences = readContext.TradeExecutions
+            .AsNoTracking()
+            .Where(record =>
+                record.ExecutedAtUtc >= fromUtc &&
+                record.ExecutedAtUtc <= toUtc)
+            .OrderBy(record => record.Sequence)
+            .Select(record => record.Sequence)
+            .ToArray();
+
+        Assert.Equal([2, 3, 4], matchingSequences);
+    }
+
+    [Fact]
+    public void NonZeroOffsetTimestampIsRejectedDuringSave()
+    {
+        var nonZeroOffset = new DateTimeOffset(
+            2026,
+            9,
+            2,
+            15,
+            0,
+            0,
+            TimeSpan.FromHours(2));
+
+        using SqliteConnection connection = OpenConnection();
+        DbContextOptions<JournalDbContext> options = CreateOptions(connection);
+
+        using var context = new JournalDbContext(options);
+        context.Database.EnsureCreated();
+        AddTradeParents(context);
+        context.Trades.Add(CreateTrade(BaseTimestampUtc, BaseTimestampUtc));
+        context.SaveChanges();
+        context.TradeExecutions.Add(CreateExecution(
+            Guid.Parse("3b6fa71b-4644-480e-bc8c-9353bf71c45b"),
+            1,
+            nonZeroOffset,
+            ExecutionSide.Buy));
+
+        DbUpdateException exception = Assert.Throws<DbUpdateException>(
+            () => context.SaveChanges());
+        ArgumentException validationException =
+            Assert.IsType<ArgumentException>(exception.InnerException);
+
+        Assert.Contains("UTC offset of zero", validationException.Message);
+    }
+
+    [Fact]
+    public void TimestampPropertiesUseDateTimeProviderAndDateTimeOffsetRecords()
     {
         var options = new DbContextOptionsBuilder<JournalDbContext>()
             .UseSqlite("Data Source=:memory:")
             .Options;
 
         using var context = new JournalDbContext(options);
-        (Type EntityType, string PropertyName)[] timestampProperties =
+        (Type EntityType, string PropertyName, Type RecordClrType)[]
+            timestampProperties =
         [
-            (typeof(InstrumentRecord), nameof(InstrumentRecord.CreatedAtUtc)),
-            (typeof(InstrumentRecord), nameof(InstrumentRecord.UpdatedAtUtc)),
-            (typeof(TradingAccountRecord), nameof(TradingAccountRecord.CreatedAtUtc)),
-            (typeof(TradingAccountRecord), nameof(TradingAccountRecord.UpdatedAtUtc)),
-            (typeof(StrategyRecord), nameof(StrategyRecord.CreatedAtUtc)),
-            (typeof(StrategyRecord), nameof(StrategyRecord.UpdatedAtUtc)),
-            (typeof(TradingSetupRecord), nameof(TradingSetupRecord.CreatedAtUtc)),
-            (typeof(TradingSetupRecord), nameof(TradingSetupRecord.UpdatedAtUtc)),
-            (typeof(TradingMistakeRecord), nameof(TradingMistakeRecord.CreatedAtUtc)),
-            (typeof(TradingMistakeRecord), nameof(TradingMistakeRecord.UpdatedAtUtc)),
-            (typeof(TradeRecord), nameof(TradeRecord.CreatedAtUtc)),
-            (typeof(TradeRecord), nameof(TradeRecord.UpdatedAtUtc)),
-            (typeof(TradeExecutionRecord), nameof(TradeExecutionRecord.ExecutedAtUtc)),
-            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.CapturedAtUtc)),
-            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.CreatedAtUtc)),
-            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.UpdatedAtUtc)),
-            (typeof(TradeMistakeRecord), nameof(TradeMistakeRecord.CreatedAtUtc)),
-            (typeof(TradeMistakeRecord), nameof(TradeMistakeRecord.UpdatedAtUtc)),
+            (typeof(InstrumentRecord), nameof(InstrumentRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(InstrumentRecord), nameof(InstrumentRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingAccountRecord), nameof(TradingAccountRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingAccountRecord), nameof(TradingAccountRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(StrategyRecord), nameof(StrategyRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(StrategyRecord), nameof(StrategyRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingSetupRecord), nameof(TradingSetupRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingSetupRecord), nameof(TradingSetupRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingMistakeRecord), nameof(TradingMistakeRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradingMistakeRecord), nameof(TradingMistakeRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeRecord), nameof(TradeRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeRecord), nameof(TradeRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeExecutionRecord), nameof(TradeExecutionRecord.ExecutedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.CapturedAtUtc), typeof(DateTimeOffset?)),
+            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeScreenshotRecord), nameof(TradeScreenshotRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeMistakeRecord), nameof(TradeMistakeRecord.CreatedAtUtc), typeof(DateTimeOffset)),
+            (typeof(TradeMistakeRecord), nameof(TradeMistakeRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
         ];
 
-        foreach ((Type entityType, string propertyName) in timestampProperties)
+        foreach (
+            (Type entityType, string propertyName, Type recordClrType)
+            in timestampProperties)
         {
             var property = context.Model.FindEntityType(entityType)!
                 .FindProperty(propertyName)!;
             var converter = property.GetValueConverter();
 
-            Assert.NotEqual(typeof(DateTime), converter?.ProviderClrType);
-            Assert.NotEqual(typeof(long), converter?.ProviderClrType);
-            Assert.NotEqual(typeof(double), converter?.ProviderClrType);
+            Assert.Equal(recordClrType, property.ClrType);
+            Assert.NotNull(converter);
+            Assert.Equal(typeof(DateTime), converter.ProviderClrType);
         }
     }
 
@@ -517,7 +604,7 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
 
     private static void PersistQueryExecutions(
         DbContextOptions<JournalDbContext> options,
-        DateTimeOffset target)
+        DateTimeOffset firstTimestampUtc)
     {
         using var writeContext = new JournalDbContext(options);
         writeContext.Database.EnsureCreated();
@@ -525,19 +612,29 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
         writeContext.Trades.Add(CreateTrade(BaseTimestampUtc, BaseTimestampUtc));
         writeContext.TradeExecutions.AddRange(
             CreateExecution(
+                Guid.Parse("7538ee83-bc7f-4154-a8ec-b493fac561a8"),
+                4,
+                firstTimestampUtc.AddTicks(3),
+                ExecutionSide.Buy),
+            CreateExecution(
                 Guid.Parse("66545cee-162f-49cb-914f-d49d32cad65e"),
                 1,
-                target.AddMinutes(-2),
+                firstTimestampUtc,
+                ExecutionSide.Buy),
+            CreateExecution(
+                Guid.Parse("683c4558-93d7-4167-80f1-ddd4b20036c8"),
+                5,
+                firstTimestampUtc.AddTicks(4),
                 ExecutionSide.Buy),
             CreateExecution(
                 Guid.Parse("2b15f76b-a4bf-4e3b-9034-b6de56d76bab"),
                 2,
-                target,
+                firstTimestampUtc.AddTicks(1),
                 ExecutionSide.Buy),
             CreateExecution(
                 Guid.Parse("213c0adc-804e-434b-bcb7-9c5ca5e2cd13"),
                 3,
-                target.AddMinutes(2),
+                firstTimestampUtc.AddTicks(2),
                 ExecutionSide.Buy));
         writeContext.SaveChanges();
     }

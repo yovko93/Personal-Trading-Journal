@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using PersonalTradingJournal.Infrastructure.Persistence.Converters;
 using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence.Configurations;
@@ -32,7 +33,8 @@ public sealed class TradeScreenshotRecordConfiguration :
             .HasMaxLength(255);
 
         builder.Property(record => record.CapturedAtUtc)
-            .IsRequired(false);
+            .IsRequired(false)
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.Property(record => record.Timeframe)
             .IsRequired(false)
@@ -43,10 +45,12 @@ public sealed class TradeScreenshotRecordConfiguration :
             .HasMaxLength(2000);
 
         builder.Property(record => record.CreatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.Property(record => record.UpdatedAtUtc)
-            .IsRequired();
+            .IsRequired()
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.HasOne<TradeRecord>()
             .WithMany()
