@@ -2,13 +2,15 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation only. Trading workflows and analysis features have not yet been implemented.
+The repository currently contains the application foundation and the core in-memory trading domain model. Database persistence, trading UI workflows, importing, and analytics have not yet been implemented.
 
 ## Current Status
 
 **Milestone M1 — Foundation: Complete**
 
-The foundation includes:
+**Milestone M2 — Domain Foundation: Complete**
+
+The completed foundation includes:
 
 - a .NET 10 solution with a layered project structure;
 - repository-wide build configuration;
@@ -19,7 +21,17 @@ The foundation includes:
 - structured Serilog file logging; and
 - automated GitHub Actions CI.
 
-Trading domain functionality has not yet been implemented. The next milestone is **M2 — Domain Foundation**.
+The M2 domain foundation includes:
+
+- shared entity identity and UTC audit primitives;
+- canonical instruments and trading-account reference data;
+- an execution-based `Trade` aggregate with scale-in, scale-out, and a directional flat-to-flat lifecycle;
+- historical pricing snapshots and closed-trade gross/net P&L;
+- independent `Strategy` and `TradingSetup` classification;
+- storage-agnostic trade-screenshot metadata; and
+- a user-defined trading-mistake catalog with trade-mistake associations.
+
+The next milestone is **M3 — EF Core + SQLite Persistence**. M2 provides domain behavior only: there is no database persistence or end-user trading workflow yet.
 
 ## Technology Stack
 
@@ -53,14 +65,15 @@ tests/
 └── PersonalTradingJournal.Infrastructure.Tests
 
 docs/
-└── architecture.md
+├── architecture.md
+└── domain-model.md
 
 .github/
 └── workflows/
     └── ci.yml
 ```
 
-- **Domain** is the independent home for the future trading domain model, rules, and invariants.
+- **Domain** contains the framework-independent M2 trading model, rules, and invariants.
 - **Application** defines application-level orchestration and abstractions, currently including `IApplicationPaths`.
 - **Infrastructure** implements Application abstractions and integrations, currently including local Windows storage paths.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
@@ -111,9 +124,9 @@ PersonalTradingJournal/
 └── backups/
 ```
 
-`journal.db` is currently only a reserved, calculated path. Database persistence has not been implemented, and the application does not create this file.
+`journal.db` is currently only a reserved, calculated path. Database persistence has not been implemented, and no persistence component creates this file.
 
-- `screenshots` is reserved for future trade screenshots.
+- `screenshots` exists as a reserved location for future screenshot storage operations. M2 defines only storage-agnostic `TradeScreenshot` metadata; it does not store image files.
 - `logs` contains the active application log files.
 - `backups` is reserved for future backup functionality.
 
@@ -143,7 +156,7 @@ GitHub Actions runs the CI workflow:
 
 The repository follows a domain-first design with dependencies directed toward the Domain. Infrastructure implements meaningful Application abstractions, while Desktop remains the composition and presentation layer. The system is local-first today, but the core should remain independent of WPF so a future web or SaaS presentation can evolve without replacing domain and application logic.
 
-Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the detailed rules.
+Abstractions and infrastructure should be introduced only when they protect a real boundary or solve a current need. See [Architecture](docs/architecture.md) for the detailed rules and [Domain Model](docs/domain-model.md) for the finalized M2 model.
 
 ## Documentation Policy
 
