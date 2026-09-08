@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PersonalTradingJournal.Desktop"
         mc:Ignorable="d"
-        Title="Personal Trading Journal" Height="450" Width="800">
+        Title="{Binding ApplicationTitle}" Height="450" Width="800">
     <Grid>
 
     </Grid>
