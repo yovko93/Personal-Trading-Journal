@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
 using Serilog;
 using System.IO;
@@ -63,6 +64,12 @@ public partial class App : System.Windows.Application
         try
         {
             await _host.StartAsync();
+
+            Log.Information("Initializing database");
+            JournalDatabaseInitializer initializer =
+                _host.Services.GetRequiredService<JournalDatabaseInitializer>();
+            await initializer.InitializeAsync();
+            Log.Information("Database initialized");
 
             MainWindow mainWindow = _host.Services.GetRequiredService<MainWindow>();
             mainWindow.Show();
