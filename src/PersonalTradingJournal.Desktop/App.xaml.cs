@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Storage;
 using Serilog;
 using System.IO;
@@ -39,6 +40,7 @@ public partial class App : System.Windows.Application
             builder.Logging.ClearProviders();
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
+            builder.Services.AddPersistence(applicationPaths);
             builder.Services.AddTransient<MainWindow>();
             builder.Services.AddSerilog(Log.Logger, dispose: false);
 
