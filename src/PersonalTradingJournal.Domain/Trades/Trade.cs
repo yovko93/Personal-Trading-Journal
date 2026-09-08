@@ -15,6 +15,8 @@ public sealed class Trade : AuditableEntity
         Guid tradingAccountId,
         Guid instrumentId,
         TradePricingSnapshot pricing,
+        Guid? strategyId,
+        Guid? tradingSetupId,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc)
@@ -30,6 +32,10 @@ public sealed class Trade : AuditableEntity
             "An instrument identifier cannot be empty.");
         ArgumentNullException.ThrowIfNull(pricing);
         Pricing = pricing;
+        StrategyId = ValidateOptionalIdentifier(strategyId, nameof(strategyId));
+        TradingSetupId = ValidateOptionalIdentifier(
+            tradingSetupId,
+            nameof(tradingSetupId));
 
         _executions = OrderAndValidateExecutions(id, executions);
         _readOnlyExecutions = _executions.AsReadOnly();
@@ -40,6 +46,10 @@ public sealed class Trade : AuditableEntity
     public Guid InstrumentId { get; }
 
     public TradePricingSnapshot Pricing { get; }
+
+    public Guid? StrategyId { get; private set; }
+
+    public Guid? TradingSetupId { get; private set; }
 
     public TradeDirection Direction =>
         _executions[0].Side == ExecutionSide.Buy
@@ -103,6 +113,8 @@ public sealed class Trade : AuditableEntity
             tradingAccountId,
             instrumentId,
             pricing,
+            null,
+            null,
             [openingExecution],
             createdAtUtc,
             createdAtUtc);
@@ -113,6 +125,8 @@ public sealed class Trade : AuditableEntity
         Guid tradingAccountId,
         Guid instrumentId,
         TradePricingSnapshot pricing,
+        Guid? strategyId,
+        Guid? tradingSetupId,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
         DateTimeOffset updatedAtUtc)
@@ -125,9 +139,34 @@ public sealed class Trade : AuditableEntity
             tradingAccountId,
             instrumentId,
             pricing,
+            strategyId,
+            tradingSetupId,
             executions,
             createdAtUtc,
             updatedAtUtc);
+    }
+
+    public void SetClassification(
+        Guid? strategyId,
+        Guid? tradingSetupId,
+        DateTimeOffset updatedAtUtc)
+    {
+        Guid? validatedStrategyId = ValidateOptionalIdentifier(
+            strategyId,
+            nameof(strategyId));
+        Guid? validatedTradingSetupId = ValidateOptionalIdentifier(
+            tradingSetupId,
+            nameof(tradingSetupId));
+
+        if (StrategyId == validatedStrategyId &&
+            TradingSetupId == validatedTradingSetupId)
+        {
+            return;
+        }
+
+        SetUpdatedAtUtc(updatedAtUtc);
+        StrategyId = validatedStrategyId;
+        TradingSetupId = validatedTradingSetupId;
     }
 
     public void AddExecution(
@@ -267,6 +306,18 @@ public sealed class Trade : AuditableEntity
         if (id == Guid.Empty)
         {
             throw new ArgumentException(message, parameterName);
+        }
+
+        return id;
+    }
+
+    private static Guid? ValidateOptionalIdentifier(Guid? id, string parameterName)
+    {
+        if (id == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A classification identifier cannot be empty.",
+                parameterName);
         }
 
         return id;
