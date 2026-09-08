@@ -1,15 +1,23 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Desktop.Navigation;
+using PersonalTradingJournal.Desktop.ViewModels.Common;
+using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
 public sealed class MainWindowViewModel : ObservableObject
 {
+    private readonly DashboardViewModel _dashboardViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
+    private ObservableObject _currentContentViewModel;
 
-    public MainWindowViewModel()
+    public MainWindowViewModel(DashboardViewModel dashboardViewModel)
     {
+        ArgumentNullException.ThrowIfNull(dashboardViewModel);
+
+        _dashboardViewModel = dashboardViewModel;
+        _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
     }
 
@@ -54,10 +62,24 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public string ContentPlaceholder => $"{PageTitle} content will appear here.";
 
+    public ObservableObject CurrentContentViewModel
+    {
+        get => _currentContentViewModel;
+        private set => SetProperty(ref _currentContentViewModel, value);
+    }
+
     public IRelayCommand<NavigationDestination> NavigateCommand { get; }
 
     private void Navigate(NavigationDestination destination)
     {
+        if (destination == CurrentDestination)
+        {
+            return;
+        }
+
         CurrentDestination = destination;
+        CurrentContentViewModel = destination == NavigationDestination.Dashboard
+            ? _dashboardViewModel
+            : new PlaceholderViewModel(ContentPlaceholder);
     }
 }

@@ -1,0 +1,12 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Dashboard.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel HorizontalAlignment="Left"
+                VerticalAlignment="Top">
+        <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                   Text="Trading overview" />
+        <TextBlock Margin="0,8,0,0"
+                   Style="{StaticResource PtjSecondaryTextStyle}"
+                   Text="Your trading overview will appear here." />
+    </StackPanel>
+</UserControl>

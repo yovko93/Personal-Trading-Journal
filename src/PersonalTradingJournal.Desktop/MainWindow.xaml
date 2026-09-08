@@ -153,10 +153,9 @@
             </Border>
 
             <Border Grid.Row="1" Padding="32,24">
-                <TextBlock HorizontalAlignment="Left"
-                           VerticalAlignment="Top"
-                           Style="{StaticResource PtjSecondaryTextStyle}"
-                           Text="{Binding ContentPlaceholder}" />
+                <ContentControl HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch"
+                                Content="{Binding CurrentContentViewModel}" />
             </Border>
         </Grid>
     </Grid>
