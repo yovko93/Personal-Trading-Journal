@@ -1,5 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters">
+    <converters:NavigationSelectionConverter x:Key="PtjNavigationSelectionConverter" />
+
     <Style x:Key="PtjWindowStyle" TargetType="{x:Type Window}">
         <Setter Property="Background" Value="{StaticResource PtjBackgroundBrush}" />
         <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
@@ -127,6 +130,22 @@
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <DataTrigger Value="True">
+                <DataTrigger.Binding>
+                    <MultiBinding Converter="{StaticResource PtjNavigationSelectionConverter}">
+                        <Binding Path="CurrentDestination" />
+                        <Binding Path="CommandParameter"
+                                 RelativeSource="{RelativeSource Self}" />
+                    </MultiBinding>
+                </DataTrigger.Binding>
+                <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
+                <Setter Property="BorderThickness" Value="3,0,0,0" />
+                <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="PtjNavigationSectionTextStyle" TargetType="{x:Type TextBlock}">
