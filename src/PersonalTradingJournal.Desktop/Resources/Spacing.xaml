@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:system="clr-namespace:System;assembly=System.Runtime">
+    <system:Double x:Key="PtjSpacingXs">4</system:Double>
+    <system:Double x:Key="PtjSpacingSm">8</system:Double>
+    <system:Double x:Key="PtjSpacingMd">12</system:Double>
+    <system:Double x:Key="PtjSpacingLg">16</system:Double>
+    <system:Double x:Key="PtjSpacingXl">24</system:Double>
+    <system:Double x:Key="PtjSpacing2Xl">32</system:Double>
+
+    <CornerRadius x:Key="PtjCornerRadiusSm">4</CornerRadius>
+    <CornerRadius x:Key="PtjCornerRadiusMd">8</CornerRadius>
+    <Thickness x:Key="PtjButtonPadding">12,8</Thickness>
+    <Thickness x:Key="PtjCardPadding">16</Thickness>
+</ResourceDictionary>
