@@ -48,7 +48,8 @@ Every application entity has an application/domain-generated `Guid` primary key.
 
 ## Domain Mapping
 
-Each record type has a corresponding explicit persistence mapper. `ToRecord(...)` captures authoritative Domain state, while `ToDomain(...)` calls the entity's `Rehydrate(...)` API. Trade rehydration additionally maps and orders its execution records so the Domain can validate and reconstruct the aggregate lifecycle.
+Each record type has a corresponding explicit persistence mapper. `ToRecord(...)` captures authoritative Domain state, while `ToDomain(...)` calls the entity's `Rehydrate(...)` API. Trade rehydration maps execution records mechanically and passes them to
+Trade.Rehydrate(...). The Domain owns execution ordering and aggregate validation before reconstructing the trade lifecycle.
 
 Inactive reference records are still mapped and queryable. `IsActive` controls lifecycle and future selection behavior; it is not a historical-visibility filter. There are no global `IsActive` query filters.
 
