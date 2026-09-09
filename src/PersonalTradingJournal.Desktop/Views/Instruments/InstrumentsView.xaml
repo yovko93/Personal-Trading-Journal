@@ -17,13 +17,16 @@
         </Style>
     </UserControl.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <ScrollViewer HorizontalContentAlignment="Stretch"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
+
+        <StackPanel>
 
         <Grid>
             <Grid.ColumnDefinitions>
@@ -49,8 +52,7 @@
             </StackPanel>
         </Grid>
 
-        <Border Grid.Row="1"
-                Margin="0,12,0,0"
+        <Border Margin="0,12,0,0"
                 Padding="20">
             <Border.Style>
                 <Style TargetType="{x:Type Border}"
@@ -178,7 +180,7 @@
             </StackPanel>
         </Border>
 
-        <StackPanel Grid.Row="2" Margin="0,12,0,12">
+        <StackPanel Margin="0,12,0,12">
             <TextBlock Text="Loading instruments...">
                 <TextBlock.Style>
                     <Style TargetType="{x:Type TextBlock}"
@@ -209,7 +211,7 @@
             </TextBlock>
         </StackPanel>
 
-        <Grid Grid.Row="3">
+        <Grid>
             <Border Padding="24"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Top">
@@ -248,7 +250,7 @@
 
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <Grid Margin="16,0,16,8">
@@ -297,17 +299,9 @@
                                Text="Status" />
                 </Grid>
 
-                <ScrollViewer Grid.Row="1"
-                              HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto"
-                              PanningMode="VerticalOnly">
-                    <ScrollViewer.Resources>
-                        <Style TargetType="{x:Type ScrollBar}"
-                               BasedOn="{StaticResource PtjScrollBarStyle}" />
-                    </ScrollViewer.Resources>
-
-                    <ItemsControl HorizontalContentAlignment="Stretch"
-                                  ItemsSource="{Binding Instruments}">
+                <ItemsControl Grid.Row="1"
+                              HorizontalContentAlignment="Stretch"
+                              ItemsSource="{Binding Instruments}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border MinHeight="52"
@@ -375,9 +369,9 @@
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                </ItemsControl>
             </Grid>
         </Grid>
-    </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
