@@ -15,9 +15,13 @@ public sealed class InstrumentsViewModel : ObservableObject
         NumberStyles.AllowLeadingSign |
         NumberStyles.AllowDecimalPoint;
     private const string CreateErrorMessageFallback = "Instrument could not be created.";
+    private const string CreateReloadErrorMessage =
+        "Instrument was created, but the list could not be refreshed. Refresh to see the latest data.";
     private const string InvalidInstrumentDetailsMessage = "Please check the instrument details.";
     private const string LifecycleErrorMessageFallback = "Instrument status could not be changed.";
     private const string LifecycleNotFoundMessage = "Instrument no longer exists. Refresh the list.";
+    private const string LifecycleReloadErrorMessage =
+        "Instrument status changed, but the list could not be refreshed. Refresh to see the latest status.";
     private const string LoadErrorMessage = "Instruments could not be loaded.";
 
     private readonly IInstrumentReader _instrumentReader;
@@ -232,14 +236,14 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public IAsyncRelayCommand<InstrumentListItem> DeactivateInstrumentCommand { get; }
 
-    public Task EnsureLoadedAsync()
+    public async Task EnsureLoadedAsync()
     {
-        return LoadAsync(forceRefresh: false, CancellationToken.None);
+        _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
     }
 
-    private Task RefreshAsync(CancellationToken cancellationToken)
+    private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        return LoadAsync(forceRefresh: true, cancellationToken);
+        _ = await LoadAsync(forceRefresh: true, cancellationToken);
     }
 
     private bool CanRefresh() =>
@@ -319,10 +323,22 @@ public sealed class InstrumentsViewModel : ObservableObject
                 tickValue);
 
             await _createInstrumentUseCase.ExecuteAsync(command, cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
 
-            ResetCreateForm();
-            IsCreateFormVisible = false;
+            bool wasReloaded;
+            try
+            {
+                wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+            }
+            finally
+            {
+                ResetCreateForm();
+                IsCreateFormVisible = false;
+            }
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = CreateReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -397,7 +413,12 @@ public sealed class InstrumentsViewModel : ObservableObject
             await _instrumentLifecycleUseCase.ActivateAsync(
                 instrument.Id,
                 cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
+            bool wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = LifecycleReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -434,7 +455,12 @@ public sealed class InstrumentsViewModel : ObservableObject
             await _instrumentLifecycleUseCase.DeactivateAsync(
                 instrument.Id,
                 cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
+            bool wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = LifecycleReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -463,20 +489,20 @@ public sealed class InstrumentsViewModel : ObservableObject
         DeactivateInstrumentCommand.NotifyCanExecuteChanged();
     }
 
-    private async Task LoadAsync(
+    private async Task<bool> LoadAsync(
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
         if (!await _loadGate.WaitAsync(0, cancellationToken))
         {
-            return;
+            return false;
         }
 
         try
         {
             if (!forceRefresh && _hasLoadedSuccessfully)
             {
-                return;
+                return true;
             }
 
             IsLoading = true;
@@ -489,6 +515,7 @@ public sealed class InstrumentsViewModel : ObservableObject
 
                 Instruments = instruments;
                 _hasLoadedSuccessfully = true;
+                return true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -497,6 +524,7 @@ public sealed class InstrumentsViewModel : ObservableObject
             catch (Exception)
             {
                 ErrorMessage = LoadErrorMessage;
+                return false;
             }
             finally
             {

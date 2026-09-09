@@ -9,9 +9,13 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Accounts;
 public sealed class AccountsViewModel : ObservableObject
 {
     private const string CreateErrorMessageFallback = "Account could not be created.";
+    private const string CreateReloadErrorMessage =
+        "Account was created, but the list could not be refreshed. Refresh to see the latest data.";
     private const string InvalidAccountDetailsMessage = "Please check the account details.";
     private const string LifecycleErrorMessageFallback = "Account status could not be changed.";
     private const string LifecycleNotFoundMessage = "Account no longer exists. Refresh the list.";
+    private const string LifecycleReloadErrorMessage =
+        "Account status changed, but the list could not be refreshed. Refresh to see the latest status.";
     private const string LoadErrorMessage = "Accounts could not be loaded.";
 
     private readonly ITradingAccountReader _accountReader;
@@ -217,14 +221,14 @@ public sealed class AccountsViewModel : ObservableObject
 
     public IAsyncRelayCommand<AccountListItem> DeactivateAccountCommand { get; }
 
-    public Task EnsureLoadedAsync()
+    public async Task EnsureLoadedAsync()
     {
-        return LoadAsync(forceRefresh: false, CancellationToken.None);
+        _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
     }
 
-    private Task RefreshAsync(CancellationToken cancellationToken)
+    private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        return LoadAsync(forceRefresh: true, cancellationToken);
+        _ = await LoadAsync(forceRefresh: true, cancellationToken);
     }
 
     private bool CanRefresh() =>
@@ -301,10 +305,22 @@ public sealed class AccountsViewModel : ObservableObject
                 startingBalance);
 
             await _createTradingAccountUseCase.ExecuteAsync(command, cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
 
-            ResetCreateForm();
-            IsCreateFormVisible = false;
+            bool wasReloaded;
+            try
+            {
+                wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+            }
+            finally
+            {
+                ResetCreateForm();
+                IsCreateFormVisible = false;
+            }
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = CreateReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -364,7 +380,12 @@ public sealed class AccountsViewModel : ObservableObject
             await _tradingAccountLifecycleUseCase.ActivateAsync(
                 account.Id,
                 cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
+            bool wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = LifecycleReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -401,7 +422,12 @@ public sealed class AccountsViewModel : ObservableObject
             await _tradingAccountLifecycleUseCase.DeactivateAsync(
                 account.Id,
                 cancellationToken);
-            await LoadAsync(forceRefresh: true, cancellationToken);
+            bool wasReloaded = await LoadAsync(forceRefresh: true, cancellationToken);
+
+            if (!wasReloaded)
+            {
+                ErrorMessage = LifecycleReloadErrorMessage;
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -430,20 +456,20 @@ public sealed class AccountsViewModel : ObservableObject
         DeactivateAccountCommand.NotifyCanExecuteChanged();
     }
 
-    private async Task LoadAsync(
+    private async Task<bool> LoadAsync(
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
         if (!await _loadGate.WaitAsync(0, cancellationToken))
         {
-            return;
+            return false;
         }
 
         try
         {
             if (!forceRefresh && _hasLoadedSuccessfully)
             {
-                return;
+                return true;
             }
 
             IsLoading = true;
@@ -456,6 +482,7 @@ public sealed class AccountsViewModel : ObservableObject
 
                 Accounts = accounts;
                 _hasLoadedSuccessfully = true;
+                return true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -464,6 +491,7 @@ public sealed class AccountsViewModel : ObservableObject
             catch (Exception)
             {
                 ErrorMessage = LoadErrorMessage;
+                return false;
             }
             finally
             {
