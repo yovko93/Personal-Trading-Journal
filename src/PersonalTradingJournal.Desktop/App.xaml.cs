@@ -52,6 +52,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<CreateInstrumentUseCase>();
+            builder.Services.AddTransient<InstrumentLifecycleUseCase>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();

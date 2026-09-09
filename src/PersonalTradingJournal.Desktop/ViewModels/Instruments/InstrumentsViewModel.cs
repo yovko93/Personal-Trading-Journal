@@ -16,10 +16,13 @@ public sealed class InstrumentsViewModel : ObservableObject
         NumberStyles.AllowDecimalPoint;
     private const string CreateErrorMessageFallback = "Instrument could not be created.";
     private const string InvalidInstrumentDetailsMessage = "Please check the instrument details.";
+    private const string LifecycleErrorMessageFallback = "Instrument status could not be changed.";
+    private const string LifecycleNotFoundMessage = "Instrument no longer exists. Refresh the list.";
     private const string LoadErrorMessage = "Instruments could not be loaded.";
 
     private readonly IInstrumentReader _instrumentReader;
     private readonly CreateInstrumentUseCase _createInstrumentUseCase;
+    private readonly InstrumentLifecycleUseCase _instrumentLifecycleUseCase;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private string _currency = string.Empty;
     private string? _createErrorMessage;
@@ -29,8 +32,10 @@ public sealed class InstrumentsViewModel : ObservableObject
     private bool _hasLoadedSuccessfully;
     private IReadOnlyList<InstrumentListItem> _instruments = [];
     private bool _isCreateFormVisible;
+    private bool _isChangingInstrumentState;
     private bool _isCreating;
     private bool _isLoading;
+    private string? _lifecycleErrorMessage;
     private AssetClass _selectedAssetClass = AssetClass.Futures;
     private string _symbol = string.Empty;
     private string _tickSizeText = string.Empty;
@@ -38,19 +43,28 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public InstrumentsViewModel(
         IInstrumentReader instrumentReader,
-        CreateInstrumentUseCase createInstrumentUseCase)
+        CreateInstrumentUseCase createInstrumentUseCase,
+        InstrumentLifecycleUseCase instrumentLifecycleUseCase)
     {
         ArgumentNullException.ThrowIfNull(instrumentReader);
         ArgumentNullException.ThrowIfNull(createInstrumentUseCase);
+        ArgumentNullException.ThrowIfNull(instrumentLifecycleUseCase);
 
         _instrumentReader = instrumentReader;
         _createInstrumentUseCase = createInstrumentUseCase;
+        _instrumentLifecycleUseCase = instrumentLifecycleUseCase;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
         CreateInstrumentCommand = new AsyncRelayCommand(
             CreateInstrumentAsync,
             CanCreateInstrument);
+        ActivateInstrumentCommand = new AsyncRelayCommand<InstrumentListItem>(
+            ActivateInstrumentAsync,
+            CanActivateInstrument);
+        DeactivateInstrumentCommand = new AsyncRelayCommand<InstrumentListItem>(
+            DeactivateInstrumentAsync,
+            CanDeactivateInstrument);
     }
 
     public IReadOnlyList<InstrumentListItem> Instruments
@@ -61,6 +75,8 @@ public sealed class InstrumentsViewModel : ObservableObject
             if (SetProperty(ref _instruments, value))
             {
                 OnPropertyChanged(nameof(HasInstruments));
+                ActivateInstrumentCommand.NotifyCanExecuteChanged();
+                DeactivateInstrumentCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -178,6 +194,32 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public bool HasCreateError => CreateErrorMessage is not null;
 
+    public bool IsChangingInstrumentState
+    {
+        get => _isChangingInstrumentState;
+        private set
+        {
+            if (SetProperty(ref _isChangingInstrumentState, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? LifecycleErrorMessage
+    {
+        get => _lifecycleErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _lifecycleErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasLifecycleError));
+            }
+        }
+    }
+
+    public bool HasLifecycleError => LifecycleErrorMessage is not null;
+
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IRelayCommand ShowCreateFormCommand { get; }
@@ -185,6 +227,10 @@ public sealed class InstrumentsViewModel : ObservableObject
     public IRelayCommand CancelCreateCommand { get; }
 
     public IAsyncRelayCommand CreateInstrumentCommand { get; }
+
+    public IAsyncRelayCommand<InstrumentListItem> ActivateInstrumentCommand { get; }
+
+    public IAsyncRelayCommand<InstrumentListItem> DeactivateInstrumentCommand { get; }
 
     public Task EnsureLoadedAsync()
     {
@@ -196,7 +242,8 @@ public sealed class InstrumentsViewModel : ObservableObject
         return LoadAsync(forceRefresh: true, cancellationToken);
     }
 
-    private bool CanRefresh() => !IsLoading && !IsCreating;
+    private bool CanRefresh() =>
+        !IsLoading && !IsCreating && !IsChangingInstrumentState;
 
     private void ShowCreateForm()
     {
@@ -207,7 +254,8 @@ public sealed class InstrumentsViewModel : ObservableObject
     private bool CanShowCreateForm() =>
         !IsCreateFormVisible &&
         !IsLoading &&
-        !IsCreating;
+        !IsCreating &&
+        !IsChangingInstrumentState;
 
     private void CancelCreate()
     {
@@ -220,7 +268,8 @@ public sealed class InstrumentsViewModel : ObservableObject
     private bool CanCreateInstrument() =>
         IsCreateFormVisible &&
         !IsCreating &&
-        !IsLoading;
+        !IsLoading &&
+        !IsChangingInstrumentState;
 
     private async Task CreateInstrumentAsync(CancellationToken cancellationToken)
     {
@@ -319,11 +368,99 @@ public sealed class InstrumentsViewModel : ObservableObject
         CreateErrorMessage = null;
     }
 
+    private bool CanActivateInstrument(InstrumentListItem? instrument) =>
+        instrument is { IsActive: false } && CanChangeInstrumentState();
+
+    private bool CanDeactivateInstrument(InstrumentListItem? instrument) =>
+        instrument is { IsActive: true } && CanChangeInstrumentState();
+
+    private bool CanChangeInstrumentState() =>
+        !IsLoading &&
+        !IsCreating &&
+        !IsChangingInstrumentState &&
+        !IsCreateFormVisible;
+
+    private async Task ActivateInstrumentAsync(
+        InstrumentListItem? instrument,
+        CancellationToken cancellationToken)
+    {
+        if (instrument is null)
+        {
+            return;
+        }
+
+        LifecycleErrorMessage = null;
+        IsChangingInstrumentState = true;
+
+        try
+        {
+            await _instrumentLifecycleUseCase.ActivateAsync(
+                instrument.Id,
+                cancellationToken);
+            await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            LifecycleErrorMessage = LifecycleNotFoundMessage;
+        }
+        catch (Exception)
+        {
+            LifecycleErrorMessage = LifecycleErrorMessageFallback;
+        }
+        finally
+        {
+            IsChangingInstrumentState = false;
+        }
+    }
+
+    private async Task DeactivateInstrumentAsync(
+        InstrumentListItem? instrument,
+        CancellationToken cancellationToken)
+    {
+        if (instrument is null)
+        {
+            return;
+        }
+
+        LifecycleErrorMessage = null;
+        IsChangingInstrumentState = true;
+
+        try
+        {
+            await _instrumentLifecycleUseCase.DeactivateAsync(
+                instrument.Id,
+                cancellationToken);
+            await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            LifecycleErrorMessage = LifecycleNotFoundMessage;
+        }
+        catch (Exception)
+        {
+            LifecycleErrorMessage = LifecycleErrorMessageFallback;
+        }
+        finally
+        {
+            IsChangingInstrumentState = false;
+        }
+    }
+
     private void NotifyOperationCanExecuteChanged()
     {
         RefreshCommand.NotifyCanExecuteChanged();
         ShowCreateFormCommand.NotifyCanExecuteChanged();
         CreateInstrumentCommand.NotifyCanExecuteChanged();
+        ActivateInstrumentCommand.NotifyCanExecuteChanged();
+        DeactivateInstrumentCommand.NotifyCanExecuteChanged();
     }
 
     private async Task LoadAsync(

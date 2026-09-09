@@ -209,6 +209,21 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <TextBlock Text="{Binding LifecycleErrorMessage}">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}"
+                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasLifecycleError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
 
         <Grid>
@@ -255,15 +270,16 @@
 
                 <Grid Margin="16,0,16,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="0.85*" />
-                        <ColumnDefinition Width="1.55*" />
-                        <ColumnDefinition Width="1.1*" />
-                        <ColumnDefinition Width="0.9*" />
-                        <ColumnDefinition Width="0.7*" />
-                        <ColumnDefinition Width="0.9*" />
-                        <ColumnDefinition Width="0.9*" />
-                        <ColumnDefinition Width="1.05*" />
                         <ColumnDefinition Width="0.8*" />
+                        <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="1.0*" />
+                        <ColumnDefinition Width="0.8*" />
+                        <ColumnDefinition Width="0.7*" />
+                        <ColumnDefinition Width="0.85*" />
+                        <ColumnDefinition Width="0.85*" />
+                        <ColumnDefinition Width="0.95*" />
+                        <ColumnDefinition Width="0.75*" />
+                        <ColumnDefinition Width="1.4*" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -297,6 +313,10 @@
                                HorizontalAlignment="Right"
                                Style="{StaticResource InstrumentColumnHeaderStyle}"
                                Text="Status" />
+                    <TextBlock Grid.Column="9"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Action" />
                 </Grid>
 
                 <ItemsControl Grid.Row="1"
@@ -310,15 +330,16 @@
                                         Style="{StaticResource PtjCardStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="0.85*" />
-                                            <ColumnDefinition Width="1.55*" />
-                                            <ColumnDefinition Width="1.1*" />
-                                            <ColumnDefinition Width="0.9*" />
-                                            <ColumnDefinition Width="0.7*" />
-                                            <ColumnDefinition Width="0.9*" />
-                                            <ColumnDefinition Width="0.9*" />
-                                            <ColumnDefinition Width="1.05*" />
                                             <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="1.4*" />
+                                            <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                            <ColumnDefinition Width="0.95*" />
+                                            <ColumnDefinition Width="0.75*" />
+                                            <ColumnDefinition Width="1.4*" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -365,6 +386,44 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
+
+                                        <Grid Grid.Column="9"
+                                              Margin="8,0,0,0"
+                                              HorizontalAlignment="Right">
+                                            <Button Padding="10,6"
+                                                    Command="{Binding DataContext.DeactivateInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Deactivate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                            <Button Padding="10,6"
+                                                    Command="{Binding DataContext.ActivateInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Activate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
