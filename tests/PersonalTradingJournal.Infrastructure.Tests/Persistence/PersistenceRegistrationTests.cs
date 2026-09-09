@@ -101,6 +101,23 @@ public sealed class PersistenceRegistrationTests
     }
 
     [Fact]
+    public void AddPersistenceRegistersInstrumentStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IInstrumentStore firstStore =
+            serviceProvider.GetRequiredService<IInstrumentStore>();
+        IInstrumentStore secondStore =
+            serviceProvider.GetRequiredService<IInstrumentStore>();
+
+        Assert.IsType<InstrumentStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
     public void AddPersistenceRejectsNullApplicationPaths()
     {
         var services = new ServiceCollection();
