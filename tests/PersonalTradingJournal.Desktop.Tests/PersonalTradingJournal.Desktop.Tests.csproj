@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PersonalTradingJournal.Desktop\PersonalTradingJournal.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\PersonalTradingJournal.Application\PersonalTradingJournal.Application.csproj" />
+    <ProjectReference Include="..\..\src\PersonalTradingJournal.Domain\PersonalTradingJournal.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
