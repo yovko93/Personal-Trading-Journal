@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
@@ -50,6 +51,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
+            builder.Services.AddTransient<CreateInstrumentUseCase>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();

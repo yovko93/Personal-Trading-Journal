@@ -21,6 +21,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -35,14 +36,149 @@
                        Text="Reference instruments used across trades and journal activity."
                        TextWrapping="Wrap" />
 
-            <Button Grid.Column="1"
-                    Margin="16,0,0,0"
-                    Command="{Binding RefreshCommand}"
-                    Content="Refresh"
-                    Style="{StaticResource PtjButtonStyle}" />
+            <StackPanel Grid.Column="1"
+                        Margin="16,0,0,0"
+                        Orientation="Horizontal">
+                <Button Command="{Binding RefreshCommand}"
+                        Content="Refresh"
+                        Style="{StaticResource PtjButtonStyle}" />
+                <Button Margin="8,0,0,0"
+                        Command="{Binding ShowCreateFormCommand}"
+                        Content="Add Instrument"
+                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+            </StackPanel>
         </Grid>
 
-        <StackPanel Grid.Row="1" Margin="0,12,0,12">
+        <Border Grid.Row="1"
+                Margin="0,12,0,0"
+                Padding="20">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}"
+                       BasedOn="{StaticResource PtjCardStyle}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <StackPanel>
+                <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                           Text="Add Instrument" />
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCreating}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Symbol *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Display Name *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Asset Class *" />
+                        <ComboBox ItemsSource="{Binding AssetClasses}"
+                                  SelectedItem="{Binding SelectedAssetClass}"
+                                  Style="{StaticResource PtjComboBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Exchange" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Exchange, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Currency *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Tick Size *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Tick Value *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding TickValueText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Margin="0,12,0,0"
+                           Text="{Binding CreateErrorMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasCreateError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                    <Button Command="{Binding CancelCreateCommand}"
+                            Content="Cancel"
+                            Style="{StaticResource PtjButtonStyle}" />
+                    <Button Margin="8,0,0,0"
+                            Command="{Binding CreateInstrumentCommand}"
+                            Content="Create Instrument"
+                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,12">
             <TextBlock Text="Loading instruments...">
                 <TextBlock.Style>
                     <Style TargetType="{x:Type TextBlock}"
@@ -73,7 +209,7 @@
             </TextBlock>
         </StackPanel>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Border Padding="24"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Top">
