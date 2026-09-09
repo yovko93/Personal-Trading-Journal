@@ -24,12 +24,14 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
@@ -43,9 +45,139 @@
                     Command="{Binding RefreshCommand}"
                     Content="Refresh"
                     Style="{StaticResource PtjButtonStyle}" />
+
+            <Button Grid.Column="2"
+                    Margin="8,0,0,0"
+                    Command="{Binding ShowCreateFormCommand}"
+                    Content="Add Account"
+                    Style="{StaticResource PtjPrimaryButtonStyle}" />
         </Grid>
 
-        <StackPanel Grid.Row="1" Margin="0,12,0,12">
+        <Border Grid.Row="1" Margin="0,16,0,0">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}"
+                       BasedOn="{StaticResource PtjCardStyle}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <StackPanel>
+                <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                           Text="Add Account" />
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCreating}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Name *" />
+                        <TextBox Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource PtjTextBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Account Type *" />
+                        <ComboBox ItemsSource="{Binding AccountTypes}"
+                                  SelectedItem="{Binding SelectedAccountType}"
+                                  Style="{StaticResource PtjComboBoxStyle}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource AccountTypeDisplayConverter}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Provider" />
+                        <TextBox Text="{Binding ProviderName, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource PtjTextBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="External Account ID" />
+                        <TextBox Text="{Binding ExternalAccountId, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource PtjTextBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Currency *" />
+                        <TextBox Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource PtjTextBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,0">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Starting Balance" />
+                        <TextBox Text="{Binding StartingBalanceText, UpdateSourceTrigger=PropertyChanged}"
+                                 Style="{StaticResource PtjTextBoxStyle}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Margin="0,12,0,0"
+                           Text="{Binding CreateErrorMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasCreateError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                    <Button Command="{Binding CancelCreateCommand}"
+                            Content="Cancel"
+                            Style="{StaticResource PtjButtonStyle}" />
+                    <Button Margin="8,0,0,0"
+                            Command="{Binding CreateAccountCommand}"
+                            Content="Create Account"
+                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Margin="0,12,0,12">
             <TextBlock Text="Loading accounts...">
                 <TextBlock.Style>
                     <Style TargetType="{x:Type TextBlock}"
@@ -76,7 +208,7 @@
             </TextBlock>
         </StackPanel>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="3">
             <Border Padding="24"
                     HorizontalAlignment="Stretch"
                     VerticalAlignment="Top">
