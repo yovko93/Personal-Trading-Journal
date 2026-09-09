@@ -29,4 +29,35 @@ public sealed class InstrumentStore : IInstrumentStore
         context.Instruments.Add(InstrumentPersistenceMapper.ToRecord(instrument));
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Instrument?> GetByIdAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var record = await context.Instruments
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == instrumentId,
+                cancellationToken);
+
+        return record is null
+            ? null
+            : InstrumentPersistenceMapper.ToDomain(record);
+    }
+
+    public async Task UpdateAsync(
+        Instrument instrument,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(instrument);
+
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        context.Instruments.Update(InstrumentPersistenceMapper.ToRecord(instrument));
+        await context.SaveChangesAsync(cancellationToken);
+    }
 }

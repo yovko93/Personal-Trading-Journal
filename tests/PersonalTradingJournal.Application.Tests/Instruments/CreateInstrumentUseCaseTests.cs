@@ -164,6 +164,20 @@ public sealed class CreateInstrumentUseCaseTests
 
             return Task.CompletedTask;
         }
+
+        public Task<Instrument?> GetByIdAsync(
+            Guid instrumentId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task UpdateAsync(
+            Instrument instrument,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class FixedTimeProvider : TimeProvider
@@ -192,6 +206,20 @@ public sealed class CreateInstrumentUseCaseTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromException(_exception);
+        }
+
+        public Task<Instrument?> GetByIdAsync(
+            Guid instrumentId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task UpdateAsync(
+            Instrument instrument,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }
