@@ -19,5 +19,6 @@ public enum NavigationDestination
     WeeklyReview,
     MonthlyReview,
     Accounts,
+    Instruments,
     Settings
 }

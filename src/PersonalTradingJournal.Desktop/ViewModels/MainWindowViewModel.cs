@@ -4,6 +4,7 @@ using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
@@ -11,18 +12,22 @@ public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
+    private readonly InstrumentsViewModel _instrumentsViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
 
     public MainWindowViewModel(
         DashboardViewModel dashboardViewModel,
-        AccountsViewModel accountsViewModel)
+        AccountsViewModel accountsViewModel,
+        InstrumentsViewModel instrumentsViewModel)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
+        ArgumentNullException.ThrowIfNull(instrumentsViewModel);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
+        _instrumentsViewModel = instrumentsViewModel;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
     }
@@ -61,6 +66,7 @@ public sealed class MainWindowViewModel : ObservableObject
         NavigationDestination.WeeklyReview => "Weekly Review",
         NavigationDestination.MonthlyReview => "Monthly Review",
         NavigationDestination.Accounts => "Accounts",
+        NavigationDestination.Instruments => "Instruments",
         NavigationDestination.Settings => "Settings",
         _ => throw new InvalidOperationException(
             $"Unsupported navigation destination: {CurrentDestination}.")
@@ -88,12 +94,18 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
+            NavigationDestination.Instruments => _instrumentsViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
 
         if (destination == NavigationDestination.Accounts)
         {
             _ = _accountsViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Instruments)
+        {
+            _ = _instrumentsViewModel.EnsureLoadedAsync();
         }
     }
 }
