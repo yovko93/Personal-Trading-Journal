@@ -158,6 +158,20 @@ public sealed class CreateTradingAccountUseCaseTests
 
             return Task.CompletedTask;
         }
+
+        public Task<TradingAccount?> GetByIdAsync(
+            Guid accountId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task UpdateAsync(
+            TradingAccount account,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private sealed class FixedTimeProvider : TimeProvider
@@ -186,6 +200,20 @@ public sealed class CreateTradingAccountUseCaseTests
             CancellationToken cancellationToken = default)
         {
             return Task.FromException(_exception);
+        }
+
+        public Task<TradingAccount?> GetByIdAsync(
+            Guid accountId,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
+        public Task UpdateAsync(
+            TradingAccount account,
+            CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
         }
     }
 }

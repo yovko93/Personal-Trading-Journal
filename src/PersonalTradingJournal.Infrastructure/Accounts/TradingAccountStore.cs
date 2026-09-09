@@ -29,4 +29,35 @@ public sealed class TradingAccountStore : ITradingAccountStore
         context.TradingAccounts.Add(TradingAccountPersistenceMapper.ToRecord(account));
         await context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<TradingAccount?> GetByIdAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var record = await context.TradingAccounts
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                candidate => candidate.Id == accountId,
+                cancellationToken);
+
+        return record is null
+            ? null
+            : TradingAccountPersistenceMapper.ToDomain(record);
+    }
+
+    public async Task UpdateAsync(
+        TradingAccount account,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        context.TradingAccounts.Update(TradingAccountPersistenceMapper.ToRecord(account));
+        await context.SaveChangesAsync(cancellationToken);
+    }
 }
