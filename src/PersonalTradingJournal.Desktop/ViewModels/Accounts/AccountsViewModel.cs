@@ -10,10 +10,13 @@ public sealed class AccountsViewModel : ObservableObject
 {
     private const string CreateErrorMessageFallback = "Account could not be created.";
     private const string InvalidAccountDetailsMessage = "Please check the account details.";
+    private const string LifecycleErrorMessageFallback = "Account status could not be changed.";
+    private const string LifecycleNotFoundMessage = "Account no longer exists. Refresh the list.";
     private const string LoadErrorMessage = "Accounts could not be loaded.";
 
     private readonly ITradingAccountReader _accountReader;
     private readonly CreateTradingAccountUseCase _createTradingAccountUseCase;
+    private readonly TradingAccountLifecycleUseCase _tradingAccountLifecycleUseCase;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<AccountListItem> _accounts = [];
     private string _accountName = string.Empty;
@@ -22,8 +25,10 @@ public sealed class AccountsViewModel : ObservableObject
     private string _externalAccountId = string.Empty;
     private bool _hasLoadedSuccessfully;
     private bool _isCreateFormVisible;
+    private bool _isChangingAccountState;
     private bool _isCreating;
     private bool _isLoading;
+    private string? _lifecycleErrorMessage;
     private string? _errorMessage;
     private string _providerName = string.Empty;
     private TradingAccountType _selectedAccountType = TradingAccountType.Personal;
@@ -31,17 +36,26 @@ public sealed class AccountsViewModel : ObservableObject
 
     public AccountsViewModel(
         ITradingAccountReader accountReader,
-        CreateTradingAccountUseCase createTradingAccountUseCase)
+        CreateTradingAccountUseCase createTradingAccountUseCase,
+        TradingAccountLifecycleUseCase tradingAccountLifecycleUseCase)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(createTradingAccountUseCase);
+        ArgumentNullException.ThrowIfNull(tradingAccountLifecycleUseCase);
 
         _accountReader = accountReader;
         _createTradingAccountUseCase = createTradingAccountUseCase;
+        _tradingAccountLifecycleUseCase = tradingAccountLifecycleUseCase;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
         CreateAccountCommand = new AsyncRelayCommand(CreateAccountAsync, CanCreateAccount);
+        ActivateAccountCommand = new AsyncRelayCommand<AccountListItem>(
+            ActivateAccountAsync,
+            CanActivateAccount);
+        DeactivateAccountCommand = new AsyncRelayCommand<AccountListItem>(
+            DeactivateAccountAsync,
+            CanDeactivateAccount);
     }
 
     public IReadOnlyList<AccountListItem> Accounts
@@ -52,6 +66,8 @@ public sealed class AccountsViewModel : ObservableObject
             if (SetProperty(ref _accounts, value))
             {
                 OnPropertyChanged(nameof(HasAccounts));
+                ActivateAccountCommand.NotifyCanExecuteChanged();
+                DeactivateAccountCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -63,7 +79,7 @@ public sealed class AccountsViewModel : ObservableObject
         {
             if (SetProperty(ref _isLoading, value))
             {
-                CreateAccountCommand.NotifyCanExecuteChanged();
+                NotifyOperationCanExecuteChanged();
             }
         }
     }
@@ -91,9 +107,8 @@ public sealed class AccountsViewModel : ObservableObject
         {
             if (SetProperty(ref _isCreateFormVisible, value))
             {
-                ShowCreateFormCommand.NotifyCanExecuteChanged();
                 CancelCreateCommand.NotifyCanExecuteChanged();
-                CreateAccountCommand.NotifyCanExecuteChanged();
+                NotifyOperationCanExecuteChanged();
             }
         }
     }
@@ -144,10 +159,8 @@ public sealed class AccountsViewModel : ObservableObject
         {
             if (SetProperty(ref _isCreating, value))
             {
-                RefreshCommand.NotifyCanExecuteChanged();
-                ShowCreateFormCommand.NotifyCanExecuteChanged();
                 CancelCreateCommand.NotifyCanExecuteChanged();
-                CreateAccountCommand.NotifyCanExecuteChanged();
+                NotifyOperationCanExecuteChanged();
             }
         }
     }
@@ -166,6 +179,32 @@ public sealed class AccountsViewModel : ObservableObject
 
     public bool HasCreateError => CreateErrorMessage is not null;
 
+    public bool IsChangingAccountState
+    {
+        get => _isChangingAccountState;
+        private set
+        {
+            if (SetProperty(ref _isChangingAccountState, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? LifecycleErrorMessage
+    {
+        get => _lifecycleErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _lifecycleErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasLifecycleError));
+            }
+        }
+    }
+
+    public bool HasLifecycleError => LifecycleErrorMessage is not null;
+
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IRelayCommand ShowCreateFormCommand { get; }
@@ -173,6 +212,10 @@ public sealed class AccountsViewModel : ObservableObject
     public IRelayCommand CancelCreateCommand { get; }
 
     public IAsyncRelayCommand CreateAccountCommand { get; }
+
+    public IAsyncRelayCommand<AccountListItem> ActivateAccountCommand { get; }
+
+    public IAsyncRelayCommand<AccountListItem> DeactivateAccountCommand { get; }
 
     public Task EnsureLoadedAsync()
     {
@@ -184,7 +227,8 @@ public sealed class AccountsViewModel : ObservableObject
         return LoadAsync(forceRefresh: true, cancellationToken);
     }
 
-    private bool CanRefresh() => !IsCreating;
+    private bool CanRefresh() =>
+        !IsLoading && !IsCreating && !IsChangingAccountState;
 
     private void ShowCreateForm()
     {
@@ -192,7 +236,11 @@ public sealed class AccountsViewModel : ObservableObject
         IsCreateFormVisible = true;
     }
 
-    private bool CanShowCreateForm() => !IsCreateFormVisible && !IsCreating;
+    private bool CanShowCreateForm() =>
+        !IsCreateFormVisible &&
+        !IsLoading &&
+        !IsCreating &&
+        !IsChangingAccountState;
 
     private void CancelCreate()
     {
@@ -203,7 +251,10 @@ public sealed class AccountsViewModel : ObservableObject
     private bool CanCancelCreate() => IsCreateFormVisible && !IsCreating;
 
     private bool CanCreateAccount() =>
-        IsCreateFormVisible && !IsCreating && !IsLoading;
+        IsCreateFormVisible &&
+        !IsCreating &&
+        !IsLoading &&
+        !IsChangingAccountState;
 
     private async Task CreateAccountAsync(CancellationToken cancellationToken)
     {
@@ -282,6 +333,101 @@ public sealed class AccountsViewModel : ObservableObject
         Currency = string.Empty;
         StartingBalanceText = string.Empty;
         CreateErrorMessage = null;
+    }
+
+    private bool CanActivateAccount(AccountListItem? account) =>
+        account is { IsActive: false } && CanChangeAccountState();
+
+    private bool CanDeactivateAccount(AccountListItem? account) =>
+        account is { IsActive: true } && CanChangeAccountState();
+
+    private bool CanChangeAccountState() =>
+        !IsLoading &&
+        !IsCreating &&
+        !IsChangingAccountState &&
+        !IsCreateFormVisible;
+
+    private async Task ActivateAccountAsync(
+        AccountListItem? account,
+        CancellationToken cancellationToken)
+    {
+        if (account is null)
+        {
+            return;
+        }
+
+        LifecycleErrorMessage = null;
+        IsChangingAccountState = true;
+
+        try
+        {
+            await _tradingAccountLifecycleUseCase.ActivateAsync(
+                account.Id,
+                cancellationToken);
+            await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            LifecycleErrorMessage = LifecycleNotFoundMessage;
+        }
+        catch (Exception)
+        {
+            LifecycleErrorMessage = LifecycleErrorMessageFallback;
+        }
+        finally
+        {
+            IsChangingAccountState = false;
+        }
+    }
+
+    private async Task DeactivateAccountAsync(
+        AccountListItem? account,
+        CancellationToken cancellationToken)
+    {
+        if (account is null)
+        {
+            return;
+        }
+
+        LifecycleErrorMessage = null;
+        IsChangingAccountState = true;
+
+        try
+        {
+            await _tradingAccountLifecycleUseCase.DeactivateAsync(
+                account.Id,
+                cancellationToken);
+            await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            LifecycleErrorMessage = LifecycleNotFoundMessage;
+        }
+        catch (Exception)
+        {
+            LifecycleErrorMessage = LifecycleErrorMessageFallback;
+        }
+        finally
+        {
+            IsChangingAccountState = false;
+        }
+    }
+
+    private void NotifyOperationCanExecuteChanged()
+    {
+        RefreshCommand.NotifyCanExecuteChanged();
+        ShowCreateFormCommand.NotifyCanExecuteChanged();
+        CreateAccountCommand.NotifyCanExecuteChanged();
+        ActivateAccountCommand.NotifyCanExecuteChanged();
+        DeactivateAccountCommand.NotifyCanExecuteChanged();
     }
 
     private async Task LoadAsync(

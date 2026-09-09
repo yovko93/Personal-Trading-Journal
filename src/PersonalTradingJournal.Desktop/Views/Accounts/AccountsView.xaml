@@ -206,6 +206,21 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <TextBlock Text="{Binding LifecycleErrorMessage}">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}"
+                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasLifecycleError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </StackPanel>
 
         <Grid Grid.Row="3">
@@ -252,12 +267,13 @@
 
                 <Grid Margin="16,0,16,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
-                        <ColumnDefinition Width="1.4*" />
                         <ColumnDefinition Width="1.6*" />
-                        <ColumnDefinition Width="0.8*" />
                         <ColumnDefinition Width="1.2*" />
-                        <ColumnDefinition Width="0.8*" />
+                        <ColumnDefinition Width="1.2*" />
+                        <ColumnDefinition Width="0.65*" />
+                        <ColumnDefinition Width="1.3*" />
+                        <ColumnDefinition Width="0.75*" />
+                        <ColumnDefinition Width="1.2*" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -280,6 +296,10 @@
                                HorizontalAlignment="Right"
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Status" />
+                    <TextBlock Grid.Column="6"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource AccountColumnHeaderStyle}"
+                               Text="Action" />
                 </Grid>
 
                 <ScrollViewer Grid.Row="1"
@@ -301,12 +321,13 @@
                                         Style="{StaticResource PtjCardStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*" />
-                                            <ColumnDefinition Width="1.4*" />
                                             <ColumnDefinition Width="1.6*" />
-                                            <ColumnDefinition Width="0.8*" />
                                             <ColumnDefinition Width="1.2*" />
-                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="1.2*" />
+                                            <ColumnDefinition Width="0.65*" />
+                                            <ColumnDefinition Width="1.3*" />
+                                            <ColumnDefinition Width="0.75*" />
+                                            <ColumnDefinition Width="1.2*" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -342,6 +363,42 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
+
+                                        <Grid Grid.Column="6"
+                                              Margin="8,0,0,0"
+                                              HorizontalAlignment="Right">
+                                            <Button Command="{Binding DataContext.DeactivateAccountCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Deactivate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                            <Button Command="{Binding DataContext.ActivateAccountCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Activate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
                                     </Grid>
                                 </Border>
                             </DataTemplate>

@@ -48,6 +48,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddPersistence(applicationPaths);
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
+            builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<MainWindowViewModel>();
