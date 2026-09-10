@@ -135,6 +135,23 @@ public sealed class PersistenceRegistrationTests
     }
 
     [Fact]
+    public void AddPersistenceRegistersManualTradeReferenceDataReaderAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IManualTradeReferenceDataReader firstReader =
+            serviceProvider.GetRequiredService<IManualTradeReferenceDataReader>();
+        IManualTradeReferenceDataReader secondReader =
+            serviceProvider.GetRequiredService<IManualTradeReferenceDataReader>();
+
+        Assert.IsType<ManualTradeReferenceDataReader>(firstReader);
+        Assert.NotSame(firstReader, secondReader);
+    }
+
+    [Fact]
     public void AddPersistenceRejectsNullApplicationPaths()
     {
         var services = new ServiceCollection();
