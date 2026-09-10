@@ -62,6 +62,21 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+
+                <TextBlock Text="{Binding SuccessMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasSuccessMessage}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
 
             <Border Margin="0,16,0,0"
@@ -91,6 +106,9 @@
                                 <Setter Property="IsEnabled" Value="True" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsSaving}" Value="True">
                                         <Setter Property="IsEnabled" Value="False" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -333,11 +351,66 @@
                         </StackPanel>
                     </StackPanel>
 
-                    <Button Margin="0,20,0,0"
-                            HorizontalAlignment="Right"
-                            Command="{Binding CancelManualEntryCommand}"
-                            Content="Cancel"
-                            Style="{StaticResource PtjButtonStyle}" />
+                    <TextBlock Margin="0,16,0,0"
+                               Text="{Binding ValidationErrorMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasValidationError}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding SaveErrorMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSaveError}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Margin="0,8,0,0"
+                               Text="Saving trade...">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSaving}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <StackPanel Margin="0,20,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                        <Button Command="{Binding CancelManualEntryCommand}"
+                                Content="Cancel"
+                                Style="{StaticResource PtjButtonStyle}" />
+                        <Button Margin="8,0,0,0"
+                                Command="{Binding SaveManualTradeCommand}"
+                                Content="Save Trade"
+                                Style="{StaticResource PtjPrimaryButtonStyle}" />
+                    </StackPanel>
                 </StackPanel>
             </Border>
 

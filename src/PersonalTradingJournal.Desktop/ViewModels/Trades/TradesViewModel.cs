@@ -14,6 +14,11 @@ public sealed class TradesViewModel : ObservableObject
         NumberStyles.AllowLeadingSign |
         NumberStyles.AllowDecimalPoint;
     private const string LoadErrorMessage = "Trade reference data could not be loaded.";
+    private const string SaveErrorMessageFallback = "Trade could not be saved.";
+    private const string StaleReferenceErrorMessage =
+        "The selected trading account or instrument is no longer available. " +
+        "Refresh the reference data and try again.";
+    private const string TradeSavedMessage = "Trade saved successfully.";
     private static readonly string[] UtcTimestampFormats =
     [
         "yyyy-MM-dd HH:mm:ss",
@@ -23,6 +28,7 @@ public sealed class TradesViewModel : ObservableObject
     ];
 
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
+    private readonly CreateManualTradeUseCase _createManualTradeUseCase;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
     private string _entryCommissionText = "0";
@@ -39,22 +45,32 @@ public sealed class TradesViewModel : ObservableObject
     private IReadOnlyList<ManualTradeInstrumentOption> _instrumentOptions = [];
     private bool _isLoading;
     private bool _isManualEntryVisible;
+    private bool _isSaving;
     private string _quantityText = string.Empty;
+    private string? _saveErrorMessage;
     private ManualTradeAccountOption? _selectedAccount;
     private TradeDirection? _selectedDirection;
     private ManualTradeInstrumentOption? _selectedInstrument;
+    private string? _successMessage;
     private string? _validationErrorMessage;
 
-    public TradesViewModel(IManualTradeReferenceDataReader referenceDataReader)
+    public TradesViewModel(
+        IManualTradeReferenceDataReader referenceDataReader,
+        CreateManualTradeUseCase createManualTradeUseCase)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
+        ArgumentNullException.ThrowIfNull(createManualTradeUseCase);
 
         _referenceDataReader = referenceDataReader;
+        _createManualTradeUseCase = createManualTradeUseCase;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
         CancelManualEntryCommand = new RelayCommand(
             CancelManualEntry,
             CanCancelManualEntry);
+        SaveManualTradeCommand = new AsyncRelayCommand(
+            SaveManualTradeAsync,
+            CanSaveManualTrade);
     }
 
     public IReadOnlyList<ManualTradeAccountOption> AccountOptions
@@ -179,6 +195,22 @@ public sealed class TradesViewModel : ObservableObject
             {
                 RefreshCommand.NotifyCanExecuteChanged();
                 ShowManualEntryCommand.NotifyCanExecuteChanged();
+                SaveManualTradeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsSaving
+    {
+        get => _isSaving;
+        private set
+        {
+            if (SetProperty(ref _isSaving, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                ShowManualEntryCommand.NotifyCanExecuteChanged();
+                CancelManualEntryCommand.NotifyCanExecuteChanged();
+                SaveManualTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -217,6 +249,34 @@ public sealed class TradesViewModel : ObservableObject
 
     public bool HasValidationError => ValidationErrorMessage is not null;
 
+    public string? SaveErrorMessage
+    {
+        get => _saveErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _saveErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasSaveError));
+            }
+        }
+    }
+
+    public bool HasSaveError => SaveErrorMessage is not null;
+
+    public string? SuccessMessage
+    {
+        get => _successMessage;
+        private set
+        {
+            if (SetProperty(ref _successMessage, value))
+            {
+                OnPropertyChanged(nameof(HasSuccessMessage));
+            }
+        }
+    }
+
+    public bool HasSuccessMessage => SuccessMessage is not null;
+
     public bool IsManualEntryVisible
     {
         get => _isManualEntryVisible;
@@ -226,6 +286,7 @@ public sealed class TradesViewModel : ObservableObject
             {
                 ShowManualEntryCommand.NotifyCanExecuteChanged();
                 CancelManualEntryCommand.NotifyCanExecuteChanged();
+                SaveManualTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -235,6 +296,8 @@ public sealed class TradesViewModel : ObservableObject
     public IRelayCommand ShowManualEntryCommand { get; }
 
     public IRelayCommand CancelManualEntryCommand { get; }
+
+    public IAsyncRelayCommand SaveManualTradeCommand { get; }
 
     public bool TryBuildManualTradeCommand(
         out CreateManualTradeCommand? command)
@@ -366,14 +429,18 @@ public sealed class TradesViewModel : ObservableObject
         _ = await LoadAsync(forceRefresh: true, cancellationToken);
     }
 
-    private bool CanRefresh() => !IsLoading;
+    private bool CanRefresh() => !IsLoading && !IsSaving;
 
     private void ShowManualEntry()
     {
+        SuccessMessage = null;
+        SaveErrorMessage = null;
+        ValidationErrorMessage = null;
         IsManualEntryVisible = true;
     }
 
-    private bool CanShowManualEntry() => !IsManualEntryVisible && !IsLoading;
+    private bool CanShowManualEntry() =>
+        !IsManualEntryVisible && !IsLoading && !IsSaving;
 
     private void CancelManualEntry()
     {
@@ -381,7 +448,51 @@ public sealed class TradesViewModel : ObservableObject
         IsManualEntryVisible = false;
     }
 
-    private bool CanCancelManualEntry() => IsManualEntryVisible;
+    private bool CanCancelManualEntry() => IsManualEntryVisible && !IsSaving;
+
+    private bool CanSaveManualTrade() =>
+        IsManualEntryVisible && !IsLoading && !IsSaving;
+
+    private async Task SaveManualTradeAsync(CancellationToken cancellationToken)
+    {
+        SaveErrorMessage = null;
+        SuccessMessage = null;
+
+        if (!TryBuildManualTradeCommand(out CreateManualTradeCommand? command) ||
+            command is null)
+        {
+            return;
+        }
+
+        IsSaving = true;
+
+        try
+        {
+            _ = await _createManualTradeUseCase.ExecuteAsync(
+                command,
+                cancellationToken);
+
+            ResetManualEntryForm();
+            IsManualEntryVisible = false;
+            SuccessMessage = TradeSavedMessage;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            SaveErrorMessage = StaleReferenceErrorMessage;
+        }
+        catch (Exception)
+        {
+            SaveErrorMessage = SaveErrorMessageFallback;
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
 
     private bool FailValidation(string message)
     {
@@ -439,6 +550,7 @@ public sealed class TradesViewModel : ObservableObject
         EntryCommissionText = "0";
         EntryFeesText = "0";
         ValidationErrorMessage = null;
+        SaveErrorMessage = null;
         if (HasExit)
         {
             HasExit = false;

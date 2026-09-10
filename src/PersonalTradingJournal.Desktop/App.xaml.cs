@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
@@ -54,6 +55,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<CreateInstrumentUseCase>();
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();
+            builder.Services.AddTransient<CreateManualTradeUseCase>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();

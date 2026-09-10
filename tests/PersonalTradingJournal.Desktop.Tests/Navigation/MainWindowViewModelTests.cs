@@ -175,6 +175,7 @@ public sealed class MainWindowViewModelTests
         var instrumentStore = new FakeInstrumentStore();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
+        var tradeStore = new FakeTradeStore();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
         var accounts = new AccountsViewModel(
@@ -185,7 +186,13 @@ public sealed class MainWindowViewModelTests
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
-        var trades = new TradesViewModel(tradeReferenceDataReader);
+        var trades = new TradesViewModel(
+            tradeReferenceDataReader,
+            new CreateManualTradeUseCase(
+                accountStore,
+                instrumentStore,
+                tradeStore,
+                timeProvider));
         var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
 
         return new ViewModelFixture(
