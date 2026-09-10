@@ -8,7 +8,9 @@
              xmlns:dashboardViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Dashboard"
              xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
-             xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments">
+             xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
+             xmlns:tradeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Trades"
+             xmlns:tradeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Trades">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -29,6 +31,10 @@
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">
                 <instrumentViews:InstrumentsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type tradeViewModels:TradesViewModel}">
+                <tradeViews:TradesView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type commonViewModels:PlaceholderViewModel}">

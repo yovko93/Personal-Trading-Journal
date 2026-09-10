@@ -8,6 +8,7 @@ using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -56,6 +57,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
+            builder.Services.AddTransient<TradesViewModel>();
             builder.Services.AddTransient<MainWindowViewModel>();
             builder.Services.AddTransient<MainWindow>();
             builder.Services.AddSerilog(Log.Logger, dispose: false);

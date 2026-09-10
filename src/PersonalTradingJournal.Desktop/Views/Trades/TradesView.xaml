@@ -1,0 +1,205 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
+
+        <StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock VerticalAlignment="Center"
+                           Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="Record and manage trading activity." />
+                <Button Grid.Column="1"
+                        Margin="12,0,0,0"
+                        Command="{Binding RefreshCommand}"
+                        Content="Refresh"
+                        Style="{StaticResource PtjButtonStyle}" />
+                <Button Grid.Column="2"
+                        Margin="8,0,0,0"
+                        Command="{Binding ShowManualEntryCommand}"
+                        Content="Add Trade"
+                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+            </Grid>
+
+            <StackPanel Margin="0,12,0,0">
+                <TextBlock Text="Loading trade reference data...">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjCaptionTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Text="{Binding ErrorMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <Border Margin="0,16,0,0"
+                    Padding="24">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}"
+                           BasedOn="{StaticResource PtjCardStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                               Text="Manual Trade Entry" />
+                    <TextBlock Margin="0,6,0,0"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Choose the account and instrument for this trade." />
+
+                    <Grid Margin="0,20,0,0">
+                        <Grid.Style>
+                            <Style TargetType="{x:Type Grid}">
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                            <TextBlock Margin="0,0,0,6"
+                                       Style="{StaticResource PtjCaptionTextStyle}"
+                                       Text="Trading Account" />
+                            <ComboBox ItemsSource="{Binding AccountOptions}"
+                                      SelectedItem="{Binding SelectedAccount}"
+                                      Style="{StaticResource PtjComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PtjTextPrimaryBrush}"
+                                                       Text="{Binding Name}" />
+                                            <TextBlock FontSize="12"
+                                                       Foreground="{StaticResource PtjTextMutedBrush}"
+                                                       Text="{Binding ProviderName}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="No active trading accounts are available.">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasAccountOptions}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <TextBlock Margin="0,0,0,6"
+                                       Style="{StaticResource PtjCaptionTextStyle}"
+                                       Text="Instrument" />
+                            <ComboBox ItemsSource="{Binding InstrumentOptions}"
+                                      SelectedItem="{Binding SelectedInstrument}"
+                                      Style="{StaticResource PtjComboBoxStyle}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PtjTextPrimaryBrush}"
+                                                       Text="{Binding Symbol}" />
+                                            <TextBlock FontSize="12"
+                                                       Foreground="{StaticResource PtjTextMutedBrush}"
+                                                       Text="{Binding DisplayName}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="No active instruments are available.">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasInstrumentOptions}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
+
+                    <Button Margin="0,20,0,0"
+                            HorizontalAlignment="Right"
+                            Command="{Binding CancelManualEntryCommand}"
+                            Content="Cancel"
+                            Style="{StaticResource PtjButtonStyle}" />
+                </StackPanel>
+            </Border>
+
+            <Border MinHeight="160"
+                    Margin="0,16,0,0"
+                    Padding="24">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}"
+                           BasedOn="{StaticResource PtjCardStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="No trades are displayed yet." />
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
