@@ -1,9 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels;
+using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -44,7 +48,14 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+            builder.Services.AddTransient<CreateTradingAccountUseCase>();
+            builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
+            builder.Services.AddTransient<CreateInstrumentUseCase>();
+            builder.Services.AddTransient<InstrumentLifecycleUseCase>();
+            builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
+            builder.Services.AddTransient<InstrumentsViewModel>();
             builder.Services.AddTransient<MainWindowViewModel>();
             builder.Services.AddTransient<MainWindow>();
             builder.Services.AddSerilog(Log.Logger, dispose: false);

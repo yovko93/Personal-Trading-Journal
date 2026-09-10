@@ -1,0 +1,436 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Instruments.InstrumentsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="InstrumentColumnHeaderStyle"
+               TargetType="{x:Type TextBlock}"
+               BasedOn="{StaticResource PtjCaptionTextStyle}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+
+        <Style x:Key="InstrumentCellTextStyle"
+               TargetType="{x:Type TextBlock}"
+               BasedOn="{StaticResource PtjBodyTextStyle}">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer HorizontalContentAlignment="Stretch"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  PanningMode="VerticalOnly">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
+
+        <StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock VerticalAlignment="Center"
+                       Style="{StaticResource PtjSecondaryTextStyle}"
+                       Text="Reference instruments used across trades and journal activity."
+                       TextWrapping="Wrap" />
+
+            <StackPanel Grid.Column="1"
+                        Margin="16,0,0,0"
+                        Orientation="Horizontal">
+                <Button Command="{Binding RefreshCommand}"
+                        Content="Refresh"
+                        Style="{StaticResource PtjButtonStyle}" />
+                <Button Margin="8,0,0,0"
+                        Command="{Binding ShowCreateFormCommand}"
+                        Content="Add Instrument"
+                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+            </StackPanel>
+        </Grid>
+
+        <Border Margin="0,12,0,0"
+                Padding="20">
+            <Border.Style>
+                <Style TargetType="{x:Type Border}"
+                       BasedOn="{StaticResource PtjCardStyle}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+
+            <StackPanel>
+                <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                           Text="Add Instrument" />
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCreating}" Value="True">
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Symbol *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Display Name *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Asset Class *" />
+                        <ComboBox ItemsSource="{Binding AssetClasses}"
+                                  SelectedItem="{Binding SelectedAssetClass}"
+                                  Style="{StaticResource PtjComboBoxStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Exchange" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Exchange, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Currency *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,12">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Tick Size *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,8,0">
+                        <TextBlock Margin="0,0,0,6"
+                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                   Text="Tick Value *" />
+                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                 Text="{Binding TickValueText, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Margin="0,12,0,0"
+                           Text="{Binding CreateErrorMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasCreateError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <StackPanel Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Orientation="Horizontal">
+                    <Button Command="{Binding CancelCreateCommand}"
+                            Content="Cancel"
+                            Style="{StaticResource PtjButtonStyle}" />
+                    <Button Margin="8,0,0,0"
+                            Command="{Binding CreateInstrumentCommand}"
+                            Content="Create Instrument"
+                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Margin="0,12,0,12">
+            <TextBlock Text="Loading instruments...">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}"
+                           BasedOn="{StaticResource PtjCaptionTextStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <TextBlock Text="{Binding ErrorMessage}">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}"
+                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <TextBlock Text="{Binding LifecycleErrorMessage}">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}"
+                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasLifecycleError}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+
+        <Grid>
+            <Border Padding="24"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Top">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}"
+                           BasedOn="{StaticResource PtjCardStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsLoading}" Value="False" />
+                                    <Condition Binding="{Binding HasInstruments}" Value="False" />
+                                    <Condition Binding="{Binding HasError}" Value="False" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock HorizontalAlignment="Center"
+                           Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="No instruments yet." />
+            </Border>
+
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="{x:Type Grid}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasInstruments}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="16,0,16,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.8*" />
+                        <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="1.0*" />
+                        <ColumnDefinition Width="0.8*" />
+                        <ColumnDefinition Width="0.7*" />
+                        <ColumnDefinition Width="0.85*" />
+                        <ColumnDefinition Width="0.85*" />
+                        <ColumnDefinition Width="0.95*" />
+                        <ColumnDefinition Width="0.75*" />
+                        <ColumnDefinition Width="1.4*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Symbol" />
+                    <TextBlock Grid.Column="1"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Display Name" />
+                    <TextBlock Grid.Column="2"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Asset Class" />
+                    <TextBlock Grid.Column="3"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Exchange" />
+                    <TextBlock Grid.Column="4"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Currency" />
+                    <TextBlock Grid.Column="5"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Tick Size" />
+                    <TextBlock Grid.Column="6"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Tick Value" />
+                    <TextBlock Grid.Column="7"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Point Value" />
+                    <TextBlock Grid.Column="8"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Status" />
+                    <TextBlock Grid.Column="9"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource InstrumentColumnHeaderStyle}"
+                               Text="Action" />
+                </Grid>
+
+                <ItemsControl Grid.Row="1"
+                              HorizontalContentAlignment="Stretch"
+                              ItemsSource="{Binding Instruments}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border MinHeight="52"
+                                        Margin="0,0,0,8"
+                                        Padding="16,12"
+                                        Style="{StaticResource PtjCardStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="1.4*" />
+                                            <ColumnDefinition Width="1.0*" />
+                                            <ColumnDefinition Width="0.8*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                            <ColumnDefinition Width="0.95*" />
+                                            <ColumnDefinition Width="0.75*" />
+                                            <ColumnDefinition Width="1.4*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                   FontWeight="SemiBold"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding Symbol}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding DisplayName}" />
+                                        <TextBlock Grid.Column="2"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding AssetClass}" />
+                                        <TextBlock Grid.Column="3"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding Exchange, TargetNullValue=—}" />
+                                        <TextBlock Grid.Column="4"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding Currency}" />
+                                        <TextBlock Grid.Column="5"
+                                                   HorizontalAlignment="Right"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding TickSize, StringFormat={}{0:0.########}}" />
+                                        <TextBlock Grid.Column="6"
+                                                   HorizontalAlignment="Right"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding TickValue, StringFormat={}{0:0.########}}" />
+                                        <TextBlock Grid.Column="7"
+                                                   HorizontalAlignment="Right"
+                                                   Style="{StaticResource InstrumentCellTextStyle}"
+                                                   Text="{Binding PointValue, StringFormat={}{0:0.########}}" />
+                                        <TextBlock Grid.Column="8"
+                                                   HorizontalAlignment="Right">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}"
+                                                       BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                                    <Setter Property="Text" Value="Inactive" />
+                                                    <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                            <Setter Property="Text" Value="Active" />
+                                                            <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <Grid Grid.Column="9"
+                                              Margin="8,0,0,0"
+                                              HorizontalAlignment="Right">
+                                            <Button Padding="10,6"
+                                                    Command="{Binding DataContext.DeactivateInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Deactivate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+
+                                            <Button Padding="10,6"
+                                                    Command="{Binding DataContext.ActivateInstrumentCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Activate">
+                                                <Button.Style>
+                                                    <Style TargetType="{x:Type Button}"
+                                                           BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,10 +1,14 @@
 ﻿<Application x:Class="PersonalTradingJournal.Desktop.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:accountViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Accounts"
+             xmlns:accountViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Accounts"
              xmlns:commonViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Common"
              xmlns:commonViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Common"
              xmlns:dashboardViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Dashboard"
-             xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard">
+             xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
+             xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
+             xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -15,8 +19,16 @@
                 <ResourceDictionary Source="Resources/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <DataTemplate DataType="{x:Type accountViewModels:AccountsViewModel}">
+                <accountViews:AccountsView />
+            </DataTemplate>
+
             <DataTemplate DataType="{x:Type dashboardViewModels:DashboardViewModel}">
                 <dashboardViews:DashboardView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">
+                <instrumentViews:InstrumentsView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type commonViewModels:PlaceholderViewModel}">

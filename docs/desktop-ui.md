@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell, navigation, ViewModel-to-View mapping, shared visual resources, and a presentation-only Dashboard. Most product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell, navigation, ViewModel-to-View mapping, shared visual resources, and a presentation-only Dashboard. Milestone M5 added the first real data-backed feature pages: Accounts and Instruments. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -14,7 +14,7 @@ This document explains how to extend the Desktop layer without moving trading lo
 - a page header; and
 - a content region that fills the remaining workspace.
 
-The window defaults to `1280x800`, has a minimum size of `1000x650`, retains native Windows chrome, and uses a fixed 252-pixel sidebar. The sidebar and Dashboard scroll vertically, while horizontal overflow is intentionally disabled. The shell does not collapse or replace the sidebar at smaller supported sizes.
+The window defaults to `1280x800`, has a minimum size of `1000x650`, retains native Windows chrome, and uses a fixed 252-pixel sidebar. The sidebar and page content support intentional vertical scrolling, while horizontal overflow is disabled. The shell does not collapse or replace the sidebar at smaller supported sizes.
 
 `MainWindow.xaml.cs` is intentionally limited to constructor injection, `InitializeComponent()`, and `DataContext` assignment. It contains no event handlers, navigation routing, or business logic.
 
@@ -34,7 +34,7 @@ MainWindow
                       -> View
 ```
 
-`MainWindowViewModel` owns presentation state only. Trading rules, persistence queries, and application workflows belong behind Application-layer use cases.
+`MainWindowViewModel` owns shell presentation state only. Accounts and Instruments keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
 
 ## Navigation
 
@@ -49,7 +49,10 @@ The current navigation order is:
 - **Planning:** Playbook, Trading Plan, Rules
 - **Review:** Daily Review, Weekly Review, Monthly Review
 - Accounts
+- Instruments
 - Settings
+
+There are 19 destinations in total.
 
 `CurrentDestination` is the single source of truth. Each Button passes a typed destination through `CommandParameter`, and `NavigationSelectionConverter` compares that parameter with `CurrentDestination` to derive selected styling. There is no separate selected-navigation property.
 
@@ -61,12 +64,16 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
 
+`MainWindowViewModel` retains the injected Dashboard, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances so appropriate presentation state survives shell navigation.
+
 ## ViewModel-to-View Mapping
 
 `App.xaml` contains implicit `DataTemplate` mappings:
 
 ```text
-DashboardViewModel -> DashboardView
+DashboardViewModel   -> DashboardView
+AccountsViewModel    -> AccountsView
+InstrumentsViewModel -> InstrumentsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
@@ -74,7 +81,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Strategy
 
-The 17 non-Dashboard destinations currently share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Dashboard, Accounts, and Instruments have concrete content. The remaining 16 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -95,6 +102,36 @@ The four metric values display `—` rather than fake zeroes or sample financial
 
 Dashboard metrics describe financial and statistical results; they must not infer process quality from profit or loss. Good process can lose, and bad process can profit. Future process-quality analysis must be modeled explicitly.
 
+## Accounts Feature
+
+Accounts performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Account form captures name, account type, provider, external account ID, currency, and optional Starting Balance. Account Type defaults to Personal as a presentation convenience, and creation is coordinated by `CreateTradingAccountUseCase`.
+
+Each persisted row displays active or inactive status and exposes only the lifecycle action applicable to that state. Activation and deactivation are reversible, inactive accounts remain visible, and the page intentionally provides no edit, delete, or Current Balance behavior. Starting Balance remains reference data.
+
+## Instruments Feature
+
+Instruments performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Instrument form captures canonical symbol, display name, asset class, exchange, currency, Tick Size, and Tick Value. Asset Class defaults to Futures as a presentation convenience, and creation is coordinated by `CreateInstrumentUseCase`.
+
+Tick Size and Tick Value accept current-culture decimal formatting with an invariant `.` fallback. Point Value is display-only and derived upstream; it is not a form input. Each row exposes only its applicable reversible lifecycle action, inactive instruments remain visible, and the page intentionally provides no edit or delete behavior. Contract-specific futures symbols, expiration, contract month, and rollover are not supported by this feature.
+
+## Feature Operation and Error State
+
+Accounts and Instruments explicitly prevent overlapping major operations across load/refresh, create, and lifecycle mutation. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
+
+Each feature distinguishes three conceptual error categories:
+
+- list/read errors;
+- create errors; and
+- lifecycle errors.
+
+After a successful create or lifecycle write, the ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
+
+## Feature Page Scrolling
+
+Accounts and Instruments each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, errors, table headers, and rows. This keeps the whole workflow reachable at reduced height without a nested list scrollbar. Horizontal scrolling is disabled, and header and row column definitions remain aligned.
+
+This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
+
 ## Design System
 
 Shared Desktop resources live under `Resources/`:
@@ -107,23 +144,27 @@ Shared Desktop resources live under `Resources/`:
 
 Views should reuse these resources instead of scattering hard-coded colors or duplicating styles. The compact dark ScrollBar style supports vertical and horizontal orientation and is shared by shell scrolling regions.
 
+The reusable dark ComboBox style uses semantic PTJ resources for both popup items and selected content. Its selected value retains the primary text color against the dark elevated surface.
+
 PTJ currently has one dark theme. There is no `ThemeManager`, light theme, or runtime theme switching; that is intentional at this stage.
 
 ## Accessibility and Window Behavior
 
 Navigation uses native WPF Buttons, so destinations participate in natural Tab order and support Enter and Space activation. Text content supplies accessible automation names without redundant `AutomationProperties.Name` values.
 
-Keyboard focus and active selection are independent visual states: focus has a visible outline, while the active destination uses an elevated background, accent indicator, primary foreground, and semibold label. Sidebar and Dashboard content remain vertically reachable through mouse, scrollbar, and keyboard scrolling at the minimum supported window size.
+Keyboard focus and active selection are independent visual states: focus has a visible outline, while the active destination uses an elevated background, accent indicator, primary foreground, and semibold label. Sidebar and page content remain vertically reachable through mouse, scrollbar, and keyboard scrolling at the minimum supported window size.
 
 ## Dependency Rules
 
 - Desktop may depend on Application abstractions and use cases.
 - Desktop references Infrastructure because it is the composition root that wires implementations.
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
-- Future feature data must be exposed through meaningful Application boundaries.
+- `AccountsViewModel` depends on `ITradingAccountReader`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`.
+- `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
+- Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
 - Presentation dependencies use constructor injection; ViewModels must not use a service locator.
-- `DashboardViewModel`, `MainWindowViewModel`, and `MainWindow` are currently DI-created.
+- Application workflows, Infrastructure implementations, feature ViewModels, `MainWindowViewModel`, and `MainWindow` are wired in the Desktop composition root.
 
 The startup invariant remains:
 
@@ -144,7 +185,7 @@ Database migration must complete before `MainWindow` is resolved and displayed.
 
 When a placeholder destination becomes a real feature:
 
-1. Create a feature ViewModel only when real presentation or use-case state exists.
+1. Create a feature ViewModel only when real presentation or use-case state exists, and retain it when that state should survive shell navigation.
 2. Create its WPF `UserControl`.
 3. Expose required workflows through meaningful Application use cases or boundaries.
 4. Register the required ViewModel dependencies through DI.
@@ -152,9 +193,16 @@ When a placeholder destination becomes a real feature:
 6. Update `MainWindowViewModel` content selection only as needed.
 7. Remove generic placeholder behavior for that destination.
 8. Keep EF Core and `JournalDbContext` out of the ViewModel.
-9. Keep `NavigationDestination` as presentation-only state.
+9. Expose explicit operation and error state appropriate to the feature.
+10. Keep `NavigationDestination` as presentation-only state.
 
 Do not introduce a navigation service unless a real cross-feature navigation requirement appears.
+
+## Desktop ViewModel Testing
+
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with test-only readers and stores to exercise loading, refresh, validation, lifecycle actions, authoritative-reload failures, retained navigation state, and culture-aware decimal parsing.
+
+These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 
 ## Notebook vs Journal
 
@@ -181,3 +229,7 @@ The following are intentionally not implemented:
 - a chart library;
 - Dashboard analytics and data loading; and
 - a keyboard shortcut system.
+
+## Next Milestone
+
+M5 completes the Account and Instrument reference-data workflows. M6 — Manual Trade Entry will connect that reference data to the first real Trade-entry workflow; detailed UI and API design remain deferred until that milestone is approved.

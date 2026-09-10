@@ -129,6 +129,10 @@
                                 CommandParameter="{x:Static navigation:NavigationDestination.Accounts}"
                                 Margin="0,16,0,1"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
+                        <Button Content="Instruments"
+                                Command="{Binding NavigateCommand}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Instruments}"
+                                Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Settings"
                                 Command="{Binding NavigateCommand}"
                                 CommandParameter="{x:Static navigation:NavigationDestination.Settings}"

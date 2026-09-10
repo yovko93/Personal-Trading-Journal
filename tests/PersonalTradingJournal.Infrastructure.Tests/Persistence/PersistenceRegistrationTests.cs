@@ -1,7 +1,11 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
+using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Infrastructure.Accounts;
+using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Storage;
 
@@ -50,6 +54,67 @@ public sealed class PersistenceRegistrationTests
         IApplicationPaths applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
 
         Assert.Throws<ArgumentNullException>(() => services.AddPersistence(applicationPaths));
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersFeatureReadersAsTransient()
+    {
+        string testRoot = Path.Combine(
+            Path.GetTempPath(),
+            $"{nameof(PersistenceRegistrationTests)}-{Guid.NewGuid():N}");
+        var applicationPaths = new LocalApplicationPaths(testRoot);
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradingAccountReader firstAccountReader =
+            serviceProvider.GetRequiredService<ITradingAccountReader>();
+        ITradingAccountReader secondAccountReader =
+            serviceProvider.GetRequiredService<ITradingAccountReader>();
+        IInstrumentReader firstInstrumentReader =
+            serviceProvider.GetRequiredService<IInstrumentReader>();
+        IInstrumentReader secondInstrumentReader =
+            serviceProvider.GetRequiredService<IInstrumentReader>();
+
+        Assert.IsType<TradingAccountReader>(firstAccountReader);
+        Assert.IsType<InstrumentReader>(firstInstrumentReader);
+        Assert.NotSame(firstAccountReader, secondAccountReader);
+        Assert.NotSame(firstInstrumentReader, secondInstrumentReader);
+        Assert.False(Directory.Exists(applicationPaths.DataDirectory));
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradingAccountStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradingAccountStore firstStore =
+            serviceProvider.GetRequiredService<ITradingAccountStore>();
+        ITradingAccountStore secondStore =
+            serviceProvider.GetRequiredService<ITradingAccountStore>();
+
+        Assert.IsType<TradingAccountStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersInstrumentStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IInstrumentStore firstStore =
+            serviceProvider.GetRequiredService<IInstrumentStore>();
+        IInstrumentStore secondStore =
+            serviceProvider.GetRequiredService<IInstrumentStore>();
+
+        Assert.IsType<InstrumentStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
     }
 
     [Fact]
