@@ -3,11 +3,61 @@ using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
+using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
 
 public sealed class TradesViewModelTests
 {
+    [Fact]
+    public void NewViewModelUsesEmptyManualEntryDefaults()
+    {
+        var viewModel = new TradesViewModel(new FakeManualTradeReferenceDataReader());
+
+        Assert.Null(viewModel.SelectedDirection);
+        Assert.Equal(string.Empty, viewModel.QuantityText);
+        Assert.Equal(string.Empty, viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.EntryPriceText);
+        Assert.Equal("0", viewModel.EntryCommissionText);
+        Assert.Equal("0", viewModel.EntryFeesText);
+        Assert.False(viewModel.HasExit);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitPriceText);
+        Assert.Equal("0", viewModel.ExitCommissionText);
+        Assert.Equal("0", viewModel.ExitFeesText);
+    }
+
+    [Fact]
+    public void ManualEntryFactsRemainAsEnteredWithoutParsing()
+    {
+        var viewModel = new TradesViewModel(new FakeManualTradeReferenceDataReader());
+
+        PopulateRepresentativeTradeFacts(viewModel);
+
+        AssertRepresentativeTradeFacts(viewModel);
+    }
+
+    [Fact]
+    public void DisablingExitClearsOnlyExitFacts()
+    {
+        var viewModel = new TradesViewModel(new FakeManualTradeReferenceDataReader());
+        PopulateRepresentativeTradeFacts(viewModel);
+
+        viewModel.HasExit = false;
+
+        Assert.False(viewModel.HasExit);
+        Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
+        Assert.Equal("2.5", viewModel.QuantityText);
+        Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
+        Assert.Equal("23950.25", viewModel.EntryPriceText);
+        Assert.Equal("1.50", viewModel.EntryCommissionText);
+        Assert.Equal("0.25", viewModel.EntryFeesText);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitPriceText);
+        Assert.Equal("0", viewModel.ExitCommissionText);
+        Assert.Equal("0", viewModel.ExitFeesText);
+    }
+
     [Fact]
     public async Task EnsureLoadedAsyncPopulatesOptionsOnlyOnceAfterSuccess()
     {
@@ -131,6 +181,35 @@ public sealed class TradesViewModelTests
     }
 
     [Fact]
+    public async Task RefreshRetainsNonReferenceTradeFacts()
+    {
+        Guid accountId = Guid.NewGuid();
+        Guid instrumentId = Guid.NewGuid();
+        ManualTradeReferenceData initial = CreateReferenceData(accountId, instrumentId);
+        ManualTradeReferenceData refreshed = CreateReferenceData(
+            accountId,
+            instrumentId,
+            "Updated Account",
+            "ES");
+        var reader = new FakeManualTradeReferenceDataReader();
+        reader.EnqueueResult(initial);
+        reader.EnqueueResult(refreshed);
+        var viewModel = new TradesViewModel(reader);
+        await viewModel.EnsureLoadedAsync();
+        viewModel.ShowManualEntryCommand.Execute(null);
+        viewModel.SelectedAccount = Assert.Single(initial.Accounts);
+        viewModel.SelectedInstrument = Assert.Single(initial.Instruments);
+        PopulateRepresentativeTradeFacts(viewModel);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        AssertRepresentativeTradeFacts(viewModel);
+        Assert.Same(Assert.Single(refreshed.Accounts), viewModel.SelectedAccount);
+        Assert.Same(Assert.Single(refreshed.Instruments), viewModel.SelectedInstrument);
+        Assert.True(viewModel.IsManualEntryVisible);
+    }
+
+    [Fact]
     public async Task RefreshClearsSelectionsWhenIdsAreNoLongerAvailable()
     {
         ManualTradeReferenceData initial = CreateReferenceData();
@@ -150,7 +229,7 @@ public sealed class TradesViewModelTests
     }
 
     [Fact]
-    public void ShowAndCancelToggleShellAndCancelClearsSelections()
+    public void CancelClosesShellAndResetsEntireManualEntryForm()
     {
         ManualTradeReferenceData referenceData = CreateReferenceData();
         var viewModel = new TradesViewModel(new FakeManualTradeReferenceDataReader())
@@ -160,13 +239,24 @@ public sealed class TradesViewModelTests
         };
 
         viewModel.ShowManualEntryCommand.Execute(null);
-        Assert.True(viewModel.IsManualEntryVisible);
+        PopulateRepresentativeTradeFacts(viewModel);
 
         viewModel.CancelManualEntryCommand.Execute(null);
 
         Assert.False(viewModel.IsManualEntryVisible);
         Assert.Null(viewModel.SelectedAccount);
         Assert.Null(viewModel.SelectedInstrument);
+        Assert.Null(viewModel.SelectedDirection);
+        Assert.Equal(string.Empty, viewModel.QuantityText);
+        Assert.Equal(string.Empty, viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.EntryPriceText);
+        Assert.Equal("0", viewModel.EntryCommissionText);
+        Assert.Equal("0", viewModel.EntryFeesText);
+        Assert.False(viewModel.HasExit);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitPriceText);
+        Assert.Equal("0", viewModel.ExitCommissionText);
+        Assert.Equal("0", viewModel.ExitFeesText);
     }
 
     [Fact]
@@ -213,5 +303,35 @@ public sealed class TradesViewModelTests
                     20m,
                     true),
             ]);
+    }
+
+    private static void PopulateRepresentativeTradeFacts(TradesViewModel viewModel)
+    {
+        viewModel.SelectedDirection = TradeDirection.Short;
+        viewModel.QuantityText = "2.5";
+        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryPriceText = "23950.25";
+        viewModel.EntryCommissionText = "1.50";
+        viewModel.EntryFeesText = "0.25";
+        viewModel.HasExit = true;
+        viewModel.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+        viewModel.ExitPriceText = "23900.00";
+        viewModel.ExitCommissionText = "1.50";
+        viewModel.ExitFeesText = "0.25";
+    }
+
+    private static void AssertRepresentativeTradeFacts(TradesViewModel viewModel)
+    {
+        Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
+        Assert.Equal("2.5", viewModel.QuantityText);
+        Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
+        Assert.Equal("23950.25", viewModel.EntryPriceText);
+        Assert.Equal("1.50", viewModel.EntryCommissionText);
+        Assert.Equal("0.25", viewModel.EntryFeesText);
+        Assert.True(viewModel.HasExit);
+        Assert.Equal("2026-09-10 14:15:00", viewModel.ExitExecutedAtUtcText);
+        Assert.Equal("23900.00", viewModel.ExitPriceText);
+        Assert.Equal("1.50", viewModel.ExitCommissionText);
+        Assert.Equal("0.25", viewModel.ExitFeesText);
     }
 }

@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Trades;
 
@@ -11,12 +12,23 @@ public sealed class TradesViewModel : ObservableObject
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
+    private string _entryCommissionText = "0";
+    private string _entryExecutedAtUtcText = string.Empty;
+    private string _entryFeesText = "0";
+    private string _entryPriceText = string.Empty;
     private string? _errorMessage;
+    private string _exitCommissionText = "0";
+    private string _exitExecutedAtUtcText = string.Empty;
+    private string _exitFeesText = "0";
+    private string _exitPriceText = string.Empty;
+    private bool _hasExit;
     private bool _hasLoadedSuccessfully;
     private IReadOnlyList<ManualTradeInstrumentOption> _instrumentOptions = [];
     private bool _isLoading;
     private bool _isManualEntryVisible;
+    private string _quantityText = string.Empty;
     private ManualTradeAccountOption? _selectedAccount;
+    private TradeDirection? _selectedDirection;
     private ManualTradeInstrumentOption? _selectedInstrument;
 
     public TradesViewModel(IManualTradeReferenceDataReader referenceDataReader)
@@ -67,6 +79,81 @@ public sealed class TradesViewModel : ObservableObject
     {
         get => _selectedInstrument;
         set => SetProperty(ref _selectedInstrument, value);
+    }
+
+    public IReadOnlyList<TradeDirection> DirectionOptions { get; } =
+        [TradeDirection.Long, TradeDirection.Short];
+
+    public TradeDirection? SelectedDirection
+    {
+        get => _selectedDirection;
+        set => SetProperty(ref _selectedDirection, value);
+    }
+
+    public string QuantityText
+    {
+        get => _quantityText;
+        set => SetProperty(ref _quantityText, value);
+    }
+
+    public string EntryExecutedAtUtcText
+    {
+        get => _entryExecutedAtUtcText;
+        set => SetProperty(ref _entryExecutedAtUtcText, value);
+    }
+
+    public string EntryPriceText
+    {
+        get => _entryPriceText;
+        set => SetProperty(ref _entryPriceText, value);
+    }
+
+    public string EntryCommissionText
+    {
+        get => _entryCommissionText;
+        set => SetProperty(ref _entryCommissionText, value);
+    }
+
+    public string EntryFeesText
+    {
+        get => _entryFeesText;
+        set => SetProperty(ref _entryFeesText, value);
+    }
+
+    public bool HasExit
+    {
+        get => _hasExit;
+        set
+        {
+            if (SetProperty(ref _hasExit, value) && !value)
+            {
+                ResetExitFields();
+            }
+        }
+    }
+
+    public string ExitExecutedAtUtcText
+    {
+        get => _exitExecutedAtUtcText;
+        set => SetProperty(ref _exitExecutedAtUtcText, value);
+    }
+
+    public string ExitPriceText
+    {
+        get => _exitPriceText;
+        set => SetProperty(ref _exitPriceText, value);
+    }
+
+    public string ExitCommissionText
+    {
+        get => _exitCommissionText;
+        set => SetProperty(ref _exitCommissionText, value);
+    }
+
+    public string ExitFeesText
+    {
+        get => _exitFeesText;
+        set => SetProperty(ref _exitFeesText, value);
     }
 
     public bool IsLoading
@@ -142,12 +229,39 @@ public sealed class TradesViewModel : ObservableObject
 
     private void CancelManualEntry()
     {
-        SelectedAccount = null;
-        SelectedInstrument = null;
+        ResetManualEntryForm();
         IsManualEntryVisible = false;
     }
 
     private bool CanCancelManualEntry() => IsManualEntryVisible;
+
+    private void ResetManualEntryForm()
+    {
+        SelectedAccount = null;
+        SelectedInstrument = null;
+        SelectedDirection = null;
+        QuantityText = string.Empty;
+        EntryExecutedAtUtcText = string.Empty;
+        EntryPriceText = string.Empty;
+        EntryCommissionText = "0";
+        EntryFeesText = "0";
+        if (HasExit)
+        {
+            HasExit = false;
+        }
+        else
+        {
+            ResetExitFields();
+        }
+    }
+
+    private void ResetExitFields()
+    {
+        ExitExecutedAtUtcText = string.Empty;
+        ExitPriceText = string.Empty;
+        ExitCommissionText = "0";
+        ExitFeesText = "0";
+    }
 
     private async Task<bool> LoadAsync(
         bool forceRefresh,
