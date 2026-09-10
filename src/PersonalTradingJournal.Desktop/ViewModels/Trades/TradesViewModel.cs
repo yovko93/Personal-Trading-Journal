@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Trades;
@@ -7,7 +8,19 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 public sealed class TradesViewModel : ObservableObject
 {
+    private const NumberStyles DecimalNumberStyles =
+        NumberStyles.AllowLeadingWhite |
+        NumberStyles.AllowTrailingWhite |
+        NumberStyles.AllowLeadingSign |
+        NumberStyles.AllowDecimalPoint;
     private const string LoadErrorMessage = "Trade reference data could not be loaded.";
+    private static readonly string[] UtcTimestampFormats =
+    [
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mm",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm'Z'",
+    ];
 
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
@@ -30,6 +43,7 @@ public sealed class TradesViewModel : ObservableObject
     private ManualTradeAccountOption? _selectedAccount;
     private TradeDirection? _selectedDirection;
     private ManualTradeInstrumentOption? _selectedInstrument;
+    private string? _validationErrorMessage;
 
     public TradesViewModel(IManualTradeReferenceDataReader referenceDataReader)
     {
@@ -189,6 +203,20 @@ public sealed class TradesViewModel : ObservableObject
 
     public bool HasReferenceData => HasAccountOptions && HasInstrumentOptions;
 
+    public string? ValidationErrorMessage
+    {
+        get => _validationErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _validationErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
+
+    public bool HasValidationError => ValidationErrorMessage is not null;
+
     public bool IsManualEntryVisible
     {
         get => _isManualEntryVisible;
@@ -207,6 +235,126 @@ public sealed class TradesViewModel : ObservableObject
     public IRelayCommand ShowManualEntryCommand { get; }
 
     public IRelayCommand CancelManualEntryCommand { get; }
+
+    public bool TryBuildManualTradeCommand(
+        out CreateManualTradeCommand? command)
+    {
+        ValidationErrorMessage = null;
+        command = null;
+
+        if (SelectedAccount is not { } selectedAccount)
+        {
+            return FailValidation("Trading account is required.");
+        }
+
+        if (SelectedInstrument is not { } selectedInstrument)
+        {
+            return FailValidation("Instrument is required.");
+        }
+
+        if (SelectedDirection is not { } direction)
+        {
+            return FailValidation("Direction is required.");
+        }
+
+        if (!Enum.IsDefined(direction))
+        {
+            return FailValidation("Direction is invalid.");
+        }
+
+        if (!TryParseDecimal(QuantityText, out decimal quantity))
+        {
+            return FailValidation("Quantity must be a valid number.");
+        }
+
+        if (quantity <= 0)
+        {
+            return FailValidation("Quantity must be greater than zero.");
+        }
+
+        if (!TryParseUtcTimestamp(
+                EntryExecutedAtUtcText,
+                out DateTimeOffset entryExecutedAtUtc))
+        {
+            return FailValidation("Entry time must be a valid UTC timestamp.");
+        }
+
+        if (!TryParseDecimal(EntryPriceText, out decimal entryPrice))
+        {
+            return FailValidation("Entry price must be a valid number.");
+        }
+
+        if (!TryParseNonNegativeCost(
+                EntryCommissionText,
+                out decimal entryCommission))
+        {
+            return FailValidation(
+                "Entry commission must be a valid non-negative number.");
+        }
+
+        if (!TryParseNonNegativeCost(EntryFeesText, out decimal entryFees))
+        {
+            return FailValidation(
+                "Entry fees must be a valid non-negative number.");
+        }
+
+        var entry = new ManualTradeExecutionInput(
+            entryExecutedAtUtc,
+            entryPrice,
+            entryCommission,
+            entryFees);
+        ManualTradeExecutionInput? exit = null;
+
+        if (HasExit)
+        {
+            if (!TryParseUtcTimestamp(
+                    ExitExecutedAtUtcText,
+                    out DateTimeOffset exitExecutedAtUtc))
+            {
+                return FailValidation("Exit time must be a valid UTC timestamp.");
+            }
+
+            if (exitExecutedAtUtc < entryExecutedAtUtc)
+            {
+                return FailValidation(
+                    "Exit time cannot be earlier than entry time.");
+            }
+
+            if (!TryParseDecimal(ExitPriceText, out decimal exitPrice))
+            {
+                return FailValidation("Exit price must be a valid number.");
+            }
+
+            if (!TryParseNonNegativeCost(
+                    ExitCommissionText,
+                    out decimal exitCommission))
+            {
+                return FailValidation(
+                    "Exit commission must be a valid non-negative number.");
+            }
+
+            if (!TryParseNonNegativeCost(ExitFeesText, out decimal exitFees))
+            {
+                return FailValidation(
+                    "Exit fees must be a valid non-negative number.");
+            }
+
+            exit = new ManualTradeExecutionInput(
+                exitExecutedAtUtc,
+                exitPrice,
+                exitCommission,
+                exitFees);
+        }
+
+        command = new CreateManualTradeCommand(
+            selectedAccount.Id,
+            selectedInstrument.Id,
+            direction,
+            quantity,
+            entry,
+            exit);
+        return true;
+    }
 
     public async Task EnsureLoadedAsync()
     {
@@ -235,6 +383,51 @@ public sealed class TradesViewModel : ObservableObject
 
     private bool CanCancelManualEntry() => IsManualEntryVisible;
 
+    private bool FailValidation(string message)
+    {
+        ValidationErrorMessage = message;
+        return false;
+    }
+
+    private static bool TryParseDecimal(string? text, out decimal value)
+    {
+        return decimal.TryParse(
+                text,
+                DecimalNumberStyles,
+                CultureInfo.CurrentCulture,
+                out value) ||
+            decimal.TryParse(
+                text,
+                DecimalNumberStyles,
+                CultureInfo.InvariantCulture,
+                out value);
+    }
+
+    private static bool TryParseNonNegativeCost(
+        string? text,
+        out decimal value)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            value = 0;
+            return true;
+        }
+
+        return TryParseDecimal(text, out value) && value >= 0;
+    }
+
+    private static bool TryParseUtcTimestamp(
+        string? text,
+        out DateTimeOffset value)
+    {
+        return DateTimeOffset.TryParseExact(
+            text,
+            UtcTimestampFormats,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out value);
+    }
+
     private void ResetManualEntryForm()
     {
         SelectedAccount = null;
@@ -245,6 +438,7 @@ public sealed class TradesViewModel : ObservableObject
         EntryPriceText = string.Empty;
         EntryCommissionText = "0";
         EntryFeesText = "0";
+        ValidationErrorMessage = null;
         if (HasExit)
         {
             HasExit = false;

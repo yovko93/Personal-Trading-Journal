@@ -1,4 +1,6 @@
+using System.Globalization;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Desktop.Tests.Instruments;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
@@ -7,6 +9,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
 
+[Collection(CultureSensitiveCollection.Name)]
 public sealed class TradesViewModelTests
 {
     [Fact]
@@ -25,6 +28,8 @@ public sealed class TradesViewModelTests
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.False(viewModel.HasValidationError);
     }
 
     [Fact]
@@ -56,6 +61,439 @@ public sealed class TradesViewModelTests
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandBuildsValidOpenLongTrade()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(viewModel.SelectedAccount!.Id, command.TradingAccountId);
+        Assert.Equal(viewModel.SelectedInstrument!.Id, command.InstrumentId);
+        Assert.Equal(TradeDirection.Long, command.Direction);
+        Assert.Equal(2.5m, command.Quantity);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 10, 13, 30, 0, TimeSpan.Zero),
+            command.Entry.ExecutedAtUtc);
+        Assert.Equal(TimeSpan.Zero, command.Entry.ExecutedAtUtc.Offset);
+        Assert.Equal(23950.25m, command.Entry.Price);
+        Assert.Equal(1.50m, command.Entry.Commission);
+        Assert.Equal(0.25m, command.Entry.Fees);
+        Assert.Null(command.Exit);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.False(viewModel.HasValidationError);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandBuildsValidClosedShortTrade()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            hasExit: true,
+            direction: TradeDirection.Short);
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(TradeDirection.Short, command.Direction);
+        Assert.NotNull(command.Exit);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 10, 14, 15, 0, TimeSpan.Zero),
+            command.Exit.ExecutedAtUtc);
+        Assert.Equal(TimeSpan.Zero, command.Exit.ExecutedAtUtc.Offset);
+        Assert.Equal(23900m, command.Exit.Price);
+        Assert.Equal(1.50m, command.Exit.Commission);
+        Assert.Equal(0.25m, command.Exit.Fees);
+        Assert.Null(viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandDoesNotPromoteSelectorPolicyToValidation()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.SelectedAccount = viewModel.SelectedAccount! with
+        {
+            Currency = "EUR",
+            IsActive = false,
+        };
+        viewModel.SelectedInstrument = viewModel.SelectedInstrument! with
+        {
+            Currency = "USD",
+            IsActive = false,
+        };
+        viewModel.EntryPriceText = "-0.10";
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(viewModel.SelectedAccount.Id, command.TradingAccountId);
+        Assert.Equal(viewModel.SelectedInstrument.Id, command.InstrumentId);
+        Assert.Equal(-0.10m, command.Entry.Price);
+    }
+
+    [Theory]
+    [InlineData("account", "Trading account is required.")]
+    [InlineData("instrument", "Instrument is required.")]
+    [InlineData("direction", "Direction is required.")]
+    public void TryBuildManualTradeCommandRejectsMissingRequiredSelection(
+        string missingSelection,
+        string expectedMessage)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        switch (missingSelection)
+        {
+            case "account":
+                viewModel.SelectedAccount = null;
+                break;
+            case "instrument":
+                viewModel.SelectedInstrument = null;
+                break;
+            case "direction":
+                viewModel.SelectedDirection = null;
+                break;
+        }
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
+        Assert.True(viewModel.HasValidationError);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandRejectsUndefinedDirection()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.SelectedDirection = (TradeDirection)999;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal("Direction is invalid.", viewModel.ValidationErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("", "Quantity must be a valid number.")]
+    [InlineData("not-a-number", "Quantity must be a valid number.")]
+    [InlineData("1e3", "Quantity must be a valid number.")]
+    [InlineData("0", "Quantity must be greater than zero.")]
+    [InlineData("-0.01", "Quantity must be greater than zero.")]
+    public void TryBuildManualTradeCommandRejectsInvalidQuantity(
+        string quantityText,
+        string expectedMessage)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.QuantityText = quantityText;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandParsesCurrentCultureDecimals()
+    {
+        CultureInfo originalCulture = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("bg-BG");
+            TradesViewModel viewModel = CreateValidTradeForm();
+            viewModel.QuantityText = "2,5";
+            viewModel.EntryPriceText = "23950,25";
+            viewModel.EntryCommissionText = "1,50";
+            viewModel.EntryFeesText = "0,25";
+
+            bool succeeded = viewModel.TryBuildManualTradeCommand(
+                out CreateManualTradeCommand? command);
+
+            Assert.True(succeeded);
+            Assert.NotNull(command);
+            Assert.Equal(2.5m, command.Quantity);
+            Assert.Equal(23950.25m, command.Entry.Price);
+            Assert.Equal(1.50m, command.Entry.Commission);
+            Assert.Equal(0.25m, command.Entry.Fees);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandFallsBackToInvariantDecimals()
+    {
+        CultureInfo originalCulture = CultureInfo.CurrentCulture;
+
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("bg-BG");
+            TradesViewModel viewModel = CreateValidTradeForm();
+
+            bool succeeded = viewModel.TryBuildManualTradeCommand(
+                out CreateManualTradeCommand? command);
+
+            Assert.True(succeeded);
+            Assert.NotNull(command);
+            Assert.Equal(2.5m, command.Quantity);
+            Assert.Equal(23950.25m, command.Entry.Price);
+            Assert.Equal(1.50m, command.Entry.Commission);
+            Assert.Equal(0.25m, command.Entry.Fees);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Theory]
+    [InlineData("2026-09-10 13:30:00")]
+    [InlineData("2026-09-10 13:30")]
+    [InlineData("2026-09-10T13:30:00Z")]
+    [InlineData("2026-09-10T13:30Z")]
+    public void TryBuildManualTradeCommandParsesSupportedUtcTimestamp(
+        string timestampText)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryExecutedAtUtcText = timestampText;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(
+            new DateTimeOffset(2026, 9, 10, 13, 30, 0, TimeSpan.Zero),
+            command.Entry.ExecutedAtUtc);
+        Assert.Equal(TimeSpan.Zero, command.Entry.ExecutedAtUtc.Offset);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("09/10/2026 13:30")]
+    [InlineData("2026-09-10T13:30:00+03:00")]
+    public void TryBuildManualTradeCommandRejectsUnsupportedEntryTimestamp(
+        string timestampText)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryExecutedAtUtcText = timestampText;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(
+            "Entry time must be a valid UTC timestamp.",
+            viewModel.ValidationErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("-5", -5)]
+    public void TryBuildManualTradeCommandAcceptsZeroOrNegativeEntryPrice(
+        string priceText,
+        decimal expectedPrice)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryPriceText = priceText;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(expectedPrice, command.Entry.Price);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandRejectsMalformedEntryPrice()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryPriceText = "not-a-price";
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(
+            "Entry price must be a valid number.",
+            viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandTreatsBlankExecutionCostsAsZero()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
+        viewModel.EntryCommissionText = string.Empty;
+        viewModel.EntryFeesText = "   ";
+        viewModel.ExitCommissionText = "   ";
+        viewModel.ExitFeesText = string.Empty;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(0m, command.Entry.Commission);
+        Assert.Equal(0m, command.Entry.Fees);
+        Assert.NotNull(command.Exit);
+        Assert.Equal(0m, command.Exit.Commission);
+        Assert.Equal(0m, command.Exit.Fees);
+    }
+
+    [Theory]
+    [InlineData(
+        "entryCommission",
+        "-0.01",
+        "Entry commission must be a valid non-negative number.")]
+    [InlineData(
+        "entryFees",
+        "-0.01",
+        "Entry fees must be a valid non-negative number.")]
+    [InlineData(
+        "exitCommission",
+        "-0.01",
+        "Exit commission must be a valid non-negative number.")]
+    [InlineData(
+        "exitFees",
+        "invalid",
+        "Exit fees must be a valid non-negative number.")]
+    public void TryBuildManualTradeCommandRejectsInvalidExecutionCost(
+        string field,
+        string value,
+        string expectedMessage)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
+        switch (field)
+        {
+            case "entryCommission":
+                viewModel.EntryCommissionText = value;
+                break;
+            case "entryFees":
+                viewModel.EntryFeesText = value;
+                break;
+            case "exitCommission":
+                viewModel.ExitCommissionText = value;
+                break;
+            case "exitFees":
+                viewModel.ExitFeesText = value;
+                break;
+        }
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandIgnoresExitFieldsForOpenTrade()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.ExitExecutedAtUtcText = "not-a-time";
+        viewModel.ExitPriceText = "not-a-price";
+        viewModel.ExitCommissionText = "invalid";
+        viewModel.ExitFeesText = "invalid";
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Null(command.Exit);
+    }
+
+    [Theory]
+    [InlineData("time", "Exit time must be a valid UTC timestamp.")]
+    [InlineData("price", "Exit price must be a valid number.")]
+    public void TryBuildManualTradeCommandRequiresEnabledExitFields(
+        string invalidField,
+        string expectedMessage)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
+        if (invalidField == "time")
+        {
+            viewModel.ExitExecutedAtUtcText = string.Empty;
+        }
+        else
+        {
+            viewModel.ExitPriceText = "not-a-price";
+        }
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandRejectsExitEarlierThanEntry()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
+        viewModel.ExitExecutedAtUtcText = "2026-09-10 13:29:59";
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.False(succeeded);
+        Assert.Null(command);
+        Assert.Equal(
+            "Exit time cannot be earlier than entry time.",
+            viewModel.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandAcceptsEqualEntryAndExitTimes()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
+        viewModel.ExitExecutedAtUtcText = viewModel.EntryExecutedAtUtcText;
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.NotNull(command.Exit);
+        Assert.Equal(command.Entry.ExecutedAtUtc, command.Exit.ExecutedAtUtc);
+    }
+
+    [Fact]
+    public void SuccessfulBuildClearsPriorValidationFailure()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.QuantityText = "invalid";
+        Assert.False(viewModel.TryBuildManualTradeCommand(out _));
+        Assert.True(viewModel.HasValidationError);
+
+        viewModel.QuantityText = "2.5";
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.False(viewModel.HasValidationError);
     }
 
     [Fact]
@@ -240,6 +678,9 @@ public sealed class TradesViewModelTests
 
         viewModel.ShowManualEntryCommand.Execute(null);
         PopulateRepresentativeTradeFacts(viewModel);
+        viewModel.QuantityText = "invalid";
+        Assert.False(viewModel.TryBuildManualTradeCommand(out _));
+        Assert.True(viewModel.HasValidationError);
 
         viewModel.CancelManualEntryCommand.Execute(null);
 
@@ -257,6 +698,8 @@ public sealed class TradesViewModelTests
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.False(viewModel.HasValidationError);
     }
 
     [Fact]
@@ -271,6 +714,35 @@ public sealed class TradesViewModelTests
 
         Assert.False(viewModel.ShowManualEntryCommand.CanExecute(null));
         Assert.True(viewModel.CancelManualEntryCommand.CanExecute(null));
+    }
+
+    private static TradesViewModel CreateValidTradeForm(
+        bool hasExit = false,
+        TradeDirection direction = TradeDirection.Long)
+    {
+        ManualTradeReferenceData referenceData = CreateReferenceData();
+        var viewModel = new TradesViewModel(new FakeManualTradeReferenceDataReader())
+        {
+            SelectedAccount = Assert.Single(referenceData.Accounts),
+            SelectedInstrument = Assert.Single(referenceData.Instruments),
+            SelectedDirection = direction,
+            QuantityText = "2.5",
+            EntryExecutedAtUtcText = "2026-09-10 13:30:00",
+            EntryPriceText = "23950.25",
+            EntryCommissionText = "1.50",
+            EntryFeesText = "0.25",
+            HasExit = hasExit,
+        };
+
+        if (hasExit)
+        {
+            viewModel.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+            viewModel.ExitPriceText = "23900.00";
+            viewModel.ExitCommissionText = "1.50";
+            viewModel.ExitFeesText = "0.25";
+        }
+
+        return viewModel;
     }
 
     private static ManualTradeReferenceData CreateReferenceData(
