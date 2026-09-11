@@ -64,6 +64,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("Trades", fixture.Main.PageTitle);
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
     }
 
     [Fact]
@@ -124,6 +125,8 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("1.50", fixture.Trades.ExitCommissionText);
         Assert.Equal("0.25", fixture.Trades.ExitFeesText);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
+        Assert.True(fixture.Trades.HasTrades);
     }
 
     [Fact]
@@ -175,6 +178,29 @@ public sealed class MainWindowViewModelTests
         var instrumentStore = new FakeInstrumentStore();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
+        var tradeListReader = new FakeTradeListReader();
+        DateTimeOffset openedAtUtc =
+            new(2026, 9, 10, 13, 30, 0, TimeSpan.Zero);
+        tradeListReader.EnqueueResult(
+        [
+            new TradeListItem(
+                Guid.NewGuid(),
+                Guid.NewGuid(),
+                "Primary Account",
+                Guid.NewGuid(),
+                "NQ",
+                TradeDirection.Long,
+                TradeStatus.Closed,
+                openedAtUtc,
+                openedAtUtc.AddHours(1),
+                0m,
+                23950.25m,
+                23975.50m,
+                3.50m,
+                1262.50m,
+                1259m,
+                "USD"),
+        ]);
         var tradeStore = new FakeTradeStore();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
@@ -188,6 +214,7 @@ public sealed class MainWindowViewModelTests
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
+            tradeListReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
@@ -203,7 +230,8 @@ public sealed class MainWindowViewModelTests
             trades,
             accountReader,
             instrumentReader,
-            tradeReferenceDataReader);
+            tradeReferenceDataReader,
+            tradeListReader);
     }
 
     private sealed record ViewModelFixture(
@@ -214,5 +242,6 @@ public sealed class MainWindowViewModelTests
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
-        FakeManualTradeReferenceDataReader TradeReferenceDataReader);
+        FakeManualTradeReferenceDataReader TradeReferenceDataReader,
+        FakeTradeListReader TradeListReader);
 }

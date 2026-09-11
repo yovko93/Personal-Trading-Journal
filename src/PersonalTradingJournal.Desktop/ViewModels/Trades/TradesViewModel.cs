@@ -8,12 +8,14 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 public sealed class TradesViewModel : ObservableObject
 {
+    private const int RecentTradeLimit = 50;
     private const NumberStyles DecimalNumberStyles =
         NumberStyles.AllowLeadingWhite |
         NumberStyles.AllowTrailingWhite |
         NumberStyles.AllowLeadingSign |
         NumberStyles.AllowDecimalPoint;
     private const string LoadErrorMessage = "Trade reference data could not be loaded.";
+    private const string TradeListLoadErrorMessage = "Trades could not be loaded.";
     private const string SaveErrorMessageFallback = "Trade could not be saved.";
     private const string StaleReferenceErrorMessage =
         "The selected trading account or instrument is no longer available. " +
@@ -28,8 +30,10 @@ public sealed class TradesViewModel : ObservableObject
     ];
 
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
+    private readonly ITradeListReader _tradeListReader;
     private readonly CreateManualTradeUseCase _createManualTradeUseCase;
-    private readonly SemaphoreSlim _loadGate = new(1, 1);
+    private readonly SemaphoreSlim _referenceDataLoadGate = new(1, 1);
+    private readonly SemaphoreSlim _tradeListLoadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
     private string _entryCommissionText = "0";
     private string _entryExecutedAtUtcText = string.Empty;
@@ -41,27 +45,34 @@ public sealed class TradesViewModel : ObservableObject
     private string _exitFeesText = "0";
     private string _exitPriceText = string.Empty;
     private bool _hasExit;
-    private bool _hasLoadedSuccessfully;
+    private bool _hasReferenceDataLoadedSuccessfully;
+    private bool _hasTradeListLoadedSuccessfully;
     private IReadOnlyList<ManualTradeInstrumentOption> _instrumentOptions = [];
     private bool _isLoading;
+    private bool _isTradeListLoading;
     private bool _isManualEntryVisible;
     private bool _isSaving;
     private string _quantityText = string.Empty;
+    private IReadOnlyList<TradeListItem> _recentTrades = [];
     private string? _saveErrorMessage;
     private ManualTradeAccountOption? _selectedAccount;
     private TradeDirection? _selectedDirection;
     private ManualTradeInstrumentOption? _selectedInstrument;
     private string? _successMessage;
+    private string? _tradeListErrorMessage;
     private string? _validationErrorMessage;
 
     public TradesViewModel(
         IManualTradeReferenceDataReader referenceDataReader,
+        ITradeListReader tradeListReader,
         CreateManualTradeUseCase createManualTradeUseCase)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
+        ArgumentNullException.ThrowIfNull(tradeListReader);
         ArgumentNullException.ThrowIfNull(createManualTradeUseCase);
 
         _referenceDataReader = referenceDataReader;
+        _tradeListReader = tradeListReader;
         _createManualTradeUseCase = createManualTradeUseCase;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
@@ -98,6 +109,20 @@ public sealed class TradesViewModel : ObservableObject
             }
         }
     }
+
+    public IReadOnlyList<TradeListItem> RecentTrades
+    {
+        get => _recentTrades;
+        private set
+        {
+            if (SetProperty(ref _recentTrades, value))
+            {
+                OnPropertyChanged(nameof(HasTrades));
+            }
+        }
+    }
+
+    public bool HasTrades => RecentTrades.Count > 0;
 
     public ManualTradeAccountOption? SelectedAccount
     {
@@ -215,6 +240,18 @@ public sealed class TradesViewModel : ObservableObject
         }
     }
 
+    public bool IsTradeListLoading
+    {
+        get => _isTradeListLoading;
+        private set
+        {
+            if (SetProperty(ref _isTradeListLoading, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     public string? ErrorMessage
     {
         get => _errorMessage;
@@ -228,6 +265,20 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     public bool HasError => ErrorMessage is not null;
+
+    public string? TradeListErrorMessage
+    {
+        get => _tradeListErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeListErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeListError));
+            }
+        }
+    }
+
+    public bool HasTradeListError => TradeListErrorMessage is not null;
 
     public bool HasAccountOptions => AccountOptions.Count > 0;
 
@@ -421,15 +472,18 @@ public sealed class TradesViewModel : ObservableObject
 
     public async Task EnsureLoadedAsync()
     {
-        _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
+        _ = await LoadReferenceDataAsync(forceRefresh: false, CancellationToken.None);
+        _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
-        _ = await LoadAsync(forceRefresh: true, cancellationToken);
+        _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);
+        _ = await LoadTradeListAsync(forceRefresh: true, cancellationToken);
     }
 
-    private bool CanRefresh() => !IsLoading && !IsSaving;
+    private bool CanRefresh() =>
+        !IsLoading && !IsTradeListLoading && !IsSaving;
 
     private void ShowManualEntry()
     {
@@ -569,18 +623,18 @@ public sealed class TradesViewModel : ObservableObject
         ExitFeesText = "0";
     }
 
-    private async Task<bool> LoadAsync(
+    private async Task<bool> LoadReferenceDataAsync(
         bool forceRefresh,
         CancellationToken cancellationToken)
     {
-        if (!await _loadGate.WaitAsync(0, cancellationToken))
+        if (!await _referenceDataLoadGate.WaitAsync(0, cancellationToken))
         {
             return false;
         }
 
         try
         {
-            if (!forceRefresh && _hasLoadedSuccessfully)
+            if (!forceRefresh && _hasReferenceDataLoadedSuccessfully)
             {
                 return true;
             }
@@ -607,7 +661,7 @@ public sealed class TradesViewModel : ObservableObject
                     ? InstrumentOptions.SingleOrDefault(
                         option => option.Id == selectedInstrumentId.Value)
                     : null;
-                _hasLoadedSuccessfully = true;
+                _hasReferenceDataLoadedSuccessfully = true;
                 return true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -626,7 +680,57 @@ public sealed class TradesViewModel : ObservableObject
         }
         finally
         {
-            _loadGate.Release();
+            _referenceDataLoadGate.Release();
+        }
+    }
+
+    private async Task<bool> LoadTradeListAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (!await _tradeListLoadGate.WaitAsync(0, cancellationToken))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!forceRefresh && _hasTradeListLoadedSuccessfully)
+            {
+                return true;
+            }
+
+            IsTradeListLoading = true;
+            TradeListErrorMessage = null;
+
+            try
+            {
+                IReadOnlyList<TradeListItem> recentTrades =
+                    await _tradeListReader.GetRecentAsync(
+                        RecentTradeLimit,
+                        cancellationToken);
+
+                RecentTrades = recentTrades;
+                _hasTradeListLoadedSuccessfully = true;
+                return true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                TradeListErrorMessage = TradeListLoadErrorMessage;
+                return false;
+            }
+            finally
+            {
+                IsTradeListLoading = false;
+            }
+        }
+        finally
+        {
+            _tradeListLoadGate.Release();
         }
     }
 }
