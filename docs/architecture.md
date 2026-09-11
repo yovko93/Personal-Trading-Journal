@@ -35,10 +35,11 @@ Rules:
 
 The Application project is the application and use-case layer. It orchestrates Domain construction and lifecycle behavior through narrow external boundaries while remaining independent of WPF, EF Core, and Infrastructure.
 
-Current M5 feature boundaries are:
+Current feature boundaries are:
 
 - **Accounts** — `ITradingAccountReader`, `ITradingAccountStore`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`;
-- **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`; and
+- **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`;
+- **Trades** — `CreateManualTradeCommand` and `ManualTradeExecutionInput` carry validated manual facts, `CreateManualTradeUseCase` orchestrates authoritative reference lookup and Domain creation, `ITradeStore` is the narrow aggregate-write boundary, and `IManualTradeReferenceDataReader` returns `ManualTradeReferenceData` composed of `ManualTradeAccountOption` and `ManualTradeInstrumentOption` selector projections; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
 
 Readers return presentation-oriented list-item projections and are optimized for query use. Stores expose only the aggregate persistence operations required by write use cases. Create and lifecycle use cases construct or mutate Domain aggregates and coordinate persistence. These are explicit feature boundaries, not a generic repository pattern.
@@ -52,6 +53,7 @@ The Infrastructure project implements Application abstractions and owns external
 - Infrastructure-owned persistence records and `IEntityTypeConfiguration` mappings;
 - explicit persistence-record/Domain mappers;
 - Application reader and store implementations for Accounts and Instruments;
+- `TradeStore` and `ManualTradeReferenceDataReader` for manual Trade creation;
 - the SQLite UTC timestamp converter;
 - EF Core migrations and the design-time context factory; and
 - `JournalDatabaseInitializer` for runtime migration application.
@@ -67,7 +69,8 @@ The Contracts project is reserved for stable DTOs or contracts that may later be
 The Desktop project contains the WPF presentation layer and the application composition root. It owns:
 
 - WPF Views and presentation ViewModels;
-- data-backed Accounts and Instruments feature workflows;
+- data-backed Accounts, Instruments, and Trades feature workflows;
+- manual Trade-entry state, deterministic raw-input parsing and validation, and submission through the Application use case;
 - the permanent shell and its navigation state;
 - implicit `DataTemplate` ViewModel-to-View resolution;
 - reusable XAML design resources;
@@ -127,14 +130,15 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 ```text
 DashboardViewModel   -> DashboardView
+TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
-There are 19 destinations. Dashboard, Accounts, and Instruments have concrete content; the remaining 16 destinations share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
+There are 19 destinations: four concrete destinations—Dashboard, Trades, Accounts, and Instruments—and 15 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
 
-`MainWindowViewModel` retains its injected `DashboardViewModel`, `AccountsViewModel`, and `InstrumentsViewModel` for the lifetime of the main window. Returning to those destinations therefore preserves feature presentation state instead of constructing replacement ViewModels. This remains direct typed shell state; no `NavigationService` exists.
+`MainWindowViewModel` retains its injected `DashboardViewModel`, `TradesViewModel`, `AccountsViewModel`, and `InstrumentsViewModel` for the lifetime of the main window. Returning to Trades therefore preserves an in-progress draft until Cancel or a successful Save; navigation itself does not reset Trade facts. This remains direct typed shell state; no `NavigationService` exists.
 
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
@@ -144,7 +148,7 @@ Desktop may depend on Application abstractions and use cases. Its reference to I
 
 Desktop objects use constructor injection. ViewModels must not locate dependencies through `IServiceProvider` or another service-locator pattern.
 
-### M5 Read and Write Flows
+### Feature Read and Write Flows
 
 Accounts and Instruments use separate, purpose-specific read and write paths.
 
@@ -170,9 +174,27 @@ Desktop ViewModel
   -> SQLite
 ```
 
-After a successful write, Desktop performs an authoritative reload through the reader. It does not manufacture an authoritative persisted projection locally.
+After a successful Account or Instrument write, Desktop performs an authoritative reload through the corresponding reader. It does not manufacture an authoritative persisted projection locally.
 
 Write failures produce operation-specific create or lifecycle errors. If persistence succeeds but the projection reload fails, the mutation remains successful, the visible list may temporarily be stale, and Desktop presents a list-level refresh warning so the user can retry Refresh. This distinction avoids falsely reporting that a successful create or status change failed.
+
+M6 uses a separate manual Trade write path:
+
+```text
+TradesViewModel
+  -> TryBuildManualTradeCommand
+  -> CreateManualTradeUseCase
+  -> TradingAccount and Instrument aggregate lookup
+  -> TradePricingSnapshot
+  -> Trade and TradeExecution Domain APIs
+  -> ITradeStore
+  -> TradeStore
+  -> SQLite
+```
+
+The use case reloads the Account and Instrument aggregates rather than treating Desktop selector metadata as persistence authority. It snapshots `Instrument.PointValue` and `Instrument.Currency`, so historical economics do not change with later Instrument edits. A successful store operation is final for M6: the draft resets, the form closes, and success feedback is shown. There is no Trade-list reload because an authoritative Trade reader/list does not exist yet.
+
+`IManualTradeReferenceDataReader` is a purpose-specific Trade-entry projection, not a generic query service. Management pages use `ITradingAccountReader` and `IInstrumentReader` to show active and inactive records. Normal Desktop manual entry requests active references only; the Application reader can explicitly include inactive references, and `CreateManualTradeUseCase` requires references to exist without making active status a Domain invariant. This preserves a path for future historical or backfill entry.
 
 ## Persistence Boundary
 
@@ -190,9 +212,11 @@ SQLite
 
 EF Core adapts to the Domain; the Domain does not adapt to EF Core. EF Core materializes mutable Infrastructure records rather than Domain entities. Domain types remain immutable or getter-heavy where appropriate, contain no EF attributes, and have no EF dependency. Infrastructure mappers reconstruct Domain entities through their explicit `Rehydrate(...)` APIs. AutoMapper is not used at this boundary.
 
-The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. M5 adds narrow Application-facing readers and stores for the concrete Accounts and Instruments workflows. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
+The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. Narrow Application-facing readers and stores support the concrete Accounts, Instruments, and manual Trade workflows. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
 
 `AddPersistence(...)` registers `IDbContextFactory<JournalDbContext>`. Contexts are short-lived, created per operation, and disposed after use; the desktop application does not retain a long-lived context. Production-wired integration tests verify that writes made through one context are visible through later fresh contexts.
+
+For Trade creation, `TradeStore.AddAsync(...)` creates a fresh context, maps the authoritative aggregate with the existing Trade and execution persistence mappers, tracks the Trade root and every execution, and calls `SaveChangesAsync(...)` once. EF Core's transactional SaveChanges behavior provides atomicity; there is no custom transaction or Unit of Work abstraction.
 
 Detailed schema, provider, and migration decisions are documented in [Persistence](persistence.md).
 
@@ -220,7 +244,7 @@ M5 introduces no new uniqueness business rule for account name, external account
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, and the shell. `DashboardViewModel`, `AccountsViewModel`, `InstrumentsViewModel`, `MainWindowViewModel`, and `MainWindow` are created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, and the shell. This includes `CreateManualTradeUseCase` and the retained `TradesViewModel` alongside the Dashboard, Accounts, and Instruments ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
@@ -280,9 +304,9 @@ Target frameworks remain project-specific because the class libraries target `ne
 Testing follows the solution layers:
 
 - **Domain.Tests** contains deterministic tests for the implemented M2 entities, lifecycle rules, calculations, mutations, and invariants.
-- **Application.Tests** covers application and use-case behavior.
-- **Infrastructure.Tests** covers implementation and integration-focused behavior, including local paths, explicit mapper round-trips, real SQLite precision and timestamp queries, relational integrity, migrated temporary databases, runtime initialization, and production-wired full-graph scenarios.
-- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel behavior using real Application use cases with test-only readers and stores. It covers loading and refresh, create validation, lifecycle behavior, post-write reload failures, navigation and retained ViewModels, and culture-aware Instrument decimal parsing. It does not use SQLite, instantiate WPF `Window`, `Application`, or `UserControl` objects, or perform UI automation.
+- **Application.Tests** covers application and use-case behavior, including authoritative reference lookup, historical pricing capture, and open/closed manual Trade creation.
+- **Infrastructure.Tests** covers implementation and integration-focused behavior, including local paths, explicit mapper round-trips, real SQLite precision and timestamp queries, relational integrity, migrated temporary databases, runtime initialization, `TradeStore`, the manual reference reader, aggregate atomicity, historical pricing persistence, and production-wired manual Trade persistence.
+- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel behavior using real Application use cases with hand-written test readers and stores. It covers loading and refresh, create and lifecycle behavior, manual form state, deterministic parsing, UTC validation, decimal culture handling, Save success/failure, cancellation, double-submit prevention, draft retention, post-write reload failures, navigation, and retained ViewModels. It does not use SQLite, instantiate WPF `Window`, `Application`, or `UserControl` objects, or perform UI automation.
 
 Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure persistence tests use isolated temporary SQLite databases, fresh contexts, and explicit cleanup rather than the user's real local application data. Path-construction tests separately verify that calculating local paths does not itself create `journal.db`.
 

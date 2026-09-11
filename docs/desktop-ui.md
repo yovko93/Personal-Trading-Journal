@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell, navigation, ViewModel-to-View mapping, shared visual resources, and a presentation-only Dashboard. Milestone M5 added the first real data-backed feature pages: Accounts and Instruments. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell and navigation, M5 added the Accounts and Instruments management pages, and M6 added Manual Trade Entry through a real Trades page. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -34,7 +34,7 @@ MainWindow
                       -> View
 ```
 
-`MainWindowViewModel` owns shell presentation state only. Accounts and Instruments keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
+`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, and Trades keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
 
 ## Navigation
 
@@ -64,7 +64,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances so appropriate presentation state survives shell navigation.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft until Cancel or a successful Save; navigation itself does not reset the form.
 
 ## ViewModel-to-View Mapping
 
@@ -72,6 +72,7 @@ Repeated navigation to the current destination is ignored. This preserves the cu
 
 ```text
 DashboardViewModel   -> DashboardView
+TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
 PlaceholderViewModel -> PlaceholderView
@@ -81,7 +82,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Strategy
 
-Dashboard, Accounts, and Instruments have concrete content. The remaining 16 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Four destinations—Dashboard, Trades, Accounts, and Instruments—have concrete content. The remaining 15 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -114,9 +115,39 @@ Instruments performs a lazy initial load on first navigation and provides an exp
 
 Tick Size and Tick Value accept current-culture decimal formatting with an invariant `.` fallback. Point Value is display-only and derived upstream; it is not a form input. Each row exposes only its applicable reversible lifecycle action, inactive instruments remain visible, and the page intentionally provides no edit or delete behavior. Contract-specific futures symbols, expiration, contract month, and rollover are not supported by this feature.
 
+## Trades Feature
+
+Trades lazily loads purpose-specific reference data on first navigation and provides an explicit Refresh command. Normal Desktop entry lists active Accounts and Instruments only. Neither selector nor Direction is chosen automatically, and selector `PointValue` is presentation metadata rather than authoritative persisted economics.
+
+Add Trade opens an inline form organized into Reference, Trade, Entry, and conditional Exit sections. It captures:
+
+- an explicit Trading Account and Instrument;
+- Long or Short direction and decimal Quantity;
+- an opening execution timestamp, price, commission, and fees; and
+- optionally, one full closing execution with its own timestamp, price, commission, and fees.
+
+Execution timestamps are entered explicitly as UTC and accept only `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd'T'HH:mm:ss'Z'`, or `yyyy-MM-dd'T'HH:mm'Z'`. Desktop does not infer the Windows or New York timezone, convert arbitrary offsets, or accept ambiguous culture-specific dates. The resulting market facts use zero-offset UTC.
+
+Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` with `.` as a fallback. Leading/trailing whitespace, a sign, and a decimal point are supported; thousands separators, exponents, and currency symbols are rejected. Quantity must be greater than zero. Prices may be zero or negative when syntactically valid. Blank Commission or Fees becomes zero; otherwise each cost must be non-negative. Quantity is not restricted to integers.
+
+`TradesViewModel` validates raw presentation values in deterministic form order and builds `CreateManualTradeCommand`. `CreateManualTradeUseCase` then reloads the authoritative Account and Instrument aggregates, constructs a `TradePricingSnapshot` from `Instrument.PointValue` and `Instrument.Currency`, creates the `Trade` through Domain APIs, and persists it through `ITradeStore`. Desktop never accesses `TradeStore` or `JournalDbContext` directly.
+
+The M6 form supports one opening execution plus an optional full closing execution. This is a deliberately simple capture workflow; the Domain remains capable of scale-in and partial scale-out.
+
+After successful persistence, the draft resets, the form closes, and "Trade saved successfully." is shown. M6 does not query or render persisted Trade rows, so there is intentionally no Trade-list reload and no locally fabricated row. The informational "No trades are displayed yet." surface means browsing is not implemented; it does not assert that the database contains no Trades. Authoritative Trade browsing and detail are M7 concerns.
+
+Trade operation feedback remains separated:
+
+- `ErrorMessage` reports reference-selection/read problems;
+- `ValidationErrorMessage` reports invalid manual input;
+- `SaveErrorMessage` reports a validated Trade that could not be saved; and
+- `SuccessMessage` reports completed persistence.
+
+Validation failure makes no persistence attempt and retains the draft. Technical persistence failure also retains it. A stale Account or Instrument produces safe stale-reference feedback without discarding input. Cancellation propagates, retains the draft, and is not transformed into failure or success feedback. While saving, Save, Cancel, Refresh, and opening another form cannot start competing operations; this is explicit `TradesViewModel` state rather than a generic operation coordinator.
+
 ## Feature Operation and Error State
 
-Accounts and Instruments explicitly prevent overlapping major operations across load/refresh, create, and lifecycle mutation. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
+Accounts, Instruments, and Trades explicitly prevent overlapping major operations appropriate to each feature. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
 
 Each feature distinguishes three conceptual error categories:
 
@@ -131,6 +162,8 @@ After a successful create or lifecycle write, the ViewModel reloads its authorit
 Accounts and Instruments each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, errors, table headers, and rows. This keeps the whole workflow reachable at reduced height without a nested list scrollbar. Horizontal scrolling is disabled, and header and row column definitions remain aligned.
 
 This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
+
+Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scrolling disabled. The toolbar, form, conditional Exit section, action controls, and feedback surfaces remain in that scrolling region. This manual-entry layout does not establish a scrolling policy for the future authoritative Trade list.
 
 ## Design System
 
@@ -161,6 +194,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
 - `AccountsViewModel` depends on `ITradingAccountReader`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`.
 - `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
+- `TradesViewModel` depends on `IManualTradeReferenceDataReader` and `CreateManualTradeUseCase`.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
 - Presentation dependencies use constructor injection; ViewModels must not use a service locator.
@@ -200,7 +234,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with test-only readers and stores to exercise loading, refresh, validation, lifecycle actions, authoritative-reload failures, retained navigation state, and culture-aware decimal parsing.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise loading, refresh, validation, lifecycle actions, authoritative-reload failures, retained navigation state, and manual Trade form state, UTC parsing, decimal culture handling, Save behavior, separated errors, cancellation, double-submit prevention, and draft retention.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 
@@ -232,4 +266,4 @@ The following are intentionally not implemented:
 
 ## Next Milestone
 
-M5 completes the Account and Instrument reference-data workflows. M6 — Manual Trade Entry will connect that reference data to the first real Trade-entry workflow; detailed UI and API design remain deferred until that milestone is approved.
+M6 — Manual Trade Entry is complete. The next milestone is M7 — Trade List / Detail, which will add authoritative persisted Trade browsing and Trade detail behavior. Editing and deletion are not implied.

@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-This layer does not yet provide Application repository interfaces, end-user CRUD use cases, seed data, physical screenshot storage, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries now support the concrete Account, Instrument, and manual Trade creation workflows. Persistence still does not provide generic repositories, authoritative Trade list/detail queries, Trade edit/delete, seed data, physical screenshot storage, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -20,7 +20,7 @@ SQLite journal.db
 
 EF Core adapts to the Domain. It does not materialize Domain entities directly, and Domain has no EF attributes or package dependency. Mutable persistence records and their configurations are owned by Infrastructure. Explicit mappers translate in both directions; AutoMapper is not used.
 
-M3 deliberately adds no generic repository, Unit of Work abstraction, or speculative Application persistence interface. Those boundaries will be introduced when concrete application use cases require them. Desktop code resolves the high-level database initializer and does not access `JournalDbContext` directly.
+The repository deliberately has no generic repository, Unit of Work abstraction, or speculative persistence interface. Concrete workflows use narrow Application boundaries such as `ITradingAccountStore`, `IInstrumentStore`, and `ITradeStore`, implemented in Infrastructure. Desktop feature code uses these boundaries through Application use cases and does not access `JournalDbContext` directly.
 
 ## JournalDbContext
 
@@ -107,6 +107,23 @@ The following values are deliberately not persisted because ordered executions a
 
 Production-wired integration tests persist a complete closed trade and prove exact reconstruction of these economics through a fresh context.
 
+### Manual Trade Aggregate Persistence
+
+M6 Manual Trade Entry uses the existing M3 Trade/Execution schema and migration; it introduces no schema change. The aggregate write path is:
+
+```text
+ITradeStore.AddAsync
+  -> TradeStore
+  -> TradePersistenceMapper + TradeExecutionPersistenceMapper
+  -> one TradeRecord + all TradeExecutionRecords
+  -> one SaveChangesAsync
+  -> SQLite
+```
+
+`TradeStore` creates a fresh `JournalDbContext` for each write, maps the authoritative Domain aggregate, tracks its root and all executions, and saves them together. EF Core's transactional `SaveChangesAsync` supplies atomicity; there is no custom transaction wrapper or Unit of Work.
+
+The store persists the Trade's existing `PricingPointValue` and `PricingCurrency`. It does not reload current Instrument economics. `CreateManualTradeUseCase` creates that snapshot from the authoritative Domain Instrument's `PointValue` and `Currency`, so historical Trade economics remain stable after later Instrument metadata changes.
+
 `TradeScreenshot` rows contain metadata and an opaque `StorageKey`; they do not contain image bytes or assert a filesystem layout. `TradeMistake` rows associate historical process evidence with a trade and do not infer severity, cost, or P&L impact.
 
 ## Decimal Semantics
@@ -165,7 +182,9 @@ Infrastructure tests cover:
 - foreign-key, delete-behavior, and unique-index integrity;
 - initial migration metadata and migrated-schema behavior;
 - runtime initializer creation, idempotency, and cancellation; and
-- production-wired full-graph and transaction-atomicity scenarios.
+- `TradeStore`, `ManualTradeReferenceDataReader`, and fresh-read behavior;
+- rollback of a new Trade root when an execution insert fails; and
+- production-wired `CreateManualTradeUseCase`, full-graph, and transaction-atomicity scenarios.
 
 Together they prove fresh database migration, fresh-context visibility, full graph rehydration, exact trade economics, historical pricing independence, inactive historical references, opaque storage-key preservation, atomic rollback after relational failure, and continued database usability afterward. Physical test databases live in unique temporary directories and are disposed and removed after each scenario.
 
@@ -205,8 +224,8 @@ Before accepting a migration:
 
 The persistence foundation does not yet include:
 
-- Application repository or use-case abstractions;
-- end-user trade CRUD or import workflows;
+- an authoritative Trade browsing/detail read model;
+- Trade edit/delete workflows or imports;
 - physical screenshot file persistence;
 - backup and restore;
 - seed/reference-data provisioning;
