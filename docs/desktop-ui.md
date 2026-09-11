@@ -149,13 +149,15 @@ Validation failure makes no persistence attempt and retains the draft. Technical
 
 Accounts, Instruments, and Trades explicitly prevent overlapping major operations appropriate to each feature. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
 
-Each feature distinguishes three conceptual error categories:
+Accounts and Instruments distinguish three conceptual error categories:
 
 - list/read errors;
 - create errors; and
 - lifecycle errors.
 
-After a successful create or lifecycle write, the ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
+After a successful Account or Instrument create/lifecycle write, the corresponding ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
+
+Trades uses the separate read, validation, save, and success states documented in the Trades Feature section.
 
 ## Feature Page Scrolling
 
