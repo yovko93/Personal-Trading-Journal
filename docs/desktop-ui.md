@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell and navigation, M5 added the Accounts and Instruments management pages, and M6 added Manual Trade Entry through a real Trades page. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell and navigation, M5 added the Accounts and Instruments management pages, M6 added Manual Trade Entry, and M7 completed authoritative Trade browsing and read-only Trade Detail. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -64,7 +64,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft until Cancel or a successful Save; navigation itself does not reset the form.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
 
 ## ViewModel-to-View Mapping
 
@@ -117,7 +117,7 @@ Tick Size and Tick Value accept current-culture decimal formatting with an invar
 
 ## Trades Feature
 
-Trades lazily loads purpose-specific reference data on first navigation and provides an explicit Refresh command. Normal Desktop entry lists active Accounts and Instruments only. Neither selector nor Direction is chosen automatically, and selector `PointValue` is presentation metadata rather than authoritative persisted economics.
+Trades independently loads purpose-specific reference data and the bounded Recent Trades list on first navigation, caching each successful result. Refresh requests both again while keeping their success and failure outcomes independent, so a failure in one read does not discard fresh data from the other. Normal Desktop entry lists active Accounts and Instruments only. Neither selector nor Direction is chosen automatically, and selector `PointValue` is presentation metadata rather than authoritative persisted economics.
 
 Add Trade opens an inline form organized into Reference, Trade, Entry, and conditional Exit sections. It captures:
 
@@ -134,7 +134,7 @@ Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` w
 
 The M6 form supports one opening execution plus an optional full closing execution. This is a deliberately simple capture workflow; the Domain remains capable of scale-in and partial scale-out.
 
-After successful persistence, the draft resets, the form closes, and "Trade saved successfully." is shown. M6 does not query or render persisted Trade rows, so there is intentionally no Trade-list reload and no locally fabricated row. The informational "No trades are displayed yet." surface means browsing is not implemented; it does not assert that the database contains no Trades. Authoritative Trade browsing and detail are M7 concerns.
+After successful persistence, the draft resets, the form closes, and "Trade saved successfully." is shown. Desktop then performs a best-effort authoritative Recent Trades reload and never fabricates a local row. If that post-commit reload fails, the successful write and success feedback remain intact, the existing rows stay visible, and `TradeListErrorMessage` directs the user to Refresh. The reload is not treated as part of the Save failure outcome and does not inherit cancellation from the completed Save command.
 
 Trade operation feedback remains separated:
 
@@ -144,6 +144,20 @@ Trade operation feedback remains separated:
 - `SuccessMessage` reports completed persistence.
 
 Validation failure makes no persistence attempt and retains the draft. Technical persistence failure also retains it. A stale Account or Instrument produces safe stale-reference feedback without discarding input. Cancellation propagates, retains the draft, and is not transformed into failure or success feedback. While saving, Save, Cancel, Refresh, and opening another form cannot start competing operations; this is explicit `TradesViewModel` state rather than a generic operation coordinator.
+
+### Recent Trades
+
+The Recent Trades surface requests at most 50 authoritative rows. It is intentionally a bounded working view, not a claim to show lifetime history. Rows include both open and closed Trades and are ordered by opening market-event time descending, with Trade ID ascending as the deterministic tie-breaker.
+
+The columns are Opened UTC, Trade identity, Account, Average Prices, Open Qty, Net P&L, and View. Account name and Instrument symbol are current reference-data labels, while lifecycle state, average prices, exposure, currency, and economics come from the reconstructed Trade and its historical pricing snapshot. Open Trades display an em dash for nullable Net P&L rather than a fabricated zero.
+
+### Trade Detail
+
+View loads the selected Trade through `ITradeDetailReader` and opens a read-only detail surface. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades, while shell navigation away and back retains the current detail with the rest of the retained Trades ViewModel.
+
+The detail presents current Account and Instrument identity labels; direction and status; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
+
+Executions are shown individually in ascending sequence order as the complete lifecycle: sequence, execution UTC timestamp, side, quantity, price, commission, fees, total costs, and optional broker symbol, external execution ID, and external order ID provenance. The UI does not collapse scale-in or partial-exit history into an entry/exit pair.
 
 ## Feature Operation and Error State
 
@@ -165,7 +179,7 @@ Accounts and Instruments each use one page-level vertical `ScrollViewer`, contai
 
 This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
 
-Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scrolling disabled. The toolbar, form, conditional Exit section, action controls, and feedback surfaces remain in that scrolling region. This manual-entry layout does not establish a scrolling policy for the future authoritative Trade list.
+Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scrolling disabled. The toolbar, manual form, conditional Exit section, Trade Detail, Recent Trades list, execution lifecycle, action controls, and feedback surfaces remain in that scrolling region. This is the current feature-page layout, not a universal policy for future large or virtualized datasets.
 
 ## Design System
 
@@ -196,7 +210,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
 - `AccountsViewModel` depends on `ITradingAccountReader`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`.
 - `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
-- `TradesViewModel` depends on `IManualTradeReferenceDataReader` and `CreateManualTradeUseCase`.
+- `TradesViewModel` depends on `IManualTradeReferenceDataReader`, `CreateManualTradeUseCase`, `ITradeListReader`, and `ITradeDetailReader`.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
 - Presentation dependencies use constructor injection; ViewModels must not use a service locator.
@@ -236,7 +250,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise loading, refresh, validation, lifecycle actions, authoritative-reload failures, retained navigation state, and manual Trade form state, UTC parsing, decimal culture handling, Save behavior, separated errors, cancellation, double-submit prevention, and draft retention.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise independent reference/list loading, refresh and partial failures, bounded Recent Trades, validation, lifecycle actions, authoritative post-save reload outcomes, retained navigation state, Trade Detail loading/not-found/error/close behavior, execution lifecycle projection, manual Trade form state, UTC parsing, decimal culture handling, Save behavior, separated errors, cancellation, double-submit prevention, and draft retention.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 
@@ -268,4 +282,4 @@ The following are intentionally not implemented:
 
 ## Next Milestone
 
-M6 — Manual Trade Entry is complete. The next milestone is M7 — Trade List / Detail, which will add authoritative persisted Trade browsing and Trade detail behavior. Editing and deletion are not implied.
+M7 — Trade List / Detail is complete. The next milestone is M8 — Screenshot Management. Trade editing and deletion remain deferred.
