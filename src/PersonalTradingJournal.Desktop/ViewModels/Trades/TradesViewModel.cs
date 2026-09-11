@@ -248,6 +248,7 @@ public sealed class TradesViewModel : ObservableObject
             if (SetProperty(ref _isTradeListLoading, value))
             {
                 RefreshCommand.NotifyCanExecuteChanged();
+                SaveManualTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -505,7 +506,7 @@ public sealed class TradesViewModel : ObservableObject
     private bool CanCancelManualEntry() => IsManualEntryVisible && !IsSaving;
 
     private bool CanSaveManualTrade() =>
-        IsManualEntryVisible && !IsLoading && !IsSaving;
+        IsManualEntryVisible && !IsLoading && !IsTradeListLoading && !IsSaving;
 
     private async Task SaveManualTradeAsync(CancellationToken cancellationToken)
     {
@@ -529,6 +530,12 @@ public sealed class TradesViewModel : ObservableObject
             ResetManualEntryForm();
             IsManualEntryVisible = false;
             SuccessMessage = TradeSavedMessage;
+
+            // The write is committed, so command cancellation must not turn a
+            // best-effort projection reload into a cancelled save outcome.
+            _ = await LoadTradeListAsync(
+                forceRefresh: true,
+                CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

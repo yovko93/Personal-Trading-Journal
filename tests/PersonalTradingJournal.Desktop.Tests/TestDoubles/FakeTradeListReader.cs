@@ -7,12 +7,25 @@ internal sealed class FakeTradeListReader : ITradeListReader
     private readonly Queue<Func<CancellationToken, Task<IReadOnlyList<TradeListItem>>>>
         _behaviors = new();
     private readonly List<int> _requestedLimits = [];
+    private readonly TaskCompletionSource<bool> _readStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource<bool> _releaseRead =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public int CallCount { get; private set; }
 
     public IReadOnlyList<int> RequestedLimits => _requestedLimits;
 
     public CancellationToken CancellationToken { get; private set; }
+
+    public bool HoldRead { get; set; }
+
+    public Task ReadStarted => _readStarted.Task;
+
+    public void ReleaseRead()
+    {
+        _releaseRead.TrySetResult(true);
+    }
 
     public void EnqueueResult(IReadOnlyList<TradeListItem> trades)
     {
@@ -25,16 +38,22 @@ internal sealed class FakeTradeListReader : ITradeListReader
             Task.FromException<IReadOnlyList<TradeListItem>>(exception));
     }
 
-    public Task<IReadOnlyList<TradeListItem>> GetRecentAsync(
+    public async Task<IReadOnlyList<TradeListItem>> GetRecentAsync(
         int limit,
         CancellationToken cancellationToken = default)
     {
         CallCount++;
         _requestedLimits.Add(limit);
         CancellationToken = cancellationToken;
+        _readStarted.TrySetResult(true);
+
+        if (HoldRead)
+        {
+            _ = await _releaseRead.Task.WaitAsync(cancellationToken);
+        }
 
         return _behaviors.Count == 0
-            ? Task.FromResult<IReadOnlyList<TradeListItem>>([])
-            : _behaviors.Dequeue()(cancellationToken);
+            ? []
+            : await _behaviors.Dequeue()(cancellationToken);
     }
 }
