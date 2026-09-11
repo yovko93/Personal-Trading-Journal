@@ -4,10 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Infrastructure.Trades;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence;
 
@@ -115,6 +117,38 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<InstrumentStore>(firstStore);
         Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradeStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradeStore firstStore = serviceProvider.GetRequiredService<ITradeStore>();
+        ITradeStore secondStore = serviceProvider.GetRequiredService<ITradeStore>();
+
+        Assert.IsType<TradeStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersManualTradeReferenceDataReaderAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        IManualTradeReferenceDataReader firstReader =
+            serviceProvider.GetRequiredService<IManualTradeReferenceDataReader>();
+        IManualTradeReferenceDataReader secondReader =
+            serviceProvider.GetRequiredService<IManualTradeReferenceDataReader>();
+
+        Assert.IsType<ManualTradeReferenceDataReader>(firstReader);
+        Assert.NotSame(firstReader, secondReader);
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
@@ -13,21 +14,25 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
+    private readonly TradesViewModel _tradesViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
 
     public MainWindowViewModel(
         DashboardViewModel dashboardViewModel,
         AccountsViewModel accountsViewModel,
-        InstrumentsViewModel instrumentsViewModel)
+        InstrumentsViewModel instrumentsViewModel,
+        TradesViewModel tradesViewModel)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
+        ArgumentNullException.ThrowIfNull(tradesViewModel);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
+        _tradesViewModel = tradesViewModel;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
     }
@@ -95,6 +100,7 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
+            NavigationDestination.Trades => _tradesViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
 
@@ -106,6 +112,11 @@ public sealed class MainWindowViewModel : ObservableObject
         if (destination == NavigationDestination.Instruments)
         {
             _ = _instrumentsViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Trades)
+        {
+            _ = _tradesViewModel.EnsureLoadedAsync();
         }
     }
 }
