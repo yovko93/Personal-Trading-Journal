@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry, Desktop ViewModel tests, and production-wired persistence integration tests. Authoritative Trade browsing and detail, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, Desktop ViewModel tests, and production-wired persistence integration tests. Trade editing and deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -17,6 +17,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M5 — Accounts + Instruments: Complete**
 
 **Milestone M6 — Manual Trade Entry: Complete**
+
+**Milestone M7 — Trade List / Detail: Complete**
 
 The completed foundation includes:
 
@@ -79,11 +81,22 @@ The M6 Manual Trade Entry milestone includes:
 - open or closed `Trade` creation through Domain APIs; and
 - atomic persistence of the Trade and its executions to SQLite.
 
-This deliberately simple capture workflow does not limit the richer Domain model, which continues to support scale-in and partial scale-out. It provides Trade creation only: authoritative Trade list, detail, edit, and delete behavior are not implemented.
+This deliberately simple capture workflow does not limit the richer Domain model, which continues to support scale-in and partial scale-out. After a successful Save, Desktop persists the Trade, resets and closes the draft, reports success, and performs a best-effort authoritative Recent Trades reload. If that reload fails, the successful write and existing visible rows are retained while a list-level error directs the user to refresh.
+
+The M7 Trade List / Detail milestone includes:
+
+- a bounded authoritative Recent Trades list showing both open and closed Trades;
+- market-event ordering by opening execution time, with deterministic Trade-ID tie-breaking;
+- current Trading Account and Instrument labels alongside historically authoritative pricing snapshots and economics;
+- authoritative post-save list reload without locally fabricated rows;
+- an authoritative one-Trade detail projection;
+- complete ordered execution-lifecycle presentation rather than entry/exit pairing;
+- a read-only Trade Detail surface; and
+- nullable P&L for open Trades, including partially exited positions.
 
 Four of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, and Instruments. Dashboard remains presentation-only, while Trades, Accounts, and Instruments are functional data-backed pages. The other 15 destinations remain placeholders.
 
-The next milestone is **M7 — Trade List / Detail**. M7 will add authoritative persisted Trade browsing and Trade detail behavior.
+The next milestone is **M8 — Screenshot Management**.
 
 ## Technology Stack
 
@@ -132,10 +145,10 @@ docs/
 ```
 
 - **Domain** contains the framework-independent M2 trading model, rules, and invariants.
-- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account and Instrument workflows, manual Trade creation, the narrow Trade persistence boundary, manual Trade reference selection, and `IApplicationPaths`.
-- **Infrastructure** owns local Windows storage paths and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, the Account and Instrument readers/stores, `TradeStore`, and `ManualTradeReferenceDataReader`.
+- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account and Instrument workflows, manual Trade creation, the narrow Trade persistence boundary, manual Trade reference selection, `ITradeListReader` with `TradeListItem`, `ITradeDetailReader` with `TradeDetail` and `TradeExecutionDetailItem`, and `IApplicationPaths`.
+- **Infrastructure** owns local Windows storage paths and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, the Account and Instrument readers/stores, `TradeStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, and `TradeDetailReader`.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
-- **Desktop** contains the WPF shell, real Accounts, Instruments, and Trades feature pages, the manual Trade form and validation/submission workflow, navigation state, shared XAML resources, and the composition root for hosting, dependency injection, persistence composition, storage initialization, and logging.
+- **Desktop** contains the WPF shell, real Accounts, Instruments, and Trades feature pages, the manual Trade form and validation/submission workflow, authoritative Recent Trades and Trade Detail presentation, the ordered execution lifecycle, navigation state, shared XAML resources, and the composition root for hosting, dependency injection, persistence composition, storage initialization, and logging.
 
 ## Prerequisites
 
@@ -158,7 +171,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted M6 completion baseline contains 739 tests: 401 Domain, 46 Application, 200 Infrastructure, and 92 Desktop tests. Desktop tests exercise presentation and ViewModel behavior without instantiating the WPF visual tree; they are not UI automation.
+The accepted M7 completion baseline contains 786 passing tests: 401 Domain, 46 Application, 224 Infrastructure, and 115 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation and ViewModel behavior without instantiating the WPF visual tree; they are not UI automation.
 
 ## Run
 

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document describes the domain model established in M2, preserved by the M3 persistence implementation, and consumed by the M6 Manual Trade Entry workflow without a Domain redesign. It remains focused on Domain behavior and boundaries rather than Desktop workflow or database-provider details.
+This document describes the domain model established in M2, preserved by the M3 persistence implementation, and consumed by the M6 Manual Trade Entry and M7 Trade browsing workflows without a Domain redesign. It remains focused on Domain behavior and boundaries rather than Desktop workflow or database-provider details.
 
 ## Core Principles
 
@@ -106,6 +106,8 @@ The following properties derive from execution history rather than separately mu
 
 M6's `CreateManualTradeUseCase` creates one opening execution and an optional full closing execution through the public `TradeExecution`, `Trade.Start(...)`, and `Trade.AddExecution(...)` APIs. It does not use `Rehydrate(...)` for creation. This narrower manual-capture shape does not remove the Domain's scale-in or partial scale-out capabilities.
 
+M7 list and detail readers reconstruct each persisted aggregate through the existing mapper and reuse these Domain-derived lifecycle and economics properties. They do not persist duplicate calculated state or recalculate Trade behavior in Application, Infrastructure, or Desktop.
+
 ## Historical Pricing and P&L
 
 Each trade owns an immutable `TradePricingSnapshot` with `PointValue` and `Currency`. This captures the pricing facts used for that trade so historical P&L does not depend on loading current `Instrument` metadata or change when instrument reference data changes later.
@@ -157,7 +159,7 @@ Profit does not prove correct execution, and loss does not prove poor execution.
 The following omissions remain intentional rather than accidental missing fields:
 
 - richer manual capture for scale-in and partial exits;
-- Trade browsing/detail, edit/delete, CSV imports, and execution-grouping workflows;
+- Trade edit/delete, CSV imports, and execution-grouping workflows;
 - physical screenshot file storage and lifecycle operations;
 - initial risk, R-multiple, partial realized P&L, MAE/MFE, and mark-to-market;
 - trading rules, rule violations, and prop-firm rules;

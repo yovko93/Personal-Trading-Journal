@@ -35,6 +35,12 @@ public sealed class TradesViewModelTests
         Assert.False(viewModel.HasSaveError);
         Assert.Null(viewModel.SuccessMessage);
         Assert.False(viewModel.HasSuccessMessage);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.False(viewModel.IsTradeDetailVisible);
+        Assert.False(viewModel.IsTradeDetailLoading);
+        Assert.False(viewModel.IsTradeDetailNotFound);
+        Assert.Null(viewModel.TradeDetailErrorMessage);
+        Assert.False(viewModel.HasTradeDetailError);
     }
 
     [Fact]
@@ -505,7 +511,10 @@ public sealed class TradesViewModelTests
     public async Task SaveManualTradeCommandDoesNotWriteWhenValidationFails()
     {
         var tradeStore = new FakeTradeStore();
-        TradesViewModel viewModel = CreateViewModel(tradeStore: tradeStore);
+        var tradeListReader = new FakeTradeListReader();
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: tradeListReader,
+            tradeStore: tradeStore);
         viewModel.ShowManualEntryCommand.Execute(null);
 
         await viewModel.SaveManualTradeCommand.ExecuteAsync(null);
@@ -518,6 +527,7 @@ public sealed class TradesViewModelTests
         Assert.Null(viewModel.SaveErrorMessage);
         Assert.Null(viewModel.SuccessMessage);
         Assert.False(viewModel.IsSaving);
+        Assert.Equal(0, tradeListReader.CallCount);
     }
 
     [Fact]
@@ -557,6 +567,128 @@ public sealed class TradesViewModelTests
             "Trade saved successfully.",
             fixture.ViewModel.SuccessMessage);
         Assert.True(fixture.ViewModel.HasSuccessMessage);
+        Assert.False(fixture.ViewModel.IsSaving);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
+    }
+
+    [Fact]
+    public async Task SuccessfulSaveReloadsExactAuthoritativeRowsWithoutLocalAppend()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture();
+        IReadOnlyList<TradeListItem> initial =
+            [CreateTradeListItem(symbol: "NQ")];
+        IReadOnlyList<TradeListItem> authoritative =
+        [
+            CreateTradeListItem(symbol: "ES"),
+            CreateTradeListItem(symbol: "YM"),
+        ];
+        fixture.TradeListReader.EnqueueResult(initial);
+        fixture.TradeListReader.EnqueueResult(authoritative);
+        await fixture.ViewModel.EnsureLoadedAsync();
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, fixture.TradeStore.AddCallCount);
+        Assert.Equal(2, fixture.TradeListReader.CallCount);
+        Assert.Equal([50, 50], fixture.TradeListReader.RequestedLimits);
+        Assert.Same(authoritative, fixture.ViewModel.RecentTrades);
+        Assert.Collection(
+            fixture.ViewModel.RecentTrades,
+            trade => Assert.Equal("ES", trade.InstrumentSymbol),
+            trade => Assert.Equal("YM", trade.InstrumentSymbol));
+        Assert.Equal(1, fixture.ReferenceDataReader.CallCount);
+        Assert.False(fixture.ViewModel.IsManualEntryVisible);
+        AssertManualEntryFormReset(fixture.ViewModel);
+        Assert.Equal(
+            "Trade saved successfully.",
+            fixture.ViewModel.SuccessMessage);
+        Assert.Null(fixture.ViewModel.SaveErrorMessage);
+        Assert.Null(fixture.ViewModel.TradeListErrorMessage);
+    }
+
+    [Fact]
+    public async Task PostSaveReloadFailureRetainsRowsAndSuccessfulWriteOutcome()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture();
+        IReadOnlyList<TradeListItem> initial =
+            [CreateTradeListItem(symbol: "NQ")];
+        fixture.TradeListReader.EnqueueResult(initial);
+        fixture.TradeListReader.EnqueueException(
+            new InvalidOperationException("Read failed."));
+        await fixture.ViewModel.EnsureLoadedAsync();
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, fixture.TradeStore.AddCallCount);
+        Assert.Equal(2, fixture.TradeListReader.CallCount);
+        Assert.Same(initial, fixture.ViewModel.RecentTrades);
+        Assert.False(fixture.ViewModel.IsManualEntryVisible);
+        AssertManualEntryFormReset(fixture.ViewModel);
+        Assert.Equal(
+            "Trade saved successfully.",
+            fixture.ViewModel.SuccessMessage);
+        Assert.Null(fixture.ViewModel.SaveErrorMessage);
+        Assert.Equal(
+            "Trades could not be loaded.",
+            fixture.ViewModel.TradeListErrorMessage);
+        Assert.False(fixture.ViewModel.IsSaving);
+    }
+
+    [Fact]
+    public async Task ExplicitRefreshRecoversPostSaveReloadWithoutRepeatingWrite()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture();
+        IReadOnlyList<TradeListItem> initial =
+            [CreateTradeListItem(symbol: "NQ")];
+        IReadOnlyList<TradeListItem> recovered =
+            [CreateTradeListItem(symbol: "ES")];
+        fixture.TradeListReader.EnqueueResult(initial);
+        fixture.TradeListReader.EnqueueException(
+            new InvalidOperationException("Read failed."));
+        fixture.TradeListReader.EnqueueResult(recovered);
+        await fixture.ViewModel.EnsureLoadedAsync();
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        await fixture.ViewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, fixture.TradeStore.AddCallCount);
+        Assert.Equal(3, fixture.TradeListReader.CallCount);
+        Assert.Same(recovered, fixture.ViewModel.RecentTrades);
+        Assert.Null(fixture.ViewModel.TradeListErrorMessage);
+        Assert.Equal(
+            "Trade saved successfully.",
+            fixture.ViewModel.SuccessMessage);
+    }
+
+    [Fact]
+    public async Task PostCommitCancellationDoesNotCancelAuthoritativeReload()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture();
+        IReadOnlyList<TradeListItem> authoritative =
+            [CreateTradeListItem(symbol: "ES")];
+        fixture.TradeListReader.EnqueueResult(authoritative);
+        fixture.TradeListReader.HoldRead = true;
+
+        Task saveTask =
+            fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+        await fixture.TradeListReader.ReadStarted;
+        fixture.ViewModel.SaveManualTradeCommand.Cancel();
+
+        Assert.True(fixture.ViewModel.IsSaving);
+        Assert.True(fixture.ViewModel.IsTradeListLoading);
+        Assert.False(fixture.TradeListReader.CancellationToken.CanBeCanceled);
+
+        fixture.TradeListReader.ReleaseRead();
+        await saveTask;
+
+        Assert.Equal(1, fixture.TradeStore.AddCallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
+        Assert.Same(authoritative, fixture.ViewModel.RecentTrades);
+        Assert.Equal(
+            "Trade saved successfully.",
+            fixture.ViewModel.SuccessMessage);
+        Assert.Null(fixture.ViewModel.SaveErrorMessage);
+        Assert.Null(fixture.ViewModel.TradeListErrorMessage);
         Assert.False(fixture.ViewModel.IsSaving);
     }
 
@@ -657,6 +789,7 @@ public sealed class TradesViewModelTests
         Assert.True(fixture.ViewModel.HasSaveError);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
+        Assert.Equal(0, fixture.TradeListReader.CallCount);
     }
 
     [Fact]
@@ -686,6 +819,7 @@ public sealed class TradesViewModelTests
             fixture.ViewModel.SaveErrorMessage);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
+        Assert.Equal(0, fixture.TradeListReader.CallCount);
     }
 
     [Fact]
@@ -758,6 +892,30 @@ public sealed class TradesViewModelTests
     }
 
     [Fact]
+    public async Task SaveManualTradeCommandIsDisabledWhileTradeListIsLoading()
+    {
+        var tradeListReader = new FakeTradeListReader
+        {
+            HoldRead = true,
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: tradeListReader);
+        viewModel.ShowManualEntryCommand.Execute(null);
+
+        Task loadTask = viewModel.EnsureLoadedAsync();
+        await tradeListReader.ReadStarted;
+
+        Assert.True(viewModel.IsTradeListLoading);
+        Assert.False(viewModel.SaveManualTradeCommand.CanExecute(null));
+
+        tradeListReader.ReleaseRead();
+        await loadTask;
+
+        Assert.False(viewModel.IsTradeListLoading);
+        Assert.True(viewModel.SaveManualTradeCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task SavingDisablesCompetingCommandsUntilWriteCompletes()
     {
         ManualTradeSaveFixture fixture = CreateSaveFixture();
@@ -804,6 +962,7 @@ public sealed class TradesViewModelTests
         Assert.Null(fixture.ViewModel.SaveErrorMessage);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
+        Assert.Equal(0, fixture.TradeListReader.CallCount);
     }
 
     [Fact]
@@ -824,6 +983,41 @@ public sealed class TradesViewModelTests
         Assert.Null(viewModel.SelectedInstrument);
         Assert.Null(viewModel.ErrorMessage);
         Assert.Equal(1, reader.CallCount);
+    }
+
+    [Fact]
+    public async Task EnsureLoadedAsyncPopulatesRecentTradesOnceWithPresentationLimit()
+    {
+        IReadOnlyList<TradeListItem> trades = [CreateTradeListItem()];
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(trades);
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Same(trades, viewModel.RecentTrades);
+        Assert.True(viewModel.HasTrades);
+        Assert.Null(viewModel.TradeListErrorMessage);
+        Assert.False(viewModel.HasTradeListError);
+        Assert.Equal(1, tradeListReader.CallCount);
+        Assert.Equal([50], tradeListReader.RequestedLimits);
+    }
+
+    [Fact]
+    public async Task EnsureLoadedAsyncPreservesAuthoritativeReaderOrder()
+    {
+        TradeListItem tradeB = CreateTradeListItem(symbol: "ES");
+        TradeListItem tradeA = CreateTradeListItem(symbol: "NQ");
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult([tradeB, tradeA]);
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Equal(
+            [tradeB.Id, tradeA.Id],
+            viewModel.RecentTrades.Select(trade => trade.Id));
     }
 
     [Fact]
@@ -977,6 +1171,361 @@ public sealed class TradesViewModelTests
     }
 
     [Fact]
+    public async Task RefreshReplacesRecentTrades()
+    {
+        IReadOnlyList<TradeListItem> initial = [CreateTradeListItem(symbol: "NQ")];
+        IReadOnlyList<TradeListItem> refreshed = [CreateTradeListItem(symbol: "ES")];
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initial);
+        tradeListReader.EnqueueResult(refreshed);
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Same(refreshed, viewModel.RecentTrades);
+        Assert.Equal([50, 50], tradeListReader.RequestedLimits);
+    }
+
+    [Fact]
+    public async Task TradeListRefreshFailureRetainsRowsAndShowsSafeError()
+    {
+        IReadOnlyList<TradeListItem> initial = [CreateTradeListItem()];
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initial);
+        tradeListReader.EnqueueException(new InvalidOperationException("Technical details."));
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Same(initial, viewModel.RecentTrades);
+        Assert.Equal("Trades could not be loaded.", viewModel.TradeListErrorMessage);
+        Assert.True(viewModel.HasTradeListError);
+    }
+
+    [Fact]
+    public async Task SuccessfulTradeListRetryClearsErrorAndReplacesRows()
+    {
+        IReadOnlyList<TradeListItem> initial = [CreateTradeListItem(symbol: "NQ")];
+        IReadOnlyList<TradeListItem> recovered = [CreateTradeListItem(symbol: "ES")];
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initial);
+        tradeListReader.EnqueueException(new InvalidOperationException("Read failed."));
+        tradeListReader.EnqueueResult(recovered);
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Same(recovered, viewModel.RecentTrades);
+        Assert.Null(viewModel.TradeListErrorMessage);
+        Assert.False(viewModel.HasTradeListError);
+    }
+
+    [Fact]
+    public async Task SuccessfulEmptyTradeListIsNotAnError()
+    {
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult([]);
+        var viewModel = CreateViewModel(tradeListReader: tradeListReader);
+
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Empty(viewModel.RecentTrades);
+        Assert.False(viewModel.HasTrades);
+        Assert.Null(viewModel.TradeListErrorMessage);
+        Assert.False(viewModel.HasTradeListError);
+    }
+
+    [Fact]
+    public async Task ReferenceRefreshFailureDoesNotDiscardSuccessfulTradeListRefresh()
+    {
+        ManualTradeReferenceData initialReferences = CreateReferenceData();
+        IReadOnlyList<TradeListItem> initialTrades = [CreateTradeListItem(symbol: "NQ")];
+        IReadOnlyList<TradeListItem> refreshedTrades = [CreateTradeListItem(symbol: "ES")];
+        var referenceReader = new FakeManualTradeReferenceDataReader();
+        referenceReader.EnqueueResult(initialReferences);
+        referenceReader.EnqueueException(new InvalidOperationException("Reference read failed."));
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initialTrades);
+        tradeListReader.EnqueueResult(refreshedTrades);
+        var viewModel = CreateViewModel(referenceReader, tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Same(refreshedTrades, viewModel.RecentTrades);
+        Assert.Same(initialReferences.Accounts, viewModel.AccountOptions);
+        Assert.Same(initialReferences.Instruments, viewModel.InstrumentOptions);
+        Assert.Equal("Trade reference data could not be loaded.", viewModel.ErrorMessage);
+        Assert.Null(viewModel.TradeListErrorMessage);
+    }
+
+    [Fact]
+    public async Task TradeListRefreshFailureDoesNotDiscardSuccessfulReferenceRefresh()
+    {
+        ManualTradeReferenceData initialReferences = CreateReferenceData();
+        ManualTradeReferenceData refreshedReferences = CreateReferenceData(
+            accountName: "Refreshed Account",
+            instrumentSymbol: "ES");
+        IReadOnlyList<TradeListItem> initialTrades = [CreateTradeListItem()];
+        var referenceReader = new FakeManualTradeReferenceDataReader();
+        referenceReader.EnqueueResult(initialReferences);
+        referenceReader.EnqueueResult(refreshedReferences);
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initialTrades);
+        tradeListReader.EnqueueException(new InvalidOperationException("Trade read failed."));
+        var viewModel = CreateViewModel(referenceReader, tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.Same(refreshedReferences.Accounts, viewModel.AccountOptions);
+        Assert.Same(refreshedReferences.Instruments, viewModel.InstrumentOptions);
+        Assert.Same(initialTrades, viewModel.RecentTrades);
+        Assert.Null(viewModel.ErrorMessage);
+        Assert.Equal("Trades could not be loaded.", viewModel.TradeListErrorMessage);
+    }
+
+    [Fact]
+    public async Task ShowTradeDetailLoadsExactAuthoritativeReaderResult()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail detail = CreateTradeDetail(listItem);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.Equal(1, detailReader.CallCount);
+        Assert.Equal([listItem.Id], detailReader.RequestedTradeIds);
+        Assert.True(viewModel.IsTradeDetailVisible);
+        Assert.Same(detail, viewModel.SelectedTradeDetail);
+        Assert.False(viewModel.IsTradeDetailNotFound);
+        Assert.Null(viewModel.TradeDetailErrorMessage);
+        Assert.False(viewModel.IsTradeDetailLoading);
+    }
+
+    [Fact]
+    public async Task ShowTradeDetailDoesNotExecuteForNullItem()
+    {
+        var detailReader = new FakeTradeDetailReader();
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+
+        Assert.False(viewModel.ShowTradeDetailCommand.CanExecute(null));
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, detailReader.CallCount);
+        Assert.False(viewModel.IsTradeDetailVisible);
+    }
+
+    [Fact]
+    public async Task MissingTradeShowsNotFoundWithoutChangingRecentTrades()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        IReadOnlyList<TradeListItem> recentTrades = [listItem];
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult(recentTrades);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(null);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.True(viewModel.IsTradeDetailVisible);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.True(viewModel.IsTradeDetailNotFound);
+        Assert.Null(viewModel.TradeDetailErrorMessage);
+        Assert.Same(recentTrades, viewModel.RecentTrades);
+        Assert.Null(viewModel.TradeListErrorMessage);
+    }
+
+    [Fact]
+    public async Task TechnicalDetailFailureShowsSafeIndependentError()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueException(
+            new InvalidOperationException("Database unavailable."));
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.True(viewModel.IsTradeDetailVisible);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.False(viewModel.IsTradeDetailNotFound);
+        Assert.Equal(
+            "Trade details could not be loaded.",
+            viewModel.TradeDetailErrorMessage);
+        Assert.DoesNotContain(
+            "Database unavailable.",
+            viewModel.TradeDetailErrorMessage,
+            StringComparison.Ordinal);
+        Assert.Null(viewModel.ErrorMessage);
+        Assert.Null(viewModel.TradeListErrorMessage);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.Null(viewModel.SaveErrorMessage);
+        Assert.Null(viewModel.SuccessMessage);
+        Assert.False(viewModel.IsTradeDetailLoading);
+    }
+
+    [Fact]
+    public async Task SwitchingTradeClearsPreviouslySelectedDetail()
+    {
+        TradeListItem firstItem = CreateTradeListItem(symbol: "NQ");
+        TradeListItem secondItem = CreateTradeListItem(symbol: "ES");
+        TradeDetail firstDetail = CreateTradeDetail(firstItem);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(firstDetail);
+        detailReader.EnqueueResult(null);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(firstItem);
+        Assert.Same(firstDetail, viewModel.SelectedTradeDetail);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(secondItem);
+
+        Assert.Equal(
+            [firstItem.Id, secondItem.Id],
+            detailReader.RequestedTradeIds);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.True(viewModel.IsTradeDetailNotFound);
+    }
+
+    [Fact]
+    public async Task CloseTradeDetailClearsDetailStateAndPreservesRecentTrades()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        IReadOnlyList<TradeListItem> recentTrades = [listItem];
+        TradeDetail detail = CreateTradeDetail(listItem);
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult(recentTrades);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        viewModel.CloseTradeDetailCommand.Execute(null);
+
+        Assert.False(viewModel.IsTradeDetailVisible);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.Null(viewModel.TradeDetailErrorMessage);
+        Assert.False(viewModel.IsTradeDetailNotFound);
+        Assert.Same(recentTrades, viewModel.RecentTrades);
+    }
+
+    [Fact]
+    public async Task DetailLoadingDisablesOnlyCompetingOperations()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail detail = CreateTradeDetail(listItem);
+        var detailReader = new FakeTradeDetailReader
+        {
+            HoldRead = true,
+        };
+        detailReader.EnqueueResult(detail);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+
+        Task detailTask =
+            viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        await detailReader.ReadStarted;
+
+        Assert.True(viewModel.IsTradeDetailLoading);
+        Assert.False(viewModel.ShowTradeDetailCommand.CanExecute(listItem));
+        Assert.False(viewModel.CloseTradeDetailCommand.CanExecute(null));
+        Assert.False(viewModel.RefreshCommand.CanExecute(null));
+        Assert.True(viewModel.ShowManualEntryCommand.CanExecute(null));
+        viewModel.ShowManualEntryCommand.Execute(null);
+        Assert.False(viewModel.SaveManualTradeCommand.CanExecute(null));
+
+        detailReader.ReleaseRead();
+        await detailTask;
+
+        Assert.False(viewModel.IsTradeDetailLoading);
+        Assert.True(viewModel.ShowTradeDetailCommand.CanExecute(listItem));
+        Assert.True(viewModel.CloseTradeDetailCommand.CanExecute(null));
+        Assert.True(viewModel.RefreshCommand.CanExecute(null));
+        Assert.True(viewModel.SaveManualTradeCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task DetailCancellationPropagatesWithoutMutatingOtherState()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        IReadOnlyList<TradeListItem> recentTrades = [listItem];
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult(recentTrades);
+        var detailReader = new FakeTradeDetailReader
+        {
+            HoldRead = true,
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader);
+        await viewModel.EnsureLoadedAsync();
+
+        Task detailTask =
+            viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        await detailReader.ReadStarted;
+        viewModel.ShowTradeDetailCommand.Cancel();
+
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await detailTask);
+        Assert.True(detailReader.CancellationToken.IsCancellationRequested);
+        Assert.True(viewModel.IsTradeDetailVisible);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.Null(viewModel.TradeDetailErrorMessage);
+        Assert.False(viewModel.IsTradeDetailNotFound);
+        Assert.False(viewModel.IsTradeDetailLoading);
+        Assert.Same(recentTrades, viewModel.RecentTrades);
+        Assert.Null(viewModel.TradeListErrorMessage);
+    }
+
+    [Fact]
+    public async Task DetailLoadingDoesNotMutateManualEntryDraft()
+    {
+        ManualTradeReferenceData referenceData = CreateReferenceData();
+        var selectedAccount = Assert.Single(referenceData.Accounts);
+        var selectedInstrument = Assert.Single(referenceData.Instruments);
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail detail = CreateTradeDetail(listItem);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader);
+        viewModel.ShowManualEntryCommand.Execute(null);
+        Assert.False(viewModel.TryBuildManualTradeCommand(out _));
+        string validationError = Assert.IsType<string>(
+            viewModel.ValidationErrorMessage);
+        viewModel.SelectedAccount = selectedAccount;
+        viewModel.SelectedInstrument = selectedInstrument;
+        PopulateRepresentativeTradeFacts(viewModel);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.True(viewModel.IsManualEntryVisible);
+        Assert.Same(selectedAccount, viewModel.SelectedAccount);
+        Assert.Same(selectedInstrument, viewModel.SelectedInstrument);
+        AssertRepresentativeTradeFacts(viewModel);
+        Assert.Equal(validationError, viewModel.ValidationErrorMessage);
+        Assert.Same(detail, viewModel.SelectedTradeDetail);
+    }
+
+    [Fact]
     public void CancelClosesShellAndResetsEntireManualEntryForm()
     {
         ManualTradeReferenceData referenceData = CreateReferenceData();
@@ -1055,12 +1604,16 @@ public sealed class TradesViewModelTests
 
     private static TradesViewModel CreateViewModel(
         FakeManualTradeReferenceDataReader? reader = null,
+        FakeTradeListReader? tradeListReader = null,
+        FakeTradeDetailReader? tradeDetailReader = null,
         FakeTradingAccountStore? accountStore = null,
         FakeInstrumentStore? instrumentStore = null,
         FakeTradeStore? tradeStore = null,
         TimeProvider? timeProvider = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
+        tradeListReader ??= new FakeTradeListReader();
+        tradeDetailReader ??= new FakeTradeDetailReader();
         accountStore ??= new FakeTradingAccountStore();
         instrumentStore ??= new FakeInstrumentStore();
         tradeStore ??= new FakeTradeStore();
@@ -1068,6 +1621,8 @@ public sealed class TradesViewModelTests
 
         return new TradesViewModel(
             reader,
+            tradeListReader,
+            tradeDetailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
@@ -1095,7 +1650,12 @@ public sealed class TradesViewModelTests
             InstrumentToReturn = CreateInstrument(instrumentId),
         };
         var tradeStore = new FakeTradeStore();
+        var tradeListReader = new FakeTradeListReader();
+        var referenceDataReader = new FakeManualTradeReferenceDataReader();
+        referenceDataReader.EnqueueResult(referenceData);
         TradesViewModel viewModel = CreateViewModel(
+            reader: referenceDataReader,
+            tradeListReader: tradeListReader,
             accountStore: accountStore,
             instrumentStore: instrumentStore,
             tradeStore: tradeStore);
@@ -1124,6 +1684,8 @@ public sealed class TradesViewModelTests
             accountStore,
             instrumentStore,
             tradeStore,
+            tradeListReader,
+            referenceDataReader,
             referenceData);
     }
 
@@ -1157,6 +1719,70 @@ public sealed class TradesViewModelTests
                     5m,
                     selectorPointValue,
                     true),
+            ]);
+    }
+
+    private static TradeListItem CreateTradeListItem(
+        Guid? id = null,
+        string symbol = "NQ")
+    {
+        DateTimeOffset openedAtUtc =
+            new(2026, 9, 10, 13, 30, 0, TimeSpan.Zero);
+
+        return new TradeListItem(
+            id ?? Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Primary Account",
+            Guid.NewGuid(),
+            symbol,
+            TradeDirection.Long,
+            TradeStatus.Closed,
+            openedAtUtc,
+            openedAtUtc.AddHours(1),
+            0m,
+            23950.25m,
+            23975.50m,
+            3.50m,
+            1262.50m,
+            1259m,
+            "USD");
+    }
+
+    private static TradeDetail CreateTradeDetail(TradeListItem listItem)
+    {
+        return new TradeDetail(
+            listItem.Id,
+            listItem.TradingAccountId,
+            listItem.TradingAccountName,
+            listItem.InstrumentId,
+            listItem.InstrumentSymbol,
+            $"{listItem.InstrumentSymbol} display name",
+            listItem.Direction,
+            listItem.Status,
+            listItem.OpenedAtUtc,
+            listItem.ClosedAtUtc,
+            listItem.OpenQuantity,
+            listItem.AverageEntryPrice,
+            listItem.AverageExitPrice,
+            listItem.TotalCosts,
+            listItem.GrossPnL,
+            listItem.NetPnL,
+            20m,
+            listItem.Currency,
+            [
+                new TradeExecutionDetailItem(
+                    Guid.NewGuid(),
+                    1,
+                    listItem.OpenedAtUtc,
+                    ExecutionSide.Buy,
+                    1m,
+                    listItem.AverageEntryPrice,
+                    0m,
+                    0m,
+                    0m,
+                    null,
+                    null,
+                    null),
             ]);
     }
 
@@ -1249,5 +1875,7 @@ public sealed class TradesViewModelTests
         FakeTradingAccountStore AccountStore,
         FakeInstrumentStore InstrumentStore,
         FakeTradeStore TradeStore,
+        FakeTradeListReader TradeListReader,
+        FakeManualTradeReferenceDataReader ReferenceDataReader,
         ManualTradeReferenceData ReferenceData);
 }

@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries now support the concrete Account, Instrument, and manual Trade creation workflows. Persistence still does not provide generic repositories, authoritative Trade list/detail queries, Trade edit/delete, seed data, physical screenshot storage, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries now support the concrete Account, Instrument, manual Trade creation, bounded Trade-list, and one-Trade detail workflows. Persistence still does not provide generic repositories, Trade edit/delete, seed data, physical screenshot storage, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -20,7 +20,7 @@ SQLite journal.db
 
 EF Core adapts to the Domain. It does not materialize Domain entities directly, and Domain has no EF attributes or package dependency. Mutable persistence records and their configurations are owned by Infrastructure. Explicit mappers translate in both directions; AutoMapper is not used.
 
-The repository deliberately has no generic repository, Unit of Work abstraction, or speculative persistence interface. Concrete workflows use narrow Application boundaries such as `ITradingAccountStore`, `IInstrumentStore`, and `ITradeStore`, implemented in Infrastructure. Desktop feature code uses these boundaries through Application use cases and does not access `JournalDbContext` directly.
+The repository deliberately has no generic repository, Unit of Work abstraction, or speculative persistence interface. Concrete workflows use narrow Application boundaries such as `ITradingAccountStore`, `IInstrumentStore`, `ITradeStore`, `ITradeListReader`, and `ITradeDetailReader`, implemented in Infrastructure. Desktop feature code uses these boundaries through Application use cases and reader contracts and does not access `JournalDbContext` directly.
 
 ## JournalDbContext
 
@@ -124,13 +124,27 @@ ITradeStore.AddAsync
 
 The store persists the Trade's existing `PricingPointValue` and `PricingCurrency`. It does not reload current Instrument economics. `CreateManualTradeUseCase` creates that snapshot from the authoritative Domain Instrument's `PointValue` and `Currency`, so historical Trade economics remain stable after later Instrument metadata changes.
 
+### Trade List Reader
+
+`TradeListReader` implements the bounded `ITradeListReader.GetRecentAsync(...)` query. The caller supplies a positive limit; Desktop currently requests 50. A fresh no-tracking context selects candidates by their sequence-1 execution timestamp descending and Trade ID ascending, applying SQL ordering and `Take` before materialization. `OpenedAtUtc` therefore comes from the first market execution; audit `CreatedAtUtc` is not browsing chronology, which matters for backfilled or imported history. The result is a recent working set, not lifetime history.
+
+After candidate selection, one additional query loads executions for only those Trade IDs in sequence order. The reader groups them in memory and reconstructs every aggregate through `TradePersistenceMapper`; it does not issue one execution query per row. Both open and closed Trades and inactive historical references remain visible.
+
+Each `TradeListItem` uses the current Trading Account name and Instrument symbol as display labels. Direction, status, market-event timestamps, exposure, averages, costs, nullable P&L, and currency come from the reconstructed Domain Trade and its historical pricing snapshot.
+
+### Trade Detail Reader
+
+`TradeDetailReader` implements `ITradeDetailReader.GetByIdAsync(...)`. It rejects `Guid.Empty`, returns `null` for a valid missing identifier, and uses a fresh no-tracking context to load exactly one Trade with its current Account and Instrument display identity. A second query loads that Trade's complete execution set in ascending sequence order; there is no N+1 query pattern.
+
+The reader reconstructs the full Domain aggregate through `TradePersistenceMapper` and projects `TradeDetail` plus ordered `TradeExecutionDetailItem` values. Current Account/Instrument labels are presentation identity only. Historical pricing point value and currency—and all lifecycle state, exposure, costs, averages, and economics derived from them—remain authoritative from the Trade snapshot and execution history.
+
 `TradeScreenshot` rows contain metadata and an opaque `StorageKey`; they do not contain image bytes or assert a filesystem layout. `TradeMistake` rows associate historical process evidence with a trade and do not infer severity, cost, or P&L impact.
 
 ## Decimal Semantics
 
 Domain types and persistence records use `System.Decimal`. Current decimal columns use SQLite `TEXT` storage through EF Core's provider mapping. Tests prove exact round-trip behavior for authoritative decimal facts, including fractional quantities, prices, commissions, fees, account balances, instrument values, and historical trade pricing.
 
-This representation is not a native fixed-decimal SQL type, and M3 does not define general database-side `SUM`, `AVG`, numeric ordering, or numeric comparison as an analytics contract. Exact authoritative persistence is the current priority. Future analytics or read models may require deliberate query and storage design.
+This representation is not a native fixed-decimal SQL type, and the current persistence contract does not define general database-side `SUM`, `AVG`, numeric ordering, or numeric comparison as an analytics contract. M7 avoids SQL decimal aggregation and reuses Domain-derived economics after aggregate reconstruction. Exact authoritative persistence is the current priority. Future analytics or read models may require deliberate query and storage design.
 
 ## Timestamp Semantics
 
@@ -181,8 +195,9 @@ Infrastructure tests cover:
 - UTC timestamp persistence and server-side queries;
 - foreign-key, delete-behavior, and unique-index integrity;
 - initial migration metadata and migrated-schema behavior;
-- runtime initializer creation, idempotency, and cancellation; and
-- `TradeStore`, `ManualTradeReferenceDataReader`, and fresh-read behavior;
+- runtime initializer creation, idempotency, and cancellation;
+- `TradeStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
+- market chronology, deterministic Trade-ID tie ordering, bounded selection, open/closed and inactive-reference projections, current labels versus historical pricing, scale-in and partial-exit economics, complete detail, execution sequence and provenance, fresh contexts, missing IDs, and cancellation;
 - rollback of a new Trade root when an execution insert fails; and
 - production-wired `CreateManualTradeUseCase`, full-graph, and transaction-atomicity scenarios.
 
@@ -224,7 +239,6 @@ Before accepting a migration:
 
 The persistence foundation does not yet include:
 
-- an authoritative Trade browsing/detail read model;
 - Trade edit/delete workflows or imports;
 - physical screenshot file persistence;
 - backup and restore;

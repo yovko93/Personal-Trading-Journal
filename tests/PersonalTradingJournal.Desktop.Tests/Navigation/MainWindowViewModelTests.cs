@@ -64,6 +64,7 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("Trades", fixture.Main.PageTitle);
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
     }
 
     [Fact]
@@ -124,6 +125,27 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("1.50", fixture.Trades.ExitCommissionText);
         Assert.Equal("0.25", fixture.Trades.ExitFeesText);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
+        Assert.True(fixture.Trades.HasTrades);
+    }
+
+    [Fact]
+    public async Task NavigateAwayAndBackToTradesRetainsLoadedTradeDetail()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+        TradeListItem listItem = Assert.Single(fixture.Trades.RecentTrades);
+        TradeDetail detail = CreateTradeDetail(listItem);
+        fixture.TradeDetailReader.EnqueueResult(detail);
+        await fixture.Trades.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+
+        Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
+        Assert.True(fixture.Trades.IsTradeDetailVisible);
+        Assert.Same(detail, fixture.Trades.SelectedTradeDetail);
+        Assert.Equal(1, fixture.TradeDetailReader.CallCount);
     }
 
     [Fact]
@@ -175,6 +197,31 @@ public sealed class MainWindowViewModelTests
         var instrumentStore = new FakeInstrumentStore();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
+        var tradeListReader = new FakeTradeListReader();
+        var tradeDetailReader = new FakeTradeDetailReader();
+        DateTimeOffset openedAtUtc =
+            new(2026, 9, 10, 13, 30, 0, TimeSpan.Zero);
+        var tradeListItem = new TradeListItem(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "Primary Account",
+            Guid.NewGuid(),
+            "NQ",
+            TradeDirection.Long,
+            TradeStatus.Closed,
+            openedAtUtc,
+            openedAtUtc.AddHours(1),
+            0m,
+            23950.25m,
+            23975.50m,
+            3.50m,
+            1262.50m,
+            1259m,
+            "USD");
+        tradeListReader.EnqueueResult(
+        [
+            tradeListItem,
+        ]);
         var tradeStore = new FakeTradeStore();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
@@ -188,6 +235,8 @@ public sealed class MainWindowViewModelTests
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
+            tradeListReader,
+            tradeDetailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
@@ -203,7 +252,33 @@ public sealed class MainWindowViewModelTests
             trades,
             accountReader,
             instrumentReader,
-            tradeReferenceDataReader);
+            tradeReferenceDataReader,
+            tradeListReader,
+            tradeDetailReader);
+    }
+
+    private static TradeDetail CreateTradeDetail(TradeListItem listItem)
+    {
+        return new TradeDetail(
+            listItem.Id,
+            listItem.TradingAccountId,
+            listItem.TradingAccountName,
+            listItem.InstrumentId,
+            listItem.InstrumentSymbol,
+            "Nasdaq-100 E-mini",
+            listItem.Direction,
+            listItem.Status,
+            listItem.OpenedAtUtc,
+            listItem.ClosedAtUtc,
+            listItem.OpenQuantity,
+            listItem.AverageEntryPrice,
+            listItem.AverageExitPrice,
+            listItem.TotalCosts,
+            listItem.GrossPnL,
+            listItem.NetPnL,
+            20m,
+            listItem.Currency,
+            []);
     }
 
     private sealed record ViewModelFixture(
@@ -214,5 +289,7 @@ public sealed class MainWindowViewModelTests
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
-        FakeManualTradeReferenceDataReader TradeReferenceDataReader);
+        FakeManualTradeReferenceDataReader TradeReferenceDataReader,
+        FakeTradeListReader TradeListReader,
+        FakeTradeDetailReader TradeDetailReader);
 }
