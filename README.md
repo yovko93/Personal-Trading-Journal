@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, Desktop ViewModel tests, and production-wired persistence integration tests. Trade editing and deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, and local Trade Screenshot Management. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -19,6 +19,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M6 — Manual Trade Entry: Complete**
 
 **Milestone M7 — Trade List / Detail: Complete**
+
+**Milestone M8 — Screenshot Management: Complete**
 
 The completed foundation includes:
 
@@ -94,9 +96,20 @@ The M7 Trade List / Detail milestone includes:
 - a read-only Trade Detail surface; and
 - nullable P&L for open Trades, including partially exited positions.
 
+The M8 Screenshot Management milestone includes:
+
+- PNG, JPG/JPEG, and WebP screenshots attached to persisted Trades;
+- required screenshot classification plus optional captured UTC timestamp, timeframe, and description metadata persisted in SQLite;
+- authoritative screenshot listing, safe preview, and deletion through the Trades page;
+- local-first binary storage under the application screenshots directory rather than SQLite blob storage;
+- deliberate file-first compensation for Add and database-first best-effort file cleanup for Delete; and
+- opaque storage identities and Infrastructure-owned physical paths, with no individual screenshot filesystem path exposed to Domain, Application workflows, or the Desktop UI.
+
+PNG and JPEG preview use native WPF/WIC support. WebP files are accepted for storage, but preview depends on codec support available through the operating system's WIC installation; unsupported WebP content fails with a safe preview error, and no third-party image package is used.
+
 Four of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, and Instruments. Dashboard remains presentation-only, while Trades, Accounts, and Instruments are functional data-backed pages. The other 15 destinations remain placeholders.
 
-The next milestone is **M8 — Screenshot Management**.
+The next milestone is **M9 — Strategies / Setups / Mistakes**.
 
 ## Technology Stack
 
@@ -145,10 +158,10 @@ docs/
 ```
 
 - **Domain** contains the framework-independent M2 trading model, rules, and invariants.
-- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account and Instrument workflows, manual Trade creation, the narrow Trade persistence boundary, manual Trade reference selection, `ITradeListReader` with `TradeListItem`, `ITradeDetailReader` with `TradeDetail` and `TradeExecutionDetailItem`, and `IApplicationPaths`.
-- **Infrastructure** owns local Windows storage paths and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, the Account and Instrument readers/stores, `TradeStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, and `TradeDetailReader`.
+- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account and Instrument workflows, manual Trade creation, Trade list/detail reads, and screenshot add/delete/content workflows.
+- **Infrastructure** owns local Windows storage paths, screenshot files, and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, and concrete readers/stores.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
-- **Desktop** contains the WPF shell, real Accounts, Instruments, and Trades feature pages, the manual Trade form and validation/submission workflow, authoritative Recent Trades and Trade Detail presentation, the ordered execution lifecycle, navigation state, shared XAML resources, and the composition root for hosting, dependency injection, persistence composition, storage initialization, and logging.
+- **Desktop** contains the WPF shell, real Accounts, Instruments, and Trades feature pages, manual Trade entry, Trade browsing, screenshot selection/list/preview/delete presentation, navigation state, shared XAML resources, and the composition root.
 
 ## Prerequisites
 
@@ -171,7 +184,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted M7 completion baseline contains 786 passing tests: 401 Domain, 46 Application, 224 Infrastructure, and 115 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation and ViewModel behavior without instantiating the WPF visual tree; they are not UI automation.
+The accepted M8 completion baseline contains 954 passing tests: 401 Domain, 86 Application, 298 Infrastructure, and 169 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation and ViewModel behavior without instantiating the WPF visual tree; they are not UI automation.
 
 ## Run
 
@@ -199,11 +212,11 @@ PersonalTradingJournal/
 
 `journal.db` is the active local SQLite database. EF Core creates it and applies pending migrations automatically during desktop startup.
 
-- `screenshots` is reserved for future physical screenshot storage. `TradeScreenshot` metadata is persisted in `journal.db`, while image copying and file lifecycle behavior remain unimplemented.
+- `screenshots` contains locally stored Trade screenshot binaries. Screenshot metadata is persisted separately in `journal.db`.
 - `logs` contains the active application log files.
 - `backups` is reserved for future backup functionality.
 
-Binary screenshot storage and backup workflows are not yet implemented.
+Screenshot binaries are not stored as SQLite blobs. Backup workflows are not yet implemented.
 
 ## Startup Persistence
 

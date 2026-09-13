@@ -39,7 +39,8 @@ Current feature boundaries are:
 
 - **Accounts** — `ITradingAccountReader`, `ITradingAccountStore`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`;
 - **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`;
-- **Trades** — `CreateManualTradeCommand` and `ManualTradeExecutionInput` carry validated manual facts, `CreateManualTradeUseCase` orchestrates authoritative reference lookup and Domain creation, `ITradeStore` is the narrow aggregate-write boundary, `IManualTradeReferenceDataReader` supplies selector projections, `ITradeListReader` returns bounded `TradeListItem` projections, and `ITradeDetailReader` returns a complete `TradeDetail` with ordered `TradeExecutionDetailItem` facts; and
+- **Trades** — `CreateManualTradeCommand` and `ManualTradeExecutionInput` carry validated manual facts, `CreateManualTradeUseCase` orchestrates authoritative reference lookup and Domain creation, `ITradeStore` is the narrow aggregate-write boundary, `IManualTradeReferenceDataReader` supplies selector projections, `ITradeListReader` returns bounded `TradeListItem` projections, and `ITradeDetailReader` returns a complete `TradeDetail` with ordered `TradeExecutionDetailItem` facts;
+- **Screenshots** — purpose-specific boundaries and use cases coordinate Trade existence checks, binary storage, metadata persistence, ordered metadata reads, content retrieval, and deletion without exposing provider details to presentation; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
 
 Readers return presentation-oriented query projections and are optimized for their specific read use. Stores expose only the aggregate persistence operations required by write use cases. Create and lifecycle use cases construct or mutate Domain aggregates and coordinate persistence. These are explicit feature boundaries, not a generic repository pattern.
@@ -55,6 +56,7 @@ The Infrastructure project implements Application abstractions and owns external
 - Application reader and store implementations for Accounts and Instruments;
 - `TradeStore` and `ManualTradeReferenceDataReader` for manual Trade creation;
 - `TradeListReader` and `TradeDetailReader` for authoritative Trade browsing;
+- local screenshot file storage and SQLite screenshot metadata/read/delete implementations;
 - the SQLite UTC timestamp converter;
 - EF Core migrations and the design-time context factory; and
 - `JournalDatabaseInitializer` for runtime migration application.
@@ -73,6 +75,7 @@ The Desktop project contains the WPF presentation layer and the application comp
 - data-backed Accounts, Instruments, and Trades feature workflows;
 - manual Trade-entry state, deterministic raw-input parsing and validation, and submission through the Application use case;
 - authoritative Recent Trades, Trade Detail, and ordered execution-lifecycle presentation;
+- screenshot file selection, metadata presentation, preview decoding, delete confirmation, and operation state;
 - the permanent shell and its navigation state;
 - implicit `DataTemplate` ViewModel-to-View resolution;
 - reusable XAML design resources;
@@ -230,6 +233,49 @@ After a successful Trade commit, Desktop resets and closes the draft, reports su
 
 `IManualTradeReferenceDataReader` is a purpose-specific Trade-entry projection, not a generic query service. Management pages use `ITradingAccountReader` and `IInstrumentReader` to show active and inactive records. Normal Desktop manual entry requests active references only; the Application reader can explicitly include inactive references, and `CreateManualTradeUseCase` requires references to exist without making active status a Domain invariant. This preserves a path for future historical or backfill entry.
 
+## Trade Screenshot Architecture
+
+`TradeScreenshot` is storage-agnostic metadata associated with a persisted Trade through `TradeId`; it is intentionally separate from the `Trade` aggregate and does not change executions or economics. Its types—PreTrade, Entry, Management, Exit, PostTrade, and Other—capture process context across the position lifecycle so review is not limited to outcome or P&L. Screenshot metadata lives in SQLite, while binary image content lives in local file storage. SQLite does not contain image blobs.
+
+`StorageKey` is the opaque identity joining metadata to a storage provider. Domain and Application do not interpret it as a path, and list/content projections never expose it to Desktop. The original filename is separate presentation metadata and is neither a source path nor a unique storage identity. Physical path construction and validation remain Infrastructure concerns.
+
+Application defines narrow screenshot boundaries rather than a generic repository:
+
+- `ITradeExistenceReader` verifies the owning Trade before an Add writes a file;
+- `ITradeScreenshotFileStorage` stores, opens, and deletes content through opaque keys;
+- `ITradeScreenshotStore` commits new metadata;
+- `ITradeScreenshotReader` returns ordered metadata projections without storage identities;
+- `ITradeScreenshotContentReader` returns caller-owned content streams by screenshot ID; and
+- `ITradeScreenshotDeletionStore` atomically deletes Trade-scoped metadata and returns cleanup information only after commit.
+
+Add uses a file-first consistency model:
+
+```text
+validate input -> confirm Trade exists -> store binary -> construct Domain metadata
+               -> commit SQLite metadata -> authoritative list reload
+```
+
+If Domain construction or metadata persistence fails after storage, the use case attempts file compensation with `CancellationToken.None` and rethrows the original failure. Compensation failure never replaces that failure. The source stream remains caller-owned. Once metadata commits, later cancellation does not reclassify the successful Add; Desktop's authoritative reload is also best-effort and non-cancellable from the completed command.
+
+Metadata reads query only the owning Trade's screenshot rows and do not join Account or Instrument current state. Results place captured screenshots first by `CapturedAtUtc`, followed by screenshots without a capture timestamp, with `CreatedAtUtc` and ID providing deterministic tie-breaking. Content retrieval looks up metadata by screenshot ID, resolves the opaque key inside Infrastructure, and returns the original filename plus a caller-owned stream. Missing metadata returns `null`; existing metadata with a missing physical file raises `FileNotFoundException`. Infrastructure streams file content and does not buffer it into a `byte[]`.
+
+Desktop owns WPF-specific file selection, image decoding, and delete confirmation. Preview requests use screenshot IDs, never paths. The decoder uses `BitmapCacheOption.OnLoad` and freezes the decoded bitmap, allowing the content stream to be disposed immediately without retaining a file handle. Preview state permits only one image at a time and uses request versioning so cancelled or stale asynchronous results cannot replace current state. Missing metadata, missing files, and decode failures produce distinct safe UI states without revealing paths, storage keys, or raw exception details.
+
+Delete uses the opposite, database-first consistency model:
+
+```text
+delete metadata scoped by TradeId + ScreenshotId -> SaveChanges commit
+               -> best-effort physical cleanup -> authoritative list reload
+```
+
+The deletion store returns the opaque key only after the SQLite commit. Cleanup then uses `CancellationToken.None`; failure is a non-fatal cleanup warning, and metadata is never recreated as compensation. Missing metadata triggers no file operation. A committed delete is never reclassified as cancellation, and a preview of the deleted screenshot closes only after commit. If the post-commit metadata reload fails, Desktop clears the known-stale screenshot list while retaining deletion success.
+
+`LocalTradeScreenshotFileStorage` accepts PNG, JPG/JPEG, and WebP. It generates opaque GUID-based filenames, writes through a same-directory temporary file before the final move, cleans temporary files after failure or cancellation, rejects traversal and rooted keys, returns `null` for missing files, and treats deletion as idempotent. It has no database dependency. PNG and JPEG preview use native WPF/WIC; WebP preview depends on codec support installed with the operating system and fails safely when unsupported. No third-party decoder is included.
+
+The existing `TradeScreenshots` table from migration `20260908122839_InitialCreate` is sufficient for this feature; M8 adds no schema or migration. Its foreign key to Trade retains intentional `Restrict` behavior, with no cascade redesign, and screenshot history is independent of current Account or Instrument active state.
+
+The storage interface permits a future alternate provider without changing Domain metadata or Application workflow semantics. No cloud or SaaS storage provider, thumbnail pipeline, annotation, compression, OCR, background orphan cleanup, or screenshot analysis is implemented.
+
 ## Persistence Boundary
 
 The persistence flow is explicit:
@@ -246,7 +292,7 @@ SQLite
 
 EF Core adapts to the Domain; the Domain does not adapt to EF Core. EF Core materializes mutable Infrastructure records rather than Domain entities. Domain types remain immutable or getter-heavy where appropriate, contain no EF attributes, and have no EF dependency. Infrastructure mappers reconstruct Domain entities through their explicit `Rehydrate(...)` APIs. AutoMapper is not used at this boundary.
 
-The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. Narrow Application-facing readers and stores support the concrete Accounts, Instruments, manual Trade creation, bounded Trade-list, and one-Trade detail workflows. `ITradeStore` remains a write boundary; `ITradeListReader` and `ITradeDetailReader` express distinct query shapes. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
+The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. Narrow Application-facing readers and stores support the concrete Accounts, Instruments, Trades, and screenshot workflows. `ITradeStore` remains a write boundary; Trade and screenshot readers express distinct query shapes. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
 
 `AddPersistence(...)` registers `IDbContextFactory<JournalDbContext>`. Contexts are short-lived, created per operation, and disposed after use; the desktop application does not retain a long-lived context. Production-wired integration tests verify that writes made through one context are visible through later fresh contexts.
 
@@ -278,7 +324,7 @@ M5 introduces no new uniqueness business rule for account name, external account
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, and the shell. This includes `CreateManualTradeUseCase`, `ITradeListReader`, `ITradeDetailReader`, and the retained `TradesViewModel` alongside the Dashboard, Accounts, and Instruments ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, and the shell. This includes Trade creation/browsing, screenshot add/read/preview/delete dependencies, and the retained `TradesViewModel` alongside the Dashboard, Accounts, and Instruments ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
@@ -309,13 +355,13 @@ Local application data is centralized under:
 The current paths are:
 
 - `journal.db` — the active local SQLite store, created and migrated during application startup;
-- `screenshots` — reserved for future trade screenshot files;
+- `screenshots` — active local storage for Trade screenshot binary files;
 - `logs` — active storage for local rolling logs; and
 - `backups` — reserved for future backup data.
 
 Centralizing these paths gives the application one predictable per-user storage location while keeping Windows-specific resolution in Infrastructure.
 
-Screenshot binary files are intended to live outside the database. `TradeScreenshot` records currently persist metadata and an opaque `StorageKey` in SQLite; Domain does not interpret that key as a Windows or relative filesystem path. Physical image storage, key resolution, and file lifecycle behavior remain deferred, and cloud storage is not implemented.
+`TradeScreenshot` records persist metadata and an opaque `StorageKey` in SQLite. Binary files, key-to-path resolution, and file lifecycle operations remain in Infrastructure under the screenshots directory; cloud storage is not implemented.
 
 ## Logging
 
@@ -338,9 +384,9 @@ Target frameworks remain project-specific because the class libraries target `ne
 Testing follows the solution layers:
 
 - **Domain.Tests** contains deterministic tests for the implemented M2 entities, lifecycle rules, calculations, mutations, and invariants.
-- **Application.Tests** covers application and use-case behavior, including authoritative reference lookup, historical pricing capture, and open/closed manual Trade creation.
-- **Infrastructure.Tests** covers implementation and integration-focused behavior, including local paths, explicit mapper round-trips, real SQLite precision and timestamp queries, relational integrity, migrated temporary databases, runtime initialization, `TradeStore`, the manual reference reader, bounded Trade-list market ordering, historical-pricing authority, scale-in and partial-exit projection, current labels versus historical economics, Trade Detail reconstruction, aggregate atomicity, and production-wired Trade workflows.
-- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel behavior using real Application use cases with hand-written test readers and stores. It covers loading and refresh, create and lifecycle behavior, manual form state, deterministic parsing, UTC validation, decimal culture handling, Save success/failure, authoritative post-save reload outcomes, cancellation, operation gating, double-submit prevention, draft retention, Recent Trades, Trade Detail loading and missing/error separation, navigation retention, and retained ViewModels. It does not use SQLite, instantiate WPF `Window`, `Application`, or `UserControl` objects, or perform UI automation.
+- **Application.Tests** covers application and use-case behavior, including authoritative reference lookup, historical pricing capture, open/closed manual Trade creation, screenshot add compensation, and database-first screenshot deletion orchestration.
+- **Infrastructure.Tests** covers implementation and integration-focused behavior, including local paths, explicit mapper round-trips, real SQLite precision and timestamp queries, relational integrity, migrated temporary databases, runtime initialization, Trade persistence and reads, screenshot metadata ordering and persistence, content retrieval, storage path safety, stream ownership, and deletion scoping.
+- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel behavior using real Application use cases with hand-written test readers and stores. It covers loading, refresh, create/lifecycle behavior, manual Trade and screenshot forms, validation, authoritative reload outcomes, cancellation, operation gating, draft/state isolation, Trade browsing, preview stream disposal and stale-result protection, and screenshot deletion. WPF decoder tests verify detached image loading. The suite does not instantiate WPF `Window`, `Application`, or `UserControl` objects or perform UI automation.
 
 Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure persistence tests use isolated temporary SQLite databases, fresh contexts, and explicit cleanup rather than the user's real local application data. Path-construction tests separately verify that calculating local paths does not itself create `journal.db`.
 
