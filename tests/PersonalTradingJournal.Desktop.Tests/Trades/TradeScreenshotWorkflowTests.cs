@@ -609,6 +609,8 @@ public sealed class TradeScreenshotWorkflowTests
         var tradeExistenceReader = new FakeTradeExistenceReader();
         var fileStorage = new FakeTradeScreenshotFileStorage();
         var screenshotStore = new FakeTradeScreenshotStore();
+        var screenshotContentReader = new FakeTradeScreenshotContentReader();
+        var screenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
         var accountStore = new FakeTradingAccountStore();
         var instrumentStore = new FakeInstrumentStore();
@@ -629,7 +631,9 @@ public sealed class TradeScreenshotWorkflowTests
                 fileStorage,
                 screenshotStore,
                 timeProvider),
-            filePicker);
+            filePicker,
+            screenshotContentReader,
+            screenshotImageDecoder);
 
         return new ScreenshotFixture(
             viewModel,

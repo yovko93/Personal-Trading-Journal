@@ -230,6 +230,8 @@ public sealed class MainWindowViewModelTests
         var tradeScreenshotFileStorage = new FakeTradeScreenshotFileStorage();
         var tradeScreenshotStore = new FakeTradeScreenshotStore();
         var tradeScreenshotFilePicker = new FakeTradeScreenshotFilePicker();
+        var tradeScreenshotContentReader = new FakeTradeScreenshotContentReader();
+        var tradeScreenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
         var accounts = new AccountsViewModel(
@@ -255,7 +257,9 @@ public sealed class MainWindowViewModelTests
                 tradeScreenshotFileStorage,
                 tradeScreenshotStore,
                 timeProvider),
-            tradeScreenshotFilePicker);
+            tradeScreenshotFilePicker,
+            tradeScreenshotContentReader,
+            tradeScreenshotImageDecoder);
         var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
 
         return new ViewModelFixture(

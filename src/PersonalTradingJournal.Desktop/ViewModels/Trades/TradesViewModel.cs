@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Screenshots;
@@ -6,6 +7,7 @@ using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
 using PersonalTradingJournal.Domain.Screenshots;
 using PersonalTradingJournal.Domain.Trades;
+using System.Windows.Media;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Trades;
 
@@ -33,6 +35,12 @@ public sealed class TradesViewModel : ObservableObject
     private const string StaleTradeScreenshotErrorMessage =
         "The selected trade is no longer available.";
     private const string ScreenshotSavedMessage = "Screenshot added successfully.";
+    private const string ScreenshotPreviewErrorMessageFallback =
+        "Screenshot could not be opened.";
+    private const string StaleScreenshotPreviewErrorMessage =
+        "The screenshot is no longer available.";
+    private const string MissingScreenshotFileErrorMessage =
+        "The screenshot file is missing.";
     private static readonly string[] UtcTimestampFormats =
     [
         "yyyy-MM-dd HH:mm:ss",
@@ -45,8 +53,10 @@ public sealed class TradesViewModel : ObservableObject
     private readonly ITradeDetailReader _tradeDetailReader;
     private readonly ITradeListReader _tradeListReader;
     private readonly ITradeScreenshotReader _tradeScreenshotReader;
+    private readonly ITradeScreenshotContentReader _tradeScreenshotContentReader;
     private readonly AddTradeScreenshotUseCase _addTradeScreenshotUseCase;
     private readonly ITradeScreenshotFilePicker _tradeScreenshotFilePicker;
+    private readonly ITradeScreenshotImageDecoder _tradeScreenshotImageDecoder;
     private readonly CreateManualTradeUseCase _createManualTradeUseCase;
     private readonly SemaphoreSlim _referenceDataLoadGate = new(1, 1);
     private readonly SemaphoreSlim _tradeListLoadGate = new(1, 1);
@@ -95,6 +105,13 @@ public sealed class TradesViewModel : ObservableObject
     private string? _screenshotValidationErrorMessage;
     private string? _screenshotSaveErrorMessage;
     private string? _screenshotSuccessMessage;
+    private Guid? _previewScreenshotId;
+    private string? _previewScreenshotFileName;
+    private ImageSource? _previewScreenshotImage;
+    private bool _isScreenshotPreviewVisible;
+    private bool _isScreenshotPreviewLoading;
+    private string? _screenshotPreviewErrorMessage;
+    private int _previewRequestVersion;
 
     public TradesViewModel(
         IManualTradeReferenceDataReader referenceDataReader,
@@ -103,7 +120,9 @@ public sealed class TradesViewModel : ObservableObject
         CreateManualTradeUseCase createManualTradeUseCase,
         ITradeScreenshotReader tradeScreenshotReader,
         AddTradeScreenshotUseCase addTradeScreenshotUseCase,
-        ITradeScreenshotFilePicker tradeScreenshotFilePicker)
+        ITradeScreenshotFilePicker tradeScreenshotFilePicker,
+        ITradeScreenshotContentReader tradeScreenshotContentReader,
+        ITradeScreenshotImageDecoder tradeScreenshotImageDecoder)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradeListReader);
@@ -112,6 +131,8 @@ public sealed class TradesViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tradeScreenshotReader);
         ArgumentNullException.ThrowIfNull(addTradeScreenshotUseCase);
         ArgumentNullException.ThrowIfNull(tradeScreenshotFilePicker);
+        ArgumentNullException.ThrowIfNull(tradeScreenshotContentReader);
+        ArgumentNullException.ThrowIfNull(tradeScreenshotImageDecoder);
 
         _referenceDataReader = referenceDataReader;
         _tradeListReader = tradeListReader;
@@ -120,6 +141,8 @@ public sealed class TradesViewModel : ObservableObject
         _tradeScreenshotReader = tradeScreenshotReader;
         _addTradeScreenshotUseCase = addTradeScreenshotUseCase;
         _tradeScreenshotFilePicker = tradeScreenshotFilePicker;
+        _tradeScreenshotContentReader = tradeScreenshotContentReader;
+        _tradeScreenshotImageDecoder = tradeScreenshotImageDecoder;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
         CancelManualEntryCommand = new RelayCommand(
@@ -143,6 +166,13 @@ public sealed class TradesViewModel : ObservableObject
         SaveScreenshotCommand = new AsyncRelayCommand(
             SaveScreenshotAsync,
             CanSaveScreenshot);
+        OpenScreenshotPreviewCommand =
+            new AsyncRelayCommand<TradeScreenshotListItem>(
+                OpenScreenshotPreviewAsync,
+                CanOpenScreenshotPreview);
+        CloseScreenshotPreviewCommand = new RelayCommand(
+            CloseScreenshotPreview,
+            CanCloseScreenshotPreview);
     }
 
     public IReadOnlyList<ManualTradeAccountOption> AccountOptions
@@ -194,6 +224,7 @@ public sealed class TradesViewModel : ObservableObject
             {
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -375,6 +406,7 @@ public sealed class TradesViewModel : ObservableObject
                 CloseTradeDetailCommand.NotifyCanExecuteChanged();
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -392,6 +424,7 @@ public sealed class TradesViewModel : ObservableObject
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -408,6 +441,7 @@ public sealed class TradesViewModel : ObservableObject
                 CloseTradeDetailCommand.NotifyCanExecuteChanged();
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -422,6 +456,7 @@ public sealed class TradesViewModel : ObservableObject
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 CancelAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -440,6 +475,7 @@ public sealed class TradesViewModel : ObservableObject
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 CancelAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -613,6 +649,71 @@ public sealed class TradesViewModel : ObservableObject
     public bool HasScreenshotSuccessMessage =>
         ScreenshotSuccessMessage is not null;
 
+    public Guid? PreviewScreenshotId
+    {
+        get => _previewScreenshotId;
+        private set
+        {
+            if (SetProperty(ref _previewScreenshotId, value))
+            {
+                CloseScreenshotPreviewCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? PreviewScreenshotFileName
+    {
+        get => _previewScreenshotFileName;
+        private set => SetProperty(ref _previewScreenshotFileName, value);
+    }
+
+    public ImageSource? PreviewScreenshotImage
+    {
+        get => _previewScreenshotImage;
+        private set => SetProperty(ref _previewScreenshotImage, value);
+    }
+
+    public bool IsScreenshotPreviewVisible
+    {
+        get => _isScreenshotPreviewVisible;
+        private set
+        {
+            if (SetProperty(ref _isScreenshotPreviewVisible, value))
+            {
+                CloseScreenshotPreviewCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsScreenshotPreviewLoading
+    {
+        get => _isScreenshotPreviewLoading;
+        private set
+        {
+            if (SetProperty(ref _isScreenshotPreviewLoading, value))
+            {
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
+                CloseScreenshotPreviewCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? ScreenshotPreviewErrorMessage
+    {
+        get => _screenshotPreviewErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _screenshotPreviewErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasScreenshotPreviewError));
+                CloseScreenshotPreviewCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasScreenshotPreviewError =>
+        ScreenshotPreviewErrorMessage is not null;
+
     public bool IsManualEntryVisible
     {
         get => _isManualEntryVisible;
@@ -644,6 +745,11 @@ public sealed class TradesViewModel : ObservableObject
     public IRelayCommand CancelAddScreenshotCommand { get; }
 
     public IAsyncRelayCommand SaveScreenshotCommand { get; }
+
+    public IAsyncRelayCommand<TradeScreenshotListItem>
+        OpenScreenshotPreviewCommand { get; }
+
+    public IRelayCommand CloseScreenshotPreviewCommand { get; }
 
     public bool TryBuildManualTradeCommand(
         out CreateManualTradeCommand? command)
@@ -837,6 +943,7 @@ public sealed class TradesViewModel : ObservableObject
             return;
         }
 
+        OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = true;
         SelectedTradeDetail = null;
         TradeDetailErrorMessage = null;
@@ -883,6 +990,7 @@ public sealed class TradesViewModel : ObservableObject
 
     private void CloseTradeDetail()
     {
+        OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = false;
         SelectedTradeDetail = null;
         TradeDetailErrorMessage = null;
@@ -895,6 +1003,123 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot;
+
+    private bool CanOpenScreenshotPreview(TradeScreenshotListItem? item) =>
+        item is not null &&
+        IsTradeDetailVisible &&
+        SelectedTradeDetail is { } detail &&
+        item.TradeId == detail.Id &&
+        !IsTradeDetailLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsAddingScreenshot &&
+        !IsScreenshotPreviewLoading;
+
+    private async Task OpenScreenshotPreviewAsync(
+        TradeScreenshotListItem? item,
+        CancellationToken cancellationToken)
+    {
+        if (item is null ||
+            SelectedTradeDetail is not { } detail ||
+            !IsTradeDetailVisible ||
+            item.TradeId != detail.Id)
+        {
+            return;
+        }
+
+        ResetScreenshotPreviewState();
+        int requestVersion = _previewRequestVersion;
+        PreviewScreenshotId = item.Id;
+        PreviewScreenshotFileName = item.FileName;
+        IsScreenshotPreviewLoading = true;
+
+        try
+        {
+            TradeScreenshotContent? content =
+                await _tradeScreenshotContentReader.OpenAsync(
+                    item.Id,
+                    cancellationToken);
+
+            if (content is null)
+            {
+                if (IsCurrentPreviewRequest(requestVersion, item))
+                {
+                    ScreenshotPreviewErrorMessage =
+                        StaleScreenshotPreviewErrorMessage;
+                }
+
+                return;
+            }
+
+            ImageSource decodedImage;
+            await using (content.Content)
+            {
+                if (!IsCurrentPreviewRequest(requestVersion, item))
+                {
+                    return;
+                }
+
+                decodedImage = _tradeScreenshotImageDecoder.Decode(content.Content);
+            }
+
+            if (IsCurrentPreviewRequest(requestVersion, item))
+            {
+                PreviewScreenshotImage = decodedImage;
+                IsScreenshotPreviewVisible = true;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (requestVersion == _previewRequestVersion)
+            {
+                ResetScreenshotPreviewState();
+            }
+
+            throw;
+        }
+        catch (FileNotFoundException)
+        {
+            if (IsCurrentPreviewRequest(requestVersion, item))
+            {
+                ScreenshotPreviewErrorMessage =
+                    MissingScreenshotFileErrorMessage;
+            }
+        }
+        catch (Exception)
+        {
+            if (IsCurrentPreviewRequest(requestVersion, item))
+            {
+                ScreenshotPreviewErrorMessage =
+                    ScreenshotPreviewErrorMessageFallback;
+            }
+        }
+        finally
+        {
+            if (requestVersion == _previewRequestVersion)
+            {
+                IsScreenshotPreviewLoading = false;
+            }
+        }
+    }
+
+    private bool IsCurrentPreviewRequest(
+        int requestVersion,
+        TradeScreenshotListItem item) =>
+        requestVersion == _previewRequestVersion &&
+        PreviewScreenshotId == item.Id &&
+        SelectedTradeDetail?.Id == item.TradeId &&
+        IsTradeDetailVisible;
+
+    private void CloseScreenshotPreview()
+    {
+        OpenScreenshotPreviewCommand.Cancel();
+        ResetScreenshotPreviewState();
+    }
+
+    private bool CanCloseScreenshotPreview() =>
+        PreviewScreenshotId is not null ||
+        IsScreenshotPreviewVisible ||
+        IsScreenshotPreviewLoading ||
+        HasScreenshotPreviewError;
 
     private void ShowAddScreenshot()
     {
@@ -1170,6 +1395,18 @@ public sealed class TradesViewModel : ObservableObject
         ScreenshotSaveErrorMessage = null;
         ScreenshotSuccessMessage = null;
         IsAddScreenshotVisible = false;
+        ResetScreenshotPreviewState();
+    }
+
+    private void ResetScreenshotPreviewState()
+    {
+        _previewRequestVersion++;
+        IsScreenshotPreviewVisible = false;
+        IsScreenshotPreviewLoading = false;
+        PreviewScreenshotImage = null;
+        PreviewScreenshotId = null;
+        PreviewScreenshotFileName = null;
+        ScreenshotPreviewErrorMessage = null;
     }
 
     private async Task<bool> LoadTradeScreenshotsAsync(

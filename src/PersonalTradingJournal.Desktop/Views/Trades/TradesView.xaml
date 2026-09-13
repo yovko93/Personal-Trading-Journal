@@ -780,6 +780,7 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
 
                                                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
@@ -798,6 +799,15 @@
                                                                Text="{Binding FileName}"
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
+                                                <Button Grid.Column="2"
+                                                        Margin="12,0,0,0"
+                                                        Padding="10,4"
+                                                        MinHeight="28"
+                                                        VerticalAlignment="Center"
+                                                        Command="{Binding DataContext.OpenScreenshotPreviewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                        CommandParameter="{Binding}"
+                                                        Content="View"
+                                                        Style="{StaticResource PtjButtonStyle}" />
                                             </Grid>
 
                                             <Grid Margin="0,12,0,0">
@@ -928,6 +938,105 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <Border Margin="0,4,0,8"
+                                Padding="16"
+                                Background="{StaticResource PtjBackgroundBrush}"
+                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsScreenshotPreviewVisible}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsScreenshotPreviewLoading}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Screenshot Preview" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   FontWeight="SemiBold"
+                                                   Style="{StaticResource PtjBodyTextStyle}"
+                                                   Text="{Binding PreviewScreenshotFileName}"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1"
+                                            Padding="10,4"
+                                            MinHeight="28"
+                                            VerticalAlignment="Top"
+                                            Command="{Binding CloseScreenshotPreviewCommand}"
+                                            Content="Close"
+                                            Style="{StaticResource PtjButtonStyle}" />
+                                </Grid>
+
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="Loading screenshot...">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsScreenshotPreviewLoading}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="{Binding ScreenshotPreviewErrorMessage}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Image Margin="0,14,0,0"
+                                       MaxHeight="600"
+                                       HorizontalAlignment="Center"
+                                       Source="{Binding PreviewScreenshotImage}"
+                                       Stretch="Uniform">
+                                    <Image.Style>
+                                        <Style TargetType="{x:Type Image}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsScreenshotPreviewVisible}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Image.Style>
+                                </Image>
+                            </StackPanel>
+                        </Border>
 
                         <StackPanel Margin="0,4,0,0">
                             <TextBlock Text="{Binding ScreenshotValidationErrorMessage}"

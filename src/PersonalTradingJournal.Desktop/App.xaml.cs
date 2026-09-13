@@ -62,6 +62,9 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<
                 ITradeScreenshotFilePicker,
                 WpfTradeScreenshotFilePicker>();
+            builder.Services.AddSingleton<
+                ITradeScreenshotImageDecoder,
+                WpfTradeScreenshotImageDecoder>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
