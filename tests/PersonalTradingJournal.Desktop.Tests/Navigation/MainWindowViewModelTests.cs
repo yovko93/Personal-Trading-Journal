@@ -1,5 +1,6 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -146,6 +147,7 @@ public sealed class MainWindowViewModelTests
         Assert.True(fixture.Trades.IsTradeDetailVisible);
         Assert.Same(detail, fixture.Trades.SelectedTradeDetail);
         Assert.Equal(1, fixture.TradeDetailReader.CallCount);
+        Assert.Equal(1, fixture.TradeScreenshotReader.CallCount);
     }
 
     [Fact]
@@ -223,6 +225,11 @@ public sealed class MainWindowViewModelTests
             tradeListItem,
         ]);
         var tradeStore = new FakeTradeStore();
+        var tradeScreenshotReader = new FakeTradeScreenshotReader();
+        var tradeExistenceReader = new FakeTradeExistenceReader();
+        var tradeScreenshotFileStorage = new FakeTradeScreenshotFileStorage();
+        var tradeScreenshotStore = new FakeTradeScreenshotStore();
+        var tradeScreenshotFilePicker = new FakeTradeScreenshotFilePicker();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
         var accounts = new AccountsViewModel(
@@ -241,7 +248,14 @@ public sealed class MainWindowViewModelTests
                 accountStore,
                 instrumentStore,
                 tradeStore,
-                timeProvider));
+                timeProvider),
+            tradeScreenshotReader,
+            new AddTradeScreenshotUseCase(
+                tradeExistenceReader,
+                tradeScreenshotFileStorage,
+                tradeScreenshotStore,
+                timeProvider),
+            tradeScreenshotFilePicker);
         var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
 
         return new ViewModelFixture(
@@ -254,7 +268,8 @@ public sealed class MainWindowViewModelTests
             instrumentReader,
             tradeReferenceDataReader,
             tradeListReader,
-            tradeDetailReader);
+            tradeDetailReader,
+            tradeScreenshotReader);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem listItem)
@@ -291,5 +306,6 @@ public sealed class MainWindowViewModelTests
         FakeInstrumentReader InstrumentReader,
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,
         FakeTradeListReader TradeListReader,
-        FakeTradeDetailReader TradeDetailReader);
+        FakeTradeDetailReader TradeDetailReader,
+        FakeTradeScreenshotReader TradeScreenshotReader);
 }

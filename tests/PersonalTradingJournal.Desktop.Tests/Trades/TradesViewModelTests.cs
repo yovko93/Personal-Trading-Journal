@@ -1,10 +1,13 @@
 using System.Globalization;
+using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Desktop.Screenshots;
 using PersonalTradingJournal.Desktop.Tests.Instruments;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
+using PersonalTradingJournal.Domain.Screenshots;
 using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
@@ -1609,6 +1612,11 @@ public sealed class TradesViewModelTests
         FakeTradingAccountStore? accountStore = null,
         FakeInstrumentStore? instrumentStore = null,
         FakeTradeStore? tradeStore = null,
+        FakeTradeScreenshotReader? tradeScreenshotReader = null,
+        FakeTradeScreenshotFilePicker? tradeScreenshotFilePicker = null,
+        FakeTradeExistenceReader? tradeExistenceReader = null,
+        FakeTradeScreenshotFileStorage? tradeScreenshotFileStorage = null,
+        FakeTradeScreenshotStore? tradeScreenshotStore = null,
         TimeProvider? timeProvider = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
@@ -1617,6 +1625,11 @@ public sealed class TradesViewModelTests
         accountStore ??= new FakeTradingAccountStore();
         instrumentStore ??= new FakeInstrumentStore();
         tradeStore ??= new FakeTradeStore();
+        tradeScreenshotReader ??= new FakeTradeScreenshotReader();
+        tradeScreenshotFilePicker ??= new FakeTradeScreenshotFilePicker();
+        tradeExistenceReader ??= new FakeTradeExistenceReader();
+        tradeScreenshotFileStorage ??= new FakeTradeScreenshotFileStorage();
+        tradeScreenshotStore ??= new FakeTradeScreenshotStore();
         timeProvider ??= new FixedTimeProvider();
 
         return new TradesViewModel(
@@ -1627,7 +1640,14 @@ public sealed class TradesViewModelTests
                 accountStore,
                 instrumentStore,
                 tradeStore,
-                timeProvider));
+                timeProvider),
+            tradeScreenshotReader,
+            new AddTradeScreenshotUseCase(
+                tradeExistenceReader,
+                tradeScreenshotFileStorage,
+                tradeScreenshotStore,
+                timeProvider),
+            tradeScreenshotFilePicker);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(
