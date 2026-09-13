@@ -4,10 +4,12 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Storage;
 using PersonalTradingJournal.Infrastructure.Trades;
 
@@ -183,6 +185,53 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<ManualTradeReferenceDataReader>(firstReader);
         Assert.NotSame(firstReader, secondReader);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersScreenshotMetadataServicesWithExpectedLifetimes()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradeExistenceReader firstExistenceReader =
+            serviceProvider.GetRequiredService<ITradeExistenceReader>();
+        ITradeExistenceReader secondExistenceReader =
+            serviceProvider.GetRequiredService<ITradeExistenceReader>();
+        ITradeScreenshotStore firstStore =
+            serviceProvider.GetRequiredService<ITradeScreenshotStore>();
+        ITradeScreenshotStore secondStore =
+            serviceProvider.GetRequiredService<ITradeScreenshotStore>();
+        ITradeScreenshotDeletionStore firstDeletionStore =
+            serviceProvider.GetRequiredService<ITradeScreenshotDeletionStore>();
+        ITradeScreenshotDeletionStore secondDeletionStore =
+            serviceProvider.GetRequiredService<ITradeScreenshotDeletionStore>();
+        ITradeScreenshotReader firstReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotReader>();
+        ITradeScreenshotReader secondReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotReader>();
+        ITradeScreenshotContentReader firstContentReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotContentReader>();
+        ITradeScreenshotContentReader secondContentReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotContentReader>();
+        ITradeScreenshotFileStorage firstFileStorage =
+            serviceProvider.GetRequiredService<ITradeScreenshotFileStorage>();
+        ITradeScreenshotFileStorage secondFileStorage =
+            serviceProvider.GetRequiredService<ITradeScreenshotFileStorage>();
+
+        Assert.IsType<TradeExistenceReader>(firstExistenceReader);
+        Assert.IsType<TradeScreenshotStore>(firstStore);
+        Assert.IsType<TradeScreenshotDeletionStore>(firstDeletionStore);
+        Assert.IsType<TradeScreenshotReader>(firstReader);
+        Assert.IsType<TradeScreenshotContentReader>(firstContentReader);
+        Assert.IsType<LocalTradeScreenshotFileStorage>(firstFileStorage);
+        Assert.NotSame(firstExistenceReader, secondExistenceReader);
+        Assert.NotSame(firstStore, secondStore);
+        Assert.NotSame(firstDeletionStore, secondDeletionStore);
+        Assert.NotSame(firstReader, secondReader);
+        Assert.NotSame(firstContentReader, secondContentReader);
+        Assert.Same(firstFileStorage, secondFileStorage);
     }
 
     [Fact]

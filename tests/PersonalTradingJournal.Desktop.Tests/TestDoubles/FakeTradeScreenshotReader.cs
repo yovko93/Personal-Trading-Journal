@@ -1,11 +1,11 @@
-using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Application.Screenshots;
 
 namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
-internal sealed class FakeTradeDetailReader : ITradeDetailReader
+internal sealed class FakeTradeScreenshotReader : ITradeScreenshotReader
 {
-    private readonly Queue<Func<CancellationToken, Task<TradeDetail?>>> _behaviors =
-        new();
+    private readonly Queue<Func<Task<IReadOnlyList<TradeScreenshotListItem>>>>
+        _behaviors = new();
     private readonly List<Guid> _requestedTradeIds = [];
     private readonly TaskCompletionSource<bool> _readStarted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -22,28 +22,20 @@ internal sealed class FakeTradeDetailReader : ITradeDetailReader
 
     public Task ReadStarted => _readStarted.Task;
 
-    public void ReleaseRead()
-    {
-        _releaseRead.TrySetResult(true);
-    }
+    public void ReleaseRead() => _releaseRead.TrySetResult(true);
 
-    public void EnqueueResult(TradeDetail? detail)
+    public void EnqueueResult(IReadOnlyList<TradeScreenshotListItem> screenshots)
     {
-        _behaviors.Enqueue(_ => Task.FromResult(detail));
+        _behaviors.Enqueue(() => Task.FromResult(screenshots));
     }
 
     public void EnqueueException(Exception exception)
     {
-        _behaviors.Enqueue(_ => Task.FromException<TradeDetail?>(exception));
+        _behaviors.Enqueue(() =>
+            Task.FromException<IReadOnlyList<TradeScreenshotListItem>>(exception));
     }
 
-    public void EnqueueBehavior(
-        Func<CancellationToken, Task<TradeDetail?>> behavior)
-    {
-        _behaviors.Enqueue(behavior);
-    }
-
-    public async Task<TradeDetail?> GetByIdAsync(
+    public async Task<IReadOnlyList<TradeScreenshotListItem>> GetForTradeAsync(
         Guid tradeId,
         CancellationToken cancellationToken = default)
     {
@@ -57,8 +49,6 @@ internal sealed class FakeTradeDetailReader : ITradeDetailReader
             _ = await _releaseRead.Task.WaitAsync(cancellationToken);
         }
 
-        return _behaviors.Count == 0
-            ? null
-            : await _behaviors.Dequeue()(cancellationToken);
+        return _behaviors.Count == 0 ? [] : await _behaviors.Dequeue()();
     }
 }
