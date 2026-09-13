@@ -45,6 +45,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();
         services.AddTransient<ITradeScreenshotStore, TradeScreenshotStore>();
         services.AddTransient<ITradeScreenshotReader, TradeScreenshotReader>();
+        services.AddTransient<
+            ITradeScreenshotContentReader,
+            TradeScreenshotContentReader>();
         services.AddSingleton<ITradeScreenshotFileStorage>(
             new LocalTradeScreenshotFileStorage(applicationPaths));
 

@@ -207,6 +207,10 @@ public sealed class PersistenceRegistrationTests
             serviceProvider.GetRequiredService<ITradeScreenshotReader>();
         ITradeScreenshotReader secondReader =
             serviceProvider.GetRequiredService<ITradeScreenshotReader>();
+        ITradeScreenshotContentReader firstContentReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotContentReader>();
+        ITradeScreenshotContentReader secondContentReader =
+            serviceProvider.GetRequiredService<ITradeScreenshotContentReader>();
         ITradeScreenshotFileStorage firstFileStorage =
             serviceProvider.GetRequiredService<ITradeScreenshotFileStorage>();
         ITradeScreenshotFileStorage secondFileStorage =
@@ -215,10 +219,12 @@ public sealed class PersistenceRegistrationTests
         Assert.IsType<TradeExistenceReader>(firstExistenceReader);
         Assert.IsType<TradeScreenshotStore>(firstStore);
         Assert.IsType<TradeScreenshotReader>(firstReader);
+        Assert.IsType<TradeScreenshotContentReader>(firstContentReader);
         Assert.IsType<LocalTradeScreenshotFileStorage>(firstFileStorage);
         Assert.NotSame(firstExistenceReader, secondExistenceReader);
         Assert.NotSame(firstStore, secondStore);
         Assert.NotSame(firstReader, secondReader);
+        Assert.NotSame(firstContentReader, secondContentReader);
         Assert.Same(firstFileStorage, secondFileStorage);
     }
 
