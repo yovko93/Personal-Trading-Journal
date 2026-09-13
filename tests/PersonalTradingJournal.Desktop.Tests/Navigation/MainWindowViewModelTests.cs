@@ -259,7 +259,11 @@ public sealed class MainWindowViewModelTests
                 timeProvider),
             tradeScreenshotFilePicker,
             tradeScreenshotContentReader,
-            tradeScreenshotImageDecoder);
+            tradeScreenshotImageDecoder,
+            new DeleteTradeScreenshotUseCase(
+                new FakeTradeScreenshotDeletionStore(),
+                tradeScreenshotFileStorage),
+            new FakeTradeScreenshotDeleteConfirmation());
         var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
 
         return new ViewModelFixture(

@@ -799,15 +799,24 @@
                                                                Text="{Binding FileName}"
                                                                TextWrapping="Wrap" />
                                                 </StackPanel>
-                                                <Button Grid.Column="2"
-                                                        Margin="12,0,0,0"
-                                                        Padding="10,4"
-                                                        MinHeight="28"
-                                                        VerticalAlignment="Center"
-                                                        Command="{Binding DataContext.OpenScreenshotPreviewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                        CommandParameter="{Binding}"
-                                                        Content="View"
-                                                        Style="{StaticResource PtjButtonStyle}" />
+                                                <StackPanel Grid.Column="2"
+                                                            Margin="12,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            Orientation="Horizontal">
+                                                    <Button Padding="10,4"
+                                                            MinHeight="28"
+                                                            Command="{Binding DataContext.OpenScreenshotPreviewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="View"
+                                                            Style="{StaticResource PtjButtonStyle}" />
+                                                    <Button Margin="8,0,0,0"
+                                                            Padding="10,4"
+                                                            MinHeight="28"
+                                                            Command="{Binding DataContext.DeleteScreenshotCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                            CommandParameter="{Binding}"
+                                                            Content="Delete"
+                                                            Style="{StaticResource PtjButtonStyle}" />
+                                                </StackPanel>
                                             </Grid>
 
                                             <Grid Margin="0,12,0,0">
@@ -1037,6 +1046,67 @@
                                 </Image>
                             </StackPanel>
                         </Border>
+
+                        <StackPanel Margin="0,4,0,0">
+                            <TextBlock Text="Deleting screenshot...">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDeletingScreenshot}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding ScreenshotDeleteErrorMessage}"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasScreenshotDeleteError}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding ScreenshotDeleteWarningMessage}"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasScreenshotDeleteWarning}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock Text="{Binding ScreenshotDeleteSuccessMessage}"
+                                       TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasScreenshotDeleteSuccess}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
 
                         <StackPanel Margin="0,4,0,0">
                             <TextBlock Text="{Binding ScreenshotValidationErrorMessage}"

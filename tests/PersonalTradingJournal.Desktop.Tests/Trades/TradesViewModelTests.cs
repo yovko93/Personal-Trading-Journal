@@ -1619,6 +1619,8 @@ public sealed class TradesViewModelTests
         FakeTradeScreenshotStore? tradeScreenshotStore = null,
         FakeTradeScreenshotContentReader? tradeScreenshotContentReader = null,
         FakeTradeScreenshotImageDecoder? tradeScreenshotImageDecoder = null,
+        FakeTradeScreenshotDeletionStore? tradeScreenshotDeletionStore = null,
+        FakeTradeScreenshotDeleteConfirmation? tradeScreenshotDeleteConfirmation = null,
         TimeProvider? timeProvider = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
@@ -1634,6 +1636,9 @@ public sealed class TradesViewModelTests
         tradeScreenshotStore ??= new FakeTradeScreenshotStore();
         tradeScreenshotContentReader ??= new FakeTradeScreenshotContentReader();
         tradeScreenshotImageDecoder ??= new FakeTradeScreenshotImageDecoder();
+        tradeScreenshotDeletionStore ??= new FakeTradeScreenshotDeletionStore();
+        tradeScreenshotDeleteConfirmation ??=
+            new FakeTradeScreenshotDeleteConfirmation();
         timeProvider ??= new FixedTimeProvider();
 
         return new TradesViewModel(
@@ -1653,7 +1658,11 @@ public sealed class TradesViewModelTests
                 timeProvider),
             tradeScreenshotFilePicker,
             tradeScreenshotContentReader,
-            tradeScreenshotImageDecoder);
+            tradeScreenshotImageDecoder,
+            new DeleteTradeScreenshotUseCase(
+                tradeScreenshotDeletionStore,
+                tradeScreenshotFileStorage),
+            tradeScreenshotDeleteConfirmation);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(

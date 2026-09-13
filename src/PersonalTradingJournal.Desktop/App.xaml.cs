@@ -59,12 +59,16 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();
             builder.Services.AddTransient<CreateManualTradeUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
+            builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<
                 ITradeScreenshotFilePicker,
                 WpfTradeScreenshotFilePicker>();
             builder.Services.AddSingleton<
                 ITradeScreenshotImageDecoder,
                 WpfTradeScreenshotImageDecoder>();
+            builder.Services.AddSingleton<
+                ITradeScreenshotDeleteConfirmation,
+                WpfTradeScreenshotDeleteConfirmation>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();

@@ -382,6 +382,7 @@ public sealed class TradeScreenshotPreviewTests
         var contentReader = new FakeTradeScreenshotContentReader();
         var imageDecoder = new FakeTradeScreenshotImageDecoder();
         var screenshotFilePicker = new FakeTradeScreenshotFilePicker();
+        var screenshotFileStorage = new FakeTradeScreenshotFileStorage();
         var screenshotStore = new FakeTradeScreenshotStore();
         var timeProvider = new FixedTimeProvider();
         var accountStore = new FakeTradingAccountStore();
@@ -400,12 +401,16 @@ public sealed class TradeScreenshotPreviewTests
             screenshotReader,
             new AddTradeScreenshotUseCase(
                 new FakeTradeExistenceReader(),
-                new FakeTradeScreenshotFileStorage(),
+                screenshotFileStorage,
                 screenshotStore,
                 timeProvider),
             screenshotFilePicker,
             contentReader,
-            imageDecoder);
+            imageDecoder,
+            new DeleteTradeScreenshotUseCase(
+                new FakeTradeScreenshotDeletionStore(),
+                screenshotFileStorage),
+            new FakeTradeScreenshotDeleteConfirmation());
 
         return new PreviewFixture(
             viewModel,

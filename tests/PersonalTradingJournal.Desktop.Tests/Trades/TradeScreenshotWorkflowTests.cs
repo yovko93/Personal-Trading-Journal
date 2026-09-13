@@ -633,7 +633,11 @@ public sealed class TradeScreenshotWorkflowTests
                 timeProvider),
             filePicker,
             screenshotContentReader,
-            screenshotImageDecoder);
+            screenshotImageDecoder,
+            new DeleteTradeScreenshotUseCase(
+                new FakeTradeScreenshotDeletionStore(),
+                fileStorage),
+            new FakeTradeScreenshotDeleteConfirmation());
 
         return new ScreenshotFixture(
             viewModel,

@@ -12,7 +12,15 @@ internal sealed class FakeTradeScreenshotFileStorage : ITradeScreenshotFileStora
 
     public CancellationToken CancellationToken { get; private set; }
 
+    public int DeleteCallCount { get; private set; }
+
+    public string? DeletedStorageKey { get; private set; }
+
+    public CancellationToken DeleteCancellationToken { get; private set; }
+
     public Exception? StoreException { get; set; }
+
+    public Exception? DeleteException { get; set; }
 
     public string StorageKey { get; set; } = "screenshots/test.png";
 
@@ -38,5 +46,14 @@ internal sealed class FakeTradeScreenshotFileStorage : ITradeScreenshotFileStora
 
     public Task DeleteIfExistsAsync(
         string storageKey,
-        CancellationToken cancellationToken = default) => Task.CompletedTask;
+        CancellationToken cancellationToken = default)
+    {
+        DeleteCallCount++;
+        DeletedStorageKey = storageKey;
+        DeleteCancellationToken = cancellationToken;
+
+        return DeleteException is null
+            ? Task.CompletedTask
+            : Task.FromException(DeleteException);
+    }
 }
