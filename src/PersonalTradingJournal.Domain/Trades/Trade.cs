@@ -15,7 +15,6 @@ public sealed class Trade : AuditableEntity
         Guid tradingAccountId,
         Guid instrumentId,
         TradePricingSnapshot pricing,
-        Guid? strategyId,
         Guid? tradingSetupId,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
@@ -32,7 +31,6 @@ public sealed class Trade : AuditableEntity
             "An instrument identifier cannot be empty.");
         ArgumentNullException.ThrowIfNull(pricing);
         Pricing = pricing;
-        StrategyId = ValidateOptionalIdentifier(strategyId, nameof(strategyId));
         TradingSetupId = ValidateOptionalIdentifier(
             tradingSetupId,
             nameof(tradingSetupId));
@@ -46,8 +44,6 @@ public sealed class Trade : AuditableEntity
     public Guid InstrumentId { get; }
 
     public TradePricingSnapshot Pricing { get; }
-
-    public Guid? StrategyId { get; private set; }
 
     public Guid? TradingSetupId { get; private set; }
 
@@ -114,7 +110,6 @@ public sealed class Trade : AuditableEntity
             instrumentId,
             pricing,
             null,
-            null,
             [openingExecution],
             createdAtUtc,
             createdAtUtc);
@@ -125,7 +120,6 @@ public sealed class Trade : AuditableEntity
         Guid tradingAccountId,
         Guid instrumentId,
         TradePricingSnapshot pricing,
-        Guid? strategyId,
         Guid? tradingSetupId,
         IEnumerable<TradeExecution> executions,
         DateTimeOffset createdAtUtc,
@@ -139,33 +133,26 @@ public sealed class Trade : AuditableEntity
             tradingAccountId,
             instrumentId,
             pricing,
-            strategyId,
             tradingSetupId,
             executions,
             createdAtUtc,
             updatedAtUtc);
     }
 
-    public void SetClassification(
-        Guid? strategyId,
+    public void SetTradingSetup(
         Guid? tradingSetupId,
         DateTimeOffset updatedAtUtc)
     {
-        Guid? validatedStrategyId = ValidateOptionalIdentifier(
-            strategyId,
-            nameof(strategyId));
         Guid? validatedTradingSetupId = ValidateOptionalIdentifier(
             tradingSetupId,
             nameof(tradingSetupId));
 
-        if (StrategyId == validatedStrategyId &&
-            TradingSetupId == validatedTradingSetupId)
+        if (TradingSetupId == validatedTradingSetupId)
         {
             return;
         }
 
         SetUpdatedAtUtc(updatedAtUtc);
-        StrategyId = validatedStrategyId;
         TradingSetupId = validatedTradingSetupId;
     }
 

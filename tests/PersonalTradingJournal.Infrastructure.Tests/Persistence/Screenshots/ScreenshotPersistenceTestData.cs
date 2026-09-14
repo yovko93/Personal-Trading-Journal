@@ -63,7 +63,6 @@ internal static class ScreenshotPersistenceTestData
             InstrumentId = instrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

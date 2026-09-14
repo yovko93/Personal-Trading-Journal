@@ -433,7 +433,6 @@ public sealed class TradeDetailReaderTests
             accountId,
             instrumentId,
             new TradePricingSnapshot(pointValue, currency),
-            strategyId: null,
             tradingSetupId: null,
             executions,
             createdAtUtc,

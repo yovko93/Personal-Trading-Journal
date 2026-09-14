@@ -49,7 +49,6 @@ public sealed class TradeStoreTests
         Assert.Equal(instrument.Id, persistedTrade.InstrumentId);
         Assert.Equal(20m, persistedTrade.PricingPointValue);
         Assert.Equal("USD", persistedTrade.PricingCurrency);
-        Assert.Null(persistedTrade.StrategyId);
         Assert.Null(persistedTrade.TradingSetupId);
         Assert.Equal(trade.CreatedAtUtc, persistedTrade.CreatedAtUtc);
         Assert.Equal(trade.UpdatedAtUtc, persistedTrade.UpdatedAtUtc);

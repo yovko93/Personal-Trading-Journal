@@ -19,9 +19,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
     private static readonly Guid InstrumentId =
         Guid.Parse("32b29ae9-dccd-4ad5-a1f1-205176f398f1");
 
-    private static readonly Guid StrategyId =
-        Guid.Parse("db585764-ff3c-4697-a710-d6e86ca20775");
-
     private static readonly Guid TradingSetupId =
         Guid.Parse("53f692ff-190f-46af-951b-ff0d3e286f4e");
 
@@ -48,15 +45,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
         TradingAccountRecord account = CreateAccount(
             BaseTimestampUtc.AddHours(2).AddTicks(22),
             BaseTimestampUtc.AddHours(3).AddTicks(33));
-        var strategy = new StrategyRecord
-        {
-            Id = StrategyId,
-            Name = "Timestamp Strategy",
-            Description = null,
-            IsActive = true,
-            CreatedAtUtc = BaseTimestampUtc.AddHours(4).AddTicks(44),
-            UpdatedAtUtc = BaseTimestampUtc.AddHours(5).AddTicks(55),
-        };
         var setup = new TradingSetupRecord
         {
             Id = TradingSetupId,
@@ -78,7 +66,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
             writeContext.Database.EnsureCreated();
             writeContext.Instruments.Add(instrument);
             writeContext.TradingAccounts.Add(account);
-            writeContext.Strategies.Add(strategy);
             writeContext.TradingSetups.Add(setup);
             writeContext.TradingMistakes.Add(tradingMistake);
             writeContext.SaveChanges();
@@ -91,9 +78,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
         TradingAccountRecord persistedAccount = readContext.TradingAccounts
             .AsNoTracking()
             .Single(record => record.Id == TradingAccountId);
-        StrategyRecord persistedStrategy = readContext.Strategies
-            .AsNoTracking()
-            .Single(record => record.Id == StrategyId);
         TradingSetupRecord persistedSetup = readContext.TradingSetups
             .AsNoTracking()
             .Single(record => record.Id == TradingSetupId);
@@ -103,7 +87,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
 
         AssertTimestampPair(instrument, persistedInstrument);
         AssertTimestampPair(account, persistedAccount);
-        AssertTimestampPair(strategy, persistedStrategy);
         AssertTimestampPair(setup, persistedSetup);
         AssertTimestampPair(tradingMistake, persistedTradingMistake);
     }
@@ -198,7 +181,7 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
             null,
             "NQ");
         original.AddExecution(closingExecution, createdAtUtc.AddMinutes(5));
-        original.SetClassification(StrategyId, null, updatedAtUtc);
+        original.SetTradingSetup(TradingSetupId, updatedAtUtc);
 
         using SqliteConnection connection = OpenConnection();
         DbContextOptions<JournalDbContext> options = CreateOptions(connection);
@@ -207,10 +190,10 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
         {
             writeContext.Database.EnsureCreated();
             AddTradeParents(writeContext);
-            writeContext.Strategies.Add(new StrategyRecord
+            writeContext.TradingSetups.Add(new TradingSetupRecord
             {
-                Id = StrategyId,
-                Name = "Reviewed Strategy",
+                Id = TradingSetupId,
+                Name = "Reviewed Setup",
                 Description = null,
                 IsActive = true,
                 CreatedAtUtc = createdAtUtc,
@@ -471,8 +454,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
             (typeof(InstrumentRecord), nameof(InstrumentRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
             (typeof(TradingAccountRecord), nameof(TradingAccountRecord.CreatedAtUtc), typeof(DateTimeOffset)),
             (typeof(TradingAccountRecord), nameof(TradingAccountRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
-            (typeof(StrategyRecord), nameof(StrategyRecord.CreatedAtUtc), typeof(DateTimeOffset)),
-            (typeof(StrategyRecord), nameof(StrategyRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
             (typeof(TradingSetupRecord), nameof(TradingSetupRecord.CreatedAtUtc), typeof(DateTimeOffset)),
             (typeof(TradingSetupRecord), nameof(TradingSetupRecord.UpdatedAtUtc), typeof(DateTimeOffset)),
             (typeof(TradingMistakeRecord), nameof(TradingMistakeRecord.CreatedAtUtc), typeof(DateTimeOffset)),
@@ -566,7 +547,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
             InstrumentId = InstrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = createdAtUtc,
             UpdatedAtUtc = updatedAtUtc,
@@ -650,14 +630,6 @@ public sealed class SqliteDateTimeOffsetPersistenceTests
     private static void AssertTimestampPair(
         TradingAccountRecord expected,
         TradingAccountRecord actual)
-    {
-        AssertExactUtc(expected.CreatedAtUtc, actual.CreatedAtUtc);
-        AssertExactUtc(expected.UpdatedAtUtc, actual.UpdatedAtUtc);
-    }
-
-    private static void AssertTimestampPair(
-        StrategyRecord expected,
-        StrategyRecord actual)
     {
         AssertExactUtc(expected.CreatedAtUtc, actual.CreatedAtUtc);
         AssertExactUtc(expected.UpdatedAtUtc, actual.UpdatedAtUtc);

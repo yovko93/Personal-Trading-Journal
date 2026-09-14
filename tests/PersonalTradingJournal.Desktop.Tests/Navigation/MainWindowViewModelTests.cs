@@ -3,7 +3,6 @@ using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
-using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -14,7 +13,6 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
-using PersonalTradingJournal.Desktop.ViewModels.Strategies;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -24,6 +22,10 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed class MainWindowViewModelTests
 {
+    [Fact]
+    public void NavigationDestinationsContainNineteenEntries() =>
+        Assert.Equal(19, Enum.GetValues<NavigationDestination>().Length);
+
     [Fact]
     public void Constructor_UsesSuppliedDashboardAsInitialContent()
     {
@@ -75,18 +77,6 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void NavigateToStrategies_UsesRetainedStrategiesViewModelAndStartsLoading()
-    {
-        ViewModelFixture fixture = CreateFixture();
-
-        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
-
-        Assert.Equal(NavigationDestination.Strategies, fixture.Main.CurrentDestination);
-        Assert.Same(fixture.Strategies, fixture.Main.CurrentContentViewModel);
-        Assert.Equal(1, fixture.StrategyReader.CallCount);
-    }
-
-    [Fact]
     public void NavigateToSetupsUsesRetainedViewModelAndLoadsOnlyOnce()
     {
         ViewModelFixture fixture = CreateFixture();
@@ -111,20 +101,6 @@ public sealed class MainWindowViewModelTests
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
         Assert.Same(fixture.Mistakes, content); Assert.Same(content, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.MistakeReader.CallCount);
-    }
-
-    [Fact]
-    public void NavigateAwayAndBackToStrategiesRetainsLoadedStateWithoutReloading()
-    {
-        ViewModelFixture fixture = CreateFixture();
-        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
-        object strategiesContent = fixture.Main.CurrentContentViewModel;
-
-        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
-        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
-
-        Assert.Same(strategiesContent, fixture.Main.CurrentContentViewModel);
-        Assert.Equal(1, fixture.StrategyReader.CallCount);
     }
 
     [Fact]
@@ -256,10 +232,6 @@ public sealed class MainWindowViewModelTests
         var instrumentReader = new FakeInstrumentReader();
         instrumentReader.EnqueueResult([]);
         var instrumentStore = new FakeInstrumentStore();
-        var strategyReader = new FakeStrategyReader();
-        strategyReader.EnqueueResult([]);
-        var strategyStore = new FakeStrategyStore();
-        var strategyNameChecker = new FakeStrategyNameChecker();
         var setupReader = new FakeTradingSetupReader();
         setupReader.EnqueueResult([]);
         var setupStore = new FakeTradingSetupStore();
@@ -311,10 +283,6 @@ public sealed class MainWindowViewModelTests
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
-        var strategies = new StrategiesViewModel(
-            strategyReader,
-            new CreateStrategyUseCase(strategyStore, strategyNameChecker, timeProvider),
-            new StrategyLifecycleUseCase(strategyStore, timeProvider));
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
@@ -353,7 +321,6 @@ public sealed class MainWindowViewModelTests
             instruments,
             mistakes,
             setups,
-            strategies,
             trades);
 
         return new ViewModelFixture(
@@ -363,13 +330,11 @@ public sealed class MainWindowViewModelTests
             instruments,
             mistakes,
             setups,
-            strategies,
             trades,
             accountReader,
             instrumentReader,
             mistakeReader,
             setupReader,
-            strategyReader,
             tradeReferenceDataReader,
             tradeListReader,
             tradeDetailReader,
@@ -407,13 +372,11 @@ public sealed class MainWindowViewModelTests
         InstrumentsViewModel Instruments,
         TradingMistakesViewModel Mistakes,
         TradingSetupsViewModel Setups,
-        StrategiesViewModel Strategies,
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
         FakeTradingMistakeReader MistakeReader,
         FakeTradingSetupReader SetupReader,
-        FakeStrategyReader StrategyReader,
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,
         FakeTradeListReader TradeListReader,
         FakeTradeDetailReader TradeDetailReader,

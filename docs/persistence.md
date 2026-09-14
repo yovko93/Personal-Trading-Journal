@@ -24,7 +24,7 @@ The repository deliberately has no generic repository, Unit of Work abstraction,
 
 ## JournalDbContext
 
-`JournalDbContext` exposes one `DbSet` for each current persistence record and applies nine explicit `IEntityTypeConfiguration` implementations. `AddPersistence(...)` configures SQLite from `IApplicationPaths.DatabasePath`, enables SQLite foreign-key enforcement, registers `IDbContextFactory<JournalDbContext>`, and registers the runtime initializer.
+`JournalDbContext` exposes one `DbSet` for each current persistence record and applies eight explicit `IEntityTypeConfiguration` implementations. `AddPersistence(...)` configures SQLite from `IApplicationPaths.DatabasePath`, enables SQLite foreign-key enforcement, registers `IDbContextFactory<JournalDbContext>`, and registers the runtime initializer.
 
 Contexts are short-lived: create one from the factory for an operation, save or query, and dispose it. The desktop application does not retain a long-lived context.
 
@@ -34,7 +34,6 @@ Infrastructure defines one persistence record for each current entity concept:
 
 - `InstrumentRecord`
 - `TradingAccountRecord`
-- `StrategyRecord`
 - `TradingSetupRecord`
 - `TradingMistakeRecord`
 - `TradeRecord`
@@ -55,17 +54,16 @@ Inactive reference records are still mapped and queryable. `IsActive` controls l
 
 ## Database Schema
 
-The database contains exactly nine application tables:
+The database contains exactly eight application tables:
 
 1. `Instruments`
 2. `TradingAccounts`
-3. `Strategies`
-4. `TradingSetups`
-5. `TradingMistakes`
-6. `Trades`
-7. `TradeExecutions`
-8. `TradeScreenshots`
-9. `TradeMistakes`
+3. `TradingSetups`
+4. `TradingMistakes`
+5. `Trades`
+6. `TradeExecutions`
+7. `TradeScreenshots`
+8. `TradeMistakes`
 
 EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMigrationsLock` to coordinate migration execution; it is provider infrastructure, not an application table or Domain concept.
 
@@ -75,7 +73,6 @@ EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMig
 |---|---|---:|---|
 | `Trades.TradingAccountId` | `TradingAccounts.Id` | Yes | Restrict |
 | `Trades.InstrumentId` | `Instruments.Id` | Yes | Restrict |
-| `Trades.StrategyId` | `Strategies.Id` | No | Restrict |
 | `Trades.TradingSetupId` | `TradingSetups.Id` | No | Restrict |
 | `TradeExecutions.TradeId` | `Trades.Id` | Yes | Cascade |
 | `TradeScreenshots.TradeId` | `Trades.Id` | Yes | Restrict |
@@ -89,11 +86,11 @@ Two composite business indexes are unique:
 - `UNIQUE (TradeId, Sequence)` on `TradeExecutions`
 - `UNIQUE (TradeId, TradingMistakeId)` on `TradeMistakes`
 
-The schema does not currently define uniqueness for instrument symbols, strategy names, setup names, mistake names, account names, storage keys, or external execution identifiers. EF also creates ordinary non-unique indexes for foreign keys where appropriate.
+The schema does not currently define uniqueness for instrument symbols, setup names, mistake names, account names, storage keys, or external execution identifiers. EF also creates ordinary non-unique indexes for foreign keys where appropriate.
 
 ## Trade Source of Truth
 
-`Trades` persists authoritative root facts: its identity, `TradingAccountId`, `InstrumentId`, historical `PricingPointValue`, `PricingCurrency`, optional `StrategyId`, optional `TradingSetupId`, and audit timestamps. The historical pricing snapshot is independent from current instrument economics.
+`Trades` persists authoritative root facts: its identity, `TradingAccountId`, `InstrumentId`, historical `PricingPointValue`, `PricingCurrency`, optional `TradingSetupId`, and audit timestamps. The historical pricing snapshot is independent from current instrument economics.
 
 The following values are deliberately not persisted because ordered executions and the pricing snapshot derive them:
 
@@ -156,13 +153,14 @@ Tests verify exact equality, ascending and descending ordering, inclusive `>=`/`
 
 ## Migrations
 
-The current and only application migration is:
+The current application migrations are:
 
 ```text
 20260908122839_InitialCreate
+20260914212911_RemoveStrategies
 ```
 
-It creates the nine application tables, eight foreign keys, ordinary FK indexes, and two deliberate composite unique indexes without seed data. Production schema management uses migrations and must not use `EnsureCreated`. Some focused test-only model characterizations use `EnsureCreated`, but migrated-schema tests and runtime initialization use the migration lifecycle.
+`InitialCreate` records the historical pre-removal schema. `RemoveStrategies` intentionally removes the former catalog table and the nullable Trade association without converting that data into Trading Setups, because such a conversion would invent classification meaning. The latest schema has eight application tables, seven foreign keys, ordinary FK indexes, and two deliberate composite unique indexes without seed data. Production schema management uses migrations and must not use `EnsureCreated`. Some focused test-only model characterizations use `EnsureCreated`, but migrated-schema tests and runtime initialization use the migration lifecycle.
 
 ## Runtime Initialization
 
@@ -185,7 +183,7 @@ Initialization creates a missing `journal.db`, applies pending migrations, and i
 
 The project and `dotnet-ef` tooling currently use the EF Core 10.0.11 line. Keep the tool aligned with the project's EF Core major/version line.
 
-## Testing Strategy
+## Testing Approach
 
 Infrastructure tests cover:
 

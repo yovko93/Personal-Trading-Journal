@@ -89,7 +89,7 @@ public sealed class TradingSetupPersistenceRoundTripTests
     }
 
     [Fact]
-    public void ModelMapsTradingSetupRecordWithoutStrategyRelationship()
+    public void ModelMapsTradingSetupRecordAsIndependentCatalogEntry()
     {
         var options = new DbContextOptionsBuilder<JournalDbContext>()
             .UseSqlite("Data Source=:memory:")
@@ -103,7 +103,6 @@ public sealed class TradingSetupPersistenceRoundTripTests
             ValueGenerated.Never,
             entityType.FindProperty(nameof(TradingSetupRecord.Id))!.ValueGenerated);
         Assert.True(entityType.FindProperty(nameof(TradingSetupRecord.Description))!.IsNullable);
-        Assert.Null(entityType.FindProperty("StrategyId"));
         Assert.Empty(entityType.GetForeignKeys());
         Assert.Empty(entityType.GetNavigations());
     }

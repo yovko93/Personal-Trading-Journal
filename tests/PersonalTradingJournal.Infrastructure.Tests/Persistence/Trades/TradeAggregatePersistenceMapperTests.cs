@@ -81,7 +81,6 @@ public sealed class TradeAggregatePersistenceMapperTests
         AssertInvalidRecord(record => record.PricingPointValue = -1m);
         AssertInvalidRecord(record => record.PricingCurrency = "   ");
         AssertInvalidRecord(record => record.PricingCurrency = "CURRENCY9");
-        AssertInvalidRecord(record => record.StrategyId = Guid.Empty);
         AssertInvalidRecord(record => record.TradingSetupId = Guid.Empty);
         AssertInvalidRecord(record =>
             record.CreatedAtUtc = record.CreatedAtUtc.ToOffset(TimeSpan.FromHours(2)));
@@ -323,7 +322,6 @@ public sealed class TradeAggregatePersistenceMapperTests
             InstrumentId = InstrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

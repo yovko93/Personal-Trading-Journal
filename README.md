@@ -22,6 +22,8 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M8 — Screenshot Management: Complete**
 
+**Milestone M9 — Setup and Mistake Classification: In Progress**
+
 The completed foundation includes:
 
 - a .NET 10 solution with a layered project structure;
@@ -39,7 +41,7 @@ The M2 domain foundation includes:
 - canonical instruments and trading-account reference data;
 - an execution-based `Trade` aggregate with scale-in, scale-out, and a directional flat-to-flat lifecycle;
 - historical pricing snapshots and closed-trade gross/net P&L;
-- independent `Strategy` and `TradingSetup` classification;
+- optional `TradingSetup` classification as the single reusable trade-pattern concept;
 - storage-agnostic trade-screenshot metadata; and
 - a user-defined trading-mistake catalog with trade-mistake associations.
 
@@ -109,9 +111,13 @@ PNG and JPEG preview use native WPF/WIC support. WebP files are accepted for sto
 
 Post-M8 manual Trade lifecycle corrections allow an open manually entered Trade to be closed later by adding an opposite-side execution for its full authoritative remaining quantity. Futures manual quantity is expressed as a positive whole number of contracts, while non-Futures instruments retain positive decimal quantities. Contract economics remain Instrument-driven through asset class, tick size, tick value, and derived point value; no symbol-specific quantity or pricing rules are used.
 
-Four of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, and Instruments. Dashboard remains presentation-only, while Trades, Accounts, and Instruments are functional data-backed pages. The other 15 destinations remain placeholders.
+The M9 catalog foundation includes persisted Trading Setup and Trading Mistake management. Trading Setup is the single primary reusable trade-pattern classification; the overlapping broader Strategy concept was intentionally removed to avoid redundant taxonomy, UI, and analytics. Trade assignment workflows remain deferred to M9.4 and M9.5.
 
-The next milestone is **M9 — Strategies / Setups / Mistakes**.
+Six of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes. Dashboard remains presentation-only, while the other five are functional data-backed pages. The other 13 destinations remain placeholders.
+
+The next task is **M9.4 — Trade Setup Classification**.
+
+The M9 sequence is M9.1 Strategy Catalog (removed by M9.3.5), M9.2 Trading Setup Catalog (retained), M9.3 Trading Mistake Catalog (retained), M9.3.5 Remove Strategy, M9.4 Trade Setup Classification, M9.5 Trade Mistake Assignment, M9.6 Desktop integration and analysis presentation as needed, and M9.7 Acceptance and Documentation.
 
 ## Technology Stack
 
@@ -160,10 +166,10 @@ docs/
 ```
 
 - **Domain** contains the framework-independent M2 trading model, rules, and invariants.
-- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account and Instrument workflows, manual Trade creation, Trade list/detail reads, and screenshot add/delete/content workflows.
+- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account, Instrument, Trading Setup, and Trading Mistake workflows, manual Trade creation, Trade list/detail reads, and screenshot add/delete/content workflows.
 - **Infrastructure** owns local Windows storage paths, screenshot files, and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, and concrete readers/stores.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
-- **Desktop** contains the WPF shell, real Accounts, Instruments, and Trades feature pages, manual Trade entry, Trade browsing, screenshot selection/list/preview/delete presentation, navigation state, shared XAML resources, and the composition root.
+- **Desktop** contains the WPF shell, real Accounts, Instruments, Trades, Setups, and Mistakes feature pages, manual Trade entry, Trade browsing, screenshot selection/list/preview/delete presentation, navigation state, shared XAML resources, and the composition root.
 
 ## Prerequisites
 

@@ -383,7 +383,6 @@ public sealed class SqliteDecimalPersistenceTests
             InstrumentId = InstrumentId,
             PricingPointValue = pricingPointValue,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

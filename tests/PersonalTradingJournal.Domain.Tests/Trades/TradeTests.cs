@@ -13,9 +13,6 @@ public sealed class TradeTests
     private static readonly Guid InstrumentId =
         new("5b285ecb-d20b-431b-9aca-c382596b9f4e");
 
-    private static readonly Guid StrategyId =
-        new("0ab40da1-c4c8-4e86-bf05-9935d7c141bb");
-
     private static readonly Guid TradingSetupId =
         new("a6f89e70-dd67-48f3-88b9-f1d18a218fb7");
 
@@ -565,7 +562,6 @@ public sealed class TradeTests
             InstrumentId,
             Pricing,
             null,
-            null,
             [second, first],
             CreatedAtUtc,
             updatedAtUtc);
@@ -586,7 +582,6 @@ public sealed class TradeTests
             TradingAccountId,
             InstrumentId,
             Pricing,
-            null,
             null,
             null!,
             CreatedAtUtc,
@@ -690,7 +685,6 @@ public sealed class TradeTests
             instrumentId,
             Pricing,
             null,
-            null,
             [CreateExecution()],
             CreatedAtUtc,
             CreatedAtUtc));
@@ -714,7 +708,6 @@ public sealed class TradeTests
             InstrumentId,
             Pricing,
             null,
-            null,
             [CreateExecution()],
             nonUtcTimestamp,
             nonUtcTimestamp));
@@ -724,7 +717,6 @@ public sealed class TradeTests
             TradingAccountId,
             InstrumentId,
             Pricing,
-            null,
             null,
             [CreateExecution()],
             CreatedAtUtc,
@@ -761,7 +753,6 @@ public sealed class TradeTests
             InstrumentId,
             null!,
             null,
-            null,
             [CreateExecution()],
             CreatedAtUtc,
             CreatedAtUtc));
@@ -777,7 +768,6 @@ public sealed class TradeTests
             TradingAccountId,
             InstrumentId,
             pricing,
-            null,
             null,
             [CreateExecution()],
             CreatedAtUtc,
@@ -1060,7 +1050,6 @@ public sealed class TradeTests
             InstrumentId,
             pricing,
             null,
-            null,
             [closing, opening],
             CreatedAtUtc,
             CreatedAtUtc.AddMinutes(1));
@@ -1074,413 +1063,66 @@ public sealed class TradeTests
     }
 
     [Fact]
-    public void NewTradeIsUnclassified()
-    {
-        Trade trade = StartTrade();
-
-        Assert.Null(trade.StrategyId);
-        Assert.Null(trade.TradingSetupId);
-    }
+    public void NewTradeStartsWithoutTradingSetup() =>
+        Assert.Null(StartTrade().TradingSetupId);
 
     [Fact]
-    public void AssignsStrategyOnlyAndAdvancesTimestamp()
+    public void SetTradingSetupAssignsIdentifierAndAdvancesTimestamp()
     {
         Trade trade = StartTrade();
         DateTimeOffset classifiedAtUtc = CreatedAtUtc.AddMinutes(1);
-
-        trade.SetClassification(StrategyId, null, classifiedAtUtc);
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Null(trade.TradingSetupId);
-        Assert.Equal(classifiedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void AssignsTradingSetupOnlyAndAdvancesTimestamp()
-    {
-        Trade trade = StartTrade();
-        DateTimeOffset classifiedAtUtc = CreatedAtUtc.AddMinutes(1);
-
-        trade.SetClassification(null, TradingSetupId, classifiedAtUtc);
-
-        Assert.Null(trade.StrategyId);
+        trade.SetTradingSetup(TradingSetupId, classifiedAtUtc);
         Assert.Equal(TradingSetupId, trade.TradingSetupId);
         Assert.Equal(classifiedAtUtc, trade.UpdatedAtUtc);
     }
 
     [Fact]
-    public void AssignsBothIndependentClassificationDimensions()
-    {
-        Trade trade = StartTrade();
-
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-    }
-
-    [Fact]
-    public void RejectsEmptyStrategyIdentifierWithoutChangingTrade()
-    {
-        Trade trade = StartTrade();
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
-        DateTimeOffset updatedAtUtc = trade.UpdatedAtUtc;
-
-        Assert.Throws<ArgumentException>(() => trade.SetClassification(
-            Guid.Empty,
-            null,
-            CreatedAtUtc.AddMinutes(2)));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(updatedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void RejectsEmptyTradingSetupIdentifierWithoutPartialReclassification()
-    {
-        Trade trade = StartTrade();
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
-        Guid newStrategyId = new("2bc51114-cb51-4b92-871a-a9afe24f6de8");
-        DateTimeOffset updatedAtUtc = trade.UpdatedAtUtc;
-
-        Assert.Throws<ArgumentException>(() => trade.SetClassification(
-            newStrategyId,
-            Guid.Empty,
-            CreatedAtUtc.AddMinutes(2)));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(updatedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void IdenticalClassificationIsNoOp()
-    {
-        Trade trade = StartTrade();
-        DateTimeOffset firstClassifiedAtUtc = CreatedAtUtc.AddMinutes(1);
-        trade.SetClassification(StrategyId, TradingSetupId, firstClassifiedAtUtc);
-
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(2));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(firstClassifiedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void ClearsStrategyOnly()
+    public void SetTradingSetupClearsIdentifierAndAdvancesTimestamp()
     {
         Trade trade = StartClassifiedTrade();
         DateTimeOffset clearedAtUtc = CreatedAtUtc.AddMinutes(2);
-
-        trade.SetClassification(null, TradingSetupId, clearedAtUtc);
-
-        Assert.Null(trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(clearedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void ClearsTradingSetupOnly()
-    {
-        Trade trade = StartClassifiedTrade();
-        DateTimeOffset clearedAtUtc = CreatedAtUtc.AddMinutes(2);
-
-        trade.SetClassification(StrategyId, null, clearedAtUtc);
-
-        Assert.Equal(StrategyId, trade.StrategyId);
+        trade.SetTradingSetup(null, clearedAtUtc);
         Assert.Null(trade.TradingSetupId);
         Assert.Equal(clearedAtUtc, trade.UpdatedAtUtc);
     }
 
     [Fact]
-    public void ClearsAllClassificationAndAdvancesTimestamp()
+    public void SetTradingSetupRejectsEmptyIdentifierWithoutChangingTrade()
     {
         Trade trade = StartClassifiedTrade();
-        DateTimeOffset clearedAtUtc = CreatedAtUtc.AddMinutes(2);
-
-        trade.SetClassification(null, null, clearedAtUtc);
-
-        Assert.Null(trade.StrategyId);
-        Assert.Null(trade.TradingSetupId);
-        Assert.Equal(clearedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void ReclassifiesStrategyIndependently()
-    {
-        Trade trade = StartClassifiedTrade();
-        Guid replacementStrategyId = new("6d5316d9-6abc-4571-b791-e77c88ea3295");
-
-        trade.SetClassification(
-            replacementStrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(2));
-
-        Assert.Equal(replacementStrategyId, trade.StrategyId);
+        DateTimeOffset timestamp = trade.UpdatedAtUtc;
+        Assert.Throws<ArgumentException>(() =>
+            trade.SetTradingSetup(Guid.Empty, CreatedAtUtc.AddMinutes(2)));
         Assert.Equal(TradingSetupId, trade.TradingSetupId);
+        Assert.Equal(timestamp, trade.UpdatedAtUtc);
     }
 
     [Fact]
-    public void ReclassifiesTradingSetupIndependently()
+    public void SetTradingSetupWithSameValueIsNoOp()
     {
         Trade trade = StartClassifiedTrade();
-        Guid replacementSetupId = new("74b131fb-fd22-426d-99da-b87629952c0c");
-
-        trade.SetClassification(
-            StrategyId,
-            replacementSetupId,
-            CreatedAtUtc.AddMinutes(2));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(replacementSetupId, trade.TradingSetupId);
+        DateTimeOffset timestamp = trade.UpdatedAtUtc;
+        trade.SetTradingSetup(TradingSetupId, CreatedAtUtc.AddMinutes(2));
+        Assert.Equal(timestamp, trade.UpdatedAtUtc);
     }
 
     [Fact]
-    public void ReclassifiesBothDimensionsAtomically()
+    public void RehydratesTradingSetupAndPreservesEconomics()
     {
-        Trade trade = StartClassifiedTrade();
-        Guid replacementStrategyId = new("c89dfa4e-61f0-49b2-986f-3172830dc044");
-        Guid replacementSetupId = new("65b84936-0f69-4adf-808c-df2731c8aaee");
-
-        trade.SetClassification(
-            replacementStrategyId,
-            replacementSetupId,
-            CreatedAtUtc.AddMinutes(2));
-
-        Assert.Equal(replacementStrategyId, trade.StrategyId);
-        Assert.Equal(replacementSetupId, trade.TradingSetupId);
-    }
-
-    [Fact]
-    public void ClassificationWhileOpenDoesNotChangeExecutionDerivedState()
-    {
-        Trade trade = StartTrade(quantity: 2m, price: 100m);
-        TradeDirection direction = trade.Direction;
-        decimal openQuantity = trade.OpenQuantity;
-        DateTimeOffset openedAtUtc = trade.OpenedAtUtc;
-        decimal averageEntryPrice = trade.AverageEntryPrice;
-        TradeExecution openingExecution = trade.Executions[0];
-
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
-
-        Assert.Equal(TradeStatus.Open, trade.Status);
-        Assert.Equal(direction, trade.Direction);
-        Assert.Equal(openQuantity, trade.OpenQuantity);
-        Assert.Equal(openedAtUtc, trade.OpenedAtUtc);
-        Assert.Equal(averageEntryPrice, trade.AverageEntryPrice);
-        Assert.Same(openingExecution, Assert.Single(trade.Executions));
-        Assert.Null(trade.GrossPnL);
-        Assert.Null(trade.NetPnL);
-    }
-
-    [Fact]
-    public void ClassificationAfterCloseDoesNotChangeLifecycleOrEconomics()
-    {
-        Trade trade = StartTrade(
-            quantity: 1m,
-            commission: 1m,
-            price: 100m);
-        AddExecution(
-            trade,
-            2,
-            ExecutionSide.Sell,
-            1m,
-            price: 110m,
-            fees: 2m);
-        DateTimeOffset? closedAtUtc = trade.ClosedAtUtc;
-        decimal? grossPnL = trade.GrossPnL;
-        decimal? netPnL = trade.NetPnL;
-        decimal totalCosts = trade.TotalCosts;
-        TradeExecution[] executions = trade.Executions.ToArray();
-
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(10));
-
+        TradeExecution opening = CreateExecution(1, ExecutionSide.Buy, 1m, commission: 1m, price: 100m);
+        TradeExecution closing = CreateExecution(2, ExecutionSide.Sell, 1m, fees: 2m, price: 110m);
+        Trade trade = Trade.Rehydrate(TradeId, TradingAccountId, InstrumentId, Pricing,
+            TradingSetupId, [closing, opening], CreatedAtUtc, CreatedAtUtc.AddMinutes(1));
+        Assert.Equal(TradingSetupId, trade.TradingSetupId);
         Assert.Equal(TradeStatus.Closed, trade.Status);
-        Assert.Equal(closedAtUtc, trade.ClosedAtUtc);
-        Assert.Equal(grossPnL, trade.GrossPnL);
-        Assert.Equal(netPnL, trade.NetPnL);
-        Assert.Equal(totalCosts, trade.TotalCosts);
-        Assert.Equal(executions, trade.Executions);
-    }
-
-    [Fact]
-    public void RejectsNonUtcClassificationTimestampWithoutChangingTrade()
-    {
-        Trade trade = StartClassifiedTrade();
-        var nonUtcTimestamp = new DateTimeOffset(
-            2026,
-            9,
-            8,
-            12,
-            0,
-            0,
-            TimeSpan.FromHours(2));
-        DateTimeOffset updatedAtUtc = trade.UpdatedAtUtc;
-
-        Assert.Throws<ArgumentException>(() => trade.SetClassification(
-            null,
-            null,
-            nonUtcTimestamp));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(updatedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void RejectsBackwardsClassificationTimestampWithoutChangingTrade()
-    {
-        Trade trade = StartClassifiedTrade();
-        DateTimeOffset updatedAtUtc = trade.UpdatedAtUtc;
-        Guid replacementStrategyId = new("79994487-d763-496d-ae25-0d9ad8c9f8bf");
-        Guid replacementSetupId = new("bf365078-7afd-46ef-8942-50dac73001e2");
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => trade.SetClassification(
-            replacementStrategyId,
-            replacementSetupId,
-            CreatedAtUtc));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(updatedAtUtc, trade.UpdatedAtUtc);
-    }
-
-    [Fact]
-    public void ClassificationSurvivesAdditionalExecution()
-    {
-        Trade trade = StartClassifiedTrade();
-
-        AddExecution(trade, 2, ExecutionSide.Buy, 1m);
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(3m, trade.OpenQuantity);
-    }
-
-    [Fact]
-    public void ClosingClassifiedTradePreservesClassification()
-    {
-        Trade trade = StartClassifiedTrade();
-
-        AddExecution(trade, 2, ExecutionSide.Sell, 2m);
-
-        Assert.Equal(TradeStatus.Closed, trade.Status);
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-    }
-
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    public void RehydratesIndependentClassificationDimensions(
-        bool includeStrategy,
-        bool includeTradingSetup)
-    {
-        Guid? strategyId = includeStrategy ? StrategyId : null;
-        Guid? tradingSetupId = includeTradingSetup ? TradingSetupId : null;
-
-        Trade trade = Trade.Rehydrate(
-            TradeId,
-            TradingAccountId,
-            InstrumentId,
-            Pricing,
-            strategyId,
-            tradingSetupId,
-            [CreateExecution()],
-            CreatedAtUtc,
-            CreatedAtUtc.AddMinutes(1));
-
-        Assert.Equal(strategyId, trade.StrategyId);
-        Assert.Equal(tradingSetupId, trade.TradingSetupId);
-    }
-
-    [Fact]
-    public void RehydrationRejectsEmptyStrategyIdentifier()
-    {
-        Assert.Throws<ArgumentException>(() => Trade.Rehydrate(
-            TradeId,
-            TradingAccountId,
-            InstrumentId,
-            Pricing,
-            Guid.Empty,
-            null,
-            [CreateExecution()],
-            CreatedAtUtc,
-            CreatedAtUtc));
+        Assert.Equal(197m, trade.NetPnL);
     }
 
     [Fact]
     public void RehydrationRejectsEmptyTradingSetupIdentifier()
     {
-        Assert.Throws<ArgumentException>(() => Trade.Rehydrate(
-            TradeId,
-            TradingAccountId,
-            InstrumentId,
-            Pricing,
-            null,
-            Guid.Empty,
-            [CreateExecution()],
-            CreatedAtUtc,
-            CreatedAtUtc));
-    }
-
-    [Fact]
-    public void RehydratedClassifiedTradeRetainsLifecycleAndEconomics()
-    {
-        TradeExecution opening = CreateExecution(
-            1,
-            ExecutionSide.Buy,
-            1m,
-            commission: 1m,
-            price: 100m);
-        TradeExecution closing = CreateExecution(
-            2,
-            ExecutionSide.Sell,
-            1m,
-            fees: 2m,
-            price: 110m);
-
-        Trade trade = Trade.Rehydrate(
-            TradeId,
-            TradingAccountId,
-            InstrumentId,
-            Pricing,
-            StrategyId,
-            TradingSetupId,
-            [closing, opening],
-            CreatedAtUtc,
-            CreatedAtUtc.AddMinutes(1));
-
-        Assert.Equal(StrategyId, trade.StrategyId);
-        Assert.Equal(TradingSetupId, trade.TradingSetupId);
-        Assert.Equal(TradeDirection.Long, trade.Direction);
-        Assert.Equal(TradeStatus.Closed, trade.Status);
-        Assert.Equal(0m, trade.OpenQuantity);
-        Assert.Equal(200m, trade.GrossPnL);
-        Assert.Equal(3m, trade.TotalCosts);
-        Assert.Equal(197m, trade.NetPnL);
+        Assert.Throws<ArgumentException>(() => Trade.Rehydrate(TradeId, TradingAccountId,
+            InstrumentId, Pricing, Guid.Empty, [CreateExecution()], CreatedAtUtc, CreatedAtUtc));
     }
 
     private static Trade StartTrade(
@@ -1507,10 +1149,7 @@ public sealed class TradeTests
     private static Trade StartClassifiedTrade()
     {
         Trade trade = StartTrade();
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
+        trade.SetTradingSetup(TradingSetupId, CreatedAtUtc.AddMinutes(1));
         return trade;
     }
 
@@ -1593,7 +1232,6 @@ public sealed class TradeTests
             TradingAccountId,
             InstrumentId,
             Pricing,
-            null,
             null,
             executions,
             CreatedAtUtc,

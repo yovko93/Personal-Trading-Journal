@@ -7,7 +7,6 @@ using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Mistakes;
 using PersonalTradingJournal.Domain.Screenshots;
 using PersonalTradingJournal.Domain.Setups;
-using PersonalTradingJournal.Domain.Strategies;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
@@ -25,9 +24,6 @@ public sealed class ProductionPersistenceIntegrationTests
 
     private static readonly Guid TradingAccountId =
         Guid.Parse("8937009a-74d9-42ca-9e82-c0d243d28f8c");
-
-    private static readonly Guid StrategyId =
-        Guid.Parse("d65b5ecf-3c30-494e-b7d2-38a4b3d81154");
 
     private static readonly Guid TradingSetupId =
         Guid.Parse("6b154e7d-192c-4cd9-a80d-8a074a630456");
@@ -82,7 +78,7 @@ public sealed class ProductionPersistenceIntegrationTests
 
             Assert.NotSame(firstContext, readContext);
             Assert.Equal(
-                [InitialMigrationId],
+                [InitialMigrationId, "20260914212911_RemoveStrategies"],
                 await readContext.Database.GetAppliedMigrationsAsync());
 
             Instrument instrument = InstrumentPersistenceMapper.ToDomain(
@@ -91,9 +87,6 @@ public sealed class ProductionPersistenceIntegrationTests
             TradingAccount tradingAccount = TradingAccountPersistenceMapper.ToDomain(
                 await readContext.TradingAccounts.AsNoTracking().SingleAsync(
                     record => record.Id == TradingAccountId));
-            Strategy strategy = StrategyPersistenceMapper.ToDomain(
-                await readContext.Strategies.AsNoTracking().SingleAsync(
-                    record => record.Id == StrategyId));
             TradingSetup tradingSetup = TradingSetupPersistenceMapper.ToDomain(
                 await readContext.TradingSetups.AsNoTracking().SingleAsync(
                     record => record.Id == TradingSetupId));
@@ -136,9 +129,6 @@ public sealed class ProductionPersistenceIntegrationTests
             Assert.Equal(50_000.1234m, tradingAccount.StartingBalance);
             Assert.True(tradingAccount.IsActive);
 
-            Assert.Equal(graph.Strategy.Id, strategy.Id);
-            Assert.Equal("Opening Range Breakout", strategy.Name);
-            Assert.True(strategy.IsActive);
             Assert.Equal(graph.TradingSetup.Id, tradingSetup.Id);
             Assert.Equal("Liquidity Sweep", tradingSetup.Name);
             Assert.True(tradingSetup.IsActive);
@@ -149,7 +139,6 @@ public sealed class ProductionPersistenceIntegrationTests
             Assert.Equal(TradeId, trade.Id);
             Assert.Equal(TradingAccountId, trade.TradingAccountId);
             Assert.Equal(InstrumentId, trade.InstrumentId);
-            Assert.Equal(StrategyId, trade.StrategyId);
             Assert.Equal(TradingSetupId, trade.TradingSetupId);
             Assert.Equal(20m, trade.Pricing.PointValue);
             Assert.Equal("USD", trade.Pricing.Currency);
@@ -193,13 +182,6 @@ public sealed class ProductionPersistenceIntegrationTests
                     .SingleAsync(record => record.Id == InstrumentId);
                 instrumentRecord.TickValue = 2.5m;
 
-                StrategyRecord strategyRecord = await updateContext.Strategies
-                    .SingleAsync(record => record.Id == StrategyId);
-                Strategy strategy = StrategyPersistenceMapper.ToDomain(strategyRecord);
-                strategy.Deactivate(DeactivatedAtUtc);
-                updateContext.Entry(strategyRecord).CurrentValues.SetValues(
-                    StrategyPersistenceMapper.ToRecord(strategy));
-
                 TradingSetupRecord setupRecord = await updateContext.TradingSetups
                     .SingleAsync(record => record.Id == TradingSetupId);
                 TradingSetup setup = TradingSetupPersistenceMapper.ToDomain(setupRecord);
@@ -221,9 +203,6 @@ public sealed class ProductionPersistenceIntegrationTests
             Instrument currentInstrument = InstrumentPersistenceMapper.ToDomain(
                 await readContext.Instruments.AsNoTracking().SingleAsync(
                     record => record.Id == InstrumentId));
-            Strategy currentStrategy = StrategyPersistenceMapper.ToDomain(
-                await readContext.Strategies.AsNoTracking().SingleAsync(
-                    record => record.Id == StrategyId));
             TradingSetup currentSetup = TradingSetupPersistenceMapper.ToDomain(
                 await readContext.TradingSetups.AsNoTracking().SingleAsync(
                     record => record.Id == TradingSetupId));
@@ -243,14 +222,11 @@ public sealed class ProductionPersistenceIntegrationTests
                     record => record.Id == TradeMistakeId));
 
             Assert.Equal(10m, currentInstrument.PointValue);
-            Assert.False(currentStrategy.IsActive);
-            Assert.Equal(DeactivatedAtUtc, currentStrategy.UpdatedAtUtc);
             Assert.False(currentSetup.IsActive);
             Assert.Equal(DeactivatedAtUtc.AddTicks(1), currentSetup.UpdatedAtUtc);
             Assert.False(currentMistake.IsActive);
             Assert.Equal(DeactivatedAtUtc.AddTicks(2), currentMistake.UpdatedAtUtc);
 
-            Assert.Equal(StrategyId, trade.StrategyId);
             Assert.Equal(TradingSetupId, trade.TradingSetupId);
             Assert.Equal(20m, trade.Pricing.PointValue);
             Assert.Equal(180m, trade.GrossPnL);
@@ -365,13 +341,6 @@ public sealed class ProductionPersistenceIntegrationTests
             isActive: true,
             ReferenceCreatedAtUtc.AddTicks(1),
             ReferenceCreatedAtUtc.AddTicks(1));
-        Strategy strategy = Strategy.Rehydrate(
-            StrategyId,
-            "Opening Range Breakout",
-            "Breakout from the initial session range.",
-            isActive: true,
-            ReferenceCreatedAtUtc.AddTicks(2),
-            ReferenceCreatedAtUtc.AddTicks(2));
         TradingSetup tradingSetup = TradingSetup.Rehydrate(
             TradingSetupId,
             "Liquidity Sweep",
@@ -427,10 +396,7 @@ public sealed class ProductionPersistenceIntegrationTests
                 commission: 1.10m,
                 fees: 0.24m),
             TradeCreatedAtUtc.AddMinutes(2));
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            TradeCreatedAtUtc.AddMinutes(3));
+        trade.SetTradingSetup(TradingSetupId, TradeCreatedAtUtc.AddMinutes(3));
 
         TradeScreenshot screenshot = TradeScreenshot.Rehydrate(
             ScreenshotId,
@@ -454,7 +420,6 @@ public sealed class ProductionPersistenceIntegrationTests
         return new CompleteGraph(
             instrument,
             tradingAccount,
-            strategy,
             tradingSetup,
             tradingMistake,
             trade,
@@ -575,7 +540,6 @@ public sealed class ProductionPersistenceIntegrationTests
         context.Instruments.Add(InstrumentPersistenceMapper.ToRecord(graph.Instrument));
         context.TradingAccounts.Add(
             TradingAccountPersistenceMapper.ToRecord(graph.TradingAccount));
-        context.Strategies.Add(StrategyPersistenceMapper.ToRecord(graph.Strategy));
         context.TradingSetups.Add(
             TradingSetupPersistenceMapper.ToRecord(graph.TradingSetup));
         context.TradingMistakes.Add(
@@ -677,7 +641,6 @@ public sealed class ProductionPersistenceIntegrationTests
     private sealed record CompleteGraph(
         Instrument Instrument,
         TradingAccount TradingAccount,
-        Strategy Strategy,
         TradingSetup TradingSetup,
         TradingMistake TradingMistake,
         Trade Trade,

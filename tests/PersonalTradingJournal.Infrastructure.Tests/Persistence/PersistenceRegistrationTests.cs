@@ -7,7 +7,6 @@ using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
-using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
@@ -16,7 +15,6 @@ using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Storage;
 using PersonalTradingJournal.Infrastructure.Setups;
-using PersonalTradingJournal.Infrastructure.Strategies;
 using PersonalTradingJournal.Infrastructure.Trades;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence;
@@ -125,31 +123,6 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<InstrumentStore>(firstStore);
         Assert.NotSame(firstStore, secondStore);
-    }
-
-    [Fact]
-    public void AddPersistenceRegistersStrategyServicesAsTransient()
-    {
-        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
-        var services = new ServiceCollection();
-        services.AddPersistence(applicationPaths);
-
-        using ServiceProvider serviceProvider = services.BuildServiceProvider();
-        IStrategyReader firstReader = serviceProvider.GetRequiredService<IStrategyReader>();
-        IStrategyReader secondReader = serviceProvider.GetRequiredService<IStrategyReader>();
-        IStrategyStore firstStore = serviceProvider.GetRequiredService<IStrategyStore>();
-        IStrategyStore secondStore = serviceProvider.GetRequiredService<IStrategyStore>();
-        IStrategyNameChecker firstChecker =
-            serviceProvider.GetRequiredService<IStrategyNameChecker>();
-        IStrategyNameChecker secondChecker =
-            serviceProvider.GetRequiredService<IStrategyNameChecker>();
-
-        Assert.IsType<StrategyReader>(firstReader);
-        Assert.IsType<StrategyStore>(firstStore);
-        Assert.IsType<StrategyNameChecker>(firstChecker);
-        Assert.NotSame(firstReader, secondReader);
-        Assert.NotSame(firstStore, secondStore);
-        Assert.NotSame(firstChecker, secondChecker);
     }
 
     [Fact]

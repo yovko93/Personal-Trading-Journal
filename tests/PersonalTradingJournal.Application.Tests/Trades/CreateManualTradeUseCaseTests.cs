@@ -50,7 +50,6 @@ public sealed class CreateManualTradeUseCaseTests
         Assert.Null(execution.ExternalExecutionId);
         Assert.Null(execution.ExternalOrderId);
         Assert.Null(execution.BrokerSymbol);
-        Assert.Null(trade.StrategyId);
         Assert.Null(trade.TradingSetupId);
     }
 

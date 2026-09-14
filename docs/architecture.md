@@ -16,8 +16,7 @@ The Domain project contains the core in-memory trading model and its invariants.
 - **Instruments** — canonical instrument reference data and pricing characteristics;
 - **Accounts** — stable trading-account identity and starting-balance reference data;
 - **Trades** — immutable executions, the flat-to-flat `Trade` aggregate, historical pricing snapshots, and closed-trade economics;
-- **Strategies** — reusable broad trading methodologies;
-- **Setups** — reusable specific market configurations;
+- **Setups** — reusable specific market configurations and the sole primary trade-pattern classification;
 - **Screenshots** — storage-agnostic screenshot metadata associated with trades; and
 - **Mistakes** — user-defined mistake definitions and their associations with trades.
 
@@ -397,7 +396,7 @@ Repository-wide configuration keeps build behavior consistent across projects an
 
 Target frameworks remain project-specific because the class libraries target `net10.0` while WPF targets `net10.0-windows`.
 
-## Testing Strategy
+## Testing Approach
 
 Testing follows the solution layers:
 
@@ -447,7 +446,7 @@ Each trade owns a `TradePricingSnapshot` containing the point value and currency
 
 ### Review Metadata Is Separate from Market Facts
 
-Optional `StrategyId` and `TradingSetupId` classifications are independent dimensions and may be corrected during review, including after closure. Classification changes do not alter executions or P&L. `Strategy` represents a broad methodology; `TradingSetup` represents a specific repeatable market configuration and is not owned by a strategy.
+Optional `TradingSetupId` is review metadata and may be corrected during review, including after closure. Setup changes do not alter executions or P&L. The product intentionally uses `TradingSetup` as its sole primary trade-pattern classification because the former broader `Strategy` concept overlapped with it and created redundant taxonomy, UI, and analytics. Broader grouping will be introduced only if concrete analytics needs justify it.
 
 ### Screenshots Are Outside the Trade Aggregate
 
@@ -459,7 +458,7 @@ Optional `StrategyId` and `TradingSetupId` classifications are independent dimen
 
 ### Process Quality Is Independent from Outcome
 
-The model must support every combination of process quality and financial result: a good trade may profit or lose, and a process-violating trade may profit or lose. Profit does not prove correct execution, and loss does not prove poor execution. Strategy, setup, and mistake classification remain independent from P&L so future analytics and coaching can assess process rather than infer quality from outcome.
+The model must support every combination of process quality and financial result: a good trade may profit or lose, and a process-violating trade may profit or lose. Profit does not prove correct execution, and loss does not prove poor execution. Setup and mistake classification remain independent from P&L so future analytics and coaching can assess process rather than infer quality from outcome. Future analytics may group by Trading Setup for trade count, win rate, expectancy, average R, session, instrument, and mistakes without reintroducing a redundant umbrella taxonomy.
 
 ## Future Evolution
 

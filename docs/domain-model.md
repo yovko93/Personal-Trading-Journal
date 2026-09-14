@@ -23,8 +23,6 @@ TradingAccount
       |
       +---- TradeExecution[]
       |
-      +---- StrategyId?
-      |
       +---- TradingSetupId?
 
 TradeScreenshot
@@ -38,11 +36,11 @@ TradeId    TradingMistakeId
        TradingMistake
 ```
 
-The diagram shows identifiers and conceptual associations, not object navigation properties. `Strategy` and `TradingSetup` remain independent reference dimensions.
+The diagram shows identifiers and conceptual associations, not object navigation properties. `TradingSetup` is the single primary reusable trade-pattern classification.
 
 ## Shared Entity and Time Semantics
 
-All M2 entity concepts—`Instrument`, `TradingAccount`, `Trade`, `TradeExecution`, `Strategy`, `TradingSetup`, `TradeScreenshot`, `TradingMistake`, and `TradeMistake`—use non-empty `Guid` identities. Creation APIs generate identities, while rehydration APIs accept and preserve existing identities without introducing persistence-specific ID behavior.
+All entity concepts—`Instrument`, `TradingAccount`, `Trade`, `TradeExecution`, `TradingSetup`, `TradeScreenshot`, `TradingMistake`, and `TradeMistake`—use non-empty `Guid` identities. Creation APIs generate identities, while rehydration APIs accept and preserve existing identities without introducing persistence-specific ID behavior.
 
 Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Their lifecycle updates are monotonic. These audit timestamps describe journal record lifecycle and are intentionally distinct from market/event timestamps such as `TradeExecution.ExecutedAtUtc` and `TradeScreenshot.CapturedAtUtc`. A historical execution or captured image may legitimately predate its later entry or import into the journal.
 
@@ -56,9 +54,9 @@ Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Thei
 
 `TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to its M2 state.
 
-### Strategy and TradingSetup
+### TradingSetup
 
-`Strategy` represents a broad methodology or framework. `TradingSetup` represents a specific repeatable market configuration. Neither owns the other, and no `StrategyId` is forced into a setup.
+`TradingSetup` represents a specific repeatable market configuration and is the canonical reusable setup/model catalog. No broader parent taxonomy is currently modeled.
 
 ## Trade Executions and Lifecycle
 
@@ -123,7 +121,7 @@ Notional sums quantity multiplied by price for the corresponding side. The sign 
 
 ## Trade Classification
 
-A trade may independently reference an optional `StrategyId` and optional `TradingSetupId`; either, both, or neither may be present. These classifications are review metadata rather than market facts. They may be corrected while a trade is open or after it closes without changing execution history or P&L. Reapplying the same classification is a no-op, and rejected changes leave the existing classification unchanged.
+A trade may reference an optional `TradingSetupId`. This setup is review metadata rather than a market fact and may be corrected while a trade is open or after it closes without changing execution history or P&L. Reapplying the same setup is a no-op, and rejected changes leave the existing setup unchanged.
 
 ## Screenshots
 
@@ -152,7 +150,7 @@ Process quality and financial outcome are independent. PTJ must support all four
 - bad or process-violating trade and profit; and
 - bad or process-violating trade and loss.
 
-Profit does not prove correct execution, and loss does not prove poor execution. Strategy, setup, and mistake classification must remain independent from P&L for future analytics and coaching.
+Profit does not prove correct execution, and loss does not prove poor execution. Setup and mistake classification must remain independent from P&L for future analytics and coaching.
 
 ## Deliberately Deferred Concerns
 
@@ -179,7 +177,7 @@ M3 persistence preserves the existing domain contract without redesigning it, in
 - `TradeExecution.Sequence` ordering;
 - `Trade` ownership of its execution history;
 - historical `TradePricingSnapshot` point value and currency;
-- optional, independent `StrategyId` and `TradingSetupId` values;
+- optional `TradingSetupId` review metadata;
 - the `TradeScreenshot` to `Trade` reference and opaque `StorageKey`;
 - the `TradeMistake` to `Trade` reference;
 - the `TradeMistake` to `TradingMistake` reference;

@@ -45,7 +45,7 @@ The current navigation order is:
 - Dashboard
 - Notebook
 - **Trading:** Trades, Journal, Calendar, Import
-- **Analysis:** Performance, Strategies, Mistakes, Breakdown
+- **Analysis:** Performance, Setups, Mistakes, Breakdown
 - **Planning:** Playbook, Trading Plan, Rules
 - **Review:** Daily Review, Weekly Review, Monthly Review
 - Accounts
@@ -64,7 +64,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, and Instruments ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
 
 ## ViewModel-to-View Mapping
 
@@ -75,14 +75,16 @@ DashboardViewModel   -> DashboardView
 TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
+TradingSetupsViewModel -> TradingSetupsView
+TradingMistakesViewModel -> TradingMistakesView
 PlaceholderViewModel -> PlaceholderView
 ```
 
 WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. Future feature mappings should follow the same pattern unless a concrete requirement justifies a different presentation mechanism.
 
-## Placeholder Strategy
+## Placeholder Policy
 
-Four destinations—Dashboard, Trades, Accounts, and Instruments—have concrete content. The remaining 15 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Six destinations—Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes—have concrete content. The remaining 13 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -96,7 +98,7 @@ The Dashboard is presentation-only. It contains empty visual regions for:
 - Avg R
 - Equity Curve
 - Daily P&L
-- Strategies
+- Trading Setups
 - Recent Trades
 
 The four metric values display `—` rather than fake zeroes or sample financial data. `DashboardViewModel` is intentionally empty, and the Dashboard performs no analytics or database queries. Data loading and real calculations are deferred.

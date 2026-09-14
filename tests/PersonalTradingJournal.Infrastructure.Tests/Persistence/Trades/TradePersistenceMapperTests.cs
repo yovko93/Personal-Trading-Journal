@@ -15,9 +15,6 @@ public sealed class TradePersistenceMapperTests
     private static readonly Guid InstrumentId =
         Guid.Parse("6a753c7c-900e-49f9-9a1d-1cae5f485a65");
 
-    private static readonly Guid StrategyId =
-        Guid.Parse("2ba9cc87-1ff1-4838-9ef5-980526cd45aa");
-
     private static readonly Guid TradingSetupId =
         Guid.Parse("1c273469-af07-41d2-8587-a87c92f09dda");
 
@@ -39,7 +36,6 @@ public sealed class TradePersistenceMapperTests
         Assert.Equal(InstrumentId, record.InstrumentId);
         Assert.Equal(20m, record.PricingPointValue);
         Assert.Equal("USD", record.PricingCurrency);
-        Assert.Null(record.StrategyId);
         Assert.Null(record.TradingSetupId);
         Assert.Equal(CreatedAtUtc, record.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc, record.UpdatedAtUtc);
@@ -58,7 +54,6 @@ public sealed class TradePersistenceMapperTests
         Assert.Equal(InstrumentId, record.InstrumentId);
         Assert.Equal(20m, record.PricingPointValue);
         Assert.Equal("USD", record.PricingCurrency);
-        Assert.Equal(StrategyId, record.StrategyId);
         Assert.Equal(TradingSetupId, record.TradingSetupId);
         Assert.Equal(CreatedAtUtc, record.CreatedAtUtc);
         Assert.Equal(classifiedAtUtc, record.UpdatedAtUtc);
@@ -103,10 +98,7 @@ public sealed class TradePersistenceMapperTests
         trade.AddExecution(
             CreateExecution(3, ExecutionSide.Sell, 1m, 20_020m),
             CreatedAtUtc.AddMinutes(2));
-        trade.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(3));
+        trade.SetTradingSetup(TradingSetupId, CreatedAtUtc.AddMinutes(3));
 
         return trade;
     }

@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Screenshots;
@@ -11,7 +13,8 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Migrations;
 
 public sealed class InitialMigrationTests
 {
-    private const string MigrationId = "20260908122839_InitialCreate";
+    private const string InitialMigrationId = "20260908122839_InitialCreate";
+    private const string RemoveStrategiesMigrationId = "20260914212911_RemoveStrategies";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -30,10 +33,6 @@ public sealed class InitialMigrationTests
                 "Id", "Name", "AccountType", "ProviderName", "ExternalAccountId",
                 "Currency", "StartingBalance", "IsActive", "CreatedAtUtc", "UpdatedAtUtc",
             ],
-            ["Strategies"] =
-            [
-                "Id", "Name", "Description", "IsActive", "CreatedAtUtc", "UpdatedAtUtc",
-            ],
             ["TradingSetups"] =
             [
                 "Id", "Name", "Description", "IsActive", "CreatedAtUtc", "UpdatedAtUtc",
@@ -44,9 +43,8 @@ public sealed class InitialMigrationTests
             ],
             ["Trades"] =
             [
-                "Id", "TradingAccountId", "InstrumentId", "PricingPointValue",
-                "PricingCurrency", "StrategyId", "TradingSetupId", "CreatedAtUtc",
-                "UpdatedAtUtc",
+                "Id", "CreatedAtUtc", "InstrumentId", "PricingCurrency",
+                "PricingPointValue", "TradingAccountId", "TradingSetupId", "UpdatedAtUtc",
             ],
             ["TradeExecutions"] =
             [
@@ -65,13 +63,15 @@ public sealed class InitialMigrationTests
         };
 
     [Fact]
-    public void InitialMigrationCreatesOnlyTheApprovedSchema()
+    public void LatestMigrationsCreateOnlyTheApprovedSchema()
     {
         RunWithMigratedDatabase((_, options) =>
         {
             using var context = new JournalDbContext(options);
 
-            Assert.Equal([MigrationId], context.Database.GetAppliedMigrations());
+            Assert.Equal(
+                [InitialMigrationId, RemoveStrategiesMigrationId],
+                context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
             connection.Open();
@@ -82,7 +82,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(1L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(2L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -279,6 +279,132 @@ public sealed class InitialMigrationTests
         });
     }
 
+    [Fact]
+    public void RemoveStrategiesMigrationPreservesNonStrategyTradeData()
+    {
+        RunWithMigratedDatabase((_, options) =>
+        {
+            Guid tradeId = Guid.NewGuid();
+            Guid setupId = Guid.NewGuid();
+            Guid executionId = Guid.NewGuid();
+            Guid screenshotId = Guid.NewGuid();
+            Guid mistakeId = Guid.NewGuid();
+            Guid tradeMistakeId = Guid.NewGuid();
+
+            using (var writeContext = new JournalDbContext(options))
+            {
+                AddTradeGraph(writeContext, tradeId);
+                writeContext.TradingSetups.Add(new TradingSetupRecord
+                {
+                    Id = setupId,
+                    Name = "Migration Setup",
+                    Description = "Preserved setup",
+                    IsActive = true,
+                    CreatedAtUtc = CreatedAtUtc,
+                    UpdatedAtUtc = CreatedAtUtc,
+                });
+                writeContext.Trades.Local.Single(record => record.Id == tradeId)
+                    .TradingSetupId = setupId;
+                writeContext.TradeExecutions.Add(
+                    CreateExecution(executionId, tradeId, sequence: 1));
+                writeContext.TradeScreenshots.Add(new TradeScreenshotRecord
+                {
+                    Id = screenshotId,
+                    TradeId = tradeId,
+                    Type = TradeScreenshotType.Entry,
+                    StorageKey = "migration-tests/preserved-chart",
+                    FileName = "preserved-chart.png",
+                    CapturedAtUtc = CreatedAtUtc,
+                    Timeframe = "5m",
+                    Description = null,
+                    CreatedAtUtc = CreatedAtUtc,
+                    UpdatedAtUtc = CreatedAtUtc,
+                });
+                writeContext.TradingMistakes.Add(new TradingMistakeRecord
+                {
+                    Id = mistakeId,
+                    Name = "Migration Mistake",
+                    Description = null,
+                    IsActive = true,
+                    CreatedAtUtc = CreatedAtUtc,
+                    UpdatedAtUtc = CreatedAtUtc,
+                });
+                writeContext.TradeMistakes.Add(new TradeMistakeRecord
+                {
+                    Id = tradeMistakeId,
+                    TradeId = tradeId,
+                    TradingMistakeId = mistakeId,
+                    Note = "Preserved association",
+                    CreatedAtUtc = CreatedAtUtc,
+                    UpdatedAtUtc = CreatedAtUtc,
+                });
+                writeContext.SaveChanges();
+                writeContext.Database.Migrate();
+            }
+
+            using var readContext = new JournalDbContext(options);
+            Assert.Equal(
+                [InitialMigrationId, RemoveStrategiesMigrationId],
+                readContext.Database.GetAppliedMigrations());
+
+            var connection = (SqliteConnection)readContext.Database.GetDbConnection();
+            connection.Open();
+            Assert.DoesNotContain("Strategies", ReadTableNames(connection));
+            Assert.DoesNotContain(
+                ReadColumns(connection, "Trades"),
+                column => column.Name == "StrategyId");
+            Assert.Contains(
+                ReadColumns(connection, "Trades"),
+                column => column.Name == "TradingSetupId");
+            Assert.Contains("TradingSetups", ReadTableNames(connection));
+            Assert.Contains("TradingMistakes", ReadTableNames(connection));
+            Assert.Contains("TradeMistakes", ReadTableNames(connection));
+            Assert.Contains("TradeExecutions", ReadTableNames(connection));
+            Assert.Contains("TradeScreenshots", ReadTableNames(connection));
+
+            TradeRecord trade = readContext.Trades.AsNoTracking().Single();
+            Assert.Equal(tradeId, trade.Id);
+            Assert.Equal(setupId, trade.TradingSetupId);
+            Assert.True(readContext.TradingSetups.Any(record => record.Id == setupId));
+            Assert.True(readContext.TradeExecutions.Any(record => record.Id == executionId));
+            Assert.True(readContext.TradeScreenshots.Any(record => record.Id == screenshotId));
+            Assert.True(readContext.TradingMistakes.Any(record => record.Id == mistakeId));
+            Assert.True(readContext.TradeMistakes.Any(record => record.Id == tradeMistakeId));
+        }, InitialMigrationId);
+    }
+
+    [Fact]
+    public void RemoveStrategiesMigrationDownRestoresHistoricalSchema()
+    {
+        RunWithMigratedDatabase((_, options) =>
+        {
+            using (var context = new JournalDbContext(options))
+            {
+                context.GetService<IMigrator>().Migrate(InitialMigrationId);
+            }
+
+            using var inspectionContext = new JournalDbContext(options);
+            var connection = (SqliteConnection)inspectionContext.Database.GetDbConnection();
+            connection.Open();
+
+            Assert.Contains("Strategies", ReadTableNames(connection));
+            Assert.Contains(
+                ReadColumns(connection, "Trades"),
+                column => column.Name == "StrategyId" && !column.IsRequired);
+            Assert.Contains(
+                ReadIndexes(connection, "Trades"),
+                index => index.Columns.SequenceEqual(["StrategyId"]));
+
+            List<ForeignKeyDefinition> foreignKeys = ReadForeignKeys(connection, "Trades").ToList();
+            AssertForeignKey(
+                foreignKeys,
+                "Trades",
+                "StrategyId",
+                "Strategies",
+                "RESTRICT");
+        });
+    }
+
     private static void AssertTimestampStoreTypes(SqliteConnection connection)
     {
         (string Table, string Column)[] timestampColumns =
@@ -287,8 +413,6 @@ public sealed class InitialMigrationTests
             ("Instruments", "UpdatedAtUtc"),
             ("TradingAccounts", "CreatedAtUtc"),
             ("TradingAccounts", "UpdatedAtUtc"),
-            ("Strategies", "CreatedAtUtc"),
-            ("Strategies", "UpdatedAtUtc"),
             ("TradingSetups", "CreatedAtUtc"),
             ("TradingSetups", "UpdatedAtUtc"),
             ("TradingMistakes", "CreatedAtUtc"),
@@ -341,10 +465,9 @@ public sealed class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(8, foreignKeys.Count);
+        Assert.Equal(7, foreignKeys.Count);
         AssertForeignKey(foreignKeys, "Trades", "TradingAccountId", "TradingAccounts", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "InstrumentId", "Instruments", "RESTRICT");
-        AssertForeignKey(foreignKeys, "Trades", "StrategyId", "Strategies", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "TradingSetupId", "TradingSetups", "RESTRICT");
         AssertForeignKey(foreignKeys, "TradeExecutions", "TradeId", "Trades", "CASCADE");
         AssertForeignKey(foreignKeys, "TradeScreenshots", "TradeId", "Trades", "RESTRICT");
@@ -362,7 +485,6 @@ public sealed class InitialMigrationTests
         Assert.Equal("TradeExecutions", cascade.DependentTable);
         Assert.Equal("TradeId", cascade.DependentColumn);
 
-        Assert.False(FindColumn(connection, "Trades", "StrategyId").IsRequired);
         Assert.False(FindColumn(connection, "Trades", "TradingSetupId").IsRequired);
     }
 
@@ -440,7 +562,6 @@ public sealed class InitialMigrationTests
             InstrumentId = instrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,
@@ -470,7 +591,8 @@ public sealed class InitialMigrationTests
     }
 
     private static void RunWithMigratedDatabase(
-        Action<string, DbContextOptions<JournalDbContext>> test)
+        Action<string, DbContextOptions<JournalDbContext>> test,
+        string? targetMigration = null)
     {
         string testDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -494,7 +616,7 @@ public sealed class InitialMigrationTests
 
             using (var context = new JournalDbContext(options))
             {
-                context.Database.Migrate();
+                context.GetService<IMigrator>().Migrate(targetMigration);
             }
 
             Assert.True(File.Exists(databasePath));
