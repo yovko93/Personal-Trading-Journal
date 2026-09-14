@@ -4,12 +4,14 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
+using PersonalTradingJournal.Infrastructure.Mistakes;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Setups;
@@ -46,6 +48,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
+        services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();
+        services.AddTransient<ITradingMistakeStore, TradingMistakeStore>();
+        services.AddTransient<ITradingMistakeNameChecker, TradingMistakeNameChecker>();
         services.AddTransient<
             IManualTradeReferenceDataReader,
             ManualTradeReferenceDataReader>();

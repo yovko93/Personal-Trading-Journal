@@ -1,5 +1,6 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Strategies;
@@ -11,6 +12,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Strategies;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
@@ -97,6 +99,18 @@ public sealed class MainWindowViewModelTests
         Assert.Same(fixture.Setups, content);
         Assert.Same(content, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.SetupReader.CallCount);
+    }
+
+    [Fact]
+    public void NavigateToMistakesUsesRetainedViewModelAndLoadsOnlyOnce()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        object content = fixture.Main.CurrentContentViewModel;
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        Assert.Same(fixture.Mistakes, content); Assert.Same(content, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.MistakeReader.CallCount);
     }
 
     [Fact]
@@ -250,6 +264,8 @@ public sealed class MainWindowViewModelTests
         setupReader.EnqueueResult([]);
         var setupStore = new FakeTradingSetupStore();
         var setupNameChecker = new FakeTradingSetupNameChecker();
+        var mistakeReader = new FakeTradingMistakeReader(); mistakeReader.EnqueueResult([]);
+        var mistakeStore = new FakeTradingMistakeStore(); var mistakeChecker = new FakeTradingMistakeNameChecker();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
         var tradeListReader = new FakeTradeListReader();
@@ -303,6 +319,9 @@ public sealed class MainWindowViewModelTests
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
             new TradingSetupLifecycleUseCase(setupStore, timeProvider));
+        var mistakes = new TradingMistakesViewModel(mistakeReader,
+            new CreateTradingMistakeUseCase(mistakeStore, mistakeChecker, timeProvider),
+            new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
             tradeListReader,
@@ -332,6 +351,7 @@ public sealed class MainWindowViewModelTests
             dashboard,
             accounts,
             instruments,
+            mistakes,
             setups,
             strategies,
             trades);
@@ -341,11 +361,13 @@ public sealed class MainWindowViewModelTests
             dashboard,
             accounts,
             instruments,
+            mistakes,
             setups,
             strategies,
             trades,
             accountReader,
             instrumentReader,
+            mistakeReader,
             setupReader,
             strategyReader,
             tradeReferenceDataReader,
@@ -383,11 +405,13 @@ public sealed class MainWindowViewModelTests
         DashboardViewModel Dashboard,
         AccountsViewModel Accounts,
         InstrumentsViewModel Instruments,
+        TradingMistakesViewModel Mistakes,
         TradingSetupsViewModel Setups,
         StrategiesViewModel Strategies,
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
+        FakeTradingMistakeReader MistakeReader,
         FakeTradingSetupReader SetupReader,
         FakeStrategyReader StrategyReader,
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,

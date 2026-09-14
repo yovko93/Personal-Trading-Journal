@@ -5,6 +5,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Strategies;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
@@ -16,6 +17,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
+    private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly StrategiesViewModel _strategiesViewModel;
     private readonly TradesViewModel _tradesViewModel;
@@ -26,6 +28,7 @@ public sealed class MainWindowViewModel : ObservableObject
         DashboardViewModel dashboardViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
+        TradingMistakesViewModel tradingMistakesViewModel,
         TradingSetupsViewModel tradingSetupsViewModel,
         StrategiesViewModel strategiesViewModel,
         TradesViewModel tradesViewModel)
@@ -33,6 +36,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
+        ArgumentNullException.ThrowIfNull(tradingMistakesViewModel);
         ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(strategiesViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
@@ -40,6 +44,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
+        _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _strategiesViewModel = strategiesViewModel;
         _tradesViewModel = tradesViewModel;
@@ -111,6 +116,7 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
+            NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Strategies => _strategiesViewModel,
             NavigationDestination.Trades => _tradesViewModel,
@@ -125,6 +131,11 @@ public sealed class MainWindowViewModel : ObservableObject
         if (destination == NavigationDestination.Instruments)
         {
             _ = _instrumentsViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Mistakes)
+        {
+            _ = _tradingMistakesViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Strategies)

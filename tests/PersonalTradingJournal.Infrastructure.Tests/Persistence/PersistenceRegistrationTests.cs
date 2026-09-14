@@ -4,12 +4,14 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
+using PersonalTradingJournal.Infrastructure.Mistakes;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -162,6 +164,20 @@ public sealed class PersistenceRegistrationTests
         Assert.NotSame(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupReader>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupStore>(), provider.GetRequiredService<ITradingSetupStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupNameChecker>(), provider.GetRequiredService<ITradingSetupNameChecker>());
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradingMistakeServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+        Assert.IsType<TradingMistakeReader>(provider.GetRequiredService<ITradingMistakeReader>());
+        Assert.IsType<TradingMistakeStore>(provider.GetRequiredService<ITradingMistakeStore>());
+        Assert.IsType<TradingMistakeNameChecker>(provider.GetRequiredService<ITradingMistakeNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeReader>(), provider.GetRequiredService<ITradingMistakeReader>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeStore>(), provider.GetRequiredService<ITradingMistakeStore>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeNameChecker>(), provider.GetRequiredService<ITradingMistakeNameChecker>());
     }
 
     [Fact]
