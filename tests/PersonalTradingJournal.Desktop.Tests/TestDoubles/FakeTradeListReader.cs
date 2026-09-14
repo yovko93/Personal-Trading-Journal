@@ -38,6 +38,12 @@ internal sealed class FakeTradeListReader : ITradeListReader
             Task.FromException<IReadOnlyList<TradeListItem>>(exception));
     }
 
+    public void EnqueueBehavior(
+        Func<CancellationToken, Task<IReadOnlyList<TradeListItem>>> behavior)
+    {
+        _behaviors.Enqueue(behavior);
+    }
+
     public async Task<IReadOnlyList<TradeListItem>> GetRecentAsync(
         int limit,
         CancellationToken cancellationToken = default)

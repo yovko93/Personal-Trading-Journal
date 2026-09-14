@@ -398,6 +398,9 @@ public sealed class TradeScreenshotPreviewTests
                 instrumentStore,
                 tradeStore,
                 timeProvider),
+            new CloseManualTradeUseCase(
+                new FakeTradeMutationStore(),
+                timeProvider),
             screenshotReader,
             new AddTradeScreenshotUseCase(
                 new FakeTradeExistenceReader(),

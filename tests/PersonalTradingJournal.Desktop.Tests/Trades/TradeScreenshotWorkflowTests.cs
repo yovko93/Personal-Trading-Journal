@@ -625,6 +625,9 @@ public sealed class TradeScreenshotWorkflowTests
                 instrumentStore,
                 tradeStore,
                 timeProvider),
+            new CloseManualTradeUseCase(
+                new FakeTradeMutationStore(),
+                timeProvider),
             screenshotReader,
             new AddTradeScreenshotUseCase(
                 tradeExistenceReader,

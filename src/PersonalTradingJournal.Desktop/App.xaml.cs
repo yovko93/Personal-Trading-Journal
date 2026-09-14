@@ -58,6 +58,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<CreateInstrumentUseCase>();
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();
             builder.Services.AddTransient<CreateManualTradeUseCase>();
+            builder.Services.AddTransient<CloseManualTradeUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<

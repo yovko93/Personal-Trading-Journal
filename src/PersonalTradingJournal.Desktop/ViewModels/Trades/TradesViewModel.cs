@@ -28,6 +28,15 @@ public sealed class TradesViewModel : ObservableObject
         "The selected trading account or instrument is no longer available. " +
         "Refresh the reference data and try again.";
     private const string TradeSavedMessage = "Trade saved successfully.";
+    private const string CloseTradeSaveErrorMessageFallback =
+        "Trade could not be closed.";
+    private const string StaleCloseTradeErrorMessage =
+        "The selected trade is no longer available.";
+    private const string AlreadyClosedTradeErrorMessage =
+        "The trade is already closed.";
+    private const string CloseTradeChronologyErrorMessage =
+        "Exit time cannot be earlier than the latest execution.";
+    private const string TradeClosedMessage = "Trade closed successfully.";
     private const string TradeScreenshotsLoadErrorMessage =
         "Screenshots could not be loaded.";
     private const string ScreenshotSaveErrorMessageFallback =
@@ -69,6 +78,7 @@ public sealed class TradesViewModel : ObservableObject
     private readonly ITradeScreenshotDeleteConfirmation
         _tradeScreenshotDeleteConfirmation;
     private readonly CreateManualTradeUseCase _createManualTradeUseCase;
+    private readonly CloseManualTradeUseCase _closeManualTradeUseCase;
     private readonly SemaphoreSlim _referenceDataLoadGate = new(1, 1);
     private readonly SemaphoreSlim _tradeListLoadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
@@ -127,12 +137,22 @@ public sealed class TradesViewModel : ObservableObject
     private string? _screenshotDeleteErrorMessage;
     private string? _screenshotDeleteWarningMessage;
     private string? _screenshotDeleteSuccessMessage;
+    private bool _isCloseTradeVisible;
+    private bool _isClosingTrade;
+    private string _closeTradeExecutedAtUtcText = string.Empty;
+    private string _closeTradePriceText = string.Empty;
+    private string _closeTradeCommissionText = "0";
+    private string _closeTradeFeesText = "0";
+    private string? _closeTradeValidationErrorMessage;
+    private string? _closeTradeSaveErrorMessage;
+    private string? _closeTradeSuccessMessage;
 
     public TradesViewModel(
         IManualTradeReferenceDataReader referenceDataReader,
         ITradeListReader tradeListReader,
         ITradeDetailReader tradeDetailReader,
         CreateManualTradeUseCase createManualTradeUseCase,
+        CloseManualTradeUseCase closeManualTradeUseCase,
         ITradeScreenshotReader tradeScreenshotReader,
         AddTradeScreenshotUseCase addTradeScreenshotUseCase,
         ITradeScreenshotFilePicker tradeScreenshotFilePicker,
@@ -145,6 +165,7 @@ public sealed class TradesViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tradeListReader);
         ArgumentNullException.ThrowIfNull(tradeDetailReader);
         ArgumentNullException.ThrowIfNull(createManualTradeUseCase);
+        ArgumentNullException.ThrowIfNull(closeManualTradeUseCase);
         ArgumentNullException.ThrowIfNull(tradeScreenshotReader);
         ArgumentNullException.ThrowIfNull(addTradeScreenshotUseCase);
         ArgumentNullException.ThrowIfNull(tradeScreenshotFilePicker);
@@ -157,6 +178,7 @@ public sealed class TradesViewModel : ObservableObject
         _tradeListReader = tradeListReader;
         _tradeDetailReader = tradeDetailReader;
         _createManualTradeUseCase = createManualTradeUseCase;
+        _closeManualTradeUseCase = closeManualTradeUseCase;
         _tradeScreenshotReader = tradeScreenshotReader;
         _addTradeScreenshotUseCase = addTradeScreenshotUseCase;
         _tradeScreenshotFilePicker = tradeScreenshotFilePicker;
@@ -178,6 +200,15 @@ public sealed class TradesViewModel : ObservableObject
         CloseTradeDetailCommand = new RelayCommand(
             CloseTradeDetail,
             CanCloseTradeDetail);
+        ShowCloseTradeCommand = new RelayCommand(
+            ShowCloseTrade,
+            CanShowCloseTrade);
+        CancelCloseTradeCommand = new RelayCommand(
+            CancelCloseTrade,
+            CanCancelCloseTrade);
+        SaveCloseTradeCommand = new AsyncRelayCommand(
+            SaveCloseTradeAsync,
+            CanSaveCloseTrade);
         ShowAddScreenshotCommand = new RelayCommand(
             ShowAddScreenshot,
             CanShowAddScreenshot);
@@ -247,12 +278,42 @@ public sealed class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedTradeDetail, value))
             {
+                OnPropertyChanged(nameof(IsSelectedTradeOpen));
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
             }
         }
+    }
+
+    public bool IsSelectedTradeOpen =>
+        SelectedTradeDetail?.Status == TradeStatus.Open;
+
+    public string CloseTradeExecutedAtUtcText
+    {
+        get => _closeTradeExecutedAtUtcText;
+        set => SetProperty(ref _closeTradeExecutedAtUtcText, value);
+    }
+
+    public string CloseTradePriceText
+    {
+        get => _closeTradePriceText;
+        set => SetProperty(ref _closeTradePriceText, value);
+    }
+
+    public string CloseTradeCommissionText
+    {
+        get => _closeTradeCommissionText;
+        set => SetProperty(ref _closeTradeCommissionText, value);
+    }
+
+    public string CloseTradeFeesText
+    {
+        get => _closeTradeFeesText;
+        set => SetProperty(ref _closeTradeFeesText, value);
     }
 
     public IReadOnlyList<TradeScreenshotListItem> TradeScreenshots
@@ -419,6 +480,8 @@ public sealed class TradesViewModel : ObservableObject
                 ShowAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -454,6 +517,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -472,6 +537,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -507,6 +574,8 @@ public sealed class TradesViewModel : ObservableObject
                 CancelAddScreenshotCommand.NotifyCanExecuteChanged();
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -726,9 +795,91 @@ public sealed class TradesViewModel : ObservableObject
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 CloseScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
+
+    public bool IsCloseTradeVisible
+    {
+        get => _isCloseTradeVisible;
+        private set
+        {
+            if (SetProperty(ref _isCloseTradeVisible, value))
+            {
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                CancelCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsClosingTrade
+    {
+        get => _isClosingTrade;
+        private set
+        {
+            if (SetProperty(ref _isClosingTrade, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                SaveManualTradeCommand.NotifyCanExecuteChanged();
+                ShowTradeDetailCommand.NotifyCanExecuteChanged();
+                CloseTradeDetailCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                CancelCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
+                ShowAddScreenshotCommand.NotifyCanExecuteChanged();
+                CancelAddScreenshotCommand.NotifyCanExecuteChanged();
+                SaveScreenshotCommand.NotifyCanExecuteChanged();
+                OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
+                DeleteScreenshotCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? CloseTradeValidationErrorMessage
+    {
+        get => _closeTradeValidationErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _closeTradeValidationErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasCloseTradeValidationError));
+            }
+        }
+    }
+
+    public bool HasCloseTradeValidationError =>
+        CloseTradeValidationErrorMessage is not null;
+
+    public string? CloseTradeSaveErrorMessage
+    {
+        get => _closeTradeSaveErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _closeTradeSaveErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasCloseTradeSaveError));
+            }
+        }
+    }
+
+    public bool HasCloseTradeSaveError => CloseTradeSaveErrorMessage is not null;
+
+    public string? CloseTradeSuccessMessage
+    {
+        get => _closeTradeSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _closeTradeSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasCloseTradeSuccess));
+            }
+        }
+    }
+
+    public bool HasCloseTradeSuccess => CloseTradeSuccessMessage is not null;
 
     public bool IsDeletingScreenshot
     {
@@ -745,6 +896,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                ShowCloseTradeCommand.NotifyCanExecuteChanged();
+                SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -836,6 +989,12 @@ public sealed class TradesViewModel : ObservableObject
 
     public IRelayCommand CloseTradeDetailCommand { get; }
 
+    public IRelayCommand ShowCloseTradeCommand { get; }
+
+    public IRelayCommand CancelCloseTradeCommand { get; }
+
+    public IAsyncRelayCommand SaveCloseTradeCommand { get; }
+
     public IRelayCommand ShowAddScreenshotCommand { get; }
 
     public IRelayCommand CancelAddScreenshotCommand { get; }
@@ -848,6 +1007,58 @@ public sealed class TradesViewModel : ObservableObject
     public IRelayCommand CloseScreenshotPreviewCommand { get; }
 
     public IAsyncRelayCommand<TradeScreenshotListItem> DeleteScreenshotCommand { get; }
+
+    public bool TryBuildCloseManualTradeCommand(
+        out CloseManualTradeCommand? command)
+    {
+        CloseTradeValidationErrorMessage = null;
+        command = null;
+
+        if (SelectedTradeDetail is not { } detail)
+        {
+            return FailCloseTradeValidation("A selected trade is required.");
+        }
+
+        if (detail.Status != TradeStatus.Open)
+        {
+            return FailCloseTradeValidation(AlreadyClosedTradeErrorMessage);
+        }
+
+        if (!TryParseUtcTimestamp(
+                CloseTradeExecutedAtUtcText,
+                out DateTimeOffset executedAtUtc))
+        {
+            return FailCloseTradeValidation(
+                "Exit time must be a valid UTC timestamp.");
+        }
+
+        if (!TryParseDecimal(CloseTradePriceText, out decimal price))
+        {
+            return FailCloseTradeValidation("Exit price must be a valid number.");
+        }
+
+        if (!TryParseNonNegativeCost(
+                CloseTradeCommissionText,
+                out decimal commission))
+        {
+            return FailCloseTradeValidation(
+                "Commission must be a non-negative number.");
+        }
+
+        if (!TryParseNonNegativeCost(CloseTradeFeesText, out decimal fees))
+        {
+            return FailCloseTradeValidation(
+                "Fees must be a non-negative number.");
+        }
+
+        command = new CloseManualTradeCommand(
+            detail.Id,
+            executedAtUtc,
+            price,
+            commission,
+            fees);
+        return true;
+    }
 
     public bool TryBuildManualTradeCommand(
         out CreateManualTradeCommand? command)
@@ -996,7 +1207,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeScreenshotsLoading &&
         !IsSaving &&
         !IsAddingScreenshot &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private void ShowManualEntry()
     {
@@ -1023,7 +1235,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeListLoading &&
         !IsTradeDetailLoading &&
         !IsSaving &&
-        !IsAddingScreenshot;
+        !IsAddingScreenshot &&
+        !IsClosingTrade;
 
     private bool CanShowTradeDetail(TradeListItem? item) =>
         item is not null &&
@@ -1032,7 +1245,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeListLoading &&
         !IsSaving &&
         !IsAddingScreenshot &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private async Task ShowTradeDetailAsync(
         TradeListItem? item,
@@ -1048,6 +1262,7 @@ public sealed class TradesViewModel : ObservableObject
         SelectedTradeDetail = null;
         TradeDetailErrorMessage = null;
         IsTradeDetailNotFound = false;
+        ClearCloseTradeState();
         ClearTradeScreenshotState();
         IsTradeDetailLoading = true;
 
@@ -1095,6 +1310,7 @@ public sealed class TradesViewModel : ObservableObject
         SelectedTradeDetail = null;
         TradeDetailErrorMessage = null;
         IsTradeDetailNotFound = false;
+        ClearCloseTradeState();
         ClearTradeScreenshotState();
     }
 
@@ -1103,7 +1319,144 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
+
+    private void ShowCloseTrade()
+    {
+        if (!CanShowCloseTrade())
+        {
+            return;
+        }
+
+        ResetCloseTradeDraft();
+        CloseTradeValidationErrorMessage = null;
+        CloseTradeSaveErrorMessage = null;
+        CloseTradeSuccessMessage = null;
+        IsCloseTradeVisible = true;
+    }
+
+    private bool CanShowCloseTrade() =>
+        !IsCloseTradeVisible &&
+        IsTradeDetailVisible &&
+        IsSelectedTradeOpen &&
+        !IsTradeDetailLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsSaving &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsScreenshotPreviewLoading &&
+        !IsClosingTrade;
+
+    private void CancelCloseTrade()
+    {
+        ResetCloseTradeDraft();
+        CloseTradeValidationErrorMessage = null;
+        CloseTradeSaveErrorMessage = null;
+        IsCloseTradeVisible = false;
+    }
+
+    private bool CanCancelCloseTrade() =>
+        IsCloseTradeVisible && !IsClosingTrade;
+
+    private bool CanSaveCloseTrade() =>
+        IsCloseTradeVisible &&
+        IsTradeDetailVisible &&
+        IsSelectedTradeOpen &&
+        !IsTradeDetailLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsSaving &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsScreenshotPreviewLoading &&
+        !IsClosingTrade;
+
+    private async Task SaveCloseTradeAsync(CancellationToken cancellationToken)
+    {
+        CloseTradeValidationErrorMessage = null;
+        CloseTradeSaveErrorMessage = null;
+        CloseTradeSuccessMessage = null;
+
+        if (!TryBuildCloseManualTradeCommand(
+                out CloseManualTradeCommand? command) ||
+            command is null)
+        {
+            return;
+        }
+
+        IsClosingTrade = true;
+
+        try
+        {
+            await _closeManualTradeUseCase.ExecuteAsync(
+                command,
+                cancellationToken);
+
+            ResetCloseTradeDraft();
+            IsCloseTradeVisible = false;
+            CloseTradeSuccessMessage = TradeClosedMessage;
+
+            await ReloadTradeDetailAfterCloseAsync(command.TradeId);
+            _ = await LoadTradeListAsync(
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            CloseTradeSaveErrorMessage = StaleCloseTradeErrorMessage;
+        }
+        catch (InvalidOperationException)
+        {
+            CloseTradeSaveErrorMessage = AlreadyClosedTradeErrorMessage;
+        }
+        catch (ArgumentException)
+        {
+            CloseTradeSaveErrorMessage = CloseTradeChronologyErrorMessage;
+        }
+        catch (Exception)
+        {
+            CloseTradeSaveErrorMessage = CloseTradeSaveErrorMessageFallback;
+        }
+        finally
+        {
+            IsClosingTrade = false;
+        }
+    }
+
+    private async Task ReloadTradeDetailAfterCloseAsync(Guid tradeId)
+    {
+        IsTradeDetailLoading = true;
+        TradeDetailErrorMessage = null;
+        IsTradeDetailNotFound = false;
+
+        try
+        {
+            TradeDetail? detail = await _tradeDetailReader.GetByIdAsync(
+                tradeId,
+                CancellationToken.None);
+            if (detail is null)
+            {
+                SelectedTradeDetail = null;
+                TradeDetailErrorMessage = TradeDetailLoadErrorMessage;
+                return;
+            }
+
+            SelectedTradeDetail = detail;
+        }
+        catch (Exception)
+        {
+            SelectedTradeDetail = null;
+            TradeDetailErrorMessage = TradeDetailLoadErrorMessage;
+        }
+        finally
+        {
+            IsTradeDetailLoading = false;
+        }
+    }
 
     private bool CanOpenScreenshotPreview(TradeScreenshotListItem? item) =>
         item is not null &&
@@ -1114,7 +1467,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
         !IsScreenshotPreviewLoading &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private async Task OpenScreenshotPreviewAsync(
         TradeScreenshotListItem? item,
@@ -1233,7 +1587,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsAddingScreenshot &&
         !IsDeletingScreenshot &&
         !IsScreenshotPreviewLoading &&
-        !IsSaving;
+        !IsSaving &&
+        !IsClosingTrade;
 
     private async Task DeleteScreenshotAsync(
         TradeScreenshotListItem? item,
@@ -1321,7 +1676,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
         !IsSaving &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private void CancelAddScreenshot()
     {
@@ -1334,7 +1690,8 @@ public sealed class TradesViewModel : ObservableObject
     private bool CanCancelAddScreenshot() =>
         IsAddScreenshotVisible &&
         !IsAddingScreenshot &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private bool CanSaveScreenshot() =>
         IsAddScreenshotVisible &&
@@ -1344,7 +1701,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
         !IsSaving &&
-        !IsDeletingScreenshot;
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
 
     private async Task SaveScreenshotAsync(CancellationToken cancellationToken)
     {
@@ -1495,6 +1853,12 @@ public sealed class TradesViewModel : ObservableObject
         return false;
     }
 
+    private bool FailCloseTradeValidation(string message)
+    {
+        CloseTradeValidationErrorMessage = message;
+        return false;
+    }
+
     private static bool TryParseDecimal(string? text, out decimal value)
     {
         return decimal.TryParse(
@@ -1570,6 +1934,23 @@ public sealed class TradesViewModel : ObservableObject
         ScreenshotCapturedAtUtcText = string.Empty;
         ScreenshotTimeframeText = string.Empty;
         ScreenshotDescriptionText = string.Empty;
+    }
+
+    private void ResetCloseTradeDraft()
+    {
+        CloseTradeExecutedAtUtcText = string.Empty;
+        CloseTradePriceText = string.Empty;
+        CloseTradeCommissionText = "0";
+        CloseTradeFeesText = "0";
+    }
+
+    private void ClearCloseTradeState()
+    {
+        ResetCloseTradeDraft();
+        CloseTradeValidationErrorMessage = null;
+        CloseTradeSaveErrorMessage = null;
+        CloseTradeSuccessMessage = null;
+        IsCloseTradeVisible = false;
     }
 
     private void ClearTradeScreenshotState()

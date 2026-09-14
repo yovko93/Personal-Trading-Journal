@@ -353,6 +353,9 @@ public sealed class TradeScreenshotDeletionTests
                 new FakeInstrumentStore(),
                 new FakeTradeStore(),
                 timeProvider),
+            new CloseManualTradeUseCase(
+                new FakeTradeMutationStore(),
+                timeProvider),
             screenshotReader,
             new AddTradeScreenshotUseCase(
                 new FakeTradeExistenceReader(),
