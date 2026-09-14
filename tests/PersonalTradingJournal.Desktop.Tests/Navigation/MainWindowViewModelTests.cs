@@ -251,6 +251,9 @@ public sealed class MainWindowViewModelTests
                 instrumentStore,
                 tradeStore,
                 timeProvider),
+            new CloseManualTradeUseCase(
+                new FakeTradeMutationStore(),
+                timeProvider),
             tradeScreenshotReader,
             new AddTradeScreenshotUseCase(
                 tradeExistenceReader,

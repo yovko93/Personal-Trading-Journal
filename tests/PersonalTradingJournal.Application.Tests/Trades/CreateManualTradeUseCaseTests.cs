@@ -375,6 +375,79 @@ public sealed class CreateManualTradeUseCaseTests
         Assert.NotNull(tradeStore.AddedTrade);
     }
 
+    [Fact]
+    public async Task ExecuteAsyncUsesAuthoritativeFuturesAssetClassAndWholeContracts()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument(
+            AssetClass.Futures,
+            symbol: "CUSTOM-FUTURE");
+        var tradeStore = new RecordingTradeStore();
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            Quantity = 3m,
+            Exit = new ManualTradeExecutionInput(
+                ExitExecutedAtUtc,
+                21950m,
+                1m,
+                0.25m),
+        };
+
+        await CreateUseCase(account, instrument, tradeStore).ExecuteAsync(command);
+
+        Trade trade = Assert.IsType<Trade>(tradeStore.AddedTrade);
+        Assert.Equal(3m, trade.Executions[0].Quantity);
+        Assert.Equal(3m, trade.Executions[1].Quantity);
+        Assert.Equal(TradeStatus.Closed, trade.Status);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsFractionalAuthoritativeFuturesQuantityBeforePersisting()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument(
+            AssetClass.Futures,
+            symbol: "CUSTOM-FUTURE");
+        var tradeStore = new RecordingTradeStore();
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            Quantity = 1.5m,
+        };
+
+        ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => CreateUseCase(account, instrument, tradeStore)
+                .ExecuteAsync(command));
+
+        Assert.Contains(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            exception.Message,
+            StringComparison.Ordinal);
+        Assert.Equal(0, tradeStore.AddCallCount);
+    }
+
+    [Theory]
+    [InlineData(AssetClass.Equity)]
+    [InlineData(AssetClass.Forex)]
+    [InlineData(AssetClass.Crypto)]
+    [InlineData(AssetClass.Option)]
+    [InlineData(AssetClass.Other)]
+    public async Task ExecuteAsyncPreservesFractionalNonFuturesQuantity(
+        AssetClass assetClass)
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument(assetClass, symbol: "NQ");
+        var tradeStore = new RecordingTradeStore();
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            Quantity = 0.5m,
+        };
+
+        await CreateUseCase(account, instrument, tradeStore).ExecuteAsync(command);
+
+        Trade trade = Assert.IsType<Trade>(tradeStore.AddedTrade);
+        Assert.Equal(0.5m, Assert.Single(trade.Executions).Quantity);
+    }
+
     private static CreateManualTradeUseCase CreateUseCase(
         TradingAccount account,
         Instrument instrument,
@@ -397,7 +470,7 @@ public sealed class CreateManualTradeUseCaseTests
             tradingAccountId,
             instrumentId,
             direction,
-            2.5m,
+            2m,
             new ManualTradeExecutionInput(
                 EntryExecutedAtUtc,
                 21900.25m,
@@ -418,12 +491,14 @@ public sealed class CreateManualTradeUseCaseTests
             ReferenceCreatedAtUtc);
     }
 
-    private static Instrument CreateInstrument()
+    private static Instrument CreateInstrument(
+        AssetClass assetClass = AssetClass.Futures,
+        string symbol = "NQ")
     {
         return new Instrument(
-            "NQ",
+            symbol,
             "Nasdaq-100 E-mini",
-            AssetClass.Futures,
+            assetClass,
             "CME",
             "USD",
             0.25m,

@@ -15,6 +15,9 @@ namespace PersonalTradingJournal.Desktop.Tests.Trades;
 [Collection(CultureSensitiveCollection.Name)]
 public sealed class TradesViewModelTests
 {
+    private static readonly DateTimeOffset CloseExecutedAtUtc =
+        new(2026, 9, 8, 14, 15, 0, TimeSpan.Zero);
+
     [Fact]
     public void NewViewModelUsesEmptyManualEntryDefaults()
     {
@@ -54,6 +57,146 @@ public sealed class TradesViewModelTests
         PopulateRepresentativeTradeFacts(viewModel);
 
         AssertRepresentativeTradeFacts(viewModel);
+    }
+
+    [Fact]
+    public void SelectedInstrumentDerivesFuturesQuantityPresentationAndEconomics()
+    {
+        TradesViewModel viewModel = CreateViewModel();
+        viewModel.QuantityText = "draft quantity";
+        var futures = new ManualTradeInstrumentOption(
+            Guid.NewGuid(),
+            "CUSTOM",
+            "Custom Futures Contract",
+            AssetClass.Futures,
+            "XEUR",
+            "EUR",
+            0.5m,
+            3.75m,
+            7.5m,
+            true);
+
+        viewModel.SelectedInstrument = futures;
+
+        Assert.True(viewModel.IsSelectedInstrumentFutures);
+        Assert.Equal("Contracts", viewModel.QuantityLabel);
+        Assert.Contains("Whole contracts", viewModel.QuantityHint, StringComparison.Ordinal);
+        Assert.Contains("CUSTOM", viewModel.SelectedInstrumentEconomicsText, StringComparison.Ordinal);
+        Assert.Contains(
+            "Custom Futures Contract",
+            viewModel.SelectedInstrumentEconomicsText,
+            StringComparison.Ordinal);
+        Assert.Contains("7.5 EUR / point", viewModel.SelectedInstrumentEconomicsText, StringComparison.Ordinal);
+        Assert.Equal("draft quantity", viewModel.QuantityText);
+
+        viewModel.SelectedInstrument = futures with { AssetClass = AssetClass.Equity };
+
+        Assert.False(viewModel.IsSelectedInstrumentFutures);
+        Assert.Equal("Quantity", viewModel.QuantityLabel);
+        Assert.Equal("Enter the traded quantity.", viewModel.QuantityHint);
+        Assert.Equal("draft quantity", viewModel.QuantityText);
+    }
+
+    [Fact]
+    public void SelectedInstrumentChangeRaisesAllDerivedPresentationNotifications()
+    {
+        TradesViewModel viewModel = CreateViewModel();
+        var changedProperties = new HashSet<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.SelectedInstrument = new ManualTradeInstrumentOption(
+            Guid.NewGuid(),
+            "FUT",
+            "Futures Contract",
+            AssetClass.Futures,
+            null,
+            "USD",
+            0.25m,
+            0.5m,
+            2m,
+            true);
+
+        Assert.Contains(nameof(TradesViewModel.SelectedInstrument), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.IsSelectedInstrumentFutures), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.QuantityLabel), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.QuantityHint), changedProperties);
+        Assert.Contains(
+            nameof(TradesViewModel.SelectedInstrumentEconomicsText),
+            changedProperties);
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("2.0")]
+    public void TryBuildManualTradeCommandAcceptsWholeFuturesContracts(
+        string quantityText)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: AssetClass.Futures,
+            quantityText: quantityText,
+            instrumentSymbol: "CUSTOM");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(decimal.Parse(quantityText, CultureInfo.InvariantCulture), command.Quantity);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandRejectsFractionalFuturesContracts()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: AssetClass.Futures,
+            quantityText: "1.5",
+            instrumentSymbol: "CUSTOM");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(out _);
+
+        Assert.False(succeeded);
+        Assert.Equal(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            viewModel.ValidationErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(AssetClass.Equity)]
+    [InlineData(AssetClass.Forex)]
+    [InlineData(AssetClass.Crypto)]
+    [InlineData(AssetClass.Option)]
+    [InlineData(AssetClass.Other)]
+    public void TryBuildManualTradeCommandKeepsFractionalNonFuturesQuantity(
+        AssetClass assetClass)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: assetClass,
+            quantityText: "0.5",
+            instrumentSymbol: "NQ");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(0.5m, command.Quantity);
+    }
+
+    [Fact]
+    public async Task FractionalFuturesUxValidationBlocksUseCaseAndPersistence()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture(quantityText: "1.5");
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            fixture.ViewModel.ValidationErrorMessage);
+        Assert.Equal(0, fixture.AccountStore.GetCallCount);
+        Assert.Equal(0, fixture.InstrumentStore.GetCallCount);
+        Assert.Equal(0, fixture.TradeStore.AddCallCount);
+        Assert.True(fixture.ViewModel.IsManualEntryVisible);
+        Assert.Equal("1.5", fixture.ViewModel.QuantityText);
     }
 
     [Fact]
@@ -550,12 +693,12 @@ public sealed class TradesViewModelTests
             trade.InstrumentId);
         Assert.Equal(TradeDirection.Long, trade.Direction);
         Assert.Equal(TradeStatus.Open, trade.Status);
-        Assert.Equal(2.5m, trade.OpenQuantity);
+        Assert.Equal(2m, trade.OpenQuantity);
         Assert.Equal(20m, trade.Pricing.PointValue);
         Assert.Equal("USD", trade.Pricing.Currency);
         TradeExecution execution = Assert.Single(trade.Executions);
         Assert.Equal(ExecutionSide.Buy, execution.Side);
-        Assert.Equal(2.5m, execution.Quantity);
+        Assert.Equal(2m, execution.Quantity);
         Assert.Equal(
             new DateTimeOffset(2026, 9, 10, 13, 30, 0, TimeSpan.Zero),
             execution.ExecutedAtUtc);
@@ -714,7 +857,7 @@ public sealed class TradesViewModelTests
             entry =>
             {
                 Assert.Equal(ExecutionSide.Sell, entry.Side);
-                Assert.Equal(2.5m, entry.Quantity);
+                Assert.Equal(2m, entry.Quantity);
                 Assert.Equal(
                     new DateTimeOffset(
                         2026,
@@ -732,7 +875,7 @@ public sealed class TradesViewModelTests
             exit =>
             {
                 Assert.Equal(ExecutionSide.Buy, exit.Side);
-                Assert.Equal(2.5m, exit.Quantity);
+                Assert.Equal(2m, exit.Quantity);
                 Assert.Equal(
                     new DateTimeOffset(
                         2026,
@@ -785,7 +928,7 @@ public sealed class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Equal(
             "Trade could not be saved.",
             fixture.ViewModel.SaveErrorMessage);
@@ -815,7 +958,7 @@ public sealed class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Equal(
             "The selected trading account or instrument is no longer available. " +
             "Refresh the reference data and try again.",
@@ -961,7 +1104,7 @@ public sealed class TradesViewModelTests
         Assert.True(
             fixture.TradeStore.CancellationToken.IsCancellationRequested);
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Null(fixture.ViewModel.SaveErrorMessage);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
@@ -1577,17 +1720,598 @@ public sealed class TradesViewModelTests
         Assert.True(viewModel.CancelManualEntryCommand.CanExecute(null));
     }
 
+    [Fact]
+    public async Task CloseActionIsAvailableOnlyForSelectedOpenTrade()
+    {
+        CloseTradeFixture openFixture = await CreateCloseTradeFixtureAsync();
+
+        Assert.True(openFixture.ViewModel.IsSelectedTradeOpen);
+        Assert.True(openFixture.ViewModel.ShowCloseTradeCommand.CanExecute(null));
+
+        TradeListItem closedItem = CreateTradeListItem();
+        TradeDetail closedDetail = CreateTradeDetail(closedItem);
+        var closedReader = new FakeTradeDetailReader();
+        closedReader.EnqueueResult(closedDetail);
+        TradesViewModel closedViewModel = CreateViewModel(
+            tradeDetailReader: closedReader);
+        await closedViewModel.ShowTradeDetailCommand.ExecuteAsync(closedItem);
+
+        Assert.False(closedViewModel.IsSelectedTradeOpen);
+        Assert.False(closedViewModel.ShowCloseTradeCommand.CanExecute(null));
+        closedViewModel.ShowCloseTradeCommand.Execute(null);
+        Assert.False(closedViewModel.IsCloseTradeVisible);
+    }
+
+    [Fact]
+    public async Task ShowAndCancelCloseTradeUseIndependentDraftAndPreserveContext()
+    {
+        var screenshot = new TradeScreenshotListItem(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            TradeScreenshotType.Entry,
+            "entry.png",
+            null,
+            null,
+            null,
+            FixedTimeProvider.FixedUtcNow);
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync(
+            screenshotFactory: tradeId => screenshot with { TradeId = tradeId });
+        fixture.ViewModel.QuantityText = "manual draft";
+
+        fixture.ViewModel.ShowCloseTradeCommand.Execute(null);
+
+        Assert.True(fixture.ViewModel.IsCloseTradeVisible);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradePriceText);
+        Assert.Equal("0", fixture.ViewModel.CloseTradeCommissionText);
+        Assert.Equal("0", fixture.ViewModel.CloseTradeFeesText);
+        Assert.Null(fixture.ViewModel.CloseTradeValidationErrorMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSuccessMessage);
+
+        fixture.ViewModel.CloseTradeExecutedAtUtcText = "draft close";
+        fixture.ViewModel.CloseTradePriceText = "101";
+        fixture.ViewModel.CancelCloseTradeCommand.Execute(null);
+
+        Assert.False(fixture.ViewModel.IsCloseTradeVisible);
+        Assert.Same(fixture.OpenDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
+        Assert.Same(fixture.Screenshots, fixture.ViewModel.TradeScreenshots);
+        Assert.Equal("manual draft", fixture.ViewModel.QuantityText);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradePriceText);
+    }
+
+    [Fact]
+    public async Task CloseCommandContainsNoQuantityAndUsesOpenQuantityAsReadOnlyContext()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync(
+            openQuantity: 2.75m);
+        ShowValidCloseForm(fixture.ViewModel);
+
+        bool succeeded = fixture.ViewModel.TryBuildCloseManualTradeCommand(
+            out CloseManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(fixture.OpenDetail.Id, command.TradeId);
+        Assert.Equal(2.75m, fixture.ViewModel.SelectedTradeDetail!.OpenQuantity);
+        Assert.Null(typeof(CloseManualTradeCommand).GetProperty("Quantity"));
+        Assert.Null(typeof(TradesViewModel).GetProperty("CloseTradeQuantityText"));
+    }
+
+    [Theory]
+    [InlineData("2026-09-08 14:15:00")]
+    [InlineData("2026-09-08 14:15")]
+    [InlineData("2026-09-08T14:15:00Z")]
+    [InlineData("2026-09-08T14:15Z")]
+    public async Task CloseCommandUsesStrictSupportedUtcFormats(string timestamp)
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
+        ShowValidCloseForm(fixture.ViewModel);
+        fixture.ViewModel.CloseTradeExecutedAtUtcText = timestamp;
+
+        bool succeeded = fixture.ViewModel.TryBuildCloseManualTradeCommand(
+            out CloseManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(TimeSpan.Zero, command.ExecutedAtUtc.Offset);
+        Assert.Equal(101.25m, command.Price);
+        Assert.Equal(1.50m, command.Commission);
+        Assert.Equal(0.25m, command.Fees);
+    }
+
+    [Theory]
+    [InlineData("timestamp", "2026-09-08T14:15:00+03:00")]
+    [InlineData("price", "not-a-price")]
+    [InlineData("commission", "-0.01")]
+    [InlineData("fees", "-0.01")]
+    public async Task InvalidCloseInputDoesNotCallUseCase(
+        string field,
+        string value)
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
+        ShowValidCloseForm(fixture.ViewModel);
+        switch (field)
+        {
+            case "timestamp":
+                fixture.ViewModel.CloseTradeExecutedAtUtcText = value;
+                break;
+            case "price":
+                fixture.ViewModel.CloseTradePriceText = value;
+                break;
+            case "commission":
+                fixture.ViewModel.CloseTradeCommissionText = value;
+                break;
+            case "fees":
+                fixture.ViewModel.CloseTradeFeesText = value;
+                break;
+        }
+
+        await fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+
+        Assert.True(fixture.ViewModel.HasCloseTradeValidationError);
+        Assert.Equal(0, fixture.MutationStore.GetCallCount);
+        Assert.Equal(0, fixture.MutationStore.SaveCallCount);
+    }
+
+    [Fact]
+    public async Task SuccessfulCloseReloadsAuthoritativeDetailAndListWithoutFabrication()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync(
+            screenshotFactory: tradeId => new TradeScreenshotListItem(
+                Guid.NewGuid(),
+                tradeId,
+                TradeScreenshotType.Entry,
+                "entry.png",
+                null,
+                "5m",
+                "Entry context",
+                FixedTimeProvider.FixedUtcNow));
+        fixture.ViewModel.QuantityText = "manual draft";
+        ShowValidCloseForm(fixture.ViewModel);
+        TradeListItem authoritativeList = fixture.OpenListItem with
+        {
+            Status = TradeStatus.Closed,
+            ClosedAtUtc = CloseExecutedAtUtc,
+            OpenQuantity = 0m,
+            AverageExitPrice = 101.25m,
+            TotalCosts = 3.25m,
+            GrossPnL = 62.5m,
+            NetPnL = 59.25m,
+        };
+        TradeDetail authoritativeDetail = fixture.OpenDetail with
+        {
+            Status = TradeStatus.Closed,
+            ClosedAtUtc = CloseExecutedAtUtc,
+            OpenQuantity = 0m,
+            AverageExitPrice = 101.25m,
+            TotalCosts = 3.25m,
+            GrossPnL = 62.5m,
+            NetPnL = 59.25m,
+            Executions =
+            [
+                .. fixture.OpenDetail.Executions,
+                new TradeExecutionDetailItem(
+                    Guid.NewGuid(),
+                    2,
+                    CloseExecutedAtUtc,
+                    ExecutionSide.Sell,
+                    fixture.OpenDetail.OpenQuantity,
+                    101.25m,
+                    1.50m,
+                    0.25m,
+                    1.75m,
+                    null,
+                    null,
+                    null),
+            ],
+        };
+        fixture.DetailReader.EnqueueResult(authoritativeDetail);
+        var listReloadStarted = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseListReload = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken reloadToken = new(canceled: true);
+        fixture.ListReader.EnqueueBehavior(async cancellationToken =>
+        {
+            reloadToken = cancellationToken;
+            listReloadStarted.TrySetResult(true);
+            await releaseListReload.Task;
+            return [authoritativeList];
+        });
+
+        Task closeTask = fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+        await listReloadStarted.Task;
+
+        Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
+        Assert.Same(authoritativeDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.False(reloadToken.CanBeCanceled);
+        Assert.False(fixture.DetailReader.CancellationToken.CanBeCanceled);
+        releaseListReload.TrySetResult(true);
+        await closeTask;
+
+        Assert.Equal(1, fixture.MutationStore.GetCallCount);
+        Assert.Equal(1, fixture.MutationStore.SaveCallCount);
+        Assert.Equal(fixture.OpenDetail.Id, fixture.MutationStore.RequestedTradeId);
+        Assert.Equal(TradeStatus.Closed, fixture.MutationStore.SavedTrade!.Status);
+        Assert.Equal(0m, fixture.MutationStore.SavedTrade.OpenQuantity);
+        Assert.False(fixture.ViewModel.IsCloseTradeVisible);
+        Assert.Equal("Trade closed successfully.", fixture.ViewModel.CloseTradeSuccessMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.Same(authoritativeDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.Equal([authoritativeList], fixture.ViewModel.RecentTrades);
+        Assert.Equal(2, fixture.DetailReader.CallCount);
+        Assert.Equal(2, fixture.ListReader.CallCount);
+        Assert.Equal(1, fixture.ScreenshotReader.CallCount);
+        Assert.Same(fixture.Screenshots, fixture.ViewModel.TradeScreenshots);
+        Assert.Equal("manual draft", fixture.ViewModel.QuantityText);
+    }
+
+    [Fact]
+    public async Task DetailReloadFailureKeepsCommittedCloseSuccessfulAndClearsStaleDetail()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
+        ShowValidCloseForm(fixture.ViewModel);
+        fixture.DetailReader.EnqueueException(
+            new InvalidOperationException("sensitive database detail"));
+        fixture.ListReader.EnqueueResult(
+            [fixture.OpenListItem with { Status = TradeStatus.Closed }]);
+
+        await fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal("Trade closed successfully.", fixture.ViewModel.CloseTradeSuccessMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.Null(fixture.ViewModel.SelectedTradeDetail);
+        Assert.Equal(
+            "Trade details could not be loaded.",
+            fixture.ViewModel.TradeDetailErrorMessage);
+        Assert.DoesNotContain(
+            "sensitive",
+            fixture.ViewModel.TradeDetailErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ListReloadFailureKeepsCommittedCloseSuccessfulAndExistingList()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
+        ShowValidCloseForm(fixture.ViewModel);
+        TradeDetail authoritativeDetail = fixture.OpenDetail with
+        {
+            Status = TradeStatus.Closed,
+            ClosedAtUtc = CloseExecutedAtUtc,
+            OpenQuantity = 0m,
+        };
+        fixture.DetailReader.EnqueueResult(authoritativeDetail);
+        fixture.ListReader.EnqueueException(
+            new InvalidOperationException("sensitive database detail"));
+
+        await fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal("Trade closed successfully.", fixture.ViewModel.CloseTradeSuccessMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.Same(authoritativeDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
+        Assert.Equal("Trades could not be loaded.", fixture.ViewModel.TradeListErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("missing", "The selected trade is no longer available.")]
+    [InlineData("closed", "The trade is already closed.")]
+    [InlineData("chronology", "Exit time cannot be earlier than the latest execution.")]
+    [InlineData("technical", "Trade could not be closed.")]
+    public async Task CloseFailuresUseSafeSpecificMessages(
+        string failure,
+        string expectedMessage)
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
+        ShowValidCloseForm(fixture.ViewModel);
+        switch (failure)
+        {
+            case "missing":
+                fixture.MutationStore.TradeToReturn = null;
+                break;
+            case "closed":
+                fixture.MutationStore.TradeToReturn = CreateClosedDomainTrade(
+                    fixture.OpenListItem.Id,
+                    fixture.OpenDetail.OpenQuantity);
+                break;
+            case "chronology":
+                fixture.ViewModel.CloseTradeExecutedAtUtcText =
+                    "2026-09-08 09:00:00";
+                break;
+            case "technical":
+                fixture.MutationStore.GetException =
+                    new IOException("sensitive database detail");
+                break;
+        }
+
+        await fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedMessage, fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.DoesNotContain(
+            "sensitive",
+            fixture.ViewModel.CloseTradeSaveErrorMessage,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True(fixture.ViewModel.IsCloseTradeVisible);
+        Assert.Same(fixture.OpenDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.Equal(0, fixture.DetailReader.CallCount - 1);
+        Assert.Equal(1, fixture.ListReader.CallCount);
+    }
+
+    [Fact]
+    public async Task CloseCancellationPropagatesAndPreservesAllPresentationState()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync(
+            screenshotFactory: tradeId => new TradeScreenshotListItem(
+                Guid.NewGuid(),
+                tradeId,
+                TradeScreenshotType.Entry,
+                "entry.png",
+                null,
+                null,
+                null,
+                FixedTimeProvider.FixedUtcNow));
+        fixture.MutationStore.HoldSave = true;
+        fixture.ViewModel.QuantityText = "manual draft";
+        ShowValidCloseForm(fixture.ViewModel);
+
+        Task closeTask = fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+        await fixture.MutationStore.SaveStarted;
+        fixture.ViewModel.SaveCloseTradeCommand.Cancel();
+
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            async () => await closeTask);
+        Assert.True(fixture.MutationStore.SaveCancellationToken.IsCancellationRequested);
+        Assert.True(fixture.ViewModel.IsCloseTradeVisible);
+        Assert.Equal("2026-09-08 14:15:00", fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Same(fixture.OpenDetail, fixture.ViewModel.SelectedTradeDetail);
+        Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
+        Assert.Same(fixture.Screenshots, fixture.ViewModel.TradeScreenshots);
+        Assert.Equal("manual draft", fixture.ViewModel.QuantityText);
+        Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
+        Assert.Null(fixture.ViewModel.CloseTradeSuccessMessage);
+        Assert.False(fixture.ViewModel.IsClosingTrade);
+        Assert.Equal(1, fixture.DetailReader.CallCount);
+        Assert.Equal(1, fixture.ListReader.CallCount);
+        Assert.Equal(1, fixture.ScreenshotReader.CallCount);
+    }
+
+    [Fact]
+    public async Task ClosingTradeDisablesCompetingContextAndMutationCommands()
+    {
+        CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync(
+            screenshotFactory: tradeId => new TradeScreenshotListItem(
+                Guid.NewGuid(),
+                tradeId,
+                TradeScreenshotType.Entry,
+                "entry.png",
+                null,
+                null,
+                null,
+                FixedTimeProvider.FixedUtcNow));
+        fixture.MutationStore.HoldSave = true;
+        fixture.ViewModel.ShowManualEntryCommand.Execute(null);
+        fixture.ViewModel.ShowAddScreenshotCommand.Execute(null);
+        ShowValidCloseForm(fixture.ViewModel);
+        TradeScreenshotListItem screenshot = Assert.Single(
+            fixture.ViewModel.TradeScreenshots);
+
+        Assert.True(fixture.ViewModel.RefreshCommand.CanExecute(null));
+        Assert.True(fixture.ViewModel.SaveManualTradeCommand.CanExecute(null));
+        Assert.True(fixture.ViewModel.SaveScreenshotCommand.CanExecute(null));
+        Assert.True(fixture.ViewModel.DeleteScreenshotCommand.CanExecute(screenshot));
+        Task closeTask = fixture.ViewModel.SaveCloseTradeCommand.ExecuteAsync(null);
+        await fixture.MutationStore.SaveStarted;
+
+        Assert.True(fixture.ViewModel.IsClosingTrade);
+        Assert.False(fixture.ViewModel.SaveCloseTradeCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.CancelCloseTradeCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.RefreshCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.ShowTradeDetailCommand.CanExecute(fixture.OpenListItem));
+        Assert.False(fixture.ViewModel.CloseTradeDetailCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.SaveManualTradeCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.ShowAddScreenshotCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.CancelAddScreenshotCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.SaveScreenshotCommand.CanExecute(null));
+        Assert.False(fixture.ViewModel.DeleteScreenshotCommand.CanExecute(screenshot));
+        Assert.False(fixture.ViewModel.OpenScreenshotPreviewCommand.CanExecute(screenshot));
+
+        fixture.DetailReader.EnqueueResult(fixture.OpenDetail);
+        fixture.ListReader.EnqueueResult(fixture.InitialTrades);
+        fixture.MutationStore.ReleaseSave();
+        await closeTask;
+    }
+
+    private static async Task<CloseTradeFixture> CreateCloseTradeFixtureAsync(
+        decimal openQuantity = 2.5m,
+        Func<Guid, TradeScreenshotListItem>? screenshotFactory = null)
+    {
+        Guid tradeId = Guid.NewGuid();
+        TradeListItem openListItem = CreateOpenTradeListItem(
+            tradeId,
+            openQuantity);
+        TradeDetail openDetail = CreateOpenTradeDetail(
+            openListItem,
+            openQuantity);
+        IReadOnlyList<TradeListItem> initialTrades = [openListItem];
+        IReadOnlyList<TradeScreenshotListItem> screenshots =
+            screenshotFactory is null
+                ? []
+                : [screenshotFactory(tradeId)];
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult(initialTrades);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(openDetail);
+        var screenshotReader = new FakeTradeScreenshotReader();
+        screenshotReader.EnqueueResult(screenshots);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateOpenDomainTrade(tradeId, openQuantity),
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader,
+            tradeScreenshotReader: screenshotReader,
+            tradeMutationStore: mutationStore);
+
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(openListItem);
+
+        return new CloseTradeFixture(
+            viewModel,
+            mutationStore,
+            listReader,
+            detailReader,
+            screenshotReader,
+            openListItem,
+            openDetail,
+            initialTrades,
+            screenshots);
+    }
+
+    private static void ShowValidCloseForm(TradesViewModel viewModel)
+    {
+        viewModel.ShowCloseTradeCommand.Execute(null);
+        viewModel.CloseTradeExecutedAtUtcText = "2026-09-08 14:15:00";
+        viewModel.CloseTradePriceText = "101.25";
+        viewModel.CloseTradeCommissionText = "1.50";
+        viewModel.CloseTradeFeesText = "0.25";
+    }
+
+    private static TradeListItem CreateOpenTradeListItem(
+        Guid tradeId,
+        decimal openQuantity)
+    {
+        DateTimeOffset openedAtUtc =
+            new(2026, 9, 8, 10, 0, 0, TimeSpan.Zero);
+
+        return new TradeListItem(
+            tradeId,
+            Guid.NewGuid(),
+            "Primary Account",
+            Guid.NewGuid(),
+            "NQ",
+            TradeDirection.Long,
+            TradeStatus.Open,
+            openedAtUtc,
+            null,
+            openQuantity,
+            100m,
+            null,
+            1.50m,
+            null,
+            null,
+            "USD");
+    }
+
+    private static TradeDetail CreateOpenTradeDetail(
+        TradeListItem listItem,
+        decimal openQuantity)
+    {
+        return new TradeDetail(
+            listItem.Id,
+            listItem.TradingAccountId,
+            listItem.TradingAccountName,
+            listItem.InstrumentId,
+            listItem.InstrumentSymbol,
+            "Nasdaq-100 E-mini",
+            TradeDirection.Long,
+            TradeStatus.Open,
+            listItem.OpenedAtUtc,
+            null,
+            openQuantity,
+            100m,
+            null,
+            1.50m,
+            null,
+            null,
+            20m,
+            "USD",
+            [
+                new TradeExecutionDetailItem(
+                    Guid.NewGuid(),
+                    1,
+                    listItem.OpenedAtUtc,
+                    ExecutionSide.Buy,
+                    openQuantity,
+                    100m,
+                    1m,
+                    0.50m,
+                    1.50m,
+                    null,
+                    null,
+                    null),
+            ]);
+    }
+
+    private static Trade CreateOpenDomainTrade(
+        Guid tradeId,
+        decimal openQuantity)
+    {
+        DateTimeOffset openedAtUtc =
+            new(2026, 9, 8, 10, 0, 0, TimeSpan.Zero);
+        var openingExecution = new TradeExecution(
+            tradeId,
+            1,
+            openedAtUtc,
+            ExecutionSide.Buy,
+            openQuantity,
+            100m,
+            1m,
+            0.50m,
+            null,
+            null,
+            null);
+
+        return Trade.Start(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            new TradePricingSnapshot(20m, "USD"),
+            openingExecution,
+            openedAtUtc);
+    }
+
+    private static Trade CreateClosedDomainTrade(
+        Guid tradeId,
+        decimal quantity)
+    {
+        Trade trade = CreateOpenDomainTrade(tradeId, quantity);
+        trade.AddExecution(
+            new TradeExecution(
+                tradeId,
+                2,
+                CloseExecutedAtUtc,
+                ExecutionSide.Sell,
+                quantity,
+                101m,
+                1m,
+                0.50m,
+                null,
+                null,
+                null),
+            FixedTimeProvider.FixedUtcNow);
+        return trade;
+    }
+
     private static TradesViewModel CreateValidTradeForm(
         bool hasExit = false,
-        TradeDirection direction = TradeDirection.Long)
+        TradeDirection direction = TradeDirection.Long,
+        AssetClass assetClass = AssetClass.Other,
+        string quantityText = "2.5",
+        string instrumentSymbol = "NQ")
     {
-        ManualTradeReferenceData referenceData = CreateReferenceData();
+        ManualTradeReferenceData referenceData = CreateReferenceData(
+            instrumentSymbol: instrumentSymbol,
+            assetClass: assetClass);
         TradesViewModel viewModel =
             CreateViewModel(new FakeManualTradeReferenceDataReader());
         viewModel.SelectedAccount = Assert.Single(referenceData.Accounts);
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
-        viewModel.QuantityText = "2.5";
+        viewModel.QuantityText = quantityText;
         viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
@@ -1621,6 +2345,7 @@ public sealed class TradesViewModelTests
         FakeTradeScreenshotImageDecoder? tradeScreenshotImageDecoder = null,
         FakeTradeScreenshotDeletionStore? tradeScreenshotDeletionStore = null,
         FakeTradeScreenshotDeleteConfirmation? tradeScreenshotDeleteConfirmation = null,
+        FakeTradeMutationStore? tradeMutationStore = null,
         TimeProvider? timeProvider = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
@@ -1639,6 +2364,7 @@ public sealed class TradesViewModelTests
         tradeScreenshotDeletionStore ??= new FakeTradeScreenshotDeletionStore();
         tradeScreenshotDeleteConfirmation ??=
             new FakeTradeScreenshotDeleteConfirmation();
+        tradeMutationStore ??= new FakeTradeMutationStore();
         timeProvider ??= new FixedTimeProvider();
 
         return new TradesViewModel(
@@ -1649,6 +2375,9 @@ public sealed class TradesViewModelTests
                 accountStore,
                 instrumentStore,
                 tradeStore,
+                timeProvider),
+            new CloseManualTradeUseCase(
+                tradeMutationStore,
                 timeProvider),
             tradeScreenshotReader,
             new AddTradeScreenshotUseCase(
@@ -1668,7 +2397,8 @@ public sealed class TradesViewModelTests
     private static ManualTradeSaveFixture CreateSaveFixture(
         bool hasExit = false,
         TradeDirection direction = TradeDirection.Long,
-        decimal selectorPointValue = 20m)
+        decimal selectorPointValue = 20m,
+        string quantityText = "2")
     {
         Guid accountId = Guid.NewGuid();
         Guid instrumentId = Guid.NewGuid();
@@ -1699,7 +2429,7 @@ public sealed class TradesViewModelTests
         viewModel.SelectedAccount = Assert.Single(referenceData.Accounts);
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
-        viewModel.QuantityText = "2.5";
+        viewModel.QuantityText = quantityText;
         viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
@@ -1729,7 +2459,8 @@ public sealed class TradesViewModelTests
         Guid? instrumentId = null,
         string accountName = "Primary Account",
         string instrumentSymbol = "NQ",
-        decimal selectorPointValue = 20m)
+        decimal selectorPointValue = 20m,
+        AssetClass assetClass = AssetClass.Futures)
     {
         return new ManualTradeReferenceData(
             [
@@ -1747,7 +2478,7 @@ public sealed class TradesViewModelTests
                     instrumentId ?? Guid.NewGuid(),
                     instrumentSymbol,
                     $"{instrumentSymbol} display name",
-                    AssetClass.Futures,
+                    assetClass,
                     "CME",
                     "USD",
                     0.25m,
@@ -1890,10 +2621,12 @@ public sealed class TradesViewModelTests
         viewModel.ExitFeesText = "0.25";
     }
 
-    private static void AssertRepresentativeTradeFacts(TradesViewModel viewModel)
+    private static void AssertRepresentativeTradeFacts(
+        TradesViewModel viewModel,
+        string expectedQuantity = "2.5")
     {
         Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
-        Assert.Equal("2.5", viewModel.QuantityText);
+        Assert.Equal(expectedQuantity, viewModel.QuantityText);
         Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
         Assert.Equal("23950.25", viewModel.EntryPriceText);
         Assert.Equal("1.50", viewModel.EntryCommissionText);
@@ -1913,4 +2646,15 @@ public sealed class TradesViewModelTests
         FakeTradeListReader TradeListReader,
         FakeManualTradeReferenceDataReader ReferenceDataReader,
         ManualTradeReferenceData ReferenceData);
+
+    private sealed record CloseTradeFixture(
+        TradesViewModel ViewModel,
+        FakeTradeMutationStore MutationStore,
+        FakeTradeListReader ListReader,
+        FakeTradeDetailReader DetailReader,
+        FakeTradeScreenshotReader ScreenshotReader,
+        TradeListItem OpenListItem,
+        TradeDetail OpenDetail,
+        IReadOnlyList<TradeListItem> InitialTrades,
+        IReadOnlyList<TradeScreenshotListItem> Screenshots);
 }

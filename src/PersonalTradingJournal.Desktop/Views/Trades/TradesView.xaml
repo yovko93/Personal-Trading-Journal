@@ -221,9 +221,17 @@
                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
                                            Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Quantity" />
+                                           Text="{Binding QuantityLabel}" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
-                                         Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                                          Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="{Binding QuantityHint}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="{Binding SelectedInstrumentEconomicsText}"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Margin="8,0,0,0">
@@ -673,6 +681,204 @@
                                 </Grid>
                             </StackPanel>
                         </Grid>
+
+                        <Separator Style="{StaticResource PtjSeparatorStyle}" />
+
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock VerticalAlignment="Center"
+                                       Text="{Binding CloseTradeSuccessMessage}">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}"
+                                           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCloseTradeSuccess}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <Button Grid.Column="1"
+                                    Command="{Binding ShowCloseTradeCommand}"
+                                    Content="Close Trade">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsSelectedTradeOpen}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+
+                        <Border Margin="0,16,0,0"
+                                Padding="16"
+                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <Border.Style>
+                                <Style TargetType="{x:Type Border}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCloseTradeVisible}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                                           Text="Close Trade" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjSecondaryTextStyle}"
+                                           Text="Add an execution for the full remaining open quantity." />
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Instrument" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Style="{StaticResource PtjBodyTextStyle}"
+                                                   Text="{Binding SelectedTradeDetail.InstrumentSymbol}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="8,0">
+                                        <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Direction" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Style="{StaticResource PtjBodyTextStyle}"
+                                                   Text="{Binding SelectedTradeDetail.Direction}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="8,0,0,0">
+                                        <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Open quantity" />
+                                        <TextBlock Margin="0,4,0,0"
+                                                   Style="{StaticResource PtjBodyTextStyle}"
+                                                   Text="{Binding SelectedTradeDetail.OpenQuantity}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,16,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.75*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Exit time (UTC)" />
+                                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                                 Text="{Binding CloseTradeExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,6,0,0"
+                                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="UTC, e.g. 2026-09-14 13:30:00" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="8,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Exit price" />
+                                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                                 Text="{Binding CloseTradePriceText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="8,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Commission" />
+                                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                                 Text="{Binding CloseTradeCommissionText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3" Margin="8,0,0,0">
+                                        <TextBlock Margin="0,0,0,6"
+                                                   Style="{StaticResource PtjCaptionTextStyle}"
+                                                   Text="Fees" />
+                                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                                                 Text="{Binding CloseTradeFeesText, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Margin="0,12,0,0"
+                                           Text="{Binding CloseTradeValidationErrorMessage}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasCloseTradeValidationError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,8,0,0"
+                                           Text="{Binding CloseTradeSaveErrorMessage}"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasCloseTradeSaveError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBlock Margin="0,8,0,0"
+                                           Text="Closing trade...">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsClosingTrade}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <StackPanel Margin="0,16,0,0"
+                                            HorizontalAlignment="Right"
+                                            Orientation="Horizontal">
+                                    <Button Command="{Binding CancelCloseTradeCommand}"
+                                            Content="Cancel"
+                                            Style="{StaticResource PtjButtonStyle}" />
+                                    <Button Margin="8,0,0,0"
+                                            Command="{Binding SaveCloseTradeCommand}"
+                                            Content="Close Trade"
+                                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 

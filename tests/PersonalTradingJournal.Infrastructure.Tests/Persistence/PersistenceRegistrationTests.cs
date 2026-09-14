@@ -188,6 +188,23 @@ public sealed class PersistenceRegistrationTests
     }
 
     [Fact]
+    public void AddPersistenceRegistersTradeMutationStoreAsTransient()
+    {
+        var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
+        var services = new ServiceCollection();
+        services.AddPersistence(applicationPaths);
+
+        using ServiceProvider serviceProvider = services.BuildServiceProvider();
+        ITradeMutationStore firstStore =
+            serviceProvider.GetRequiredService<ITradeMutationStore>();
+        ITradeMutationStore secondStore =
+            serviceProvider.GetRequiredService<ITradeMutationStore>();
+
+        Assert.IsType<TradeMutationStore>(firstStore);
+        Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
     public void AddPersistenceRegistersScreenshotMetadataServicesWithExpectedLifetimes()
     {
         var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());
