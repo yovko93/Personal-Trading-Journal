@@ -197,7 +197,25 @@ TradesViewModel
   -> SQLite
 ```
 
-The use case reloads the Account and Instrument aggregates rather than treating Desktop selector metadata as persistence authority. It snapshots `Instrument.PointValue` and `Instrument.Currency`, so historical economics do not change with later Instrument edits.
+The use case reloads the Account and Instrument aggregates rather than treating Desktop selector metadata as persistence authority. After loading the Instrument, it applies the Domain `TradeQuantityPolicy` using the authoritative `Instrument.AssetClass`: Futures quantities must be positive whole contract counts, while other asset classes retain positive decimal quantities. The rule is asset-class-based rather than symbol-based. `TradeExecution` remains market-agnostic and decimal so historical fractional records can still rehydrate and future Equity, Forex, Crypto, Option, and Other workflows can retain fractional quantities. SQLite therefore continues to persist quantity as decimal with no schema change.
+
+The creation use case snapshots `Instrument.PointValue` and `Instrument.Currency`, so historical economics do not change with later Instrument edits. Contract economics continue to derive from Instrument tick size and tick value; symbols provide display identity only.
+
+An open manually entered Trade can later be fully closed from Trade Detail:
+
+```text
+TradesViewModel
+  -> CloseManualTradeUseCase
+  -> ITradeMutationStore.GetByIdAsync
+  -> authoritative Trade reconstruction
+  -> opposite-side TradeExecution for Trade.OpenQuantity
+  -> Trade.AddExecution
+  -> ITradeMutationStore.SaveAsync
+  -> one SQLite SaveChanges
+  -> authoritative Trade Detail and Recent Trades reload
+```
+
+The close command deliberately contains no quantity. The use case closes the aggregate's exact remaining `OpenQuantity`, and Domain execution rules remain authoritative for sequence, chronology, status, closure time, and P&L. Desktop does not fabricate the closed projection; post-commit detail and list reloads use non-cancellable tokens so a committed close is not reclassified as cancellation. The screenshot list is unaffected by the close.
 
 The bounded list path is:
 

@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, and local Trade Screenshot Management. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, and local Trade Screenshot Management. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -77,7 +77,7 @@ The M5 Accounts and Instruments milestone includes:
 The M6 Manual Trade Entry milestone includes:
 
 - explicit Trading Account and Instrument selection;
-- Long or Short direction and decimal Quantity;
+- Long or Short direction with whole-contract quantity for Futures and positive decimal quantity for other asset classes;
 - one opening execution with an optional full closing execution;
 - explicit UTC execution timestamps, price, commission, and fees;
 - open or closed `Trade` creation through Domain APIs; and
@@ -106,6 +106,8 @@ The M8 Screenshot Management milestone includes:
 - opaque storage identities and Infrastructure-owned physical paths, with no individual screenshot filesystem path exposed to Domain, Application workflows, or the Desktop UI.
 
 PNG and JPEG preview use native WPF/WIC support. WebP files are accepted for storage, but preview depends on codec support available through the operating system's WIC installation; unsupported WebP content fails with a safe preview error, and no third-party image package is used.
+
+Post-M8 manual Trade lifecycle corrections allow an open manually entered Trade to be closed later by adding an opposite-side execution for its full authoritative remaining quantity. Futures manual quantity is expressed as a positive whole number of contracts, while non-Futures instruments retain positive decimal quantities. Contract economics remain Instrument-driven through asset class, tick size, tick value, and derived point value; no symbol-specific quantity or pricing rules are used.
 
 Four of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, and Instruments. Dashboard remains presentation-only, while Trades, Accounts, and Instruments are functional data-backed pages. The other 15 destinations remain placeholders.
 

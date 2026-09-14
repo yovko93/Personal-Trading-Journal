@@ -60,6 +60,146 @@ public sealed class TradesViewModelTests
     }
 
     [Fact]
+    public void SelectedInstrumentDerivesFuturesQuantityPresentationAndEconomics()
+    {
+        TradesViewModel viewModel = CreateViewModel();
+        viewModel.QuantityText = "draft quantity";
+        var futures = new ManualTradeInstrumentOption(
+            Guid.NewGuid(),
+            "CUSTOM",
+            "Custom Futures Contract",
+            AssetClass.Futures,
+            "XEUR",
+            "EUR",
+            0.5m,
+            3.75m,
+            7.5m,
+            true);
+
+        viewModel.SelectedInstrument = futures;
+
+        Assert.True(viewModel.IsSelectedInstrumentFutures);
+        Assert.Equal("Contracts", viewModel.QuantityLabel);
+        Assert.Contains("Whole contracts", viewModel.QuantityHint, StringComparison.Ordinal);
+        Assert.Contains("CUSTOM", viewModel.SelectedInstrumentEconomicsText, StringComparison.Ordinal);
+        Assert.Contains(
+            "Custom Futures Contract",
+            viewModel.SelectedInstrumentEconomicsText,
+            StringComparison.Ordinal);
+        Assert.Contains("7.5 EUR / point", viewModel.SelectedInstrumentEconomicsText, StringComparison.Ordinal);
+        Assert.Equal("draft quantity", viewModel.QuantityText);
+
+        viewModel.SelectedInstrument = futures with { AssetClass = AssetClass.Equity };
+
+        Assert.False(viewModel.IsSelectedInstrumentFutures);
+        Assert.Equal("Quantity", viewModel.QuantityLabel);
+        Assert.Equal("Enter the traded quantity.", viewModel.QuantityHint);
+        Assert.Equal("draft quantity", viewModel.QuantityText);
+    }
+
+    [Fact]
+    public void SelectedInstrumentChangeRaisesAllDerivedPresentationNotifications()
+    {
+        TradesViewModel viewModel = CreateViewModel();
+        var changedProperties = new HashSet<string?>();
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.SelectedInstrument = new ManualTradeInstrumentOption(
+            Guid.NewGuid(),
+            "FUT",
+            "Futures Contract",
+            AssetClass.Futures,
+            null,
+            "USD",
+            0.25m,
+            0.5m,
+            2m,
+            true);
+
+        Assert.Contains(nameof(TradesViewModel.SelectedInstrument), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.IsSelectedInstrumentFutures), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.QuantityLabel), changedProperties);
+        Assert.Contains(nameof(TradesViewModel.QuantityHint), changedProperties);
+        Assert.Contains(
+            nameof(TradesViewModel.SelectedInstrumentEconomicsText),
+            changedProperties);
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("2.0")]
+    public void TryBuildManualTradeCommandAcceptsWholeFuturesContracts(
+        string quantityText)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: AssetClass.Futures,
+            quantityText: quantityText,
+            instrumentSymbol: "CUSTOM");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(decimal.Parse(quantityText, CultureInfo.InvariantCulture), command.Quantity);
+    }
+
+    [Fact]
+    public void TryBuildManualTradeCommandRejectsFractionalFuturesContracts()
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: AssetClass.Futures,
+            quantityText: "1.5",
+            instrumentSymbol: "CUSTOM");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(out _);
+
+        Assert.False(succeeded);
+        Assert.Equal(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            viewModel.ValidationErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(AssetClass.Equity)]
+    [InlineData(AssetClass.Forex)]
+    [InlineData(AssetClass.Crypto)]
+    [InlineData(AssetClass.Option)]
+    [InlineData(AssetClass.Other)]
+    public void TryBuildManualTradeCommandKeepsFractionalNonFuturesQuantity(
+        AssetClass assetClass)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm(
+            assetClass: assetClass,
+            quantityText: "0.5",
+            instrumentSymbol: "NQ");
+
+        bool succeeded = viewModel.TryBuildManualTradeCommand(
+            out CreateManualTradeCommand? command);
+
+        Assert.True(succeeded);
+        Assert.NotNull(command);
+        Assert.Equal(0.5m, command.Quantity);
+    }
+
+    [Fact]
+    public async Task FractionalFuturesUxValidationBlocksUseCaseAndPersistence()
+    {
+        ManualTradeSaveFixture fixture = CreateSaveFixture(quantityText: "1.5");
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            fixture.ViewModel.ValidationErrorMessage);
+        Assert.Equal(0, fixture.AccountStore.GetCallCount);
+        Assert.Equal(0, fixture.InstrumentStore.GetCallCount);
+        Assert.Equal(0, fixture.TradeStore.AddCallCount);
+        Assert.True(fixture.ViewModel.IsManualEntryVisible);
+        Assert.Equal("1.5", fixture.ViewModel.QuantityText);
+    }
+
+    [Fact]
     public void DisablingExitClearsOnlyExitFacts()
     {
         var viewModel = CreateViewModel(new FakeManualTradeReferenceDataReader());
@@ -553,12 +693,12 @@ public sealed class TradesViewModelTests
             trade.InstrumentId);
         Assert.Equal(TradeDirection.Long, trade.Direction);
         Assert.Equal(TradeStatus.Open, trade.Status);
-        Assert.Equal(2.5m, trade.OpenQuantity);
+        Assert.Equal(2m, trade.OpenQuantity);
         Assert.Equal(20m, trade.Pricing.PointValue);
         Assert.Equal("USD", trade.Pricing.Currency);
         TradeExecution execution = Assert.Single(trade.Executions);
         Assert.Equal(ExecutionSide.Buy, execution.Side);
-        Assert.Equal(2.5m, execution.Quantity);
+        Assert.Equal(2m, execution.Quantity);
         Assert.Equal(
             new DateTimeOffset(2026, 9, 10, 13, 30, 0, TimeSpan.Zero),
             execution.ExecutedAtUtc);
@@ -717,7 +857,7 @@ public sealed class TradesViewModelTests
             entry =>
             {
                 Assert.Equal(ExecutionSide.Sell, entry.Side);
-                Assert.Equal(2.5m, entry.Quantity);
+                Assert.Equal(2m, entry.Quantity);
                 Assert.Equal(
                     new DateTimeOffset(
                         2026,
@@ -735,7 +875,7 @@ public sealed class TradesViewModelTests
             exit =>
             {
                 Assert.Equal(ExecutionSide.Buy, exit.Side);
-                Assert.Equal(2.5m, exit.Quantity);
+                Assert.Equal(2m, exit.Quantity);
                 Assert.Equal(
                     new DateTimeOffset(
                         2026,
@@ -788,7 +928,7 @@ public sealed class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Equal(
             "Trade could not be saved.",
             fixture.ViewModel.SaveErrorMessage);
@@ -818,7 +958,7 @@ public sealed class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Equal(
             "The selected trading account or instrument is no longer available. " +
             "Refresh the reference data and try again.",
@@ -964,7 +1104,7 @@ public sealed class TradesViewModelTests
         Assert.True(
             fixture.TradeStore.CancellationToken.IsCancellationRequested);
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
-        AssertRepresentativeTradeFacts(fixture.ViewModel);
+        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
         Assert.Null(fixture.ViewModel.SaveErrorMessage);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
@@ -2158,15 +2298,20 @@ public sealed class TradesViewModelTests
 
     private static TradesViewModel CreateValidTradeForm(
         bool hasExit = false,
-        TradeDirection direction = TradeDirection.Long)
+        TradeDirection direction = TradeDirection.Long,
+        AssetClass assetClass = AssetClass.Other,
+        string quantityText = "2.5",
+        string instrumentSymbol = "NQ")
     {
-        ManualTradeReferenceData referenceData = CreateReferenceData();
+        ManualTradeReferenceData referenceData = CreateReferenceData(
+            instrumentSymbol: instrumentSymbol,
+            assetClass: assetClass);
         TradesViewModel viewModel =
             CreateViewModel(new FakeManualTradeReferenceDataReader());
         viewModel.SelectedAccount = Assert.Single(referenceData.Accounts);
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
-        viewModel.QuantityText = "2.5";
+        viewModel.QuantityText = quantityText;
         viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
@@ -2252,7 +2397,8 @@ public sealed class TradesViewModelTests
     private static ManualTradeSaveFixture CreateSaveFixture(
         bool hasExit = false,
         TradeDirection direction = TradeDirection.Long,
-        decimal selectorPointValue = 20m)
+        decimal selectorPointValue = 20m,
+        string quantityText = "2")
     {
         Guid accountId = Guid.NewGuid();
         Guid instrumentId = Guid.NewGuid();
@@ -2283,7 +2429,7 @@ public sealed class TradesViewModelTests
         viewModel.SelectedAccount = Assert.Single(referenceData.Accounts);
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
-        viewModel.QuantityText = "2.5";
+        viewModel.QuantityText = quantityText;
         viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
@@ -2313,7 +2459,8 @@ public sealed class TradesViewModelTests
         Guid? instrumentId = null,
         string accountName = "Primary Account",
         string instrumentSymbol = "NQ",
-        decimal selectorPointValue = 20m)
+        decimal selectorPointValue = 20m,
+        AssetClass assetClass = AssetClass.Futures)
     {
         return new ManualTradeReferenceData(
             [
@@ -2331,7 +2478,7 @@ public sealed class TradesViewModelTests
                     instrumentId ?? Guid.NewGuid(),
                     instrumentSymbol,
                     $"{instrumentSymbol} display name",
-                    AssetClass.Futures,
+                    assetClass,
                     "CME",
                     "USD",
                     0.25m,
@@ -2474,10 +2621,12 @@ public sealed class TradesViewModelTests
         viewModel.ExitFeesText = "0.25";
     }
 
-    private static void AssertRepresentativeTradeFacts(TradesViewModel viewModel)
+    private static void AssertRepresentativeTradeFacts(
+        TradesViewModel viewModel,
+        string expectedQuantity = "2.5")
     {
         Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
-        Assert.Equal("2.5", viewModel.QuantityText);
+        Assert.Equal(expectedQuantity, viewModel.QuantityText);
         Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
         Assert.Equal("23950.25", viewModel.EntryPriceText);
         Assert.Equal("1.50", viewModel.EntryCommissionText);

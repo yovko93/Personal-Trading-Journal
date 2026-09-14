@@ -64,7 +64,7 @@ public sealed class ManualTradePersistenceIntegrationTests
             account.Id,
             instrument.Id,
             TradeDirection.Long,
-            2.5m,
+            2m,
             new ManualTradeExecutionInput(
                 EntryExecutedAtUtc,
                 21900.25m,
@@ -99,7 +99,7 @@ public sealed class ManualTradePersistenceIntegrationTests
         Assert.Equal([1, 2], executionRecords.Select(record => record.Sequence));
         Assert.Equal(ExecutionSide.Buy, executionRecords[0].Side);
         Assert.Equal(ExecutionSide.Sell, executionRecords[1].Side);
-        Assert.All(executionRecords, record => Assert.Equal(2.5m, record.Quantity));
+        Assert.All(executionRecords, record => Assert.Equal(2m, record.Quantity));
         Assert.Equal(21900.25m, executionRecords[0].Price);
         Assert.Equal(21950.75m, executionRecords[1].Price);
         Assert.Equal(1.50m, executionRecords[0].Commission);

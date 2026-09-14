@@ -64,6 +64,11 @@ public sealed class CreateManualTradeUseCase
                 $"Instrument '{command.InstrumentId}' could not be found.");
         }
 
+        TradeQuantityPolicy.Validate(
+            instrument.AssetClass,
+            command.Quantity,
+            nameof(command.Quantity));
+
         var pricing = new TradePricingSnapshot(
             instrument.PointValue,
             instrument.Currency);

@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Screenshots;
 using PersonalTradingJournal.Domain.Trades;
 using System.Windows.Media;
@@ -373,8 +374,34 @@ public sealed class TradesViewModel : ObservableObject
     public ManualTradeInstrumentOption? SelectedInstrument
     {
         get => _selectedInstrument;
-        set => SetProperty(ref _selectedInstrument, value);
+        set
+        {
+            if (SetProperty(ref _selectedInstrument, value))
+            {
+                OnPropertyChanged(nameof(IsSelectedInstrumentFutures));
+                OnPropertyChanged(nameof(QuantityLabel));
+                OnPropertyChanged(nameof(QuantityHint));
+                OnPropertyChanged(nameof(SelectedInstrumentEconomicsText));
+            }
+        }
     }
+
+    public bool IsSelectedInstrumentFutures =>
+        SelectedInstrument?.AssetClass == AssetClass.Futures;
+
+    public string QuantityLabel =>
+        IsSelectedInstrumentFutures ? "Contracts" : "Quantity";
+
+    public string QuantityHint => IsSelectedInstrumentFutures
+        ? "Whole contracts only, e.g. 1, 2, 3"
+        : "Enter the traded quantity.";
+
+    public string? SelectedInstrumentEconomicsText =>
+        SelectedInstrument is { } instrument
+            ? $"{instrument.Symbol} — {instrument.DisplayName}{Environment.NewLine}" +
+              $"{instrument.PointValue.ToString("G29", CultureInfo.InvariantCulture)} " +
+              $"{instrument.Currency} / point"
+            : null;
 
     public IReadOnlyList<TradeDirection> DirectionOptions { get; } =
         [TradeDirection.Long, TradeDirection.Short];
@@ -1094,6 +1121,19 @@ public sealed class TradesViewModel : ObservableObject
         if (quantity <= 0)
         {
             return FailValidation("Quantity must be greater than zero.");
+        }
+
+        try
+        {
+            TradeQuantityPolicy.Validate(
+                selectedInstrument.AssetClass,
+                quantity,
+                nameof(QuantityText));
+        }
+        catch (ArgumentException) when (IsSelectedInstrumentFutures)
+        {
+            return FailValidation(
+                TradeQuantityPolicy.FuturesWholeContractsMessage);
         }
 
         if (!TryParseUtcTimestamp(

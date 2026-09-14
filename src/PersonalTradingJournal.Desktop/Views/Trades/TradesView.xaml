@@ -221,9 +221,17 @@
                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
                                            Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Quantity" />
+                                           Text="{Binding QuantityLabel}" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
-                                         Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                                          Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="{Binding QuantityHint}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="{Binding SelectedInstrumentEconomicsText}"
+                                           TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Margin="8,0,0,0">
