@@ -5,6 +5,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Strategies;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
@@ -15,6 +16,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
+    private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly StrategiesViewModel _strategiesViewModel;
     private readonly TradesViewModel _tradesViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
@@ -24,18 +26,21 @@ public sealed class MainWindowViewModel : ObservableObject
         DashboardViewModel dashboardViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
+        TradingSetupsViewModel tradingSetupsViewModel,
         StrategiesViewModel strategiesViewModel,
         TradesViewModel tradesViewModel)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
+        ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(strategiesViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
+        _tradingSetupsViewModel = tradingSetupsViewModel;
         _strategiesViewModel = strategiesViewModel;
         _tradesViewModel = tradesViewModel;
         _currentContentViewModel = dashboardViewModel;
@@ -67,6 +72,7 @@ public sealed class MainWindowViewModel : ObservableObject
         NavigationDestination.Import => "Import",
         NavigationDestination.Performance => "Performance",
         NavigationDestination.Strategies => "Strategies",
+        NavigationDestination.Setups => "Trading Setups",
         NavigationDestination.Mistakes => "Mistakes",
         NavigationDestination.Breakdown => "Breakdown",
         NavigationDestination.Playbook => "Playbook",
@@ -105,6 +111,7 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
+            NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Strategies => _strategiesViewModel,
             NavigationDestination.Trades => _tradesViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
@@ -123,6 +130,11 @@ public sealed class MainWindowViewModel : ObservableObject
         if (destination == NavigationDestination.Strategies)
         {
             _ = _strategiesViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Setups)
+        {
+            _ = _tradingSetupsViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Trades)

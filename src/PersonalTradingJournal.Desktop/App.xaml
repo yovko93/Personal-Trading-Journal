@@ -11,6 +11,8 @@
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
              xmlns:strategyViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Strategies"
              xmlns:strategyViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Strategies"
+             xmlns:setupViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Setups"
+             xmlns:setupViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Setups"
              xmlns:tradeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Trades"
              xmlns:tradeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Trades">
     <Application.Resources>
@@ -37,6 +39,10 @@
 
             <DataTemplate DataType="{x:Type strategyViewModels:StrategiesViewModel}">
                 <strategyViews:StrategiesView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type setupViewModels:TradingSetupsViewModel}">
+                <setupViews:TradingSetupsView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type tradeViewModels:TradesViewModel}">

@@ -1,0 +1,20 @@
+using PersonalTradingJournal.Application.Setups;
+using PersonalTradingJournal.Domain.Setups;
+
+namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
+
+internal sealed class FakeTradingSetupStore : ITradingSetupStore
+{
+    public TradingSetup? Setup { get; set; }
+    public Exception? AddException { get; set; }
+    public Exception? UpdateException { get; set; }
+    public Guid RequestedId { get; private set; }
+    public int AddCallCount { get; private set; }
+    public int UpdateCallCount { get; private set; }
+    public Task AddAsync(TradingSetup setup, CancellationToken cancellationToken = default)
+    { AddCallCount++; Setup = setup; return AddException is null ? Task.CompletedTask : Task.FromException(AddException); }
+    public Task<TradingSetup?> GetByIdAsync(Guid setupId, CancellationToken cancellationToken = default)
+    { RequestedId = setupId; return Task.FromResult(Setup); }
+    public Task UpdateAsync(TradingSetup setup, CancellationToken cancellationToken = default)
+    { UpdateCallCount++; Setup = setup; return UpdateException is null ? Task.CompletedTask : Task.FromException(UpdateException); }
+}

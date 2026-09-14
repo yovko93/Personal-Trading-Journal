@@ -5,6 +5,7 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
@@ -12,6 +13,7 @@ using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Infrastructure.Setups;
 using PersonalTradingJournal.Infrastructure.Strategies;
 using PersonalTradingJournal.Infrastructure.Trades;
 
@@ -146,6 +148,20 @@ public sealed class PersistenceRegistrationTests
         Assert.NotSame(firstReader, secondReader);
         Assert.NotSame(firstStore, secondStore);
         Assert.NotSame(firstChecker, secondChecker);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradingSetupServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+        Assert.IsType<TradingSetupReader>(provider.GetRequiredService<ITradingSetupReader>());
+        Assert.IsType<TradingSetupStore>(provider.GetRequiredService<ITradingSetupStore>());
+        Assert.IsType<TradingSetupNameChecker>(provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupReader>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupStore>(), provider.GetRequiredService<ITradingSetupStore>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupNameChecker>(), provider.GetRequiredService<ITradingSetupNameChecker>());
     }
 
     [Fact]

@@ -10,6 +10,7 @@ public enum NavigationDestination
     Import,
     Performance,
     Strategies,
+    Setups,
     Mistakes,
     Breakdown,
     Playbook,
