@@ -5,11 +5,13 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Screenshots;
+using PersonalTradingJournal.Infrastructure.Strategies;
 using PersonalTradingJournal.Infrastructure.Trades;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence;
@@ -36,6 +38,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
         services.AddTransient<IInstrumentReader, InstrumentReader>();
         services.AddTransient<IInstrumentStore, InstrumentStore>();
+        services.AddTransient<IStrategyReader, StrategyReader>();
+        services.AddTransient<IStrategyStore, StrategyStore>();
+        services.AddTransient<IStrategyNameChecker, StrategyNameChecker>();
         services.AddTransient<
             IManualTradeReferenceDataReader,
             ManualTradeReferenceDataReader>();

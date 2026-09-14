@@ -1,6 +1,7 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Strategies;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -9,6 +10,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Strategies;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -66,6 +68,32 @@ public sealed class MainWindowViewModelTests
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
         Assert.Equal(1, fixture.TradeListReader.CallCount);
+    }
+
+    [Fact]
+    public void NavigateToStrategies_UsesRetainedStrategiesViewModelAndStartsLoading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
+
+        Assert.Equal(NavigationDestination.Strategies, fixture.Main.CurrentDestination);
+        Assert.Same(fixture.Strategies, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.StrategyReader.CallCount);
+    }
+
+    [Fact]
+    public void NavigateAwayAndBackToStrategiesRetainsLoadedStateWithoutReloading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
+        object strategiesContent = fixture.Main.CurrentContentViewModel;
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Strategies);
+
+        Assert.Same(strategiesContent, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.StrategyReader.CallCount);
     }
 
     [Fact]
@@ -197,6 +225,10 @@ public sealed class MainWindowViewModelTests
         var instrumentReader = new FakeInstrumentReader();
         instrumentReader.EnqueueResult([]);
         var instrumentStore = new FakeInstrumentStore();
+        var strategyReader = new FakeStrategyReader();
+        strategyReader.EnqueueResult([]);
+        var strategyStore = new FakeStrategyStore();
+        var strategyNameChecker = new FakeStrategyNameChecker();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
         var tradeListReader = new FakeTradeListReader();
@@ -242,6 +274,10 @@ public sealed class MainWindowViewModelTests
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
+        var strategies = new StrategiesViewModel(
+            strategyReader,
+            new CreateStrategyUseCase(strategyStore, strategyNameChecker, timeProvider),
+            new StrategyLifecycleUseCase(strategyStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
             tradeListReader,
@@ -267,16 +303,23 @@ public sealed class MainWindowViewModelTests
                 new FakeTradeScreenshotDeletionStore(),
                 tradeScreenshotFileStorage),
             new FakeTradeScreenshotDeleteConfirmation());
-        var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
+        var main = new MainWindowViewModel(
+            dashboard,
+            accounts,
+            instruments,
+            strategies,
+            trades);
 
         return new ViewModelFixture(
             main,
             dashboard,
             accounts,
             instruments,
+            strategies,
             trades,
             accountReader,
             instrumentReader,
+            strategyReader,
             tradeReferenceDataReader,
             tradeListReader,
             tradeDetailReader,
@@ -312,9 +355,11 @@ public sealed class MainWindowViewModelTests
         DashboardViewModel Dashboard,
         AccountsViewModel Accounts,
         InstrumentsViewModel Instruments,
+        StrategiesViewModel Strategies,
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
+        FakeStrategyReader StrategyReader,
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,
         FakeTradeListReader TradeListReader,
         FakeTradeDetailReader TradeDetailReader,
