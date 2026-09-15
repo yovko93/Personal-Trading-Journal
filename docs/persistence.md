@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries now support the concrete Account, Instrument, manual Trade creation, bounded Trade-list, and one-Trade detail workflows. Persistence still does not provide generic repositories, Trade edit/delete, seed data, physical screenshot storage, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries support Accounts, Instruments, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, Trade edit/delete, seed data, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -20,7 +20,7 @@ SQLite journal.db
 
 EF Core adapts to the Domain. It does not materialize Domain entities directly, and Domain has no EF attributes or package dependency. Mutable persistence records and their configurations are owned by Infrastructure. Explicit mappers translate in both directions; AutoMapper is not used.
 
-The repository deliberately has no generic repository, Unit of Work abstraction, or speculative persistence interface. Concrete workflows use narrow Application boundaries such as `ITradingAccountStore`, `IInstrumentStore`, `ITradeStore`, `ITradeListReader`, and `ITradeDetailReader`, implemented in Infrastructure. Desktop feature code uses these boundaries through Application use cases and reader contracts and does not access `JournalDbContext` directly.
+The repository deliberately has no generic repository, Unit of Work abstraction, or speculative persistence interface. Concrete workflows use narrow Application readers and stores for Accounts, Instruments, Setups, Mistakes, Trades, associations, and screenshots, implemented in Infrastructure. Desktop feature code uses these boundaries through Application use cases and reader contracts and does not access `JournalDbContext` directly.
 
 ## JournalDbContext
 
@@ -137,6 +137,14 @@ The reader reconstructs the full Domain aggregate through `TradePersistenceMappe
 
 `TradeScreenshot` rows contain metadata and an opaque `StorageKey`; they do not contain image bytes or assert a filesystem layout. `TradeMistake` rows associate historical process evidence with a trade and do not infer severity, cost, or P&L impact.
 
+### Setup and Mistake Classification Persistence
+
+`Trades.TradingSetupId` is nullable and references `TradingSetups.Id` with restrictive delete behavior. The normal Trade create path can persist the initial optional Setup in the same aggregate write, and the Trade mutation store persists later assignment, replacement, or clearing. Inactive referenced Setups remain queryable for historical display, while Application validation restricts new assignments to active records.
+
+`TradeMistakes` stores separate association records rather than an embedded Trade collection. Each row has its own non-generated `Id` primary key, required `TradeId` and `TradingMistakeId` foreign keys, an optional `Note` limited to 2,000 characters, and UTC creation/update audit timestamps. Both foreign keys use restrictive delete behavior, and the unique `(TradeId, TradingMistakeId)` index prevents duplicate assignment.
+
+The current schema contains `TradingSetups`, `TradingMistakes`, `TradeMistakes`, and nullable `Trades.TradingSetupId`. It contains no current `Strategies` table or `Trades.StrategyId`; those names remain only in historical migration artifacts and tests of their removal.
+
 ## Decimal Semantics
 
 Domain types and persistence records use `System.Decimal`. Current decimal columns use SQLite `TEXT` storage through EF Core's provider mapping. Tests prove exact round-trip behavior for authoritative decimal facts, including fractional quantities, prices, commissions, fees, account balances, instrument values, and historical trade pricing.
@@ -160,7 +168,7 @@ The current application migrations are:
 20260914212911_RemoveStrategies
 ```
 
-`InitialCreate` records the historical pre-removal schema. `RemoveStrategies` intentionally removes the former catalog table and the nullable Trade association without converting that data into Trading Setups, because such a conversion would invent classification meaning. The latest schema has eight application tables, seven foreign keys, ordinary FK indexes, and two deliberate composite unique indexes without seed data. Production schema management uses migrations and must not use `EnsureCreated`. Some focused test-only model characterizations use `EnsureCreated`, but migrated-schema tests and runtime initialization use the migration lifecycle.
+`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` intentionally removes the former catalog table and nullable Trade association without converting that data into Trading Setups, because such a conversion would invent classification meaning. The latest model snapshot contains no Strategy model. The latest schema has eight application tables, seven foreign keys, ordinary FK indexes, and two deliberate composite unique indexes without seed data. Production schema management uses migrations and must not use `EnsureCreated`. Some focused test-only model characterizations use `EnsureCreated`, but migrated-schema tests and runtime initialization use the migration lifecycle.
 
 ## Runtime Initialization
 
@@ -195,6 +203,8 @@ Infrastructure tests cover:
 - initial migration metadata and migrated-schema behavior;
 - runtime initializer creation, idempotency, and cancellation;
 - `TradeStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
+- Trading Setup and Trading Mistake catalog persistence, lifecycle, duplicate-name checks, and inactive visibility;
+- Trade Setup assignment/clearing and Trade Mistake assignment/removal, including active-selection validation and inactive historical preservation;
 - market chronology, deterministic Trade-ID tie ordering, bounded selection, open/closed and inactive-reference projections, current labels versus historical pricing, scale-in and partial-exit economics, complete detail, execution sequence and provenance, fresh contexts, missing IDs, and cancellation;
 - rollback of a new Trade root when an execution insert fails; and
 - production-wired `CreateManualTradeUseCase`, full-graph, and transaction-atomicity scenarios.
@@ -238,7 +248,6 @@ Before accepting a migration:
 The persistence foundation does not yet include:
 
 - Trade edit/delete workflows or imports;
-- physical screenshot file persistence;
 - backup and restore;
 - seed/reference-data provisioning;
 - analytics-specific database queries or read models;

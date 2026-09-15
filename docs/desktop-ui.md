@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. Milestone M4 established the shell and navigation, M5 added the Accounts and Instruments management pages, M6 added Manual Trade Entry, and M7 completed authoritative Trade browsing and read-only Trade Detail. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, and M9 added Trading Setup and Trading Mistake catalogs plus Trade classification and review associations. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -34,7 +34,7 @@ MainWindow
                       -> View
 ```
 
-`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, and Trades keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
+`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, Trades, Trading Setups, and Trading Mistakes keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
 
 ## Navigation
 
@@ -124,15 +124,16 @@ Trades independently loads purpose-specific reference data and the bounded Recen
 Add Trade opens an inline form organized into Reference, Trade, Entry, and conditional Exit sections. It captures:
 
 - an explicit Trading Account and Instrument;
+- an optional active Trading Setup;
 - Long or Short direction and decimal Quantity;
 - an opening execution timestamp, price, commission, and fees; and
 - optionally, one full closing execution with its own timestamp, price, commission, and fees.
 
 Execution timestamps are entered explicitly as UTC and accept only `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd'T'HH:mm:ss'Z'`, or `yyyy-MM-dd'T'HH:mm'Z'`. Desktop does not infer the Windows or New York timezone, convert arbitrary offsets, or accept ambiguous culture-specific dates. The resulting market facts use zero-offset UTC.
 
-Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` with `.` as a fallback. Leading/trailing whitespace, a sign, and a decimal point are supported; thousands separators, exponents, and currency symbols are rejected. Quantity must be greater than zero. Prices may be zero or negative when syntactically valid. Blank Commission or Fees becomes zero; otherwise each cost must be non-negative. Quantity is not restricted to integers.
+Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` with `.` as a fallback. Leading/trailing whitespace, a sign, and a decimal point are supported; thousands separators, exponents, and currency symbols are rejected. Quantity must be greater than zero. Futures require whole contract quantities, while other asset classes allow positive decimals. Prices may be zero or negative when syntactically valid. Blank Commission or Fees becomes zero; otherwise each cost must be non-negative.
 
-`TradesViewModel` validates raw presentation values in deterministic form order and builds `CreateManualTradeCommand`. `CreateManualTradeUseCase` then reloads the authoritative Account and Instrument aggregates, constructs a `TradePricingSnapshot` from `Instrument.PointValue` and `Instrument.Currency`, creates the `Trade` through Domain APIs, and persists it through `ITradeStore`. Desktop never accesses `TradeStore` or `JournalDbContext` directly.
+`TradesViewModel` validates raw presentation values in deterministic form order and builds `CreateManualTradeCommand`. `CreateManualTradeUseCase` then reloads the authoritative Account, Instrument, and optional Trading Setup, requires a selected Setup to exist and be active, constructs a `TradePricingSnapshot` from authoritative Instrument data, creates the Trade through Domain APIs, and persists it through `ITradeStore`. Manual creation does not assign Trading Mistakes. Desktop never accesses an Infrastructure store or `JournalDbContext` directly.
 
 The M6 form supports one opening execution plus an optional full closing execution. This is a deliberately simple capture workflow; the Domain remains capable of scale-in and partial scale-out.
 
@@ -157,27 +158,39 @@ The columns are Opened UTC, Trade identity, Account, Average Prices, Open Qty, N
 
 View loads the selected Trade through `ITradeDetailReader` and opens a read-only detail surface. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades, while shell navigation away and back retains the current detail with the rest of the retained Trades ViewModel.
 
-The detail presents current Account and Instrument identity labels; direction and status; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
+The detail presents current Account and Instrument identity labels; direction and status; current optional Trading Setup; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
+
+The Setup section displays `—` when unclassified, marks an inactive historical Setup neutrally, lists active replacement options, and supports assign/change/clear through the Application use case. Successful mutations reload authoritative detail; safe section-local feedback distinguishes validation, persistence, and reload outcomes.
+
+Trading Mistakes are displayed as separate assigned observations with optional Notes. The picker excludes already assigned items and permits only active catalog definitions; inactive historical assignments remain visible and removable. Add and Remove use independent Application workflows, reload authoritative assignments and options, and never infer mistake severity or trade quality from P&L.
+
+Open Trades expose a close workflow that appends the full opposite-side execution for authoritative remaining quantity. Trade Detail also hosts screenshot add/list/preview/delete workflows. These operations retain their own loading, validation, success, error, and post-write reload states so unrelated sections do not overwrite one another.
 
 Executions are shown individually in ascending sequence order as the complete lifecycle: sequence, execution UTC timestamp, side, quantity, price, commission, fees, total costs, and optional broker symbol, external execution ID, and external order ID provenance. The UI does not collapse scale-in or partial-exit history into an entry/exit pair.
 
+## Trading Setup and Trading Mistake Catalogs
+
+Analysis → Setups opens the Trading Setups catalog, and Analysis → Mistakes opens the Trading Mistakes catalog. Both pages follow the same focused management pattern: lazy list loading, explicit Refresh, inline Name/optional Description creation, active/inactive status, and reversible Activate/Deactivate actions. Inactive records remain visible for historical context. Rename, description editing, and deletion are not implemented.
+
+Create actions require a non-blank Name and are blocked while saving. Opening and cancelling a form reset its draft according to the established catalog behavior. Duplicate names and other validation failures remain near the form; successful writes close/reset the form and trigger a best-effort authoritative list reload without reclassifying a completed write as failure.
+
 ## Feature Operation and Error State
 
-Accounts, Instruments, and Trades explicitly prevent overlapping major operations appropriate to each feature. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
+Accounts, Instruments, Trades, Trading Setups, and Trading Mistakes explicitly prevent overlapping major operations appropriate to each feature. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
 
-Accounts and Instruments distinguish three conceptual error categories:
+Accounts, Instruments, Trading Setups, and Trading Mistakes distinguish three conceptual error categories:
 
 - list/read errors;
 - create errors; and
 - lifecycle errors.
 
-After a successful Account or Instrument create/lifecycle write, the corresponding ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
+After a successful catalog create/lifecycle write, the corresponding ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
 
 Trades uses the separate read, validation, save, and success states documented in the Trades Feature section.
 
 ## Feature Page Scrolling
 
-Accounts and Instruments each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, errors, table headers, and rows. This keeps the whole workflow reachable at reduced height without a nested list scrollbar. Horizontal scrolling is disabled, and header and row column definitions remain aligned.
+Accounts, Instruments, Trading Setups, and Trading Mistakes each use one page-level vertical `ScrollViewer`, containing the toolbar, inline creation form, feedback, and rows. This keeps the whole workflow reachable at reduced height without a nested list scrollbar. Horizontal scrolling is disabled, and tab order follows the visible form/action sequence.
 
 This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
 
@@ -194,6 +207,8 @@ Shared Desktop resources live under `Resources/`:
 - `Controls.xaml` defines reusable WPF control and shell styles.
 
 Views should reuse these resources instead of scattering hard-coded colors or duplicating styles. The compact dark ScrollBar style supports vertical and horizontal orientation and is shared by shell scrolling regions.
+
+`PtjStaticResourceTests` provides a deterministic regression check for project-owned `Ptj*` `StaticResource` references across application XAML. It compares referenced keys with project definitions without loading the WPF visual tree, depending on machine-specific paths, or attempting to be a general XAML parser.
 
 The reusable dark ComboBox style uses semantic PTJ resources for both popup items and selected content. Its selected value retains the primary text color against the dark elevated surface.
 
@@ -212,7 +227,8 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
 - `AccountsViewModel` depends on `ITradingAccountReader`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`.
 - `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
-- `TradesViewModel` depends on `IManualTradeReferenceDataReader`, `CreateManualTradeUseCase`, `ITradeListReader`, and `ITradeDetailReader`.
+- `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on their purpose-specific Application catalog readers and create/lifecycle use cases.
+- `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/closure, Setup classification, Trading Mistake associations, and screenshots.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
 - Presentation dependencies use constructor injection; ViewModels must not use a service locator.
@@ -252,7 +268,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise independent reference/list loading, refresh and partial failures, bounded Recent Trades, validation, lifecycle actions, authoritative post-save reload outcomes, retained navigation state, Trade Detail loading/not-found/error/close behavior, execution lifecycle projection, manual Trade form state, UTC parsing, decimal culture handling, Save behavior, separated errors, cancellation, double-submit prevention, and draft retention.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. A focused resource test also guards project-owned `Ptj*` StaticResource resolution.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 
@@ -279,9 +295,10 @@ The following are intentionally not implemented:
 - navigation history or back/forward behavior;
 - sidebar collapse;
 - a chart library;
-- Dashboard analytics and data loading; and
+- Dashboard analytics and data loading;
+- Setup/Mistake performance analytics or trade-quality scoring;
 - a keyboard shortcut system.
 
 ## Next Milestone
 
-M7 — Trade List / Detail is complete. The next milestone is M8 — Screenshot Management. Trade editing and deletion remain deferred.
+M9 — Setup and Mistake Classification is complete. The next milestone is Theme System, followed by M10 — Tradovate CSV Import. No theme switching or CSV import implementation exists yet.

@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, read-only Trade Detail with complete execution-lifecycle presentation, and local Trade Screenshot Management. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -22,7 +22,7 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M8 — Screenshot Management: Complete**
 
-**Milestone M9 — Setup and Mistake Classification: In Progress**
+**Milestone M9 — Setup and Mistake Classification: Complete**
 
 The completed foundation includes:
 
@@ -111,13 +111,22 @@ PNG and JPEG preview use native WPF/WIC support. WebP files are accepted for sto
 
 Post-M8 manual Trade lifecycle corrections allow an open manually entered Trade to be closed later by adding an opposite-side execution for its full authoritative remaining quantity. Futures manual quantity is expressed as a positive whole number of contracts, while non-Futures instruments retain positive decimal quantities. Contract economics remain Instrument-driven through asset class, tick size, tick value, and derived point value; no symbol-specific quantity or pricing rules are used.
 
-The M9 catalog foundation includes persisted Trading Setup and Trading Mistake management. Trading Setup is the single primary reusable trade-pattern classification; the overlapping broader Strategy concept was intentionally removed to avoid redundant taxonomy, UI, and analytics. Trade Setup classification and Trade Mistake assignment are implemented.
+The M9 Setup and Mistake Classification milestone includes:
+
+- persisted Trading Setup and Trading Mistake catalogs with create and reversible active/inactive lifecycle workflows;
+- an optional Trading Setup classification during manual Trade creation and assign/change/clear behavior in Trade Detail;
+- zero or more Trading Mistake assignments per Trade, each with an optional occurrence-specific note and explicit removal;
+- preservation of inactive historical Setup and Mistake references while allowing only active catalog items to be newly assigned;
+- authoritative post-write reloads and safe Desktop operation feedback; and
+- regression protection for project-owned WPF `StaticResource` keys.
+
+Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Setup and Mistake performance analytics are not implemented.
 
 Six of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes. Dashboard remains presentation-only, while the other five are functional data-backed pages. The other 13 destinations remain placeholders.
 
-The next task is **M9.5 — Trade Mistake Assignment**.
+The next milestone is **Theme System**, followed by **M10 — Tradovate CSV Import**.
 
-The M9 sequence is M9.1 Strategy Catalog (removed by M9.3.5), M9.2 Trading Setup Catalog (retained), M9.3 Trading Mistake Catalog (retained), M9.3.5 Remove Strategy, M9.4 Trade Setup Classification, M9.5 Trade Mistake Assignment, M9.6 Desktop integration and analysis presentation as needed, and M9.7 Acceptance and Documentation.
+Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
 ## Technology Stack
 
@@ -166,10 +175,10 @@ docs/
 ```
 
 - **Domain** contains the framework-independent M2 trading model, rules, and invariants.
-- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account, Instrument, Trading Setup, and Trading Mistake workflows, manual Trade creation, Trade list/detail reads, and screenshot add/delete/content workflows.
+- **Application** owns use-case orchestration and meaningful read/persistence abstractions, including Account, Instrument, Trading Setup, Trading Mistake, Trade classification, manual Trade creation, Trade list/detail, and screenshot workflows.
 - **Infrastructure** owns local Windows storage paths, screenshot files, and the EF Core/SQLite implementation, including persistence records, configurations, mappers, migrations, runtime database initialization, and concrete readers/stores.
 - **Contracts** is reserved for stable DTOs or contracts shared across presentation and API boundaries.
-- **Desktop** contains the WPF shell, real Accounts, Instruments, Trades, Setups, and Mistakes feature pages, manual Trade entry, Trade browsing, screenshot selection/list/preview/delete presentation, navigation state, shared XAML resources, and the composition root.
+- **Desktop** contains the WPF shell, real Accounts, Instruments, Trades, Setups, and Mistakes feature pages, manual Trade entry, Trade browsing and classification, screenshot selection/list/preview/delete presentation, navigation state, shared XAML resources, and the composition root.
 
 ## Prerequisites
 
@@ -192,7 +201,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted M8 completion baseline contains 954 passing tests: 401 Domain, 86 Application, 298 Infrastructure, and 169 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation and ViewModel behavior without instantiating the WPF visual tree; they are not UI automation.
+The accepted M9 completion baseline contains 1,133 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 261 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, and project-owned XAML-resource behavior without instantiating the WPF visual tree; they are not UI automation.
 
 ## Run
 
