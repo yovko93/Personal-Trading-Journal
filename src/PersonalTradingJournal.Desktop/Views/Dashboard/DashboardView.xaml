@@ -127,12 +127,12 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
-                                   Text="Strategies" />
+                                   Text="Trading Setups" />
                         <TextBlock Grid.Row="1"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
-                                   Text="No strategy performance data yet." />
+                                   Text="No setup performance data yet." />
                     </Grid>
                 </Border>
             </Grid>

@@ -4,13 +4,17 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
+using PersonalTradingJournal.Infrastructure.Mistakes;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Screenshots;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Infrastructure.Setups;
 using PersonalTradingJournal.Infrastructure.Trades;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence;
@@ -119,6 +123,53 @@ public sealed class PersistenceRegistrationTests
 
         Assert.IsType<InstrumentStore>(firstStore);
         Assert.NotSame(firstStore, secondStore);
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradingSetupServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+        Assert.IsType<TradingSetupReader>(provider.GetRequiredService<ITradingSetupReader>());
+        Assert.IsType<TradingSetupStore>(provider.GetRequiredService<ITradingSetupStore>());
+        Assert.IsType<TradingSetupNameChecker>(provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupReader>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupStore>(), provider.GetRequiredService<ITradingSetupStore>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupNameChecker>(), provider.GetRequiredService<ITradingSetupNameChecker>());
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradingMistakeServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+        Assert.IsType<TradingMistakeReader>(provider.GetRequiredService<ITradingMistakeReader>());
+        Assert.IsType<TradingMistakeStore>(provider.GetRequiredService<ITradingMistakeStore>());
+        Assert.IsType<TradingMistakeNameChecker>(provider.GetRequiredService<ITradingMistakeNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeReader>(), provider.GetRequiredService<ITradingMistakeReader>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeStore>(), provider.GetRequiredService<ITradingMistakeStore>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeNameChecker>(), provider.GetRequiredService<ITradingMistakeNameChecker>());
+    }
+
+    [Fact]
+    public void AddPersistenceRegistersTradeMistakeServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.IsType<TradeMistakeReader>(
+            provider.GetRequiredService<ITradeMistakeReader>());
+        Assert.IsType<TradeMistakeStore>(
+            provider.GetRequiredService<ITradeMistakeStore>());
+        Assert.NotSame(
+            provider.GetRequiredService<ITradeMistakeReader>(),
+            provider.GetRequiredService<ITradeMistakeReader>());
+        Assert.NotSame(
+            provider.GetRequiredService<ITradeMistakeStore>(),
+            provider.GetRequiredService<ITradeMistakeStore>());
     }
 
     [Fact]

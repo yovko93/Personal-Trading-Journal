@@ -61,7 +61,6 @@ public sealed class TradeMutationStoreTests
         Assert.Equal(expected.InstrumentId, actual.InstrumentId);
         Assert.Equal(expected.Pricing.PointValue, actual.Pricing.PointValue);
         Assert.Equal(expected.Pricing.Currency, actual.Pricing.Currency);
-        Assert.Equal(expected.StrategyId, actual.StrategyId);
         Assert.Equal(expected.TradingSetupId, actual.TradingSetupId);
         Assert.Equal(expected.CreatedAtUtc, actual.CreatedAtUtc);
         Assert.Equal(expected.UpdatedAtUtc, actual.UpdatedAtUtc);
@@ -135,7 +134,6 @@ public sealed class TradeMutationStoreTests
         Assert.Equal(seeded.InstrumentId, persistedTrade.InstrumentId);
         Assert.Equal(20m, persistedTrade.PricingPointValue);
         Assert.Equal("USD", persistedTrade.PricingCurrency);
-        Assert.Equal(seeded.StrategyId, persistedTrade.StrategyId);
         Assert.Equal(seeded.TradingSetupId, persistedTrade.TradingSetupId);
         Assert.Equal(seeded.CreatedAtUtc, persistedTrade.CreatedAtUtc);
         Assert.Equal(UpdatedAtUtc, persistedTrade.UpdatedAtUtc);
@@ -146,6 +144,60 @@ public sealed class TradeMutationStoreTests
         Assert.Equal(0m, reloaded.OpenQuantity);
         Assert.Equal(ClosedAtUtc, reloaded.ClosedAtUtc);
         Assert.Equal(110m, reloaded.Executions[^1].Price);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsyncPersistsSetupClassificationWithoutReplacingTradeState(
+        bool clearAssignment)
+    {
+        await using ReaderTestDatabase database =
+            await ReaderTestDatabase.CreateAsync();
+        Trade seeded = await PersistClassifiedPartiallyExitedTradeAsync(database);
+        ITradeMutationStore store = GetStore(database);
+        Trade trade = Assert.IsType<Trade>(await store.GetByIdAsync(seeded.Id));
+        Guid? expectedSetupId = null;
+        if (!clearAssignment)
+        {
+            expectedSetupId = Guid.NewGuid();
+            await using JournalDbContext setupContext =
+                await database.ContextFactory.CreateDbContextAsync();
+            setupContext.TradingSetups.Add(new TradingSetupRecord
+            {
+                Id = expectedSetupId.Value,
+                Name = "Replacement Setup",
+                IsActive = true,
+                CreatedAtUtc = ReferenceAtUtc,
+                UpdatedAtUtc = ReferenceAtUtc,
+            });
+            await setupContext.SaveChangesAsync();
+        }
+
+        trade.SetTradingSetup(expectedSetupId, UpdatedAtUtc);
+        await store.SaveAsync(trade);
+
+        await using JournalDbContext freshContext =
+            await database.ContextFactory.CreateDbContextAsync();
+        TradeRecord record = await freshContext.Trades
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == trade.Id);
+        List<TradeExecutionRecord> executions = await freshContext.TradeExecutions
+            .AsNoTracking()
+            .Where(item => item.TradeId == trade.Id)
+            .OrderBy(item => item.Sequence)
+            .ToListAsync();
+        Assert.Equal(expectedSetupId, record.TradingSetupId);
+        Assert.Equal(UpdatedAtUtc, record.UpdatedAtUtc);
+        Assert.Equal(seeded.CreatedAtUtc, record.CreatedAtUtc);
+        Assert.Equal(seeded.TradingAccountId, record.TradingAccountId);
+        Assert.Equal(seeded.InstrumentId, record.InstrumentId);
+        Assert.Equal(20m, record.PricingPointValue);
+        Assert.Equal("USD", record.PricingCurrency);
+        Assert.Equal(2, executions.Count);
+        Assert.Equal(
+            seeded.Executions.Select(execution => execution.Id),
+            executions.Select(execution => execution.Id));
     }
 
     [Fact]
@@ -160,7 +212,6 @@ public sealed class TradeMutationStoreTests
         Trade missingTrade = CreateOpenTrade(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            strategyId: null,
             tradingSetupId: null);
         KeyNotFoundException exception = await Assert.ThrowsAsync<KeyNotFoundException>(
             () => store.SaveAsync(missingTrade));
@@ -247,19 +298,10 @@ public sealed class TradeMutationStoreTests
         await database.ServiceProvider
             .GetRequiredService<IInstrumentStore>()
             .AddAsync(instrument);
-        Guid strategyId = Guid.NewGuid();
         Guid tradingSetupId = Guid.NewGuid();
         await using (JournalDbContext context =
                      await database.ContextFactory.CreateDbContextAsync())
         {
-            context.Strategies.Add(new StrategyRecord
-            {
-                Id = strategyId,
-                Name = "Momentum",
-                IsActive = true,
-                CreatedAtUtc = ReferenceAtUtc,
-                UpdatedAtUtc = ReferenceAtUtc,
-            });
             context.TradingSetups.Add(new TradingSetupRecord
             {
                 Id = tradingSetupId,
@@ -274,7 +316,6 @@ public sealed class TradeMutationStoreTests
         Trade trade = CreateOpenTrade(
             account.Id,
             instrument.Id,
-            strategyId,
             tradingSetupId);
         trade.AddExecution(
             TradeExecution.Rehydrate(
@@ -301,7 +342,6 @@ public sealed class TradeMutationStoreTests
     private static Trade CreateOpenTrade(
         Guid accountId,
         Guid instrumentId,
-        Guid? strategyId,
         Guid? tradingSetupId)
     {
         Guid tradeId = Guid.NewGuid();
@@ -324,10 +364,7 @@ public sealed class TradeMutationStoreTests
             new TradePricingSnapshot(20m, "USD"),
             openingExecution,
             CreatedAtUtc);
-        trade.SetClassification(
-            strategyId,
-            tradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
+        trade.SetTradingSetup(tradingSetupId, CreatedAtUtc.AddMinutes(1));
         return trade;
     }
 

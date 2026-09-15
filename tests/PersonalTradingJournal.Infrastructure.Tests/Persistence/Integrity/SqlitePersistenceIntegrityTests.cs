@@ -20,9 +20,6 @@ public sealed class SqlitePersistenceIntegrityTests
     private static readonly Guid InstrumentId =
         Guid.Parse("a7cc6d32-a03e-41ad-8279-07019074c8fb");
 
-    private static readonly Guid StrategyId =
-        Guid.Parse("a38b361d-1d7b-403c-b936-d143769153e6");
-
     private static readonly Guid TradingSetupId =
         Guid.Parse("53aeef99-0563-4bfd-9d0d-e55f898f0c92");
 
@@ -53,7 +50,6 @@ public sealed class SqlitePersistenceIntegrityTests
         [
             typeof(InstrumentRecord),
             typeof(TradingAccountRecord),
-            typeof(StrategyRecord),
             typeof(TradingSetupRecord),
             typeof(TradingMistakeRecord),
             typeof(TradeRecord),
@@ -97,13 +93,6 @@ public sealed class SqlitePersistenceIntegrityTests
         AssertForeignKey(
             model,
             typeof(TradeRecord),
-            nameof(TradeRecord.StrategyId),
-            typeof(StrategyRecord),
-            isRequired: false,
-            DeleteBehavior.Restrict);
-        AssertForeignKey(
-            model,
-            typeof(TradeRecord),
             nameof(TradeRecord.TradingSetupId),
             typeof(TradingSetupRecord),
             isRequired: false,
@@ -140,7 +129,7 @@ public sealed class SqlitePersistenceIntegrityTests
         List<IForeignKey> foreignKeys = model.GetEntityTypes()
             .SelectMany(entityType => entityType.GetForeignKeys())
             .ToList();
-        Assert.Equal(8, foreignKeys.Count);
+        Assert.Equal(7, foreignKeys.Count);
 
         IForeignKey cascade = Assert.Single(
             foreignKeys,
@@ -253,10 +242,6 @@ public sealed class SqlitePersistenceIntegrityTests
                 context.Instruments.Single(record => record.Id == InstrumentId)));
         AssertParentDeletionRejected(
             options,
-            context => context.Strategies.Remove(
-                context.Strategies.Single(record => record.Id == StrategyId)));
-        AssertParentDeletionRejected(
-            options,
             context => context.TradingSetups.Remove(
                 context.TradingSetups.Single(record => record.Id == TradingSetupId)));
     }
@@ -319,14 +304,12 @@ public sealed class SqlitePersistenceIntegrityTests
 
         Assert.Equal(TradingAccountId, trade.TradingAccountId);
         Assert.Equal(InstrumentId, trade.InstrumentId);
-        Assert.Equal(StrategyId, trade.StrategyId);
         Assert.Equal(TradingSetupId, trade.TradingSetupId);
         Assert.Equal(TradeId, execution.TradeId);
         Assert.Equal(TradeId, tradeMistake.TradeId);
         Assert.Equal(TradingMistakeId, tradeMistake.TradingMistakeId);
         Assert.False(readContext.TradingAccounts.AsNoTracking().Single().IsActive);
         Assert.False(readContext.Instruments.AsNoTracking().Single().IsActive);
-        Assert.False(readContext.Strategies.AsNoTracking().Single().IsActive);
         Assert.False(readContext.TradingSetups.AsNoTracking().Single().IsActive);
         Assert.False(readContext.TradingMistakes.AsNoTracking().Single().IsActive);
     }
@@ -444,15 +427,6 @@ public sealed class SqlitePersistenceIntegrityTests
             return;
         }
 
-        context.Strategies.Add(new StrategyRecord
-        {
-            Id = StrategyId,
-            Name = "Integrity Strategy",
-            Description = null,
-            IsActive = isActive,
-            CreatedAtUtc = CreatedAtUtc,
-            UpdatedAtUtc = CreatedAtUtc,
-        });
         context.TradingSetups.Add(new TradingSetupRecord
         {
             Id = TradingSetupId,
@@ -473,7 +447,6 @@ public sealed class SqlitePersistenceIntegrityTests
             InstrumentId = InstrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = classified ? StrategyId : null,
             TradingSetupId = classified ? TradingSetupId : null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

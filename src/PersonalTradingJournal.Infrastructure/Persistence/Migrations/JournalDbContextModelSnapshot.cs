@@ -64,34 +64,6 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
-            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.StrategyRecord", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Strategies", (string)null);
-                });
-
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeExecutionRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -191,9 +163,6 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("PricingPointValue")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid?>("StrategyId")
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid>("TradingAccountId")
                         .HasColumnType("TEXT");
 
@@ -206,8 +175,6 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InstrumentId");
-
-                    b.HasIndex("StrategyId");
 
                     b.HasIndex("TradingAccountId");
 
@@ -391,11 +358,6 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasForeignKey("InstrumentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.StrategyRecord", null)
-                        .WithMany()
-                        .HasForeignKey("StrategyId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingAccountRecord", null)
                         .WithMany()

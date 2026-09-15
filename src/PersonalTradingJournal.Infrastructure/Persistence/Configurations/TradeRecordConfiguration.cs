@@ -29,9 +29,6 @@ public sealed class TradeRecordConfiguration : IEntityTypeConfiguration<TradeRec
             .IsRequired()
             .HasMaxLength(8);
 
-        builder.Property(record => record.StrategyId)
-            .IsRequired(false);
-
         builder.Property(record => record.TradingSetupId)
             .IsRequired(false);
 
@@ -51,11 +48,6 @@ public sealed class TradeRecordConfiguration : IEntityTypeConfiguration<TradeRec
         builder.HasOne<InstrumentRecord>()
             .WithMany()
             .HasForeignKey(record => record.InstrumentId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne<StrategyRecord>()
-            .WithMany()
-            .HasForeignKey(record => record.StrategyId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<TradingSetupRecord>()

@@ -392,7 +392,6 @@ public sealed class TradeListReaderTests
             accountId,
             instrumentId,
             new TradePricingSnapshot(pointValue, currency),
-            strategyId: null,
             tradingSetupId: null,
             executions,
             createdAtUtc,

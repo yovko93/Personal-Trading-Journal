@@ -21,9 +21,6 @@ public sealed class TradeRecordRoundTripTests
     private static readonly Guid InstrumentId =
         Guid.Parse("410e625f-d26e-47c3-b830-141b0150d218");
 
-    private static readonly Guid StrategyId =
-        Guid.Parse("de88659e-a495-43ac-91a3-a7e4f104d22c");
-
     private static readonly Guid TradingSetupId =
         Guid.Parse("b7f2ef28-e923-4a70-8c39-09e365061e9d");
 
@@ -61,7 +58,6 @@ public sealed class TradeRecordRoundTripTests
         }
 
         AssertTradeRecord(expected, persisted);
-        Assert.Null(persisted.StrategyId);
         Assert.Null(persisted.TradingSetupId);
     }
 
@@ -69,10 +65,7 @@ public sealed class TradeRecordRoundTripTests
     public void ClassifiedTradeRecordRoundTripsWithOptionalReferences()
     {
         Trade original = StartTrade();
-        original.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddMinutes(1));
+        original.SetTradingSetup(TradingSetupId, CreatedAtUtc.AddMinutes(1));
         TradeRecord expected = TradePersistenceMapper.ToRecord(original);
 
         using var connection = new SqliteConnection("Data Source=:memory:");
@@ -84,7 +77,6 @@ public sealed class TradeRecordRoundTripTests
         {
             writeContext.Database.EnsureCreated();
             AddRequiredReferences(writeContext);
-            writeContext.Strategies.Add(CreateStrategyRecord());
             writeContext.TradingSetups.Add(CreateTradingSetupRecord());
             writeContext.Trades.Add(expected);
             writeContext.SaveChanges();
@@ -99,7 +91,6 @@ public sealed class TradeRecordRoundTripTests
         }
 
         AssertTradeRecord(expected, persisted);
-        Assert.Equal(StrategyId, persisted.StrategyId);
         Assert.Equal(TradingSetupId, persisted.TradingSetupId);
     }
 
@@ -132,11 +123,6 @@ public sealed class TradeRecordRoundTripTests
             isRequired: true);
         AssertForeignKey(
             entityType,
-            nameof(TradeRecord.StrategyId),
-            typeof(StrategyRecord),
-            isRequired: false);
-        AssertForeignKey(
-            entityType,
             nameof(TradeRecord.TradingSetupId),
             typeof(TradingSetupRecord),
             isRequired: false);
@@ -165,7 +151,6 @@ public sealed class TradeRecordRoundTripTests
         Assert.Equal(expected.InstrumentId, actual.InstrumentId);
         Assert.Equal(expected.PricingPointValue, actual.PricingPointValue);
         Assert.Equal(expected.PricingCurrency, actual.PricingCurrency);
-        Assert.Equal(expected.StrategyId, actual.StrategyId);
         Assert.Equal(expected.TradingSetupId, actual.TradingSetupId);
         Assert.Equal(expected.CreatedAtUtc, actual.CreatedAtUtc);
         Assert.Equal(expected.UpdatedAtUtc, actual.UpdatedAtUtc);
@@ -224,19 +209,6 @@ public sealed class TradeRecordRoundTripTests
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,
         });
-    }
-
-    private static StrategyRecord CreateStrategyRecord()
-    {
-        return new StrategyRecord
-        {
-            Id = StrategyId,
-            Name = "ICT 2022 Model",
-            Description = null,
-            IsActive = true,
-            CreatedAtUtc = CreatedAtUtc,
-            UpdatedAtUtc = CreatedAtUtc,
-        };
     }
 
     private static TradingSetupRecord CreateTradingSetupRecord()

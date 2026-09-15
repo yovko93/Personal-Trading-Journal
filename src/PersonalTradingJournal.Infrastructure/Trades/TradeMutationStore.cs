@@ -97,6 +97,7 @@ public sealed class TradeMutationStore : ITradeMutationStore
             currentTrade.AddExecution(newExecution, trade.UpdatedAtUtc);
         }
 
+        currentRecord.TradingSetupId = trade.TradingSetupId;
         currentRecord.UpdatedAtUtc = trade.UpdatedAtUtc;
         context.TradeExecutions.AddRange(
             newExecutions.Select(TradeExecutionPersistenceMapper.ToRecord));

@@ -299,7 +299,6 @@ public sealed class TradeScreenshotRecordRoundTripTests
             InstrumentId = InstrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

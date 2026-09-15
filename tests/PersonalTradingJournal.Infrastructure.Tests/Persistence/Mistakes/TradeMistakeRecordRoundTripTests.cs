@@ -403,7 +403,6 @@ public sealed class TradeMistakeRecordRoundTripTests
             InstrumentId = InstrumentId,
             PricingPointValue = 20m,
             PricingCurrency = "USD",
-            StrategyId = null,
             TradingSetupId = null,
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,

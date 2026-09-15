@@ -9,7 +9,7 @@ public enum NavigationDestination
     Calendar,
     Import,
     Performance,
-    Strategies,
+    Setups,
     Mistakes,
     Breakdown,
     Playbook,

@@ -12,8 +12,6 @@ public sealed class TradeRecord
 
     public string PricingCurrency { get; set; } = null!;
 
-    public Guid? StrategyId { get; set; }
-
     public Guid? TradingSetupId { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; }

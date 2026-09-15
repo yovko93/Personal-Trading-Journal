@@ -1,3 +1,4 @@
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -346,13 +347,27 @@ public sealed class TradeScreenshotDeletionTests
 
         var viewModel = new TradesViewModel(
             new FakeManualTradeReferenceDataReader(),
+            new FakeTradingSetupReader(),
+            new FakeTradingMistakeReader(),
+            new FakeTradeMistakeReader(),
             tradeListReader,
             detailReader,
             new CreateManualTradeUseCase(
                 new FakeTradingAccountStore(),
                 new FakeInstrumentStore(),
+                new FakeTradingSetupStore(),
                 new FakeTradeStore(),
                 timeProvider),
+            new SetTradeTradingSetupUseCase(
+                new FakeTradeMutationStore(),
+                new FakeTradingSetupStore(),
+                timeProvider),
+            new AssignTradeMistakeUseCase(
+                new FakeTradeExistenceReader(),
+                new FakeTradingMistakeStore(),
+                new FakeTradeMistakeStore(),
+                timeProvider),
+            new RemoveTradeMistakeUseCase(new FakeTradeMistakeStore()),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
                 timeProvider),
@@ -424,6 +439,9 @@ public sealed class TradeScreenshotDeletionTests
             item.InstrumentId,
             item.InstrumentSymbol,
             "Nasdaq-100 E-mini",
+            null,
+            null,
+            null,
             item.Direction,
             item.Status,
             item.OpenedAtUtc,

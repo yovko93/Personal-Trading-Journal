@@ -15,8 +15,6 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradingAccountRecord> TradingAccounts => Set<TradingAccountRecord>();
 
-    public DbSet<StrategyRecord> Strategies => Set<StrategyRecord>();
-
     public DbSet<TradingSetupRecord> TradingSetups => Set<TradingSetupRecord>();
 
     public DbSet<TradingMistakeRecord> TradingMistakes => Set<TradingMistakeRecord>();
@@ -35,7 +33,6 @@ public sealed class JournalDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new InstrumentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingAccountRecordConfiguration());
-        modelBuilder.ApplyConfiguration(new StrategyRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingSetupRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingMistakeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeRecordConfiguration());

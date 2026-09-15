@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document describes the domain model established in M2, preserved by the M3 persistence implementation, and consumed by the M6 Manual Trade Entry and M7 Trade browsing workflows without a Domain redesign. It remains focused on Domain behavior and boundaries rather than Desktop workflow or database-provider details.
+This document describes the domain model established in M2, preserved by persistence, and consumed by the completed Trade capture, browsing, screenshot, Setup classification, and Trading Mistake workflows without compromising Domain boundaries. It remains focused on Domain behavior rather than Desktop or database-provider details.
 
 ## Core Principles
 
@@ -23,8 +23,6 @@ TradingAccount
       |
       +---- TradeExecution[]
       |
-      +---- StrategyId?
-      |
       +---- TradingSetupId?
 
 TradeScreenshot
@@ -38,11 +36,11 @@ TradeId    TradingMistakeId
        TradingMistake
 ```
 
-The diagram shows identifiers and conceptual associations, not object navigation properties. `Strategy` and `TradingSetup` remain independent reference dimensions.
+The diagram shows identifiers and conceptual associations, not object navigation properties. `TradingSetup` is the single primary reusable trade-pattern classification.
 
 ## Shared Entity and Time Semantics
 
-All M2 entity concepts—`Instrument`, `TradingAccount`, `Trade`, `TradeExecution`, `Strategy`, `TradingSetup`, `TradeScreenshot`, `TradingMistake`, and `TradeMistake`—use non-empty `Guid` identities. Creation APIs generate identities, while rehydration APIs accept and preserve existing identities without introducing persistence-specific ID behavior.
+All entity concepts—`Instrument`, `TradingAccount`, `Trade`, `TradeExecution`, `TradingSetup`, `TradeScreenshot`, `TradingMistake`, and `TradeMistake`—use non-empty `Guid` identities. Creation APIs generate identities, while rehydration APIs accept and preserve existing identities without introducing persistence-specific ID behavior.
 
 Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Their lifecycle updates are monotonic. These audit timestamps describe journal record lifecycle and are intentionally distinct from market/event timestamps such as `TradeExecution.ExecutedAtUtc` and `TradeScreenshot.CapturedAtUtc`. A historical execution or captured image may legitimately predate its later entry or import into the journal.
 
@@ -56,9 +54,9 @@ Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Thei
 
 `TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to its M2 state.
 
-### Strategy and TradingSetup
+### TradingSetup
 
-`Strategy` represents a broad methodology or framework. `TradingSetup` represents a specific repeatable market configuration. Neither owns the other, and no `StrategyId` is forced into a setup.
+`TradingSetup` represents a specific repeatable market configuration and is the canonical reusable trade-pattern catalog. It supports reversible active/inactive lifecycle state. Only active Setups are newly assignable by Application workflows, while inactive historical references remain valid and visible. No broader parent taxonomy or current Strategy concept is modeled.
 
 ## Trade Executions and Lifecycle
 
@@ -123,19 +121,19 @@ Notional sums quantity multiplied by price for the corresponding side. The sign 
 
 ## Trade Classification
 
-A trade may independently reference an optional `StrategyId` and optional `TradingSetupId`; either, both, or neither may be present. These classifications are review metadata rather than market facts. They may be corrected while a trade is open or after it closes without changing execution history or P&L. Reapplying the same classification is a no-op, and rejected changes leave the existing classification unchanged.
+A trade may reference an optional `TradingSetupId`. This setup is review metadata rather than a market fact and may be assigned, changed, or cleared while a trade is open or after it closes without changing execution history or P&L. `Trade.SetTradingSetup(...)` rejects `Guid.Empty`, treats the same value as a no-op, and advances `UpdatedAtUtc` only for an actual mutation. The former Strategy classification was removed; Trading Setup is the sole current reusable trade-pattern concept.
 
 ## Screenshots
 
 `TradeScreenshot` is storage-agnostic metadata associated with a trade through `TradeId`. It remains outside the `Trade` execution aggregate, which has no screenshot collection.
 
-`StorageKey` is an opaque storage identifier, not a Windows path or a promise of any particular physical layout. `TradeScreenshot` metadata is persisted in SQLite, but Domain contains neither binary image data nor file operations. Physical image storage remains outside the database and its file-storage workflow is still deferred.
+`StorageKey` is an opaque storage identifier, not a Windows path or a promise of any particular physical layout. `TradeScreenshot` metadata is persisted in SQLite, while binary storage and file operations are implemented outside Domain in Infrastructure.
 
 ## Mistakes and Process Quality
 
-`TradingMistake` is a reusable, user-defined mistake definition. Mistakes are not hardcoded as an enum and M2 imposes no category taxonomy, severity, or calculated financial cost.
+`TradingMistake` is a reusable, user-defined process/execution mistake catalog definition. It supports reversible active/inactive lifecycle state. Only active definitions are newly assignable, while inactive historical assignments remain visible and removable. Mistakes are not hardcoded as an enum and have no category taxonomy, severity, or calculated financial cost.
 
-`TradeMistake` represents one occurrence/association between a `Trade` and a `TradingMistake`. Its optional `Note` is specific to that occurrence. Neither related aggregate owns an association collection.
+`TradeMistake` represents one occurrence/association between a `Trade` and a `TradingMistake`. Its optional `Note` is specific to that occurrence. Neither related aggregate owns an association collection, and assignment or removal does not mutate `Trade.UpdatedAtUtc`. The current workflow supports assignment, viewing, and removal, but not standalone Note editing.
 
 M3 SQLite persistence allows a specific mistake on a trade at most once by enforcing:
 
@@ -152,7 +150,7 @@ Process quality and financial outcome are independent. PTJ must support all four
 - bad or process-violating trade and profit; and
 - bad or process-violating trade and loss.
 
-Profit does not prove correct execution, and loss does not prove poor execution. Strategy, setup, and mistake classification must remain independent from P&L for future analytics and coaching.
+Profit does not prove correct execution, and loss does not prove poor execution. Setup and mistake classification must remain independent from P&L for future analytics and coaching.
 
 ## Deliberately Deferred Concerns
 
@@ -160,7 +158,6 @@ The following omissions remain intentional rather than accidental missing fields
 
 - richer manual capture for scale-in and partial exits;
 - Trade edit/delete, CSV imports, and execution-grouping workflows;
-- physical screenshot file storage and lifecycle operations;
 - initial risk, R-multiple, partial realized P&L, MAE/MFE, and mark-to-market;
 - trading rules, rule violations, and prop-firm rules;
 - journal entries and daily, weekly, or monthly reviews;
@@ -179,7 +176,7 @@ M3 persistence preserves the existing domain contract without redesigning it, in
 - `TradeExecution.Sequence` ordering;
 - `Trade` ownership of its execution history;
 - historical `TradePricingSnapshot` point value and currency;
-- optional, independent `StrategyId` and `TradingSetupId` values;
+- optional `TradingSetupId` review metadata;
 - the `TradeScreenshot` to `Trade` reference and opaque `StorageKey`;
 - the `TradeMistake` to `Trade` reference;
 - the `TradeMistake` to `TradingMistake` reference;

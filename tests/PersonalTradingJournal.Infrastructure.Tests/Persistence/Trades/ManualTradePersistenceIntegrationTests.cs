@@ -2,9 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
+using PersonalTradingJournal.Domain.Setups;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Mapping;
@@ -36,6 +38,8 @@ public sealed class ManualTradePersistenceIntegrationTests
             database.ServiceProvider.GetRequiredService<IInstrumentStore>();
         ITradeStore tradeStore =
             database.ServiceProvider.GetRequiredService<ITradeStore>();
+        ITradingSetupStore setupStore =
+            database.ServiceProvider.GetRequiredService<ITradingSetupStore>();
         var account = new TradingAccount(
             "Manual Trade Account",
             TradingAccountType.Personal,
@@ -55,14 +59,21 @@ public sealed class ManualTradePersistenceIntegrationTests
             ReferenceCreatedAtUtc);
         await accountStore.AddAsync(account);
         await instrumentStore.AddAsync(instrument);
+        var setup = new TradingSetup(
+            "Silver Bullet",
+            "Manual classification",
+            ReferenceCreatedAtUtc);
+        await setupStore.AddAsync(setup);
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            setupStore,
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
         var command = new CreateManualTradeCommand(
             account.Id,
             instrument.Id,
+            setup.Id,
             TradeDirection.Long,
             2m,
             new ManualTradeExecutionInput(
@@ -91,6 +102,7 @@ public sealed class ManualTradePersistenceIntegrationTests
 
         Assert.Equal(account.Id, tradeRecord.TradingAccountId);
         Assert.Equal(instrument.Id, tradeRecord.InstrumentId);
+        Assert.Equal(setup.Id, tradeRecord.TradingSetupId);
         Assert.Equal(20m, tradeRecord.PricingPointValue);
         Assert.Equal("USD", tradeRecord.PricingCurrency);
         Assert.Equal(CurrentUtc, tradeRecord.CreatedAtUtc);
@@ -115,6 +127,7 @@ public sealed class ManualTradePersistenceIntegrationTests
         Assert.Equal(TradeDirection.Long, trade.Direction);
         Assert.Equal(20m, trade.Pricing.PointValue);
         Assert.Equal("USD", trade.Pricing.Currency);
+        Assert.Equal(setup.Id, trade.TradingSetupId);
     }
 
     private sealed class FixedTimeProvider : TimeProvider

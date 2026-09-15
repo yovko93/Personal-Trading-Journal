@@ -9,6 +9,10 @@
              xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
+             xmlns:mistakeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Mistakes"
+             xmlns:mistakeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Mistakes"
+             xmlns:setupViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Setups"
+             xmlns:setupViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Setups"
              xmlns:tradeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Trades"
              xmlns:tradeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Trades">
     <Application.Resources>
@@ -31,6 +35,14 @@
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">
                 <instrumentViews:InstrumentsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type mistakeViewModels:TradingMistakesViewModel}">
+                <mistakeViews:TradingMistakesView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type setupViewModels:TradingSetupsViewModel}">
+                <setupViews:TradingSetupsView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type tradeViewModels:TradesViewModel}">

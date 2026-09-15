@@ -1,6 +1,8 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -9,6 +11,8 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
+using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -18,6 +22,10 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed class MainWindowViewModelTests
 {
+    [Fact]
+    public void NavigationDestinationsContainNineteenEntries() =>
+        Assert.Equal(19, Enum.GetValues<NavigationDestination>().Length);
+
     [Fact]
     public void Constructor_UsesSuppliedDashboardAsInitialContent()
     {
@@ -66,6 +74,34 @@ public sealed class MainWindowViewModelTests
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
         Assert.Equal(1, fixture.TradeListReader.CallCount);
+    }
+
+    [Fact]
+    public void NavigateToSetupsUsesRetainedViewModelAndLoadsOnlyOnce()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Setups);
+        object content = fixture.Main.CurrentContentViewModel;
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Setups);
+
+        Assert.Equal("Trading Setups", fixture.Main.PageTitle);
+        Assert.Same(fixture.Setups, content);
+        Assert.Same(content, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.SetupReader.CallCount);
+    }
+
+    [Fact]
+    public void NavigateToMistakesUsesRetainedViewModelAndLoadsOnlyOnce()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        object content = fixture.Main.CurrentContentViewModel;
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        Assert.Equal("Trading Mistakes", fixture.Main.PageTitle);
+        Assert.Same(fixture.Mistakes, content); Assert.Same(content, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.MistakeReader.CallCount);
     }
 
     [Fact]
@@ -197,6 +233,12 @@ public sealed class MainWindowViewModelTests
         var instrumentReader = new FakeInstrumentReader();
         instrumentReader.EnqueueResult([]);
         var instrumentStore = new FakeInstrumentStore();
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([]);
+        var setupStore = new FakeTradingSetupStore();
+        var setupNameChecker = new FakeTradingSetupNameChecker();
+        var mistakeReader = new FakeTradingMistakeReader(); mistakeReader.EnqueueResult([]);
+        var mistakeStore = new FakeTradingMistakeStore(); var mistakeChecker = new FakeTradingMistakeNameChecker();
         var tradeReferenceDataReader = new FakeManualTradeReferenceDataReader();
         tradeReferenceDataReader.EnqueueResult(new ManualTradeReferenceData([], []));
         var tradeListReader = new FakeTradeListReader();
@@ -242,15 +284,36 @@ public sealed class MainWindowViewModelTests
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
             new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
+        var setups = new TradingSetupsViewModel(
+            setupReader,
+            new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
+            new TradingSetupLifecycleUseCase(setupStore, timeProvider));
+        var mistakes = new TradingMistakesViewModel(mistakeReader,
+            new CreateTradingMistakeUseCase(mistakeStore, mistakeChecker, timeProvider),
+            new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
+            setupReader,
+            mistakeReader,
+            new FakeTradeMistakeReader(),
             tradeListReader,
             tradeDetailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
+                setupStore,
                 tradeStore,
                 timeProvider),
+            new SetTradeTradingSetupUseCase(
+                new FakeTradeMutationStore(),
+                setupStore,
+                timeProvider),
+            new AssignTradeMistakeUseCase(
+                tradeExistenceReader,
+                mistakeStore,
+                new FakeTradeMistakeStore(),
+                timeProvider),
+            new RemoveTradeMistakeUseCase(new FakeTradeMistakeStore()),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
                 timeProvider),
@@ -267,16 +330,26 @@ public sealed class MainWindowViewModelTests
                 new FakeTradeScreenshotDeletionStore(),
                 tradeScreenshotFileStorage),
             new FakeTradeScreenshotDeleteConfirmation());
-        var main = new MainWindowViewModel(dashboard, accounts, instruments, trades);
+        var main = new MainWindowViewModel(
+            dashboard,
+            accounts,
+            instruments,
+            mistakes,
+            setups,
+            trades);
 
         return new ViewModelFixture(
             main,
             dashboard,
             accounts,
             instruments,
+            mistakes,
+            setups,
             trades,
             accountReader,
             instrumentReader,
+            mistakeReader,
+            setupReader,
             tradeReferenceDataReader,
             tradeListReader,
             tradeDetailReader,
@@ -292,6 +365,9 @@ public sealed class MainWindowViewModelTests
             listItem.InstrumentId,
             listItem.InstrumentSymbol,
             "Nasdaq-100 E-mini",
+            null,
+            null,
+            null,
             listItem.Direction,
             listItem.Status,
             listItem.OpenedAtUtc,
@@ -312,9 +388,13 @@ public sealed class MainWindowViewModelTests
         DashboardViewModel Dashboard,
         AccountsViewModel Accounts,
         InstrumentsViewModel Instruments,
+        TradingMistakesViewModel Mistakes,
+        TradingSetupsViewModel Setups,
         TradesViewModel Trades,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
+        FakeTradingMistakeReader MistakeReader,
+        FakeTradingSetupReader SetupReader,
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,
         FakeTradeListReader TradeListReader,
         FakeTradeDetailReader TradeDetailReader,

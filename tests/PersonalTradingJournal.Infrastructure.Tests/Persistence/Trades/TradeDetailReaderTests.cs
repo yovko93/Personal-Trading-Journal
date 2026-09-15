@@ -80,6 +80,9 @@ public sealed class TradeDetailReaderTests
         Assert.Equal(instrument.Id, detail.InstrumentId);
         Assert.Equal("NQ", detail.InstrumentSymbol);
         Assert.Equal("Nasdaq-100 E-mini", detail.InstrumentDisplayName);
+        Assert.Null(detail.TradingSetupId);
+        Assert.Null(detail.TradingSetupName);
+        Assert.Null(detail.IsTradingSetupActive);
         Assert.Equal(TradeDirection.Long, detail.Direction);
         Assert.Equal(TradeStatus.Open, detail.Status);
         Assert.Equal(openedAtUtc, detail.OpenedAtUtc);
@@ -106,6 +109,52 @@ public sealed class TradeDetailReaderTests
         Assert.Equal("NQH7", execution.BrokerSymbol);
         Assert.Equal("EXEC-1", execution.ExternalExecutionId);
         Assert.Equal("ORDER-1", execution.ExternalOrderId);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetByIdAsyncLeftJoinsAssignedSetupIncludingInactiveHistory(
+        bool isActive)
+    {
+        await using ReaderTestDatabase database =
+            await ReaderTestDatabase.CreateAsync();
+        (TradingAccount account, Instrument instrument) =
+            await PersistReferencesAsync(database);
+        Guid setupId = Guid.NewGuid();
+        await using (JournalDbContext context =
+                     await database.ContextFactory.CreateDbContextAsync())
+        {
+            context.TradingSetups.Add(new TradingSetupRecord
+            {
+                Id = setupId,
+                Name = "Silver Bullet",
+                Description = "Historical context",
+                IsActive = isActive,
+                CreatedAtUtc = ReferenceCreatedAtUtc,
+                UpdatedAtUtc = ReferenceCreatedAtUtc,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        Trade trade = CreateTrade(
+            account.Id,
+            instrument.Id,
+            Guid.NewGuid(),
+            Utc(10, 12),
+            20m,
+            "USD",
+            Execution(Utc(10, 9), ExecutionSide.Buy, 1m, 100m, 0m, 0m));
+        trade.SetTradingSetup(setupId, Utc(10, 13));
+        await PersistTradeAsync(database, trade);
+
+        TradeDetail detail = Assert.IsType<TradeDetail>(
+            await GetReader(database).GetByIdAsync(trade.Id));
+
+        Assert.Equal(setupId, detail.TradingSetupId);
+        Assert.Equal("Silver Bullet", detail.TradingSetupName);
+        Assert.Equal(isActive, detail.IsTradingSetupActive);
+        Assert.Single(detail.Executions);
     }
 
     [Fact]
@@ -433,7 +482,6 @@ public sealed class TradeDetailReaderTests
             accountId,
             instrumentId,
             new TradePricingSnapshot(pointValue, currency),
-            strategyId: null,
             tradingSetupId: null,
             executions,
             createdAtUtc,

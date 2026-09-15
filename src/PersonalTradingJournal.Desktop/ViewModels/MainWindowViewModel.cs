@@ -5,6 +5,8 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
+using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
@@ -14,6 +16,8 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
+    private readonly TradingMistakesViewModel _tradingMistakesViewModel;
+    private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly TradesViewModel _tradesViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
@@ -22,16 +26,22 @@ public sealed class MainWindowViewModel : ObservableObject
         DashboardViewModel dashboardViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
+        TradingMistakesViewModel tradingMistakesViewModel,
+        TradingSetupsViewModel tradingSetupsViewModel,
         TradesViewModel tradesViewModel)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
+        ArgumentNullException.ThrowIfNull(tradingMistakesViewModel);
+        ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
+        _tradingMistakesViewModel = tradingMistakesViewModel;
+        _tradingSetupsViewModel = tradingSetupsViewModel;
         _tradesViewModel = tradesViewModel;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
@@ -61,8 +71,8 @@ public sealed class MainWindowViewModel : ObservableObject
         NavigationDestination.Calendar => "Calendar",
         NavigationDestination.Import => "Import",
         NavigationDestination.Performance => "Performance",
-        NavigationDestination.Strategies => "Strategies",
-        NavigationDestination.Mistakes => "Mistakes",
+        NavigationDestination.Setups => "Trading Setups",
+        NavigationDestination.Mistakes => "Trading Mistakes",
         NavigationDestination.Breakdown => "Breakdown",
         NavigationDestination.Playbook => "Playbook",
         NavigationDestination.TradingPlan => "Trading Plan",
@@ -100,6 +110,8 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
+            NavigationDestination.Mistakes => _tradingMistakesViewModel,
+            NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Trades => _tradesViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
@@ -112,6 +124,16 @@ public sealed class MainWindowViewModel : ObservableObject
         if (destination == NavigationDestination.Instruments)
         {
             _ = _instrumentsViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Mistakes)
+        {
+            _ = _tradingMistakesViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Setups)
+        {
+            _ = _tradingSetupsViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Trades)

@@ -17,9 +17,6 @@ public sealed class TradeAggregateRoundTripTests
     private static readonly Guid InstrumentId =
         Guid.Parse("6f365ef7-7e9c-4479-83d3-3030bb3f10a2");
 
-    private static readonly Guid StrategyId =
-        Guid.Parse("81172b03-4625-4c93-9c16-6f96ec81dd3f");
-
     private static readonly Guid TradingSetupId =
         Guid.Parse("e50f36a0-7214-4677-84b0-404bb15ca1a9");
 
@@ -77,14 +74,10 @@ public sealed class TradeAggregateRoundTripTests
             commission: 1m,
             fees: 0.25m);
 
-        original.SetClassification(
+        original.SetTradingSetup(
             Guid.Parse("5573241e-a351-41d3-b36c-d04e8af36ea3"),
-            null,
             CreatedAtUtc.AddMinutes(4));
-        original.SetClassification(
-            StrategyId,
-            TradingSetupId,
-            CreatedAtUtc.AddHours(1));
+        original.SetTradingSetup(TradingSetupId, CreatedAtUtc.AddHours(1));
 
         (Trade rehydrated, decimal currentInstrumentPointValue) =
             RoundTrip(original, updatedInstrumentTickValue: 2.5m);
@@ -95,7 +88,6 @@ public sealed class TradeAggregateRoundTripTests
         Assert.Equal(20m, rehydrated.Pricing.PointValue);
         Assert.Equal("USD", rehydrated.Pricing.Currency);
         Assert.Equal(10m, currentInstrumentPointValue);
-        Assert.Equal(StrategyId, rehydrated.StrategyId);
         Assert.Equal(TradingSetupId, rehydrated.TradingSetupId);
         Assert.Equal(CreatedAtUtc, rehydrated.CreatedAtUtc);
         Assert.Equal(CreatedAtUtc.AddHours(1), rehydrated.UpdatedAtUtc);
@@ -188,7 +180,6 @@ public sealed class TradeAggregateRoundTripTests
         (Trade rehydrated, _) = RoundTrip(original);
 
         Assert.Equal(tradeId, rehydrated.Id);
-        Assert.Null(rehydrated.StrategyId);
         Assert.Null(rehydrated.TradingSetupId);
         Assert.Equal(3, rehydrated.Executions.Count);
         Assert.Equal(TradeDirection.Short, rehydrated.Direction);
@@ -229,7 +220,6 @@ public sealed class TradeAggregateRoundTripTests
         (Trade rehydrated, _) = RoundTrip(original);
 
         Assert.Equal(tradeId, rehydrated.Id);
-        Assert.Null(rehydrated.StrategyId);
         Assert.Null(rehydrated.TradingSetupId);
         Assert.Equal(2, rehydrated.Executions.Count);
         Assert.Equal(TradeDirection.Long, rehydrated.Direction);
@@ -402,19 +392,6 @@ public sealed class TradeAggregateRoundTripTests
             CreatedAtUtc = CreatedAtUtc,
             UpdatedAtUtc = CreatedAtUtc,
         });
-
-        if (trade.StrategyId.HasValue)
-        {
-            context.Strategies.Add(new StrategyRecord
-            {
-                Id = trade.StrategyId.Value,
-                Name = "ICT 2022 Model",
-                Description = null,
-                IsActive = true,
-                CreatedAtUtc = CreatedAtUtc,
-                UpdatedAtUtc = CreatedAtUtc,
-            });
-        }
 
         if (trade.TradingSetupId.HasValue)
         {

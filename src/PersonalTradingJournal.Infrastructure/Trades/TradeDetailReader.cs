@@ -38,6 +38,10 @@ public sealed class TradeDetailReader : ITradeDetailReader
                     on tradeRecord.TradingAccountId equals accountRecord.Id
                 join instrumentRecord in context.Instruments.AsNoTracking()
                     on tradeRecord.InstrumentId equals instrumentRecord.Id
+                join setupRecord in context.TradingSetups.AsNoTracking()
+                    on tradeRecord.TradingSetupId equals (Guid?)setupRecord.Id
+                    into setupRecords
+                from setupRecord in setupRecords.DefaultIfEmpty()
                 where tradeRecord.Id == tradeId
                 select new
                 {
@@ -45,6 +49,10 @@ public sealed class TradeDetailReader : ITradeDetailReader
                     TradingAccountName = accountRecord.Name,
                     InstrumentSymbol = instrumentRecord.Symbol,
                     InstrumentDisplayName = instrumentRecord.DisplayName,
+                    TradingSetupName = setupRecord == null ? null : setupRecord.Name,
+                    IsTradingSetupActive = setupRecord == null
+                        ? (bool?)null
+                        : setupRecord.IsActive,
                 })
             .SingleOrDefaultAsync(cancellationToken);
 
@@ -84,6 +92,9 @@ public sealed class TradeDetailReader : ITradeDetailReader
             trade.InstrumentId,
             candidate.InstrumentSymbol,
             candidate.InstrumentDisplayName,
+            trade.TradingSetupId,
+            candidate.TradingSetupName,
+            candidate.IsTradingSetupActive,
             trade.Direction,
             trade.Status,
             trade.OpenedAtUtc,

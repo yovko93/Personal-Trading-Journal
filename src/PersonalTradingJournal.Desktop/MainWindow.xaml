@@ -81,9 +81,9 @@
                                 Command="{Binding NavigateCommand}"
                                 CommandParameter="{x:Static navigation:NavigationDestination.Performance}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
-                        <Button Content="Strategies"
+                        <Button Content="Trading Setups"
                                 Command="{Binding NavigateCommand}"
-                                CommandParameter="{x:Static navigation:NavigationDestination.Strategies}"
+                                CommandParameter="{x:Static navigation:NavigationDestination.Setups}"
                                 Style="{StaticResource PtjNavigationButtonStyle}" />
                         <Button Content="Mistakes"
                                 Command="{Binding NavigateCommand}"
