@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted Dark/Light appearance preferences, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -23,6 +23,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M8 — Screenshot Management: Complete**
 
 **Milestone M9 — Setup and Mistake Classification: Complete**
+
+**Desktop Theme System — Dark / Light: Complete**
 
 The completed foundation includes:
 
@@ -122,9 +124,11 @@ The M9 Setup and Mistake Classification milestone includes:
 
 Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Setup and Mistake performance analytics are not implemented.
 
-Six of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes. Dashboard remains presentation-only, while the other five are functional data-backed pages. The other 13 destinations remain placeholders.
+The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`, Settings provides the selector, and `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preference before the main window is shown. Missing or invalid settings safely fall back to Dark.
 
-The next milestone is **Theme System**, followed by **M10 — Tradovate CSV Import**.
+Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other five are functional data-backed pages. The other 12 destinations remain placeholders.
+
+The next milestone is **M10 — Tradovate CSV Import**.
 
 Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
@@ -201,7 +205,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted M9 completion baseline contains 1,133 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 261 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, and project-owned XAML-resource behavior without instantiating the WPF visual tree; they are not UI automation.
+The accepted Theme System baseline contains 1,161 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 289 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, settings persistence, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
 
 ## Run
 
@@ -222,6 +226,7 @@ The current path layout is:
 ```text
 PersonalTradingJournal/
 ├── journal.db
+├── settings.json
 ├── screenshots/
 ├── logs/
 └── backups/
@@ -229,6 +234,7 @@ PersonalTradingJournal/
 
 `journal.db` is the active local SQLite database. EF Core creates it and applies pending migrations automatically during desktop startup.
 
+- `settings.json` stores the local Dark/Light appearance preference; missing or invalid content falls back to Dark.
 - `screenshots` contains locally stored Trade screenshot binaries. Screenshot metadata is persisted separately in `journal.db`.
 - `logs` contains the active application log files.
 - `backups` is reserved for future backup functionality.
@@ -237,7 +243,7 @@ Screenshot binaries are not stored as SQLite blobs. Backup workflows are not yet
 
 ## Startup Persistence
 
-Desktop startup starts the Generic Host, applies database migrations, and only then resolves and shows `MainWindow`. A migration failure is logged as a fatal startup error, aborts startup, and prevents the window from being shown. The application does not delete or recreate a failed database automatically.
+Desktop startup starts the Generic Host, loads and applies the local theme preference, applies database migrations, and only then resolves and shows `MainWindow`. This avoids a Dark-to-Light startup flash. A migration failure is logged as a fatal startup error, aborts startup, and prevents the window from being shown. The application does not delete or recreate a failed database automatically.
 
 ## Database Schema Changes
 

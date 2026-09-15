@@ -12,6 +12,10 @@ public sealed class PtjStaticResourceTests
         "\\{StaticResource\\s+(?<key>Ptj[A-Za-z0-9_]+)",
         RegexOptions.CultureInvariant);
 
+    private static readonly Regex DynamicReferencePattern = new(
+        "\\{DynamicResource\\s+(?<key>Ptj[A-Za-z0-9_]+)",
+        RegexOptions.CultureInvariant);
+
     [Fact]
     public void EveryPtjStaticResourceReferenceHasADefinition()
     {
@@ -35,6 +39,31 @@ public sealed class PtjStaticResourceTests
         Assert.True(
             missing.Length == 0,
             $"Undefined PTJ StaticResource key(s): {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void EveryPtjDynamicResourceReferenceHasADefinition()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string desktopProjectDirectory = Path.Combine(
+            repositoryRoot,
+            "src",
+            "PersonalTradingJournal.Desktop");
+        string[] xamlFiles = Directory
+            .EnumerateFiles(desktopProjectDirectory, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => !IsGeneratedPath(path))
+            .ToArray();
+
+        HashSet<string> definitions = CollectKeys(xamlFiles, DefinitionPattern);
+        HashSet<string> references = CollectKeys(xamlFiles, DynamicReferencePattern);
+        string[] missing = references
+            .Except(definitions, StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.True(
+            missing.Length == 0,
+            $"Undefined PTJ DynamicResource key(s): {string.Join(", ", missing)}");
     }
 
     private static HashSet<string> CollectKeys(IEnumerable<string> xamlFiles, Regex pattern)

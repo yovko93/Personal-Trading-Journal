@@ -9,12 +9,15 @@ using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Desktop.Settings;
+using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
@@ -57,6 +60,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+            builder.Services.AddSingleton<IThemeService>(_ => new ThemeService(Resources));
+            builder.Services.AddSingleton<IDesktopSettingsStore, JsonDesktopSettingsStore>();
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<CreateInstrumentUseCase>();
@@ -86,6 +91,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<InstrumentsViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
+            builder.Services.AddTransient<SettingsViewModel>();
             builder.Services.AddTransient<TradesViewModel>();
             builder.Services.AddTransient<MainWindowViewModel>();
             builder.Services.AddTransient<MainWindow>();
@@ -110,6 +116,13 @@ public partial class App : System.Windows.Application
         try
         {
             await _host.StartAsync();
+
+            IDesktopSettingsStore settingsStore =
+                _host.Services.GetRequiredService<IDesktopSettingsStore>();
+            DesktopSettings settings = await settingsStore.LoadAsync();
+            IThemeService themeService = _host.Services.GetRequiredService<IThemeService>();
+            themeService.ApplyTheme(settings.Theme);
+            Log.Information("Theme preference loaded and applied: {Theme}", settings.Theme);
 
             Log.Information("Initializing database");
             JournalDatabaseInitializer initializer =

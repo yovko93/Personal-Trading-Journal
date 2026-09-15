@@ -13,13 +13,14 @@
              xmlns:mistakeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Mistakes"
              xmlns:setupViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Setups"
              xmlns:setupViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Setups"
+             xmlns:settingsViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Settings"
+             xmlns:settingsViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Settings"
              xmlns:tradeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Trades"
              xmlns:tradeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Trades">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Resources/Colors.xaml" />
-                <ResourceDictionary Source="Resources/Brushes.xaml" />
+                <ResourceDictionary Source="Resources/Themes/DarkTheme.xaml" />
                 <ResourceDictionary Source="Resources/Typography.xaml" />
                 <ResourceDictionary Source="Resources/Spacing.xaml" />
                 <ResourceDictionary Source="Resources/Controls.xaml" />
@@ -43,6 +44,10 @@
 
             <DataTemplate DataType="{x:Type setupViewModels:TradingSetupsViewModel}">
                 <setupViews:TradingSetupsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type settingsViewModels:SettingsViewModel}">
+                <settingsViews:SettingsView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type tradeViewModels:TradesViewModel}">

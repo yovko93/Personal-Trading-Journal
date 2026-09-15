@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, and M9 added Trading Setup and Trading Mistake catalogs plus Trade classification and review associations. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, M9 added Trading Setup and Trading Mistake classification, and the Desktop Theme System added persisted Dark/Light appearance. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -34,7 +34,7 @@ MainWindow
                       -> View
 ```
 
-`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, Trades, Trading Setups, and Trading Mistakes keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
+`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, Trades, Trading Setups, Trading Mistakes, and Settings keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
 
 ## Navigation
 
@@ -64,7 +64,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
 
 ## ViewModel-to-View Mapping
 
@@ -77,6 +77,7 @@ AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
+SettingsViewModel        -> SettingsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
@@ -84,7 +85,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Policy
 
-Six destinations—Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes—have concrete content. The remaining 13 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Seven destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 12 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -198,21 +199,15 @@ Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scr
 
 ## Design System
 
-Shared Desktop resources live under `Resources/`:
+Shared Desktop resources live under `Resources/`. `Typography.xaml`, `Spacing.xaml`, and `Controls.xaml` define one shared text hierarchy, layout scale, control templates, navigation states, and ScrollBar behavior. `Themes/DarkTheme.xaml` and `Themes/LightTheme.xaml` contain concrete values for the same project-prefixed semantic color and brush keys.
 
-- `Colors.xaml` defines semantic color tokens.
-- `Brushes.xaml` exposes semantic brushes built from those colors.
-- `Typography.xaml` defines the shared text hierarchy.
-- `Spacing.xaml` defines the small spacing and corner-radius scale.
-- `Controls.xaml` defines reusable WPF control and shell styles.
+Theme-sensitive brush consumers use `DynamicResource`, so the current visual tree updates when `ThemeService` replaces the single active theme dictionary. Immutable styles, fonts, spacing, corner radii, and converters remain `StaticResource`. Views should use those resources instead of scattering hard-coded theme colors or duplicating styles.
 
-Views should reuse these resources instead of scattering hard-coded colors or duplicating styles. The compact dark ScrollBar style supports vertical and horizontal orientation and is shared by shell scrolling regions.
+Dark retains the established hierarchy and palette. Light uses distinct background, surface, raised-surface, border, text, accent, success, warning, and danger values chosen for readable hierarchy rather than mechanical inversion. Existing warning semantics remain canonical for safe user-facing operation errors; `PtjDangerBrush` remains available for destructive/danger meaning.
 
-`PtjStaticResourceTests` provides a deterministic regression check for project-owned `Ptj*` `StaticResource` references across application XAML. It compares referenced keys with project definitions without loading the WPF visual tree, depending on machine-specific paths, or attempting to be a general XAML parser.
+`PtjStaticResourceTests` checks both static and dynamic project-owned references. Theme resource tests additionally require identical Dark/Light key sets and require every dynamic theme key to exist in both dictionaries, preventing late runtime lookup failures during switching.
 
-The reusable dark ComboBox style uses semantic PTJ resources for both popup items and selected content. Its selected value retains the primary text color against the dark elevated surface.
-
-PTJ currently has one dark theme. There is no `ThemeManager`, light theme, or runtime theme switching; that is intentional at this stage.
+The Settings page exposes only Appearance with Dark and Light choices. Selection applies immediately and is persisted to the centralized local `settings.json`; a save failure leaves the selected visual theme active and presents a safe message. Startup restores the preference before resolving and showing `MainWindow`, while missing, malformed, or unknown settings safely fall back to Dark.
 
 ## Accessibility and Window Behavior
 
@@ -229,6 +224,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on their purpose-specific Application catalog readers and create/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/closure, Setup classification, Trading Mistake associations, and screenshots.
+- `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
 - Presentation dependencies use constructor injection; ViewModels must not use a service locator.
@@ -242,6 +238,7 @@ LocalApplicationPaths
   -> configure Serilog
   -> build Generic Host
   -> Host.StartAsync
+  -> load settings and apply theme
   -> JournalDatabaseInitializer.InitializeAsync
   -> resolve MainWindow
   -> show MainWindow
@@ -268,7 +265,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. A focused resource test also guards project-owned `Ptj*` StaticResource resolution.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover theme replacement, local settings behavior, Settings ViewModel state, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 
@@ -291,7 +288,6 @@ The following are intentionally not implemented:
 
 - the real Notebook feature;
 - feature pages for placeholder destinations;
-- runtime theme switching;
 - navigation history or back/forward behavior;
 - sidebar collapse;
 - a chart library;
@@ -301,4 +297,4 @@ The following are intentionally not implemented:
 
 ## Next Milestone
 
-M9 — Setup and Mistake Classification is complete. The next milestone is Theme System, followed by M10 — Tradovate CSV Import. No theme switching or CSV import implementation exists yet.
+The Desktop Theme System is complete. The next milestone is M10 — Tradovate CSV Import; no CSV import implementation exists yet.

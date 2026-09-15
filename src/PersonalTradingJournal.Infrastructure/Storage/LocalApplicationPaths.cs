@@ -17,6 +17,7 @@ public sealed class LocalApplicationPaths : IApplicationPaths
 
         DataDirectory = Path.Combine(localApplicationDataDirectory, ApplicationDirectoryName);
         DatabasePath = Path.Combine(DataDirectory, "journal.db");
+        SettingsPath = Path.Combine(DataDirectory, "settings.json");
         ScreenshotsDirectory = Path.Combine(DataDirectory, "screenshots");
         LogsDirectory = Path.Combine(DataDirectory, "logs");
         BackupsDirectory = Path.Combine(DataDirectory, "backups");
@@ -25,6 +26,8 @@ public sealed class LocalApplicationPaths : IApplicationPaths
     public string DataDirectory { get; }
 
     public string DatabasePath { get; }
+
+    public string SettingsPath { get; }
 
     public string ScreenshotsDirectory { get; }
 

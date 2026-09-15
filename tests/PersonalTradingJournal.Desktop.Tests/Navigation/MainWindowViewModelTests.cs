@@ -4,6 +4,7 @@ using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
+using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels;
@@ -13,6 +14,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -201,6 +203,18 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void NavigateToSettingsUsesRetainedConcreteSettingsViewModel()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Settings);
+
+        Assert.Equal(NavigationDestination.Settings, fixture.Main.CurrentDestination);
+        Assert.Equal("Settings", fixture.Main.PageTitle);
+        Assert.Same(fixture.Settings, fixture.Main.CurrentContentViewModel);
+    }
+
+    [Fact]
     public void NavigateBackToDashboard_ReusesOriginalDashboardViewModel()
     {
         ViewModelFixture fixture = CreateFixture();
@@ -276,6 +290,10 @@ public sealed class MainWindowViewModelTests
         var tradeScreenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
+        var settings = new SettingsViewModel(
+            new FakeThemeService(),
+            new FakeDesktopSettingsStore(),
+            NullLogger<SettingsViewModel>.Instance);
         var accounts = new AccountsViewModel(
             accountReader,
             new CreateTradingAccountUseCase(accountStore, timeProvider),
@@ -336,7 +354,8 @@ public sealed class MainWindowViewModelTests
             instruments,
             mistakes,
             setups,
-            trades);
+            trades,
+            settings);
 
         return new ViewModelFixture(
             main,
@@ -346,6 +365,7 @@ public sealed class MainWindowViewModelTests
             mistakes,
             setups,
             trades,
+            settings,
             accountReader,
             instrumentReader,
             mistakeReader,
@@ -391,6 +411,7 @@ public sealed class MainWindowViewModelTests
         TradingMistakesViewModel Mistakes,
         TradingSetupsViewModel Setups,
         TradesViewModel Trades,
+        SettingsViewModel Settings,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
         FakeTradingMistakeReader MistakeReader,

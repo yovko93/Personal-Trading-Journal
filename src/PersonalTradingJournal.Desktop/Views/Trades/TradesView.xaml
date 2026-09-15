@@ -52,7 +52,7 @@
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}"
                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasError}" Value="True">
@@ -67,7 +67,7 @@
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}"
                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasSuccessMessage}" Value="True">
@@ -135,10 +135,10 @@
                                         <DataTemplate>
                                             <StackPanel>
                                                 <TextBlock FontWeight="SemiBold"
-                                                           Foreground="{StaticResource PtjTextPrimaryBrush}"
+                                                           Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                                            Text="{Binding Name}" />
                                                 <TextBlock FontSize="12"
-                                                           Foreground="{StaticResource PtjTextMutedBrush}"
+                                                           Foreground="{DynamicResource PtjTextMutedBrush}"
                                                            Text="{Binding ProviderName}" />
                                             </StackPanel>
                                         </DataTemplate>
@@ -171,10 +171,10 @@
                                         <DataTemplate>
                                             <StackPanel>
                                                 <TextBlock FontWeight="SemiBold"
-                                                           Foreground="{StaticResource PtjTextPrimaryBrush}"
+                                                           Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                                            Text="{Binding Symbol}" />
                                                 <TextBlock FontSize="12"
-                                                           Foreground="{StaticResource PtjTextMutedBrush}"
+                                                           Foreground="{DynamicResource PtjTextMutedBrush}"
                                                            Text="{Binding DisplayName}" />
                                             </StackPanel>
                                         </DataTemplate>
@@ -257,7 +257,7 @@
                                           VerticalContentAlignment="Center"
                                           Content="Add exit execution"
                                           FontFamily="{StaticResource PtjFontFamily}"
-                                          Foreground="{StaticResource PtjTextPrimaryBrush}"
+                                          Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                           IsChecked="{Binding HasExit, Mode=TwoWay}" />
                             </StackPanel>
                         </Grid>
@@ -380,7 +380,7 @@
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasValidationError}" Value="True">
@@ -397,7 +397,7 @@
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasSaveError}" Value="True">
@@ -491,7 +491,7 @@
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasTradeDetailError}" Value="True">
@@ -623,7 +623,7 @@
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
                                        BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasTradingSetupSaveError}" Value="True">
@@ -638,7 +638,7 @@
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
                                        BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasTradingSetupSuccess}" Value="True">
@@ -797,7 +797,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasCloseTradeSuccess}" Value="True">
@@ -827,7 +827,7 @@
 
                         <Border Margin="0,16,0,0"
                                 Padding="16"
-                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                BorderBrush="{DynamicResource PtjBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <Border.Style>
@@ -925,7 +925,7 @@
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding HasCloseTradeValidationError}" Value="True">
@@ -942,7 +942,7 @@
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding HasCloseTradeSaveError}" Value="True">
@@ -1028,7 +1028,7 @@
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
                                        BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasTradeMistakesError}" Value="True">
@@ -1066,7 +1066,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,0,8"
                                             Padding="12"
-                                            BorderBrush="{StaticResource PtjBorderBrush}"
+                                            BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <Grid>
@@ -1125,7 +1125,7 @@
 
                         <Border Margin="0,8,0,0"
                                 Padding="16"
-                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                BorderBrush="{DynamicResource PtjBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <StackPanel>
@@ -1157,7 +1157,7 @@
                                 </TextBlock>
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource PtjSecondaryTextStyle}"
-                                           Foreground="{StaticResource PtjWarningBrush}"
+                                           Foreground="{DynamicResource PtjWarningBrush}"
                                            Text="{Binding TradingMistakeOptionsErrorMessage}"
                                            TextWrapping="Wrap" />
                                 <TextBlock Margin="0,14,0,6"
@@ -1182,22 +1182,22 @@
                         </Border>
 
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjWarningBrush}"
+                                   Foreground="{DynamicResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding AssignMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjSuccessBrush}"
+                                   Foreground="{DynamicResource PtjSuccessBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding AssignMistakeSuccessMessage}"
                                    TextWrapping="Wrap" />
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjWarningBrush}"
+                                   Foreground="{DynamicResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding RemoveMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjSuccessBrush}"
+                                   Foreground="{DynamicResource PtjSuccessBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding RemoveMistakeSuccessMessage}"
                                    TextWrapping="Wrap" />
@@ -1243,7 +1243,7 @@
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
                                        BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasTradeScreenshotsError}" Value="True">
@@ -1281,7 +1281,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,0,10"
                                             Padding="12"
-                                            BorderBrush="{StaticResource PtjBorderBrush}"
+                                            BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <StackPanel>
@@ -1459,8 +1459,8 @@
 
                         <Border Margin="0,4,0,8"
                                 Padding="16"
-                                Background="{StaticResource PtjBackgroundBrush}"
-                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                Background="{DynamicResource PtjBackgroundBrush}"
+                                BorderBrush="{DynamicResource PtjBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6">
                             <Border.Style>
@@ -1526,7 +1526,7 @@
                                     <TextBlock.Style>
                                         <Style TargetType="{x:Type TextBlock}"
                                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding HasScreenshotPreviewError}" Value="True">
@@ -1575,7 +1575,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotDeleteError}" Value="True">
@@ -1590,7 +1590,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotDeleteWarning}" Value="True">
@@ -1605,7 +1605,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotDeleteSuccess}" Value="True">
@@ -1623,7 +1623,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotValidationError}" Value="True">
@@ -1638,7 +1638,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotSaveError}" Value="True">
@@ -1653,7 +1653,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="{x:Type TextBlock}"
                                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasScreenshotSuccessMessage}" Value="True">
@@ -1777,7 +1777,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,0,10"
                                             Padding="12"
-                                            BorderBrush="{StaticResource PtjBorderBrush}"
+                                            BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="6">
                                         <StackPanel>
@@ -1920,7 +1920,7 @@
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasTradeListError}" Value="True">
@@ -2003,7 +2003,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Padding="0,12"
-                                            BorderBrush="{StaticResource PtjBorderBrush}"
+                                            BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="0,1,0,0">
                                         <Grid>
                                             <Grid.ColumnDefinitions>

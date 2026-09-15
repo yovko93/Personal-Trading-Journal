@@ -7,6 +7,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
@@ -18,6 +19,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
+    private readonly SettingsViewModel _settingsViewModel;
     private readonly TradesViewModel _tradesViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
@@ -28,7 +30,8 @@ public sealed class MainWindowViewModel : ObservableObject
         InstrumentsViewModel instrumentsViewModel,
         TradingMistakesViewModel tradingMistakesViewModel,
         TradingSetupsViewModel tradingSetupsViewModel,
-        TradesViewModel tradesViewModel)
+        TradesViewModel tradesViewModel,
+        SettingsViewModel settingsViewModel)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
@@ -36,6 +39,7 @@ public sealed class MainWindowViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tradingMistakesViewModel);
         ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
+        ArgumentNullException.ThrowIfNull(settingsViewModel);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
@@ -43,6 +47,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _tradesViewModel = tradesViewModel;
+        _settingsViewModel = settingsViewModel;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
     }
@@ -113,6 +118,7 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Trades => _tradesViewModel,
+            NavigationDestination.Settings => _settingsViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
 

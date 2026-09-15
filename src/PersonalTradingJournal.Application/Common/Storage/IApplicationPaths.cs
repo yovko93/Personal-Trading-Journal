@@ -6,6 +6,8 @@ public interface IApplicationPaths
 
     string DatabasePath { get; }
 
+    string SettingsPath { get; }
+
     string ScreenshotsDirectory { get; }
 
     string LogsDirectory { get; }

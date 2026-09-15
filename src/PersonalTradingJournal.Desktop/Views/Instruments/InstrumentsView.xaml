@@ -155,7 +155,7 @@
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}"
                                BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasCreateError}" Value="True">
@@ -199,7 +199,7 @@
                 <TextBlock.Style>
                     <Style TargetType="{x:Type TextBlock}"
                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasError}" Value="True">
@@ -214,7 +214,7 @@
                 <TextBlock.Style>
                     <Style TargetType="{x:Type TextBlock}"
                            BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                        <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding HasLifecycleError}" Value="True">
@@ -376,11 +376,11 @@
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjCaptionTextStyle}">
                                                     <Setter Property="Text" Value="Inactive" />
-                                                    <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsActive}" Value="True">
                                                             <Setter Property="Text" Value="Active" />
-                                                            <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
