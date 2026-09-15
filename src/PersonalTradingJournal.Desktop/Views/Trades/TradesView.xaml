@@ -623,7 +623,7 @@
                             <TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}"
                                        BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                    <Setter Property="Foreground" Value="{StaticResource PtjErrorBrush}" />
+                                    <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding HasTradingSetupSaveError}" Value="True">
@@ -1182,7 +1182,7 @@
                         </Border>
 
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjErrorBrush}"
+                                   Foreground="{StaticResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding AssignMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
@@ -1192,7 +1192,7 @@
                                    Text="{Binding AssignMistakeSuccessMessage}"
                                    TextWrapping="Wrap" />
                         <TextBlock Margin="0,10,0,0"
-                                   Foreground="{StaticResource PtjErrorBrush}"
+                                   Foreground="{StaticResource PtjWarningBrush}"
                                    Style="{StaticResource PtjSecondaryTextStyle}"
                                    Text="{Binding RemoveMistakeErrorMessage}"
                                    TextWrapping="Wrap" />
