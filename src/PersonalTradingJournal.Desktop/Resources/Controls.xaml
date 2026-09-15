@@ -4,18 +4,18 @@
     <converters:NavigationSelectionConverter x:Key="PtjNavigationSelectionConverter" />
 
     <Style x:Key="PtjWindowStyle" TargetType="{x:Type Window}">
-        <Setter Property="Background" Value="{StaticResource PtjBackgroundBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjBackgroundBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         <Setter Property="UseLayoutRounding" Value="True" />
     </Style>
 
     <Style x:Key="PtjButtonStyle" TargetType="{x:Type Button}">
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -54,7 +54,7 @@
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="FocusIndicator"
                                     Property="BorderBrush"
-                                    Value="{StaticResource PtjTextPrimaryBrush}" />
+                                    Value="{DynamicResource PtjTextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="ButtonChrome" Property="Opacity" Value="0.45" />
@@ -68,15 +68,15 @@
     <Style x:Key="PtjPrimaryButtonStyle"
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource PtjButtonStyle}">
-        <Setter Property="Background" Value="{StaticResource PtjAccentBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
     </Style>
 
     <Style x:Key="PtjTextBoxStyle" TargetType="{x:Type TextBox}">
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="MinHeight" Value="36" />
@@ -84,7 +84,7 @@
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
@@ -93,29 +93,29 @@
     </Style>
 
     <Style x:Key="PtjComboBoxItemStyle" TargetType="{x:Type ComboBoxItem}">
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceBrush}" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Padding" Value="10,6" />
         <Style.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
-                <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="{StaticResource PtjAccentBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PtjAccentBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
                 <Setter Property="Opacity" Value="0.5" />
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="PtjComboBoxStyle" TargetType="{x:Type ComboBox}">
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -147,14 +147,14 @@
                                                   ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
                                                   IsHitTestVisible="False"
                                                   SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"
-                                                  TextElement.Foreground="{StaticResource PtjTextPrimaryBrush}" />
+                                                  TextElement.Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                 <Path Grid.Column="1"
                                       Width="8"
                                       Height="5"
                                       HorizontalAlignment="Center"
                                       VerticalAlignment="Center"
                                       Data="M 0 0 L 4 4 L 8 0 Z"
-                                      Fill="{StaticResource PtjTextSecondaryBrush}"
+                                      Fill="{DynamicResource PtjTextSecondaryBrush}"
                                       IsHitTestVisible="False"
                                       Stretch="Fill" />
                             </Grid>
@@ -178,8 +178,8 @@
                                PopupAnimation="Fade">
                             <Border MinWidth="{Binding ActualWidth, ElementName=ComboBoxChrome}"
                                     MaxHeight="{TemplateBinding MaxDropDownHeight}"
-                                    Background="{StaticResource PtjSurfaceBrush}"
-                                    BorderBrush="{StaticResource PtjBorderBrush}"
+                                    Background="{DynamicResource PtjSurfaceBrush}"
+                                    BorderBrush="{DynamicResource PtjBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="{StaticResource PtjCornerRadiusSm}">
                                 <ScrollViewer CanContentScroll="True"
@@ -194,7 +194,7 @@
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                             <Setter TargetName="ComboBoxChrome"
                                     Property="BorderBrush"
-                                    Value="{StaticResource PtjAccentBrush}" />
+                                    Value="{DynamicResource PtjAccentBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -202,7 +202,7 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
@@ -214,7 +214,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Normal" />
@@ -248,18 +248,18 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="NavigationChrome"
                                     Property="Background"
-                                    Value="{StaticResource PtjSurfaceElevatedBrush}" />
-                            <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+                                    Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="NavigationChrome"
                                     Property="Background"
-                                    Value="{StaticResource PtjBorderBrush}" />
+                                    Value="{DynamicResource PtjBorderBrush}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="FocusIndicator"
                                     Property="BorderBrush"
-                                    Value="{StaticResource PtjAccentBrush}" />
+                                    Value="{DynamicResource PtjAccentBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="NavigationChrome" Property="Opacity" Value="0.45" />
@@ -277,10 +277,10 @@
                                  RelativeSource="{RelativeSource Self}" />
                     </MultiBinding>
                 </DataTrigger.Binding>
-                <Setter Property="Background" Value="{StaticResource PtjSurfaceElevatedBrush}" />
-                <Setter Property="BorderBrush" Value="{StaticResource PtjAccentBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
                 <Setter Property="BorderThickness" Value="3,0,0,0" />
-                <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </DataTrigger>
         </Style.Triggers>
@@ -290,12 +290,12 @@
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
         <Setter Property="Margin" Value="12,16,12,4" />
     </Style>
 
     <Style x:Key="PtjScrollBarThumbStyle" TargetType="{x:Type Thumb}">
-        <Setter Property="Background" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type Thumb}">
@@ -307,12 +307,12 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="ThumbChrome"
                                     Property="Background"
-                                    Value="{StaticResource PtjTextMutedBrush}" />
+                                    Value="{DynamicResource PtjTextMutedBrush}" />
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
                             <Setter TargetName="ThumbChrome"
                                     Property="Background"
-                                    Value="{StaticResource PtjTextSecondaryBrush}" />
+                                    Value="{DynamicResource PtjTextSecondaryBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -334,7 +334,7 @@
 
     <Style x:Key="PtjScrollBarStyle" TargetType="{x:Type ScrollBar}">
         <Setter Property="Width" Value="12" />
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ScrollBar}">
@@ -382,15 +382,15 @@
     </Style>
 
     <Style x:Key="PtjCardStyle" TargetType="{x:Type Border}">
-        <Setter Property="Background" Value="{StaticResource PtjSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource PtjCornerRadiusMd}" />
         <Setter Property="Padding" Value="{StaticResource PtjCardPadding}" />
     </Style>
 
     <Style x:Key="PtjSeparatorStyle" TargetType="{x:Type Separator}">
-        <Setter Property="Background" Value="{StaticResource PtjBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="Height" Value="1" />
         <Setter Property="Margin" Value="0,8" />
         <Setter Property="Template">
@@ -398,6 +398,91 @@
                 <ControlTemplate TargetType="{x:Type Separator}">
                     <Border Background="{TemplateBinding Background}"
                             Height="{TemplateBinding Height}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjThemeToggleStyle" TargetType="{x:Type ToggleButton}">
+        <Setter Property="Width" Value="60" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Grid Width="{TemplateBinding Width}"
+                          Height="{TemplateBinding Height}">
+                        <Border x:Name="Track"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="15" />
+                        <Border x:Name="Thumb"
+                                Width="26"
+                                Height="26"
+                                Margin="2"
+                                HorizontalAlignment="Right"
+                                Background="{DynamicResource PtjSurfaceBrush}"
+                                BorderBrush="{DynamicResource PtjAccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="13" />
+                        <Grid IsHitTestVisible="False">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="SunIcon"
+                                       Grid.Column="0"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Symbol"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource PtjWarningBrush}"
+                                       Opacity="0.55"
+                                       Text="☀" />
+                            <TextBlock x:Name="MoonIcon"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Symbol"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                       Text="☾" />
+                        </Grid>
+                        <Border x:Name="FocusIndicator"
+                                Margin="-2"
+                                BorderBrush="{x:Null}"
+                                BorderThickness="1"
+                                CornerRadius="17"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Thumb"
+                                    Property="HorizontalAlignment"
+                                    Value="Left" />
+                            <Setter TargetName="SunIcon" Property="Opacity" Value="1" />
+                            <Setter TargetName="MoonIcon" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="MoonIcon"
+                                    Property="Foreground"
+                                    Value="{DynamicResource PtjTextMutedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.88" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusIndicator"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource PtjAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

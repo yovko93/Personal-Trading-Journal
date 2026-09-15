@@ -40,7 +40,7 @@
                     <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -65,11 +65,11 @@
                         </DataTrigger></Style.Triggers>
                     </Style></TextBlock.Style>
                 </TextBlock>
-                <TextBlock Foreground="{StaticResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
                            Text="{Binding ListErrorMessage}" />
-                <TextBlock Foreground="{StaticResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
                            Text="{Binding SaveErrorMessage}" />
-                <TextBlock Foreground="{StaticResource PtjSuccessBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Foreground="{DynamicResource PtjSuccessBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
                            Text="{Binding SuccessMessage}" />
             </StackPanel>
             <Border Padding="24">
@@ -98,10 +98,10 @@
                             <TextBlock Grid.Column="2" VerticalAlignment="Center"><TextBlock.Style>
                                 <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}">
                                     <Setter Property="Text" Value="Inactive" />
-                                    <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
                                     <Style.Triggers><DataTrigger Binding="{Binding IsActive}" Value="True">
                                         <Setter Property="Text" Value="Active" />
-                                        <Setter Property="Foreground" Value="{StaticResource PtjSuccessBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                     </DataTrigger></Style.Triggers>
                                 </Style>
                             </TextBlock.Style></TextBlock>

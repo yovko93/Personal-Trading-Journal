@@ -1,0 +1,26 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Color x:Key="PtjColorBackground">#F6F8FA</Color>
+    <Color x:Key="PtjColorSurface">#FFFFFF</Color>
+    <Color x:Key="PtjColorSurfaceElevated">#EAEEF2</Color>
+    <Color x:Key="PtjColorBorder">#D0D7DE</Color>
+    <Color x:Key="PtjColorTextPrimary">#1F2328</Color>
+    <Color x:Key="PtjColorTextSecondary">#424A53</Color>
+    <Color x:Key="PtjColorTextMuted">#656D76</Color>
+    <Color x:Key="PtjColorAccent">#0969DA</Color>
+    <Color x:Key="PtjColorSuccess">#1A7F37</Color>
+    <Color x:Key="PtjColorDanger">#CF222E</Color>
+    <Color x:Key="PtjColorWarning">#9A6700</Color>
+
+    <SolidColorBrush x:Key="PtjBackgroundBrush" Color="{StaticResource PtjColorBackground}" />
+    <SolidColorBrush x:Key="PtjSurfaceBrush" Color="{StaticResource PtjColorSurface}" />
+    <SolidColorBrush x:Key="PtjSurfaceElevatedBrush" Color="{StaticResource PtjColorSurfaceElevated}" />
+    <SolidColorBrush x:Key="PtjBorderBrush" Color="{StaticResource PtjColorBorder}" />
+    <SolidColorBrush x:Key="PtjTextPrimaryBrush" Color="{StaticResource PtjColorTextPrimary}" />
+    <SolidColorBrush x:Key="PtjTextSecondaryBrush" Color="{StaticResource PtjColorTextSecondary}" />
+    <SolidColorBrush x:Key="PtjTextMutedBrush" Color="{StaticResource PtjColorTextMuted}" />
+    <SolidColorBrush x:Key="PtjAccentBrush" Color="{StaticResource PtjColorAccent}" />
+    <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
+    <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
+    <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />
+</ResourceDictionary>

@@ -17,6 +17,7 @@ public sealed class LocalApplicationPathsTests
 
         Assert.Equal(expectedDataDirectory, paths.DataDirectory);
         Assert.Equal(Path.Combine(expectedDataDirectory, "journal.db"), paths.DatabasePath);
+        Assert.Equal(Path.Combine(expectedDataDirectory, "settings.json"), paths.SettingsPath);
         Assert.Equal(Path.Combine(expectedDataDirectory, "screenshots"), paths.ScreenshotsDirectory);
         Assert.Equal(Path.Combine(expectedDataDirectory, "logs"), paths.LogsDirectory);
         Assert.Equal(Path.Combine(expectedDataDirectory, "backups"), paths.BackupsDirectory);
@@ -42,6 +43,7 @@ public sealed class LocalApplicationPathsTests
             Assert.True(Directory.Exists(paths.LogsDirectory));
             Assert.True(Directory.Exists(paths.BackupsDirectory));
             Assert.False(File.Exists(paths.DatabasePath));
+            Assert.False(File.Exists(paths.SettingsPath));
         }
         finally
         {

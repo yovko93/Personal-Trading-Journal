@@ -4,8 +4,10 @@ using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
+using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
@@ -13,6 +15,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -201,6 +204,18 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void NavigateToSettingsUsesRetainedConcreteSettingsViewModel()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Settings);
+
+        Assert.Equal(NavigationDestination.Settings, fixture.Main.CurrentDestination);
+        Assert.Equal("Settings", fixture.Main.PageTitle);
+        Assert.Same(fixture.Settings, fixture.Main.CurrentContentViewModel);
+    }
+
+    [Fact]
     public void NavigateBackToDashboard_ReusesOriginalDashboardViewModel()
     {
         ViewModelFixture fixture = CreateFixture();
@@ -225,7 +240,80 @@ public sealed class MainWindowViewModelTests
         Assert.Same(originalContent, fixture.Main.CurrentContentViewModel);
     }
 
-    private static ViewModelFixture CreateFixture()
+    [Theory]
+    [InlineData(AppTheme.System, AppTheme.Dark, AppTheme.Light)]
+    [InlineData(AppTheme.System, AppTheme.Light, AppTheme.Dark)]
+    [InlineData(AppTheme.Dark, AppTheme.Dark, AppTheme.Light)]
+    [InlineData(AppTheme.Light, AppTheme.Light, AppTheme.Dark)]
+    public async Task HeaderToggleUsesEffectiveThemeAndPersistsOppositeExplicitPreference(
+        AppTheme preferredTheme,
+        AppTheme effectiveTheme,
+        AppTheme expectedPreference)
+    {
+        ViewModelFixture fixture = CreateFixture(preferredTheme, effectiveTheme);
+
+        await fixture.Main.ToggleThemeCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedPreference, fixture.ThemeService.PreferredTheme);
+        Assert.Equal(expectedPreference, fixture.ThemeService.EffectiveTheme);
+        Assert.Equal(
+            expectedPreference,
+            Assert.Single(fixture.SettingsStore.SavedSettings).Theme);
+    }
+
+    [Fact]
+    public async Task SettingsSelectionSynchronizesHeaderToggleState()
+    {
+        ViewModelFixture fixture = CreateFixture(AppTheme.Dark, AppTheme.Dark);
+        Assert.False(fixture.Main.IsLightTheme);
+        Assert.Equal("Switch to light theme", fixture.Main.ThemeToggleToolTip);
+
+        await fixture.Settings.ChangeThemeCommand.ExecuteAsync(AppTheme.Light);
+
+        Assert.True(fixture.Main.IsLightTheme);
+        Assert.Equal("Switch to dark theme", fixture.Main.ThemeToggleToolTip);
+    }
+
+    [Fact]
+    public void SystemThemeChangeSynchronizesHeaderToggleWithoutChangingPreference()
+    {
+        ViewModelFixture fixture = CreateFixture(AppTheme.System, AppTheme.Dark);
+
+        fixture.ThemeService.SimulateSystemThemeChange(AppTheme.Light);
+
+        Assert.True(fixture.Main.IsLightTheme);
+        Assert.Equal(AppTheme.System, fixture.ThemeService.PreferredTheme);
+        Assert.True(fixture.Settings.IsSystemSelected);
+    }
+
+    [Fact]
+    public async Task RepeatedHeaderToggleProducesOneExplicitTransitionPerInvocation()
+    {
+        ViewModelFixture fixture = CreateFixture(AppTheme.System, AppTheme.Dark);
+
+        await fixture.Main.ToggleThemeCommand.ExecuteAsync(null);
+        await fixture.Main.ToggleThemeCommand.ExecuteAsync(null);
+
+        Assert.Equal([AppTheme.Light, AppTheme.Dark], fixture.ThemeService.SetPreferences);
+        Assert.Equal(2, fixture.SettingsStore.SavedSettings.Count);
+        Assert.Equal(AppTheme.Dark, fixture.ThemeService.PreferredTheme);
+        Assert.False(fixture.Main.IsLightTheme);
+    }
+
+    [Fact]
+    public void DisposeUnsubscribesHeaderFromThemeService()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        Assert.Equal(2, fixture.ThemeService.SubscriberCount);
+
+        fixture.Main.Dispose();
+
+        Assert.Equal(1, fixture.ThemeService.SubscriberCount);
+    }
+
+    private static ViewModelFixture CreateFixture(
+        AppTheme preferredTheme = AppTheme.System,
+        AppTheme? effectiveTheme = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -276,6 +364,12 @@ public sealed class MainWindowViewModelTests
         var tradeScreenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
         var dashboard = new DashboardViewModel();
+        var themeService = new FakeThemeService(preferredTheme, effectiveTheme);
+        var settingsStore = new FakeDesktopSettingsStore();
+        var settings = new SettingsViewModel(
+            themeService,
+            settingsStore,
+            NullLogger<SettingsViewModel>.Instance);
         var accounts = new AccountsViewModel(
             accountReader,
             new CreateTradingAccountUseCase(accountStore, timeProvider),
@@ -336,7 +430,9 @@ public sealed class MainWindowViewModelTests
             instruments,
             mistakes,
             setups,
-            trades);
+            trades,
+            settings,
+            themeService);
 
         return new ViewModelFixture(
             main,
@@ -346,6 +442,7 @@ public sealed class MainWindowViewModelTests
             mistakes,
             setups,
             trades,
+            settings,
             accountReader,
             instrumentReader,
             mistakeReader,
@@ -353,7 +450,9 @@ public sealed class MainWindowViewModelTests
             tradeReferenceDataReader,
             tradeListReader,
             tradeDetailReader,
-            tradeScreenshotReader);
+            tradeScreenshotReader,
+            themeService,
+            settingsStore);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem listItem)
@@ -391,6 +490,7 @@ public sealed class MainWindowViewModelTests
         TradingMistakesViewModel Mistakes,
         TradingSetupsViewModel Setups,
         TradesViewModel Trades,
+        SettingsViewModel Settings,
         FakeTradingAccountReader AccountReader,
         FakeInstrumentReader InstrumentReader,
         FakeTradingMistakeReader MistakeReader,
@@ -398,5 +498,7 @@ public sealed class MainWindowViewModelTests
         FakeManualTradeReferenceDataReader TradeReferenceDataReader,
         FakeTradeListReader TradeListReader,
         FakeTradeDetailReader TradeDetailReader,
-        FakeTradeScreenshotReader TradeScreenshotReader);
+        FakeTradeScreenshotReader TradeScreenshotReader,
+        FakeThemeService ThemeService,
+        FakeDesktopSettingsStore SettingsStore);
 }

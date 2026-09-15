@@ -1,0 +1,78 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Settings.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:theming="clr-namespace:PersonalTradingJournal.Desktop.Theming"
+             d:DesignHeight="450"
+             d:DesignWidth="800"
+             mc:Ignorable="d">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}"
+                   BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
+
+        <StackPanel MaxWidth="720"
+                    HorizontalAlignment="Left">
+            <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                       Text="Appearance" />
+            <TextBlock Margin="0,4,0,20"
+                       Style="{StaticResource PtjSecondaryTextStyle}"
+                       Text="Choose how Personal Trading Journal looks on this device." />
+
+            <Border Style="{StaticResource PtjCardStyle}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PtjBodyTextStyle}"
+                               FontWeight="SemiBold"
+                               Text="Theme" />
+                    <TextBlock Margin="0,4,0,16"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Changes are applied immediately and saved for the next launch." />
+
+                    <RadioButton Margin="0,0,0,12"
+                                 Command="{Binding ChangeThemeCommand}"
+                                 CommandParameter="{x:Static theming:AppTheme.System}"
+                                 Content="System"
+                                 Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 GroupName="ApplicationTheme"
+                                 IsChecked="{Binding IsSystemSelected, Mode=OneWay}" />
+                    <RadioButton Margin="0,0,0,12"
+                                 Command="{Binding ChangeThemeCommand}"
+                                 CommandParameter="{x:Static theming:AppTheme.Dark}"
+                                 Content="Dark"
+                                 Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 GroupName="ApplicationTheme"
+                                 IsChecked="{Binding IsDarkSelected, Mode=OneWay}" />
+                    <RadioButton Command="{Binding ChangeThemeCommand}"
+                                 CommandParameter="{x:Static theming:AppTheme.Light}"
+                                 Content="Light"
+                                 Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 GroupName="ApplicationTheme"
+                                 IsChecked="{Binding IsLightSelected, Mode=OneWay}" />
+
+                    <TextBlock Margin="0,12,0,0"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="System follows your Windows appearance setting." />
+
+                    <TextBlock Margin="0,16,0,0"
+                               Foreground="{DynamicResource PtjWarningBrush}"
+                               Text="{Binding SaveErrorMessage}">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSaveError}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -144,12 +144,23 @@ AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
+SettingsViewModel        -> SettingsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
-There are 19 destinations: six concrete destinations—Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes—and 13 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
+There are 19 destinations: seven concrete destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—and 12 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
 
-`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes ViewModels for the lifetime of the main window. Returning to a concrete feature therefore preserves its established ViewModel state. Returning to Trades preserves its draft, successfully cached reference and list data, and selected Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset Trade facts. This remains direct typed shell state; no `NavigationService` exists.
+`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a concrete feature therefore preserves its established ViewModel state. Returning to Trades preserves its draft, successfully cached reference and list data, and selected Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset Trade facts. This remains direct typed shell state; no `NavigationService` exists.
+
+### Desktop Theme System
+
+`AppTheme`, `IThemeService`, Windows theme detection, theme selection, and JSON preference persistence are Desktop concerns; they do not enter Domain or trading Application workflows. `PreferredTheme` records the user's System/Dark/Light choice, while `EffectiveTheme` is always the concrete Dark or Light appearance. System resolves `AppsUseLightTheme` from the current-user Windows Personalize registry key and safely falls back to Dark when detection fails. Supported Windows preference changes are observed while System is preferred; explicit Dark or Light ignores them.
+
+Shared typography, layout, and control styles remain single-source resources. `DarkTheme.xaml` and `LightTheme.xaml` contain the same semantic color and brush keys, and `ThemeService` replaces exactly one active theme dictionary while preserving merged shared dictionaries and their ordering. System is a preference and therefore has no resource dictionary of its own.
+
+Theme-sensitive brush consumers use `DynamicResource`, allowing materialized controls and pages to update without rebuilding ViewModels or restarting. Immutable style, typography, spacing, and converter references remain `StaticResource`. Resource tests validate Dark/Light key parity and both static and dynamic project-owned references.
+
+`JsonDesktopSettingsStore` persists only the preferred theme to the configured `IApplicationPaths.SettingsPath`; a System preference remains System even when its effective appearance is Dark or Light. Missing, malformed, or unknown settings fall back to System and are logged; writes use a temporary file followed by replacement. Settings applies a choice immediately and reports a safe error if persistence fails without reverting the usable visual theme. The header's two-state quick toggle reflects `EffectiveTheme` and creates an explicit opposite Dark/Light preference; Settings remains the route back to System.
 
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
@@ -371,13 +382,14 @@ M5 introduces no new uniqueness business rule for account name, external account
 - building the Generic Host;
 - registering dependencies;
 - starting the host;
+- loading and applying the persisted Desktop theme preference;
 - resolving and awaiting `JournalDatabaseInitializer.InitializeAsync()`;
 - resolving and showing `MainWindow`; and
 - stopping and disposing the host.
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, and the shell. This includes Trade creation/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all six retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all seven retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
@@ -387,6 +399,7 @@ LocalApplicationPaths
   -> configure Serilog
   -> build Generic Host
   -> StartAsync
+  -> load settings and apply theme
   -> JournalDatabaseInitializer.InitializeAsync
   -> resolve and show MainWindow
 ```
@@ -408,6 +421,7 @@ Local application data is centralized under:
 The current paths are:
 
 - `journal.db` — the active local SQLite store, created and migrated during application startup;
+- `settings.json` — the local System/Dark/Light Desktop appearance preference;
 - `screenshots` — active local storage for Trade screenshot binary files;
 - `logs` — active storage for local rolling logs; and
 - `backups` — reserved for future backup data.

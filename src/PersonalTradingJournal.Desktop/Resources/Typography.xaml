@@ -6,35 +6,35 @@
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="24" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="PtjSectionTitleTextStyle" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="16" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="PtjBodyTextStyle" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Normal" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
     </Style>
 
     <Style x:Key="PtjSecondaryTextStyle" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Normal" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
     </Style>
 
     <Style x:Key="PtjCaptionTextStyle" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="FontWeight" Value="Normal" />
-        <Setter Property="Foreground" Value="{StaticResource PtjTextMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
     </Style>
 
     <Style x:Key="PtjMetricValueTextStyle"

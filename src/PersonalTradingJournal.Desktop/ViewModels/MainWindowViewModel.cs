@@ -1,23 +1,27 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Desktop.Navigation;
+using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject
+public sealed class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
+    private readonly SettingsViewModel _settingsViewModel;
+    private readonly IThemeService _themeService;
     private readonly TradesViewModel _tradesViewModel;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
@@ -28,7 +32,9 @@ public sealed class MainWindowViewModel : ObservableObject
         InstrumentsViewModel instrumentsViewModel,
         TradingMistakesViewModel tradingMistakesViewModel,
         TradingSetupsViewModel tradingSetupsViewModel,
-        TradesViewModel tradesViewModel)
+        TradesViewModel tradesViewModel,
+        SettingsViewModel settingsViewModel,
+        IThemeService themeService)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
@@ -36,6 +42,8 @@ public sealed class MainWindowViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(tradingMistakesViewModel);
         ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
+        ArgumentNullException.ThrowIfNull(settingsViewModel);
+        ArgumentNullException.ThrowIfNull(themeService);
 
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
@@ -43,8 +51,12 @@ public sealed class MainWindowViewModel : ObservableObject
         _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _tradesViewModel = tradesViewModel;
+        _settingsViewModel = settingsViewModel;
+        _themeService = themeService;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
+        ToggleThemeCommand = new AsyncRelayCommand(ToggleThemeAsync);
+        _themeService.ThemeChanged += OnThemeChanged;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -97,6 +109,16 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public IRelayCommand<NavigationDestination> NavigateCommand { get; }
 
+    public bool IsLightTheme => _themeService.EffectiveTheme == AppTheme.Light;
+
+    public string ThemeToggleToolTip => IsLightTheme
+        ? "Switch to dark theme"
+        : "Switch to light theme";
+
+    public IAsyncRelayCommand ToggleThemeCommand { get; }
+
+    public void Dispose() => _themeService.ThemeChanged -= OnThemeChanged;
+
     private void Navigate(NavigationDestination destination)
     {
         if (destination == CurrentDestination)
@@ -113,6 +135,7 @@ public sealed class MainWindowViewModel : ObservableObject
             NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Trades => _tradesViewModel,
+            NavigationDestination.Settings => _settingsViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
 
@@ -140,5 +163,19 @@ public sealed class MainWindowViewModel : ObservableObject
         {
             _ = _tradesViewModel.EnsureLoadedAsync();
         }
+    }
+
+    private async Task ToggleThemeAsync()
+    {
+        AppTheme explicitTheme = _themeService.EffectiveTheme == AppTheme.Dark
+            ? AppTheme.Light
+            : AppTheme.Dark;
+        await _settingsViewModel.ChangeThemeCommand.ExecuteAsync(explicitTheme);
+    }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(ThemeToggleToolTip));
     }
 }

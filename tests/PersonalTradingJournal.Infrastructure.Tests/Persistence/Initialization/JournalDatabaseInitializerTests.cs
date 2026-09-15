@@ -164,6 +164,7 @@ public sealed class JournalDatabaseInitializerTests
         {
             DataDirectory = dataDirectory;
             DatabasePath = Path.Combine(dataDirectory, "runtime-initialization.db");
+            SettingsPath = Path.Combine(dataDirectory, "settings.json");
             ScreenshotsDirectory = Path.Combine(dataDirectory, "screenshots");
             LogsDirectory = Path.Combine(dataDirectory, "logs");
             BackupsDirectory = Path.Combine(dataDirectory, "backups");
@@ -172,6 +173,8 @@ public sealed class JournalDatabaseInitializerTests
         public string DataDirectory { get; }
 
         public string DatabasePath { get; }
+
+        public string SettingsPath { get; }
 
         public string ScreenshotsDirectory { get; }
 
