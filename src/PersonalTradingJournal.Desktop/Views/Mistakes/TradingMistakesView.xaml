@@ -6,7 +6,7 @@
         <StackPanel>
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
-                           Text="Reusable process and execution mistakes, independent of trade outcome." TextWrapping="Wrap" />
+                           Text="Reusable process and execution mistakes used during trade review." TextWrapping="Wrap" />
                 <Button Grid.Column="1" Margin="16,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" Style="{StaticResource PtjButtonStyle}" />
                 <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding ShowCreateCommand}" Content="New Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
             </Grid>
@@ -44,7 +44,7 @@
                     <Condition Binding="{Binding IsLoading}" Value="False" /><Condition Binding="{Binding HasTradingMistakes}" Value="False" />
                     <Condition Binding="{Binding HasListError}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" />
                 </MultiDataTrigger></Style.Triggers></Style></Border.Style>
-                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}" Text="No trading mistakes yet." />
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}" Text="No trading mistakes yet. Create reusable process mistakes for trade review." />
             </Border>
             <ItemsControl ItemsSource="{Binding TradingMistakes}"><ItemsControl.ItemTemplate><DataTemplate>
                 <Border Margin="0,0,0,10" Style="{StaticResource PtjCardStyle}"><Grid>

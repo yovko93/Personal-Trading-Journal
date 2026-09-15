@@ -23,7 +23,9 @@ public sealed class TradingMistakesViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsBusy);
         ShowCreateCommand = new RelayCommand(ShowCreate, () => !IsCreateFormVisible && !IsBusy);
         CancelCreateCommand = new RelayCommand(CancelCreate, () => IsCreateFormVisible && !IsSaving);
-        CreateCommand = new AsyncRelayCommand(CreateAsync, () => IsCreateFormVisible && !IsBusy);
+        CreateCommand = new AsyncRelayCommand(
+            CreateAsync,
+            () => IsCreateFormVisible && !IsBusy && !string.IsNullOrWhiteSpace(NameText));
         ToggleActiveCommand = new AsyncRelayCommand<TradingMistakeListItem>(ToggleAsync,
             item => item is not null && !IsBusy && !IsCreateFormVisible);
     }
@@ -34,7 +36,17 @@ public sealed class TradingMistakesViewModel : ObservableObject
     public bool IsSaving { get => _isSaving; private set { if (SetProperty(ref _isSaving, value)) Notify(); } }
     public bool IsChangingStatus { get => _isChangingStatus; private set { if (SetProperty(ref _isChangingStatus, value)) Notify(); } }
     public bool IsCreateFormVisible { get => _isCreateFormVisible; private set { if (SetProperty(ref _isCreateFormVisible, value)) Notify(); } }
-    public string NameText { get => _nameText; set => SetProperty(ref _nameText, value); }
+    public string NameText
+    {
+        get => _nameText;
+        set
+        {
+            if (SetProperty(ref _nameText, value))
+            {
+                CreateCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
     public string DescriptionText { get => _descriptionText; set => SetProperty(ref _descriptionText, value); }
     public string? ValidationErrorMessage { get => _validationErrorMessage; private set => SetMessage(ref _validationErrorMessage, value, nameof(HasValidationError)); }
     public bool HasValidationError => ValidationErrorMessage is not null;

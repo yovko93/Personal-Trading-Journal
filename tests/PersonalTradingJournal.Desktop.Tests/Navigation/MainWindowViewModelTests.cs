@@ -99,6 +99,7 @@ public sealed class MainWindowViewModelTests
         object content = fixture.Main.CurrentContentViewModel;
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        Assert.Equal("Trading Mistakes", fixture.Main.PageTitle);
         Assert.Same(fixture.Mistakes, content); Assert.Same(content, fixture.Main.CurrentContentViewModel);
         Assert.Equal(1, fixture.MistakeReader.CallCount);
     }

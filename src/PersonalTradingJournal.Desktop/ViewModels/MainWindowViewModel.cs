@@ -72,7 +72,7 @@ public sealed class MainWindowViewModel : ObservableObject
         NavigationDestination.Import => "Import",
         NavigationDestination.Performance => "Performance",
         NavigationDestination.Setups => "Trading Setups",
-        NavigationDestination.Mistakes => "Mistakes",
+        NavigationDestination.Mistakes => "Trading Mistakes",
         NavigationDestination.Breakdown => "Breakdown",
         NavigationDestination.Playbook => "Playbook",
         NavigationDestination.TradingPlan => "Trading Plan",

@@ -44,6 +44,21 @@ public sealed class TradingMistakesViewModelTests
     }
 
     [Fact]
+    public void CreateCommandRequiresNonBlankName()
+    {
+        TradingMistakesViewModel viewModel = Create();
+
+        viewModel.ShowCreateCommand.Execute(null);
+        Assert.False(viewModel.CreateCommand.CanExecute(null));
+
+        viewModel.NameText = "FOMO";
+        Assert.True(viewModel.CreateCommand.CanExecute(null));
+
+        viewModel.NameText = " ";
+        Assert.False(viewModel.CreateCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task CreateUsesInputAndAuthoritativeReloadWithSuccess()
     {
         TradingMistakeListItem[] rows = [Item(true)]; var reader = new FakeTradingMistakeReader(); reader.EnqueueResult(rows);

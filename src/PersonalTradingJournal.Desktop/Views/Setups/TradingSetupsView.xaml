@@ -82,7 +82,7 @@
                     </MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers>
                 </Style></Border.Style>
                 <TextBlock HorizontalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
-                           Text="No trading setups yet." />
+                           Text="No trading setups yet. Create one to classify repeatable trade patterns." />
             </Border>
             <ItemsControl ItemsSource="{Binding TradingSetups}">
                 <ItemsControl.ItemTemplate><DataTemplate>

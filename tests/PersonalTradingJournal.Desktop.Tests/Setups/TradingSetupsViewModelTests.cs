@@ -44,6 +44,21 @@ public sealed class TradingSetupsViewModelTests
     }
 
     [Fact]
+    public void CreateCommandRequiresNonBlankName()
+    {
+        var vm = Create();
+
+        vm.ShowCreateCommand.Execute(null);
+        Assert.False(vm.CreateCommand.CanExecute(null));
+
+        vm.NameText = "ORB";
+        Assert.True(vm.CreateCommand.CanExecute(null));
+
+        vm.NameText = " ";
+        Assert.False(vm.CreateCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task CreateUsesInputAndAuthoritativeReloadWithSuccess()
     {
         TradingSetupListItem[] rows = [Item(true)]; var reader = new FakeTradingSetupReader(); reader.EnqueueResult(rows);
