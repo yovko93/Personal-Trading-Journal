@@ -46,7 +46,7 @@ public sealed class JsonDesktopSettingsStore : IDesktopSettingsStore
 
             if (settings is null || !Enum.IsDefined(settings.Theme))
             {
-                _logger.LogWarning("Desktop settings are invalid; using the Dark theme fallback");
+                _logger.LogWarning("Desktop settings are invalid; using the System theme fallback");
                 return DesktopSettings.Default;
             }
 
@@ -64,7 +64,7 @@ public sealed class JsonDesktopSettingsStore : IDesktopSettingsStore
         {
             _logger.LogWarning(
                 exception,
-                "Desktop settings could not be loaded; using the Dark theme fallback");
+                "Desktop settings could not be loaded; using the System theme fallback");
             return DesktopSettings.Default;
         }
     }

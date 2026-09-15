@@ -154,11 +154,13 @@ There are 19 destinations: seven concrete destinations—Dashboard, Trades, Acco
 
 ### Desktop Theme System
 
-`AppTheme`, `IThemeService`, theme selection, and JSON preference persistence are Desktop concerns; they do not enter Domain or trading Application workflows. Shared typography, layout, and control styles remain single-source resources. `DarkTheme.xaml` and `LightTheme.xaml` contain the same semantic color and brush keys, and `ThemeService` replaces exactly one active theme dictionary while preserving merged shared dictionaries and their ordering.
+`AppTheme`, `IThemeService`, Windows theme detection, theme selection, and JSON preference persistence are Desktop concerns; they do not enter Domain or trading Application workflows. `PreferredTheme` records the user's System/Dark/Light choice, while `EffectiveTheme` is always the concrete Dark or Light appearance. System resolves `AppsUseLightTheme` from the current-user Windows Personalize registry key and safely falls back to Dark when detection fails. Supported Windows preference changes are observed while System is preferred; explicit Dark or Light ignores them.
+
+Shared typography, layout, and control styles remain single-source resources. `DarkTheme.xaml` and `LightTheme.xaml` contain the same semantic color and brush keys, and `ThemeService` replaces exactly one active theme dictionary while preserving merged shared dictionaries and their ordering. System is a preference and therefore has no resource dictionary of its own.
 
 Theme-sensitive brush consumers use `DynamicResource`, allowing materialized controls and pages to update without rebuilding ViewModels or restarting. Immutable style, typography, spacing, and converter references remain `StaticResource`. Resource tests validate Dark/Light key parity and both static and dynamic project-owned references.
 
-`JsonDesktopSettingsStore` persists only the selected theme to the configured `IApplicationPaths.SettingsPath`. Missing, malformed, or unknown settings fall back to Dark and are logged; writes use a temporary file followed by replacement. Settings applies a choice immediately and reports a safe error if persistence fails without reverting the usable visual theme.
+`JsonDesktopSettingsStore` persists only the preferred theme to the configured `IApplicationPaths.SettingsPath`; a System preference remains System even when its effective appearance is Dark or Light. Missing, malformed, or unknown settings fall back to System and are logged; writes use a temporary file followed by replacement. Settings applies a choice immediately and reports a safe error if persistence fails without reverting the usable visual theme. The header's two-state quick toggle reflects `EffectiveTheme` and creates an explicit opposite Dark/Light preference; Settings remains the route back to System.
 
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
@@ -419,7 +421,7 @@ Local application data is centralized under:
 The current paths are:
 
 - `journal.db` — the active local SQLite store, created and migrated during application startup;
-- `settings.json` — the local Dark/Light Desktop appearance preference;
+- `settings.json` — the local System/Dark/Light Desktop appearance preference;
 - `screenshots` — active local storage for Trade screenshot binary files;
 - `logs` — active storage for local rolling logs; and
 - `backups` — reserved for future backup data.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, M9 added Trading Setup and Trading Mistake classification, and the Desktop Theme System added persisted Dark/Light appearance. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, M9 added Trading Setup and Trading Mistake classification, and the Desktop Theme System added persisted System/Dark/Light appearance. Most other product workflows remain intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -207,7 +207,9 @@ Dark retains the established hierarchy and palette. Light uses distinct backgrou
 
 `PtjStaticResourceTests` checks both static and dynamic project-owned references. Theme resource tests additionally require identical Dark/Light key sets and require every dynamic theme key to exist in both dictionaries, preventing late runtime lookup failures during switching.
 
-The Settings page exposes only Appearance with Dark and Light choices. Selection applies immediately and is persisted to the centralized local `settings.json`; a save failure leaves the selected visual theme active and presents a safe message. Startup restores the preference before resolving and showing `MainWindow`, while missing, malformed, or unknown settings safely fall back to Dark.
+The Settings page exposes only Appearance with System, Dark, and Light choices. System follows the current Windows application appearance and supported changes while PTJ is running. The selected preferred mode is persisted to the centralized local `settings.json`; its resolved effective Dark/Light value is not substituted. A save failure leaves the selected visual theme active and presents a safe message. Startup restores and resolves the preference before showing `MainWindow`, while missing, malformed, or unknown settings safely fall back to System.
+
+The compact upper-right header toggle reflects the effective Dark/Light appearance and applies the explicit opposite theme immediately. Clicking it while System is preferred therefore creates an explicit override; Settings is the place to return to System. The rounded sun/moon pill adapts the supplied visual reference to PTJ's existing semantic resources and control hierarchy without external assets.
 
 ## Accessibility and Window Behavior
 
@@ -265,7 +267,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover theme replacement, local settings behavior, Settings ViewModel state, project-owned static/dynamic resource resolution, and Dark/Light key parity.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 

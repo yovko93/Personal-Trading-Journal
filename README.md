@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted Dark/Light appearance preferences, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -24,7 +24,7 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M9 — Setup and Mistake Classification: Complete**
 
-**Desktop Theme System — Dark / Light: Complete**
+**Desktop Theme System — System / Dark / Light: Complete**
 
 The completed foundation includes:
 
@@ -124,7 +124,7 @@ The M9 Setup and Mistake Classification milestone includes:
 
 Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Setup and Mistake performance analytics are not implemented.
 
-The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`, Settings provides the selector, and `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preference before the main window is shown. Missing or invalid settings safely fall back to Dark.
+The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other five are functional data-backed pages. The other 12 destinations remain placeholders.
 
@@ -205,7 +205,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted Theme System baseline contains 1,161 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 289 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, settings persistence, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
+The extended Theme System suite contains 1,193 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 321 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
 
 ## Run
 
@@ -234,7 +234,7 @@ PersonalTradingJournal/
 
 `journal.db` is the active local SQLite database. EF Core creates it and applies pending migrations automatically during desktop startup.
 
-- `settings.json` stores the local Dark/Light appearance preference; missing or invalid content falls back to Dark.
+- `settings.json` stores the local System/Dark/Light preferred appearance; missing or invalid content falls back to System. The System preference resolves the current Windows application theme at startup and follows supported changes while the app is running.
 - `screenshots` contains locally stored Trade screenshot binaries. Screenshot metadata is persisted separately in `journal.db`.
 - `logs` contains the active application log files.
 - `backups` is reserved for future backup functionality.
@@ -243,7 +243,7 @@ Screenshot binaries are not stored as SQLite blobs. Backup workflows are not yet
 
 ## Startup Persistence
 
-Desktop startup starts the Generic Host, loads and applies the local theme preference, applies database migrations, and only then resolves and shows `MainWindow`. This avoids a Dark-to-Light startup flash. A migration failure is logged as a fatal startup error, aborts startup, and prevents the window from being shown. The application does not delete or recreate a failed database automatically.
+Desktop startup starts the Generic Host, loads the local preferred theme, resolves System to the Windows application theme when needed, applies the concrete theme, applies database migrations, and only then resolves and shows `MainWindow`. This avoids an incorrect-theme startup flash. A migration failure is logged as a fatal startup error, aborts startup, and prevents the window from being shown. The application does not delete or recreate a failed database automatically.
 
 ## Database Schema Changes
 

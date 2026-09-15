@@ -4,18 +4,71 @@ namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
 public sealed class FakeThemeService : IThemeService
 {
-    public FakeThemeService(AppTheme currentTheme = AppTheme.Dark)
+    private EventHandler<ThemeChangedEventArgs>? _themeChanged;
+
+    public FakeThemeService(
+        AppTheme preferredTheme = AppTheme.System,
+        AppTheme? effectiveTheme = null)
     {
-        CurrentTheme = currentTheme;
+        PreferredTheme = preferredTheme;
+        EffectiveTheme = effectiveTheme
+            ?? (preferredTheme == AppTheme.System ? AppTheme.Dark : preferredTheme);
+        SystemTheme = preferredTheme == AppTheme.System
+            ? EffectiveTheme
+            : AppTheme.Dark;
     }
 
-    public AppTheme CurrentTheme { get; private set; }
+    public AppTheme PreferredTheme { get; private set; }
 
-    public List<AppTheme> AppliedThemes { get; } = [];
+    public AppTheme EffectiveTheme { get; private set; }
 
-    public void ApplyTheme(AppTheme theme)
+    public AppTheme SystemTheme { get; private set; }
+
+    public List<AppTheme> SetPreferences { get; } = [];
+
+    public int SubscriberCount { get; private set; }
+
+    public event EventHandler<ThemeChangedEventArgs>? ThemeChanged
     {
-        AppliedThemes.Add(theme);
-        CurrentTheme = theme;
+        add
+        {
+            _themeChanged += value;
+            SubscriberCount++;
+        }
+        remove
+        {
+            _themeChanged -= value;
+            SubscriberCount--;
+        }
     }
+
+    public void SetPreferredTheme(AppTheme theme)
+    {
+        AppTheme previousPreference = PreferredTheme;
+        AppTheme previousEffectiveTheme = EffectiveTheme;
+        PreferredTheme = theme;
+        EffectiveTheme = theme == AppTheme.System ? SystemTheme : theme;
+        SetPreferences.Add(theme);
+
+        if (previousPreference != PreferredTheme || previousEffectiveTheme != EffectiveTheme)
+        {
+            RaiseThemeChanged();
+        }
+    }
+
+    public void SimulateSystemThemeChange(AppTheme theme)
+    {
+        SystemTheme = theme;
+        if (PreferredTheme != AppTheme.System || EffectiveTheme == theme)
+        {
+            return;
+        }
+
+        EffectiveTheme = theme;
+        RaiseThemeChanged();
+    }
+
+    private void RaiseThemeChanged() => _themeChanged?.Invoke(
+        this,
+        new ThemeChangedEventArgs(PreferredTheme, EffectiveTheme));
 }

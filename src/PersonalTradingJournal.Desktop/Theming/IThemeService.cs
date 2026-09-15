@@ -2,7 +2,11 @@ namespace PersonalTradingJournal.Desktop.Theming;
 
 public interface IThemeService
 {
-    AppTheme CurrentTheme { get; }
+    AppTheme PreferredTheme { get; }
 
-    void ApplyTheme(AppTheme theme);
+    AppTheme EffectiveTheme { get; }
+
+    event EventHandler<ThemeChangedEventArgs>? ThemeChanged;
+
+    void SetPreferredTheme(AppTheme theme);
 }

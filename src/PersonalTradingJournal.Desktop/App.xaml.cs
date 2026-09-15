@@ -60,7 +60,10 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
-            builder.Services.AddSingleton<IThemeService>(_ => new ThemeService(Resources));
+            builder.Services.AddSingleton<ISystemThemeProvider, WindowsSystemThemeProvider>();
+            builder.Services.AddSingleton<IThemeService>(services => new ThemeService(
+                Resources,
+                services.GetRequiredService<ISystemThemeProvider>()));
             builder.Services.AddSingleton<IDesktopSettingsStore, JsonDesktopSettingsStore>();
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
@@ -121,8 +124,11 @@ public partial class App : System.Windows.Application
                 _host.Services.GetRequiredService<IDesktopSettingsStore>();
             DesktopSettings settings = await settingsStore.LoadAsync();
             IThemeService themeService = _host.Services.GetRequiredService<IThemeService>();
-            themeService.ApplyTheme(settings.Theme);
-            Log.Information("Theme preference loaded and applied: {Theme}", settings.Theme);
+            themeService.SetPreferredTheme(settings.Theme);
+            Log.Information(
+                "Theme preference loaded and applied: {PreferredTheme}; effective theme: {EffectiveTheme}",
+                themeService.PreferredTheme,
+                themeService.EffectiveTheme);
 
             Log.Information("Initializing database");
             JournalDatabaseInitializer initializer =

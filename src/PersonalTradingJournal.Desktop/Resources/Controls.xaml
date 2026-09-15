@@ -402,4 +402,89 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style x:Key="PtjThemeToggleStyle" TargetType="{x:Type ToggleButton}">
+        <Setter Property="Width" Value="60" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Grid Width="{TemplateBinding Width}"
+                          Height="{TemplateBinding Height}">
+                        <Border x:Name="Track"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="15" />
+                        <Border x:Name="Thumb"
+                                Width="26"
+                                Height="26"
+                                Margin="2"
+                                HorizontalAlignment="Right"
+                                Background="{DynamicResource PtjSurfaceBrush}"
+                                BorderBrush="{DynamicResource PtjAccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="13" />
+                        <Grid IsHitTestVisible="False">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30" />
+                                <ColumnDefinition Width="30" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="SunIcon"
+                                       Grid.Column="0"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Symbol"
+                                       FontSize="14"
+                                       Foreground="{DynamicResource PtjWarningBrush}"
+                                       Opacity="0.55"
+                                       Text="☀" />
+                            <TextBlock x:Name="MoonIcon"
+                                       Grid.Column="1"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe UI Symbol"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                       Text="☾" />
+                        </Grid>
+                        <Border x:Name="FocusIndicator"
+                                Margin="-2"
+                                BorderBrush="{x:Null}"
+                                BorderThickness="1"
+                                CornerRadius="17"
+                                IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Thumb"
+                                    Property="HorizontalAlignment"
+                                    Value="Left" />
+                            <Setter TargetName="SunIcon" Property="Opacity" Value="1" />
+                            <Setter TargetName="MoonIcon" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="MoonIcon"
+                                    Property="Foreground"
+                                    Value="{DynamicResource PtjTextMutedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.88" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusIndicator"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource PtjAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

@@ -152,8 +152,21 @@
             <Border Padding="32,24,32,20"
                     BorderBrush="{DynamicResource PtjBorderBrush}"
                     BorderThickness="0,0,0,1">
-                <TextBlock Style="{StaticResource PtjPageTitleTextStyle}"
-                           Text="{Binding PageTitle}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
+                               Style="{StaticResource PtjPageTitleTextStyle}"
+                               Text="{Binding PageTitle}" />
+                    <ToggleButton Grid.Column="1"
+                                  AutomationProperties.Name="{Binding ThemeToggleToolTip}"
+                                  Command="{Binding ToggleThemeCommand}"
+                                  IsChecked="{Binding IsLightTheme, Mode=OneWay}"
+                                  Style="{StaticResource PtjThemeToggleStyle}"
+                                  ToolTip="{Binding ThemeToggleToolTip}" />
+                </Grid>
             </Border>
 
             <Border Grid.Row="1" Padding="32,24">

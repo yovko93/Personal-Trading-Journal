@@ -33,6 +33,13 @@
 
                     <RadioButton Margin="0,0,0,12"
                                  Command="{Binding ChangeThemeCommand}"
+                                 CommandParameter="{x:Static theming:AppTheme.System}"
+                                 Content="System"
+                                 Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 GroupName="ApplicationTheme"
+                                 IsChecked="{Binding IsSystemSelected, Mode=OneWay}" />
+                    <RadioButton Margin="0,0,0,12"
+                                 Command="{Binding ChangeThemeCommand}"
                                  CommandParameter="{x:Static theming:AppTheme.Dark}"
                                  Content="Dark"
                                  Foreground="{DynamicResource PtjTextPrimaryBrush}"
@@ -44,6 +51,10 @@
                                  Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                  GroupName="ApplicationTheme"
                                  IsChecked="{Binding IsLightSelected, Mode=OneWay}" />
+
+                    <TextBlock Margin="0,12,0,0"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="System follows your Windows appearance setting." />
 
                     <TextBlock Margin="0,16,0,0"
                                Foreground="{DynamicResource PtjWarningBrush}"

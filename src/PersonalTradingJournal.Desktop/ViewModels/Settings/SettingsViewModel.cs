@@ -6,7 +6,7 @@ using PersonalTradingJournal.Desktop.Theming;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Settings;
 
-public sealed class SettingsViewModel : ObservableObject
+public sealed class SettingsViewModel : ObservableObject, IDisposable
 {
     private const string PersistenceError =
         "The theme was applied, but your preference could not be saved.";
@@ -29,11 +29,12 @@ public sealed class SettingsViewModel : ObservableObject
         _themeService = themeService;
         _settingsStore = settingsStore;
         _logger = logger;
-        _selectedTheme = themeService.CurrentTheme;
+        _selectedTheme = themeService.PreferredTheme;
         AvailableThemes = Enum.GetValues<AppTheme>();
         ChangeThemeCommand = new AsyncRelayCommand<AppTheme>(
             ChangeThemeAsync,
             _ => !IsSaving);
+        _themeService.ThemeChanged += OnThemeChanged;
     }
 
     public IReadOnlyList<AppTheme> AvailableThemes { get; }
@@ -47,6 +48,7 @@ public sealed class SettingsViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsDarkSelected));
                 OnPropertyChanged(nameof(IsLightSelected));
+                OnPropertyChanged(nameof(IsSystemSelected));
             }
         }
     }
@@ -54,6 +56,8 @@ public sealed class SettingsViewModel : ObservableObject
     public bool IsDarkSelected => SelectedTheme == AppTheme.Dark;
 
     public bool IsLightSelected => SelectedTheme == AppTheme.Light;
+
+    public bool IsSystemSelected => SelectedTheme == AppTheme.System;
 
     public bool IsSaving
     {
@@ -83,6 +87,8 @@ public sealed class SettingsViewModel : ObservableObject
 
     public IAsyncRelayCommand<AppTheme> ChangeThemeCommand { get; }
 
+    public void Dispose() => _themeService.ThemeChanged -= OnThemeChanged;
+
     private async Task ChangeThemeAsync(AppTheme theme, CancellationToken cancellationToken)
     {
         if (theme == SelectedTheme)
@@ -90,7 +96,7 @@ public sealed class SettingsViewModel : ObservableObject
             return;
         }
 
-        _themeService.ApplyTheme(theme);
+        _themeService.SetPreferredTheme(theme);
         SelectedTheme = theme;
         SaveErrorMessage = null;
         IsSaving = true;
@@ -114,4 +120,7 @@ public sealed class SettingsViewModel : ObservableObject
             IsSaving = false;
         }
     }
+
+    private void OnThemeChanged(object? sender, ThemeChangedEventArgs e) =>
+        SelectedTheme = e.PreferredTheme;
 }

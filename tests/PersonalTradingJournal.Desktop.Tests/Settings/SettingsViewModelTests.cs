@@ -9,45 +9,83 @@ namespace PersonalTradingJournal.Desktop.Tests.Settings;
 public sealed class SettingsViewModelTests
 {
     [Theory]
-    [InlineData(AppTheme.Dark)]
-    [InlineData(AppTheme.Light)]
-    public void ConstructorReflectsCurrentTheme(AppTheme theme)
+    [InlineData(AppTheme.System, AppTheme.Dark)]
+    [InlineData(AppTheme.System, AppTheme.Light)]
+    [InlineData(AppTheme.Dark, AppTheme.Dark)]
+    [InlineData(AppTheme.Light, AppTheme.Light)]
+    public void ConstructorReflectsPreferredRatherThanEffectiveTheme(
+        AppTheme preferredTheme,
+        AppTheme effectiveTheme)
     {
-        var viewModel = CreateViewModel(new FakeThemeService(theme), new FakeDesktopSettingsStore());
+        using var viewModel = CreateViewModel(
+            new FakeThemeService(preferredTheme, effectiveTheme),
+            new FakeDesktopSettingsStore());
 
-        Assert.Equal(theme, viewModel.SelectedTheme);
-        Assert.Equal(theme == AppTheme.Dark, viewModel.IsDarkSelected);
-        Assert.Equal(theme == AppTheme.Light, viewModel.IsLightSelected);
+        Assert.Equal(preferredTheme, viewModel.SelectedTheme);
+        Assert.Equal(preferredTheme == AppTheme.System, viewModel.IsSystemSelected);
+        Assert.Equal(preferredTheme == AppTheme.Dark, viewModel.IsDarkSelected);
+        Assert.Equal(preferredTheme == AppTheme.Light, viewModel.IsLightSelected);
     }
 
     [Fact]
-    public void AvailableThemesContainsDarkAndLight()
+    public void AvailableThemesContainsSystemDarkAndLight()
     {
-        SettingsViewModel viewModel = CreateViewModel(
+        using SettingsViewModel viewModel = CreateViewModel(
             new FakeThemeService(),
             new FakeDesktopSettingsStore());
 
-        Assert.Equal([AppTheme.Dark, AppTheme.Light], viewModel.AvailableThemes);
+        Assert.Equal(
+            [AppTheme.System, AppTheme.Dark, AppTheme.Light],
+            viewModel.AvailableThemes);
     }
 
     [Theory]
+    [InlineData(AppTheme.System, AppTheme.Dark)]
     [InlineData(AppTheme.Dark, AppTheme.Light)]
-    [InlineData(AppTheme.Light, AppTheme.Dark)]
-    public async Task SelectionAppliesAndPersistsTheme(
+    [InlineData(AppTheme.Light, AppTheme.System)]
+    public async Task SelectionAppliesAndPersistsPreferredTheme(
         AppTheme initialTheme,
         AppTheme selectedTheme)
     {
         var themeService = new FakeThemeService(initialTheme);
         var settingsStore = new FakeDesktopSettingsStore();
-        SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
+        using SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
 
         await viewModel.ChangeThemeCommand.ExecuteAsync(selectedTheme);
 
         Assert.Equal(selectedTheme, viewModel.SelectedTheme);
-        Assert.Equal(selectedTheme, Assert.Single(themeService.AppliedThemes));
+        Assert.Equal(selectedTheme, Assert.Single(themeService.SetPreferences));
         Assert.Equal(selectedTheme, Assert.Single(settingsStore.SavedSettings).Theme);
         Assert.False(viewModel.IsSaving);
         Assert.False(viewModel.HasSaveError);
+    }
+
+    [Fact]
+    public void ExternalPreferredThemeChangeUpdatesSelection()
+    {
+        var themeService = new FakeThemeService(AppTheme.System, AppTheme.Dark);
+        using SettingsViewModel viewModel = CreateViewModel(
+            themeService,
+            new FakeDesktopSettingsStore());
+
+        themeService.SetPreferredTheme(AppTheme.Light);
+
+        Assert.Equal(AppTheme.Light, viewModel.SelectedTheme);
+        Assert.True(viewModel.IsLightSelected);
+    }
+
+    [Fact]
+    public void SystemEffectiveThemeChangeKeepsSystemSelected()
+    {
+        var themeService = new FakeThemeService(AppTheme.System, AppTheme.Dark);
+        using SettingsViewModel viewModel = CreateViewModel(
+            themeService,
+            new FakeDesktopSettingsStore());
+
+        themeService.SimulateSystemThemeChange(AppTheme.Light);
+
+        Assert.Equal(AppTheme.System, viewModel.SelectedTheme);
+        Assert.True(viewModel.IsSystemSelected);
     }
 
     [Fact]
@@ -58,11 +96,11 @@ public sealed class SettingsViewModelTests
         {
             SaveException = new IOException("Sensitive persistence detail"),
         };
-        SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
+        using SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
 
         await viewModel.ChangeThemeCommand.ExecuteAsync(AppTheme.Light);
 
-        Assert.Equal(AppTheme.Light, themeService.CurrentTheme);
+        Assert.Equal(AppTheme.Light, themeService.EffectiveTheme);
         Assert.Equal(AppTheme.Light, viewModel.SelectedTheme);
         Assert.True(viewModel.HasSaveError);
         Assert.DoesNotContain("Sensitive", viewModel.SaveErrorMessage, StringComparison.Ordinal);
@@ -70,16 +108,28 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public async Task SelectingCurrentThemeDoesNotApplyOrPersistAgain()
+    public async Task SelectingCurrentPreferenceDoesNotApplyOrPersistAgain()
     {
-        var themeService = new FakeThemeService(AppTheme.Dark);
+        var themeService = new FakeThemeService(AppTheme.System, AppTheme.Dark);
         var settingsStore = new FakeDesktopSettingsStore();
-        SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
+        using SettingsViewModel viewModel = CreateViewModel(themeService, settingsStore);
 
-        await viewModel.ChangeThemeCommand.ExecuteAsync(AppTheme.Dark);
+        await viewModel.ChangeThemeCommand.ExecuteAsync(AppTheme.System);
 
-        Assert.Empty(themeService.AppliedThemes);
+        Assert.Empty(themeService.SetPreferences);
         Assert.Empty(settingsStore.SavedSettings);
+    }
+
+    [Fact]
+    public void DisposeUnsubscribesFromThemeService()
+    {
+        var themeService = new FakeThemeService();
+        var viewModel = CreateViewModel(themeService, new FakeDesktopSettingsStore());
+        Assert.Equal(1, themeService.SubscriberCount);
+
+        viewModel.Dispose();
+
+        Assert.Equal(0, themeService.SubscriberCount);
     }
 
     private static SettingsViewModel CreateViewModel(
