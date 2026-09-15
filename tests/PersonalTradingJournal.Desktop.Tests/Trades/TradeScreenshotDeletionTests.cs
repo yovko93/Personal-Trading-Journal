@@ -1,3 +1,4 @@
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -347,6 +348,8 @@ public sealed class TradeScreenshotDeletionTests
         var viewModel = new TradesViewModel(
             new FakeManualTradeReferenceDataReader(),
             new FakeTradingSetupReader(),
+            new FakeTradingMistakeReader(),
+            new FakeTradeMistakeReader(),
             tradeListReader,
             detailReader,
             new CreateManualTradeUseCase(
@@ -359,6 +362,12 @@ public sealed class TradeScreenshotDeletionTests
                 new FakeTradeMutationStore(),
                 new FakeTradingSetupStore(),
                 timeProvider),
+            new AssignTradeMistakeUseCase(
+                new FakeTradeExistenceReader(),
+                new FakeTradingMistakeStore(),
+                new FakeTradeMistakeStore(),
+                timeProvider),
+            new RemoveTradeMistakeUseCase(new FakeTradeMistakeStore()),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
                 timeProvider),

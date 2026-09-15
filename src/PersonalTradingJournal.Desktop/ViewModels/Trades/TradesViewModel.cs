@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
@@ -37,6 +38,26 @@ public sealed class TradesViewModel : ObservableObject
         "Trading setup could not be saved.";
     private const string TradingSetupSavedMessage =
         "Trading setup updated successfully.";
+    private const string TradeMistakesLoadErrorMessage =
+        "Trade mistakes could not be loaded.";
+    private const string TradingMistakeOptionsLoadErrorMessage =
+        "Trading mistake options could not be loaded.";
+    private const string AssignMistakeErrorMessageFallback =
+        "Trading mistake could not be assigned.";
+    private const string MissingTradingMistakeErrorMessage =
+        "The selected trading mistake is no longer available.";
+    private const string InactiveTradingMistakeErrorMessage =
+        "The selected trading mistake is inactive.";
+    private const string DuplicateTradingMistakeErrorMessage =
+        "This trading mistake is already assigned to the trade.";
+    private const string TradingMistakeAssignedMessage =
+        "Trading mistake assigned successfully.";
+    private const string RemoveMistakeErrorMessageFallback =
+        "Trading mistake could not be removed.";
+    private const string MissingTradeMistakeErrorMessage =
+        "The selected trade mistake is no longer available.";
+    private const string TradingMistakeRemovedMessage =
+        "Trading mistake removed successfully.";
     private const string TradeSavedMessage = "Trade saved successfully.";
     private const string CloseTradeSaveErrorMessageFallback =
         "Trade could not be closed.";
@@ -78,6 +99,8 @@ public sealed class TradesViewModel : ObservableObject
 
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
     private readonly ITradingSetupReader _tradingSetupReader;
+    private readonly ITradingMistakeReader _tradingMistakeReader;
+    private readonly ITradeMistakeReader _tradeMistakeReader;
     private readonly ITradeDetailReader _tradeDetailReader;
     private readonly ITradeListReader _tradeListReader;
     private readonly ITradeScreenshotReader _tradeScreenshotReader;
@@ -90,12 +113,18 @@ public sealed class TradesViewModel : ObservableObject
         _tradeScreenshotDeleteConfirmation;
     private readonly CreateManualTradeUseCase _createManualTradeUseCase;
     private readonly SetTradeTradingSetupUseCase _setTradeTradingSetupUseCase;
+    private readonly AssignTradeMistakeUseCase _assignTradeMistakeUseCase;
+    private readonly RemoveTradeMistakeUseCase _removeTradeMistakeUseCase;
     private readonly CloseManualTradeUseCase _closeManualTradeUseCase;
     private readonly SemaphoreSlim _referenceDataLoadGate = new(1, 1);
     private readonly SemaphoreSlim _tradeListLoadGate = new(1, 1);
+    private readonly SemaphoreSlim _tradingMistakeOptionsLoadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
     private IReadOnlyList<TradingSetupListItem> _allTradingSetups = [];
     private IReadOnlyList<TradingSetupListItem> _availableTradingSetups = [];
+    private IReadOnlyList<TradingMistakeListItem> _allTradingMistakes = [];
+    private IReadOnlyList<TradingMistakeListItem> _availableTradingMistakes = [];
+    private IReadOnlyList<TradeMistakeListItem> _tradeMistakes = [];
     private string _entryCommissionText = "0";
     private string _entryExecutedAtUtcText = string.Empty;
     private string _entryFeesText = "0";
@@ -108,6 +137,8 @@ public sealed class TradesViewModel : ObservableObject
     private bool _hasExit;
     private bool _hasReferenceDataLoadedSuccessfully;
     private bool _hasTradeListLoadedSuccessfully;
+    private bool _hasTradingMistakeOptionsLoadedSuccessfully;
+    private Guid? _loadedTradeMistakesTradeId;
     private Guid? _loadedTradeScreenshotsTradeId;
     private IReadOnlyList<ManualTradeInstrumentOption> _instrumentOptions = [];
     private bool _isLoading;
@@ -132,6 +163,18 @@ public sealed class TradesViewModel : ObservableObject
     private bool _isTradingSetupSaving;
     private string? _tradingSetupSaveErrorMessage;
     private string? _tradingSetupSuccessMessage;
+    private TradingMistakeListItem? _selectedTradingMistake;
+    private string _tradeMistakeNoteText = string.Empty;
+    private bool _isTradeMistakesLoading;
+    private bool _isTradingMistakeOptionsLoading;
+    private bool _isAssigningMistake;
+    private bool _isRemovingMistake;
+    private string? _tradeMistakesErrorMessage;
+    private string? _tradingMistakeOptionsErrorMessage;
+    private string? _assignMistakeErrorMessage;
+    private string? _assignMistakeSuccessMessage;
+    private string? _removeMistakeErrorMessage;
+    private string? _removeMistakeSuccessMessage;
     private TradeDetail? _selectedTradeDetail;
     private string? _successMessage;
     private string? _tradeDetailErrorMessage;
@@ -170,10 +213,14 @@ public sealed class TradesViewModel : ObservableObject
     public TradesViewModel(
         IManualTradeReferenceDataReader referenceDataReader,
         ITradingSetupReader tradingSetupReader,
+        ITradingMistakeReader tradingMistakeReader,
+        ITradeMistakeReader tradeMistakeReader,
         ITradeListReader tradeListReader,
         ITradeDetailReader tradeDetailReader,
         CreateManualTradeUseCase createManualTradeUseCase,
         SetTradeTradingSetupUseCase setTradeTradingSetupUseCase,
+        AssignTradeMistakeUseCase assignTradeMistakeUseCase,
+        RemoveTradeMistakeUseCase removeTradeMistakeUseCase,
         CloseManualTradeUseCase closeManualTradeUseCase,
         ITradeScreenshotReader tradeScreenshotReader,
         AddTradeScreenshotUseCase addTradeScreenshotUseCase,
@@ -185,10 +232,14 @@ public sealed class TradesViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
+        ArgumentNullException.ThrowIfNull(tradingMistakeReader);
+        ArgumentNullException.ThrowIfNull(tradeMistakeReader);
         ArgumentNullException.ThrowIfNull(tradeListReader);
         ArgumentNullException.ThrowIfNull(tradeDetailReader);
         ArgumentNullException.ThrowIfNull(createManualTradeUseCase);
         ArgumentNullException.ThrowIfNull(setTradeTradingSetupUseCase);
+        ArgumentNullException.ThrowIfNull(assignTradeMistakeUseCase);
+        ArgumentNullException.ThrowIfNull(removeTradeMistakeUseCase);
         ArgumentNullException.ThrowIfNull(closeManualTradeUseCase);
         ArgumentNullException.ThrowIfNull(tradeScreenshotReader);
         ArgumentNullException.ThrowIfNull(addTradeScreenshotUseCase);
@@ -200,10 +251,14 @@ public sealed class TradesViewModel : ObservableObject
 
         _referenceDataReader = referenceDataReader;
         _tradingSetupReader = tradingSetupReader;
+        _tradingMistakeReader = tradingMistakeReader;
+        _tradeMistakeReader = tradeMistakeReader;
         _tradeListReader = tradeListReader;
         _tradeDetailReader = tradeDetailReader;
         _createManualTradeUseCase = createManualTradeUseCase;
         _setTradeTradingSetupUseCase = setTradeTradingSetupUseCase;
+        _assignTradeMistakeUseCase = assignTradeMistakeUseCase;
+        _removeTradeMistakeUseCase = removeTradeMistakeUseCase;
         _closeManualTradeUseCase = closeManualTradeUseCase;
         _tradeScreenshotReader = tradeScreenshotReader;
         _addTradeScreenshotUseCase = addTradeScreenshotUseCase;
@@ -226,6 +281,12 @@ public sealed class TradesViewModel : ObservableObject
         ClearTradingSetupCommand = new AsyncRelayCommand(
             ClearTradingSetupAsync,
             CanClearTradingSetup);
+        AssignMistakeCommand = new AsyncRelayCommand(
+            AssignMistakeAsync,
+            CanAssignMistake);
+        RemoveMistakeCommand = new AsyncRelayCommand<TradeMistakeListItem>(
+            RemoveMistakeAsync,
+            CanRemoveMistake);
         ShowTradeDetailCommand = new AsyncRelayCommand<TradeListItem>(
             ShowTradeDetailAsync,
             CanShowTradeDetail);
@@ -319,6 +380,56 @@ public sealed class TradesViewModel : ObservableObject
         }
     }
 
+    public IReadOnlyList<TradingMistakeListItem> AvailableTradingMistakes
+    {
+        get => _availableTradingMistakes;
+        private set
+        {
+            if (SetProperty(ref _availableTradingMistakes, value))
+            {
+                OnPropertyChanged(nameof(HasAvailableTradingMistakes));
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasAvailableTradingMistakes =>
+        AvailableTradingMistakes.Count > 0;
+
+    public TradingMistakeListItem? SelectedTradingMistake
+    {
+        get => _selectedTradingMistake;
+        set
+        {
+            if (SetProperty(ref _selectedTradingMistake, value))
+            {
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string TradeMistakeNoteText
+    {
+        get => _tradeMistakeNoteText;
+        set => SetProperty(ref _tradeMistakeNoteText, value);
+    }
+
+    public IReadOnlyList<TradeMistakeListItem> TradeMistakes
+    {
+        get => _tradeMistakes;
+        private set
+        {
+            if (SetProperty(ref _tradeMistakes, value))
+            {
+                OnPropertyChanged(nameof(HasTradeMistakes));
+                SynchronizeAvailableTradingMistakes();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasTradeMistakes => TradeMistakes.Count > 0;
+
     public IReadOnlyList<TradeListItem> RecentTrades
     {
         get => _recentTrades;
@@ -348,8 +459,11 @@ public sealed class TradesViewModel : ObservableObject
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
                 SynchronizeTradeDetailTradingSetupOptions();
+                SynchronizeAvailableTradingMistakes();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -575,6 +689,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -602,6 +718,68 @@ public sealed class TradesViewModel : ObservableObject
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsTradingMistakeOptionsLoading
+    {
+        get => _isTradingMistakeOptionsLoading;
+        private set
+        {
+            if (SetProperty(ref _isTradingMistakeOptionsLoading, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsTradeMistakesLoading
+    {
+        get => _isTradeMistakesLoading;
+        private set
+        {
+            if (SetProperty(ref _isTradeMistakesLoading, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                CloseTradeDetailCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsAssigningMistake
+    {
+        get => _isAssigningMistake;
+        private set
+        {
+            if (SetProperty(ref _isAssigningMistake, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                ShowTradeDetailCommand.NotifyCanExecuteChanged();
+                CloseTradeDetailCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsRemovingMistake
+    {
+        get => _isRemovingMistake;
+        private set
+        {
+            if (SetProperty(ref _isRemovingMistake, value))
+            {
+                RefreshCommand.NotifyCanExecuteChanged();
+                ShowTradeDetailCommand.NotifyCanExecuteChanged();
+                CloseTradeDetailCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -618,6 +796,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveScreenshotCommand.NotifyCanExecuteChanged();
                 OpenScreenshotPreviewCommand.NotifyCanExecuteChanged();
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -641,6 +821,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                AssignMistakeCommand.NotifyCanExecuteChanged();
+                RemoveMistakeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -796,6 +978,93 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     public bool HasTradingSetupSuccess => TradingSetupSuccessMessage is not null;
+
+    public string? TradeMistakesErrorMessage
+    {
+        get => _tradeMistakesErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeMistakesErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeMistakesError));
+            }
+        }
+    }
+
+    public bool HasTradeMistakesError => TradeMistakesErrorMessage is not null;
+
+    public string? TradingMistakeOptionsErrorMessage
+    {
+        get => _tradingMistakeOptionsErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _tradingMistakeOptionsErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradingMistakeOptionsError));
+            }
+        }
+    }
+
+    public bool HasTradingMistakeOptionsError =>
+        TradingMistakeOptionsErrorMessage is not null;
+
+    public string? AssignMistakeErrorMessage
+    {
+        get => _assignMistakeErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _assignMistakeErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasAssignMistakeError));
+            }
+        }
+    }
+
+    public bool HasAssignMistakeError => AssignMistakeErrorMessage is not null;
+
+    public string? AssignMistakeSuccessMessage
+    {
+        get => _assignMistakeSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _assignMistakeSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasAssignMistakeSuccess));
+            }
+        }
+    }
+
+    public bool HasAssignMistakeSuccess =>
+        AssignMistakeSuccessMessage is not null;
+
+    public string? RemoveMistakeErrorMessage
+    {
+        get => _removeMistakeErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _removeMistakeErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasRemoveMistakeError));
+            }
+        }
+    }
+
+    public bool HasRemoveMistakeError => RemoveMistakeErrorMessage is not null;
+
+    public string? RemoveMistakeSuccessMessage
+    {
+        get => _removeMistakeSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _removeMistakeSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasRemoveMistakeSuccess));
+            }
+        }
+    }
+
+    public bool HasRemoveMistakeSuccess =>
+        RemoveMistakeSuccessMessage is not null;
 
     public string? TradeScreenshotsErrorMessage
     {
@@ -1148,6 +1417,10 @@ public sealed class TradesViewModel : ObservableObject
 
     public IAsyncRelayCommand ClearTradingSetupCommand { get; }
 
+    public IAsyncRelayCommand AssignMistakeCommand { get; }
+
+    public IAsyncRelayCommand<TradeMistakeListItem> RemoveMistakeCommand { get; }
+
     public IAsyncRelayCommand<TradeListItem> ShowTradeDetailCommand { get; }
 
     public IRelayCommand CloseTradeDetailCommand { get; }
@@ -1360,18 +1633,28 @@ public sealed class TradesViewModel : ObservableObject
     public async Task EnsureLoadedAsync()
     {
         _ = await LoadReferenceDataAsync(forceRefresh: false, CancellationToken.None);
+        _ = await LoadTradingMistakeOptionsAsync(
+            forceRefresh: false,
+            CancellationToken.None);
         _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
         _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);
+        _ = await LoadTradingMistakeOptionsAsync(
+            forceRefresh: true,
+            cancellationToken);
         _ = await LoadTradeListAsync(forceRefresh: true, cancellationToken);
 
         if (IsTradeDetailVisible && SelectedTradeDetail is { } detail)
         {
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
                 detail.Id,
+                cancellationToken);
+            _ = await LoadTradeMistakesAsync(
+                detail.Id,
+                forceRefresh: true,
                 cancellationToken);
             _ = await LoadTradeScreenshotsAsync(
                 detail.Id,
@@ -1385,8 +1668,12 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeListLoading &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
+        !IsTradingMistakeOptionsLoading &&
         !IsSaving &&
         !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
         !IsAddingScreenshot &&
         !IsDeletingScreenshot &&
         !IsClosingTrade;
@@ -1421,6 +1708,8 @@ public sealed class TradesViewModel : ObservableObject
         !IsTradeDetailLoading &&
         !IsSaving &&
         !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
         !IsAddingScreenshot &&
         !IsClosingTrade;
 
@@ -1428,9 +1717,12 @@ public sealed class TradesViewModel : ObservableObject
         item is not null &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
         !IsTradeListLoading &&
         !IsSaving &&
         !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
         !IsAddingScreenshot &&
         !IsDeletingScreenshot &&
         !IsClosingTrade;
@@ -1453,6 +1745,7 @@ public sealed class TradesViewModel : ObservableObject
         TradingSetupSuccessMessage = null;
         ClearCloseTradeState();
         ClearTradeScreenshotState();
+        ClearTradeMistakeState();
         IsTradeDetailLoading = true;
 
         try
@@ -1485,6 +1778,11 @@ public sealed class TradesViewModel : ObservableObject
 
         if (SelectedTradeDetail is { } selectedDetail)
         {
+            _ = await LoadTradeMistakesAsync(
+                selectedDetail.Id,
+                forceRefresh: false,
+                cancellationToken,
+                clearOnFailure: true);
             _ = await LoadTradeScreenshotsAsync(
                 selectedDetail.Id,
                 forceRefresh: false,
@@ -1501,12 +1799,16 @@ public sealed class TradesViewModel : ObservableObject
         IsTradeDetailNotFound = false;
         ClearCloseTradeState();
         ClearTradeScreenshotState();
+        ClearTradeMistakeState();
     }
 
     private bool CanCloseTradeDetail() =>
         IsTradeDetailVisible &&
         !IsTradeDetailLoading &&
         !IsTradingSetupSaving &&
+        !IsTradeMistakesLoading &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
         !IsTradeScreenshotsLoading &&
         !IsAddingScreenshot &&
         !IsDeletingScreenshot &&
@@ -1768,6 +2070,129 @@ public sealed class TradesViewModel : ObservableObject
         finally
         {
             IsTradeDetailLoading = false;
+        }
+    }
+
+    private bool CanAssignMistake() =>
+        IsTradeDetailVisible &&
+        SelectedTradeDetail is not null &&
+        SelectedTradingMistake is not null &&
+        !IsTradeDetailLoading &&
+        !IsTradeMistakesLoading &&
+        !IsTradingMistakeOptionsLoading &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake;
+
+    private async Task AssignMistakeAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedTradeDetail is not { } detail ||
+            SelectedTradingMistake is not { } mistake)
+        {
+            return;
+        }
+
+        AssignMistakeErrorMessage = null;
+        AssignMistakeSuccessMessage = null;
+        RemoveMistakeErrorMessage = null;
+        RemoveMistakeSuccessMessage = null;
+        IsAssigningMistake = true;
+
+        try
+        {
+            _ = await _assignTradeMistakeUseCase.ExecuteAsync(
+                new AssignTradeMistakeCommand(
+                    detail.Id,
+                    mistake.Id,
+                    TradeMistakeNoteText),
+                cancellationToken);
+            SelectedTradingMistake = null;
+            TradeMistakeNoteText = string.Empty;
+            AssignMistakeSuccessMessage = TradingMistakeAssignedMessage;
+            _ = await LoadTradeMistakesAsync(
+                detail.Id,
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException exception) when (
+            exception.Message == AssignTradeMistakeUseCase.MissingMistakeMessage)
+        {
+            AssignMistakeErrorMessage = MissingTradingMistakeErrorMessage;
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message == AssignTradeMistakeUseCase.InactiveMistakeMessage)
+        {
+            AssignMistakeErrorMessage = InactiveTradingMistakeErrorMessage;
+        }
+        catch (InvalidOperationException exception) when (
+            exception.Message == AssignTradeMistakeUseCase.DuplicateMistakeMessage)
+        {
+            AssignMistakeErrorMessage = DuplicateTradingMistakeErrorMessage;
+        }
+        catch (Exception)
+        {
+            AssignMistakeErrorMessage = AssignMistakeErrorMessageFallback;
+        }
+        finally
+        {
+            IsAssigningMistake = false;
+        }
+    }
+
+    private bool CanRemoveMistake(TradeMistakeListItem? item) =>
+        item is not null &&
+        IsTradeDetailVisible &&
+        SelectedTradeDetail is { } detail &&
+        item.TradeId == detail.Id &&
+        !IsTradeDetailLoading &&
+        !IsTradeMistakesLoading &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake;
+
+    private async Task RemoveMistakeAsync(
+        TradeMistakeListItem? item,
+        CancellationToken cancellationToken)
+    {
+        if (item is null || SelectedTradeDetail is not { } detail)
+        {
+            return;
+        }
+
+        AssignMistakeErrorMessage = null;
+        AssignMistakeSuccessMessage = null;
+        RemoveMistakeErrorMessage = null;
+        RemoveMistakeSuccessMessage = null;
+        IsRemovingMistake = true;
+
+        try
+        {
+            await _removeTradeMistakeUseCase.ExecuteAsync(
+                new RemoveTradeMistakeCommand(detail.Id, item.Id),
+                cancellationToken);
+            RemoveMistakeSuccessMessage = TradingMistakeRemovedMessage;
+            _ = await LoadTradeMistakesAsync(
+                detail.Id,
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            RemoveMistakeErrorMessage = MissingTradeMistakeErrorMessage;
+        }
+        catch (Exception)
+        {
+            RemoveMistakeErrorMessage = RemoveMistakeErrorMessageFallback;
+        }
+        finally
+        {
+            IsRemovingMistake = false;
         }
     }
 
@@ -2296,6 +2721,72 @@ public sealed class TradesViewModel : ObservableObject
         ResetScreenshotPreviewState();
     }
 
+    private void ClearTradeMistakeState()
+    {
+        TradeMistakes = [];
+        _loadedTradeMistakesTradeId = null;
+        SelectedTradingMistake = null;
+        TradeMistakeNoteText = string.Empty;
+        TradeMistakesErrorMessage = null;
+        AssignMistakeErrorMessage = null;
+        AssignMistakeSuccessMessage = null;
+        RemoveMistakeErrorMessage = null;
+        RemoveMistakeSuccessMessage = null;
+    }
+
+    private async Task<bool> LoadTradeMistakesAsync(
+        Guid tradeId,
+        bool forceRefresh,
+        CancellationToken cancellationToken,
+        bool clearOnFailure = false)
+    {
+        if (!forceRefresh && _loadedTradeMistakesTradeId == tradeId)
+        {
+            return true;
+        }
+
+        IsTradeMistakesLoading = true;
+        TradeMistakesErrorMessage = null;
+
+        try
+        {
+            IReadOnlyList<TradeMistakeListItem> tradeMistakes =
+                await _tradeMistakeReader.GetByTradeIdAsync(
+                    tradeId,
+                    cancellationToken);
+            if (SelectedTradeDetail?.Id == tradeId && IsTradeDetailVisible)
+            {
+                TradeMistakes = tradeMistakes;
+                _loadedTradeMistakesTradeId = tradeId;
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            if (SelectedTradeDetail?.Id == tradeId && IsTradeDetailVisible)
+            {
+                if (clearOnFailure)
+                {
+                    TradeMistakes = [];
+                    _loadedTradeMistakesTradeId = null;
+                }
+
+                TradeMistakesErrorMessage = TradeMistakesLoadErrorMessage;
+            }
+
+            return false;
+        }
+        finally
+        {
+            IsTradeMistakesLoading = false;
+        }
+    }
+
     private void ResetScreenshotPreviewState()
     {
         _previewRequestVersion++;
@@ -2443,6 +2934,70 @@ public sealed class TradesViewModel : ObservableObject
         SelectedTradeDetailTradingSetup = currentSetupId.HasValue
             ? TradeDetailTradingSetupOptions.SingleOrDefault(
                 setup => setup.Id == currentSetupId.Value)
+            : null;
+    }
+
+    private async Task<bool> LoadTradingMistakeOptionsAsync(
+        bool forceRefresh,
+        CancellationToken cancellationToken)
+    {
+        if (!await _tradingMistakeOptionsLoadGate.WaitAsync(0, cancellationToken))
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!forceRefresh && _hasTradingMistakeOptionsLoadedSuccessfully)
+            {
+                return true;
+            }
+
+            IsTradingMistakeOptionsLoading = true;
+            TradingMistakeOptionsErrorMessage = null;
+
+            try
+            {
+                IReadOnlyList<TradingMistakeListItem> mistakes =
+                    await _tradingMistakeReader.GetAllAsync(cancellationToken);
+                _allTradingMistakes = mistakes;
+                SynchronizeAvailableTradingMistakes();
+                _hasTradingMistakeOptionsLoadedSuccessfully = true;
+                return true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                TradingMistakeOptionsErrorMessage =
+                    TradingMistakeOptionsLoadErrorMessage;
+                return false;
+            }
+            finally
+            {
+                IsTradingMistakeOptionsLoading = false;
+            }
+        }
+        finally
+        {
+            _tradingMistakeOptionsLoadGate.Release();
+        }
+    }
+
+    private void SynchronizeAvailableTradingMistakes()
+    {
+        var assignedMistakeIds = TradeMistakes
+            .Select(item => item.TradingMistakeId)
+            .ToHashSet();
+        Guid? selectedMistakeId = SelectedTradingMistake?.Id;
+        AvailableTradingMistakes = _allTradingMistakes
+            .Where(item => item.IsActive && !assignedMistakeIds.Contains(item.Id))
+            .ToList();
+        SelectedTradingMistake = selectedMistakeId.HasValue
+            ? AvailableTradingMistakes.SingleOrDefault(
+                item => item.Id == selectedMistakeId.Value)
             : null;
     }
 

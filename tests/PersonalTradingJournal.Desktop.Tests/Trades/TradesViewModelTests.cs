@@ -1,4 +1,5 @@
 using System.Globalization;
+using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
@@ -15,7 +16,7 @@ using PersonalTradingJournal.Domain.Trades;
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
 
 [Collection(CultureSensitiveCollection.Name)]
-public sealed class TradesViewModelTests
+public sealed partial class TradesViewModelTests
 {
     private static readonly DateTimeOffset CloseExecutedAtUtc =
         new(2026, 9, 8, 14, 15, 0, TimeSpan.Zero);
@@ -2692,7 +2693,11 @@ public sealed class TradesViewModelTests
         FakeTradeMutationStore? tradeMutationStore = null,
         TimeProvider? timeProvider = null,
         FakeTradingSetupReader? tradingSetupReader = null,
-        FakeTradingSetupStore? tradingSetupStore = null)
+        FakeTradingSetupStore? tradingSetupStore = null,
+        FakeTradingMistakeReader? tradingMistakeReader = null,
+        FakeTradeMistakeReader? tradeMistakeReader = null,
+        FakeTradingMistakeStore? tradingMistakeStore = null,
+        FakeTradeMistakeStore? tradeMistakeStore = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -2714,10 +2719,16 @@ public sealed class TradesViewModelTests
         timeProvider ??= new FixedTimeProvider();
         tradingSetupReader ??= new FakeTradingSetupReader();
         tradingSetupStore ??= new FakeTradingSetupStore();
+        tradingMistakeReader ??= new FakeTradingMistakeReader();
+        tradeMistakeReader ??= new FakeTradeMistakeReader();
+        tradingMistakeStore ??= new FakeTradingMistakeStore();
+        tradeMistakeStore ??= new FakeTradeMistakeStore();
 
         return new TradesViewModel(
             reader,
             tradingSetupReader,
+            tradingMistakeReader,
+            tradeMistakeReader,
             tradeListReader,
             tradeDetailReader,
             new CreateManualTradeUseCase(
@@ -2730,6 +2741,12 @@ public sealed class TradesViewModelTests
                 tradeMutationStore,
                 tradingSetupStore,
                 timeProvider),
+            new AssignTradeMistakeUseCase(
+                tradeExistenceReader,
+                tradingMistakeStore,
+                tradeMistakeStore,
+                timeProvider),
+            new RemoveTradeMistakeUseCase(tradeMistakeStore),
             new CloseManualTradeUseCase(
                 tradeMutationStore,
                 timeProvider),

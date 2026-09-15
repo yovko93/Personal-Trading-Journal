@@ -154,6 +154,25 @@ public sealed class PersistenceRegistrationTests
     }
 
     [Fact]
+    public void AddPersistenceRegistersTradeMistakeServicesAsTransient()
+    {
+        var services = new ServiceCollection();
+        services.AddPersistence(new LocalApplicationPaths(Path.GetTempPath()));
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.IsType<TradeMistakeReader>(
+            provider.GetRequiredService<ITradeMistakeReader>());
+        Assert.IsType<TradeMistakeStore>(
+            provider.GetRequiredService<ITradeMistakeStore>());
+        Assert.NotSame(
+            provider.GetRequiredService<ITradeMistakeReader>(),
+            provider.GetRequiredService<ITradeMistakeReader>());
+        Assert.NotSame(
+            provider.GetRequiredService<ITradeMistakeStore>(),
+            provider.GetRequiredService<ITradeMistakeStore>());
+    }
+
+    [Fact]
     public void AddPersistenceRegistersTradeStoreAsTransient()
     {
         var applicationPaths = new LocalApplicationPaths(Path.GetTempPath());

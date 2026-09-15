@@ -1003,6 +1003,207 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource PtjSectionTitleTextStyle}"
+                                   Text="Trading Mistakes" />
+
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="Loading trading mistakes...">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}"
+                                       BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsTradeMistakesLoading}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Margin="0,12,0,0"
+                                   Text="{Binding TradeMistakesErrorMessage}"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}"
+                                       BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                    <Setter Property="Foreground" Value="{StaticResource PtjWarningBrush}" />
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasTradeMistakesError}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <TextBlock Margin="0,16,0,0"
+                                   HorizontalAlignment="Center"
+                                   Text="No trading mistakes are assigned to this trade.">
+                            <TextBlock.Style>
+                                <Style TargetType="{x:Type TextBlock}"
+                                       BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding IsTradeMistakesLoading}" Value="False" />
+                                                <Condition Binding="{Binding HasTradeMistakes}" Value="False" />
+                                                <Condition Binding="{Binding HasTradeMistakesError}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <ItemsControl Margin="0,12,0,0"
+                                      ItemsSource="{Binding TradeMistakes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8"
+                                            Padding="12"
+                                            BorderBrush="{StaticResource PtjBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock FontWeight="SemiBold"
+                                                               Style="{StaticResource PtjBodyTextStyle}"
+                                                               Text="{Binding TradingMistakeName}" />
+                                                    <TextBlock Margin="6,0,0,0"
+                                                               Text="(Inactive)">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}"
+                                                                   BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsTradingMistakeActive}" Value="False">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <TextBlock Margin="0,5,0,0"
+                                                           Text="{Binding Note}"
+                                                           TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="{x:Type TextBlock}"
+                                                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Note}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <Button Grid.Column="1"
+                                                    Margin="12,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.RemoveMistakeCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="Remove"
+                                                    Style="{StaticResource PtjButtonStyle}" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Margin="0,8,0,0"
+                                Padding="16"
+                                BorderBrush="{StaticResource PtjBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="Trading Mistake" />
+                                <ComboBox Margin="0,6,0,0"
+                                          ItemsSource="{Binding AvailableTradingMistakes}"
+                                          SelectedItem="{Binding SelectedTradingMistake}"
+                                          DisplayMemberPath="Name"
+                                          Style="{StaticResource PtjComboBoxStyle}" />
+                                <TextBlock Margin="0,8,0,0"
+                                           Text="No active unassigned trading mistakes are available.">
+                                    <TextBlock.Style>
+                                        <Style TargetType="{x:Type TextBlock}"
+                                               BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsTradingMistakeOptionsLoading}" Value="False" />
+                                                        <Condition Binding="{Binding HasAvailableTradingMistakes}" Value="False" />
+                                                        <Condition Binding="{Binding HasTradingMistakeOptionsError}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Margin="0,8,0,0"
+                                           Style="{StaticResource PtjSecondaryTextStyle}"
+                                           Foreground="{StaticResource PtjWarningBrush}"
+                                           Text="{Binding TradingMistakeOptionsErrorMessage}"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Margin="0,14,0,6"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="Note" />
+                                <TextBox MinHeight="64"
+                                         MaxLength="2000"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         VerticalContentAlignment="Top"
+                                         Style="{StaticResource PtjTextBoxStyle}"
+                                         Text="{Binding TradeMistakeNoteText, UpdateSourceTrigger=PropertyChanged}" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="Optional context about what happened." />
+                                <Button Margin="0,14,0,0"
+                                        HorizontalAlignment="Right"
+                                        Command="{Binding AssignMistakeCommand}"
+                                        Content="Add Mistake"
+                                        Style="{StaticResource PtjPrimaryButtonStyle}" />
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{StaticResource PtjErrorBrush}"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="{Binding AssignMistakeErrorMessage}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{StaticResource PtjSuccessBrush}"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="{Binding AssignMistakeSuccessMessage}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{StaticResource PtjErrorBrush}"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="{Binding RemoveMistakeErrorMessage}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,10,0,0"
+                                   Foreground="{StaticResource PtjSuccessBrush}"
+                                   Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Text="{Binding RemoveMistakeSuccessMessage}"
+                                   TextWrapping="Wrap" />
+
+                        <Separator Style="{StaticResource PtjSeparatorStyle}" />
+
                         <Grid Margin="0,8,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />

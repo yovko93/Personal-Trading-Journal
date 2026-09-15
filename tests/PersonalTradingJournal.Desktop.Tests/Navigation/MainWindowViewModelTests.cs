@@ -293,6 +293,8 @@ public sealed class MainWindowViewModelTests
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
             setupReader,
+            mistakeReader,
+            new FakeTradeMistakeReader(),
             tradeListReader,
             tradeDetailReader,
             new CreateManualTradeUseCase(
@@ -305,6 +307,12 @@ public sealed class MainWindowViewModelTests
                 new FakeTradeMutationStore(),
                 setupStore,
                 timeProvider),
+            new AssignTradeMistakeUseCase(
+                tradeExistenceReader,
+                mistakeStore,
+                new FakeTradeMistakeStore(),
+                timeProvider),
+            new RemoveTradeMistakeUseCase(new FakeTradeMistakeStore()),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
                 timeProvider),
