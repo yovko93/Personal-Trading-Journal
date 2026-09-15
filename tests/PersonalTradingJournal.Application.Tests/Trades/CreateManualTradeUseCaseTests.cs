@@ -1,8 +1,10 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
+using PersonalTradingJournal.Domain.Setups;
 using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Application.Tests.Trades;
@@ -51,6 +53,113 @@ public sealed class CreateManualTradeUseCaseTests
         Assert.Null(execution.ExternalOrderId);
         Assert.Null(execution.BrokerSymbol);
         Assert.Null(trade.TradingSetupId);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncAssignsActiveSetupBeforeSinglePersistence()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument();
+        var setup = new TradingSetup("Silver Bullet", null, ReferenceCreatedAtUtc);
+        var setupStore = new StubTradingSetupStore(setup);
+        var tradeStore = new RecordingTradeStore();
+        var useCase = new CreateManualTradeUseCase(
+            new StubTradingAccountStore(account),
+            new StubInstrumentStore(instrument),
+            setupStore,
+            tradeStore,
+            new FixedTimeProvider(CurrentUtc));
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            TradingSetupId = setup.Id,
+        };
+
+        await useCase.ExecuteAsync(command);
+
+        Trade trade = Assert.IsType<Trade>(tradeStore.AddedTrade);
+        Assert.Equal(setup.Id, trade.TradingSetupId);
+        Assert.Equal(CurrentUtc, trade.CreatedAtUtc);
+        Assert.Equal(CurrentUtc, trade.UpdatedAtUtc);
+        Assert.Equal(1, setupStore.GetByIdCallCount);
+        Assert.Equal(1, tradeStore.AddCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsEmptySetupIdBeforeLoadingReferences()
+    {
+        var accountStore = new StubTradingAccountStore(CreateTradingAccount());
+        var instrumentStore = new StubInstrumentStore(CreateInstrument());
+        var setupStore = new StubTradingSetupStore(null);
+        var tradeStore = new RecordingTradeStore();
+        var useCase = new CreateManualTradeUseCase(
+            accountStore,
+            instrumentStore,
+            setupStore,
+            tradeStore,
+            new FixedTimeProvider(CurrentUtc));
+        CreateManualTradeCommand command = CreateCommand(Guid.NewGuid(), Guid.NewGuid()) with
+        {
+            TradingSetupId = Guid.Empty,
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => useCase.ExecuteAsync(command));
+
+        Assert.Equal(0, accountStore.GetByIdCallCount);
+        Assert.Equal(0, instrumentStore.GetByIdCallCount);
+        Assert.Equal(0, setupStore.GetByIdCallCount);
+        Assert.Equal(0, tradeStore.AddCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsMissingSetupWithoutPersisting()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument();
+        var tradeStore = new RecordingTradeStore();
+        var useCase = new CreateManualTradeUseCase(
+            new StubTradingAccountStore(account),
+            new StubInstrumentStore(instrument),
+            new StubTradingSetupStore(null),
+            tradeStore,
+            new FixedTimeProvider(CurrentUtc));
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            TradingSetupId = Guid.NewGuid(),
+        };
+
+        KeyNotFoundException exception = await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => useCase.ExecuteAsync(command));
+
+        Assert.Equal("The selected trading setup was not found.", exception.Message);
+        Assert.Equal(0, tradeStore.AddCallCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncRejectsInactiveSetupWithoutPersisting()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument();
+        var setup = new TradingSetup("Silver Bullet", null, ReferenceCreatedAtUtc);
+        setup.Deactivate(ReferenceCreatedAtUtc.AddMinutes(1));
+        var tradeStore = new RecordingTradeStore();
+        var useCase = new CreateManualTradeUseCase(
+            new StubTradingAccountStore(account),
+            new StubInstrumentStore(instrument),
+            new StubTradingSetupStore(setup),
+            tradeStore,
+            new FixedTimeProvider(CurrentUtc));
+        CreateManualTradeCommand command = CreateCommand(account.Id, instrument.Id) with
+        {
+            TradingSetupId = setup.Id,
+        };
+
+        InvalidOperationException exception =
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => useCase.ExecuteAsync(command));
+
+        Assert.Equal("The selected trading setup is inactive.", exception.Message);
+        Assert.Equal(0, tradeStore.AddCallCount);
     }
 
     [Fact]
@@ -154,6 +263,7 @@ public sealed class CreateManualTradeUseCaseTests
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
         CreateManualTradeCommand command = CreateCommand(Guid.NewGuid(), Guid.NewGuid());
@@ -178,6 +288,7 @@ public sealed class CreateManualTradeUseCaseTests
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
         CreateManualTradeCommand command = CreateCommand(account.Id, Guid.NewGuid());
@@ -200,6 +311,7 @@ public sealed class CreateManualTradeUseCaseTests
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
 
@@ -220,6 +332,7 @@ public sealed class CreateManualTradeUseCaseTests
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
 
@@ -346,6 +459,7 @@ public sealed class CreateManualTradeUseCaseTests
         var useCase = new CreateManualTradeUseCase(
             accountStore,
             instrumentStore,
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
         using var cancellationSource = new CancellationTokenSource();
@@ -357,6 +471,31 @@ public sealed class CreateManualTradeUseCaseTests
         Assert.Equal(cancellationSource.Token, accountStore.CancellationToken);
         Assert.Equal(cancellationSource.Token, instrumentStore.CancellationToken);
         Assert.Equal(cancellationSource.Token, tradeStore.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncForwardsCancellationTokenToSetupStore()
+    {
+        TradingAccount account = CreateTradingAccount();
+        Instrument instrument = CreateInstrument();
+        var setup = new TradingSetup("Silver Bullet", null, ReferenceCreatedAtUtc);
+        var setupStore = new StubTradingSetupStore(setup);
+        var useCase = new CreateManualTradeUseCase(
+            new StubTradingAccountStore(account),
+            new StubInstrumentStore(instrument),
+            setupStore,
+            new RecordingTradeStore(),
+            new FixedTimeProvider(CurrentUtc));
+        using var cancellationSource = new CancellationTokenSource();
+
+        await useCase.ExecuteAsync(
+            CreateCommand(account.Id, instrument.Id) with
+            {
+                TradingSetupId = setup.Id,
+            },
+            cancellationSource.Token);
+
+        Assert.Equal(cancellationSource.Token, setupStore.CancellationToken);
     }
 
     [Fact]
@@ -455,6 +594,7 @@ public sealed class CreateManualTradeUseCaseTests
         return new CreateManualTradeUseCase(
             new StubTradingAccountStore(account),
             new StubInstrumentStore(instrument),
+            new StubTradingSetupStore(null),
             tradeStore,
             new FixedTimeProvider(CurrentUtc));
     }
@@ -468,6 +608,7 @@ public sealed class CreateManualTradeUseCaseTests
         return new CreateManualTradeCommand(
             tradingAccountId,
             instrumentId,
+            null,
             direction,
             2m,
             new ManualTradeExecutionInput(
@@ -606,6 +747,39 @@ public sealed class CreateManualTradeUseCaseTests
                 ? Task.CompletedTask
                 : Task.FromException(_exception);
         }
+    }
+
+    private sealed class StubTradingSetupStore : ITradingSetupStore
+    {
+        private readonly TradingSetup? _setup;
+
+        public StubTradingSetupStore(TradingSetup? setup)
+        {
+            _setup = setup;
+        }
+
+        public int GetByIdCallCount { get; private set; }
+
+        public CancellationToken CancellationToken { get; private set; }
+
+        public Task AddAsync(
+            TradingSetup setup,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<TradingSetup?> GetByIdAsync(
+            Guid setupId,
+            CancellationToken cancellationToken = default)
+        {
+            GetByIdCallCount++;
+            CancellationToken = cancellationToken;
+            return Task.FromResult(_setup);
+        }
+
+        public Task UpdateAsync(
+            TradingSetup setup,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedTimeProvider : TimeProvider

@@ -618,12 +618,18 @@ public sealed class TradeScreenshotWorkflowTests
 
         var viewModel = new TradesViewModel(
             referenceDataReader,
+            new FakeTradingSetupReader(),
             tradeListReader,
             detailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
+                new FakeTradingSetupStore(),
                 tradeStore,
+                timeProvider),
+            new SetTradeTradingSetupUseCase(
+                new FakeTradeMutationStore(),
+                new FakeTradingSetupStore(),
                 timeProvider),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
@@ -701,6 +707,9 @@ public sealed class TradeScreenshotWorkflowTests
             item.InstrumentId,
             item.InstrumentSymbol,
             $"{item.InstrumentSymbol} display name",
+            null,
+            null,
+            null,
             item.Direction,
             item.Status,
             item.OpenedAtUtc,

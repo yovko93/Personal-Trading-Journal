@@ -292,12 +292,18 @@ public sealed class MainWindowViewModelTests
             new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider));
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
+            setupReader,
             tradeListReader,
             tradeDetailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
+                setupStore,
                 tradeStore,
+                timeProvider),
+            new SetTradeTradingSetupUseCase(
+                new FakeTradeMutationStore(),
+                setupStore,
                 timeProvider),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
@@ -350,6 +356,9 @@ public sealed class MainWindowViewModelTests
             listItem.InstrumentId,
             listItem.InstrumentSymbol,
             "Nasdaq-100 E-mini",
+            null,
+            null,
+            null,
             listItem.Direction,
             listItem.Status,
             listItem.OpenedAtUtc,

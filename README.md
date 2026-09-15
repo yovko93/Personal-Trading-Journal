@@ -111,11 +111,11 @@ PNG and JPEG preview use native WPF/WIC support. WebP files are accepted for sto
 
 Post-M8 manual Trade lifecycle corrections allow an open manually entered Trade to be closed later by adding an opposite-side execution for its full authoritative remaining quantity. Futures manual quantity is expressed as a positive whole number of contracts, while non-Futures instruments retain positive decimal quantities. Contract economics remain Instrument-driven through asset class, tick size, tick value, and derived point value; no symbol-specific quantity or pricing rules are used.
 
-The M9 catalog foundation includes persisted Trading Setup and Trading Mistake management. Trading Setup is the single primary reusable trade-pattern classification; the overlapping broader Strategy concept was intentionally removed to avoid redundant taxonomy, UI, and analytics. Trade assignment workflows remain deferred to M9.4 and M9.5.
+The M9 catalog foundation includes persisted Trading Setup and Trading Mistake management. Trading Setup is the single primary reusable trade-pattern classification; the overlapping broader Strategy concept was intentionally removed to avoid redundant taxonomy, UI, and analytics. Trade Setup assignment is implemented; Trade Mistake assignment remains deferred to M9.5.
 
 Six of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, and Mistakes. Dashboard remains presentation-only, while the other five are functional data-backed pages. The other 13 destinations remain placeholders.
 
-The next task is **M9.4 — Trade Setup Classification**.
+The next task is **M9.5 — Trade Mistake Assignment**.
 
 The M9 sequence is M9.1 Strategy Catalog (removed by M9.3.5), M9.2 Trading Setup Catalog (retained), M9.3 Trading Mistake Catalog (retained), M9.3.5 Remove Strategy, M9.4 Trade Setup Classification, M9.5 Trade Mistake Assignment, M9.6 Desktop integration and analysis presentation as needed, and M9.7 Acceptance and Documentation.
 

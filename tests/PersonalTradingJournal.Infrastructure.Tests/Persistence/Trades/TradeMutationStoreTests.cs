@@ -146,6 +146,60 @@ public sealed class TradeMutationStoreTests
         Assert.Equal(110m, reloaded.Executions[^1].Price);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SaveAsyncPersistsSetupClassificationWithoutReplacingTradeState(
+        bool clearAssignment)
+    {
+        await using ReaderTestDatabase database =
+            await ReaderTestDatabase.CreateAsync();
+        Trade seeded = await PersistClassifiedPartiallyExitedTradeAsync(database);
+        ITradeMutationStore store = GetStore(database);
+        Trade trade = Assert.IsType<Trade>(await store.GetByIdAsync(seeded.Id));
+        Guid? expectedSetupId = null;
+        if (!clearAssignment)
+        {
+            expectedSetupId = Guid.NewGuid();
+            await using JournalDbContext setupContext =
+                await database.ContextFactory.CreateDbContextAsync();
+            setupContext.TradingSetups.Add(new TradingSetupRecord
+            {
+                Id = expectedSetupId.Value,
+                Name = "Replacement Setup",
+                IsActive = true,
+                CreatedAtUtc = ReferenceAtUtc,
+                UpdatedAtUtc = ReferenceAtUtc,
+            });
+            await setupContext.SaveChangesAsync();
+        }
+
+        trade.SetTradingSetup(expectedSetupId, UpdatedAtUtc);
+        await store.SaveAsync(trade);
+
+        await using JournalDbContext freshContext =
+            await database.ContextFactory.CreateDbContextAsync();
+        TradeRecord record = await freshContext.Trades
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == trade.Id);
+        List<TradeExecutionRecord> executions = await freshContext.TradeExecutions
+            .AsNoTracking()
+            .Where(item => item.TradeId == trade.Id)
+            .OrderBy(item => item.Sequence)
+            .ToListAsync();
+        Assert.Equal(expectedSetupId, record.TradingSetupId);
+        Assert.Equal(UpdatedAtUtc, record.UpdatedAtUtc);
+        Assert.Equal(seeded.CreatedAtUtc, record.CreatedAtUtc);
+        Assert.Equal(seeded.TradingAccountId, record.TradingAccountId);
+        Assert.Equal(seeded.InstrumentId, record.InstrumentId);
+        Assert.Equal(20m, record.PricingPointValue);
+        Assert.Equal("USD", record.PricingCurrency);
+        Assert.Equal(2, executions.Count);
+        Assert.Equal(
+            seeded.Executions.Select(execution => execution.Id),
+            executions.Select(execution => execution.Id));
+    }
+
     [Fact]
     public async Task SaveAsyncRejectsNullAndMissingTrade()
     {

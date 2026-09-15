@@ -391,12 +391,18 @@ public sealed class TradeScreenshotPreviewTests
 
         var viewModel = new TradesViewModel(
             new FakeManualTradeReferenceDataReader(),
+            new FakeTradingSetupReader(),
             new FakeTradeListReader(),
             detailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
+                new FakeTradingSetupStore(),
                 tradeStore,
+                timeProvider),
+            new SetTradeTradingSetupUseCase(
+                new FakeTradeMutationStore(),
+                new FakeTradingSetupStore(),
                 timeProvider),
             new CloseManualTradeUseCase(
                 new FakeTradeMutationStore(),
@@ -481,6 +487,9 @@ public sealed class TradeScreenshotPreviewTests
             item.InstrumentId,
             item.InstrumentSymbol,
             "Nasdaq-100 E-mini",
+            null,
+            null,
+            null,
             item.Direction,
             item.Status,
             item.OpenedAtUtc,

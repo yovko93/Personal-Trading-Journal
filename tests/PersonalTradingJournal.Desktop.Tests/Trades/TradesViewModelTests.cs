@@ -1,5 +1,6 @@
 using System.Globalization;
 using PersonalTradingJournal.Application.Screenshots;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
 using PersonalTradingJournal.Desktop.Tests.Instruments;
@@ -8,6 +9,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Screenshots;
+using PersonalTradingJournal.Domain.Setups;
 using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
@@ -2125,6 +2127,345 @@ public sealed class TradesViewModelTests
         await closeTask;
     }
 
+    [Fact]
+    public async Task SetupOptionsLoadActiveOnlyAndOptionalSelectionBuildsNull()
+    {
+        TradingSetup active = CreateTradingSetup("Silver Bullet");
+        TradingSetup inactive = CreateTradingSetup("Retired Setup", active: false);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult(
+            [CreateTradingSetupListItem(active), CreateTradingSetupListItem(inactive)]);
+        TradesViewModel viewModel = CreateViewModel(
+            tradingSetupReader: setupReader);
+
+        await viewModel.EnsureLoadedAsync();
+        viewModel.SelectedAccount = Assert.Single(CreateReferenceData().Accounts);
+        viewModel.SelectedInstrument = Assert.Single(CreateReferenceData().Instruments);
+        viewModel.SelectedDirection = TradeDirection.Long;
+        viewModel.QuantityText = "1";
+        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryPriceText = "100";
+
+        TradingSetupListItem option = Assert.Single(viewModel.AvailableTradingSetups);
+        Assert.Equal(active.Id, option.Id);
+        Assert.DoesNotContain(
+            viewModel.AvailableTradingSetups,
+            item => item.Id == inactive.Id);
+        Assert.True(viewModel.TryBuildManualTradeCommand(out var command));
+        Assert.Null(command!.TradingSetupId);
+    }
+
+    [Fact]
+    public async Task ManualSavePassesExactSetupAndResetsSelection()
+    {
+        TradingSetup setup = CreateTradingSetup("Silver Bullet");
+        ManualTradeSaveFixture fixture = CreateSaveFixture(tradingSetup: setup);
+        fixture.ViewModel.SelectedTradingSetup = CreateTradingSetupListItem(setup);
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(setup.Id, fixture.TradingSetupStore.RequestedId);
+        Assert.Equal(setup.Id, fixture.TradeStore.AddedTrade?.TradingSetupId);
+        Assert.Null(fixture.ViewModel.SelectedTradingSetup);
+        Assert.Equal(1, fixture.TradeStore.AddCallCount);
+    }
+
+    [Theory]
+    [InlineData(false, "The selected trading setup is no longer available.")]
+    [InlineData(true, "The selected trading setup is inactive.")]
+    public async Task ManualSaveMapsSetupAuthorityFailuresSafely(
+        bool inactive,
+        string expectedMessage)
+    {
+        TradingSetup selected = CreateTradingSetup(
+            "Selected Setup",
+            active: !inactive);
+        ManualTradeSaveFixture fixture = CreateSaveFixture(
+            tradingSetup: inactive ? selected : null);
+        fixture.ViewModel.SelectedTradingSetup = CreateTradingSetupListItem(selected);
+
+        await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedMessage, fixture.ViewModel.SaveErrorMessage);
+        Assert.Equal(0, fixture.TradeStore.AddCallCount);
+        Assert.Equal(selected.Id, fixture.ViewModel.SelectedTradingSetup?.Id);
+    }
+
+    [Fact]
+    public async Task SetupLoadFailureIsSafeAndDoesNotDiscardTradeList()
+    {
+        TradeListItem trade = CreateTradeListItem();
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult([trade]);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueException(new InvalidOperationException("details"));
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradingSetupReader: setupReader);
+
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Equal("Trade reference data could not be loaded.", viewModel.ErrorMessage);
+        Assert.Empty(viewModel.AvailableTradingSetups);
+        Assert.Same(trade, Assert.Single(viewModel.RecentTrades));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DetailDisplaysAssignedSetupAndRetainsCurrentInactiveOption(
+        bool active)
+    {
+        TradingSetup current = CreateTradingSetup("Current Setup", active);
+        TradingSetup otherInactive = CreateTradingSetup("Other Inactive", false);
+        TradingSetup replacement = CreateTradingSetup("Replacement");
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult(
+        [
+            CreateTradingSetupListItem(current),
+            CreateTradingSetupListItem(otherInactive),
+            CreateTradingSetupListItem(replacement),
+        ]);
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail detail = CreateTradeDetail(listItem) with
+        {
+            TradingSetupId = current.Id,
+            TradingSetupName = current.Name,
+            IsTradingSetupActive = current.IsActive,
+        };
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradingSetupReader: setupReader);
+
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.Equal(current.Name, viewModel.SelectedTradeDetail?.TradingSetupName);
+        Assert.Equal(active, viewModel.SelectedTradeDetail?.IsTradingSetupActive);
+        Assert.Contains(
+            viewModel.TradeDetailTradingSetupOptions,
+            item => item.Id == current.Id);
+        Assert.Contains(
+            viewModel.TradeDetailTradingSetupOptions,
+            item => item.Id == replacement.Id);
+        Assert.DoesNotContain(
+            viewModel.TradeDetailTradingSetupOptions,
+            item => item.Id == otherInactive.Id);
+        Assert.Equal(current.Id, viewModel.SelectedTradeDetailTradingSetup?.Id);
+    }
+
+    [Fact]
+    public async Task DetailWithoutSetupKeepsEmptyClassificationState()
+    {
+        TradeListItem listItem = CreateTradeListItem();
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(CreateTradeDetail(listItem));
+        TradesViewModel viewModel = CreateViewModel(tradeDetailReader: detailReader);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        Assert.Null(viewModel.SelectedTradeDetail?.TradingSetupId);
+        Assert.Null(viewModel.SelectedTradeDetail?.TradingSetupName);
+        Assert.Null(viewModel.SelectedTradeDetail?.IsTradingSetupActive);
+        Assert.Null(viewModel.SelectedTradeDetailTradingSetup);
+    }
+
+    [Fact]
+    public async Task SaveSetupSendsExactIdAndReloadsAuthoritativeDetail()
+    {
+        TradingSetup setup = CreateTradingSetup("Silver Bullet");
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail initial = CreateTradeDetail(listItem);
+        TradeDetail authoritative = initial with
+        {
+            TradingSetupId = setup.Id,
+            TradingSetupName = setup.Name,
+            IsTradingSetupActive = true,
+        };
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([CreateTradingSetupListItem(setup)]);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(initial);
+        detailReader.EnqueueResult(authoritative);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateOpenDomainTrade(listItem.Id, 1m),
+        };
+        var setupStore = new FakeTradingSetupStore { Setup = setup };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader,
+            tradingSetupStore: setupStore);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        viewModel.SelectedTradeDetailTradingSetup =
+            Assert.Single(viewModel.TradeDetailTradingSetupOptions);
+
+        await viewModel.SaveTradingSetupCommand.ExecuteAsync(null);
+
+        Assert.Equal(setup.Id, mutationStore.SavedTrade?.TradingSetupId);
+        Assert.Equal(1, mutationStore.SaveCallCount);
+        Assert.Equal(2, detailReader.CallCount);
+        Assert.Same(authoritative, viewModel.SelectedTradeDetail);
+        Assert.Equal("Trading setup updated successfully.", viewModel.TradingSetupSuccessMessage);
+        Assert.Null(viewModel.TradingSetupSaveErrorMessage);
+    }
+
+    [Fact]
+    public async Task ClearSetupSendsNullAndReloadsAuthoritativeDetail()
+    {
+        TradingSetup setup = CreateTradingSetup("Historical", false);
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail initial = CreateTradeDetail(listItem) with
+        {
+            TradingSetupId = setup.Id,
+            TradingSetupName = setup.Name,
+            IsTradingSetupActive = false,
+        };
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([CreateTradingSetupListItem(setup)]);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(initial);
+        detailReader.EnqueueResult(CreateTradeDetail(listItem));
+        Trade domainTrade = CreateOpenDomainTrade(listItem.Id, 1m);
+        domainTrade.SetTradingSetup(setup.Id, domainTrade.UpdatedAtUtc.AddMinutes(1));
+        var mutationStore = new FakeTradeMutationStore { TradeToReturn = domainTrade };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+
+        await viewModel.ClearTradingSetupCommand.ExecuteAsync(null);
+
+        Assert.Null(mutationStore.SavedTrade?.TradingSetupId);
+        Assert.Equal(1, mutationStore.SaveCallCount);
+        Assert.Null(viewModel.SelectedTradeDetail?.TradingSetupId);
+        Assert.Equal(2, detailReader.CallCount);
+    }
+
+    [Theory]
+    [InlineData("missing", "The selected trading setup is no longer available.")]
+    [InlineData("inactive", "The selected trading setup is inactive.")]
+    [InlineData("failure", "Trading setup could not be saved.")]
+    public async Task SaveSetupMapsFailuresSafely(
+        string failure,
+        string expectedMessage)
+    {
+        TradingSetup setup = CreateTradingSetup(
+            "Selected",
+            active: failure != "inactive");
+        TradeListItem listItem = CreateTradeListItem();
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(CreateTradeDetail(listItem));
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult(
+            [CreateTradingSetupListItem(setup) with { IsActive = true }]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateOpenDomainTrade(listItem.Id, 1m),
+            SaveException = failure == "failure"
+                ? new InvalidOperationException("database")
+                : null,
+        };
+        var setupStore = new FakeTradingSetupStore
+        {
+            Setup = failure == "missing" ? null : setup,
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader,
+            tradingSetupStore: setupStore);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        viewModel.SelectedTradeDetailTradingSetup =
+            Assert.Single(viewModel.TradeDetailTradingSetupOptions);
+
+        await viewModel.SaveTradingSetupCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedMessage, viewModel.TradingSetupSaveErrorMessage);
+        Assert.Null(viewModel.TradingSetupSuccessMessage);
+        Assert.Equal(1, detailReader.CallCount);
+    }
+
+    [Fact]
+    public async Task SuccessfulSetupWriteRetainsSuccessWhenAuthoritativeReloadFails()
+    {
+        TradingSetup setup = CreateTradingSetup("Silver Bullet");
+        TradeListItem listItem = CreateTradeListItem();
+        TradeDetail initial = CreateTradeDetail(listItem);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(initial);
+        detailReader.EnqueueException(new InvalidOperationException("read"));
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([CreateTradingSetupListItem(setup)]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateOpenDomainTrade(listItem.Id, 1m),
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader,
+            tradingSetupStore: new FakeTradingSetupStore { Setup = setup });
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        viewModel.SelectedTradeDetailTradingSetup =
+            Assert.Single(viewModel.TradeDetailTradingSetupOptions);
+
+        await viewModel.SaveTradingSetupCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, mutationStore.SaveCallCount);
+        Assert.Same(initial, viewModel.SelectedTradeDetail);
+        Assert.Equal("Trading setup updated successfully.", viewModel.TradingSetupSuccessMessage);
+        Assert.Equal("Trade details could not be loaded.", viewModel.TradeDetailErrorMessage);
+        Assert.Null(viewModel.TradingSetupSaveErrorMessage);
+    }
+
+    [Fact]
+    public async Task SetupWriteDisablesCompetingCommandsUntilCompletion()
+    {
+        TradingSetup setup = CreateTradingSetup("Silver Bullet");
+        TradeListItem listItem = CreateTradeListItem();
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(CreateTradeDetail(listItem));
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([CreateTradingSetupListItem(setup)]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateOpenDomainTrade(listItem.Id, 1m),
+            HoldSave = true,
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader,
+            tradingSetupStore: new FakeTradingSetupStore { Setup = setup });
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
+        viewModel.SelectedTradeDetailTradingSetup =
+            Assert.Single(viewModel.TradeDetailTradingSetupOptions);
+
+        Task saveTask = viewModel.SaveTradingSetupCommand.ExecuteAsync(null);
+        await mutationStore.SaveStarted;
+
+        Assert.True(viewModel.IsTradingSetupSaving);
+        Assert.False(viewModel.SaveTradingSetupCommand.CanExecute(null));
+        Assert.False(viewModel.ClearTradingSetupCommand.CanExecute(null));
+        Assert.False(viewModel.RefreshCommand.CanExecute(null));
+        Assert.False(viewModel.CloseTradeDetailCommand.CanExecute(null));
+
+        detailReader.EnqueueResult(CreateTradeDetail(listItem));
+        mutationStore.ReleaseSave();
+        await saveTask;
+        Assert.False(viewModel.IsTradingSetupSaving);
+    }
+
     private static async Task<CloseTradeFixture> CreateCloseTradeFixtureAsync(
         decimal openQuantity = 2.5m,
         Func<Guid, TradeScreenshotListItem>? screenshotFactory = null)
@@ -2218,6 +2559,9 @@ public sealed class TradesViewModelTests
             listItem.InstrumentId,
             listItem.InstrumentSymbol,
             "Nasdaq-100 E-mini",
+            null,
+            null,
+            null,
             TradeDirection.Long,
             TradeStatus.Open,
             listItem.OpenedAtUtc,
@@ -2346,7 +2690,9 @@ public sealed class TradesViewModelTests
         FakeTradeScreenshotDeletionStore? tradeScreenshotDeletionStore = null,
         FakeTradeScreenshotDeleteConfirmation? tradeScreenshotDeleteConfirmation = null,
         FakeTradeMutationStore? tradeMutationStore = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        FakeTradingSetupReader? tradingSetupReader = null,
+        FakeTradingSetupStore? tradingSetupStore = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -2366,15 +2712,23 @@ public sealed class TradesViewModelTests
             new FakeTradeScreenshotDeleteConfirmation();
         tradeMutationStore ??= new FakeTradeMutationStore();
         timeProvider ??= new FixedTimeProvider();
+        tradingSetupReader ??= new FakeTradingSetupReader();
+        tradingSetupStore ??= new FakeTradingSetupStore();
 
         return new TradesViewModel(
             reader,
+            tradingSetupReader,
             tradeListReader,
             tradeDetailReader,
             new CreateManualTradeUseCase(
                 accountStore,
                 instrumentStore,
+                tradingSetupStore,
                 tradeStore,
+                timeProvider),
+            new SetTradeTradingSetupUseCase(
+                tradeMutationStore,
+                tradingSetupStore,
                 timeProvider),
             new CloseManualTradeUseCase(
                 tradeMutationStore,
@@ -2398,7 +2752,8 @@ public sealed class TradesViewModelTests
         bool hasExit = false,
         TradeDirection direction = TradeDirection.Long,
         decimal selectorPointValue = 20m,
-        string quantityText = "2")
+        string quantityText = "2",
+        TradingSetup? tradingSetup = null)
     {
         Guid accountId = Guid.NewGuid();
         Guid instrumentId = Guid.NewGuid();
@@ -2418,12 +2773,24 @@ public sealed class TradesViewModelTests
         var tradeListReader = new FakeTradeListReader();
         var referenceDataReader = new FakeManualTradeReferenceDataReader();
         referenceDataReader.EnqueueResult(referenceData);
+        var tradingSetupReader = new FakeTradingSetupReader();
+        if (tradingSetup is not null)
+        {
+            tradingSetupReader.EnqueueResult(
+                [CreateTradingSetupListItem(tradingSetup)]);
+        }
+        var tradingSetupStore = new FakeTradingSetupStore
+        {
+            Setup = tradingSetup,
+        };
         TradesViewModel viewModel = CreateViewModel(
             reader: referenceDataReader,
             tradeListReader: tradeListReader,
             accountStore: accountStore,
             instrumentStore: instrumentStore,
-            tradeStore: tradeStore);
+            tradeStore: tradeStore,
+            tradingSetupReader: tradingSetupReader,
+            tradingSetupStore: tradingSetupStore);
 
         viewModel.ShowManualEntryCommand.Execute(null);
         viewModel.SelectedAccount = Assert.Single(referenceData.Accounts);
@@ -2451,7 +2818,9 @@ public sealed class TradesViewModelTests
             tradeStore,
             tradeListReader,
             referenceDataReader,
-            referenceData);
+            referenceData,
+            tradingSetupReader,
+            tradingSetupStore);
     }
 
     private static ManualTradeReferenceData CreateReferenceData(
@@ -2523,6 +2892,9 @@ public sealed class TradesViewModelTests
             listItem.InstrumentId,
             listItem.InstrumentSymbol,
             $"{listItem.InstrumentSymbol} display name",
+            null,
+            null,
+            null,
             listItem.Direction,
             listItem.Status,
             listItem.OpenedAtUtc,
@@ -2589,6 +2961,33 @@ public sealed class TradesViewModelTests
             createdAtUtc);
     }
 
+    private static TradingSetup CreateTradingSetup(
+        string name,
+        bool active = true)
+    {
+        var setup = new TradingSetup(
+            name,
+            null,
+            new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
+        if (!active)
+        {
+            setup.Deactivate(
+                new DateTimeOffset(2026, 9, 2, 8, 0, 0, TimeSpan.Zero));
+        }
+
+        return setup;
+    }
+
+    private static TradingSetupListItem CreateTradingSetupListItem(
+        TradingSetup setup) =>
+        new(
+            setup.Id,
+            setup.Name,
+            setup.Description,
+            setup.IsActive,
+            setup.CreatedAtUtc,
+            setup.UpdatedAtUtc);
+
     private static void AssertManualEntryFormReset(TradesViewModel viewModel)
     {
         Assert.Null(viewModel.SelectedAccount);
@@ -2645,7 +3044,9 @@ public sealed class TradesViewModelTests
         FakeTradeStore TradeStore,
         FakeTradeListReader TradeListReader,
         FakeManualTradeReferenceDataReader ReferenceDataReader,
-        ManualTradeReferenceData ReferenceData);
+        ManualTradeReferenceData ReferenceData,
+        FakeTradingSetupReader TradingSetupReader,
+        FakeTradingSetupStore TradingSetupStore);
 
     private sealed record CloseTradeFixture(
         TradesViewModel ViewModel,

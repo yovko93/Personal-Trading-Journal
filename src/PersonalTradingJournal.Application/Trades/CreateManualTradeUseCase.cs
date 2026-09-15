@@ -1,5 +1,6 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Trades;
@@ -11,21 +12,25 @@ public sealed class CreateManualTradeUseCase
     private readonly ITradingAccountStore _tradingAccountStore;
     private readonly IInstrumentStore _instrumentStore;
     private readonly ITradeStore _tradeStore;
+    private readonly ITradingSetupStore _tradingSetupStore;
     private readonly TimeProvider _timeProvider;
 
     public CreateManualTradeUseCase(
         ITradingAccountStore tradingAccountStore,
         IInstrumentStore instrumentStore,
+        ITradingSetupStore tradingSetupStore,
         ITradeStore tradeStore,
         TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(tradingAccountStore);
         ArgumentNullException.ThrowIfNull(instrumentStore);
+        ArgumentNullException.ThrowIfNull(tradingSetupStore);
         ArgumentNullException.ThrowIfNull(tradeStore);
         ArgumentNullException.ThrowIfNull(timeProvider);
 
         _tradingAccountStore = tradingAccountStore;
         _instrumentStore = instrumentStore;
+        _tradingSetupStore = tradingSetupStore;
         _tradeStore = tradeStore;
         _timeProvider = timeProvider;
     }
@@ -45,6 +50,12 @@ public sealed class CreateManualTradeUseCase
             command.InstrumentId,
             nameof(command.InstrumentId),
             "An instrument identifier is required.");
+        if (command.TradingSetupId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "A trading setup identifier cannot be empty.",
+                nameof(command.TradingSetupId));
+        }
 
         TradingAccount? tradingAccount = await _tradingAccountStore.GetByIdAsync(
             command.TradingAccountId,
@@ -62,6 +73,25 @@ public sealed class CreateManualTradeUseCase
         {
             throw new KeyNotFoundException(
                 $"Instrument '{command.InstrumentId}' could not be found.");
+        }
+
+        if (command.TradingSetupId is Guid tradingSetupId)
+        {
+            Domain.Setups.TradingSetup? tradingSetup =
+                await _tradingSetupStore.GetByIdAsync(
+                    tradingSetupId,
+                    cancellationToken);
+            if (tradingSetup is null)
+            {
+                throw new KeyNotFoundException(
+                    "The selected trading setup was not found.");
+            }
+
+            if (!tradingSetup.IsActive)
+            {
+                throw new InvalidOperationException(
+                    "The selected trading setup is inactive.");
+            }
         }
 
         TradeQuantityPolicy.Validate(
@@ -88,6 +118,11 @@ public sealed class CreateManualTradeUseCase
             pricing,
             openingExecution,
             createdAtUtc);
+
+        if (command.TradingSetupId.HasValue)
+        {
+            trade.SetTradingSetup(command.TradingSetupId, createdAtUtc);
+        }
 
         if (command.Exit is not null)
         {

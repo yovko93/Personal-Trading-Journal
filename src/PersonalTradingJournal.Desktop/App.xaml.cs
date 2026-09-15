@@ -66,6 +66,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<CreateTradingSetupUseCase>();
             builder.Services.AddTransient<TradingSetupLifecycleUseCase>();
             builder.Services.AddTransient<CreateManualTradeUseCase>();
+            builder.Services.AddTransient<SetTradeTradingSetupUseCase>();
             builder.Services.AddTransient<CloseManualTradeUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
