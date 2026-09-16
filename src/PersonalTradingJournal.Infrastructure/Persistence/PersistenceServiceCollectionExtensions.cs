@@ -38,6 +38,9 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
+        services.AddTransient<
+            ITradingAccountDeletionStore,
+            TradingAccountDeletionStore>();
         services.AddTransient<IInstrumentReader, InstrumentReader>();
         services.AddTransient<IInstrumentStore, InstrumentStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();

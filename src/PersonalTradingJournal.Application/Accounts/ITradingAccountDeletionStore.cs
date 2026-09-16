@@ -1,11 +1,12 @@
 namespace PersonalTradingJournal.Application.Accounts;
 
-public interface ITradingAccountReader
+public interface ITradingAccountDeletionStore
 {
-    Task<IReadOnlyList<AccountListItem>> GetAllAsync(
+    Task<bool> HasTradesAsync(
+        Guid accountId,
         CancellationToken cancellationToken = default);
 
-    Task<TradingAccountDetails?> GetByIdAsync(
+    Task DeleteAsync(
         Guid accountId,
         CancellationToken cancellationToken = default);
 }

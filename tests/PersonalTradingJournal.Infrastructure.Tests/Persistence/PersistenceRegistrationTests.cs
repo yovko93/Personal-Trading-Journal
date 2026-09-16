@@ -103,9 +103,15 @@ public sealed class PersistenceRegistrationTests
             serviceProvider.GetRequiredService<ITradingAccountStore>();
         ITradingAccountStore secondStore =
             serviceProvider.GetRequiredService<ITradingAccountStore>();
+        ITradingAccountDeletionStore firstDeletionStore =
+            serviceProvider.GetRequiredService<ITradingAccountDeletionStore>();
+        ITradingAccountDeletionStore secondDeletionStore =
+            serviceProvider.GetRequiredService<ITradingAccountDeletionStore>();
 
         Assert.IsType<TradingAccountStore>(firstStore);
+        Assert.IsType<TradingAccountDeletionStore>(firstDeletionStore);
         Assert.NotSame(firstStore, secondStore);
+        Assert.NotSame(firstDeletionStore, secondDeletionStore);
     }
 
     [Fact]

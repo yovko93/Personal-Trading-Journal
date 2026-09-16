@@ -114,7 +114,9 @@ Dashboard metrics describe financial and statistical results; they must not infe
 
 Accounts performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Account form captures name, account type, provider, external account ID, currency, and optional Starting Balance. Account Type defaults to Personal as a presentation convenience, and creation is coordinated by `CreateTradingAccountUseCase`.
 
-Each persisted row displays active or inactive status and exposes only the lifecycle action applicable to that state. Activation and deactivation are reversible, inactive accounts remain visible, and the page intentionally provides no edit, delete, or Current Balance behavior. Starting Balance remains reference data.
+Each persisted row displays active or inactive status and offers View, Edit, and a compact overflow menu. The detail panel shows the complete persisted account metadata and audit timestamps. Edit reuses the shared form language for Name, Account Type, Provider, External Account ID, Currency, and optional Starting Balance; it cannot change identity, creation time, or historical Trades. Starting Balance remains reference data, and there is no Current Balance field.
+
+The overflow menu shows only the applicable Activate or Deactivate action plus Danger-styled Delete. Delete requires the shared safe-default confirmation. Unused accounts are hard deleted; an account referenced by any Trade is preserved and an information dialog recommends Deactivate instead. Successful writes refresh the authoritative list, while local detail/list state prevents a completed update or delete from appearing stale if that refresh fails.
 
 ## Instruments Feature
 
@@ -217,7 +219,7 @@ Activate and Deactivate are reversible lifecycle actions and use neutral seconda
 
 `IDialogService` is the Desktop-only modal boundary. `ConfirmationDialogRequest` supplies entity-specific title, message, confirm/cancel labels, and destructive intent; `InformationDialogRequest` supplies a title, message, and close label for outcomes such as a delete blocked by historical references. Destructive confirmation uses the Danger button style while Cancel owns the safe default focus, Escape cancels, closing the window cancels, and the destructive button is never the implicit Enter action. The existing screenshot deletion confirmation adapts to this service, so ViewModels remain testable without constructing a WPF window or calling `MessageBox`.
 
-Future hard-delete workflows must enforce entity-specific integrity rules outside Desktop presentation: referenced Accounts, Instruments, Trading Setups, and Trading Mistakes are retained and deactivated, while unused records may be deleted. Trade deletion requires explicit confirmation plus intentional handling of dependent records and external screenshot files. No update/delete use case or repository method is introduced by this shared UX foundation.
+Account hard-delete now enforces its entity-specific integrity rule outside Desktop presentation: referenced Accounts are retained and can be deactivated, while unused Accounts may be deleted. The same policy remains future work for Instruments, Trading Setups, and Trading Mistakes. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
 
 ### Shared Form Language
 
@@ -244,7 +246,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - Desktop may depend on Application abstractions and use cases.
 - Desktop references Infrastructure because it is the composition root that wires implementations.
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
-- `AccountsViewModel` depends on `ITradingAccountReader`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`.
+- `AccountsViewModel` depends on account-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on their purpose-specific Application catalog readers and create/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/closure, Setup classification, Trading Mistake associations, and screenshots.

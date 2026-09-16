@@ -73,20 +73,20 @@ public sealed class TradingAccount : AuditableEntity
         IsActive = isActive;
     }
 
-    public string Name { get; }
+    public string Name { get; private set; }
 
-    public TradingAccountType AccountType { get; }
+    public TradingAccountType AccountType { get; private set; }
 
-    public string? ProviderName { get; }
+    public string? ProviderName { get; private set; }
 
-    public string? ExternalAccountId { get; }
+    public string? ExternalAccountId { get; private set; }
 
-    public string Currency { get; }
+    public string Currency { get; private set; }
 
     /// <summary>
     /// Gets the optional baseline balance from which account analytics may begin.
     /// </summary>
-    public decimal? StartingBalance { get; }
+    public decimal? StartingBalance { get; private set; }
 
     public bool IsActive { get; private set; }
 
@@ -135,6 +135,56 @@ public sealed class TradingAccount : AuditableEntity
 
         SetUpdatedAtUtc(updatedAtUtc);
         IsActive = false;
+    }
+
+    public bool UpdateDetails(
+        string name,
+        TradingAccountType accountType,
+        string? providerName,
+        string? externalAccountId,
+        string currency,
+        decimal? startingBalance,
+        DateTimeOffset updatedAtUtc)
+    {
+        string normalizedName = NormalizeRequired(
+            name,
+            MaximumNameLength,
+            nameof(name),
+            useUppercase: false);
+        TradingAccountType validatedAccountType = ValidateAccountType(accountType);
+        string? normalizedProviderName = NormalizeOptional(
+            providerName,
+            MaximumProviderNameLength,
+            nameof(providerName));
+        string? normalizedExternalAccountId = NormalizeOptional(
+            externalAccountId,
+            MaximumExternalAccountIdLength,
+            nameof(externalAccountId));
+        string normalizedCurrency = NormalizeRequired(
+            currency,
+            MaximumCurrencyLength,
+            nameof(currency),
+            useUppercase: true);
+        decimal? validatedStartingBalance = ValidateStartingBalance(startingBalance);
+
+        if (Name == normalizedName &&
+            AccountType == validatedAccountType &&
+            ProviderName == normalizedProviderName &&
+            ExternalAccountId == normalizedExternalAccountId &&
+            Currency == normalizedCurrency &&
+            StartingBalance == validatedStartingBalance)
+        {
+            return false;
+        }
+
+        SetUpdatedAtUtc(updatedAtUtc);
+        Name = normalizedName;
+        AccountType = validatedAccountType;
+        ProviderName = normalizedProviderName;
+        ExternalAccountId = normalizedExternalAccountId;
+        Currency = normalizedCurrency;
+        StartingBalance = validatedStartingBalance;
+        return true;
     }
 
     private static string NormalizeRequired(

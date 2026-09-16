@@ -67,6 +67,9 @@ public partial class App : System.Windows.Application
                 services.GetRequiredService<ISystemThemeProvider>()));
             builder.Services.AddSingleton<IDesktopSettingsStore, JsonDesktopSettingsStore>();
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
+            builder.Services.AddTransient<GetTradingAccountDetailsUseCase>();
+            builder.Services.AddTransient<UpdateTradingAccountUseCase>();
+            builder.Services.AddTransient<DeleteTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<CreateInstrumentUseCase>();
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();

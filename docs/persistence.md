@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries support Accounts, Instruments, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, Trade edit/delete, seed data, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries support Account create/read/update/delete and lifecycle workflows, Instruments, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -80,6 +80,12 @@ EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMig
 | `TradeMistakes.TradingMistakeId` | `TradingMistakes.Id` | Yes | Restrict |
 
 `TradeExecution` is an aggregate-owned factual child, so it is the only cascading relationship. Screenshot records use restrict because their external-file lifecycle must not be silently implied by a database cascade. Trade-mistake associations are historical process-quality evidence, and reference records are protected so historical trades remain rehydratable.
+
+### Trading Account Management
+
+`TradingAccountReader.GetByIdAsync(...)` uses a fresh no-tracking context and projects the complete Account detail model, including audit timestamps. Updates reload the Domain aggregate through `ITradingAccountStore`, call `TradingAccount.UpdateDetails(...)`, and map the complete authoritative state back through the existing persistence mapper. Canonical same-value edits do not issue an update.
+
+`ITradingAccountDeletionStore.HasTradesAsync(...)` performs an account-scoped `AnyAsync` against Trades. `DeleteTradingAccountUseCase` blocks referenced accounts before deletion; `TradingAccountDeletionStore` also translates a SQLite constraint failure into the same safe blocked outcome if a Trade is inserted between the check and delete. The existing `Restrict` foreign key remains the final integrity barrier, so deleting an Account can never cascade into historical Trades. No schema or migration change is required.
 
 Two composite business indexes are unique:
 

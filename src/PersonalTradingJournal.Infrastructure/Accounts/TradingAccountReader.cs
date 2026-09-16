@@ -36,4 +36,28 @@ public sealed class TradingAccountReader : ITradingAccountReader
                 record.IsActive))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<TradingAccountDetails?> GetByIdAsync(
+        Guid accountId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.TradingAccounts
+            .AsNoTracking()
+            .Where(record => record.Id == accountId)
+            .Select(record => new TradingAccountDetails(
+                record.Id,
+                record.Name,
+                record.AccountType,
+                record.ProviderName,
+                record.ExternalAccountId,
+                record.Currency,
+                record.StartingBalance,
+                record.IsActive,
+                record.CreatedAtUtc,
+                record.UpdatedAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 }

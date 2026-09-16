@@ -52,7 +52,9 @@ Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Thei
 
 ### TradingAccount
 
-`TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to its M2 state.
+`TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. `UpdateDetails(...)` explicitly updates Name, Account Type, Provider, External Account ID, Currency, and Starting Balance through the same normalization and validation used at creation. A canonical same-value update is a no-op; a real change advances `UpdatedAtUtc` while preserving Id, `CreatedAtUtc`, and active state. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to the account.
+
+Account metadata may change while Trades reference the account because Trades retain the stable account Id and their own historical pricing facts. Hard deletion is an Application/persistence workflow rather than a Domain entity mutation: it is permitted only for an unused account. Referenced accounts remain available for metadata correction and reversible activation/deactivation so historical Trades stay valid.
 
 ### TradingSetup
 

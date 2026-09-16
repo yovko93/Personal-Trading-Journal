@@ -228,6 +228,29 @@ public sealed class AccountsViewModelTests
     }
 
     [Fact]
+    public async Task ActivateAccountAsyncPersistsLifecycleChangeAndReloadsList()
+    {
+        AccountListItem inactiveItem = CreateListItem(isActive: false);
+        AccountListItem activeItem = inactiveItem with { IsActive = true };
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueResult([inactiveItem]);
+        reader.EnqueueResult([activeItem]);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(inactiveItem.Id, isActive: false),
+        };
+        AccountsViewModel viewModel = CreateViewModel(reader, store);
+        await viewModel.EnsureLoadedAsync();
+
+        await viewModel.ActivateAccountCommand.ExecuteAsync(inactiveItem);
+
+        Assert.Equal(1, store.UpdateCallCount);
+        Assert.True(Assert.IsType<TradingAccount>(store.UpdatedAccount).IsActive);
+        Assert.True(Assert.Single(viewModel.Accounts).IsActive);
+        Assert.Null(viewModel.LifecycleErrorMessage);
+    }
+
+    [Fact]
     public void LifecycleCommands_ReflectRowStateAndAreDisabledWhileCreateFormIsOpen()
     {
         AccountListItem activeItem = CreateListItem(isActive: true);
@@ -245,18 +268,216 @@ public sealed class AccountsViewModelTests
         Assert.False(viewModel.DeactivateAccountCommand.CanExecute(activeItem));
     }
 
+    [Fact]
+    public async Task ViewAccountAsyncLoadsExactAccountDetails()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: false);
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueDetailResult(details);
+        AccountsViewModel viewModel = CreateViewModel(reader);
+
+        await viewModel.ViewAccountCommand.ExecuteAsync(details.Id);
+
+        Assert.Same(details, viewModel.SelectedAccount);
+        Assert.True(viewModel.HasSelectedAccount);
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Null(viewModel.ActionErrorMessage);
+    }
+
+    [Fact]
+    public async Task EditAccountAsyncPrepopulatesFieldsAndCancelDoesNotPersist()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueDetailResult(details);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        AccountsViewModel viewModel = CreateViewModel(reader, store);
+
+        await viewModel.EditAccountCommand.ExecuteAsync(details.Id);
+
+        Assert.True(viewModel.IsEditFormVisible);
+        Assert.Equal(details.Name, viewModel.EditAccountName);
+        Assert.Equal(details.AccountType, viewModel.EditSelectedAccountType);
+        Assert.Equal(details.ProviderName, viewModel.EditProviderName);
+        Assert.Equal(details.ExternalAccountId, viewModel.EditExternalAccountId);
+        Assert.Equal(details.Currency, viewModel.EditCurrency);
+        Assert.Equal("1000", viewModel.EditStartingBalanceText);
+
+        viewModel.EditAccountName = "Unsaved";
+        viewModel.CancelEditCommand.Execute(null);
+
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Equal(0, store.UpdateCallCount);
+        Assert.Same(details, viewModel.SelectedAccount);
+    }
+
+    [Fact]
+    public async Task SaveChangesUpdatesDetailAndReloadsList()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        AccountListItem refreshed = new(
+            details.Id,
+            "Updated",
+            TradingAccountType.Personal,
+            null,
+            null,
+            "EUR",
+            null,
+            true);
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueDetailResult(details);
+        reader.EnqueueResult([refreshed]);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        AccountsViewModel viewModel = CreateViewModel(reader, store);
+        await viewModel.EditAccountCommand.ExecuteAsync(details.Id);
+        viewModel.EditAccountName = " Updated ";
+        viewModel.EditSelectedAccountType = TradingAccountType.Personal;
+        viewModel.EditProviderName = " ";
+        viewModel.EditExternalAccountId = string.Empty;
+        viewModel.EditCurrency = "eur";
+        viewModel.EditStartingBalanceText = string.Empty;
+
+        await viewModel.SaveChangesCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, store.UpdateCallCount);
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Equal("Updated", viewModel.SelectedAccount?.Name);
+        Assert.Null(viewModel.SelectedAccount?.ProviderName);
+        Assert.Equal("EUR", viewModel.SelectedAccount?.Currency);
+        Assert.Same(refreshed, Assert.Single(viewModel.Accounts));
+    }
+
+    [Fact]
+    public async Task DeleteAccountCancelledDoesNotCallUseCaseStore()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        var deletionStore = new FakeTradingAccountDeletionStore();
+        var dialog = new FakeDialogService { ConfirmationResult = false };
+        AccountsViewModel viewModel = CreateViewModel(
+            store: store,
+            deletionStore: deletionStore,
+            dialogService: dialog);
+
+        await viewModel.DeleteAccountCommand.ExecuteAsync(details.Id);
+
+        Assert.NotNull(dialog.ConfirmationRequest);
+        Assert.True(dialog.ConfirmationRequest.IsDestructive);
+        Assert.Equal(0, store.GetCallCount);
+        Assert.Equal(0, deletionStore.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task ConfirmedUnusedAccountDeletesAndClearsSelection()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueDetailResult(details);
+        reader.EnqueueResult([]);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        var deletionStore = new FakeTradingAccountDeletionStore();
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        AccountsViewModel viewModel = CreateViewModel(
+            reader,
+            store,
+            deletionStore,
+            dialog);
+        await viewModel.ViewAccountCommand.ExecuteAsync(details.Id);
+
+        await viewModel.DeleteAccountCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal(1, deletionStore.DeleteCallCount);
+        Assert.Null(viewModel.SelectedAccount);
+        Assert.Empty(viewModel.Accounts);
+        Assert.Null(dialog.InformationRequest);
+    }
+
+    [Fact]
+    public async Task ReferencedDeleteShowsSafeInformationDialog()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        var deletionStore = new FakeTradingAccountDeletionStore { HasTrades = true };
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        AccountsViewModel viewModel = CreateViewModel(
+            store: store,
+            deletionStore: deletionStore,
+            dialogService: dialog);
+
+        await viewModel.DeleteAccountCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal(0, deletionStore.DeleteCallCount);
+        Assert.NotNull(dialog.InformationRequest);
+        Assert.Equal("Cannot delete account", dialog.InformationRequest.Title);
+        Assert.Contains("Deactivate it instead", dialog.InformationRequest.Message);
+        Assert.Null(viewModel.ActionErrorMessage);
+    }
+
+    [Fact]
+    public async Task DeleteBusyStateDisablesOtherAccountActions()
+    {
+        TradingAccountDetails details = CreateDetails(isActive: true);
+        var store = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateAggregate(details.Id, isActive: true),
+        };
+        var deletionStore = new FakeTradingAccountDeletionStore
+        {
+            HasTradesCompletion = new TaskCompletionSource<bool>(),
+        };
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        AccountsViewModel viewModel = CreateViewModel(
+            store: store,
+            deletionStore: deletionStore,
+            dialogService: dialog);
+
+        Task deleteTask = viewModel.DeleteAccountCommand.ExecuteAsync(details.Id);
+        await Task.Yield();
+
+        Assert.True(viewModel.IsDeleting);
+        Assert.False(viewModel.ViewAccountCommand.CanExecute(details.Id));
+        Assert.False(viewModel.EditAccountCommand.CanExecute(details.Id));
+        Assert.False(viewModel.DeleteAccountCommand.CanExecute(details.Id));
+
+        deletionStore.HasTradesCompletion.SetResult(true);
+        await deleteTask;
+    }
+
     private static AccountsViewModel CreateViewModel(
         FakeTradingAccountReader? reader = null,
-        FakeTradingAccountStore? store = null)
+        FakeTradingAccountStore? store = null,
+        FakeTradingAccountDeletionStore? deletionStore = null,
+        FakeDialogService? dialogService = null)
     {
         reader ??= new FakeTradingAccountReader();
         store ??= new FakeTradingAccountStore();
+        deletionStore ??= new FakeTradingAccountDeletionStore();
+        dialogService ??= new FakeDialogService();
         var timeProvider = new FixedTimeProvider();
 
         return new AccountsViewModel(
             reader,
             new CreateTradingAccountUseCase(store, timeProvider),
-            new TradingAccountLifecycleUseCase(store, timeProvider));
+            new TradingAccountLifecycleUseCase(store, timeProvider),
+            new GetTradingAccountDetailsUseCase(reader),
+            new UpdateTradingAccountUseCase(store, timeProvider),
+            new DeleteTradingAccountUseCase(store, deletionStore),
+            dialogService);
     }
 
     private static void OpenValidCreateForm(AccountsViewModel viewModel)
@@ -300,6 +521,24 @@ public sealed class AccountsViewModelTests
 
         return TradingAccount.Rehydrate(
             id,
+            "Primary",
+            TradingAccountType.PropFunded,
+            "Provider",
+            "EXT-42",
+            "USD",
+            1000m,
+            isActive,
+            createdAtUtc,
+            updatedAtUtc);
+    }
+
+    private static TradingAccountDetails CreateDetails(bool isActive)
+    {
+        DateTimeOffset createdAtUtc = FixedTimeProvider.FixedUtcNow.AddDays(-2);
+        DateTimeOffset updatedAtUtc = FixedTimeProvider.FixedUtcNow.AddDays(-1);
+
+        return new TradingAccountDetails(
+            Guid.NewGuid(),
             "Primary",
             TradingAccountType.PropFunded,
             "Provider",

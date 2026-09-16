@@ -493,7 +493,13 @@ public sealed class MainWindowViewModelTests
         var accounts = new AccountsViewModel(
             accountReader,
             new CreateTradingAccountUseCase(accountStore, timeProvider),
-            new TradingAccountLifecycleUseCase(accountStore, timeProvider));
+            new TradingAccountLifecycleUseCase(accountStore, timeProvider),
+            new GetTradingAccountDetailsUseCase(accountReader),
+            new UpdateTradingAccountUseCase(accountStore, timeProvider),
+            new DeleteTradingAccountUseCase(
+                accountStore,
+                new FakeTradingAccountDeletionStore()),
+            new FakeDialogService());
         var instruments = new InstrumentsViewModel(
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
