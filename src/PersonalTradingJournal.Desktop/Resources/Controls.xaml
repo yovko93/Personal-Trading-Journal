@@ -181,7 +181,28 @@
         <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
     </Style>
 
+    <Style x:Key="PtjEntityActionMenuSeparatorStyle"
+           TargetType="{x:Type Separator}">
+        <Setter Property="Background" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="2,5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Separator}">
+                    <Border Height="{TemplateBinding Height}"
+                            Background="{TemplateBinding Background}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PtjEntityActionMenuStyle" TargetType="{x:Type ContextMenu}">
+        <Style.Resources>
+            <Style TargetType="{x:Type MenuItem}"
+                   BasedOn="{StaticResource PtjEntityActionMenuItemStyle}" />
+            <Style TargetType="{x:Type Separator}"
+                   BasedOn="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+        </Style.Resources>
         <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
@@ -189,8 +210,6 @@
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="HasDropShadow" Value="False" />
-        <Setter Property="ItemContainerStyle"
-                Value="{StaticResource PtjEntityActionMenuItemStyle}" />
         <Setter Property="Placement" Value="Bottom" />
         <Setter Property="Template">
             <Setter.Value>

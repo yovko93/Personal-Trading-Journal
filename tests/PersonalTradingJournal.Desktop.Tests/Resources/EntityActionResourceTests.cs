@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace PersonalTradingJournal.Desktop.Tests.Resources;
 
@@ -11,6 +12,7 @@ public sealed class EntityActionResourceTests
         "PtjEntityActionButtonStyle",
         "PtjEntityActionMenuStyle",
         "PtjEntityActionMenuItemStyle",
+        "PtjEntityActionMenuSeparatorStyle",
         "PtjLifecycleMenuItemStyle",
         "PtjDeleteMenuItemStyle",
         "PtjDetailLabelTextStyle",
@@ -65,6 +67,39 @@ public sealed class EntityActionResourceTests
     }
 
     [Fact]
+    public void SharedEntityActionMenuSupportsMenuItemsAndSeparatorsByType()
+    {
+        string controls = ReadDesktopFile("Resources", "Controls.xaml");
+        XDocument document = XDocument.Parse(controls);
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement menuStyle = document
+            .Descendants(presentation + "Style")
+            .Single(element =>
+                (string?)element.Attribute(x + "Key") == "PtjEntityActionMenuStyle");
+
+        Assert.DoesNotContain(
+            menuStyle.Elements(presentation + "Setter"),
+            setter => (string?)setter.Attribute("Property") == "ItemContainerStyle");
+
+        XElement resources = Assert.Single(
+            menuStyle.Elements(presentation + "Style.Resources"));
+        XElement menuItemStyle = Assert.Single(
+            resources.Elements(presentation + "Style"),
+            style => (string?)style.Attribute("TargetType") == "{x:Type MenuItem}");
+        XElement separatorStyle = Assert.Single(
+            resources.Elements(presentation + "Style"),
+            style => (string?)style.Attribute("TargetType") == "{x:Type Separator}");
+
+        Assert.Equal(
+            "{StaticResource PtjEntityActionMenuItemStyle}",
+            (string?)menuItemStyle.Attribute("BasedOn"));
+        Assert.Equal(
+            "{StaticResource PtjEntityActionMenuSeparatorStyle}",
+            (string?)separatorStyle.Attribute("BasedOn"));
+    }
+
+    [Fact]
     public void SharedActionAndDialogXamlContainNoHardcodedColors()
     {
         string controls = ReadDesktopFile("Resources", "Controls.xaml");
@@ -115,6 +150,18 @@ public sealed class EntityActionResourceTests
         Assert.Contains("PtjDeleteMenuItemStyle", view, StringComparison.Ordinal);
         Assert.Contains("EditPointValuePreview", view, StringComparison.Ordinal);
         Assert.DoesNotMatch("#[0-9A-Fa-f]{3,8}", view);
+    }
+
+    [Fact]
+    public void InstrumentsTableProtectsActionsAndKeepsDisplayNameFlexible()
+    {
+        string view = ReadDesktopFile("Views", "Instruments", "InstrumentsView.xaml");
+
+        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"224\" />").Count);
+        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"1.8\\*\" />").Count);
+        Assert.Equal(2, Regex.Matches(view, "<ColumnDefinition Width=\"0.55\\*\" />").Count);
+        Assert.Contains("Text=\"Actions\"", view, StringComparison.Ordinal);
+        Assert.Contains("HorizontalAlignment=\"Right\"", view, StringComparison.Ordinal);
     }
 
     private static string ReadDesktopFile(params string[] segments) =>

@@ -367,7 +367,7 @@
                                         </Style>
                                     </MenuItem.Style>
                                 </MenuItem>
-                                <Separator Style="{StaticResource PtjSeparatorStyle}" />
+                                <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                 <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                           CommandParameter="{Binding Tag.SelectedAccount.Id}"
                                           Header="Delete"
@@ -728,7 +728,7 @@
                                                                 </Style>
                                                             </MenuItem.Style>
                                                         </MenuItem>
-                                                        <Separator Style="{StaticResource PtjSeparatorStyle}" />
+                                                        <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                                         <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                                                   CommandParameter="{Binding DataContext.Id}"
                                                                   Header="Delete"

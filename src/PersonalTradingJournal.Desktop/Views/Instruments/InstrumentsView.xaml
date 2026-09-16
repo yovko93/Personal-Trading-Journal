@@ -301,7 +301,7 @@
                                     <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDeactivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                     <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Tag.SelectedInstrument.IsActive}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
                                 </MenuItem>
-                                <Separator Style="{StaticResource PtjSeparatorStyle}" />
+                                <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                 <MenuItem Command="{Binding Tag.DeleteInstrumentCommand}" CommandParameter="{Binding Tag.SelectedInstrument.Id}" Header="Delete" Style="{StaticResource PtjDeleteMenuItemStyle}">
                                     <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDelete}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                 </MenuItem>
@@ -472,16 +472,16 @@
 
                 <Grid Margin="16,0,16,8">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="0.8*" />
-                        <ColumnDefinition Width="1.4*" />
-                        <ColumnDefinition Width="1.0*" />
-                        <ColumnDefinition Width="0.8*" />
                         <ColumnDefinition Width="0.7*" />
-                        <ColumnDefinition Width="0.85*" />
-                        <ColumnDefinition Width="0.85*" />
-                        <ColumnDefinition Width="0.95*" />
-                        <ColumnDefinition Width="0.75*" />
-                        <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="1.8*" />
+                        <ColumnDefinition Width="0.9*" />
+                        <ColumnDefinition Width="0.7*" />
+                        <ColumnDefinition Width="0.55*" />
+                        <ColumnDefinition Width="0.65*" />
+                        <ColumnDefinition Width="0.65*" />
+                        <ColumnDefinition Width="0.7*" />
+                        <ColumnDefinition Width="0.65*" />
+                        <ColumnDefinition Width="224" />
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0"
@@ -532,16 +532,16 @@
                                         Style="{StaticResource PtjCardStyle}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="0.8*" />
-                                            <ColumnDefinition Width="1.4*" />
-                                            <ColumnDefinition Width="1.0*" />
-                                            <ColumnDefinition Width="0.8*" />
                                             <ColumnDefinition Width="0.7*" />
-                                            <ColumnDefinition Width="0.85*" />
-                                            <ColumnDefinition Width="0.85*" />
-                                            <ColumnDefinition Width="0.95*" />
-                                            <ColumnDefinition Width="0.75*" />
-                                            <ColumnDefinition Width="1.4*" />
+                                            <ColumnDefinition Width="1.8*" />
+                                            <ColumnDefinition Width="0.9*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="0.55*" />
+                                            <ColumnDefinition Width="0.65*" />
+                                            <ColumnDefinition Width="0.65*" />
+                                            <ColumnDefinition Width="0.7*" />
+                                            <ColumnDefinition Width="0.65*" />
+                                            <ColumnDefinition Width="224" />
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -617,7 +617,7 @@
                                                             <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDeactivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                                             <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding DataContext.IsActive}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
                                                         </MenuItem>
-                                                        <Separator Style="{StaticResource PtjSeparatorStyle}" />
+                                                        <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                                         <MenuItem Command="{Binding Tag.DeleteInstrumentCommand}" CommandParameter="{Binding DataContext.Id}" Header="Delete" Style="{StaticResource PtjDeleteMenuItemStyle}">
                                                             <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDelete}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
                                                         </MenuItem>
