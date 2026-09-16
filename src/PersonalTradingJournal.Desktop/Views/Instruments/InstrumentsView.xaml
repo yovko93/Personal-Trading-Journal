@@ -1,6 +1,7 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Instruments.InstrumentsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <Style x:Key="InstrumentColumnHeaderStyle"
                TargetType="{x:Type TextBlock}"
@@ -99,7 +100,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Symbol" />
-                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsSymbolInvalid}"
+                                 Style="{StaticResource PtjTextBoxStyle}"
                                  Text="{Binding Symbol, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
@@ -107,7 +109,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Display Name" />
-                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsDisplayNameInvalid}"
+                                 Style="{StaticResource PtjTextBoxStyle}"
                                  Text="{Binding DisplayName, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
@@ -136,7 +139,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Currency" />
-                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsCurrencyInvalid}"
+                                 Style="{StaticResource PtjTextBoxStyle}"
                                  Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 
@@ -144,7 +148,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Tick Size" />
-                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsTickSizeInvalid}"
+                                 Style="{StaticResource PtjTextBoxStyle}"
                                  Text="{Binding TickSizeText, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="The minimum price increment for this instrument." />
@@ -154,7 +159,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Tick Value" />
-                        <TextBox Style="{StaticResource PtjTextBoxStyle}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsTickValueInvalid}"
+                                 Style="{StaticResource PtjTextBoxStyle}"
                                  Text="{Binding TickValueText, UpdateSourceTrigger=PropertyChanged}" />
                         <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="Monetary value of one minimum price increment. Point Value is derived automatically." />

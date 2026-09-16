@@ -16,6 +16,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
     private bool _isSaving;
     private bool _isChangingStatus;
     private bool _isCreateFormVisible;
+    private bool _isNameInvalid;
     private string _nameText = string.Empty;
     private string _descriptionText = string.Empty;
     private string? _validationErrorMessage;
@@ -60,9 +61,15 @@ public sealed class TradingSetupsViewModel : ObservableObject
             if (SetProperty(ref _nameText, value))
             {
                 CreateCommand.NotifyCanExecuteChanged();
+                if (IsNameInvalid && !string.IsNullOrWhiteSpace(value))
+                {
+                    IsNameInvalid = false;
+                    ValidationErrorMessage = null;
+                }
             }
         }
     }
+    public bool IsNameInvalid { get => _isNameInvalid; private set => SetProperty(ref _isNameInvalid, value); }
     public string DescriptionText { get => _descriptionText; set => SetProperty(ref _descriptionText, value); }
     public string? ValidationErrorMessage { get => _validationErrorMessage; private set => SetMessage(ref _validationErrorMessage, value, nameof(HasValidationError)); }
     public bool HasValidationError => ValidationErrorMessage is not null;
@@ -102,6 +109,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
         ValidationErrorMessage = SaveErrorMessage = SuccessMessage = null;
         if (string.IsNullOrWhiteSpace(NameText))
         {
+            IsNameInvalid = true;
             ValidationErrorMessage = "Name is required.";
             return;
         }
@@ -117,7 +125,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (InvalidOperationException ex) when (ex.Message == CreateTradingSetupUseCase.DuplicateNameMessage)
-        { ValidationErrorMessage = CreateTradingSetupUseCase.DuplicateNameMessage; }
+        { IsNameInvalid = true; ValidationErrorMessage = CreateTradingSetupUseCase.DuplicateNameMessage; }
         catch (ArgumentException) { ValidationErrorMessage = "Please check the trading setup details."; }
         catch (Exception) { SaveErrorMessage = "Trading setup could not be created."; }
         finally { IsSaving = false; }
@@ -142,7 +150,7 @@ public sealed class TradingSetupsViewModel : ObservableObject
     }
 
     private bool IsBusy => IsLoading || IsSaving || IsChangingStatus;
-    private void ResetDraft() { NameText = string.Empty; DescriptionText = string.Empty; }
+    private void ResetDraft() { NameText = string.Empty; DescriptionText = string.Empty; IsNameInvalid = false; }
     private void SetMessage(ref string? field, string? value, string hasProperty)
     { if (SetProperty(ref field, value)) OnPropertyChanged(hasProperty); }
     private void NotifyCommands()

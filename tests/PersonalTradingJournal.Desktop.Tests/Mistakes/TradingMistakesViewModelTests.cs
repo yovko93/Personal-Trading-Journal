@@ -40,7 +40,9 @@ public sealed class TradingMistakesViewModelTests
     {
         var store = new FakeTradingMistakeStore(); TradingMistakesViewModel viewModel = Create(store: store);
         viewModel.ShowCreateCommand.Execute(null); viewModel.NameText = " "; await viewModel.CreateCommand.ExecuteAsync(null);
-        Assert.Equal("Name is required.", viewModel.ValidationErrorMessage); Assert.Equal(0, store.AddCalls);
+        Assert.Equal("Name is required.", viewModel.ValidationErrorMessage); Assert.True(viewModel.IsNameInvalid); Assert.Equal(0, store.AddCalls);
+        viewModel.NameText = "FOMO";
+        Assert.False(viewModel.IsNameInvalid); Assert.Null(viewModel.ValidationErrorMessage);
     }
 
     [Fact]

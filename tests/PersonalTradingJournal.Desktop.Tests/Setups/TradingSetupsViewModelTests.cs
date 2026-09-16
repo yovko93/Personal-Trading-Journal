@@ -40,7 +40,9 @@ public sealed class TradingSetupsViewModelTests
     {
         var store = new FakeTradingSetupStore(); var vm = Create(store: store); vm.ShowCreateCommand.Execute(null); vm.NameText = " ";
         await vm.CreateCommand.ExecuteAsync(null);
-        Assert.Equal("Name is required.", vm.ValidationErrorMessage); Assert.Equal(0, store.AddCallCount);
+        Assert.Equal("Name is required.", vm.ValidationErrorMessage); Assert.True(vm.IsNameInvalid); Assert.Equal(0, store.AddCallCount);
+        vm.NameText = "ORB";
+        Assert.False(vm.IsNameInvalid); Assert.Null(vm.ValidationErrorMessage);
     }
 
     [Fact]

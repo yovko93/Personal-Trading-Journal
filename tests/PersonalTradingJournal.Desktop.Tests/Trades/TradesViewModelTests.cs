@@ -161,6 +161,12 @@ public sealed partial class TradesViewModelTests
         Assert.Equal(
             TradeQuantityPolicy.FuturesWholeContractsMessage,
             viewModel.ValidationErrorMessage);
+        Assert.True(viewModel.IsQuantityInvalid);
+
+        viewModel.QuantityText = "2";
+
+        Assert.False(viewModel.IsQuantityInvalid);
+        Assert.Null(viewModel.ValidationErrorMessage);
     }
 
     [Theory]
@@ -328,6 +334,13 @@ public sealed partial class TradesViewModelTests
         Assert.Null(command);
         Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
         Assert.True(viewModel.HasValidationError);
+        Assert.True(missingSelection switch
+        {
+            "account" => viewModel.IsTradingAccountInvalid,
+            "instrument" => viewModel.IsInstrumentInvalid,
+            "direction" => viewModel.IsDirectionInvalid,
+            _ => false,
+        });
     }
 
     [Fact]
@@ -1658,11 +1671,12 @@ public sealed partial class TradesViewModelTests
             tradeDetailReader: detailReader);
         viewModel.ShowManualEntryCommand.Execute(null);
         Assert.False(viewModel.TryBuildManualTradeCommand(out _));
-        string validationError = Assert.IsType<string>(
-            viewModel.ValidationErrorMessage);
+        Assert.True(viewModel.IsTradingAccountInvalid);
         viewModel.SelectedAccount = selectedAccount;
         viewModel.SelectedInstrument = selectedInstrument;
         PopulateRepresentativeTradeFacts(viewModel);
+        Assert.Null(viewModel.ValidationErrorMessage);
+        Assert.False(viewModel.IsTradingAccountInvalid);
 
         await viewModel.ShowTradeDetailCommand.ExecuteAsync(listItem);
 
@@ -1670,7 +1684,7 @@ public sealed partial class TradesViewModelTests
         Assert.Same(selectedAccount, viewModel.SelectedAccount);
         Assert.Same(selectedInstrument, viewModel.SelectedInstrument);
         AssertRepresentativeTradeFacts(viewModel);
-        Assert.Equal(validationError, viewModel.ValidationErrorMessage);
+        Assert.Null(viewModel.ValidationErrorMessage);
         Assert.Same(detail, viewModel.SelectedTradeDetail);
     }
 

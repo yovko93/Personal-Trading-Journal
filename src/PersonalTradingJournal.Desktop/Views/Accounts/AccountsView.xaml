@@ -1,7 +1,8 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Accounts.AccountsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters">
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
+             xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <converters:TradingAccountTypeDisplayConverter x:Key="AccountTypeDisplayConverter" />
 
@@ -102,7 +103,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Name" />
-                        <TextBox Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsAccountNameInvalid}"
+                                 Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
                         <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="A clear name used throughout the journal." />
@@ -153,7 +155,8 @@
                         <TextBlock Margin="0,0,0,6"
                                    Style="{StaticResource PtjFormLabelTextStyle}"
                                    Text="Currency" />
-                        <TextBox Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsCurrencyInvalid}"
+                                 Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
                     </StackPanel>
 
@@ -165,7 +168,8 @@
                                        Style="{StaticResource PtjFormOptionalTextStyle}"
                                        Text="(Optional)" />
                         </StackPanel>
-                        <TextBox Text="{Binding StartingBalanceText, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsStartingBalanceInvalid}"
+                                 Text="{Binding StartingBalanceText, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
                         <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                    Text="Opening reference only; this is not a current balance." />

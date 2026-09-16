@@ -88,8 +88,14 @@ public sealed class InstrumentsViewModelTests
         await viewModel.CreateInstrumentCommand.ExecuteAsync(null);
 
         Assert.Equal("Symbol is required.", viewModel.CreateErrorMessage);
+        Assert.True(viewModel.IsSymbolInvalid);
         Assert.True(viewModel.IsCreateFormVisible);
         Assert.Equal(0, store.AddCallCount);
+
+        viewModel.Symbol = "ES";
+
+        Assert.False(viewModel.IsSymbolInvalid);
+        Assert.Null(viewModel.CreateErrorMessage);
     }
 
     [Fact]

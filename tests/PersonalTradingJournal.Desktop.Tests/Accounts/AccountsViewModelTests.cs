@@ -77,8 +77,14 @@ public sealed class AccountsViewModelTests
         await viewModel.CreateAccountCommand.ExecuteAsync(null);
 
         Assert.Equal("Account name is required.", viewModel.CreateErrorMessage);
+        Assert.True(viewModel.IsAccountNameInvalid);
         Assert.True(viewModel.IsCreateFormVisible);
         Assert.Equal(0, store.AddCallCount);
+
+        viewModel.AccountName = "Primary";
+
+        Assert.False(viewModel.IsAccountNameInvalid);
+        Assert.Null(viewModel.CreateErrorMessage);
     }
 
     [Fact]

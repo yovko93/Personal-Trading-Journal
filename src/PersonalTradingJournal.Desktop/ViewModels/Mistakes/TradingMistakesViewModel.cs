@@ -12,6 +12,7 @@ public sealed class TradingMistakesViewModel : ObservableObject
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<TradingMistakeListItem> _tradingMistakes = [];
     private bool _loaded, _isLoading, _isSaving, _isChangingStatus, _isCreateFormVisible;
+    private bool _isNameInvalid;
     private string _nameText = string.Empty, _descriptionText = string.Empty;
     private string? _validationErrorMessage, _saveErrorMessage, _listErrorMessage, _successMessage;
 
@@ -44,9 +45,15 @@ public sealed class TradingMistakesViewModel : ObservableObject
             if (SetProperty(ref _nameText, value))
             {
                 CreateCommand.NotifyCanExecuteChanged();
+                if (IsNameInvalid && !string.IsNullOrWhiteSpace(value))
+                {
+                    IsNameInvalid = false;
+                    ValidationErrorMessage = null;
+                }
             }
         }
     }
+    public bool IsNameInvalid { get => _isNameInvalid; private set => SetProperty(ref _isNameInvalid, value); }
     public string DescriptionText { get => _descriptionText; set => SetProperty(ref _descriptionText, value); }
     public string? ValidationErrorMessage { get => _validationErrorMessage; private set => SetMessage(ref _validationErrorMessage, value, nameof(HasValidationError)); }
     public bool HasValidationError => ValidationErrorMessage is not null;
@@ -69,7 +76,7 @@ public sealed class TradingMistakesViewModel : ObservableObject
     private async Task CreateAsync(CancellationToken token)
     {
         ValidationErrorMessage = SaveErrorMessage = SuccessMessage = null;
-        if (string.IsNullOrWhiteSpace(NameText)) { ValidationErrorMessage = "Name is required."; return; }
+        if (string.IsNullOrWhiteSpace(NameText)) { IsNameInvalid = true; ValidationErrorMessage = "Name is required."; return; }
         IsSaving = true;
         try
         {
@@ -79,7 +86,7 @@ public sealed class TradingMistakesViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (InvalidOperationException ex) when (ex.Message == CreateTradingMistakeUseCase.DuplicateNameMessage)
-        { ValidationErrorMessage = CreateTradingMistakeUseCase.DuplicateNameMessage; }
+        { IsNameInvalid = true; ValidationErrorMessage = CreateTradingMistakeUseCase.DuplicateNameMessage; }
         catch (ArgumentException) { ValidationErrorMessage = "Please check the trading mistake details."; }
         catch (Exception) { SaveErrorMessage = "Trading mistake could not be created."; }
         finally { IsSaving = false; }
@@ -102,7 +109,7 @@ public sealed class TradingMistakesViewModel : ObservableObject
     }
 
     private bool IsBusy => IsLoading || IsSaving || IsChangingStatus;
-    private void Reset() { NameText = string.Empty; DescriptionText = string.Empty; }
+    private void Reset() { NameText = string.Empty; DescriptionText = string.Empty; IsNameInvalid = false; }
     private void SetMessage(ref string? field, string? value, string property) { if (SetProperty(ref field, value)) OnPropertyChanged(property); }
     private void Notify() { RefreshCommand.NotifyCanExecuteChanged(); ShowCreateCommand.NotifyCanExecuteChanged(); CancelCreateCommand.NotifyCanExecuteChanged(); CreateCommand.NotifyCanExecuteChanged(); ToggleActiveCommand.NotifyCanExecuteChanged(); }
     private async Task<bool> LoadAsync(bool force, CancellationToken token)

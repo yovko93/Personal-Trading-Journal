@@ -32,6 +32,9 @@ public sealed class AccountsViewModel : ObservableObject
     private bool _isChangingAccountState;
     private bool _isCreating;
     private bool _isLoading;
+    private bool _isAccountNameInvalid;
+    private bool _isCurrencyInvalid;
+    private bool _isStartingBalanceInvalid;
     private string? _lifecycleErrorMessage;
     private string? _errorMessage;
     private string _providerName = string.Empty;
@@ -120,7 +123,16 @@ public sealed class AccountsViewModel : ObservableObject
     public string AccountName
     {
         get => _accountName;
-        set => SetProperty(ref _accountName, value);
+        set
+        {
+            if (SetProperty(ref _accountName, value) &&
+                IsAccountNameInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsAccountNameInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public IReadOnlyList<TradingAccountType> AccountTypes { get; } =
@@ -147,13 +159,49 @@ public sealed class AccountsViewModel : ObservableObject
     public string Currency
     {
         get => _currency;
-        set => SetProperty(ref _currency, value);
+        set
+        {
+            if (SetProperty(ref _currency, value) &&
+                IsCurrencyInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsCurrencyInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public string StartingBalanceText
     {
         get => _startingBalanceText;
-        set => SetProperty(ref _startingBalanceText, value);
+        set
+        {
+            if (SetProperty(ref _startingBalanceText, value) &&
+                IsStartingBalanceInvalid &&
+                IsStartingBalanceValid(value))
+            {
+                IsStartingBalanceInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
+    }
+
+    public bool IsAccountNameInvalid
+    {
+        get => _isAccountNameInvalid;
+        private set => SetProperty(ref _isAccountNameInvalid, value);
+    }
+
+    public bool IsCurrencyInvalid
+    {
+        get => _isCurrencyInvalid;
+        private set => SetProperty(ref _isCurrencyInvalid, value);
+    }
+
+    public bool IsStartingBalanceInvalid
+    {
+        get => _isStartingBalanceInvalid;
+        private set => SetProperty(ref _isStartingBalanceInvalid, value);
     }
 
     public bool IsCreating
@@ -266,12 +314,14 @@ public sealed class AccountsViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(AccountName))
         {
+            IsAccountNameInvalid = true;
             CreateErrorMessage = "Account name is required.";
             return;
         }
 
         if (string.IsNullOrWhiteSpace(Currency))
         {
+            IsCurrencyInvalid = true;
             CreateErrorMessage = "Currency is required.";
             return;
         }
@@ -285,6 +335,7 @@ public sealed class AccountsViewModel : ObservableObject
                 CultureInfo.CurrentCulture,
                 out decimal parsedStartingBalance))
             {
+                IsStartingBalanceInvalid = true;
                 CreateErrorMessage = "Starting balance must be a valid number.";
                 return;
             }
@@ -348,8 +399,19 @@ public sealed class AccountsViewModel : ObservableObject
         ExternalAccountId = string.Empty;
         Currency = string.Empty;
         StartingBalanceText = string.Empty;
+        IsAccountNameInvalid = false;
+        IsCurrencyInvalid = false;
+        IsStartingBalanceInvalid = false;
         CreateErrorMessage = null;
     }
+
+    private static bool IsStartingBalanceValid(string value) =>
+        string.IsNullOrWhiteSpace(value) ||
+        decimal.TryParse(
+            value,
+            NumberStyles.Number,
+            CultureInfo.CurrentCulture,
+            out _);
 
     private bool CanActivateAccount(AccountListItem? account) =>
         account is { IsActive: false } && CanChangeAccountState();
