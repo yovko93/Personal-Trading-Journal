@@ -56,6 +56,57 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
         ToggleThemeCommand = new AsyncRelayCommand(ToggleThemeAsync);
+        TopNavigationItems =
+        [
+            CreateNavigationItem("Dashboard", NavigationDestination.Dashboard, "PtjIconDashboard"),
+            CreateNavigationItem("Notebook", NavigationDestination.Notebook, "PtjIconNotebook"),
+        ];
+        NavigationSections =
+        [
+            new NavigationSectionViewModel(
+                "TRADING",
+                [
+                    CreateNavigationItem("Trades", NavigationDestination.Trades, "PtjIconTrades"),
+                    CreateNavigationItem("Journal", NavigationDestination.Journal, "PtjIconJournal"),
+                    CreateNavigationItem("Calendar", NavigationDestination.Calendar, "PtjIconCalendar"),
+                    CreateNavigationItem("Import", NavigationDestination.Import, "PtjIconImport"),
+                ]),
+            new NavigationSectionViewModel(
+                "ANALYSIS",
+                [
+                    CreateNavigationItem("Performance", NavigationDestination.Performance, "PtjIconPerformance"),
+                    CreateNavigationItem("Trading Setups", NavigationDestination.Setups, "PtjIconSetups"),
+                    CreateNavigationItem("Mistakes", NavigationDestination.Mistakes, "PtjIconMistakes"),
+                    CreateNavigationItem("Breakdown", NavigationDestination.Breakdown, "PtjIconBreakdown"),
+                ]),
+            new NavigationSectionViewModel(
+                "PLANNING",
+                [
+                    CreateNavigationItem("Playbook", NavigationDestination.Playbook, "PtjIconPlaybook"),
+                    CreateNavigationItem("Trading Plan", NavigationDestination.TradingPlan, "PtjIconTradingPlan"),
+                    CreateNavigationItem("Rules", NavigationDestination.Rules, "PtjIconRules"),
+                ]),
+            new NavigationSectionViewModel(
+                "REVIEW",
+                [
+                    CreateNavigationItem("Daily Review", NavigationDestination.DailyReview, "PtjIconDailyReview"),
+                    CreateNavigationItem("Weekly Review", NavigationDestination.WeeklyReview, "PtjIconWeeklyReview"),
+                    CreateNavigationItem("Monthly Review", NavigationDestination.MonthlyReview, "PtjIconMonthlyReview"),
+                ]),
+        ];
+        BottomNavigationItems =
+        [
+            CreateNavigationItem("Accounts", NavigationDestination.Accounts, "PtjIconAccounts"),
+            CreateNavigationItem("Instruments", NavigationDestination.Instruments, "PtjIconInstruments"),
+            CreateNavigationItem("Settings", NavigationDestination.Settings, "PtjIconSettings"),
+        ];
+        AllNavigationItems =
+        [
+            .. TopNavigationItems,
+            .. NavigationSections.SelectMany(section => section.Items),
+            .. BottomNavigationItems,
+        ];
+        UpdateNavigationSelection(CurrentDestination);
         _themeService.ThemeChanged += OnThemeChanged;
     }
 
@@ -109,6 +160,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IRelayCommand<NavigationDestination> NavigateCommand { get; }
 
+    public IReadOnlyList<NavigationItemViewModel> TopNavigationItems { get; }
+
+    public IReadOnlyList<NavigationSectionViewModel> NavigationSections { get; }
+
+    public IReadOnlyList<NavigationItemViewModel> BottomNavigationItems { get; }
+
+    public IReadOnlyList<NavigationItemViewModel> AllNavigationItems { get; }
+
     public bool IsLightTheme => _themeService.EffectiveTheme == AppTheme.Light;
 
     public string ThemeToggleToolTip => IsLightTheme
@@ -121,12 +180,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        ExpandContainingSection(destination);
+
         if (destination == CurrentDestination)
         {
             return;
         }
 
         CurrentDestination = destination;
+        UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
@@ -162,6 +224,27 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (destination == NavigationDestination.Trades)
         {
             _ = _tradesViewModel.EnsureLoadedAsync();
+        }
+    }
+
+    private static NavigationItemViewModel CreateNavigationItem(
+        string title,
+        NavigationDestination destination,
+        string iconKey)
+    {
+        return new NavigationItemViewModel(title, destination, iconKey);
+    }
+
+    private void ExpandContainingSection(NavigationDestination destination)
+    {
+        NavigationSections.FirstOrDefault(section => section.Contains(destination))?.Expand();
+    }
+
+    private void UpdateNavigationSelection(NavigationDestination destination)
+    {
+        foreach (NavigationItemViewModel item in AllNavigationItems)
+        {
+            item.SetSelected(item.Destination == destination);
         }
     }
 

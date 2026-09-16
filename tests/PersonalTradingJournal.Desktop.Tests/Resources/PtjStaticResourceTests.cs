@@ -16,6 +16,10 @@ public sealed class PtjStaticResourceTests
         "\\{DynamicResource\\s+(?<key>Ptj[A-Za-z0-9_]+)",
         RegexOptions.CultureInvariant);
 
+    private static readonly Regex NavigationIconPattern = new(
+        "\"(?<key>PtjIcon[A-Za-z0-9_]+)\"",
+        RegexOptions.CultureInvariant);
+
     [Fact]
     public void EveryPtjStaticResourceReferenceHasADefinition()
     {
@@ -64,6 +68,43 @@ public sealed class PtjStaticResourceTests
         Assert.True(
             missing.Length == 0,
             $"Undefined PTJ DynamicResource key(s): {string.Join(", ", missing)}");
+    }
+
+    [Fact]
+    public void EveryNavigationIconKeyHasAGeometryDefinition()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string navigationSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "PersonalTradingJournal.Desktop",
+            "ViewModels",
+            "MainWindowViewModel.cs"));
+        string iconsXaml = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "PersonalTradingJournal.Desktop",
+            "Resources",
+            "Icons.xaml"));
+
+        HashSet<string> iconKeys = NavigationIconPattern
+            .Matches(navigationSource)
+            .Select(match => match.Groups["key"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        HashSet<string> definitions = DefinitionPattern
+            .Matches(iconsXaml)
+            .Select(match => match.Groups["key"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        string[] missing = iconKeys
+            .Except(definitions, StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal(19, iconKeys.Count);
+        Assert.True(
+            missing.Length == 0,
+            $"Undefined navigation icon key(s): {string.Join(", ", missing)}");
+        Assert.Contains("PtjIconChevron", definitions);
     }
 
     private static HashSet<string> CollectKeys(IEnumerable<string> xamlFiles, Regex pattern)

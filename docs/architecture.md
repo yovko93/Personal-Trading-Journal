@@ -131,7 +131,9 @@ MainWindow
                       -> View
 ```
 
-The ViewModels use `CommunityToolkit.Mvvm`: `ObservableObject` supplies change notification and `RelayCommand<NavigationDestination>` implements the shell command. `NavigationDestination` is Desktop-only presentation state, is not persisted, and has no domain meaning. `CurrentDestination` is the single source of truth for navigation selection; `NavigationSelectionConverter` derives each Button's selected state by comparing it with the Button's command parameter. There is no separate selected-item state.
+The ViewModels use `CommunityToolkit.Mvvm`: `ObservableObject` supplies change notification and `RelayCommand<NavigationDestination>` implements the shell command. `NavigationDestination` is Desktop-only presentation state, is not persisted, and has no domain meaning. `CurrentDestination` remains authoritative routing state; `MainWindowViewModel` synchronizes it to exactly one selected item in a deterministic 19-destination catalog.
+
+That catalog separates top-level destinations, four collapsible feature sections, and lower utility destinations. Section expansion is session-local presentation state and does not enter Application or Domain. `MainWindow.xaml` renders shared data templates, while project-owned vector geometries are centralized in `Resources/Icons.xaml`; this removes repeated route Button markup without introducing a navigation service or external icon dependency.
 
 There is intentionally no `NavigationService` or `INavigationService`. `MainWindowViewModel` is currently the only component that initiates shell navigation, so another abstraction would be premature. A navigation service should be considered only when another ViewModel has a demonstrated need to initiate cross-feature navigation.
 
