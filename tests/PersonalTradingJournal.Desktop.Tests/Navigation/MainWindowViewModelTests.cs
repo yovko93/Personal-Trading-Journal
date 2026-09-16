@@ -30,6 +30,126 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(19, Enum.GetValues<NavigationDestination>().Length);
 
     [Fact]
+    public void NavigationCatalogCoversEveryDestinationExactlyOnce()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        Assert.Equal(
+            Enum.GetValues<NavigationDestination>(),
+            fixture.Main.AllNavigationItems.Select(item => item.Destination));
+        Assert.Equal(19, fixture.Main.AllNavigationItems.Count);
+        Assert.Equal(
+            fixture.Main.AllNavigationItems.Count,
+            fixture.Main.AllNavigationItems.Select(item => item.Destination).Distinct().Count());
+        Assert.All(fixture.Main.AllNavigationItems, item => Assert.False(string.IsNullOrWhiteSpace(item.IconKey)));
+        Assert.Equal(
+            NavigationDestination.Dashboard,
+            Assert.Single(fixture.Main.AllNavigationItems, item => item.IsSelected).Destination);
+    }
+
+    [Fact]
+    public void NavigationCatalogUsesExpectedHierarchy()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        Assert.Equal(
+            [NavigationDestination.Dashboard, NavigationDestination.Notebook],
+            fixture.Main.TopNavigationItems.Select(item => item.Destination));
+        Assert.Equal(["TRADING", "ANALYSIS", "PLANNING", "REVIEW"],
+            fixture.Main.NavigationSections.Select(section => section.Title));
+        Assert.Equal(
+            [
+                NavigationDestination.Trades,
+                NavigationDestination.Journal,
+                NavigationDestination.Calendar,
+                NavigationDestination.Import,
+            ],
+            fixture.Main.NavigationSections[0].Items.Select(item => item.Destination));
+        Assert.Equal(
+            [
+                NavigationDestination.Performance,
+                NavigationDestination.Setups,
+                NavigationDestination.Mistakes,
+                NavigationDestination.Breakdown,
+            ],
+            fixture.Main.NavigationSections[1].Items.Select(item => item.Destination));
+        Assert.Equal(
+            [
+                NavigationDestination.Playbook,
+                NavigationDestination.TradingPlan,
+                NavigationDestination.Rules,
+            ],
+            fixture.Main.NavigationSections[2].Items.Select(item => item.Destination));
+        Assert.Equal(
+            [
+                NavigationDestination.DailyReview,
+                NavigationDestination.WeeklyReview,
+                NavigationDestination.MonthlyReview,
+            ],
+            fixture.Main.NavigationSections[3].Items.Select(item => item.Destination));
+        Assert.Equal(
+            [NavigationDestination.Accounts, NavigationDestination.Instruments, NavigationDestination.Settings],
+            fixture.Main.BottomNavigationItems.Select(item => item.Destination));
+        Assert.All(fixture.Main.NavigationSections, section =>
+        {
+            Assert.True(section.IsCollapsible);
+            Assert.True(section.IsExpanded);
+        });
+    }
+
+    [Fact]
+    public void SectionToggleChangesOnlyItsExpandedState()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        NavigationSectionViewModel trading = fixture.Main.NavigationSections[0];
+
+        trading.ToggleCommand.Execute(null);
+
+        Assert.False(trading.IsExpanded);
+        Assert.Equal(NavigationDestination.Dashboard, fixture.Main.CurrentDestination);
+        Assert.All(fixture.Main.NavigationSections.Skip(1), section => Assert.True(section.IsExpanded));
+
+        trading.ToggleCommand.Execute(null);
+
+        Assert.True(trading.IsExpanded);
+    }
+
+    [Fact]
+    public void NavigateSelectsExactlyOneItemAndExpandsItsSection()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        NavigationSectionViewModel analysis = fixture.Main.NavigationSections[1];
+        analysis.ToggleCommand.Execute(null);
+        Assert.False(analysis.IsExpanded);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+
+        Assert.True(analysis.IsExpanded);
+        NavigationItemViewModel selected = Assert.Single(
+            fixture.Main.AllNavigationItems,
+            item => item.IsSelected);
+        Assert.Equal(NavigationDestination.Mistakes, selected.Destination);
+    }
+
+    [Theory]
+    [MemberData(nameof(AllDestinations))]
+    public void EveryDestinationCanBecomeTheSingleSelectedItem(
+        NavigationDestination destination)
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        fixture.Main.NavigateCommand.Execute(destination);
+
+        Assert.Equal(destination, fixture.Main.CurrentDestination);
+        Assert.Equal(
+            destination,
+            Assert.Single(fixture.Main.AllNavigationItems, item => item.IsSelected).Destination);
+    }
+
+    public static TheoryData<NavigationDestination> AllDestinations =>
+        new(Enum.GetValues<NavigationDestination>());
+
+    [Fact]
     public void Constructor_UsesSuppliedDashboardAsInitialContent()
     {
         ViewModelFixture fixture = CreateFixture();

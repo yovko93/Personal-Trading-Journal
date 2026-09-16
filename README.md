@@ -60,7 +60,8 @@ The M4 desktop presentation foundation includes:
 
 - a `CommunityToolkit.Mvvm`-based MVVM foundation;
 - a reusable dark WPF design system and permanent application shell;
-- grouped sidebar navigation, including a top-level Notebook destination;
+- data-driven sidebar navigation with centralized vector icons and a top-level Notebook destination;
+- collapsible Trading, Analysis, Planning, and Review groups with session-local expansion state;
 - typed `NavigationDestination` state and selected-navigation UX;
 - `ContentControl` hosting with implicit ViewModel-to-View `DataTemplate` mappings;
 - a presentation-only Dashboard shell;
@@ -127,6 +128,8 @@ Trading Setup is the single reusable trade-pattern classification. The overlappi
 The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other five are functional data-backed pages. The other 12 destinations remain placeholders.
+
+The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
 The next milestone is **M10 — Tradovate CSV Import**.
 

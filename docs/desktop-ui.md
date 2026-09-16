@@ -14,7 +14,7 @@ This document explains how to extend the Desktop layer without moving trading lo
 - a page header; and
 - a content region that fills the remaining workspace.
 
-The window defaults to `1280x800`, has a minimum size of `1000x650`, retains native Windows chrome, and uses a fixed 252-pixel sidebar. The sidebar and page content support intentional vertical scrolling, while horizontal overflow is disabled. The shell does not collapse or replace the sidebar at smaller supported sizes.
+The window defaults to `1280x800`, has a minimum size of `1000x650`, retains native Windows chrome, and uses a fixed 252-pixel sidebar. The sidebar and page content support intentional vertical scrolling, while horizontal overflow is disabled. The sidebar itself does not collapse or get replaced at smaller supported sizes; only its four feature groups can be collapsed independently.
 
 `MainWindow.xaml.cs` is intentionally limited to constructor injection, `InitializeComponent()`, and `DataContext` assignment. It contains no event handlers, navigation routing, or business logic.
 
@@ -54,7 +54,11 @@ The current navigation order is:
 
 There are 19 destinations in total.
 
-`CurrentDestination` is the single source of truth. Each Button passes a typed destination through `CommandParameter`, and `NavigationSelectionConverter` compares that parameter with `CurrentDestination` to derive selected styling. There is no separate selected-navigation property.
+`MainWindowViewModel` builds one deterministic navigation catalog for the 19 destinations. `TopNavigationItems` contains Dashboard and Notebook; `NavigationSections` contains the collapsible Trading, Analysis, Planning, and Review groups; and `BottomNavigationItems` contains Accounts, Instruments, and Settings below a semantic divider. `MainWindow.xaml` renders these collections through shared item and section templates instead of repeating one Button block per route.
+
+`CurrentDestination` remains authoritative routing state. The catalog's item-level `IsSelected` values are synchronized from it so exactly one destination receives selected styling. Every item passes its typed destination through `CommandParameter` to the existing centralized `NavigateCommand`; section headers only toggle their own `IsExpanded` state and never navigate. Groups start expanded, retain their state for the main-window session, and automatically expand if navigation targets one of their children.
+
+Project-owned vector geometries live in `Resources/Icons.xaml`. Navigation items carry only semantic icon resource keys, and one Desktop converter resolves those keys for the shared template. Icons inherit the same normal, hover, selected, disabled, and focus-aware foreground behavior as their labels; no external icon font, bitmap asset, or package is required.
 
 There is intentionally no `NavigationService` or `INavigationService`. `MainWindowViewModel` is currently the only owner and initiator of shell navigation, so a separate service would add indirection without protecting a real boundary. Introduce one only if another ViewModel later needs to initiate cross-feature navigation.
 
@@ -213,7 +217,7 @@ The compact upper-right header toggle reflects the effective Dark/Light appearan
 
 ## Accessibility and Window Behavior
 
-Navigation uses native WPF Buttons, so destinations participate in natural Tab order and support Enter and Space activation. Text content supplies accessible automation names without redundant `AutomationProperties.Name` values.
+Navigation uses native WPF Buttons, so destinations and collapsible group headers participate in natural Tab order and support Enter and Space activation. Destination labels and group titles provide explicit accessible automation names; decorative vector icons do not replace those text labels.
 
 Keyboard focus and active selection are independent visual states: focus has a visible outline, while the active destination uses an elevated background, accent indicator, primary foreground, and semibold label. Sidebar and page content remain vertically reachable through mouse, scrollbar, and keyboard scrolling at the minimum supported window size.
 

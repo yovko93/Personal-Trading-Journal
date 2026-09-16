@@ -1,0 +1,23 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Geometry x:Key="PtjIconDashboard">M3,3 L10,3 10,10 3,10 Z M14,3 L21,3 21,10 14,10 Z M3,14 L10,14 10,21 3,21 Z M14,14 L21,14 21,21 14,21 Z</Geometry>
+    <Geometry x:Key="PtjIconNotebook">M5,3 L19,3 19,21 5,21 Z M8,3 L8,21 M11,7 L16,7 M11,11 L16,11 M11,15 L16,15</Geometry>
+    <Geometry x:Key="PtjIconTrades">M6,3 L6,21 M3,7 L9,7 9,14 3,14 Z M18,3 L18,21 M15,10 L21,10 21,17 15,17 Z</Geometry>
+    <Geometry x:Key="PtjIconJournal">M4,4 L10,4 C11,4 12,5 12,6 L12,20 C11,19 10,18 8,18 L4,18 Z M20,4 L14,4 C13,4 12,5 12,6 L12,20 C13,19 14,18 16,18 L20,18 Z</Geometry>
+    <Geometry x:Key="PtjIconCalendar">M4,5 L20,5 20,21 4,21 Z M4,9 L20,9 M8,3 L8,7 M16,3 L16,7 M8,13 L10,13 M14,13 L16,13 M8,17 L10,17 M14,17 L16,17</Geometry>
+    <Geometry x:Key="PtjIconImport">M12,3 L12,15 M7,10 L12,15 17,10 M4,18 L4,21 20,21 20,18</Geometry>
+    <Geometry x:Key="PtjIconPerformance">M4,20 L4,4 M4,20 L21,20 M7,16 L11,11 14,14 20,7</Geometry>
+    <Geometry x:Key="PtjIconSetups">M12,3 A9,9 0 1 1 11.9,3 M12,8 A4,4 0 1 1 11.9,8 M12,10 L12,14 M10,12 L14,12</Geometry>
+    <Geometry x:Key="PtjIconMistakes">M12,3 L22,20 2,20 Z M12,8 L12,14 M12,17 L12,17.1</Geometry>
+    <Geometry x:Key="PtjIconBreakdown">M12,3 L12,12 21,12 A9,9 0 0 0 12,3 Z M9,5 A8,8 0 1 0 19,15 L9,15 Z</Geometry>
+    <Geometry x:Key="PtjIconPlaybook">M3,5 L10,5 C11,5 12,6 12,7 L12,20 C11,19 10,18 8,18 L3,18 Z M21,5 L14,5 C13,5 12,6 12,7 L12,20 C13,19 14,18 16,18 L21,18 Z M9,9 L9,14 6,11.5 Z</Geometry>
+    <Geometry x:Key="PtjIconTradingPlan">M7,4 L17,4 17,7 20,7 20,21 4,21 4,7 7,7 Z M9,3 L15,3 15,7 9,7 Z M8,12 L16,12 M8,16 L14,16</Geometry>
+    <Geometry x:Key="PtjIconRules">M12,3 L20,6 19,13 C18,17 15,20 12,21 C9,20 6,17 5,13 L4,6 Z M8,12 L11,15 16,9</Geometry>
+    <Geometry x:Key="PtjIconDailyReview">M4,5 L20,5 20,21 4,21 Z M4,9 L20,9 M8,3 L8,7 M16,3 L16,7 M8,15 L11,18 17,12</Geometry>
+    <Geometry x:Key="PtjIconWeeklyReview">M3,6 L21,6 21,20 3,20 Z M3,10 L21,10 M7,4 L7,8 M17,4 L17,8 M6,13 L8,13 M11,13 L13,13 M16,13 L18,13 M6,17 L8,17 M11,17 L13,17 M16,17 L18,17</Geometry>
+    <Geometry x:Key="PtjIconMonthlyReview">M3,5 L21,5 21,21 3,21 Z M3,9 L21,9 M7,3 L7,7 M17,3 L17,7 M7,12 L9,12 M11,12 L13,12 M15,12 L17,12 M7,16 L9,16 M11,16 L13,16 M15,16 L17,16</Geometry>
+    <Geometry x:Key="PtjIconAccounts">M3,7 L19,7 C20,7 21,8 21,9 L21,19 C21,20 20,21 19,21 L5,21 C4,21 3,20 3,19 Z M5,7 L5,5 C5,4 6,3 7,3 L18,3 18,7 M16,12 L21,12 21,16 16,16 Z</Geometry>
+    <Geometry x:Key="PtjIconInstruments">M4,20 L4,11 M4,20 L20,20 M7,16 L10,12 13,14 18,7 M15,7 L18,7 18,10</Geometry>
+    <Geometry x:Key="PtjIconSettings">M12,7 A5,5 0 1 1 11.9,7 M12,3 L12,7 M12,17 L12,21 M3,12 L7,12 M17,12 L21,12 M5.6,5.6 L8.4,8.4 M15.6,15.6 L18.4,18.4 M18.4,5.6 L15.6,8.4 M8.4,15.6 L5.6,18.4</Geometry>
+    <Geometry x:Key="PtjIconChevron">M8,5 L15,12 8,19</Geometry>
+</ResourceDictionary>
