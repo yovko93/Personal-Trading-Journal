@@ -66,8 +66,7 @@
                 <TextBlock Text="{Binding SuccessMessage}">
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}"
-                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                               BasedOn="{StaticResource PtjFormSuccessTextStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasSuccessMessage}" Value="True">
@@ -79,11 +78,10 @@
                 </TextBlock>
             </StackPanel>
 
-            <Border Margin="0,16,0,0"
-                    Padding="24">
+            <Border Margin="0,16,0,0">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}"
-                           BasedOn="{StaticResource PtjCardStyle}">
+                           BasedOn="{StaticResource PtjFormSectionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True">
@@ -94,7 +92,7 @@
                 </Border.Style>
 
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
                                Text="Manual Trade Entry" />
                     <TextBlock Margin="0,6,0,0"
                                Style="{StaticResource PtjSecondaryTextStyle}"
@@ -115,9 +113,11 @@
                             </Style>
                         </StackPanel.Style>
 
-                        <TextBlock FontWeight="SemiBold"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="REFERENCE" />
+                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                                   Text="Trade Details" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Style="{StaticResource PtjFormHelperTextStyle}"
+                                   Text="Choose the authoritative account and instrument references." />
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -126,7 +126,7 @@
 
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Trading Account" />
                                 <ComboBox ItemsSource="{Binding AccountOptions}"
                                           SelectedItem="{Binding SelectedAccount}"
@@ -162,7 +162,7 @@
 
                             <StackPanel Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Instrument" />
                                 <ComboBox ItemsSource="{Binding InstrumentOptions}"
                                           SelectedItem="{Binding SelectedInstrument}"
@@ -199,9 +199,8 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock FontWeight="SemiBold"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="TRADE" />
+                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                                   Text="Position" />
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -212,7 +211,7 @@
 
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Direction" />
                                 <ComboBox ItemsSource="{Binding DirectionOptions}"
                                           SelectedItem="{Binding SelectedDirection}"
@@ -221,37 +220,37 @@
 
                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="{Binding QuantityLabel}" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                           Text="{Binding QuantityText, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Margin="0,6,0,0"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                            Text="{Binding QuantityHint}"
                                            TextWrapping="Wrap" />
-                                <TextBlock Margin="0,6,0,0"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                            Text="{Binding SelectedInstrumentEconomicsText}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="2" Margin="8,0,8,0">
-                                <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Trading Setup" />
+                                <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjFormLabelTextStyle}"
+                                               Text="Trading Setup" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjFormOptionalTextStyle}"
+                                               Text="(Optional)" />
+                                </StackPanel>
                                 <ComboBox ItemsSource="{Binding AvailableTradingSetups}"
                                           SelectedItem="{Binding SelectedTradingSetup}"
                                           DisplayMemberPath="Name"
                                           Style="{StaticResource PtjComboBoxStyle}" />
-                                <TextBlock Margin="0,6,0,0"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Optional — leave blank for no setup."
-                                           TextWrapping="Wrap" />
+                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                           Text="Only active setups can be assigned to a new trade." />
                             </StackPanel>
 
                             <StackPanel Grid.Column="3" Margin="8,0,0,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Completion" />
                                 <CheckBox MinHeight="36"
                                           VerticalContentAlignment="Center"
@@ -264,9 +263,11 @@
 
                         <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                        <TextBlock FontWeight="SemiBold"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="ENTRY" />
+                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                                   Text="Entry Execution" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Style="{StaticResource PtjFormHelperTextStyle}"
+                                   Text="Record the opening execution and its direct costs." />
                         <Grid Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1.75*" />
@@ -277,18 +278,17 @@
 
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry time (UTC)" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
-                                <TextBlock Margin="0,6,0,0"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                            Text="UTC, e.g. 2026-09-10 13:30:00" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Entry price" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryPriceText, UpdateSourceTrigger=PropertyChanged}" />
@@ -296,7 +296,7 @@
 
                             <StackPanel Grid.Column="2" Margin="8,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Commission" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryCommissionText, UpdateSourceTrigger=PropertyChanged}" />
@@ -304,7 +304,7 @@
 
                             <StackPanel Grid.Column="3" Margin="8,0,0,0">
                                 <TextBlock Margin="0,0,0,6"
-                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Style="{StaticResource PtjFormLabelTextStyle}"
                                            Text="Fees" />
                                 <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                          Text="{Binding EntryFeesText, UpdateSourceTrigger=PropertyChanged}" />
@@ -325,9 +325,11 @@
 
                             <Separator Style="{StaticResource PtjSeparatorStyle}" />
 
-                            <TextBlock FontWeight="SemiBold"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="EXIT" />
+                            <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                                       Text="Exit Execution" />
+                            <TextBlock Margin="0,4,0,0"
+                                       Style="{StaticResource PtjFormHelperTextStyle}"
+                                       Text="Optional full closing execution and its direct costs." />
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="1.75*" />
@@ -338,18 +340,17 @@
 
                                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                     <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit time (UTC)" />
                                     <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Margin="0,6,0,0"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                    <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                                Text="UTC, e.g. 2026-09-10 13:30:00" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Margin="8,0,8,0">
                                     <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Exit price" />
                                     <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitPriceText, UpdateSourceTrigger=PropertyChanged}" />
@@ -357,7 +358,7 @@
 
                                 <StackPanel Grid.Column="2" Margin="8,0,8,0">
                                     <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Commission" />
                                     <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitCommissionText, UpdateSourceTrigger=PropertyChanged}" />
@@ -365,7 +366,7 @@
 
                                 <StackPanel Grid.Column="3" Margin="8,0,0,0">
                                     <TextBlock Margin="0,0,0,6"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Style="{StaticResource PtjFormLabelTextStyle}"
                                                Text="Fees" />
                                     <TextBox Style="{StaticResource PtjTextBoxStyle}"
                                              Text="{Binding ExitFeesText, UpdateSourceTrigger=PropertyChanged}" />
@@ -379,8 +380,7 @@
                                TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
-                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                                   BasedOn="{StaticResource PtjFormErrorTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasValidationError}" Value="True">
@@ -396,8 +396,7 @@
                                TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
-                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                                   BasedOn="{StaticResource PtjFormErrorTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding HasSaveError}" Value="True">
@@ -428,7 +427,7 @@
                                 Orientation="Horizontal">
                         <Button Command="{Binding CancelManualEntryCommand}"
                                 Content="Cancel"
-                                Style="{StaticResource PtjButtonStyle}" />
+                                Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0"
                                 Command="{Binding SaveManualTradeCommand}"
                                 Content="Save Trade"

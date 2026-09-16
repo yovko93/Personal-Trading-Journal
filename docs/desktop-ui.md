@@ -209,6 +209,14 @@ Theme-sensitive brush consumers use `DynamicResource`, so the current visual tre
 
 Dark retains the established hierarchy and palette. Light uses distinct background, surface, raised-surface, border, text, accent, success, warning, and danger values chosen for readable hierarchy rather than mechanical inversion. Existing warning semantics remain canonical for safe user-facing operation errors; `PtjDangerBrush` remains available for destructive/danger meaning.
 
+### Shared Form Language
+
+The Manual Trade, Account, Instrument, Trading Setup, and Trading Mistake creation workflows use a shared compact form language from `Controls.xaml`. Form sections reuse the standard card surface, corner radius, border, and internal spacing; section titles, field labels, optional markers, helper text, and status text use consistent typography. Required fields use normal labels and existing validation, while optional fields carry an explicit muted `(Optional)` marker.
+
+TextBox and ComboBox styles provide consistent sizing, hover contrast, an accent keyboard-focus border, disabled opacity, and a semantic error border when WPF validation marks a control invalid. Existing form-level validation and operation failures remain next to the action area because the current ViewModels expose those outcomes at form scope. Error and success messages use the shared Danger and Success semantics with text, so color is not the only cue.
+
+Each workflow retains one primary create/save action and styles an existing Cancel action as secondary. Busy text and command gating remain owned by the existing ViewModels. Manual Trade is grouped by Trade Details, Position, Entry Execution, and optional Exit Execution; the lighter catalog forms keep their smaller layouts while sharing the same label, helper, validation, and action hierarchy.
+
 `PtjStaticResourceTests` checks both static and dynamic project-owned references. Theme resource tests additionally require identical Dark/Light key sets and require every dynamic theme key to exist in both dictionaries, preventing late runtime lookup failures during switching.
 
 The Settings page exposes only Appearance with System, Dark, and Light choices. System follows the current Windows application appearance and supported changes while PTJ is running. The selected preferred mode is persisted to the centralized local `settings.json`; its resolved effective Dark/Light value is not substituted. A save failure leaves the selected visual theme active and presents a safe message. Startup restores and resolves the preference before showing `MainWindow`, while missing, malformed, or unknown settings safely fall back to System.

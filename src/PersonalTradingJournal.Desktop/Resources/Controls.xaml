@@ -72,6 +72,13 @@
         <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
     </Style>
 
+    <Style x:Key="PtjSecondaryButtonStyle"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource PtjButtonStyle}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+    </Style>
+
     <Style x:Key="PtjTextBoxStyle" TargetType="{x:Type TextBox}">
         <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
@@ -83,8 +90,14 @@
         <Setter Property="Padding" Value="10,6" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjTextMutedBrush}" />
+            </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
@@ -201,8 +214,14 @@
             </Setter.Value>
         </Setter>
         <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjTextMutedBrush}" />
+            </Trigger>
             <Trigger Property="IsKeyboardFocusWithin" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+            </Trigger>
+            <Trigger Property="Validation.HasError" Value="True">
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Opacity" Value="0.5" />
@@ -450,6 +469,52 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource PtjCornerRadiusMd}" />
         <Setter Property="Padding" Value="{StaticResource PtjCardPadding}" />
+    </Style>
+
+    <Style x:Key="PtjFormSectionStyle"
+           TargetType="{x:Type Border}"
+           BasedOn="{StaticResource PtjCardStyle}">
+        <Setter Property="Padding" Value="20" />
+    </Style>
+
+    <Style x:Key="PtjFormSectionTitleTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjSectionTitleTextStyle}">
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+
+    <Style x:Key="PtjFormLabelTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjBodyTextStyle}">
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="PtjFormOptionalTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjCaptionTextStyle}">
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="PtjFormHelperTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjCaptionTextStyle}">
+        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="PtjFormErrorTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="PtjFormSuccessTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjSecondaryTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="PtjSeparatorStyle" TargetType="{x:Type Separator}">

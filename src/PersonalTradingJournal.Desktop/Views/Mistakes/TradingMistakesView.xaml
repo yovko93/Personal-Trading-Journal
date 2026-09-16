@@ -10,23 +10,37 @@
                 <Button Grid.Column="1" Margin="16,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" Style="{StaticResource PtjButtonStyle}" />
                 <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding ShowCreateCommand}" Content="New Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
             </Grid>
-            <Border Margin="0,16,0,0"><Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
+            <Border Margin="0,16,0,0"><Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
                 <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
                     <Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="New Trading Mistake" />
-                    <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjCaptionTextStyle}" Text="Name *" />
+                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="New Trading Mistake" />
+                    <TextBlock Margin="0,4,0,0"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Define a reusable process or execution mistake for later review."
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjFormLabelTextStyle}" Text="Name" />
                     <TextBox Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
-                    <TextBlock Margin="0,12,0,6" Style="{StaticResource PtjCaptionTextStyle}" Text="Description" />
+                    <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                               Text="Name the behavior, not the trade outcome—profit or loss alone does not define a mistake." />
+                    <StackPanel Margin="0,16,0,6" Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Description" />
+                        <TextBlock Margin="4,0,0,0" Style="{StaticResource PtjFormOptionalTextStyle}" Text="(Optional)" />
+                    </StackPanel>
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
                              Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
                     <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}"><TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" /><Setter Property="Visibility" Value="Collapsed" />
+                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
                         </Style></TextBlock.Style></TextBlock>
+                    <TextBlock Margin="0,8,0,0" Text="Creating mistake..."><TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormHelperTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers><DataTrigger Binding="{Binding IsSaving}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                        </Style></TextBlock.Style></TextBlock>
                     <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
-                        <Button Command="{Binding CancelCreateCommand}" Content="Cancel" Style="{StaticResource PtjButtonStyle}" />
+                        <Button Command="{Binding CancelCreateCommand}" Content="Cancel" Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0" Command="{Binding CreateCommand}" Content="Create Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
                     </StackPanel>
                 </StackPanel>
@@ -35,9 +49,9 @@
                 <TextBlock Text="Loading trading mistakes..."><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}">
                     <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsLoading}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
                 </Style></TextBlock.Style></TextBlock>
-                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding ListErrorMessage}" />
-                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding SaveErrorMessage}" />
-                <TextBlock Foreground="{DynamicResource PtjSuccessBrush}" Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding SuccessMessage}" />
+                <TextBlock Style="{StaticResource PtjFormErrorTextStyle}" Text="{Binding ListErrorMessage}" />
+                <TextBlock Style="{StaticResource PtjFormErrorTextStyle}" Text="{Binding SaveErrorMessage}" />
+                <TextBlock Style="{StaticResource PtjFormSuccessTextStyle}" Text="{Binding SuccessMessage}" />
             </StackPanel>
             <Border Padding="24"><Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
                 <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
