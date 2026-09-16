@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries support Account create/read/update/delete and lifecycle workflows, Instruments, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries support Account and Instrument create/read/update/delete and lifecycle workflows, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -93,6 +93,10 @@ Two composite business indexes are unique:
 - `UNIQUE (TradeId, TradingMistakeId)` on `TradeMistakes`
 
 The schema does not currently define uniqueness for instrument symbols, setup names, mistake names, account names, storage keys, or external execution identifiers. EF also creates ordinary non-unique indexes for foreign keys where appropriate.
+
+### Instrument Management
+
+Instrument details are projected through a no-tracking, identifier-scoped reader. Aggregate updates reuse `InstrumentPersistenceMapper` and persist the complete validated Domain state; derived Point Value is not stored. Hard delete first performs an instrument-scoped `AnyAsync` Trade reference check, and the existing `Restrict` foreign key remains the race-safe final guard. SQLite constraint failures are translated to the deterministic referenced result used by Application and Desktop. Editing an Instrument never updates Trade records: their pricing point value, currency, executions, costs, and P&L inputs remain unchanged.
 
 ## Trade Source of Truth
 

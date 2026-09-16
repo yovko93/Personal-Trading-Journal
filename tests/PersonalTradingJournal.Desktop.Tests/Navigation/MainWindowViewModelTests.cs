@@ -503,7 +503,16 @@ public sealed class MainWindowViewModelTests
         var instruments = new InstrumentsViewModel(
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
-            new InstrumentLifecycleUseCase(instrumentStore, timeProvider));
+            new InstrumentLifecycleUseCase(instrumentStore, timeProvider),
+            new GetInstrumentDetailsUseCase(instrumentReader),
+            new UpdateInstrumentUseCase(
+                instrumentStore,
+                new FakeInstrumentDeletionStore(),
+                timeProvider),
+            new DeleteInstrumentUseCase(
+                instrumentStore,
+                new FakeInstrumentDeletionStore()),
+            new FakeDialogService());
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),

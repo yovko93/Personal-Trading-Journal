@@ -315,6 +315,78 @@ public sealed class InstrumentTests
             CreatedAtUtc));
     }
 
+    [Fact]
+    public void UpdateDetailsNormalizesValuesAndRecalculatesPointValue()
+    {
+        Instrument instrument = CreateInstrument();
+        Guid id = instrument.Id;
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddDays(1);
+
+        bool changed = instrument.UpdateDetails(
+            " mnq ",
+            " Micro Nasdaq-100 ",
+            AssetClass.Futures,
+            "   ",
+            " eur ",
+            0.25m,
+            0.50m,
+            updatedAtUtc);
+
+        Assert.True(changed);
+        Assert.Equal(id, instrument.Id);
+        Assert.Equal("MNQ", instrument.Symbol);
+        Assert.Equal("Micro Nasdaq-100", instrument.DisplayName);
+        Assert.Null(instrument.Exchange);
+        Assert.Equal("EUR", instrument.Currency);
+        Assert.Equal(2m, instrument.PointValue);
+        Assert.Equal(CreatedAtUtc, instrument.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, instrument.UpdatedAtUtc);
+        Assert.True(instrument.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDetailsAllowsAssetClassChangeWithoutChangingLifecycleState()
+    {
+        Instrument instrument = CreateInstrument();
+
+        instrument.UpdateDetails(
+            "NQ", "E-mini Nasdaq-100", AssetClass.Equity, "CME", "USD",
+            0.01m, 1m, CreatedAtUtc.AddMinutes(1));
+
+        Assert.Equal(AssetClass.Equity, instrument.AssetClass);
+        Assert.True(instrument.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDetailsWithCanonicalSameValuesIsNoOp()
+    {
+        Instrument instrument = CreateInstrument();
+
+        bool changed = instrument.UpdateDetails(
+            " nq ", " E-mini Nasdaq-100 ", AssetClass.Futures,
+            " CME ", " usd ", 0.25m, 5m, CreatedAtUtc.AddDays(1));
+
+        Assert.False(changed);
+        Assert.Equal(CreatedAtUtc, instrument.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void UpdateDetailsRejectsInvalidTickEconomicsWithoutMutation()
+    {
+        Instrument instrument = CreateInstrument();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => instrument.UpdateDetails(
+            "MNQ", "Changed", AssetClass.Futures, null, "EUR",
+            0m, 1m, CreatedAtUtc.AddDays(1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => instrument.UpdateDetails(
+            "MNQ", "Changed", AssetClass.Futures, null, "EUR",
+            0.25m, -1m, CreatedAtUtc.AddDays(1)));
+
+        Assert.Equal("NQ", instrument.Symbol);
+        Assert.Equal(20m, instrument.PointValue);
+        Assert.Equal(CreatedAtUtc, instrument.UpdatedAtUtc);
+    }
+
     private static Instrument CreateInstrument(
         string symbol = "NQ",
         string displayName = "E-mini Nasdaq-100",

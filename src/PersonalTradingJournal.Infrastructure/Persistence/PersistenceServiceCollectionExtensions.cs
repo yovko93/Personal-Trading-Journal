@@ -43,6 +43,7 @@ public static class PersistenceServiceCollectionExtensions
             TradingAccountDeletionStore>();
         services.AddTransient<IInstrumentReader, InstrumentReader>();
         services.AddTransient<IInstrumentStore, InstrumentStore>();
+        services.AddTransient<IInstrumentDeletionStore, InstrumentDeletionStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();

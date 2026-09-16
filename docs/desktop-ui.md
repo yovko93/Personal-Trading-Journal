@@ -120,9 +120,9 @@ The overflow menu shows only the applicable Activate or Deactivate action plus D
 
 ## Instruments Feature
 
-Instruments performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Instrument form captures canonical symbol, display name, asset class, exchange, currency, Tick Size, and Tick Value. Asset Class defaults to Futures as a presentation convenience, and creation is coordinated by `CreateInstrumentUseCase`.
+Instruments performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Instrument form captures canonical symbol, display name, asset class, exchange, currency, Tick Size, and Tick Value. Asset Class defaults to Futures as a presentation convenience, and creation is coordinated by `CreateInstrumentUseCase`. Each row now exposes shared View, Edit, and overflow actions. View presents authoritative detail and audit timestamps; Edit reuses the shared form language and preserves active state.
 
-Tick Size and Tick Value accept current-culture decimal formatting with an invariant `.` fallback. Point Value is display-only and derived upstream; it is not a form input. Each row exposes only its applicable reversible lifecycle action, inactive instruments remain visible, and the page intentionally provides no edit or delete behavior. Contract-specific futures symbols, expiration, contract month, and rollover are not supported by this feature.
+Tick Size and Tick Value accept current-culture decimal formatting with an invariant `.` fallback. Point Value is read-only and derived from those inputs, including a deterministic edit preview; it is not independently editable. Only the applicable Activate or Deactivate action is shown. Unused Instruments may be deleted after destructive confirmation, while referenced deletes show safe guidance to Deactivate instead. Referenced Instruments may update metadata and tick economics without changing historical Trade snapshots, but Asset Class changes are blocked because that field controls quantity semantics. Contract-specific futures symbols, expiration, contract month, and rollover are not supported by this feature.
 
 ## Trades Feature
 
@@ -219,7 +219,7 @@ Activate and Deactivate are reversible lifecycle actions and use neutral seconda
 
 `IDialogService` is the Desktop-only modal boundary. `ConfirmationDialogRequest` supplies entity-specific title, message, confirm/cancel labels, and destructive intent; `InformationDialogRequest` supplies a title, message, and close label for outcomes such as a delete blocked by historical references. Destructive confirmation uses the Danger button style while Cancel owns the safe default focus, Escape cancels, closing the window cancels, and the destructive button is never the implicit Enter action. The existing screenshot deletion confirmation adapts to this service, so ViewModels remain testable without constructing a WPF window or calling `MessageBox`.
 
-Account hard-delete now enforces its entity-specific integrity rule outside Desktop presentation: referenced Accounts are retained and can be deactivated, while unused Accounts may be deleted. The same policy remains future work for Instruments, Trading Setups, and Trading Mistakes. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
+Account and Instrument hard-delete now enforce entity-specific integrity rules outside Desktop presentation: referenced records are retained and can be deactivated, while unused records may be deleted. The same policy remains future work for Trading Setups and Trading Mistakes. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
 
 ### Shared Form Language
 
@@ -247,7 +247,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - Desktop references Infrastructure because it is the composition root that wires implementations.
 - Feature ViewModels must not query `JournalDbContext` or EF Core directly.
 - `AccountsViewModel` depends on account-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
-- `InstrumentsViewModel` depends on `IInstrumentReader`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`.
+- `InstrumentsViewModel` depends on instrument-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on their purpose-specific Application catalog readers and create/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/closure, Setup classification, Trading Mistake associations, and screenshots.
 - `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.

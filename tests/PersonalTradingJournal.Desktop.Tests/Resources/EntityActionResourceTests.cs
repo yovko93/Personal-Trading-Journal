@@ -103,6 +103,20 @@ public sealed class EntityActionResourceTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void InstrumentsViewUsesSharedLifecycleActionsAndContainsNoHardcodedColors()
+    {
+        string view = ReadDesktopFile("Views", "Instruments", "InstrumentsView.xaml");
+
+        Assert.Contains("ViewInstrumentCommand", view, StringComparison.Ordinal);
+        Assert.Contains("EditInstrumentCommand", view, StringComparison.Ordinal);
+        Assert.Contains("DeleteInstrumentCommand", view, StringComparison.Ordinal);
+        Assert.Contains("PtjEntityActionMenuStyle", view, StringComparison.Ordinal);
+        Assert.Contains("PtjDeleteMenuItemStyle", view, StringComparison.Ordinal);
+        Assert.Contains("EditPointValuePreview", view, StringComparison.Ordinal);
+        Assert.DoesNotMatch("#[0-9A-Fa-f]{3,8}", view);
+    }
+
     private static string ReadDesktopFile(params string[] segments) =>
         File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),

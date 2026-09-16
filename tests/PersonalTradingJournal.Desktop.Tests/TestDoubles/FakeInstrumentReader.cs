@@ -7,6 +7,12 @@ internal sealed class FakeInstrumentReader : IInstrumentReader
     private readonly Queue<Func<CancellationToken, Task<IReadOnlyList<InstrumentListItem>>>>
         _behaviors = new();
 
+    public InstrumentDetails? DetailsToReturn { get; set; }
+
+    public Exception? DetailsException { get; set; }
+
+    public int DetailsCallCount { get; private set; }
+
     public int CallCount { get; private set; }
 
     public void EnqueueResult(IReadOnlyList<InstrumentListItem> instruments)
@@ -28,5 +34,19 @@ internal sealed class FakeInstrumentReader : IInstrumentReader
         return _behaviors.Count == 0
             ? Task.FromResult<IReadOnlyList<InstrumentListItem>>([])
             : _behaviors.Dequeue()(cancellationToken);
+    }
+
+    public Task<InstrumentDetails?> GetByIdAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken = default)
+    {
+        DetailsCallCount++;
+        if (DetailsException is not null)
+        {
+            return Task.FromException<InstrumentDetails?>(DetailsException);
+        }
+
+        return Task.FromResult(
+            DetailsToReturn?.Id == instrumentId ? DetailsToReturn : null);
     }
 }

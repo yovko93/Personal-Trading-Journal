@@ -1,11 +1,12 @@
 namespace PersonalTradingJournal.Application.Instruments;
 
-public interface IInstrumentReader
+public interface IInstrumentDeletionStore
 {
-    Task<IReadOnlyList<InstrumentListItem>> GetAllAsync(
+    Task<bool> HasTradesAsync(
+        Guid instrumentId,
         CancellationToken cancellationToken = default);
 
-    Task<InstrumentDetails?> GetByIdAsync(
+    Task DeleteAsync(
         Guid instrumentId,
         CancellationToken cancellationToken = default);
 }

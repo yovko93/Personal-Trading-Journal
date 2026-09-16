@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Domain.Instruments;
 using System.Globalization;
 using CreateInstrumentRequest = PersonalTradingJournal.Application.Instruments.CreateInstrumentCommand;
@@ -23,10 +24,28 @@ public sealed class InstrumentsViewModel : ObservableObject
     private const string LifecycleReloadErrorMessage =
         "Instrument status changed, but the list could not be refreshed. Refresh to see the latest status.";
     private const string LoadErrorMessage = "Instruments could not be loaded.";
+    private const string DetailErrorMessageFallback = "Instrument details could not be loaded.";
+    private const string DetailNotFoundMessage = "Instrument no longer exists. The list was refreshed.";
+    private const string UpdateErrorMessageFallback = "Instrument changes could not be saved.";
+    private const string UpdateReloadErrorMessage =
+        "Instrument changes were saved, but the list could not be refreshed.";
+    private const string AssetClassChangeBlockedMessage =
+        "Asset class cannot be changed because this instrument is used by existing trades.";
+    private const string DeleteErrorMessageFallback = "Instrument could not be deleted.";
+    private const string DeleteReloadErrorMessage =
+        "Instrument was deleted, but the list could not be refreshed.";
+    private const string DeleteBlockedTitle = "Cannot delete instrument";
+    private const string DeleteBlockedMessage =
+        "This instrument is used by existing trades and cannot be deleted. " +
+        "Deactivate it instead to preserve historical data.";
 
     private readonly IInstrumentReader _instrumentReader;
     private readonly CreateInstrumentUseCase _createInstrumentUseCase;
     private readonly InstrumentLifecycleUseCase _instrumentLifecycleUseCase;
+    private readonly GetInstrumentDetailsUseCase _getInstrumentDetailsUseCase;
+    private readonly UpdateInstrumentUseCase _updateInstrumentUseCase;
+    private readonly DeleteInstrumentUseCase _deleteInstrumentUseCase;
+    private readonly IDialogService _dialogService;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private string _currency = string.Empty;
     private string? _createErrorMessage;
@@ -49,19 +68,50 @@ public sealed class InstrumentsViewModel : ObservableObject
     private string _symbol = string.Empty;
     private string _tickSizeText = string.Empty;
     private string _tickValueText = string.Empty;
+    private InstrumentDetails? _selectedInstrument;
+    private bool _isLoadingInstrumentDetails;
+    private bool _isEditFormVisible;
+    private bool _isUpdating;
+    private bool _isDeleting;
+    private string _editSymbol = string.Empty;
+    private string _editDisplayName = string.Empty;
+    private AssetClass _editSelectedAssetClass = AssetClass.Futures;
+    private string _editExchange = string.Empty;
+    private string _editCurrency = string.Empty;
+    private string _editTickSizeText = string.Empty;
+    private string _editTickValueText = string.Empty;
+    private bool _isEditSymbolInvalid;
+    private bool _isEditDisplayNameInvalid;
+    private bool _isEditCurrencyInvalid;
+    private bool _isEditTickSizeInvalid;
+    private bool _isEditTickValueInvalid;
+    private string? _editErrorMessage;
+    private string? _actionErrorMessage;
 
     public InstrumentsViewModel(
         IInstrumentReader instrumentReader,
         CreateInstrumentUseCase createInstrumentUseCase,
-        InstrumentLifecycleUseCase instrumentLifecycleUseCase)
+        InstrumentLifecycleUseCase instrumentLifecycleUseCase,
+        GetInstrumentDetailsUseCase getInstrumentDetailsUseCase,
+        UpdateInstrumentUseCase updateInstrumentUseCase,
+        DeleteInstrumentUseCase deleteInstrumentUseCase,
+        IDialogService dialogService)
     {
         ArgumentNullException.ThrowIfNull(instrumentReader);
         ArgumentNullException.ThrowIfNull(createInstrumentUseCase);
         ArgumentNullException.ThrowIfNull(instrumentLifecycleUseCase);
+        ArgumentNullException.ThrowIfNull(getInstrumentDetailsUseCase);
+        ArgumentNullException.ThrowIfNull(updateInstrumentUseCase);
+        ArgumentNullException.ThrowIfNull(deleteInstrumentUseCase);
+        ArgumentNullException.ThrowIfNull(dialogService);
 
         _instrumentReader = instrumentReader;
         _createInstrumentUseCase = createInstrumentUseCase;
         _instrumentLifecycleUseCase = instrumentLifecycleUseCase;
+        _getInstrumentDetailsUseCase = getInstrumentDetailsUseCase;
+        _updateInstrumentUseCase = updateInstrumentUseCase;
+        _deleteInstrumentUseCase = deleteInstrumentUseCase;
+        _dialogService = dialogService;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
@@ -74,6 +124,16 @@ public sealed class InstrumentsViewModel : ObservableObject
         DeactivateInstrumentCommand = new AsyncRelayCommand<InstrumentListItem>(
             DeactivateInstrumentAsync,
             CanDeactivateInstrument);
+        ViewInstrumentCommand = new AsyncRelayCommand<Guid>(ViewInstrumentAsync, CanUseInstrumentAction);
+        EditInstrumentCommand = new AsyncRelayCommand<Guid>(EditInstrumentAsync, CanUseInstrumentAction);
+        CloseInstrumentDetailsCommand = new RelayCommand(
+            CloseInstrumentDetails,
+            CanCloseInstrumentDetails);
+        CancelEditCommand = new RelayCommand(CancelEdit, CanCancelEdit);
+        SaveChangesCommand = new AsyncRelayCommand(SaveChangesAsync, CanSaveChanges);
+        DeleteInstrumentCommand = new AsyncRelayCommand<Guid>(
+            DeleteInstrumentAsync,
+            CanUseInstrumentAction);
     }
 
     public IReadOnlyList<InstrumentListItem> Instruments
@@ -86,6 +146,7 @@ public sealed class InstrumentsViewModel : ObservableObject
                 OnPropertyChanged(nameof(HasInstruments));
                 ActivateInstrumentCommand.NotifyCanExecuteChanged();
                 DeactivateInstrumentCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(SelectedInstrumentListItem));
             }
         }
     }
@@ -198,7 +259,7 @@ public sealed class InstrumentsViewModel : ObservableObject
         {
             if (SetProperty(ref _tickSizeText, value) &&
                 IsTickSizeInvalid &&
-                TryParseDecimal(value, out _))
+                TryParsePositiveDecimal(value, out _))
             {
                 IsTickSizeInvalid = false;
                 CreateErrorMessage = null;
@@ -213,7 +274,7 @@ public sealed class InstrumentsViewModel : ObservableObject
         {
             if (SetProperty(ref _tickValueText, value) &&
                 IsTickValueInvalid &&
-                TryParseDecimal(value, out _))
+                TryParsePositiveDecimal(value, out _))
             {
                 IsTickValueInvalid = false;
                 CreateErrorMessage = null;
@@ -280,6 +341,209 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public bool HasLifecycleError => LifecycleErrorMessage is not null;
 
+    public InstrumentDetails? SelectedInstrument
+    {
+        get => _selectedInstrument;
+        private set
+        {
+            if (SetProperty(ref _selectedInstrument, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedInstrument));
+                OnPropertyChanged(nameof(SelectedInstrumentListItem));
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool HasSelectedInstrument => SelectedInstrument is not null;
+
+    public InstrumentListItem? SelectedInstrumentListItem => SelectedInstrument is null
+        ? null
+        : Instruments.FirstOrDefault(item => item.Id == SelectedInstrument.Id);
+
+    public bool IsLoadingInstrumentDetails
+    {
+        get => _isLoadingInstrumentDetails;
+        private set
+        {
+            if (SetProperty(ref _isLoadingInstrumentDetails, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsEditFormVisible
+    {
+        get => _isEditFormVisible;
+        private set
+        {
+            if (SetProperty(ref _isEditFormVisible, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsUpdating
+    {
+        get => _isUpdating;
+        private set
+        {
+            if (SetProperty(ref _isUpdating, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsDeleting
+    {
+        get => _isDeleting;
+        private set
+        {
+            if (SetProperty(ref _isDeleting, value))
+            {
+                NotifyOperationCanExecuteChanged();
+            }
+        }
+    }
+
+    public string EditSymbol
+    {
+        get => _editSymbol;
+        set
+        {
+            if (SetProperty(ref _editSymbol, value) &&
+                IsEditSymbolInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsEditSymbolInvalid = false;
+                EditErrorMessage = null;
+            }
+        }
+    }
+
+    public string EditDisplayName
+    {
+        get => _editDisplayName;
+        set
+        {
+            if (SetProperty(ref _editDisplayName, value) &&
+                IsEditDisplayNameInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsEditDisplayNameInvalid = false;
+                EditErrorMessage = null;
+            }
+        }
+    }
+
+    public AssetClass EditSelectedAssetClass
+    {
+        get => _editSelectedAssetClass;
+        set => SetProperty(ref _editSelectedAssetClass, value);
+    }
+
+    public string EditExchange
+    {
+        get => _editExchange;
+        set => SetProperty(ref _editExchange, value);
+    }
+
+    public string EditCurrency
+    {
+        get => _editCurrency;
+        set
+        {
+            if (SetProperty(ref _editCurrency, value) &&
+                IsEditCurrencyInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsEditCurrencyInvalid = false;
+                EditErrorMessage = null;
+            }
+        }
+    }
+
+    public string EditTickSizeText
+    {
+        get => _editTickSizeText;
+        set
+        {
+            if (!SetProperty(ref _editTickSizeText, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(EditPointValuePreview));
+            if (IsEditTickSizeInvalid && TryParsePositiveDecimal(value, out _))
+            {
+                IsEditTickSizeInvalid = false;
+                EditErrorMessage = null;
+            }
+        }
+    }
+
+    public string EditTickValueText
+    {
+        get => _editTickValueText;
+        set
+        {
+            if (!SetProperty(ref _editTickValueText, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(EditPointValuePreview));
+            if (IsEditTickValueInvalid && TryParsePositiveDecimal(value, out _))
+            {
+                IsEditTickValueInvalid = false;
+                EditErrorMessage = null;
+            }
+        }
+    }
+
+    public decimal? EditPointValuePreview =>
+        TryParsePositiveDecimal(EditTickSizeText, out decimal tickSize) &&
+        TryParsePositiveDecimal(EditTickValueText, out decimal tickValue)
+            ? tickValue / tickSize
+            : null;
+
+    public bool IsEditSymbolInvalid { get => _isEditSymbolInvalid; private set => SetProperty(ref _isEditSymbolInvalid, value); }
+    public bool IsEditDisplayNameInvalid { get => _isEditDisplayNameInvalid; private set => SetProperty(ref _isEditDisplayNameInvalid, value); }
+    public bool IsEditCurrencyInvalid { get => _isEditCurrencyInvalid; private set => SetProperty(ref _isEditCurrencyInvalid, value); }
+    public bool IsEditTickSizeInvalid { get => _isEditTickSizeInvalid; private set => SetProperty(ref _isEditTickSizeInvalid, value); }
+    public bool IsEditTickValueInvalid { get => _isEditTickValueInvalid; private set => SetProperty(ref _isEditTickValueInvalid, value); }
+
+    public string? EditErrorMessage
+    {
+        get => _editErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _editErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditError));
+            }
+        }
+    }
+
+    public bool HasEditError => EditErrorMessage is not null;
+
+    public string? ActionErrorMessage
+    {
+        get => _actionErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _actionErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasActionError));
+            }
+        }
+    }
+
+    public bool HasActionError => ActionErrorMessage is not null;
+
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IRelayCommand ShowCreateFormCommand { get; }
@@ -292,6 +556,18 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public IAsyncRelayCommand<InstrumentListItem> DeactivateInstrumentCommand { get; }
 
+    public IAsyncRelayCommand<Guid> ViewInstrumentCommand { get; }
+
+    public IAsyncRelayCommand<Guid> EditInstrumentCommand { get; }
+
+    public IRelayCommand CloseInstrumentDetailsCommand { get; }
+
+    public IRelayCommand CancelEditCommand { get; }
+
+    public IAsyncRelayCommand SaveChangesCommand { get; }
+
+    public IAsyncRelayCommand<Guid> DeleteInstrumentCommand { get; }
+
     public async Task EnsureLoadedAsync()
     {
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
@@ -302,20 +578,19 @@ public sealed class InstrumentsViewModel : ObservableObject
         _ = await LoadAsync(forceRefresh: true, cancellationToken);
     }
 
-    private bool CanRefresh() =>
-        !IsLoading && !IsCreating && !IsChangingInstrumentState;
+    private bool CanRefresh() => !IsAnyOperationInProgress;
 
     private void ShowCreateForm()
     {
+        CloseInstrumentDetails();
         CreateErrorMessage = null;
         IsCreateFormVisible = true;
     }
 
     private bool CanShowCreateForm() =>
         !IsCreateFormVisible &&
-        !IsLoading &&
-        !IsCreating &&
-        !IsChangingInstrumentState;
+        !IsAnyOperationInProgress &&
+        !IsEditFormVisible;
 
     private void CancelCreate()
     {
@@ -327,9 +602,7 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     private bool CanCreateInstrument() =>
         IsCreateFormVisible &&
-        !IsCreating &&
-        !IsLoading &&
-        !IsChangingInstrumentState;
+        !IsAnyOperationInProgress;
 
     private async Task CreateInstrumentAsync(CancellationToken cancellationToken)
     {
@@ -356,17 +629,17 @@ public sealed class InstrumentsViewModel : ObservableObject
             return;
         }
 
-        if (!TryParseDecimal(TickSizeText, out decimal tickSize))
+        if (!TryParsePositiveDecimal(TickSizeText, out decimal tickSize))
         {
             IsTickSizeInvalid = true;
-            CreateErrorMessage = "Tick size must be a valid number.";
+            CreateErrorMessage = "Tick size must be greater than zero.";
             return;
         }
 
-        if (!TryParseDecimal(TickValueText, out decimal tickValue))
+        if (!TryParsePositiveDecimal(TickValueText, out decimal tickValue))
         {
             IsTickValueInvalid = true;
-            CreateErrorMessage = "Tick value must be a valid number.";
+            CreateErrorMessage = "Tick value must be greater than zero.";
             return;
         }
 
@@ -433,6 +706,9 @@ public sealed class InstrumentsViewModel : ObservableObject
                 out value);
     }
 
+    private static bool TryParsePositiveDecimal(string text, out decimal value) =>
+        TryParseDecimal(text, out value) && value > 0m;
+
     private void ResetCreateForm()
     {
         Symbol = string.Empty;
@@ -450,6 +726,321 @@ public sealed class InstrumentsViewModel : ObservableObject
         CreateErrorMessage = null;
     }
 
+    private bool CanUseInstrumentAction(Guid instrumentId) =>
+        instrumentId != Guid.Empty &&
+        !IsAnyOperationInProgress &&
+        !IsCreateFormVisible &&
+        !IsEditFormVisible;
+
+    private async Task ViewInstrumentAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken)
+    {
+        _ = await LoadInstrumentDetailsAsync(instrumentId, cancellationToken);
+    }
+
+    private async Task EditInstrumentAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken)
+    {
+        InstrumentDetails? instrument = await LoadInstrumentDetailsAsync(
+            instrumentId,
+            cancellationToken);
+        if (instrument is null)
+        {
+            return;
+        }
+
+        PopulateEditForm(instrument);
+        IsEditFormVisible = true;
+    }
+
+    private async Task<InstrumentDetails?> LoadInstrumentDetailsAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken)
+    {
+        ActionErrorMessage = null;
+        IsLoadingInstrumentDetails = true;
+        try
+        {
+            InstrumentDetails? instrument =
+                await _getInstrumentDetailsUseCase.ExecuteAsync(
+                    instrumentId,
+                    cancellationToken);
+            if (instrument is null)
+            {
+                if (SelectedInstrument?.Id == instrumentId)
+                {
+                    SelectedInstrument = null;
+                }
+
+                ActionErrorMessage = DetailNotFoundMessage;
+                _ = await LoadAsync(forceRefresh: true, cancellationToken);
+                return null;
+            }
+
+            SelectedInstrument = instrument;
+            return instrument;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            ActionErrorMessage = DetailErrorMessageFallback;
+            return null;
+        }
+        finally
+        {
+            IsLoadingInstrumentDetails = false;
+        }
+    }
+
+    private void PopulateEditForm(InstrumentDetails instrument)
+    {
+        EditSymbol = instrument.Symbol;
+        EditDisplayName = instrument.DisplayName;
+        EditSelectedAssetClass = instrument.AssetClass;
+        EditExchange = instrument.Exchange ?? string.Empty;
+        EditCurrency = instrument.Currency;
+        EditTickSizeText = instrument.TickSize.ToString(CultureInfo.CurrentCulture);
+        EditTickValueText = instrument.TickValue.ToString(CultureInfo.CurrentCulture);
+        ResetEditValidation();
+    }
+
+    private void CloseInstrumentDetails()
+    {
+        if (IsEditFormVisible)
+        {
+            return;
+        }
+
+        SelectedInstrument = null;
+        ActionErrorMessage = null;
+    }
+
+    private bool CanCloseInstrumentDetails() =>
+        SelectedInstrument is not null &&
+        !IsAnyOperationInProgress &&
+        !IsEditFormVisible;
+
+    private void CancelEdit()
+    {
+        ResetEditValidation();
+        IsEditFormVisible = false;
+    }
+
+    private bool CanCancelEdit() => IsEditFormVisible && !IsUpdating;
+
+    private bool CanSaveChanges() =>
+        IsEditFormVisible &&
+        SelectedInstrument is not null &&
+        !IsAnyOperationInProgress;
+
+    private async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        EditErrorMessage = null;
+        if (SelectedInstrument is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(EditSymbol))
+        {
+            IsEditSymbolInvalid = true;
+            EditErrorMessage = "Symbol is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(EditDisplayName))
+        {
+            IsEditDisplayNameInvalid = true;
+            EditErrorMessage = "Display name is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(EditCurrency))
+        {
+            IsEditCurrencyInvalid = true;
+            EditErrorMessage = "Currency is required.";
+            return;
+        }
+
+        if (!TryParsePositiveDecimal(EditTickSizeText, out decimal tickSize))
+        {
+            IsEditTickSizeInvalid = true;
+            EditErrorMessage = "Tick size must be greater than zero.";
+            return;
+        }
+
+        if (!TryParsePositiveDecimal(EditTickValueText, out decimal tickValue))
+        {
+            IsEditTickValueInvalid = true;
+            EditErrorMessage = "Tick value must be greater than zero.";
+            return;
+        }
+
+        IsUpdating = true;
+        try
+        {
+            UpdateInstrumentResult result = await _updateInstrumentUseCase.ExecuteAsync(
+                new UpdateInstrumentCommand(
+                    SelectedInstrument.Id,
+                    EditSymbol,
+                    EditDisplayName,
+                    EditSelectedAssetClass,
+                    EditExchange,
+                    EditCurrency,
+                    tickSize,
+                    tickValue),
+                cancellationToken);
+
+            SelectedInstrument = result.Instrument;
+            ReplaceListItem(result.Instrument);
+            ResetEditValidation();
+            IsEditFormVisible = false;
+
+            if (result.WasChanged &&
+                !await LoadAsync(forceRefresh: true, cancellationToken))
+            {
+                ErrorMessage = UpdateReloadErrorMessage;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            IsEditFormVisible = false;
+            SelectedInstrument = null;
+            ActionErrorMessage = DetailNotFoundMessage;
+            _ = await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (InstrumentAssetClassChangeBlockedException)
+        {
+            EditErrorMessage = AssetClassChangeBlockedMessage;
+        }
+        catch (ArgumentException)
+        {
+            EditErrorMessage = InvalidInstrumentDetailsMessage;
+        }
+        catch (Exception)
+        {
+            EditErrorMessage = UpdateErrorMessageFallback;
+        }
+        finally
+        {
+            IsUpdating = false;
+        }
+    }
+
+    private async Task DeleteInstrumentAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken)
+    {
+        InstrumentListItem? listItem = Instruments.FirstOrDefault(item => item.Id == instrumentId);
+        string symbol = listItem?.Symbol ?? SelectedInstrument?.Symbol ?? "this instrument";
+        bool confirmed = _dialogService.Confirm(new ConfirmationDialogRequest(
+            title: "Delete instrument?",
+            message: $"Delete \"{symbol}\"? This action cannot be undone.",
+            confirmButtonText: "Delete Instrument",
+            isDestructive: true));
+        if (!confirmed)
+        {
+            return;
+        }
+
+        ActionErrorMessage = null;
+        IsDeleting = true;
+        try
+        {
+            DeleteInstrumentResult result = await _deleteInstrumentUseCase.ExecuteAsync(
+                instrumentId,
+                cancellationToken);
+            if (result == DeleteInstrumentResult.Referenced)
+            {
+                _dialogService.ShowInformation(new InformationDialogRequest(
+                    DeleteBlockedTitle,
+                    DeleteBlockedMessage));
+                return;
+            }
+
+            Instruments = Instruments.Where(item => item.Id != instrumentId).ToArray();
+            if (SelectedInstrument?.Id == instrumentId)
+            {
+                IsEditFormVisible = false;
+                SelectedInstrument = null;
+            }
+
+            if (!await LoadAsync(forceRefresh: true, cancellationToken))
+            {
+                ErrorMessage = DeleteReloadErrorMessage;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            Instruments = Instruments.Where(item => item.Id != instrumentId).ToArray();
+            if (SelectedInstrument?.Id == instrumentId)
+            {
+                IsEditFormVisible = false;
+                SelectedInstrument = null;
+            }
+
+            ActionErrorMessage = DetailNotFoundMessage;
+            _ = await LoadAsync(forceRefresh: true, cancellationToken);
+        }
+        catch (Exception)
+        {
+            ActionErrorMessage = DeleteErrorMessageFallback;
+        }
+        finally
+        {
+            IsDeleting = false;
+        }
+    }
+
+    private void ReplaceListItem(InstrumentDetails instrument)
+    {
+        var replacement = new InstrumentListItem(
+            instrument.Id,
+            instrument.Symbol,
+            instrument.DisplayName,
+            instrument.AssetClass,
+            instrument.Exchange,
+            instrument.Currency,
+            instrument.TickSize,
+            instrument.TickValue,
+            instrument.PointValue,
+            instrument.IsActive);
+        Instruments = Instruments
+            .Select(item => item.Id == instrument.Id ? replacement : item)
+            .ToArray();
+    }
+
+    private void ResetEditValidation()
+    {
+        IsEditSymbolInvalid = false;
+        IsEditDisplayNameInvalid = false;
+        IsEditCurrencyInvalid = false;
+        IsEditTickSizeInvalid = false;
+        IsEditTickValueInvalid = false;
+        EditErrorMessage = null;
+    }
+
+    private bool IsAnyOperationInProgress =>
+        IsLoading ||
+        IsCreating ||
+        IsChangingInstrumentState ||
+        IsLoadingInstrumentDetails ||
+        IsUpdating ||
+        IsDeleting;
+
     private bool CanActivateInstrument(InstrumentListItem? instrument) =>
         instrument is { IsActive: false } && CanChangeInstrumentState();
 
@@ -457,10 +1048,9 @@ public sealed class InstrumentsViewModel : ObservableObject
         instrument is { IsActive: true } && CanChangeInstrumentState();
 
     private bool CanChangeInstrumentState() =>
-        !IsLoading &&
-        !IsCreating &&
-        !IsChangingInstrumentState &&
-        !IsCreateFormVisible;
+        !IsAnyOperationInProgress &&
+        !IsCreateFormVisible &&
+        !IsEditFormVisible;
 
     private async Task ActivateInstrumentAsync(
         InstrumentListItem? instrument,
@@ -484,6 +1074,11 @@ public sealed class InstrumentsViewModel : ObservableObject
             if (!wasReloaded)
             {
                 ErrorMessage = LifecycleReloadErrorMessage;
+            }
+
+            if (SelectedInstrument?.Id == instrument.Id)
+            {
+                _ = await LoadInstrumentDetailsAsync(instrument.Id, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -527,6 +1122,11 @@ public sealed class InstrumentsViewModel : ObservableObject
             {
                 ErrorMessage = LifecycleReloadErrorMessage;
             }
+
+            if (SelectedInstrument?.Id == instrument.Id)
+            {
+                _ = await LoadInstrumentDetailsAsync(instrument.Id, cancellationToken);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -553,6 +1153,12 @@ public sealed class InstrumentsViewModel : ObservableObject
         CreateInstrumentCommand.NotifyCanExecuteChanged();
         ActivateInstrumentCommand.NotifyCanExecuteChanged();
         DeactivateInstrumentCommand.NotifyCanExecuteChanged();
+        ViewInstrumentCommand.NotifyCanExecuteChanged();
+        EditInstrumentCommand.NotifyCanExecuteChanged();
+        CloseInstrumentDetailsCommand.NotifyCanExecuteChanged();
+        CancelEditCommand.NotifyCanExecuteChanged();
+        SaveChangesCommand.NotifyCanExecuteChanged();
+        DeleteInstrumentCommand.NotifyCanExecuteChanged();
     }
 
     private async Task<bool> LoadAsync(
@@ -580,6 +1186,12 @@ public sealed class InstrumentsViewModel : ObservableObject
                     await _instrumentReader.GetAllAsync(cancellationToken);
 
                 Instruments = instruments;
+                if (SelectedInstrument is not null &&
+                    instruments.All(item => item.Id != SelectedInstrument.Id))
+                {
+                    IsEditFormVisible = false;
+                    SelectedInstrument = null;
+                }
                 _hasLoadedSuccessfully = true;
                 return true;
             }

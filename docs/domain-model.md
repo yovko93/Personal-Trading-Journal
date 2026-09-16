@@ -48,7 +48,7 @@ Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Thei
 
 ### Instrument
 
-`Instrument` is canonical/root instrument reference data such as NQ, MNQ, ES, or MES—not a specific futures expiration such as NQU6. Symbol and currency are canonicalized, tick size and tick value must be positive, and point value is derived from them. Its active flag represents reference-data lifecycle. Contract months, expiration, and rollover are outside M2.
+`Instrument` is canonical/root instrument reference data such as NQ, MNQ, ES, or MES—not a specific futures expiration such as NQU6. Symbol and currency are canonicalized, tick size and tick value must be positive, and point value is always derived as `TickValue / TickSize`; it is never independently editable. Explicit detail updates preserve identity, creation timestamp, and active state, and canonical no-ops do not advance `UpdatedAtUtc`. Its active flag represents reference-data lifecycle. Contract months, expiration, and rollover remain outside the model.
 
 ### TradingAccount
 
@@ -111,6 +111,8 @@ M7 list and detail readers reconstruct each persisted aggregate through the exis
 ## Historical Pricing and P&L
 
 Each trade owns an immutable `TradePricingSnapshot` with `PointValue` and `Currency`. This captures the pricing facts used for that trade so historical P&L does not depend on loading current `Instrument` metadata or change when instrument reference data changes later.
+
+Instrument catalog edits therefore apply to future usage only. Symbol, display name, exchange, currency, and tick economics may change without rewriting historical Trade pricing or executions. Application policy additionally prevents changing `AssetClass` after an Instrument is referenced because asset class controls quantity semantics; unused Instruments may change it through validated Domain behavior.
 
 For a closed flat trade:
 

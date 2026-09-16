@@ -215,4 +215,37 @@ public sealed class InstrumentStoreTests
         Assert.True(persisted.IsActive);
         Assert.Equal(createdAtUtc, persisted.UpdatedAtUtc);
     }
+
+    [Fact]
+    public async Task UpdateAsyncPersistsDetailsAndDerivedPointValueWithoutChangingIdentity()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        IInstrumentStore store = database.ServiceProvider.GetRequiredService<IInstrumentStore>();
+        DateTimeOffset createdAtUtc = new(2026, 9, 14, 9, 0, 0, TimeSpan.Zero);
+        DateTimeOffset updatedAtUtc = createdAtUtc.AddHours(2);
+        var original = new Instrument(
+            "NQ", "Nasdaq-100 E-mini", AssetClass.Futures, "CME", "USD",
+            0.25m, 5m, createdAtUtc);
+        await store.AddAsync(original);
+        Instrument instrument = Assert.IsType<Instrument>(await store.GetByIdAsync(original.Id));
+
+        instrument.UpdateDetails(
+            " mnq ", " Micro Nasdaq-100 ", AssetClass.Futures, null, "usd",
+            0.25m, 0.50m, updatedAtUtc);
+        await store.UpdateAsync(instrument);
+
+        await using JournalDbContext context = await database.ContextFactory.CreateDbContextAsync();
+        InstrumentRecord record = await context.Instruments.AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == original.Id);
+        Assert.Equal(original.Id, record.Id);
+        Assert.Equal("MNQ", record.Symbol);
+        Assert.Equal("Micro Nasdaq-100", record.DisplayName);
+        Assert.Null(record.Exchange);
+        Assert.Equal(0.25m, record.TickSize);
+        Assert.Equal(0.50m, record.TickValue);
+        Assert.Equal(createdAtUtc, record.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, record.UpdatedAtUtc);
+        Assert.True(record.IsActive);
+        Assert.Equal(2m, Assert.IsType<Instrument>(await store.GetByIdAsync(original.Id)).PointValue);
+    }
 }
