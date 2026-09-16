@@ -209,6 +209,16 @@ Theme-sensitive brush consumers use `DynamicResource`, so the current visual tre
 
 Dark retains the established hierarchy and palette. Light uses distinct background, surface, raised-surface, border, text, accent, success, warning, and danger values chosen for readable hierarchy rather than mechanical inversion. Existing warning semantics remain canonical for safe user-facing operation errors; `PtjDangerBrush` remains available for destructive/danger meaning.
 
+### Shared Entity Action and Dialog Language
+
+Entity list and detail workflows share a presentation vocabulary without sharing business CRUD logic. View is the primary row interaction, Edit is a lightweight normal action, and the compact ellipsis trigger opens a themed action menu when more choices are available. Entity-specific ViewModels remain responsible for deciding which commands exist and whether they are enabled. The reusable ContextMenu behavior opens from mouse or keyboard activation, stock menu navigation handles arrows and Escape, visible labels accompany centralized View, Edit, Activate, Deactivate, and Delete icons, and disabled commands remain visibly disabled.
+
+Activate and Deactivate are reversible lifecycle actions and use neutral secondary styling. Delete is separate, uses the existing Danger semantic, and is communicated by its trash icon and text label as well as color. The shared read-only detail language provides label/value text styles and a compact Active/Inactive status badge surface; it is a visual foundation, not a property-grid or metadata-driven editor.
+
+`IDialogService` is the Desktop-only modal boundary. `ConfirmationDialogRequest` supplies entity-specific title, message, confirm/cancel labels, and destructive intent; `InformationDialogRequest` supplies a title, message, and close label for outcomes such as a delete blocked by historical references. Destructive confirmation uses the Danger button style while Cancel owns the safe default focus, Escape cancels, closing the window cancels, and the destructive button is never the implicit Enter action. The existing screenshot deletion confirmation adapts to this service, so ViewModels remain testable without constructing a WPF window or calling `MessageBox`.
+
+Future hard-delete workflows must enforce entity-specific integrity rules outside Desktop presentation: referenced Accounts, Instruments, Trading Setups, and Trading Mistakes are retained and deactivated, while unused records may be deleted. Trade deletion requires explicit confirmation plus intentional handling of dependent records and external screenshot files. No update/delete use case or repository method is introduced by this shared UX foundation.
+
 ### Shared Form Language
 
 The Manual Trade, Account, Instrument, Trading Setup, and Trading Mistake creation workflows use a shared compact form language from `Controls.xaml`. Form sections reuse the standard card surface, corner radius, border, and internal spacing; section titles, field labels, optional markers, helper text, and status text use consistent typography. Required fields use normal labels and existing validation, while optional fields carry an explicit muted `(Optional)` marker.

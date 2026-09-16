@@ -9,6 +9,7 @@ using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Settings;
 using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
@@ -86,6 +87,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<
                 ITradeScreenshotImageDecoder,
                 WpfTradeScreenshotImageDecoder>();
+            builder.Services.AddSingleton<IDialogService, WpfDialogService>();
             builder.Services.AddSingleton<
                 ITradeScreenshotDeleteConfirmation,
                 WpfTradeScreenshotDeleteConfirmation>();

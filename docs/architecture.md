@@ -164,6 +164,10 @@ Theme-sensitive brush consumers use `DynamicResource`, allowing materialized con
 
 `JsonDesktopSettingsStore` persists only the preferred theme to the configured `IApplicationPaths.SettingsPath`; a System preference remains System even when its effective appearance is Dark or Light. Missing, malformed, or unknown settings fall back to System and are logged; writes use a temporary file followed by replacement. Settings applies a choice immediately and reports a safe error if persistence fails without reverting the usable visual theme. The header's two-state quick toggle reflects `EffectiveTheme` and creates an explicit opposite Dark/Light preference; Settings remains the route back to System.
 
+### Desktop Dialog Boundary
+
+`IDialogService` is a narrow Desktop-only abstraction for PTJ-styled confirmation and information dialogs. Callers provide small presentation request models containing contextual text and destructive intent; they do not provide arbitrary controls, domain policy, or modal routing metadata. `WpfDialogService` owns window creation and owner selection, and the composition root supplies it through dependency injection. This boundary lets feature ViewModels and adapters request confirmation without calling `MessageBox` or constructing WPF windows, while leaving entity-specific update, delete, reference-checking, and file-lifecycle rules in their proper future Application and Infrastructure workflows.
+
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
 ### Desktop Data-Access Boundary
