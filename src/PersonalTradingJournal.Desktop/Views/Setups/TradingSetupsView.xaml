@@ -1,6 +1,7 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Setups.TradingSetupsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <ScrollViewer HorizontalContentAlignment="Stretch" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
         <ScrollViewer.Resources>
@@ -20,7 +21,7 @@
             </Grid>
             <Border Margin="0,16,0,0">
                 <Border.Style>
-                    <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
+                    <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers><DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
                             <Setter Property="Visibility" Value="Visible" />
@@ -28,19 +29,30 @@
                     </Style>
                 </Border.Style>
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="New Trading Setup" />
-                    <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjCaptionTextStyle}" Text="Name *" />
-                    <TextBox Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="New Trading Setup" />
+                    <TextBlock Margin="0,4,0,0"
+                               Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Capture a repeatable trade pattern or execution model."
+                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjFormLabelTextStyle}" Text="Name" />
+                    <TextBox validation:FormValidation.IsInvalid="{Binding IsNameInvalid}"
+                             Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource PtjTextBoxStyle}" />
-                    <TextBlock Margin="0,12,0,6" Style="{StaticResource PtjCaptionTextStyle}" Text="Description" />
+                    <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                               Text="Use a recognizable pattern name, for example NY Open Reversal." />
+                    <StackPanel Margin="0,16,0,6" Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Description" />
+                        <TextBlock Margin="4,0,0,0"
+                                   Style="{StaticResource PtjFormOptionalTextStyle}"
+                                   Text="(Optional)" />
+                    </StackPanel>
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap"
                              VerticalContentAlignment="Top"
                              Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource PtjTextBoxStyle}" />
                     <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}">
                         <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
@@ -48,9 +60,19 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
+                    <TextBlock Margin="0,8,0,0" Text="Creating setup...">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormHelperTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers><DataTrigger Binding="{Binding IsSaving}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger></Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button Command="{Binding CancelCreateCommand}" Content="Cancel"
-                                Style="{StaticResource PtjButtonStyle}" />
+                                Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0" Command="{Binding CreateCommand}" Content="Create Setup"
                                 Style="{StaticResource PtjPrimaryButtonStyle}" />
                     </StackPanel>
@@ -65,11 +87,11 @@
                         </DataTrigger></Style.Triggers>
                     </Style></TextBlock.Style>
                 </TextBlock>
-                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Style="{StaticResource PtjFormErrorTextStyle}"
                            Text="{Binding ListErrorMessage}" />
-                <TextBlock Foreground="{DynamicResource PtjWarningBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Style="{StaticResource PtjFormErrorTextStyle}"
                            Text="{Binding SaveErrorMessage}" />
-                <TextBlock Foreground="{DynamicResource PtjSuccessBrush}" Style="{StaticResource PtjSecondaryTextStyle}"
+                <TextBlock Style="{StaticResource PtjFormSuccessTextStyle}"
                            Text="{Binding SuccessMessage}" />
             </StackPanel>
             <Border Padding="24">

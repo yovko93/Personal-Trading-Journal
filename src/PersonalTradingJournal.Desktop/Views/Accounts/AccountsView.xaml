@@ -1,7 +1,8 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Accounts.AccountsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters">
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
+             xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <converters:TradingAccountTypeDisplayConverter x:Key="AccountTypeDisplayConverter" />
 
@@ -59,7 +60,7 @@
         <Border Margin="0,16,0,0">
             <Border.Style>
                 <Style TargetType="{x:Type Border}"
-                       BasedOn="{StaticResource PtjCardStyle}">
+                       BasedOn="{StaticResource PtjFormSectionStyle}">
                     <Setter Property="Visibility" Value="Collapsed" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
@@ -70,8 +71,12 @@
             </Border.Style>
 
             <StackPanel>
-                <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
                            Text="Add Account" />
+                <TextBlock Margin="0,4,0,0"
+                           Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="Identify the account and record its starting financial reference."
+                           TextWrapping="Wrap" />
 
                 <Grid Margin="0,16,0,0">
                     <Grid.Style>
@@ -96,16 +101,19 @@
 
                     <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,12">
                         <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Name *" />
-                        <TextBox Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
+                                   Style="{StaticResource PtjFormLabelTextStyle}"
+                                   Text="Name" />
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsAccountNameInvalid}"
+                                 Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
+                        <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                   Text="A clear name used throughout the journal." />
                     </StackPanel>
 
                     <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,12">
                         <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Account Type *" />
+                                   Style="{StaticResource PtjFormLabelTextStyle}"
+                                   Text="Account Type" />
                         <ComboBox ItemsSource="{Binding AccountTypes}"
                                   SelectedItem="{Binding SelectedAccountType}"
                                   Style="{StaticResource PtjComboBoxStyle}">
@@ -118,35 +126,53 @@
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,12">
-                        <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Provider" />
+                        <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}"
+                                       Text="Provider" />
+                            <TextBlock Margin="4,0,0,0"
+                                       Style="{StaticResource PtjFormOptionalTextStyle}"
+                                       Text="(Optional)" />
+                        </StackPanel>
                         <TextBox Text="{Binding ProviderName, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
+                        <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                   Text="Broker or provider name." />
                     </StackPanel>
 
                     <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,12">
-                        <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="External Account ID" />
+                        <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}"
+                                       Text="External Account ID" />
+                            <TextBlock Margin="4,0,0,0"
+                                       Style="{StaticResource PtjFormOptionalTextStyle}"
+                                       Text="(Optional)" />
+                        </StackPanel>
                         <TextBox Text="{Binding ExternalAccountId, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,0">
                         <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Currency *" />
-                        <TextBox Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
+                                   Style="{StaticResource PtjFormLabelTextStyle}"
+                                   Text="Currency" />
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsCurrencyInvalid}"
+                                 Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
                     </StackPanel>
 
                     <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,0">
-                        <TextBlock Margin="0,0,0,6"
-                                   Style="{StaticResource PtjCaptionTextStyle}"
-                                   Text="Starting Balance" />
-                        <TextBox Text="{Binding StartingBalanceText, UpdateSourceTrigger=PropertyChanged}"
+                        <StackPanel Margin="0,0,0,6" Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource PtjFormLabelTextStyle}"
+                                       Text="Starting Balance" />
+                            <TextBlock Margin="4,0,0,0"
+                                       Style="{StaticResource PtjFormOptionalTextStyle}"
+                                       Text="(Optional)" />
+                        </StackPanel>
+                        <TextBox validation:FormValidation.IsInvalid="{Binding IsStartingBalanceInvalid}"
+                                 Text="{Binding StartingBalanceText, UpdateSourceTrigger=PropertyChanged}"
                                  Style="{StaticResource PtjTextBoxStyle}" />
+                        <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
+                                   Text="Opening reference only; this is not a current balance." />
                     </StackPanel>
                 </Grid>
 
@@ -154,11 +180,25 @@
                            Text="{Binding CreateErrorMessage}">
                     <TextBlock.Style>
                         <Style TargetType="{x:Type TextBlock}"
-                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                               BasedOn="{StaticResource PtjFormErrorTextStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasCreateError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Margin="0,12,0,0"
+                           Text="Creating account...">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjFormHelperTextStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCreating}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -171,7 +211,7 @@
                             Orientation="Horizontal">
                     <Button Command="{Binding CancelCreateCommand}"
                             Content="Cancel"
-                            Style="{StaticResource PtjButtonStyle}" />
+                            Style="{StaticResource PtjSecondaryButtonStyle}" />
                     <Button Margin="8,0,0,0"
                             Command="{Binding CreateAccountCommand}"
                             Content="Create Account"

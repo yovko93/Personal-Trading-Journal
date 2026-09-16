@@ -39,6 +39,11 @@ public sealed class InstrumentsViewModel : ObservableObject
     private bool _isChangingInstrumentState;
     private bool _isCreating;
     private bool _isLoading;
+    private bool _isCurrencyInvalid;
+    private bool _isDisplayNameInvalid;
+    private bool _isSymbolInvalid;
+    private bool _isTickSizeInvalid;
+    private bool _isTickValueInvalid;
     private string? _lifecycleErrorMessage;
     private AssetClass _selectedAssetClass = AssetClass.Futures;
     private string _symbol = string.Empty;
@@ -129,13 +134,31 @@ public sealed class InstrumentsViewModel : ObservableObject
     public string Symbol
     {
         get => _symbol;
-        set => SetProperty(ref _symbol, value);
+        set
+        {
+            if (SetProperty(ref _symbol, value) &&
+                IsSymbolInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsSymbolInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public string DisplayName
     {
         get => _displayName;
-        set => SetProperty(ref _displayName, value);
+        set
+        {
+            if (SetProperty(ref _displayName, value) &&
+                IsDisplayNameInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsDisplayNameInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public IReadOnlyList<AssetClass> AssetClasses { get; } =
@@ -156,20 +179,53 @@ public sealed class InstrumentsViewModel : ObservableObject
     public string Currency
     {
         get => _currency;
-        set => SetProperty(ref _currency, value);
+        set
+        {
+            if (SetProperty(ref _currency, value) &&
+                IsCurrencyInvalid &&
+                !string.IsNullOrWhiteSpace(value))
+            {
+                IsCurrencyInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public string TickSizeText
     {
         get => _tickSizeText;
-        set => SetProperty(ref _tickSizeText, value);
+        set
+        {
+            if (SetProperty(ref _tickSizeText, value) &&
+                IsTickSizeInvalid &&
+                TryParseDecimal(value, out _))
+            {
+                IsTickSizeInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
 
     public string TickValueText
     {
         get => _tickValueText;
-        set => SetProperty(ref _tickValueText, value);
+        set
+        {
+            if (SetProperty(ref _tickValueText, value) &&
+                IsTickValueInvalid &&
+                TryParseDecimal(value, out _))
+            {
+                IsTickValueInvalid = false;
+                CreateErrorMessage = null;
+            }
+        }
     }
+
+    public bool IsSymbolInvalid { get => _isSymbolInvalid; private set => SetProperty(ref _isSymbolInvalid, value); }
+    public bool IsDisplayNameInvalid { get => _isDisplayNameInvalid; private set => SetProperty(ref _isDisplayNameInvalid, value); }
+    public bool IsCurrencyInvalid { get => _isCurrencyInvalid; private set => SetProperty(ref _isCurrencyInvalid, value); }
+    public bool IsTickSizeInvalid { get => _isTickSizeInvalid; private set => SetProperty(ref _isTickSizeInvalid, value); }
+    public bool IsTickValueInvalid { get => _isTickValueInvalid; private set => SetProperty(ref _isTickValueInvalid, value); }
 
     public bool IsCreating
     {
@@ -281,30 +337,35 @@ public sealed class InstrumentsViewModel : ObservableObject
 
         if (string.IsNullOrWhiteSpace(Symbol))
         {
+            IsSymbolInvalid = true;
             CreateErrorMessage = "Symbol is required.";
             return;
         }
 
         if (string.IsNullOrWhiteSpace(DisplayName))
         {
+            IsDisplayNameInvalid = true;
             CreateErrorMessage = "Display name is required.";
             return;
         }
 
         if (string.IsNullOrWhiteSpace(Currency))
         {
+            IsCurrencyInvalid = true;
             CreateErrorMessage = "Currency is required.";
             return;
         }
 
         if (!TryParseDecimal(TickSizeText, out decimal tickSize))
         {
+            IsTickSizeInvalid = true;
             CreateErrorMessage = "Tick size must be a valid number.";
             return;
         }
 
         if (!TryParseDecimal(TickValueText, out decimal tickValue))
         {
+            IsTickValueInvalid = true;
             CreateErrorMessage = "Tick value must be a valid number.";
             return;
         }
@@ -381,6 +442,11 @@ public sealed class InstrumentsViewModel : ObservableObject
         Currency = string.Empty;
         TickSizeText = string.Empty;
         TickValueText = string.Empty;
+        IsSymbolInvalid = false;
+        IsDisplayNameInvalid = false;
+        IsCurrencyInvalid = false;
+        IsTickSizeInvalid = false;
+        IsTickValueInvalid = false;
         CreateErrorMessage = null;
     }
 
