@@ -6,6 +6,7 @@ using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Screenshots;
 using PersonalTradingJournal.Domain.Instruments;
 using PersonalTradingJournal.Domain.Screenshots;
@@ -84,6 +85,13 @@ public sealed class TradesViewModel : ObservableObject
     private const string CloseTradeChronologyErrorMessage =
         "Exit time cannot be earlier than the latest execution.";
     private const string TradeClosedMessage = "Trade closed successfully.";
+    private const string TradeUpdatedMessage = "Trade updated successfully.";
+    private const string TradeUpdateErrorMessageFallback =
+        "Trade changes could not be saved.";
+    private const string TradeDeleteErrorMessageFallback =
+        "Trade could not be deleted.";
+    private const string TradeDeleteCleanupWarningMessage =
+        "Trade deleted, but one or more local screenshot files could not be cleaned up.";
     private const string TradeScreenshotsLoadErrorMessage =
         "Screenshots could not be loaded.";
     private const string ScreenshotSaveErrorMessageFallback =
@@ -132,10 +140,14 @@ public sealed class TradesViewModel : ObservableObject
     private readonly AssignTradeMistakeUseCase _assignTradeMistakeUseCase;
     private readonly RemoveTradeMistakeUseCase _removeTradeMistakeUseCase;
     private readonly CloseManualTradeUseCase _closeManualTradeUseCase;
+    private readonly UpdateTradeUseCase? _updateTradeUseCase;
+    private readonly DeleteTradeUseCase? _deleteTradeUseCase;
+    private readonly IDialogService? _dialogService;
     private readonly SemaphoreSlim _referenceDataLoadGate = new(1, 1);
     private readonly SemaphoreSlim _tradeListLoadGate = new(1, 1);
     private readonly SemaphoreSlim _tradingMistakeOptionsLoadGate = new(1, 1);
     private IReadOnlyList<ManualTradeAccountOption> _accountOptions = [];
+    private IReadOnlyList<ManualTradeAccountOption> _allAccountOptions = [];
     private IReadOnlyList<TradingSetupListItem> _allTradingSetups = [];
     private IReadOnlyList<TradingSetupListItem> _availableTradingSetups = [];
     private IReadOnlyList<TradingMistakeListItem> _allTradingMistakes = [];
@@ -157,6 +169,7 @@ public sealed class TradesViewModel : ObservableObject
     private Guid? _loadedTradeMistakesTradeId;
     private Guid? _loadedTradeScreenshotsTradeId;
     private IReadOnlyList<ManualTradeInstrumentOption> _instrumentOptions = [];
+    private IReadOnlyList<ManualTradeInstrumentOption> _allInstrumentOptions = [];
     private bool _isLoading;
     private bool _isTradeDetailLoading;
     private bool _isTradeDetailNotFound;
@@ -226,6 +239,16 @@ public sealed class TradesViewModel : ObservableObject
     private string? _closeTradeValidationErrorMessage;
     private string? _closeTradeSaveErrorMessage;
     private string? _closeTradeSuccessMessage;
+    private bool _isTradeEditVisible;
+    private bool _isUpdatingTrade;
+    private bool _isDeletingTrade;
+    private Guid? _editingTradeId;
+    private Guid _editingEntryExecutionId;
+    private Guid _editingExitExecutionId;
+    private string? _tradeUpdateErrorMessage;
+    private string? _tradeUpdateSuccessMessage;
+    private string? _tradeDeleteErrorMessage;
+    private string? _tradeDeleteWarningMessage;
 
     public TradesViewModel(
         IManualTradeReferenceDataReader referenceDataReader,
@@ -245,7 +268,10 @@ public sealed class TradesViewModel : ObservableObject
         ITradeScreenshotContentReader tradeScreenshotContentReader,
         ITradeScreenshotImageDecoder tradeScreenshotImageDecoder,
         DeleteTradeScreenshotUseCase deleteTradeScreenshotUseCase,
-        ITradeScreenshotDeleteConfirmation tradeScreenshotDeleteConfirmation)
+        ITradeScreenshotDeleteConfirmation tradeScreenshotDeleteConfirmation,
+        UpdateTradeUseCase? updateTradeUseCase = null,
+        DeleteTradeUseCase? deleteTradeUseCase = null,
+        IDialogService? dialogService = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -284,6 +310,9 @@ public sealed class TradesViewModel : ObservableObject
         _tradeScreenshotImageDecoder = tradeScreenshotImageDecoder;
         _deleteTradeScreenshotUseCase = deleteTradeScreenshotUseCase;
         _tradeScreenshotDeleteConfirmation = tradeScreenshotDeleteConfirmation;
+        _updateTradeUseCase = updateTradeUseCase;
+        _deleteTradeUseCase = deleteTradeUseCase;
+        _dialogService = dialogService;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
         CancelManualEntryCommand = new RelayCommand(
@@ -339,6 +368,24 @@ public sealed class TradesViewModel : ObservableObject
             new AsyncRelayCommand<TradeScreenshotListItem>(
                 DeleteScreenshotAsync,
                 CanDeleteScreenshot);
+        ShowTradeEditCommand = new AsyncRelayCommand<TradeListItem>(
+            ShowTradeEditAsync,
+            CanShowTradeEdit);
+        ShowSelectedTradeEditCommand = new AsyncRelayCommand(
+            ShowSelectedTradeEditAsync,
+            CanShowSelectedTradeEdit);
+        CancelTradeEditCommand = new RelayCommand(
+            CancelTradeEdit,
+            CanCancelTradeEdit);
+        SaveTradeEditCommand = new AsyncRelayCommand(
+            SaveTradeEditAsync,
+            CanSaveTradeEdit);
+        DeleteTradeCommand = new AsyncRelayCommand<TradeListItem>(
+            DeleteTradeAsync,
+            CanDeleteTrade);
+        DeleteSelectedTradeCommand = new AsyncRelayCommand(
+            DeleteSelectedTradeAsync,
+            CanDeleteSelectedTrade);
     }
 
     public IReadOnlyList<ManualTradeAccountOption> AccountOptions
@@ -441,6 +488,8 @@ public sealed class TradesViewModel : ObservableObject
                 OnPropertyChanged(nameof(HasTradeMistakes));
                 SynchronizeAvailableTradingMistakes();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+                DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -481,6 +530,11 @@ public sealed class TradesViewModel : ObservableObject
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                ShowTradeEditCommand.NotifyCanExecuteChanged();
+                ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+                SaveTradeEditCommand.NotifyCanExecuteChanged();
+                DeleteTradeCommand.NotifyCanExecuteChanged();
+                DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -770,6 +824,7 @@ public sealed class TradesViewModel : ObservableObject
                 RefreshCommand.NotifyCanExecuteChanged();
                 ShowManualEntryCommand.NotifyCanExecuteChanged();
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -795,6 +850,7 @@ public sealed class TradesViewModel : ObservableObject
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -824,6 +880,7 @@ public sealed class TradesViewModel : ObservableObject
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -852,6 +909,7 @@ public sealed class TradesViewModel : ObservableObject
                 CloseTradeDetailCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -868,6 +926,7 @@ public sealed class TradesViewModel : ObservableObject
                 CloseTradeDetailCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -884,6 +943,7 @@ public sealed class TradesViewModel : ObservableObject
                 CloseTradeDetailCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -927,6 +987,7 @@ public sealed class TradesViewModel : ObservableObject
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
                 AssignMistakeCommand.NotifyCanExecuteChanged();
                 RemoveMistakeCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -947,6 +1008,7 @@ public sealed class TradesViewModel : ObservableObject
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
                 ShowCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
             }
@@ -988,6 +1050,7 @@ public sealed class TradesViewModel : ObservableObject
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -1008,6 +1071,7 @@ public sealed class TradesViewModel : ObservableObject
                 RefreshCommand.NotifyCanExecuteChanged();
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
                 ShowTradeDetailCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -1364,6 +1428,7 @@ public sealed class TradesViewModel : ObservableObject
                 DeleteScreenshotCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -1430,6 +1495,7 @@ public sealed class TradesViewModel : ObservableObject
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
                 ClearTradingSetupCommand.NotifyCanExecuteChanged();
+                NotifyTradeLifecycleCommands();
             }
         }
     }
@@ -1502,12 +1568,135 @@ public sealed class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _isManualEntryVisible, value))
             {
+                OnPropertyChanged(nameof(IsTradeFormVisible));
+                OnPropertyChanged(nameof(TradeFormTitle));
+                OnPropertyChanged(nameof(TradeFormDescription));
                 ShowManualEntryCommand.NotifyCanExecuteChanged();
                 CancelManualEntryCommand.NotifyCanExecuteChanged();
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
             }
         }
     }
+
+    public bool IsTradeEditVisible
+    {
+        get => _isTradeEditVisible;
+        private set
+        {
+            if (SetProperty(ref _isTradeEditVisible, value))
+            {
+                OnPropertyChanged(nameof(IsTradeFormVisible));
+                OnPropertyChanged(nameof(TradeFormTitle));
+                OnPropertyChanged(nameof(TradeFormDescription));
+                ShowManualEntryCommand.NotifyCanExecuteChanged();
+                ShowTradeEditCommand.NotifyCanExecuteChanged();
+                ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+                CancelTradeEditCommand.NotifyCanExecuteChanged();
+                SaveTradeEditCommand.NotifyCanExecuteChanged();
+                DeleteTradeCommand.NotifyCanExecuteChanged();
+                DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsTradeFormVisible => IsManualEntryVisible || IsTradeEditVisible;
+
+    public string TradeFormTitle =>
+        IsTradeEditVisible ? "Edit Trade" : "Manual Trade Entry";
+
+    public string TradeFormDescription => IsTradeEditVisible
+        ? "Correct the authoritative trade facts. Derived values will be recalculated."
+        : "Enter the trade facts explicitly. Execution times are UTC.";
+
+    public bool IsUpdatingTrade
+    {
+        get => _isUpdatingTrade;
+        private set
+        {
+            if (SetProperty(ref _isUpdatingTrade, value))
+            {
+                CancelTradeEditCommand.NotifyCanExecuteChanged();
+                SaveTradeEditCommand.NotifyCanExecuteChanged();
+                ShowTradeEditCommand.NotifyCanExecuteChanged();
+                ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+                DeleteTradeCommand.NotifyCanExecuteChanged();
+                DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
+                RefreshCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public bool IsDeletingTrade
+    {
+        get => _isDeletingTrade;
+        private set
+        {
+            if (SetProperty(ref _isDeletingTrade, value))
+            {
+                DeleteTradeCommand.NotifyCanExecuteChanged();
+                DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
+                ShowTradeEditCommand.NotifyCanExecuteChanged();
+                ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+                RefreshCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? TradeUpdateErrorMessage
+    {
+        get => _tradeUpdateErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeUpdateErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeUpdateError));
+            }
+        }
+    }
+
+    public bool HasTradeUpdateError => TradeUpdateErrorMessage is not null;
+
+    public string? TradeUpdateSuccessMessage
+    {
+        get => _tradeUpdateSuccessMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeUpdateSuccessMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeUpdateSuccess));
+            }
+        }
+    }
+
+    public bool HasTradeUpdateSuccess => TradeUpdateSuccessMessage is not null;
+
+    public string? TradeDeleteErrorMessage
+    {
+        get => _tradeDeleteErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeDeleteErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeDeleteError));
+            }
+        }
+    }
+
+    public bool HasTradeDeleteError => TradeDeleteErrorMessage is not null;
+
+    public string? TradeDeleteWarningMessage
+    {
+        get => _tradeDeleteWarningMessage;
+        private set
+        {
+            if (SetProperty(ref _tradeDeleteWarningMessage, value))
+            {
+                OnPropertyChanged(nameof(HasTradeDeleteWarning));
+            }
+        }
+    }
+
+    public bool HasTradeDeleteWarning => TradeDeleteWarningMessage is not null;
 
     public IAsyncRelayCommand RefreshCommand { get; }
 
@@ -1547,6 +1736,28 @@ public sealed class TradesViewModel : ObservableObject
     public IRelayCommand CloseScreenshotPreviewCommand { get; }
 
     public IAsyncRelayCommand<TradeScreenshotListItem> DeleteScreenshotCommand { get; }
+
+    public IAsyncRelayCommand<TradeListItem> ShowTradeEditCommand { get; }
+
+    public IAsyncRelayCommand ShowSelectedTradeEditCommand { get; }
+
+    public IRelayCommand CancelTradeEditCommand { get; }
+
+    public IAsyncRelayCommand SaveTradeEditCommand { get; }
+
+    public IAsyncRelayCommand<TradeListItem> DeleteTradeCommand { get; }
+
+    public IAsyncRelayCommand DeleteSelectedTradeCommand { get; }
+
+    private void NotifyTradeLifecycleCommands()
+    {
+        ShowTradeEditCommand.NotifyCanExecuteChanged();
+        ShowSelectedTradeEditCommand.NotifyCanExecuteChanged();
+        CancelTradeEditCommand.NotifyCanExecuteChanged();
+        SaveTradeEditCommand.NotifyCanExecuteChanged();
+        DeleteTradeCommand.NotifyCanExecuteChanged();
+        DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
+    }
 
     public bool TryBuildCloseManualTradeCommand(
         out CloseManualTradeCommand? command)
@@ -1798,6 +2009,7 @@ public sealed class TradesViewModel : ObservableObject
 
     private bool CanShowManualEntry() =>
         !IsManualEntryVisible &&
+        !IsTradeEditVisible &&
         !IsLoading &&
         !IsSaving &&
         !IsTradingSetupSaving;
@@ -1822,6 +2034,410 @@ public sealed class TradesViewModel : ObservableObject
         !IsRemovingMistake &&
         !IsAddingScreenshot &&
         !IsClosingTrade;
+
+    private bool CanShowTradeEdit(TradeListItem? item) =>
+        item is not null &&
+        _updateTradeUseCase is not null &&
+        !IsTradeEditVisible &&
+        !IsManualEntryVisible &&
+        !IsTradeDetailLoading &&
+        !IsTradeListLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
+        !IsUpdatingTrade &&
+        !IsDeletingTrade &&
+        !IsSaving &&
+        !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
+
+    private async Task ShowTradeEditAsync(
+        TradeListItem? item,
+        CancellationToken cancellationToken)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        await LoadTradeEditAsync(item.Id, cancellationToken);
+    }
+
+    private bool CanShowSelectedTradeEdit() =>
+        SelectedTradeDetail is not null &&
+        _updateTradeUseCase is not null &&
+        !IsTradeEditVisible &&
+        !IsManualEntryVisible &&
+        !IsTradeDetailLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
+        !IsUpdatingTrade &&
+        !IsDeletingTrade &&
+        !IsSaving &&
+        !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
+
+    private Task ShowSelectedTradeEditAsync(CancellationToken cancellationToken) =>
+        SelectedTradeDetail is { } detail
+            ? LoadTradeEditAsync(detail.Id, cancellationToken)
+            : Task.CompletedTask;
+
+    private async Task LoadTradeEditAsync(
+        Guid tradeId,
+        CancellationToken cancellationToken)
+    {
+        TradeUpdateErrorMessage = null;
+        TradeUpdateSuccessMessage = null;
+        IsTradeDetailLoading = true;
+
+        try
+        {
+            TradeDetail? detail = await _tradeDetailReader.GetByIdAsync(
+                tradeId,
+                cancellationToken);
+            if (detail is null)
+            {
+                TradeUpdateErrorMessage = "Trade details are no longer available.";
+                return;
+            }
+
+            if (detail.Executions.Count is < 1 or > 2 ||
+                detail.Executions.Any(execution =>
+                    execution.Quantity != detail.Executions[0].Quantity))
+            {
+                TradeUpdateErrorMessage =
+                    "This trade cannot be edited with the current manual trade form.";
+                return;
+            }
+
+            if (!await LoadEditReferenceDataAsync(cancellationToken))
+            {
+                TradeUpdateErrorMessage = LoadErrorMessage;
+                return;
+            }
+
+            bool selectedTradeChanged = SelectedTradeDetail?.Id != detail.Id;
+            if (selectedTradeChanged)
+            {
+                OpenScreenshotPreviewCommand.Cancel();
+                ClearCloseTradeState();
+                ClearTradeScreenshotState();
+                ClearTradeMistakeState();
+            }
+
+            SelectedTradeDetail = detail;
+            IsTradeDetailVisible = true;
+            ConfigureHistoricalEditOptions(detail);
+            PopulateTradeEditForm(detail);
+            IsManualEntryVisible = false;
+            IsTradeEditVisible = true;
+
+            _ = await LoadTradeMistakesAsync(
+                detail.Id,
+                forceRefresh: false,
+                cancellationToken,
+                clearOnFailure: true);
+            _ = await LoadTradeScreenshotsAsync(
+                detail.Id,
+                forceRefresh: false,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            TradeUpdateErrorMessage = TradeDetailLoadErrorMessage;
+        }
+        finally
+        {
+            IsTradeDetailLoading = false;
+        }
+    }
+
+    private void ConfigureHistoricalEditOptions(TradeDetail detail)
+    {
+        AccountOptions = _allAccountOptions
+            .Where(option => option.IsActive || option.Id == detail.TradingAccountId)
+            .ToList();
+        InstrumentOptions = _allInstrumentOptions
+            .Where(option => option.IsActive || option.Id == detail.InstrumentId)
+            .ToList();
+        AvailableTradingSetups = _allTradingSetups
+            .Where(option => option.IsActive || option.Id == detail.TradingSetupId)
+            .ToList();
+    }
+
+    private void PopulateTradeEditForm(TradeDetail detail)
+    {
+        TradeExecutionDetailItem entry = detail.Executions[0];
+        TradeExecutionDetailItem? exit = detail.Executions.Count == 2
+            ? detail.Executions[1]
+            : null;
+
+        _editingTradeId = detail.Id;
+        _editingEntryExecutionId = entry.Id;
+        _editingExitExecutionId = exit?.Id ?? Guid.Empty;
+        SelectedAccount = AccountOptions.Single(option =>
+            option.Id == detail.TradingAccountId);
+        SelectedInstrument = InstrumentOptions.Single(option =>
+            option.Id == detail.InstrumentId);
+        SelectedTradingSetup = detail.TradingSetupId is Guid setupId
+            ? AvailableTradingSetups.Single(option => option.Id == setupId)
+            : null;
+        SelectedDirection = detail.Direction;
+        QuantityText = FormatDecimal(entry.Quantity);
+        EntryExecutedAtUtcText = FormatTimestamp(entry.ExecutedAtUtc);
+        EntryPriceText = FormatDecimal(entry.Price);
+        EntryCommissionText = FormatDecimal(entry.Commission);
+        EntryFeesText = FormatDecimal(entry.Fees);
+        HasExit = exit is not null;
+        if (exit is not null)
+        {
+            ExitExecutedAtUtcText = FormatTimestamp(exit.ExecutedAtUtc);
+            ExitPriceText = FormatDecimal(exit.Price);
+            ExitCommissionText = FormatDecimal(exit.Commission);
+            ExitFeesText = FormatDecimal(exit.Fees);
+        }
+
+        SetInvalidManualTradeInput(null);
+        ValidationErrorMessage = null;
+        TradeUpdateErrorMessage = null;
+    }
+
+    private void CancelTradeEdit()
+    {
+        ResetTradeEditState();
+    }
+
+    private bool CanCancelTradeEdit() =>
+        IsTradeEditVisible && !IsUpdatingTrade && !IsDeletingTrade;
+
+    private bool CanSaveTradeEdit() =>
+        IsTradeEditVisible &&
+        _updateTradeUseCase is not null &&
+        _editingTradeId.HasValue &&
+        !IsUpdatingTrade &&
+        !IsDeletingTrade &&
+        !IsLoading &&
+        !IsTradeDetailLoading;
+
+    private async Task SaveTradeEditAsync(CancellationToken cancellationToken)
+    {
+        TradeUpdateErrorMessage = null;
+        TradeUpdateSuccessMessage = null;
+
+        if (_updateTradeUseCase is null ||
+            _editingTradeId is not Guid tradeId ||
+            !TryBuildManualTradeCommand(out CreateManualTradeCommand? draft) ||
+            draft is null)
+        {
+            return;
+        }
+
+        var command = new UpdateTradeCommand(
+            tradeId,
+            draft.TradingAccountId,
+            draft.InstrumentId,
+            draft.TradingSetupId,
+            draft.Direction,
+            draft.Quantity,
+            new UpdateTradeExecutionInput(
+                _editingEntryExecutionId,
+                draft.Entry.ExecutedAtUtc,
+                draft.Entry.Price,
+                draft.Entry.Commission,
+                draft.Entry.Fees),
+            draft.Exit is null
+                ? null
+                : new UpdateTradeExecutionInput(
+                    _editingExitExecutionId,
+                    draft.Exit.ExecutedAtUtc,
+                    draft.Exit.Price,
+                    draft.Exit.Commission,
+                    draft.Exit.Fees));
+
+        IsUpdatingTrade = true;
+        try
+        {
+            _ = await _updateTradeUseCase.ExecuteAsync(command, cancellationToken);
+            ResetTradeEditState();
+            TradeUpdateSuccessMessage = TradeUpdatedMessage;
+
+            _ = await ReloadTradeDetailAfterTradingSetupAsync(
+                tradeId,
+                CancellationToken.None);
+            _ = await LoadTradeListAsync(
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException exception)
+        {
+            TradeUpdateErrorMessage = exception.Message;
+        }
+        catch (ArgumentException exception)
+        {
+            TradeUpdateErrorMessage = exception.Message;
+        }
+        catch (InvalidOperationException exception)
+        {
+            TradeUpdateErrorMessage = exception.Message;
+        }
+        catch (Exception)
+        {
+            TradeUpdateErrorMessage = TradeUpdateErrorMessageFallback;
+        }
+        finally
+        {
+            IsUpdatingTrade = false;
+        }
+    }
+
+    private bool CanDeleteTrade(TradeListItem? item) =>
+        item is not null &&
+        _deleteTradeUseCase is not null &&
+        _dialogService is not null &&
+        !IsTradeDetailLoading &&
+        !IsTradeListLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
+        !IsUpdatingTrade &&
+        !IsDeletingTrade &&
+        !IsSaving &&
+        !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
+
+    private Task DeleteTradeAsync(
+        TradeListItem? item,
+        CancellationToken cancellationToken) =>
+        item is null
+            ? Task.CompletedTask
+            : DeleteTradeCoreAsync(
+                item.Id,
+                $"{item.InstrumentSymbol} · {item.OpenedAtUtc:yyyy-MM-dd HH:mm} UTC",
+                cancellationToken);
+
+    private bool CanDeleteSelectedTrade() =>
+        SelectedTradeDetail is not null &&
+        _deleteTradeUseCase is not null &&
+        _dialogService is not null &&
+        !IsTradeDetailLoading &&
+        !IsTradeScreenshotsLoading &&
+        !IsTradeMistakesLoading &&
+        !IsUpdatingTrade &&
+        !IsDeletingTrade &&
+        !IsSaving &&
+        !IsTradingSetupSaving &&
+        !IsAssigningMistake &&
+        !IsRemovingMistake &&
+        !IsAddingScreenshot &&
+        !IsDeletingScreenshot &&
+        !IsClosingTrade;
+
+    private Task DeleteSelectedTradeAsync(CancellationToken cancellationToken) =>
+        SelectedTradeDetail is { } detail
+            ? DeleteTradeCoreAsync(
+                detail.Id,
+                $"{detail.InstrumentSymbol} · {detail.OpenedAtUtc:yyyy-MM-dd HH:mm} UTC",
+                cancellationToken)
+            : Task.CompletedTask;
+
+    private async Task DeleteTradeCoreAsync(
+        Guid tradeId,
+        string identity,
+        CancellationToken cancellationToken)
+    {
+        if (_deleteTradeUseCase is null || _dialogService is null)
+        {
+            return;
+        }
+
+        var request = new ConfirmationDialogRequest(
+            "Delete trade?",
+            $"{identity}{Environment.NewLine}{Environment.NewLine}" +
+            "This will permanently delete this trade and its related mistake " +
+            "assignments and screenshot records. This action cannot be undone.",
+            "Delete Trade",
+            isDestructive: true);
+        if (!_dialogService.Confirm(request))
+        {
+            return;
+        }
+
+        TradeDeleteErrorMessage = null;
+        TradeDeleteWarningMessage = null;
+        IsDeletingTrade = true;
+        try
+        {
+            DeleteTradeResult result = await _deleteTradeUseCase.ExecuteAsync(
+                tradeId,
+                cancellationToken);
+            if (result == DeleteTradeResult.DeletedWithFileCleanupWarning)
+            {
+                TradeDeleteWarningMessage = TradeDeleteCleanupWarningMessage;
+            }
+
+            if (SelectedTradeDetail?.Id == tradeId)
+            {
+                ClearDeletedTradeDetail();
+            }
+
+            _ = await LoadTradeListAsync(
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (KeyNotFoundException)
+        {
+            TradeDeleteErrorMessage = "Trade details are no longer available.";
+            if (SelectedTradeDetail?.Id == tradeId)
+            {
+                ClearDeletedTradeDetail();
+            }
+
+            _ = await LoadTradeListAsync(
+                forceRefresh: true,
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            TradeDeleteErrorMessage = TradeDeleteErrorMessageFallback;
+        }
+        finally
+        {
+            IsDeletingTrade = false;
+        }
+    }
+
+    private void ClearDeletedTradeDetail()
+    {
+        ResetTradeEditState();
+        OpenScreenshotPreviewCommand.Cancel();
+        IsTradeDetailVisible = false;
+        SelectedTradeDetail = null;
+        ClearCloseTradeState();
+        ClearTradeScreenshotState();
+        ClearTradeMistakeState();
+    }
 
     private bool CanShowTradeDetail(TradeListItem? item) =>
         item is not null &&
@@ -2860,6 +3476,28 @@ public sealed class TradesViewModel : ObservableObject
         }
     }
 
+    private void ResetTradeEditState()
+    {
+        IsTradeEditVisible = false;
+        TradeUpdateErrorMessage = null;
+        TradeUpdateSuccessMessage = null;
+        _editingTradeId = null;
+        _editingEntryExecutionId = Guid.Empty;
+        _editingExitExecutionId = Guid.Empty;
+        ResetManualEntryForm();
+        AccountOptions = _allAccountOptions.Where(option => option.IsActive).ToList();
+        InstrumentOptions = _allInstrumentOptions.Where(option => option.IsActive).ToList();
+        AvailableTradingSetups = _allTradingSetups
+            .Where(option => option.IsActive)
+            .ToList();
+    }
+
+    private static string FormatDecimal(decimal value) =>
+        value.ToString("G29", CultureInfo.InvariantCulture);
+
+    private static string FormatTimestamp(DateTimeOffset value) =>
+        value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
     private void ResetExitFields()
     {
         ExitExecutedAtUtcText = string.Empty;
@@ -3071,6 +3709,8 @@ public sealed class TradesViewModel : ObservableObject
                 Guid? selectedAccountId = SelectedAccount?.Id;
                 Guid? selectedInstrumentId = SelectedInstrument?.Id;
                 Guid? selectedTradingSetupId = SelectedTradingSetup?.Id;
+                _allAccountOptions = referenceData.Accounts;
+                _allInstrumentOptions = referenceData.Instruments;
                 AccountOptions = referenceData.Accounts;
                 InstrumentOptions = referenceData.Instruments;
                 _allTradingSetups = tradingSetups;
@@ -3110,6 +3750,33 @@ public sealed class TradesViewModel : ObservableObject
         finally
         {
             _referenceDataLoadGate.Release();
+        }
+    }
+
+    private async Task<bool> LoadEditReferenceDataAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            ManualTradeReferenceData referenceData =
+                await _referenceDataReader.GetAsync(
+                    includeInactiveReferences: true,
+                    cancellationToken);
+            IReadOnlyList<TradingSetupListItem> tradingSetups =
+                await _tradingSetupReader.GetAllAsync(cancellationToken);
+
+            _allAccountOptions = referenceData.Accounts;
+            _allInstrumentOptions = referenceData.Instruments;
+            _allTradingSetups = tradingSetups;
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 

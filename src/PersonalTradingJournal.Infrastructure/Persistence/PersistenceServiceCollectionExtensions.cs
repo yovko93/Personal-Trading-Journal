@@ -61,6 +61,7 @@ public static class PersistenceServiceCollectionExtensions
             ManualTradeReferenceDataReader>();
         services.AddTransient<ITradeStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
+        services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();

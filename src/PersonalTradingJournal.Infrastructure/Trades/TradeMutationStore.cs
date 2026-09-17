@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
@@ -71,7 +72,6 @@ public sealed class TradeMutationStore : ITradeMutationStore
 
         List<TradeExecutionRecord> currentExecutionRecords =
             await context.TradeExecutions
-                .AsNoTracking()
                 .Where(record => record.TradeId == trade.Id)
                 .OrderBy(record => record.Sequence)
                 .ToListAsync(cancellationToken);
@@ -81,27 +81,41 @@ public sealed class TradeMutationStore : ITradeMutationStore
         var persistedExecutionIds = currentExecutionRecords
             .Select(record => record.Id)
             .ToHashSet();
-        List<TradeExecution> newExecutions = trade.Executions
-            .Where(execution => !persistedExecutionIds.Contains(execution.Id))
-            .OrderBy(execution => execution.Sequence)
-            .ToList();
-
-        if (currentTrade.Status == TradeStatus.Closed && newExecutions.Count > 0)
+        bool introducesNewExecution = trade.Executions.Any(
+            execution => !persistedExecutionIds.Contains(execution.Id));
+        if (currentTrade.Status == TradeStatus.Closed && introducesNewExecution)
         {
             throw new InvalidOperationException(
                 $"Trade '{trade.Id}' is already closed.");
         }
 
-        foreach (TradeExecution newExecution in newExecutions)
-        {
-            currentTrade.AddExecution(newExecution, trade.UpdatedAtUtc);
-        }
-
+        TradeRecord replacementRecord = TradePersistenceMapper.ToRecord(trade);
+        currentRecord.TradingAccountId = replacementRecord.TradingAccountId;
+        currentRecord.InstrumentId = replacementRecord.InstrumentId;
+        currentRecord.PricingPointValue = replacementRecord.PricingPointValue;
+        currentRecord.PricingCurrency = replacementRecord.PricingCurrency;
         currentRecord.TradingSetupId = trade.TradingSetupId;
         currentRecord.UpdatedAtUtc = trade.UpdatedAtUtc;
-        context.TradeExecutions.AddRange(
-            newExecutions.Select(TradeExecutionPersistenceMapper.ToRecord));
 
-        await context.SaveChangesAsync(cancellationToken);
+        // Replacing immutable execution rows in two phases avoids unique-sequence
+        // collisions while preserving execution identifiers. The explicit transaction
+        // keeps the replacement and scalar update atomic.
+        await using IDbContextTransaction transaction =
+            await context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            context.TradeExecutions.RemoveRange(currentExecutionRecords);
+            await context.SaveChangesAsync(cancellationToken);
+
+            context.TradeExecutions.AddRange(
+                trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
     }
 }

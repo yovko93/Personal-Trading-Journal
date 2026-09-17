@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries support Account, Instrument, Trading Setup, and Trading Mistake create/read/update/delete and lifecycle workflows, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries support Account, Instrument, Trading Setup, and Trading Mistake create/read/update/delete and lifecycle workflows, manual Trade creation/correction/closure/hard-delete, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, seed data, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -131,6 +131,18 @@ ITradeStore.AddAsync
 
 The store persists the Trade's existing `PricingPointValue` and `PricingCurrency`. It does not reload current Instrument economics. `CreateManualTradeUseCase` creates that snapshot from the authoritative Domain Instrument's `PointValue` and `Currency`, so historical Trade economics remain stable after later Instrument metadata changes.
 
+### Trade Correction Persistence
+
+`UpdateTradeUseCase` loads the authoritative aggregate through `ITradeMutationStore`, validates the selected Account, Instrument, and optional Setup, applies target-Instrument quantity policy, preserves execution provenance for retained execution identities, and calls `Trade.CorrectDetails(...)`. Keeping the same Instrument preserves the existing pricing snapshot; changing Instrument builds a new snapshot from the selected authoritative Instrument. A canonical no-op does not call the store.
+
+`TradeMutationStore.SaveAsync(...)` updates the complete Trade root state and replaces immutable execution rows explicitly. It removes the prior execution rows, saves, inserts the corrected rows, saves, and commits both phases inside one explicit SQLite transaction. This avoids `(TradeId, Sequence)` collisions while preserving retained execution IDs and ensures removed rows disappear, new rows appear, and no partially replaced execution lifecycle is observable. `TradeMistake` and `TradeScreenshot` rows are not touched. The existing stale-close guard still rejects an attempt to append a new execution identity after another writer has already closed the persisted Trade.
+
+### Trade Hard Delete
+
+`ITradeDeletionStore` is a Trade-specific boundary. `TradeDeletionStore` first captures every screenshot storage key, then explicitly removes `TradeMistake`, `TradeScreenshot`, and `TradeExecution` rows before removing the Trade root in one database transaction. Account, Instrument, Trading Setup, and Trading Mistake catalog rows—and all unrelated Trade graphs—remain intact. The existing foreign keys and migration schema are unchanged.
+
+After the database transaction commits, `DeleteTradeUseCase` attempts physical screenshot cleanup through `ITradeScreenshotFileStorage` with opaque keys. Database integrity is authoritative: files are never deleted before the database commit, a missing file is already-clean success, and a physical cleanup exception does not recreate the deleted Trade. The result distinguishes `Deleted` from `DeletedWithFileCleanupWarning`, allowing Desktop to surface a non-destructive orphan-file warning. SQLite and filesystem work are deliberately not described as one atomic transaction.
+
 ### Trade List Reader
 
 `TradeListReader` implements the bounded `ITradeListReader.GetRecentAsync(...)` query. The caller supplies a positive limit; Desktop currently requests 50. A fresh no-tracking context selects candidates by their sequence-1 execution timestamp descending and Trade ID ascending, applying SQL ordering and `Take` before materialization. `OpenedAtUtc` therefore comes from the first market execution; audit `CreatedAtUtc` is not browsing chronology, which matters for backfilled or imported history. The result is a recent working set, not lifetime history.
@@ -216,10 +228,12 @@ Infrastructure tests cover:
 - foreign-key, delete-behavior, and unique-index integrity;
 - initial migration metadata and migrated-schema behavior;
 - runtime initializer creation, idempotency, and cancellation;
-- `TradeStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
+- `TradeStore`, `TradeMutationStore`, `TradeDeletionStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
 - Trading Setup and Trading Mistake catalog persistence, lifecycle, duplicate-name checks, and inactive visibility;
 - Trade Setup assignment/clearing and Trade Mistake assignment/removal, including active-selection validation and inactive historical preservation;
 - market chronology, deterministic Trade-ID tie ordering, bounded selection, open/closed and inactive-reference projections, current labels versus historical pricing, scale-in and partial-exit economics, complete detail, execution sequence and provenance, fresh contexts, missing IDs, and cancellation;
+- correction replacement with preserved execution identities, recalculated economics, unchanged mistake/screenshot associations, and no duplicate rows;
+- hard delete of every Trade-dependent database row while retaining catalog and unrelated records, plus post-commit screenshot cleanup outcomes;
 - rollback of a new Trade root when an execution insert fails; and
 - production-wired `CreateManualTradeUseCase`, full-graph, and transaction-atomicity scenarios.
 
@@ -261,7 +275,7 @@ Before accepting a migration:
 
 The persistence foundation does not yet include:
 
-- Trade edit/delete workflows or imports;
+- Trade imports and richer multi-execution correction UI beyond the current manual form;
 - backup and restore;
 - seed/reference-data provisioning;
 - analytics-specific database queries or read models;

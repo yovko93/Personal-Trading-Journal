@@ -40,7 +40,7 @@ Current feature boundaries are:
 - **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`;
 - **Setups** — Trading Setup catalog reads, create/lifecycle use cases, duplicate-name checks, and aggregate persistence;
 - **Mistakes** — Trading Mistake catalog reads and writes plus Trade Mistake assignment, removal, and Trade-scoped projections;
-- **Trades** — manual create/close workflows, optional Trading Setup validation and mutation, narrow aggregate-write boundaries, selector projections, bounded list reads, and complete one-Trade detail reads;
+- **Trades** — manual create/correction/close/hard-delete workflows, optional Trading Setup validation and mutation, narrow aggregate-write and deletion boundaries, selector projections, bounded list reads, and complete one-Trade detail reads;
 - **Screenshots** — purpose-specific boundaries and use cases coordinate Trade existence checks, binary storage, metadata persistence, ordered metadata reads, content retrieval, and deletion without exposing provider details to presentation; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
 
@@ -56,7 +56,7 @@ The Infrastructure project implements Application abstractions and owns external
 - explicit persistence-record/Domain mappers;
 - Application reader and store implementations for Accounts and Instruments;
 - reader/store implementations for Trading Setup and Trading Mistake catalogs and Trade Mistake associations;
-- `TradeStore`, `TradeMutationStore`, and `ManualTradeReferenceDataReader` for manual Trade creation, closure, and Setup classification;
+- `TradeStore`, `TradeMutationStore`, `TradeDeletionStore`, and `ManualTradeReferenceDataReader` for manual Trade creation, correction, closure, hard deletion, and Setup classification;
 - `TradeListReader` and `TradeDetailReader` for authoritative Trade browsing;
 - local screenshot file storage and SQLite screenshot metadata/read/delete implementations;
 - the SQLite UTC timestamp converter;
@@ -76,8 +76,9 @@ The Desktop project contains the WPF presentation layer and the application comp
 - WPF Views and presentation ViewModels;
 - data-backed Accounts, Instruments, and Trades feature workflows;
 - data-backed Trading Setup and Trading Mistake catalog workflows;
-- manual Trade-entry state, deterministic raw-input parsing and validation, and submission through the Application use case;
+- manual Trade create/edit state, deterministic raw-input parsing and validation, and submission through the Application use cases;
 - authoritative Recent Trades, Trade Detail, and ordered execution-lifecycle presentation;
+- explicit Trade edit and destructive delete actions with authoritative post-write reloads;
 - optional Setup selection during entry, Setup assignment/change/clear, and Trading Mistake assignment/removal in Trade Detail;
 - screenshot file selection, metadata presentation, preview decoding, delete confirmation, and operation state;
 - the permanent shell and its navigation state;
@@ -240,6 +241,34 @@ TradesViewModel
 
 The close command deliberately contains no quantity. The use case closes the aggregate's exact remaining `OpenQuantity`, and Domain execution rules remain authoritative for sequence, chronology, status, closure time, and P&L. Desktop does not fabricate the closed projection; post-commit detail and list reloads use non-cancellable tokens so a committed close is not reclassified as cancellation. The screenshot list is unaffected by the close.
 
+An existing manual Trade can be corrected through the same presentation form without exposing mutable execution setters:
+
+```text
+TradesViewModel
+  -> UpdateTradeUseCase
+  -> authoritative Trade, Account, Instrument, and optional Setup lookup
+  -> Trade.CorrectDetails
+  -> ITradeMutationStore.SaveAsync
+  -> transactional root update and execution-row replacement
+  -> authoritative Trade Detail and Recent Trades reload
+```
+
+The use case preserves the historical pricing snapshot when Instrument is unchanged and rebuilds it from the authoritative Instrument when the Instrument changes. It permits current inactive references to remain selected, rejects different inactive references, preserves retained execution identities and broker/import provenance, and applies target-Instrument quantity policy. Domain validates the complete replacement before mutation, recalculates all derived lifecycle/economic values, and treats canonically identical input as a no-write result. Trade Mistake associations and screenshot metadata are not part of this correction.
+
+Trade deletion is a separate explicit workflow:
+
+```text
+TradesViewModel
+  -> shared destructive confirmation
+  -> DeleteTradeUseCase
+  -> ITradeDeletionStore
+  -> transactional dependent-row and Trade deletion
+  -> post-commit best-effort screenshot file cleanup
+  -> authoritative Recent Trades reload
+```
+
+Database deletion commits before physical screenshot cleanup. A cleanup exception therefore returns a deterministic warning instead of misreporting the committed database deletion as a failure. The store removes execution rows, Trade Mistake associations, and screenshot metadata for only the target Trade while preserving reference catalogs and unrelated Trade graphs.
+
 The bounded list path is:
 
 ```text
@@ -270,7 +299,7 @@ Both read paths use current Account and Instrument values only as display labels
 
 After a successful Trade commit, Desktop resets and closes the draft, reports success, and performs a best-effort authoritative list reload. That post-commit reload deliberately does not inherit the completed Save command's cancellation. If it fails, the persisted write remains successful, the existing rows remain visible, and a list-level error allows an explicit Refresh; it is not reclassified as a Save failure.
 
-`TradesViewModel` keeps four independent areas of feature state: manual reference data, the bounded Trade list, the manual draft/save operation, and Trade Detail. Detail state is exposed through `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage`. Loading detail does not replace the list or mutate the aggregate.
+`TradesViewModel` keeps independent areas of feature state for manual reference data, the bounded Trade list, the shared create/edit draft and save operation, Trade Detail, and delete feedback. Detail state is exposed through `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage`. Loading detail does not replace the list or mutate the aggregate.
 
 `IManualTradeReferenceDataReader` is a purpose-specific Trade-entry projection, not a generic query service. Management pages use `ITradingAccountReader` and `IInstrumentReader` to show active and inactive records. Normal Desktop manual entry requests active references only; the Application reader can explicitly include inactive references, and `CreateManualTradeUseCase` requires references to exist without making active status a Domain invariant. This preserves a path for future historical or backfill entry.
 
@@ -362,7 +391,7 @@ SQLite
 
 EF Core adapts to the Domain; the Domain does not adapt to EF Core. EF Core materializes mutable Infrastructure records rather than Domain entities. Domain types remain immutable or getter-heavy where appropriate, contain no EF attributes, and have no EF dependency. Infrastructure mappers reconstruct Domain entities through their explicit `Rehydrate(...)` APIs. AutoMapper is not used at this boundary.
 
-The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. Narrow Application-facing readers and stores support the concrete Accounts, Instruments, Trading Setup, Trading Mistake, Trade classification, and screenshot workflows. Trade and screenshot readers express distinct query shapes. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
+The architecture deliberately does not introduce a generic `Repository<T>` or Unit of Work abstraction. Narrow Application-facing readers and stores support the concrete Accounts, Instruments, Trading Setup, Trading Mistake, Trade correction/deletion/classification, and screenshot workflows. Trade and screenshot readers express distinct query shapes; `ITradeDeletionStore` expresses the one hard-delete operation and its screenshot cleanup inventory without exposing persistence records. `IDbContextFactory<JournalDbContext>` remains Infrastructure persistence machinery and is not exposed to UI code.
 
 `AddPersistence(...)` registers `IDbContextFactory<JournalDbContext>`. Contexts are short-lived, created per operation, and disposed after use; the desktop application does not retain a long-lived context. Production-wired integration tests verify that writes made through one context are visible through later fresh contexts.
 
@@ -395,7 +424,7 @@ M5 introduces no new uniqueness business rule for account name, external account
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all seven retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/correction/closure/deletion/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all seven retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
@@ -457,9 +486,9 @@ Target frameworks remain project-specific because the class libraries target `ne
 Testing follows the solution layers:
 
 - **Domain.Tests** contains deterministic tests for the implemented M2 entities, lifecycle rules, calculations, mutations, and invariants.
-- **Application.Tests** covers use-case behavior and authoritative validation, including reference lookup, historical pricing capture, manual Trade creation/closure, Setup classification, Trade Mistake assignment/removal, and screenshot orchestration.
-- **Infrastructure.Tests** covers implementation and integration behavior, including mapping, real SQLite semantics, relational integrity, migrated temporary databases, runtime initialization, Trade persistence/reads, Setup and Mistake persistence, Trade Mistake relationships, screenshot storage, and cancellation.
-- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel, navigation, and project-owned XAML-resource behavior using real Application use cases with hand-written test readers and stores. It covers catalog lifecycle, manual Trade and screenshot forms, classification and association state, authoritative reloads, cancellation, operation gating, Trade browsing, and screenshot lifecycle. The suite does not instantiate WPF `Window`, `Application`, or `UserControl` objects or perform UI automation.
+- **Application.Tests** covers use-case behavior and authoritative validation, including reference lookup, historical pricing capture, manual Trade creation/correction/closure/deletion, Setup classification, Trade Mistake assignment/removal, and screenshot orchestration.
+- **Infrastructure.Tests** covers implementation and integration behavior, including mapping, real SQLite semantics, relational integrity, migrated temporary databases, runtime initialization, Trade persistence/reads/correction/deletion, Setup and Mistake persistence, Trade Mistake relationships, screenshot storage, and cancellation.
+- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel, navigation, and project-owned XAML-resource behavior using real Application use cases with hand-written test readers and stores. It covers catalog lifecycle, manual Trade and screenshot forms, Trade edit/delete state, classification and association state, authoritative reloads, cancellation, operation gating, Trade browsing, and screenshot lifecycle. The suite does not instantiate WPF `Window`, `Application`, or `UserControl` objects or perform UI automation.
 
 Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure persistence tests use isolated temporary SQLite databases, fresh contexts, and explicit cleanup rather than the user's real local application data. Path-construction tests separately verify that calculating local paths does not itself create `journal.db`.
 

@@ -159,11 +159,11 @@ Validation failure makes no persistence attempt and retains the draft. Technical
 
 The Recent Trades surface requests at most 50 authoritative rows. It is intentionally a bounded working view, not a claim to show lifetime history. Rows include both open and closed Trades and are ordered by opening market-event time descending, with Trade ID ascending as the deterministic tie-breaker.
 
-The columns are Opened UTC, Trade identity, Account, Average Prices, Open Qty, Net P&L, and View. Account name and Instrument symbol are current reference-data labels, while lifecycle state, average prices, exposure, currency, and economics come from the reconstructed Trade and its historical pricing snapshot. Open Trades display an em dash for nullable Net P&L rather than a fabricated zero.
+The columns are Opened UTC, Trade identity, Account, Average Prices, Open Qty, Net P&L, and Actions. Each row offers View, Edit, and a compact More menu containing destructive Delete. Account name and Instrument symbol are current reference-data labels, while lifecycle state, average prices, exposure, currency, and economics come from the reconstructed Trade and its historical pricing snapshot. Open Trades display an em dash for nullable Net P&L rather than a fabricated zero.
 
 ### Trade Detail
 
-View loads the selected Trade through `ITradeDetailReader` and opens a read-only detail surface. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades, while shell navigation away and back retains the current detail with the rest of the retained Trades ViewModel.
+View loads the selected Trade through `ITradeDetailReader` and opens the authoritative detail surface. Its facts remain read-only; Edit and destructive Delete are explicit actions rather than inline setters. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades, while shell navigation away and back retains the current detail with the rest of the retained Trades ViewModel.
 
 The detail presents current Account and Instrument identity labels; direction and status; current optional Trading Setup; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
 
@@ -174,6 +174,14 @@ Trading Mistakes are displayed as separate assigned observations with optional N
 Open Trades expose a close workflow that appends the full opposite-side execution for authoritative remaining quantity. Trade Detail also hosts screenshot add/list/preview/delete workflows. These operations retain their own loading, validation, success, error, and post-write reload states so unrelated sections do not overwrite one another.
 
 Executions are shown individually in ascending sequence order as the complete lifecycle: sequence, execution UTC timestamp, side, quantity, price, commission, fees, total costs, and optional broker symbol, external execution ID, and external order ID provenance. The UI does not collapse scale-in or partial-exit history into an entry/exit pair.
+
+### Trade Edit and Delete
+
+Edit reuses the Manual Trade form language and prepopulates authoritative Account, Instrument, Direction, optional Setup, quantity, timestamps, prices, commission, and fees from `TradeDetail`, including execution identities rather than formatted display strings. The selector lists expose active alternatives plus an inactive Account, Instrument, or Setup already assigned to the Trade; other inactive records cannot be newly selected. Switching Long/Short is translated into corrected opening/closing execution sides. The current UI deliberately edits the one-entry/optional-full-exit manual shape and refuses to flatten a richer multi-execution lifecycle into that form.
+
+Saving calls `UpdateTradeUseCase`, which corrects immutable executions and lets the Domain recalculate status, exposure, averages, costs, and P&L. The same Instrument retains its historical pricing snapshot, while an Instrument change rebuilds it and revalidates quantity semantics. Existing execution IDs and hidden broker/import provenance are preserved when their logical execution remains. Setup may be kept, changed to an active Setup, or cleared. Trade Mistake assignments and screenshot metadata/files remain unchanged. Cancel performs no write and returns to the existing detail; success reloads authoritative detail and Recent Trades without clearing screenshot or mistake state.
+
+Delete uses the shared Danger confirmation and identifies the Trade by Instrument and opened UTC timestamp. A confirmed hard delete permanently removes the Trade plus its execution rows, Trade Mistake associations, and screenshot metadata, then attempts physical screenshot cleanup. Success clears stale detail, screenshot, mistake, and selection state and refreshes Recent Trades while remaining on the Trades page. A post-commit file cleanup failure is reported as a warning rather than presented as a failed database delete; cancellation at the confirmation performs no work.
 
 ## Trading Setup and Trading Mistake Catalogs
 
@@ -221,7 +229,7 @@ Activate and Deactivate are reversible lifecycle actions and use neutral seconda
 
 `IDialogService` is the Desktop-only modal boundary. `ConfirmationDialogRequest` supplies entity-specific title, message, confirm/cancel labels, and destructive intent; `InformationDialogRequest` supplies a title, message, and close label for outcomes such as a delete blocked by historical references. Destructive confirmation uses the Danger button style while Cancel owns the safe default focus, Escape cancels, closing the window cancels, and the destructive button is never the implicit Enter action. The existing screenshot deletion confirmation adapts to this service, so ViewModels remain testable without constructing a WPF window or calling `MessageBox`.
 
-Account, Instrument, Trading Setup, and Trading Mistake hard-delete now enforce entity-specific integrity rules outside Desktop presentation: referenced records are retained and can be deactivated, while unused records may be deleted. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
+Account, Instrument, Trading Setup, and Trading Mistake hard-delete enforce entity-specific integrity rules outside Desktop presentation: referenced records are retained and can be deactivated, while unused records may be deleted. Trade hard-delete uses the same explicit confirmation language but intentionally removes its owned/dependent records and performs post-commit screenshot file cleanup; no generic CRUD mechanism is used.
 
 ### Shared Form Language
 
@@ -251,7 +259,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - `AccountsViewModel` depends on account-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `InstrumentsViewModel` depends on instrument-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on purpose-specific Application catalog readers and create/detail/update/delete/lifecycle use cases.
-- `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/closure, Setup classification, Trading Mistake associations, and screenshots.
+- `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/correction/closure/deletion, Setup classification, Trading Mistake associations, and screenshots, plus the Desktop dialog boundary for destructive confirmation.
 - `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
