@@ -1960,6 +1960,24 @@ public sealed class TradesViewModel : ObservableObject
         _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
     }
 
+    public void ResetTransientState()
+    {
+        ShowTradeDetailCommand.Cancel();
+        ShowTradeEditCommand.Cancel();
+        ShowSelectedTradeEditCommand.Cancel();
+        OpenScreenshotPreviewCommand.Cancel();
+
+        ResetTradeEditState();
+        IsManualEntryVisible = false;
+        SuccessMessage = null;
+
+        CloseTradeDetail();
+        TradingSetupSaveErrorMessage = null;
+        TradingSetupSuccessMessage = null;
+        TradeDeleteErrorMessage = null;
+        TradeDeleteWarningMessage = null;
+    }
+
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
         _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);

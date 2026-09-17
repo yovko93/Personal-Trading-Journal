@@ -573,6 +573,29 @@ public sealed class InstrumentsViewModel : ObservableObject
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
     }
 
+    public void ResetTransientState()
+    {
+        ViewInstrumentCommand.Cancel();
+        EditInstrumentCommand.Cancel();
+
+        ResetCreateForm();
+        IsCreateFormVisible = false;
+
+        EditSymbol = string.Empty;
+        EditDisplayName = string.Empty;
+        EditSelectedAssetClass = AssetClass.Futures;
+        EditExchange = string.Empty;
+        EditCurrency = string.Empty;
+        EditTickSizeText = string.Empty;
+        EditTickValueText = string.Empty;
+        ResetEditValidation();
+        IsEditFormVisible = false;
+
+        SelectedInstrument = null;
+        LifecycleErrorMessage = null;
+        ActionErrorMessage = null;
+    }
+
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
         _ = await LoadAsync(forceRefresh: true, cancellationToken);

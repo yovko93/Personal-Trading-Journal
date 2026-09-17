@@ -207,6 +207,27 @@ public sealed class TradingMistakesViewModel : ObservableObject
     public async Task EnsureLoadedAsync() =>
         _ = await LoadAsync(false, CancellationToken.None);
 
+    public void ResetTransientState()
+    {
+        ViewCommand.Cancel();
+        EditCommand.Cancel();
+
+        ResetCreateDraft();
+        IsCreateFormVisible = false;
+
+        EditNameText = string.Empty;
+        EditDescriptionText = string.Empty;
+        IsEditNameInvalid = false;
+        EditErrorMessage = null;
+        IsEditFormVisible = false;
+
+        SelectedTradingMistake = null;
+        ValidationErrorMessage = null;
+        ActionErrorMessage = null;
+        SaveErrorMessage = null;
+        SuccessMessage = null;
+    }
+
     private async Task RefreshAsync(CancellationToken cancellationToken) =>
         _ = await LoadAsync(true, cancellationToken);
 

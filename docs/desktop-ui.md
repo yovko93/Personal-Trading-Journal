@@ -66,9 +66,9 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 `MainWindow` does not create or switch Views manually. It binds a stretching `ContentControl` to `CurrentContentViewModel`. The active ViewModel therefore determines the rendered content without placing View construction in a ViewModel or code-behind.
 
-Repeated navigation to the current destination is ignored. This preserves the current content instance and selected state and avoids unnecessary View recreation.
+Repeated navigation to the current destination is ignored. This preserves the current content instance and its current transient state, and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances. In particular, returning to Trades preserves an in-progress draft, successfully cached reference/list data, and Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset the form.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, or Trades from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
 
 ## ViewModel-to-View Mapping
 
@@ -163,7 +163,7 @@ The columns are Opened UTC, Trade identity, Account, Average Prices, Open Qty, N
 
 ### Trade Detail
 
-View loads the selected Trade through `ITradeDetailReader` and opens the authoritative detail surface. Its facts remain read-only; Edit and destructive Delete are explicit actions rather than inline setters. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades, while shell navigation away and back retains the current detail with the rest of the retained Trades ViewModel.
+View loads the selected Trade through `ITradeDetailReader` and opens the authoritative detail surface. Its facts remain read-only; Edit and destructive Delete are explicit actions rather than inline setters. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing Recent Trades. Returning to Trades also closes any prior detail and related edit/screenshot/mistake state while preserving the cached Recent Trades list and reference data.
 
 The detail presents current Account and Instrument identity labels; direction and status; current optional Trading Setup; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. Gross and Net P&L use the same positive/negative/zero/null semantic foreground rules, with Net P&L given slightly stronger typographic emphasis. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
 
@@ -301,7 +301,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, navigation retention, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, retained navigation instances with clean re-entry state, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 

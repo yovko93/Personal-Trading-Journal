@@ -228,7 +228,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void NavigateAwayAndBackToTrades_RetainsViewModelAndManualEntryState()
+    public void NavigateAwayAndBackToTrades_ResetsManualEntryStateWithoutReloading()
     {
         ViewModelFixture fixture = CreateFixture();
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
@@ -270,27 +270,27 @@ public sealed class MainWindowViewModelTests
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
 
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
-        Assert.True(fixture.Trades.IsManualEntryVisible);
-        Assert.Same(selectedAccount, fixture.Trades.SelectedAccount);
-        Assert.Same(selectedInstrument, fixture.Trades.SelectedInstrument);
-        Assert.Equal(TradeDirection.Short, fixture.Trades.SelectedDirection);
-        Assert.Equal("2.5", fixture.Trades.QuantityText);
-        Assert.Equal("2026-09-10 13:30:00", fixture.Trades.EntryExecutedAtUtcText);
-        Assert.Equal("23950.25", fixture.Trades.EntryPriceText);
-        Assert.Equal("1.50", fixture.Trades.EntryCommissionText);
-        Assert.Equal("0.25", fixture.Trades.EntryFeesText);
-        Assert.True(fixture.Trades.HasExit);
-        Assert.Equal("2026-09-10 14:15:00", fixture.Trades.ExitExecutedAtUtcText);
-        Assert.Equal("23900.00", fixture.Trades.ExitPriceText);
-        Assert.Equal("1.50", fixture.Trades.ExitCommissionText);
-        Assert.Equal("0.25", fixture.Trades.ExitFeesText);
+        Assert.False(fixture.Trades.IsManualEntryVisible);
+        Assert.Null(fixture.Trades.SelectedAccount);
+        Assert.Null(fixture.Trades.SelectedInstrument);
+        Assert.Null(fixture.Trades.SelectedDirection);
+        Assert.Empty(fixture.Trades.QuantityText);
+        Assert.Empty(fixture.Trades.EntryExecutedAtUtcText);
+        Assert.Empty(fixture.Trades.EntryPriceText);
+        Assert.Equal("0", fixture.Trades.EntryCommissionText);
+        Assert.Equal("0", fixture.Trades.EntryFeesText);
+        Assert.False(fixture.Trades.HasExit);
+        Assert.Empty(fixture.Trades.ExitExecutedAtUtcText);
+        Assert.Empty(fixture.Trades.ExitPriceText);
+        Assert.Equal("0", fixture.Trades.ExitCommissionText);
+        Assert.Equal("0", fixture.Trades.ExitFeesText);
         Assert.Equal(1, fixture.TradeReferenceDataReader.CallCount);
         Assert.Equal(1, fixture.TradeListReader.CallCount);
         Assert.True(fixture.Trades.HasTrades);
     }
 
     [Fact]
-    public async Task NavigateAwayAndBackToTradesRetainsLoadedTradeDetail()
+    public async Task NavigateAwayAndBackToTrades_ClosesDetailWithoutReloadingList()
     {
         ViewModelFixture fixture = CreateFixture();
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
@@ -303,10 +303,162 @@ public sealed class MainWindowViewModelTests
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
 
         Assert.Same(fixture.Trades, fixture.Main.CurrentContentViewModel);
-        Assert.True(fixture.Trades.IsTradeDetailVisible);
-        Assert.Same(detail, fixture.Trades.SelectedTradeDetail);
+        Assert.False(fixture.Trades.IsTradeDetailVisible);
+        Assert.Null(fixture.Trades.SelectedTradeDetail);
         Assert.Equal(1, fixture.TradeDetailReader.CallCount);
         Assert.Equal(1, fixture.TradeScreenshotReader.CallCount);
+        Assert.Equal(1, fixture.TradeListReader.CallCount);
+        Assert.True(fixture.Trades.HasTrades);
+    }
+
+    [Fact]
+    public async Task NavigateAwayAndBackToAccounts_ResetsDetailEditAndCreateStateWithoutReloading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        IReadOnlyList<AccountListItem> loadedAccounts = fixture.Accounts.Accounts;
+        var details = new TradingAccountDetails(
+            Guid.NewGuid(), "Primary", TradingAccountType.Personal, "Broker", "A-1",
+            "USD", 1000m, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        fixture.AccountReader.EnqueueDetailResult(details);
+        await fixture.Accounts.EditAccountCommand.ExecuteAsync(details.Id);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+
+        Assert.Null(fixture.Accounts.SelectedAccount);
+        Assert.False(fixture.Accounts.IsEditFormVisible);
+        Assert.Empty(fixture.Accounts.EditAccountName);
+        fixture.Accounts.ShowCreateFormCommand.Execute(null);
+        fixture.Accounts.AccountName = "Draft";
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        Assert.False(fixture.Accounts.IsCreateFormVisible);
+        Assert.Empty(fixture.Accounts.AccountName);
+        Assert.Same(loadedAccounts, fixture.Accounts.Accounts);
+        Assert.Equal(1, fixture.AccountReader.CallCount);
+        Assert.Equal(1, fixture.AccountReader.DetailCallCount);
+    }
+
+    [Fact]
+    public async Task NavigateAwayAndBackToInstruments_ResetsDetailEditAndCreateStateWithoutReloading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        IReadOnlyList<InstrumentListItem> loadedInstruments = fixture.Instruments.Instruments;
+        var details = new InstrumentDetails(
+            Guid.NewGuid(), "ES", "E-mini S&P 500", AssetClass.Futures, "CME",
+            "USD", 0.25m, 12.50m, 50m, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        fixture.InstrumentReader.DetailsToReturn = details;
+        await fixture.Instruments.EditInstrumentCommand.ExecuteAsync(details.Id);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+
+        Assert.Null(fixture.Instruments.SelectedInstrument);
+        Assert.False(fixture.Instruments.IsEditFormVisible);
+        Assert.Empty(fixture.Instruments.EditSymbol);
+        fixture.Instruments.ShowCreateFormCommand.Execute(null);
+        fixture.Instruments.Symbol = "Draft";
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        Assert.False(fixture.Instruments.IsCreateFormVisible);
+        Assert.Empty(fixture.Instruments.Symbol);
+        Assert.Same(loadedInstruments, fixture.Instruments.Instruments);
+        Assert.Equal(1, fixture.InstrumentReader.CallCount);
+        Assert.Equal(1, fixture.InstrumentReader.DetailsCallCount);
+    }
+
+    [Fact]
+    public async Task NavigateAwayAndBackToSetups_ResetsDetailEditAndCreateStateWithoutReloading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Setups);
+        IReadOnlyList<TradingSetupListItem> loadedSetups = fixture.Setups.TradingSetups;
+        var details = new TradingSetupDetails(
+            Guid.NewGuid(), "Breakout", "Opening range", true,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        fixture.SetupReader.DetailsToReturn = details;
+        await fixture.Setups.EditCommand.ExecuteAsync(details.Id);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Setups);
+
+        Assert.Null(fixture.Setups.SelectedTradingSetup);
+        Assert.False(fixture.Setups.IsEditFormVisible);
+        Assert.Empty(fixture.Setups.EditNameText);
+        fixture.Setups.ShowCreateCommand.Execute(null);
+        fixture.Setups.NameText = "Draft";
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Setups);
+        Assert.False(fixture.Setups.IsCreateFormVisible);
+        Assert.Empty(fixture.Setups.NameText);
+        Assert.Same(loadedSetups, fixture.Setups.TradingSetups);
+        Assert.Equal(1, fixture.SetupReader.CallCount);
+        Assert.Equal(1, fixture.SetupReader.DetailsCallCount);
+    }
+
+    [Fact]
+    public async Task NavigateAwayAndBackToMistakes_ResetsDetailEditAndCreateStateWithoutReloading()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        IReadOnlyList<TradingMistakeListItem> loadedMistakes = fixture.Mistakes.TradingMistakes;
+        var details = new TradingMistakeDetails(
+            Guid.NewGuid(), "FOMO", "Late entry", true,
+            DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        fixture.MistakeReader.DetailsToReturn = details;
+        await fixture.Mistakes.EditCommand.ExecuteAsync(details.Id);
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+
+        Assert.Null(fixture.Mistakes.SelectedTradingMistake);
+        Assert.False(fixture.Mistakes.IsEditFormVisible);
+        Assert.Empty(fixture.Mistakes.EditNameText);
+        fixture.Mistakes.ShowCreateCommand.Execute(null);
+        fixture.Mistakes.NameText = "Draft";
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Mistakes);
+        Assert.False(fixture.Mistakes.IsCreateFormVisible);
+        Assert.Empty(fixture.Mistakes.NameText);
+        Assert.Same(loadedMistakes, fixture.Mistakes.TradingMistakes);
+        Assert.Equal(1, fixture.MistakeReader.CallCount);
+        Assert.Equal(1, fixture.MistakeReader.DetailsCallCount);
+    }
+
+    [Fact]
+    public void NavigateToCurrentRecordDestination_DoesNotResetTransientState()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.Accounts.ShowCreateFormCommand.Execute(null);
+        fixture.Accounts.AccountName = "Draft";
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+
+        Assert.True(fixture.Accounts.IsCreateFormVisible);
+        Assert.Equal("Draft", fixture.Accounts.AccountName);
+        Assert.Equal(1, fixture.AccountReader.CallCount);
+    }
+
+    [Fact]
+    public void ResetTransientState_CanBeCalledRepeatedlyWithoutClearingLoadedAccounts()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        IReadOnlyList<AccountListItem> loadedAccounts = fixture.Accounts.Accounts;
+        fixture.Accounts.ShowCreateFormCommand.Execute(null);
+        fixture.Accounts.AccountName = "Draft";
+
+        fixture.Accounts.ResetTransientState();
+        fixture.Accounts.ResetTransientState();
+
+        Assert.False(fixture.Accounts.IsCreateFormVisible);
+        Assert.Empty(fixture.Accounts.AccountName);
+        Assert.Null(fixture.Accounts.SelectedAccount);
+        Assert.Same(loadedAccounts, fixture.Accounts.Accounts);
+        Assert.Equal(1, fixture.AccountReader.CallCount);
     }
 
     [Fact]

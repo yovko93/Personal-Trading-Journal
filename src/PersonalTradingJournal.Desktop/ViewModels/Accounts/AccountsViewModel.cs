@@ -515,6 +515,28 @@ public sealed class AccountsViewModel : ObservableObject
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
     }
 
+    public void ResetTransientState()
+    {
+        ViewAccountCommand.Cancel();
+        EditAccountCommand.Cancel();
+
+        ResetCreateForm();
+        IsCreateFormVisible = false;
+
+        EditAccountName = string.Empty;
+        EditSelectedAccountType = TradingAccountType.Personal;
+        EditProviderName = string.Empty;
+        EditExternalAccountId = string.Empty;
+        EditCurrency = string.Empty;
+        EditStartingBalanceText = string.Empty;
+        ResetEditValidation();
+        IsEditFormVisible = false;
+
+        SelectedAccount = null;
+        LifecycleErrorMessage = null;
+        ActionErrorMessage = null;
+    }
+
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
         _ = await LoadAsync(forceRefresh: true, cancellationToken);

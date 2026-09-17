@@ -202,6 +202,27 @@ public sealed class TradingSetupsViewModel : ObservableObject
 
     public async Task EnsureLoadedAsync() => _ = await LoadAsync(false, CancellationToken.None);
 
+    public void ResetTransientState()
+    {
+        ViewCommand.Cancel();
+        EditCommand.Cancel();
+
+        ResetDraft();
+        IsCreateFormVisible = false;
+
+        EditNameText = string.Empty;
+        EditDescriptionText = string.Empty;
+        IsEditNameInvalid = false;
+        EditErrorMessage = null;
+        IsEditFormVisible = false;
+
+        SelectedTradingSetup = null;
+        ValidationErrorMessage = null;
+        ActionErrorMessage = null;
+        SaveErrorMessage = null;
+        SuccessMessage = null;
+    }
+
     private async Task RefreshAsync(CancellationToken token) => _ = await LoadAsync(true, token);
 
     private void ShowCreate()
