@@ -11,6 +11,8 @@
     <Color x:Key="PtjColorSuccess">#1A7F37</Color>
     <Color x:Key="PtjColorDanger">#CF222E</Color>
     <Color x:Key="PtjColorWarning">#9A6700</Color>
+    <Color x:Key="PtjColorSuccessSurface">#EAF7ED</Color>
+    <Color x:Key="PtjColorDangerSurface">#FDECEE</Color>
 
     <SolidColorBrush x:Key="PtjBackgroundBrush" Color="{StaticResource PtjColorBackground}" />
     <SolidColorBrush x:Key="PtjSurfaceBrush" Color="{StaticResource PtjColorSurface}" />
@@ -23,4 +25,6 @@
     <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
     <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />
+    <SolidColorBrush x:Key="PtjSuccessSurfaceBrush" Color="{StaticResource PtjColorSuccessSurface}" />
+    <SolidColorBrush x:Key="PtjDangerSurfaceBrush" Color="{StaticResource PtjColorDangerSurface}" />
 </ResourceDictionary>

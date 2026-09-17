@@ -1,8 +1,13 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
+    <UserControl.Resources>
+        <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
+    </UserControl.Resources>
+
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
@@ -870,6 +875,7 @@
                                         <TextBlock.Style>
                                             <Style TargetType="{x:Type TextBlock}"
                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL}" Value="{x:Null}">
@@ -890,8 +896,24 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                   Text="{Binding SelectedTradeDetail.GrossPnL}" />
+                                        <TextBlock Text="{Binding SelectedTradeDetail.GrossPnL}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}"
+                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Positive}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Negative}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Margin="4,0,0,0"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
                                                    Text="{Binding SelectedTradeDetail.Currency}" />
@@ -906,6 +928,7 @@
                                         <TextBlock.Style>
                                             <Style TargetType="{x:Type TextBlock}"
                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL}" Value="{x:Null}">
@@ -926,8 +949,25 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                   Text="{Binding SelectedTradeDetail.NetPnL}" />
+                                        <TextBlock Text="{Binding SelectedTradeDetail.NetPnL}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}"
+                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                    <Setter Property="FontSize" Value="15" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Positive}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Negative}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Margin="4,0,0,0"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
                                                    Text="{Binding SelectedTradeDetail.Currency}" />
@@ -2154,9 +2194,26 @@
                         <ItemsControl ItemsSource="{Binding RecentTrades}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="0,12"
+                                    <Border Margin="0,0,0,8"
+                                            Padding="12"
                                             BorderBrush="{DynamicResource PtjBorderBrush}"
-                                            BorderThickness="0,1,0,0">
+                                            BorderThickness="1"
+                                            CornerRadius="{StaticResource PtjCornerRadiusMd}">
+                                        <Border.Style>
+                                            <Style TargetType="{x:Type Border}">
+                                                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
+                                                        <Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                 Value="{x:Static converters:PnLOutcome.Negative}">
+                                                        <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="110" />
@@ -2224,6 +2281,7 @@
                                                     <TextBlock.Style>
                                                         <Style TargetType="{x:Type TextBlock}"
                                                                BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
@@ -2244,8 +2302,24 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
-                                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding NetPnL}" />
+                                                    <TextBlock Text="{Binding NetPnL}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}"
+                                                                   BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                 Value="{x:Static converters:PnLOutcome.Negative}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock Margin="4,0,0,0"
                                                                Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="{Binding Currency}" />
