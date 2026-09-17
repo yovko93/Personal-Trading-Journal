@@ -52,7 +52,7 @@ The Infrastructure project implements Application abstractions and owns external
 
 - `LocalApplicationPaths` and local directory creation;
 - `JournalDbContext` and EF Core SQLite registration;
-- Infrastructure-owned persistence records and `IEntityTypeConfiguration` mappings;
+- Infrastructure-owned persistence records and `IEntityTypeConfiguration` mappings, including the derived one-to-one Trade browse projection;
 - explicit persistence-record/Domain mappers;
 - Application reader and store implementations for Accounts and Instruments;
 - reader/store implementations for Trading Setup and Trading Mistake catalogs and Trade Mistake associations;
@@ -61,7 +61,7 @@ The Infrastructure project implements Application abstractions and owns external
 - local screenshot file storage and SQLite screenshot metadata/read/delete implementations;
 - the SQLite UTC timestamp converter;
 - EF Core migrations and the design-time context factory; and
-- `JournalDatabaseInitializer` for runtime migration application.
+- `JournalDatabaseInitializer` for runtime migration application and version-aware Trade browse projection reconciliation.
 
 Future imports and alternative persistence providers also belong at this boundary when concrete use cases require them.
 
@@ -218,6 +218,7 @@ TradesViewModel
   -> Trade and TradeExecution Domain APIs
   -> ITradeStore
   -> TradeStore
+  -> Trade + executions + Domain-derived browse projection
   -> SQLite
 ```
 
@@ -235,7 +236,7 @@ TradesViewModel
   -> opposite-side TradeExecution for Trade.OpenQuantity
   -> Trade.AddExecution
   -> ITradeMutationStore.SaveAsync
-  -> one SQLite SaveChanges
+  -> transactional execution replacement + regenerated browse projection
   -> authoritative Trade Detail and Recent Trades reload
 ```
 
@@ -249,7 +250,7 @@ TradesViewModel
   -> authoritative Trade, Account, Instrument, and optional Setup lookup
   -> Trade.CorrectDetails
   -> ITradeMutationStore.SaveAsync
-  -> transactional root update and execution-row replacement
+  -> transactional root update, execution-row replacement, and regenerated browse projection
   -> authoritative Trade Detail and Recent Trades reload
 ```
 
@@ -262,7 +263,7 @@ TradesViewModel
   -> shared destructive confirmation
   -> DeleteTradeUseCase
   -> ITradeDeletionStore
-  -> transactional dependent-row and Trade deletion
+  -> transactional dependent-row, browse-projection, and Trade deletion
   -> post-commit best-effort screenshot file cleanup
   -> authoritative Recent Trades reload
 ```
@@ -276,8 +277,7 @@ TradesViewModel
   -> ITradeListReader
   -> TradeListReader
   -> SQLite
-  -> TradePersistenceMapper
-  -> Domain Trade reconstruction
+  -> TradeBrowse + current Account/Instrument labels
   -> TradeListItem
 ```
 
@@ -293,9 +293,9 @@ TradesViewModel
   -> TradeDetail
 ```
 
-Both read paths use current Account and Instrument values only as display labels. Historical point value, currency, state, lifecycle timestamps, exposure, average prices, costs, and P&L remain authoritative from the reconstructed Trade and its pricing snapshot.
+Both read paths use current Account and Instrument values only as display labels. Trade Detail reconstructs the canonical aggregate. Trade list economics come from the persisted browse projection, which is regenerated exclusively from those same Domain properties during writes and startup reconciliation.
 
-`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext`, use no-tracking EF queries, and reconstruct Domain Trades through `TradePersistenceMapper`. EF Core materializes Infrastructure records, never Domain entities directly; lifecycle and economics remain Domain-derived.
+`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext` and use no-tracking EF queries. `TradeDetailReader` reconstructs Domain Trades through `TradePersistenceMapper`; `TradeListReader` reads `TradeBrowse` and live catalog labels without aggregate hydration. `TradeBrowse` is an Infrastructure cache rather than Domain state: canonical Trade and execution records always win, and projection version 1 can be rebuilt from them.
 
 After a successful Trade commit, Desktop resets and closes the draft, reports success, and performs a best-effort authoritative list reload. That post-commit reload deliberately does not inherit the completed Save command's cancellation. If it fails, the persisted write remains successful, the existing rows remain visible, and a list-level error allows an explicit Refresh; it is not reclassified as a Save failure.
 
@@ -395,7 +395,7 @@ The architecture deliberately does not introduce a generic `Repository<T>` or Un
 
 `AddPersistence(...)` registers `IDbContextFactory<JournalDbContext>`. Contexts are short-lived, created per operation, and disposed after use; the desktop application does not retain a long-lived context. Production-wired integration tests verify that writes made through one context are visible through later fresh contexts.
 
-For Trade creation, `TradeStore.AddAsync(...)` creates a fresh context, maps the authoritative aggregate with the existing Trade and execution persistence mappers, tracks the Trade root and every execution, and calls `SaveChangesAsync(...)` once. EF Core's transactional SaveChanges behavior provides atomicity; there is no custom transaction or Unit of Work abstraction.
+For Trade creation, `TradeStore.AddAsync(...)` creates a fresh context, maps the authoritative aggregate with the existing Trade and execution persistence mappers, derives `TradeBrowse` from the valid Domain aggregate, and calls `SaveChangesAsync(...)` once. EF Core's transactional SaveChanges behavior commits the root, executions, and browse projection atomically; there is no custom Unit of Work abstraction.
 
 Detailed schema, provider, and migration decisions are documented in [Persistence](persistence.md).
 
@@ -439,7 +439,7 @@ LocalApplicationPaths
   -> resolve and show MainWindow
 ```
 
-Runtime initialization uses `Database.MigrateAsync()`, never `EnsureCreated`. Migration exceptions propagate into the existing fatal startup handler, so the main window is not resolved or shown after a migration failure. There is no automatic database deletion, recreation, or destructive recovery fallback.
+Runtime initialization uses `Database.MigrateAsync()`, never `EnsureCreated`, then reconciles missing or old-version Trade browse rows from canonical Trade aggregates. Migration or reconciliation exceptions propagate into the existing fatal startup handler, so the main window is not resolved or shown after a failure. There is no automatic database deletion, recreation, or destructive recovery fallback.
 
 ## Design-Time Persistence Separation
 

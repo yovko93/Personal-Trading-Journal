@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Common.Storage;
@@ -49,6 +50,7 @@ public sealed class SqlitePersistenceIntegrityTests
         Type[] expectedRecordTypes =
         [
             typeof(InstrumentRecord),
+            typeof(TradeBrowseRecord),
             typeof(TradingAccountRecord),
             typeof(TradingSetupRecord),
             typeof(TradingMistakeRecord),
@@ -65,13 +67,16 @@ public sealed class SqlitePersistenceIntegrityTests
 
         foreach (IEntityType entityType in entityTypes)
         {
-            IProperty idProperty = entityType.FindProperty("Id")!;
+            string keyName = entityType.ClrType == typeof(TradeBrowseRecord)
+                ? nameof(TradeBrowseRecord.TradeId)
+                : "Id";
+            IProperty idProperty = entityType.FindProperty(keyName)!;
             Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
         }
     }
 
     [Fact]
-    public void ModelContainsCompleteForeignKeyMatrixWithOnlyExecutionCascade()
+    public void ModelContainsCompleteForeignKeyMatrixWithApprovedCascades()
     {
         using JournalDbContext context = CreateModelContext();
         IModel model = context.Model;
@@ -97,6 +102,13 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingSetupRecord),
             isRequired: false,
             DeleteBehavior.Restrict);
+        AssertForeignKey(
+            model,
+            typeof(TradeBrowseRecord),
+            nameof(TradeBrowseRecord.TradeId),
+            typeof(TradeRecord),
+            isRequired: true,
+            DeleteBehavior.Cascade);
         AssertForeignKey(
             model,
             typeof(TradeExecutionRecord),
@@ -129,13 +141,57 @@ public sealed class SqlitePersistenceIntegrityTests
         List<IForeignKey> foreignKeys = model.GetEntityTypes()
             .SelectMany(entityType => entityType.GetForeignKeys())
             .ToList();
-        Assert.Equal(7, foreignKeys.Count);
+        Assert.Equal(8, foreignKeys.Count);
 
-        IForeignKey cascade = Assert.Single(
-            foreignKeys,
-            foreignKey => foreignKey.DeleteBehavior == DeleteBehavior.Cascade);
-        Assert.Equal(typeof(TradeExecutionRecord), cascade.DeclaringEntityType.ClrType);
-        Assert.Equal(nameof(TradeExecutionRecord.TradeId), cascade.Properties.Single().Name);
+        IForeignKey[] cascades = foreignKeys
+            .Where(foreignKey =>
+                foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
+            .ToArray();
+        Assert.Equal(2, cascades.Length);
+        Assert.Contains(cascades, foreignKey =>
+            foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
+            foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));
+        Assert.Contains(cascades, foreignKey =>
+            foreignKey.DeclaringEntityType.ClrType == typeof(TradeBrowseRecord) &&
+            foreignKey.Properties.Single().Name == nameof(TradeBrowseRecord.TradeId));
+    }
+
+    [Fact]
+    public void TradeBrowseModelUsesExactBinarySortKeysAndQueryIndexes()
+    {
+        using JournalDbContext context = CreateModelContext();
+        IEntityType entityType = context.GetService<IDesignTimeModel>().Model.FindEntityType(
+            typeof(TradeBrowseRecord))!;
+
+        Assert.Equal(
+            nameof(TradeBrowseRecord.TradeId),
+            entityType.FindPrimaryKey()!.Properties.Single().Name);
+        string[] sortKeyProperties =
+        [
+            nameof(TradeBrowseRecord.OpenQuantitySortKey),
+            nameof(TradeBrowseRecord.AverageEntryPriceSortKey),
+            nameof(TradeBrowseRecord.NetPnLSortKey),
+        ];
+        foreach (string propertyName in sortKeyProperties)
+        {
+            IProperty property = entityType.FindProperty(propertyName)!;
+            Assert.Equal(58, property.GetMaxLength());
+            Assert.Equal("BINARY", property.GetCollation());
+        }
+
+        string[][] indexedProperties = entityType.GetIndexes()
+            .Select(index => index.Properties
+                .Select(property => property.Name)
+                .ToArray())
+            .ToArray();
+        Assert.Contains(indexedProperties, properties =>
+            properties.SequenceEqual([nameof(TradeBrowseRecord.OpenedAtUtc)]));
+        Assert.Contains(indexedProperties, properties =>
+            properties.SequenceEqual([nameof(TradeBrowseRecord.AverageEntryPriceSortKey)]));
+        Assert.Contains(indexedProperties, properties =>
+            properties.SequenceEqual([nameof(TradeBrowseRecord.OpenQuantitySortKey)]));
+        Assert.Contains(indexedProperties, properties =>
+            properties.SequenceEqual([nameof(TradeBrowseRecord.NetPnLSortKey)]));
     }
 
     [Fact]

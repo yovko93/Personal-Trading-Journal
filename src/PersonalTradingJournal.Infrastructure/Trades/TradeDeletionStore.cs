@@ -40,6 +40,10 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
         List<TradeExecutionRecord> executions = await context.TradeExecutions
             .Where(candidate => candidate.TradeId == tradeId)
             .ToListAsync(cancellationToken);
+        TradeBrowseRecord? browseRecord = await context.TradeBrowse
+            .SingleOrDefaultAsync(
+                candidate => candidate.TradeId == tradeId,
+                cancellationToken);
         List<TradeMistakeRecord> mistakes = await context.TradeMistakes
             .Where(candidate => candidate.TradeId == tradeId)
             .ToListAsync(cancellationToken);
@@ -57,6 +61,11 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
             context.TradeMistakes.RemoveRange(mistakes);
             context.TradeScreenshots.RemoveRange(screenshots);
             context.TradeExecutions.RemoveRange(executions);
+            if (browseRecord is not null)
+            {
+                context.TradeBrowse.Remove(browseRecord);
+            }
+
             context.Trades.Remove(trade);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);

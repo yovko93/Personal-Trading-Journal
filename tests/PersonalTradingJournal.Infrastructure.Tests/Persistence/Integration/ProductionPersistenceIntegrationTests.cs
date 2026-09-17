@@ -78,7 +78,11 @@ public sealed class ProductionPersistenceIntegrationTests
 
             Assert.NotSame(firstContext, readContext);
             Assert.Equal(
-                [InitialMigrationId, "20260914212911_RemoveStrategies"],
+                [
+                    InitialMigrationId,
+                    "20260914212911_RemoveStrategies",
+                    "20260917165522_AddTradeBrowseProjection",
+                ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 
             Instrument instrument = InstrumentPersistenceMapper.ToDomain(
@@ -545,6 +549,8 @@ public sealed class ProductionPersistenceIntegrationTests
         context.TradingMistakes.Add(
             TradingMistakePersistenceMapper.ToRecord(graph.TradingMistake));
         context.Trades.Add(TradePersistenceMapper.ToRecord(graph.Trade));
+        context.TradeBrowse.Add(
+            TradeBrowsePersistenceMapper.ToRecord(graph.Trade));
         context.TradeExecutions.AddRange(
             graph.Trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
         context.TradeScreenshots.Add(

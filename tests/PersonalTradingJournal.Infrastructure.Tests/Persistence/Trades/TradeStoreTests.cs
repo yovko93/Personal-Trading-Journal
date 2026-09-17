@@ -191,6 +191,9 @@ public sealed class TradeStoreTests
         Assert.False(await readContext.Trades
             .AsNoTracking()
             .AnyAsync(record => record.Id == newTradeId));
+        Assert.False(await readContext.TradeBrowse
+            .AsNoTracking()
+            .AnyAsync(record => record.TradeId == newTradeId));
         Assert.True(await readContext.Trades
             .AsNoTracking()
             .AnyAsync(record => record.Id == existingTrade.Id));
@@ -220,6 +223,9 @@ public sealed class TradeStoreTests
         Assert.False(await readContext.Trades
             .AsNoTracking()
             .AnyAsync(record => record.Id == trade.Id));
+        Assert.False(await readContext.TradeBrowse
+            .AsNoTracking()
+            .AnyAsync(record => record.TradeId == trade.Id));
     }
 
     private static async Task<(TradingAccount Account, Instrument Instrument)>

@@ -15,6 +15,8 @@ public sealed class InitialMigrationTests
 {
     private const string InitialMigrationId = "20260908122839_InitialCreate";
     private const string RemoveStrategiesMigrationId = "20260914212911_RemoveStrategies";
+    private const string TradeBrowseMigrationId =
+        "20260917165522_AddTradeBrowseProjection";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -46,6 +48,13 @@ public sealed class InitialMigrationTests
                 "Id", "CreatedAtUtc", "InstrumentId", "PricingCurrency",
                 "PricingPointValue", "TradingAccountId", "TradingSetupId", "UpdatedAtUtc",
             ],
+            ["TradeBrowse"] =
+            [
+                "TradeId", "ProjectionVersion", "OpenedAtUtc", "ClosedAtUtc",
+                "Direction", "Status", "OpenQuantity", "OpenQuantitySortKey",
+                "AverageEntryPrice", "AverageEntryPriceSortKey", "AverageExitPrice",
+                "TotalCosts", "GrossPnL", "NetPnL", "NetPnLSortKey",
+            ],
             ["TradeExecutions"] =
             [
                 "Id", "TradeId", "Sequence", "ExecutedAtUtc", "Side", "Quantity", "Price",
@@ -70,7 +79,7 @@ public sealed class InitialMigrationTests
             using var context = new JournalDbContext(options);
 
             Assert.Equal(
-                [InitialMigrationId, RemoveStrategiesMigrationId],
+                [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -82,7 +91,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(2L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(3L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -90,7 +99,10 @@ public sealed class InitialMigrationTests
                 IReadOnlyList<ColumnDefinition> columns = ReadColumns(connection, tableName);
                 Assert.Equal(expectedColumns, columns.Select(column => column.Name));
 
-                ColumnDefinition id = Assert.Single(columns, column => column.Name == "Id");
+                string keyName = tableName == "TradeBrowse" ? "TradeId" : "Id";
+                ColumnDefinition id = Assert.Single(
+                    columns,
+                    column => column.Name == keyName);
                 Assert.Equal("TEXT", id.StoreType);
                 Assert.True(id.IsPrimaryKey);
                 Assert.Null(id.DefaultValue);
@@ -344,7 +356,7 @@ public sealed class InitialMigrationTests
 
             using var readContext = new JournalDbContext(options);
             Assert.Equal(
-                [InitialMigrationId, RemoveStrategiesMigrationId],
+                [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -425,6 +437,8 @@ public sealed class InitialMigrationTests
             ("TradeScreenshots", "UpdatedAtUtc"),
             ("TradeMistakes", "CreatedAtUtc"),
             ("TradeMistakes", "UpdatedAtUtc"),
+            ("TradeBrowse", "OpenedAtUtc"),
+            ("TradeBrowse", "ClosedAtUtc"),
         ];
 
         foreach ((string table, string column) in timestampColumns)
@@ -448,6 +462,12 @@ public sealed class InitialMigrationTests
             ("TradeExecutions", "Price"),
             ("TradeExecutions", "Commission"),
             ("TradeExecutions", "Fees"),
+            ("TradeBrowse", "OpenQuantity"),
+            ("TradeBrowse", "AverageEntryPrice"),
+            ("TradeBrowse", "AverageExitPrice"),
+            ("TradeBrowse", "TotalCosts"),
+            ("TradeBrowse", "GrossPnL"),
+            ("TradeBrowse", "NetPnL"),
         ];
 
         foreach ((string table, string column) in decimalColumns)
@@ -465,11 +485,12 @@ public sealed class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(7, foreignKeys.Count);
+        Assert.Equal(8, foreignKeys.Count);
         AssertForeignKey(foreignKeys, "Trades", "TradingAccountId", "TradingAccounts", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "InstrumentId", "Instruments", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "TradingSetupId", "TradingSetups", "RESTRICT");
         AssertForeignKey(foreignKeys, "TradeExecutions", "TradeId", "Trades", "CASCADE");
+        AssertForeignKey(foreignKeys, "TradeBrowse", "TradeId", "Trades", "CASCADE");
         AssertForeignKey(foreignKeys, "TradeScreenshots", "TradeId", "Trades", "RESTRICT");
         AssertForeignKey(foreignKeys, "TradeMistakes", "TradeId", "Trades", "RESTRICT");
         AssertForeignKey(
@@ -479,11 +500,16 @@ public sealed class InitialMigrationTests
             "TradingMistakes",
             "RESTRICT");
 
-        ForeignKeyDefinition cascade = Assert.Single(
-            foreignKeys,
-            foreignKey => foreignKey.OnDelete == "CASCADE");
-        Assert.Equal("TradeExecutions", cascade.DependentTable);
-        Assert.Equal("TradeId", cascade.DependentColumn);
+        ForeignKeyDefinition[] cascades = foreignKeys
+            .Where(foreignKey => foreignKey.OnDelete == "CASCADE")
+            .ToArray();
+        Assert.Equal(2, cascades.Length);
+        Assert.Contains(cascades, cascade =>
+            cascade.DependentTable == "TradeExecutions" &&
+            cascade.DependentColumn == "TradeId");
+        Assert.Contains(cascades, cascade =>
+            cascade.DependentTable == "TradeBrowse" &&
+            cascade.DependentColumn == "TradeId");
 
         Assert.False(FindColumn(connection, "Trades", "TradingSetupId").IsRequired);
     }

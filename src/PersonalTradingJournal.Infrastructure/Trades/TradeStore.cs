@@ -29,6 +29,7 @@ public sealed class TradeStore : ITradeStore
         context.Trades.Add(TradePersistenceMapper.ToRecord(trade));
         context.TradeExecutions.AddRange(
             trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
+        context.TradeBrowse.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
 
         await context.SaveChangesAsync(cancellationToken);
     }

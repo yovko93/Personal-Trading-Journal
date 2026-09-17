@@ -36,6 +36,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDbContextFactory<JournalDbContext>(options =>
             options.UseSqlite(connectionString));
         services.AddTransient<JournalDatabaseInitializer>();
+        services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
         services.AddTransient<

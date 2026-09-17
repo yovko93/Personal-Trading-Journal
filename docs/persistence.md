@@ -122,12 +122,12 @@ M6 Manual Trade Entry uses the existing M3 Trade/Execution schema and migration;
 ITradeStore.AddAsync
   -> TradeStore
   -> TradePersistenceMapper + TradeExecutionPersistenceMapper
-  -> one TradeRecord + all TradeExecutionRecords
+  -> one TradeRecord + all TradeExecutionRecords + one TradeBrowseRecord
   -> one SaveChangesAsync
   -> SQLite
 ```
 
-`TradeStore` creates a fresh `JournalDbContext` for each write, maps the authoritative Domain aggregate, tracks its root and all executions, and saves them together. EF Core's transactional `SaveChangesAsync` supplies atomicity; there is no custom transaction wrapper or Unit of Work.
+`TradeStore` creates a fresh `JournalDbContext` for each write, maps the authoritative Domain aggregate, tracks its root and executions, derives its one-to-one browse projection from Domain properties, and saves them together. EF Core's transactional `SaveChangesAsync` supplies atomicity; there is no custom transaction wrapper or Unit of Work.
 
 The store persists the Trade's existing `PricingPointValue` and `PricingCurrency`. It does not reload current Instrument economics. `CreateManualTradeUseCase` creates that snapshot from the authoritative Domain Instrument's `PointValue` and `Currency`, so historical Trade economics remain stable after later Instrument metadata changes.
 
@@ -135,21 +135,19 @@ The store persists the Trade's existing `PricingPointValue` and `PricingCurrency
 
 `UpdateTradeUseCase` loads the authoritative aggregate through `ITradeMutationStore`, validates the selected Account, Instrument, and optional Setup, applies target-Instrument quantity policy, preserves execution provenance for retained execution identities, and calls `Trade.CorrectDetails(...)`. Keeping the same Instrument preserves the existing pricing snapshot; changing Instrument builds a new snapshot from the selected authoritative Instrument. A canonical no-op does not call the store.
 
-`TradeMutationStore.SaveAsync(...)` updates the complete Trade root state and replaces immutable execution rows explicitly. It removes the prior execution rows, saves, inserts the corrected rows, saves, and commits both phases inside one explicit SQLite transaction. This avoids `(TradeId, Sequence)` collisions while preserving retained execution IDs and ensures removed rows disappear, new rows appear, and no partially replaced execution lifecycle is observable. `TradeMistake` and `TradeScreenshot` rows are not touched. The existing stale-close guard still rejects an attempt to append a new execution identity after another writer has already closed the persisted Trade.
+`TradeMutationStore.SaveAsync(...)` updates the complete Trade root state, replaces immutable execution rows explicitly, and regenerates `TradeBrowse` from the corrected Domain aggregate. It removes the prior execution rows, saves, inserts the corrected rows plus projection update, saves, and commits both phases inside one explicit SQLite transaction. This avoids `(TradeId, Sequence)` collisions while preserving retained execution IDs and ensures removed rows disappear, new rows appear, and no partially replaced execution lifecycle or projection is observable. `TradeMistake` and `TradeScreenshot` rows are not touched. The existing stale-close guard still rejects an attempt to append a new execution identity after another writer has already closed the persisted Trade.
 
 ### Trade Hard Delete
 
-`ITradeDeletionStore` is a Trade-specific boundary. `TradeDeletionStore` first captures every screenshot storage key, then explicitly removes `TradeMistake`, `TradeScreenshot`, and `TradeExecution` rows before removing the Trade root in one database transaction. Account, Instrument, Trading Setup, and Trading Mistake catalog rows—and all unrelated Trade graphs—remain intact. The existing foreign keys and migration schema are unchanged.
+`ITradeDeletionStore` is a Trade-specific boundary. `TradeDeletionStore` first captures every screenshot storage key, then explicitly removes `TradeMistake`, `TradeScreenshot`, `TradeExecution`, and `TradeBrowse` rows before removing the Trade root in one database transaction. Account, Instrument, Trading Setup, and Trading Mistake catalog rows—and all unrelated Trade graphs—remain intact.
 
 After the database transaction commits, `DeleteTradeUseCase` attempts physical screenshot cleanup through `ITradeScreenshotFileStorage` with opaque keys. Database integrity is authoritative: files are never deleted before the database commit, a missing file is already-clean success, and a physical cleanup exception does not recreate the deleted Trade. The result distinguishes `Deleted` from `DeletedWithFileCleanupWarning`, allowing Desktop to surface a non-destructive orphan-file warning. SQLite and filesystem work are deliberately not described as one atomic transaction.
 
 ### Trade List Reader
 
-`TradeListReader` implements the bounded `ITradeListReader.GetRecentAsync(...)` query. The caller supplies a positive limit; Desktop currently requests 50. A fresh no-tracking context selects candidates by their sequence-1 execution timestamp descending and Trade ID ascending, applying SQL ordering and `Take` before materialization. `OpenedAtUtc` therefore comes from the first market execution; audit `CreatedAtUtc` is not browsing chronology, which matters for backfilled or imported history. The result is a recent working set, not lifetime history.
+`TradeListReader` implements the bounded `ITradeListReader.GetRecentAsync(...)` query. The caller supplies a positive limit; Desktop currently requests 50. A fresh no-tracking context joins `TradeBrowse` with canonical Trade, Account, and Instrument rows, orders by projected `OpenedAtUtc` descending and Trade ID ascending, and applies `Take` before materialization. Audit `CreatedAtUtc` is not browsing chronology, which matters for backfilled or imported history.
 
-After candidate selection, one additional query loads executions for only those Trade IDs in sequence order. The reader groups them in memory and reconstructs every aggregate through `TradePersistenceMapper`; it does not issue one execution query per row. Both open and closed Trades and inactive historical references remain visible.
-
-Each `TradeListItem` uses the current Trading Account name and Instrument symbol as display labels. Direction, status, market-event timestamps, exposure, averages, costs, nullable P&L, and currency come from the reconstructed Domain Trade and its historical pricing snapshot.
+Each `TradeListItem` uses current Trading Account and Instrument labels. Direction, status, market-event timestamps, exposure, averages, costs, and nullable P&L come from the versioned browse projection; currency remains canonical on the Trade root. The projection contains no calculation rules: write stores and startup reconciliation map it from an already-valid Domain Trade.
 
 ### Trade Detail Reader
 
@@ -169,13 +167,13 @@ Trading Setup details use an identifier-scoped no-tracking projection. Aggregate
 
 Trading Mistake details use an identifier-scoped no-tracking projection. Aggregate updates persist normalized Name/Description and lifecycle state without rewriting `TradeMistake` rows. Hard delete first performs an association-scoped `AnyAsync` check over `TradeMistakes`; the restrictive foreign key remains the race-safe final guard, and SQLite constraint failures are translated to the deterministic referenced result. Referenced Mistakes therefore remain editable and deactivatable but cannot be hard deleted.
 
-The current schema contains `TradingSetups`, `TradingMistakes`, `TradeMistakes`, and nullable `Trades.TradingSetupId`. It contains no current `Strategies` table or `Trades.StrategyId`; those names remain only in historical migration artifacts and tests of their removal.
+The current schema contains `TradingSetups`, `TradingMistakes`, `TradeMistakes`, the derived `TradeBrowse` table, and nullable `Trades.TradingSetupId`. It contains no current `Strategies` table or `Trades.StrategyId`; those names remain only in historical migration artifacts and tests of their removal.
 
 ## Decimal Semantics
 
 Domain types and persistence records use `System.Decimal`. Current decimal columns use SQLite `TEXT` storage through EF Core's provider mapping. Tests prove exact round-trip behavior for authoritative decimal facts, including fractional quantities, prices, commissions, fees, account balances, instrument values, and historical trade pricing.
 
-This representation is not a native fixed-decimal SQL type, and the current persistence contract does not define general database-side `SUM`, `AVG`, numeric ordering, or numeric comparison as an analytics contract. M7 avoids SQL decimal aggregation and reuses Domain-derived economics after aggregate reconstruction. Exact authoritative persistence is the current priority. Future analytics or read models may require deliberate query and storage design.
+This representation is not a native fixed-decimal SQL type, and the persistence contract does not define general database-side `SUM`, `AVG`, numeric ordering, or numeric comparison as an analytics contract. `TradeBrowse` therefore stores the exact Domain-derived decimal plus a 58-character BINARY-collated sort key for `OpenQuantity`, `AverageEntryPrice`, and non-null `NetPnL`. The encoder scales the exact 96-bit magnitude to 28 decimal places; negative magnitudes are complemented and separated from non-negative values so ordinal text order equals `decimal.Compare` without SQLite `REAL`. Open Trades retain null `NetPnL` and `NetPnLSortKey`.
 
 ## Timestamp Semantics
 
@@ -192,13 +190,14 @@ The current application migrations are:
 ```text
 20260908122839_InitialCreate
 20260914212911_RemoveStrategies
+20260917165522_AddTradeBrowseProjection
 ```
 
-`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` intentionally removes the former catalog table and nullable Trade association without converting that data into Trading Setups, because such a conversion would invent classification meaning. The latest model snapshot contains no Strategy model. The latest schema has eight application tables, seven foreign keys, ordinary FK indexes, and two deliberate composite unique indexes without seed data. Production schema management uses migrations and must not use `EnsureCreated`. Some focused test-only model characterizations use `EnsureCreated`, but migrated-schema tests and runtime initialization use the migration lifecycle.
+`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. The latest schema has nine application tables and eight foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
 
 ## Runtime Initialization
 
-`JournalDatabaseInitializer` depends on `IDbContextFactory<JournalDbContext>`. Its `InitializeAsync(...)` method creates a short-lived context with `CreateDbContextAsync(...)`, calls `Database.MigrateAsync(...)`, and disposes the context. The supplied cancellation token is propagated to both asynchronous operations.
+`JournalDatabaseInitializer` applies migrations and then invokes `TradeBrowseProjectionReconciler`. Reconciliation finds canonical Trades whose projection is missing or whose `ProjectionVersion` is not 1, reconstructs them through `TradePersistenceMapper`, and upserts Domain-derived rows in one transaction. It is idempotent, does not rewrite current-version rows, and propagates cancellation or failure so startup cannot continue with an incomplete browse model.
 
 Desktop startup follows this order:
 
@@ -209,7 +208,7 @@ start Generic Host
   -> resolve and show MainWindow
 ```
 
-Initialization creates a missing `journal.db`, applies pending migrations, and is idempotent on later starts. There is no seed data, destructive recovery, automatic database deletion, fallback to `EnsureCreated`, custom retry policy, or application-owned migration lock. Migration exceptions propagate, are logged by the startup failure handler, and prevent the main window from being shown.
+Initialization creates a missing `journal.db`, applies pending migrations, reconciles missing/version-stale browse projections, and is idempotent on later starts. There is no seed data, destructive recovery, automatic database deletion, fallback to `EnsureCreated`, custom retry policy, or application-owned migration lock. Migration and reconciliation exceptions propagate, are logged by the startup failure handler, and prevent the main window from being shown.
 
 ## Design-Time Tooling
 
@@ -228,6 +227,7 @@ Infrastructure tests cover:
 - foreign-key, delete-behavior, and unique-index integrity;
 - initial migration metadata and migrated-schema behavior;
 - runtime initializer creation, idempotency, and cancellation;
+- exact decimal sort-key ordering, Domain-to-browse parity, migration-2 backfill, projection-version reconciliation, and transactional projection synchronization;
 - `TradeStore`, `TradeMutationStore`, `TradeDeletionStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
 - Trading Setup and Trading Mistake catalog persistence, lifecycle, duplicate-name checks, and inactive visibility;
 - Trade Setup assignment/clearing and Trade Mistake assignment/removal, including active-selection validation and inactive historical preservation;

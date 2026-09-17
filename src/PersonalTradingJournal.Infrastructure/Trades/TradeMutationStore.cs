@@ -75,6 +75,10 @@ public sealed class TradeMutationStore : ITradeMutationStore
                 .Where(record => record.TradeId == trade.Id)
                 .OrderBy(record => record.Sequence)
                 .ToListAsync(cancellationToken);
+        TradeBrowseRecord? browseRecord = await context.TradeBrowse
+            .SingleOrDefaultAsync(
+                record => record.TradeId == trade.Id,
+                cancellationToken);
         Trade currentTrade = TradePersistenceMapper.ToDomain(
             currentRecord,
             currentExecutionRecords);
@@ -109,6 +113,16 @@ public sealed class TradeMutationStore : ITradeMutationStore
 
             context.TradeExecutions.AddRange(
                 trade.Executions.Select(TradeExecutionPersistenceMapper.ToRecord));
+            if (browseRecord is null)
+            {
+                context.TradeBrowse.Add(
+                    TradeBrowsePersistenceMapper.ToRecord(trade));
+            }
+            else
+            {
+                TradeBrowsePersistenceMapper.Apply(browseRecord, trade);
+            }
+
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
