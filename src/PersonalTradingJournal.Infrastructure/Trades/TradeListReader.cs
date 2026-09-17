@@ -15,48 +15,103 @@ public sealed class TradeListReader : ITradeListReader
         _contextFactory = contextFactory;
     }
 
-    public async Task<IReadOnlyList<TradeListItem>> GetRecentAsync(
-        int limit,
+    public async Task<TradeListPage> GetPageAsync(
+        TradeListQuery query,
         CancellationToken cancellationToken = default)
     {
-        if (limit <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(limit),
-                limit,
-                "The Trade list limit must be greater than zero.");
-        }
+        ArgumentNullException.ThrowIfNull(query);
 
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return await (
-                from tradeRecord in context.Trades.AsNoTracking()
-                join browseRecord in context.TradeBrowse.AsNoTracking()
-                    on tradeRecord.Id equals browseRecord.TradeId
-                join accountRecord in context.TradingAccounts.AsNoTracking()
-                    on tradeRecord.TradingAccountId equals accountRecord.Id
-                join instrumentRecord in context.Instruments.AsNoTracking()
-                    on tradeRecord.InstrumentId equals instrumentRecord.Id
-                orderby browseRecord.OpenedAtUtc descending, tradeRecord.Id
-                select new TradeListItem(
-                    tradeRecord.Id,
-                    tradeRecord.TradingAccountId,
-                    accountRecord.Name,
-                    tradeRecord.InstrumentId,
-                    instrumentRecord.Symbol,
-                    browseRecord.Direction,
-                    browseRecord.Status,
-                    browseRecord.OpenedAtUtc,
-                    browseRecord.ClosedAtUtc,
-                    browseRecord.OpenQuantity,
-                    browseRecord.AverageEntryPrice,
-                    browseRecord.AverageExitPrice,
-                    browseRecord.TotalCosts,
-                    browseRecord.GrossPnL,
-                    browseRecord.NetPnL,
-                    tradeRecord.PricingCurrency))
-            .Take(limit)
+        var rows =
+            from tradeRecord in context.Trades.AsNoTracking()
+            join browseRecord in context.TradeBrowse.AsNoTracking()
+                on tradeRecord.Id equals browseRecord.TradeId
+            join accountRecord in context.TradingAccounts.AsNoTracking()
+                on tradeRecord.TradingAccountId equals accountRecord.Id
+            join instrumentRecord in context.Instruments.AsNoTracking()
+                on tradeRecord.InstrumentId equals instrumentRecord.Id
+            select new
+            {
+                Trade = tradeRecord,
+                Browse = browseRecord,
+                AccountName = accountRecord.Name,
+                InstrumentSymbol = instrumentRecord.Symbol,
+            };
+
+        int totalCount = await rows.CountAsync(cancellationToken);
+
+        var orderedRows = (query.SortColumn, query.SortDirection) switch
+        {
+            (TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.Browse.OpenedAtUtc)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending) =>
+                rows.OrderByDescending(row => row.Browse.OpenedAtUtc)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.Instrument, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.InstrumentSymbol)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.Instrument, TradeListSortDirection.Descending) =>
+                rows.OrderByDescending(row => row.InstrumentSymbol)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.Account, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.AccountName)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.Account, TradeListSortDirection.Descending) =>
+                rows.OrderByDescending(row => row.AccountName)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.AverageEntryPrice, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.Browse.AverageEntryPriceSortKey)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.AverageEntryPrice, TradeListSortDirection.Descending) =>
+                rows.OrderByDescending(row => row.Browse.AverageEntryPriceSortKey)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.OpenQuantity, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.Browse.OpenQuantitySortKey)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.OpenQuantity, TradeListSortDirection.Descending) =>
+                rows.OrderByDescending(row => row.Browse.OpenQuantitySortKey)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.NetPnL, TradeListSortDirection.Ascending) =>
+                rows.OrderBy(row => row.Browse.NetPnLSortKey == null)
+                    .ThenBy(row => row.Browse.NetPnLSortKey)
+                    .ThenBy(row => row.Trade.Id),
+            (TradeListSortColumn.NetPnL, TradeListSortDirection.Descending) =>
+                rows.OrderBy(row => row.Browse.NetPnLSortKey == null)
+                    .ThenByDescending(row => row.Browse.NetPnLSortKey)
+                    .ThenBy(row => row.Trade.Id),
+            _ => throw new ArgumentOutOfRangeException(nameof(query)),
+        };
+
+        int skip = checked((query.PageNumber - 1) * query.PageSize);
+        List<TradeListItem> items = await orderedRows
+            .Skip(skip)
+            .Take(query.PageSize)
+            .Select(row => new TradeListItem(
+                row.Trade.Id,
+                row.Trade.TradingAccountId,
+                row.AccountName,
+                row.Trade.InstrumentId,
+                row.InstrumentSymbol,
+                row.Browse.Direction,
+                row.Browse.Status,
+                row.Browse.OpenedAtUtc,
+                row.Browse.ClosedAtUtc,
+                row.Browse.OpenQuantity,
+                row.Browse.AverageEntryPrice,
+                row.Browse.AverageExitPrice,
+                row.Browse.TotalCosts,
+                row.Browse.GrossPnL,
+                row.Browse.NetPnL,
+                row.Trade.PricingCurrency))
             .ToListAsync(cancellationToken);
+
+        return new TradeListPage(
+            items,
+            query.PageNumber,
+            query.PageSize,
+            totalCount);
     }
 }

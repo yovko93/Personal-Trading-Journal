@@ -33,7 +33,7 @@ internal enum ManualTradeInputField
 
 public sealed class TradesViewModel : ObservableObject
 {
-    private const int RecentTradeLimit = 50;
+    private const int TradePageSize = 20;
     private const NumberStyles DecimalNumberStyles =
         NumberStyles.AllowLeadingWhite |
         NumberStyles.AllowTrailingWhite |
@@ -183,6 +183,12 @@ public sealed class TradesViewModel : ObservableObject
     private ManualTradeInputField? _invalidManualTradeInput;
     private string _quantityText = string.Empty;
     private IReadOnlyList<TradeListItem> _recentTrades = [];
+    private int _currentPage = 1;
+    private int _totalCount;
+    private TradeListSortColumn _currentSortColumn =
+        TradeListSortColumn.OpenedAtUtc;
+    private TradeListSortDirection _currentSortDirection =
+        TradeListSortDirection.Descending;
     private string? _saveErrorMessage;
     private ManualTradeAccountOption? _selectedAccount;
     private TradeDirection? _selectedDirection;
@@ -386,6 +392,15 @@ public sealed class TradesViewModel : ObservableObject
         DeleteSelectedTradeCommand = new AsyncRelayCommand(
             DeleteSelectedTradeAsync,
             CanDeleteSelectedTrade);
+        PreviousTradePageCommand = new AsyncRelayCommand(
+            GoToPreviousTradePageAsync,
+            () => CanGoPrevious);
+        NextTradePageCommand = new AsyncRelayCommand(
+            GoToNextTradePageAsync,
+            () => CanGoNext);
+        SortTradesCommand = new AsyncRelayCommand<TradeListSortColumn>(
+            SortTradesAsync,
+            CanSortTrades);
     }
 
     public IReadOnlyList<ManualTradeAccountOption> AccountOptions
@@ -509,6 +524,101 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     public bool HasTrades => RecentTrades.Count > 0;
+
+    public int CurrentPage
+    {
+        get => _currentPage;
+        private set
+        {
+            if (SetProperty(ref _currentPage, value))
+            {
+                OnPropertyChanged(nameof(CanGoPrevious));
+                OnPropertyChanged(nameof(CanGoNext));
+                OnPropertyChanged(nameof(PageSummary));
+                NotifyTradeBrowseCommands();
+            }
+        }
+    }
+
+    public int PageSize => TradePageSize;
+
+    public int TotalCount
+    {
+        get => _totalCount;
+        private set
+        {
+            if (SetProperty(ref _totalCount, value))
+            {
+                OnPropertyChanged(nameof(TotalPages));
+                OnPropertyChanged(nameof(CanGoNext));
+                OnPropertyChanged(nameof(HasMultipleTradePages));
+                OnPropertyChanged(nameof(PageSummary));
+                OnPropertyChanged(nameof(TotalTradesText));
+                NotifyTradeBrowseCommands();
+            }
+        }
+    }
+
+    public int TotalPages => TotalCount == 0
+        ? 0
+        : ((TotalCount - 1) / PageSize) + 1;
+
+    public bool HasMultipleTradePages => TotalPages > 1;
+
+    public bool CanGoPrevious => CurrentPage > 1 && !IsTradeListLoading;
+
+    public bool CanGoNext =>
+        CurrentPage < TotalPages && !IsTradeListLoading;
+
+    public string PageSummary => TotalPages == 0
+        ? string.Empty
+        : $"Page {CurrentPage} of {TotalPages}";
+
+    public string TotalTradesText => TotalCount == 1
+        ? "1 total trade"
+        : $"{TotalCount} total trades";
+
+    public TradeListSortColumn CurrentSortColumn
+    {
+        get => _currentSortColumn;
+        private set
+        {
+            if (SetProperty(ref _currentSortColumn, value))
+            {
+                NotifySortIndicatorsChanged();
+            }
+        }
+    }
+
+    public TradeListSortDirection CurrentSortDirection
+    {
+        get => _currentSortDirection;
+        private set
+        {
+            if (SetProperty(ref _currentSortDirection, value))
+            {
+                NotifySortIndicatorsChanged();
+            }
+        }
+    }
+
+    public string OpenedAtUtcSortIndicator =>
+        GetSortIndicator(TradeListSortColumn.OpenedAtUtc);
+
+    public string InstrumentSortIndicator =>
+        GetSortIndicator(TradeListSortColumn.Instrument);
+
+    public string AccountSortIndicator =>
+        GetSortIndicator(TradeListSortColumn.Account);
+
+    public string AverageEntryPriceSortIndicator =>
+        GetSortIndicator(TradeListSortColumn.AverageEntryPrice);
+
+    public string OpenQuantitySortIndicator =>
+        GetSortIndicator(TradeListSortColumn.OpenQuantity);
+
+    public string NetPnLSortIndicator =>
+        GetSortIndicator(TradeListSortColumn.NetPnL);
 
     public TradeDetail? SelectedTradeDetail
     {
@@ -1071,6 +1181,9 @@ public sealed class TradesViewModel : ObservableObject
                 RefreshCommand.NotifyCanExecuteChanged();
                 SaveManualTradeCommand.NotifyCanExecuteChanged();
                 ShowTradeDetailCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(CanGoPrevious));
+                OnPropertyChanged(nameof(CanGoNext));
+                NotifyTradeBrowseCommands();
                 NotifyTradeLifecycleCommands();
             }
         }
@@ -1749,6 +1862,19 @@ public sealed class TradesViewModel : ObservableObject
 
     public IAsyncRelayCommand DeleteSelectedTradeCommand { get; }
 
+    public IAsyncRelayCommand PreviousTradePageCommand { get; }
+
+    public IAsyncRelayCommand NextTradePageCommand { get; }
+
+    public IAsyncRelayCommand<TradeListSortColumn> SortTradesCommand { get; }
+
+    private void NotifyTradeBrowseCommands()
+    {
+        PreviousTradePageCommand.NotifyCanExecuteChanged();
+        NextTradePageCommand.NotifyCanExecuteChanged();
+        SortTradesCommand.NotifyCanExecuteChanged();
+    }
+
     private void NotifyTradeLifecycleCommands()
     {
         ShowTradeEditCommand.NotifyCanExecuteChanged();
@@ -1976,6 +2102,56 @@ public sealed class TradesViewModel : ObservableObject
         TradingSetupSuccessMessage = null;
         TradeDeleteErrorMessage = null;
         TradeDeleteWarningMessage = null;
+    }
+
+    private bool CanSortTrades(TradeListSortColumn sortColumn) =>
+        Enum.IsDefined(sortColumn) && !IsTradeListLoading;
+
+    private async Task SortTradesAsync(
+        TradeListSortColumn sortColumn,
+        CancellationToken cancellationToken)
+    {
+        TradeListSortDirection direction = sortColumn == CurrentSortColumn
+            ? Toggle(CurrentSortDirection)
+            : GetDefaultDirection(sortColumn);
+        var query = new TradeListQuery(
+            pageNumber: 1,
+            PageSize,
+            sortColumn,
+            direction);
+
+        _ = await LoadTradeListAsync(
+            forceRefresh: true,
+            cancellationToken,
+            query);
+    }
+
+    private async Task GoToPreviousTradePageAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!CanGoPrevious)
+        {
+            return;
+        }
+
+        _ = await LoadTradeListAsync(
+            forceRefresh: true,
+            cancellationToken,
+            CreateTradeListQuery(CurrentPage - 1));
+    }
+
+    private async Task GoToNextTradePageAsync(
+        CancellationToken cancellationToken)
+    {
+        if (!CanGoNext)
+        {
+            return;
+        }
+
+        _ = await LoadTradeListAsync(
+            forceRefresh: true,
+            cancellationToken,
+            CreateTradeListQuery(CurrentPage + 1));
     }
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
@@ -3314,7 +3490,12 @@ public sealed class TradesViewModel : ObservableObject
             // best-effort projection reload into a cancelled save outcome.
             _ = await LoadTradeListAsync(
                 forceRefresh: true,
-                CancellationToken.None);
+                CancellationToken.None,
+                new TradeListQuery(
+                    pageNumber: 1,
+                    PageSize,
+                    TradeListSortColumn.OpenedAtUtc,
+                    TradeListSortDirection.Descending));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3876,7 +4057,8 @@ public sealed class TradesViewModel : ObservableObject
 
     private async Task<bool> LoadTradeListAsync(
         bool forceRefresh,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TradeListQuery? requestedQuery = null)
     {
         if (!await _tradeListLoadGate.WaitAsync(0, cancellationToken))
         {
@@ -3895,12 +4077,28 @@ public sealed class TradesViewModel : ObservableObject
 
             try
             {
-                IReadOnlyList<TradeListItem> recentTrades =
-                    await _tradeListReader.GetRecentAsync(
-                        RecentTradeLimit,
+                TradeListQuery query = requestedQuery ?? CreateTradeListQuery();
+                TradeListPage page = await _tradeListReader.GetPageAsync(
+                    query,
+                    cancellationToken);
+                int highestPage = Math.Max(1, page.TotalPages);
+                if (query.PageNumber > highestPage)
+                {
+                    query = new TradeListQuery(
+                        highestPage,
+                        query.PageSize,
+                        query.SortColumn,
+                        query.SortDirection);
+                    page = await _tradeListReader.GetPageAsync(
+                        query,
                         cancellationToken);
+                }
 
-                RecentTrades = recentTrades;
+                CurrentPage = page.PageNumber;
+                CurrentSortColumn = query.SortColumn;
+                CurrentSortDirection = query.SortDirection;
+                TotalCount = page.TotalCount;
+                RecentTrades = page.Items;
                 _hasTradeListLoadedSuccessfully = true;
                 return true;
             }
@@ -3923,4 +4121,50 @@ public sealed class TradesViewModel : ObservableObject
             _tradeListLoadGate.Release();
         }
     }
+
+    private TradeListQuery CreateTradeListQuery(int? pageNumber = null) => new(
+        pageNumber ?? CurrentPage,
+        PageSize,
+        CurrentSortColumn,
+        CurrentSortDirection);
+
+    private string GetSortIndicator(TradeListSortColumn column)
+    {
+        if (column != CurrentSortColumn)
+        {
+            return string.Empty;
+        }
+
+        return CurrentSortDirection == TradeListSortDirection.Ascending
+            ? "↑"
+            : "↓";
+    }
+
+    private void NotifySortIndicatorsChanged()
+    {
+        OnPropertyChanged(nameof(OpenedAtUtcSortIndicator));
+        OnPropertyChanged(nameof(InstrumentSortIndicator));
+        OnPropertyChanged(nameof(AccountSortIndicator));
+        OnPropertyChanged(nameof(AverageEntryPriceSortIndicator));
+        OnPropertyChanged(nameof(OpenQuantitySortIndicator));
+        OnPropertyChanged(nameof(NetPnLSortIndicator));
+    }
+
+    private static TradeListSortDirection Toggle(
+        TradeListSortDirection direction) =>
+        direction == TradeListSortDirection.Ascending
+            ? TradeListSortDirection.Descending
+            : TradeListSortDirection.Ascending;
+
+    private static TradeListSortDirection GetDefaultDirection(
+        TradeListSortColumn column) => column switch
+        {
+            TradeListSortColumn.OpenedAtUtc => TradeListSortDirection.Descending,
+            TradeListSortColumn.NetPnL => TradeListSortDirection.Descending,
+            TradeListSortColumn.Instrument => TradeListSortDirection.Ascending,
+            TradeListSortColumn.Account => TradeListSortDirection.Ascending,
+            TradeListSortColumn.AverageEntryPrice => TradeListSortDirection.Ascending,
+            TradeListSortColumn.OpenQuantity => TradeListSortDirection.Ascending,
+            _ => throw new ArgumentOutOfRangeException(nameof(column)),
+        };
 }

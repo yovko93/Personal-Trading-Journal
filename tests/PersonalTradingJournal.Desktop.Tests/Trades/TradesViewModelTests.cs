@@ -752,7 +752,7 @@ public sealed partial class TradesViewModelTests
 
         Assert.Equal(1, fixture.TradeStore.AddCallCount);
         Assert.Equal(2, fixture.TradeListReader.CallCount);
-        Assert.Equal([50, 50], fixture.TradeListReader.RequestedLimits);
+        Assert.Equal([20, 20], fixture.TradeListReader.RequestedLimits);
         Assert.Same(authoritative, fixture.ViewModel.RecentTrades);
         Assert.Collection(
             fixture.ViewModel.RecentTrades,
@@ -1163,7 +1163,7 @@ public sealed partial class TradesViewModelTests
         Assert.Null(viewModel.TradeListErrorMessage);
         Assert.False(viewModel.HasTradeListError);
         Assert.Equal(1, tradeListReader.CallCount);
-        Assert.Equal([50], tradeListReader.RequestedLimits);
+        Assert.Equal([20], tradeListReader.RequestedLimits);
     }
 
     [Fact]
@@ -1346,7 +1346,7 @@ public sealed partial class TradesViewModelTests
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
         Assert.Same(refreshed, viewModel.RecentTrades);
-        Assert.Equal([50, 50], tradeListReader.RequestedLimits);
+        Assert.Equal([20, 20], tradeListReader.RequestedLimits);
     }
 
     [Fact]
@@ -2803,7 +2803,9 @@ public sealed partial class TradesViewModelTests
             InstrumentToReturn = CreateInstrument(initial.InstrumentId),
         };
         var listReader = new FakeTradeListReader();
-        listReader.EnqueueResult([]);
+        listReader.EnqueuePage([item], 45);
+        listReader.EnqueuePage([item], 45, pageNumber: 2);
+        listReader.EnqueuePage([], 45, pageNumber: 2);
         TradesViewModel viewModel = CreateViewModel(
             reader: referenceReader,
             tradeListReader: listReader,
@@ -2813,6 +2815,8 @@ public sealed partial class TradesViewModelTests
             tradeMutationStore: mutationStore,
             tradingSetupReader: setupReader);
 
+        await viewModel.SortTradesCommand.ExecuteAsync(TradeListSortColumn.NetPnL);
+        await viewModel.NextTradePageCommand.ExecuteAsync(null);
         await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
         viewModel.EntryPriceText = "101";
         await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
@@ -2822,7 +2826,11 @@ public sealed partial class TradesViewModelTests
         Assert.False(viewModel.IsTradeEditVisible);
         Assert.Same(updated, viewModel.SelectedTradeDetail);
         Assert.Equal("Trade updated successfully.", viewModel.TradeUpdateSuccessMessage);
-        Assert.Equal(1, listReader.CallCount);
+        Assert.Equal(3, listReader.CallCount);
+        TradeListQuery reload = listReader.RequestedQueries[^1];
+        Assert.Equal(2, reload.PageNumber);
+        Assert.Equal(TradeListSortColumn.NetPnL, reload.SortColumn);
+        Assert.Equal(TradeListSortDirection.Descending, reload.SortDirection);
     }
 
     [Fact]

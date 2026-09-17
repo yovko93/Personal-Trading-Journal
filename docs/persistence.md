@@ -145,7 +145,9 @@ After the database transaction commits, `DeleteTradeUseCase` attempts physical s
 
 ### Trade List Reader
 
-`TradeListReader` implements the bounded `ITradeListReader.GetRecentAsync(...)` query. The caller supplies a positive limit; Desktop currently requests 50. A fresh no-tracking context joins `TradeBrowse` with canonical Trade, Account, and Instrument rows, orders by projected `OpenedAtUtc` descending and Trade ID ascending, and applies `Take` before materialization. Audit `CreatedAtUtc` is not browsing chronology, which matters for backfilled or imported history.
+`TradeListReader` implements `ITradeListReader.GetPageAsync(...)` for explicit `TradeListQuery` values. Desktop requests fixed 20-row pages. A fresh no-tracking context joins `TradeBrowse` with canonical Trade, Account, and Instrument rows, executes a server-side `COUNT`, applies the selected `ORDER BY`, and then applies `Skip` and `Take` before materialization. It returns `TradeListPage` with the requested page metadata and total count; Infrastructure never silently clamps a requested page.
+
+Opened UTC sorts on `TradeBrowse.OpenedAtUtc`; Instrument and Account sort on their live joined labels. Average Prices sorts by `AverageEntryPriceSortKey`, Open Qty by `OpenQuantitySortKey`, and Net P&L by `NetPnLSortKey`. Net P&L first orders an explicit null flag so open/null values remain last for both ascending and descending numeric order. Every branch ends with Trade ID ascending, giving deterministic boundaries across pages. The default Desktop query is page 1, Opened UTC descending.
 
 Each `TradeListItem` uses current Trading Account and Instrument labels. Direction, status, market-event timestamps, exposure, averages, costs, and nullable P&L come from the versioned browse projection; currency remains canonical on the Trade root. The projection contains no calculation rules: write stores and startup reconciliation map it from an already-valid Domain Trade.
 

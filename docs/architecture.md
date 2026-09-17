@@ -40,7 +40,7 @@ Current feature boundaries are:
 - **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`;
 - **Setups** — Trading Setup catalog reads, create/lifecycle use cases, duplicate-name checks, and aggregate persistence;
 - **Mistakes** — Trading Mistake catalog reads and writes plus Trade Mistake assignment, removal, and Trade-scoped projections;
-- **Trades** — manual create/correction/close/hard-delete workflows, optional Trading Setup validation and mutation, narrow aggregate-write and deletion boundaries, selector projections, bounded list reads, and complete one-Trade detail reads;
+- **Trades** — manual create/correction/close/hard-delete workflows, optional Trading Setup validation and mutation, narrow aggregate-write and deletion boundaries, selector projections, pageable list reads, and complete one-Trade detail reads;
 - **Screenshots** — purpose-specific boundaries and use cases coordinate Trade existence checks, binary storage, metadata persistence, ordered metadata reads, content retrieval, and deletion without exposing provider details to presentation; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
 
@@ -77,7 +77,7 @@ The Desktop project contains the WPF presentation layer and the application comp
 - data-backed Accounts, Instruments, and Trades feature workflows;
 - data-backed Trading Setup and Trading Mistake catalog workflows;
 - manual Trade create/edit state, deterministic raw-input parsing and validation, and submission through the Application use cases;
-- authoritative Recent Trades, Trade Detail, and ordered execution-lifecycle presentation;
+- authoritative paged Trades, Trade Detail, and ordered execution-lifecycle presentation;
 - explicit Trade edit and destructive delete actions with authoritative post-write reloads;
 - optional Setup selection during entry, Setup assignment/change/clear, and Trading Mistake assignment/removal in Trade Detail;
 - screenshot file selection, metadata presentation, preview decoding, delete confirmation, and operation state;
@@ -237,7 +237,7 @@ TradesViewModel
   -> Trade.AddExecution
   -> ITradeMutationStore.SaveAsync
   -> transactional execution replacement + regenerated browse projection
-  -> authoritative Trade Detail and Recent Trades reload
+  -> authoritative Trade Detail and first-page Trade reload
 ```
 
 The close command deliberately contains no quantity. The use case closes the aggregate's exact remaining `OpenQuantity`, and Domain execution rules remain authoritative for sequence, chronology, status, closure time, and P&L. Desktop does not fabricate the closed projection; post-commit detail and list reloads use non-cancellable tokens so a committed close is not reclassified as cancellation. The screenshot list is unaffected by the close.
@@ -251,7 +251,7 @@ TradesViewModel
   -> Trade.CorrectDetails
   -> ITradeMutationStore.SaveAsync
   -> transactional root update, execution-row replacement, and regenerated browse projection
-  -> authoritative Trade Detail and Recent Trades reload
+  -> authoritative Trade Detail and current-page Trade reload
 ```
 
 The use case preserves the historical pricing snapshot when Instrument is unchanged and rebuilds it from the authoritative Instrument when the Instrument changes. It permits current inactive references to remain selected, rejects different inactive references, preserves retained execution identities and broker/import provenance, and applies target-Instrument quantity policy. Domain validates the complete replacement before mutation, recalculates all derived lifecycle/economic values, and treats canonically identical input as a no-write result. Trade Mistake associations and screenshot metadata are not part of this correction.
@@ -265,20 +265,21 @@ TradesViewModel
   -> ITradeDeletionStore
   -> transactional dependent-row, browse-projection, and Trade deletion
   -> post-commit best-effort screenshot file cleanup
-  -> authoritative Recent Trades reload
+  -> authoritative current-page Trade reload with invalid-page correction
 ```
 
 Database deletion commits before physical screenshot cleanup. A cleanup exception therefore returns a deterministic warning instead of misreporting the committed database deletion as a failure. The store removes execution rows, Trade Mistake associations, and screenshot metadata for only the target Trade while preserving reference catalogs and unrelated Trade graphs.
 
-The bounded list path is:
+The pageable list path is:
 
 ```text
 TradesViewModel
   -> ITradeListReader
   -> TradeListReader
   -> SQLite
+  -> COUNT + selected ORDER BY + Skip/Take
   -> TradeBrowse + current Account/Instrument labels
-  -> TradeListItem
+  -> TradeListPage
 ```
 
 The one-Trade detail path is:
@@ -295,11 +296,11 @@ TradesViewModel
 
 Both read paths use current Account and Instrument values only as display labels. Trade Detail reconstructs the canonical aggregate. Trade list economics come from the persisted browse projection, which is regenerated exclusively from those same Domain properties during writes and startup reconciliation.
 
-`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext` and use no-tracking EF queries. `TradeDetailReader` reconstructs Domain Trades through `TradePersistenceMapper`; `TradeListReader` reads `TradeBrowse` and live catalog labels without aggregate hydration. `TradeBrowse` is an Infrastructure cache rather than Domain state: canonical Trade and execution records always win, and projection version 1 can be rebuilt from them.
+`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext` and use no-tracking EF queries. `TradeDetailReader` reconstructs Domain Trades through `TradePersistenceMapper`; `TradeListReader` counts, sorts, skips, takes, and projects `TradeBrowse` plus live catalog labels entirely in SQLite without aggregate hydration. Exact decimal ordering uses the persisted sort keys, Net P&L explicitly keeps null/open Trades last in both directions, and Trade ID ascending is the final tie-breaker. `TradeBrowse` is an Infrastructure cache rather than Domain state: canonical Trade and execution records always win, and projection version 1 can be rebuilt from them.
 
 After a successful Trade commit, Desktop resets and closes the draft, reports success, and performs a best-effort authoritative list reload. That post-commit reload deliberately does not inherit the completed Save command's cancellation. If it fails, the persisted write remains successful, the existing rows remain visible, and a list-level error allows an explicit Refresh; it is not reclassified as a Save failure.
 
-`TradesViewModel` keeps independent areas of feature state for manual reference data, the bounded Trade list, the shared create/edit draft and save operation, Trade Detail, and delete feedback. Detail state is exposed through `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage`. Loading detail does not replace the list or mutate the aggregate.
+`TradesViewModel` keeps independent areas of feature state for manual reference data, the current 20-row Trade page and sort, the shared create/edit draft and save operation, Trade Detail, and delete feedback. Browse state survives navigation transient-state reset. Create returns to page 1 / Opened UTC descending; refresh, edit, and close preserve page/sort; delete corrects an invalid last page. Detail state is exposed through `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage`. Loading detail does not replace the list or mutate the aggregate.
 
 `IManualTradeReferenceDataReader` is a purpose-specific Trade-entry projection, not a generic query service. Management pages use `ITradingAccountReader` and `IInstrumentReader` to show active and inactive records. Normal Desktop manual entry requests active references only; the Application reader can explicitly include inactive references, and `CreateManualTradeUseCase` requires references to exist without making active status a Domain invariant. This preserves a path for future historical or backfill entry.
 
