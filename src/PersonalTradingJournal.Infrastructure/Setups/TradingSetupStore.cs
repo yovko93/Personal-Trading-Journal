@@ -43,11 +43,7 @@ public sealed class TradingSetupStore(IDbContextFactory<JournalDbContext> contex
         ArgumentNullException.ThrowIfNull(setup);
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
-        TradingSetupRecord record = await context.TradingSetups
-            .SingleOrDefaultAsync(candidate => candidate.Id == setup.Id, cancellationToken)
-            ?? throw new KeyNotFoundException($"Trading setup '{setup.Id}' was not found.");
-        record.IsActive = setup.IsActive;
-        record.UpdatedAtUtc = setup.UpdatedAtUtc;
+        context.TradingSetups.Update(TradingSetupPersistenceMapper.ToRecord(setup));
         await context.SaveChangesAsync(cancellationToken);
     }
 }

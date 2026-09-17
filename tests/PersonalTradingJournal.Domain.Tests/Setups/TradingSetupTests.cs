@@ -281,6 +281,77 @@ public sealed class TradingSetupTests
             () => RehydrateSetup(updatedAtUtc: nonUtcTimestamp));
     }
 
+    [Fact]
+    public void UpdateDetailsNormalizesAndChangesOnlyEditableFields()
+    {
+        TradingSetup setup = CreateSetup();
+        Guid originalId = setup.Id;
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddHours(1);
+
+        bool changed = setup.UpdateDetails(
+            "  NY Open Reversal  ",
+            "  Liquidity sweep at the open.  ",
+            updatedAtUtc);
+
+        Assert.True(changed);
+        Assert.Equal("NY Open Reversal", setup.Name);
+        Assert.Equal("Liquidity sweep at the open.", setup.Description);
+        Assert.Equal(originalId, setup.Id);
+        Assert.Equal(CreatedAtUtc, setup.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, setup.UpdatedAtUtc);
+        Assert.True(setup.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDetailsClearsWhitespaceDescription()
+    {
+        TradingSetup setup = CreateSetup();
+
+        Assert.True(setup.UpdateDetails(
+            setup.Name,
+            "   ",
+            CreatedAtUtc.AddMinutes(1)));
+
+        Assert.Null(setup.Description);
+    }
+
+    [Fact]
+    public void UpdateDetailsCanonicalNoOpPreservesAuditTimestamp()
+    {
+        TradingSetup setup = CreateSetup();
+
+        bool changed = setup.UpdateDetails(
+            $"  {setup.Name}  ",
+            $"  {setup.Description}  ",
+            CreatedAtUtc.AddMinutes(1));
+
+        Assert.False(changed);
+        Assert.Equal(CreatedAtUtc, setup.UpdatedAtUtc);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UpdateDetailsRejectsBlankName(string name)
+    {
+        TradingSetup setup = CreateSetup();
+
+        Assert.Throws<ArgumentException>(() =>
+            setup.UpdateDetails(name, null, CreatedAtUtc.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void UpdateDetailsPreservesCreationLimits()
+    {
+        TradingSetup setup = CreateSetup();
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddMinutes(1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            setup.UpdateDetails(new string('N', 129), null, updatedAtUtc));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            setup.UpdateDetails(setup.Name, new string('D', 2001), updatedAtUtc));
+    }
+
     private static TradingSetup CreateSetup(
         string name = "Liquidity Sweep + MSS + FVG",
         string? description = "A repeatable liquidity reversal configuration.",

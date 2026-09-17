@@ -34,6 +34,25 @@ public sealed class TradingSetupCatalogPersistenceTests
     }
 
     [Fact]
+    public async Task ReaderProjectsDetailsAndMissingReturnsNull()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        Guid id = Guid.NewGuid();
+        await Seed(db, Record(id, "Silver Bullet", "Timed model", false, Created.AddHours(1)));
+        ITradingSetupReader reader = db.ServiceProvider.GetRequiredService<ITradingSetupReader>();
+
+        TradingSetupDetails details = Assert.IsType<TradingSetupDetails>(
+            await reader.GetByIdAsync(id));
+        Assert.Equal(id, details.Id);
+        Assert.Equal("Silver Bullet", details.Name);
+        Assert.Equal("Timed model", details.Description);
+        Assert.False(details.IsActive);
+        Assert.Equal(Created, details.CreatedAtUtc);
+        Assert.Equal(Created.AddHours(1), details.UpdatedAtUtc);
+        Assert.Null(await reader.GetByIdAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
     public async Task StoreAddsAndRehydratesAllFieldsAndMissingReturnsNull()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
@@ -48,17 +67,21 @@ public sealed class TradingSetupCatalogPersistenceTests
     }
 
     [Fact]
-    public async Task StoreUpdateChangesLifecycleOnlyAndLeavesOtherRowsAlone()
+    public async Task StoreUpdatePersistsCompleteAuthoritativeStateAndLeavesOtherRowsAlone()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
         ITradingSetupStore store = db.ServiceProvider.GetRequiredService<ITradingSetupStore>();
         var changed = new TradingSetup("ORB", "Opening range", Created); var other = new TradingSetup("CRT", null, Created);
-        await store.AddAsync(changed); await store.AddAsync(other); changed.Deactivate(Created.AddDays(1)); await store.UpdateAsync(changed);
+        await store.AddAsync(changed); await store.AddAsync(other);
+        changed.UpdateDetails("  Opening Range Breakout  ", "  Revised model  ", Created.AddDays(1));
+        changed.Deactivate(Created.AddDays(2));
+        await store.UpdateAsync(changed);
         await using JournalDbContext context = await db.ContextFactory.CreateDbContextAsync();
         TradingSetupRecord record = await context.TradingSetups.AsNoTracking().SingleAsync(x => x.Id == changed.Id);
         TradingSetupRecord unchanged = await context.TradingSetups.AsNoTracking().SingleAsync(x => x.Id == other.Id);
-        Assert.False(record.IsActive); Assert.Equal(Created.AddDays(1), record.UpdatedAtUtc); Assert.Equal("ORB", record.Name);
-        Assert.Equal("Opening range", record.Description); Assert.Equal(Created, record.CreatedAtUtc); Assert.True(unchanged.IsActive);
+        Assert.False(record.IsActive); Assert.Equal(Created.AddDays(2), record.UpdatedAtUtc);
+        Assert.Equal("Opening Range Breakout", record.Name);
+        Assert.Equal("Revised model", record.Description); Assert.Equal(Created, record.CreatedAtUtc); Assert.True(unchanged.IsActive);
     }
 
     [Theory]
@@ -83,6 +106,7 @@ public sealed class TradingSetupCatalogPersistenceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.GetByIdAsync(setup.Id, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.UpdateAsync(setup, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.ServiceProvider.GetRequiredService<ITradingSetupReader>().GetAllAsync(source.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.ServiceProvider.GetRequiredService<ITradingSetupReader>().GetByIdAsync(setup.Id, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => db.ServiceProvider.GetRequiredService<ITradingSetupNameChecker>().ExistsAsync("ORB", cancellationToken: source.Token));
     }
 

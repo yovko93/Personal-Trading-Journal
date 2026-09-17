@@ -4,7 +4,7 @@
 
 Personal Trading Journal uses EF Core 10 with SQLite for its current local-first persistence implementation. Persistence stores the approved domain facts, preserves exact authoritative values, applies schema changes through migrations, and keeps the Domain independent from EF Core.
 
-Narrow Application persistence boundaries support Account and Instrument create/read/update/delete and lifecycle workflows, Trading Setup and Trading Mistake catalogs, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
+Narrow Application persistence boundaries support Account, Instrument, and Trading Setup create/read/update/delete and lifecycle workflows, the Trading Mistake catalog, manual Trade creation/closure, Setup classification, Trade Mistake associations, Trade browsing, and screenshot workflows. Persistence still does not provide generic repositories, other entity edit/delete workflows, seed data, backup/restore, analytics read models, or cloud synchronization.
 
 ## Persistence Architecture
 
@@ -150,6 +150,8 @@ The reader reconstructs the full Domain aggregate through `TradePersistenceMappe
 ### Setup and Mistake Classification Persistence
 
 `Trades.TradingSetupId` is nullable and references `TradingSetups.Id` with restrictive delete behavior. The normal Trade create path can persist the initial optional Setup in the same aggregate write, and the Trade mutation store persists later assignment, replacement, or clearing. Inactive referenced Setups remain queryable for historical display, while Application validation restricts new assignments to active records.
+
+Trading Setup details use an identifier-scoped no-tracking projection. Aggregate updates persist the complete validated Domain state, including normalized Name/Description and audit fields, without rewriting referencing Trades. Hard delete first uses a Setup-scoped `AnyAsync` reference check; the existing restrictive foreign key remains the race-safe final guard, and SQLite constraint failures are translated to a deterministic referenced result. Thus referenced Setups remain editable and deactivatable but cannot be hard deleted.
 
 `TradeMistakes` stores separate association records rather than an embedded Trade collection. Each row has its own non-generated `Id` primary key, required `TradeId` and `TradingMistakeId` foreign keys, an optional `Note` limited to 2,000 characters, and UTC creation/update audit timestamps. Both foreign keys use restrictive delete behavior, and the unique `(TradeId, TradingMistakeId)` index prevents duplicate assignment.
 

@@ -140,9 +140,11 @@ public sealed class PersistenceRegistrationTests
         Assert.IsType<TradingSetupReader>(provider.GetRequiredService<ITradingSetupReader>());
         Assert.IsType<TradingSetupStore>(provider.GetRequiredService<ITradingSetupStore>());
         Assert.IsType<TradingSetupNameChecker>(provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.IsType<TradingSetupDeletionStore>(provider.GetRequiredService<ITradingSetupDeletionStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupReader>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupStore>(), provider.GetRequiredService<ITradingSetupStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupNameChecker>(), provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupDeletionStore>(), provider.GetRequiredService<ITradingSetupDeletionStore>());
     }
 
     [Fact]

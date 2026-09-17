@@ -516,7 +516,13 @@ public sealed class MainWindowViewModelTests
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
-            new TradingSetupLifecycleUseCase(setupStore, timeProvider));
+            new TradingSetupLifecycleUseCase(setupStore, timeProvider),
+            new GetTradingSetupDetailsUseCase(setupReader),
+            new UpdateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
+            new DeleteTradingSetupUseCase(
+                setupStore,
+                new FakeTradingSetupDeletionStore()),
+            new FakeDialogService());
         var mistakes = new TradingMistakesViewModel(mistakeReader,
             new CreateTradingMistakeUseCase(mistakeStore, mistakeChecker, timeProvider),
             new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider));

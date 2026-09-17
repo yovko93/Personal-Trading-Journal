@@ -127,6 +127,8 @@ Notional sums quantity multiplied by price for the corresponding side. The sign 
 
 A trade may reference an optional `TradingSetupId`. This setup is review metadata rather than a market fact and may be assigned, changed, or cleared while a trade is open or after it closes without changing execution history or P&L. `Trade.SetTradingSetup(...)` rejects `Guid.Empty`, treats the same value as a no-op, and advances `UpdatedAtUtc` only for an actual mutation. The former Strategy classification was removed; Trading Setup is the sole current reusable trade-pattern concept.
 
+`TradingSetup` owns explicit Name/Description update behavior with the same normalization and limits as creation. Canonically identical edits are no-ops. Referenced Setups may be renamed, have their description changed, or be deactivated because Trades retain the stable Setup Id; only active Setups are eligible for new assignment. Hard deletion is an Application/persistence workflow and is allowed only when no Trade references the Setup.
+
 ## Screenshots
 
 `TradeScreenshot` is storage-agnostic metadata associated with a trade through `TradeId`. It remains outside the `Trade` execution aggregate, which has no screenshot collection.

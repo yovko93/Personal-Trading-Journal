@@ -47,6 +47,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
+        services.AddTransient<ITradingSetupDeletionStore, TradingSetupDeletionStore>();
         services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();
         services.AddTransient<ITradingMistakeStore, TradingMistakeStore>();
         services.AddTransient<ITradingMistakeNameChecker, TradingMistakeNameChecker>();

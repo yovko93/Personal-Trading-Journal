@@ -164,6 +164,23 @@ public sealed class EntityActionResourceTests
         Assert.Contains("HorizontalAlignment=\"Right\"", view, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TradingSetupsViewUsesSharedActionsFormsAndCorrectedMixedMenuPattern()
+    {
+        string view = ReadDesktopFile("Views", "Setups", "TradingSetupsView.xaml");
+
+        Assert.Contains("ViewCommand", view, StringComparison.Ordinal);
+        Assert.Contains("EditCommand", view, StringComparison.Ordinal);
+        Assert.Contains("DeleteCommand", view, StringComparison.Ordinal);
+        Assert.Contains("ToggleActiveCommand", view, StringComparison.Ordinal);
+        Assert.Contains("PtjEntityActionMenuStyle", view, StringComparison.Ordinal);
+        Assert.Contains("PtjEntityActionMenuSeparatorStyle", view, StringComparison.Ordinal);
+        Assert.Contains("PtjDeleteMenuItemStyle", view, StringComparison.Ordinal);
+        Assert.Contains("FormValidation.IsInvalid=\"{Binding IsEditNameInvalid}\"", view,
+            StringComparison.Ordinal);
+        Assert.DoesNotMatch("#[0-9A-Fa-f]{3,8}", view);
+    }
+
     private static string ReadDesktopFile(params string[] segments) =>
         File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),

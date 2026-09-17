@@ -177,7 +177,9 @@ Executions are shown individually in ascending sequence order as the complete li
 
 ## Trading Setup and Trading Mistake Catalogs
 
-Analysis → Setups opens the Trading Setups catalog, and Analysis → Mistakes opens the Trading Mistakes catalog. Both pages follow the same focused management pattern: lazy list loading, explicit Refresh, inline Name/optional Description creation, active/inactive status, and reversible Activate/Deactivate actions. Inactive records remain visible for historical context. Rename, description editing, and deletion are not implemented.
+Analysis → Setups opens the Trading Setups catalog, and Analysis → Mistakes opens the Trading Mistakes catalog. Both pages retain lazy list loading, explicit Refresh, inline Name/optional Description creation, active/inactive status, and reversible Activate/Deactivate actions. Inactive records remain visible for historical context.
+
+Trading Setup rows additionally provide View, Edit, and an overflow menu with the one applicable lifecycle action plus Delete. The compact detail shows description, status, and audit timestamps. Edit allows normalized Name/Description changes even when the Setup is referenced, because historical Trades retain the stable Setup Id. Unused Setups may be hard deleted after safe-default destructive confirmation; referenced deletion is blocked with guidance to Deactivate instead. Deactivation preserves historical classification, and only active Setups remain eligible for new Trade assignment. Trading Mistake View/Edit/Delete remains intentionally unimplemented.
 
 Create actions require a non-blank Name and are blocked while saving. Opening and cancelling a form reset its draft according to the established catalog behavior. Duplicate names and other validation failures remain near the form; successful writes close/reset the form and trigger a best-effort authoritative list reload without reclassifying a completed write as failure.
 
@@ -219,7 +221,7 @@ Activate and Deactivate are reversible lifecycle actions and use neutral seconda
 
 `IDialogService` is the Desktop-only modal boundary. `ConfirmationDialogRequest` supplies entity-specific title, message, confirm/cancel labels, and destructive intent; `InformationDialogRequest` supplies a title, message, and close label for outcomes such as a delete blocked by historical references. Destructive confirmation uses the Danger button style while Cancel owns the safe default focus, Escape cancels, closing the window cancels, and the destructive button is never the implicit Enter action. The existing screenshot deletion confirmation adapts to this service, so ViewModels remain testable without constructing a WPF window or calling `MessageBox`.
 
-Account and Instrument hard-delete now enforce entity-specific integrity rules outside Desktop presentation: referenced records are retained and can be deactivated, while unused records may be deleted. The same policy remains future work for Trading Setups and Trading Mistakes. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
+Account, Instrument, and Trading Setup hard-delete now enforce entity-specific integrity rules outside Desktop presentation: referenced records are retained and can be deactivated, while unused records may be deleted. The same policy remains future work for Trading Mistakes. Trade deletion still requires explicit confirmation plus intentional handling of dependent records and external screenshot files; no generic CRUD mechanism is used.
 
 ### Shared Form Language
 
