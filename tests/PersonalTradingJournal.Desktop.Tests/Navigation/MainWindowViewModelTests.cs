@@ -525,7 +525,13 @@ public sealed class MainWindowViewModelTests
             new FakeDialogService());
         var mistakes = new TradingMistakesViewModel(mistakeReader,
             new CreateTradingMistakeUseCase(mistakeStore, mistakeChecker, timeProvider),
-            new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider));
+            new TradingMistakeLifecycleUseCase(mistakeStore, timeProvider),
+            new GetTradingMistakeDetailsUseCase(mistakeReader),
+            new UpdateTradingMistakeUseCase(mistakeStore, mistakeChecker, timeProvider),
+            new DeleteTradingMistakeUseCase(
+                mistakeStore,
+                new FakeTradingMistakeDeletionStore()),
+            new FakeDialogService());
         var trades = new TradesViewModel(
             tradeReferenceDataReader,
             setupReader,

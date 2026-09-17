@@ -1,30 +1,35 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Mistakes.TradingMistakesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <ScrollViewer HorizontalContentAlignment="Stretch" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto" PanningMode="VerticalOnly">
-        <ScrollViewer.Resources><Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource PtjScrollBarStyle}" /></ScrollViewer.Resources>
+        <ScrollViewer.Resources>
+            <Style TargetType="{x:Type ScrollBar}" BasedOn="{StaticResource PtjScrollBarStyle}" />
+        </ScrollViewer.Resources>
         <StackPanel>
-            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
                 <TextBlock VerticalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
                            Text="Reusable process and execution mistakes used during trade review." TextWrapping="Wrap" />
-                <Button Grid.Column="1" Margin="16,0,0,0" Command="{Binding RefreshCommand}" Content="Refresh" Style="{StaticResource PtjButtonStyle}" />
-                <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding ShowCreateCommand}" Content="New Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
+                <Button Grid.Column="1" Margin="16,0,0,0" Command="{Binding RefreshCommand}"
+                        Content="Refresh" Style="{StaticResource PtjButtonStyle}" />
+                <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding ShowCreateCommand}"
+                        Content="New Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
             </Grid>
-            <Border Margin="0,16,0,0"><Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
-                <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True">
-                    <Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+
+            <Border Margin="0,16,0,0">
+                <Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsCreateFormVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
                 <StackPanel>
                     <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="New Trading Mistake" />
-                    <TextBlock Margin="0,4,0,0"
-                               Style="{StaticResource PtjSecondaryTextStyle}"
-                               Text="Define a reusable process or execution mistake for later review."
-                               TextWrapping="Wrap" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Define a reusable process or execution mistake for later review." TextWrapping="Wrap" />
                     <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjFormLabelTextStyle}" Text="Name" />
                     <TextBox validation:FormValidation.IsInvalid="{Binding IsNameInvalid}"
-                             Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}"
-                             Style="{StaticResource PtjTextBoxStyle}" />
+                             Text="{Binding NameText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
                     <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
                                Text="Name the behavior, not the trade outcome—profit or loss alone does not define a mistake." />
                     <StackPanel Margin="0,16,0,6" Orientation="Horizontal">
@@ -33,55 +38,162 @@
                     </StackPanel>
                     <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
                              Text="{Binding DescriptionText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
-                    <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}"><TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                        </Style></TextBlock.Style></TextBlock>
-                    <TextBlock Margin="0,8,0,0" Text="Creating mistake..."><TextBlock.Style>
-                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormHelperTextStyle}">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers><DataTrigger Binding="{Binding IsSaving}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                        </Style></TextBlock.Style></TextBlock>
+                    <TextBlock Margin="0,12,0,0" Text="{Binding ValidationErrorMessage}">
+                        <TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasValidationError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
                     <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
                         <Button Command="{Binding CancelCreateCommand}" Content="Cancel" Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0" Command="{Binding CreateCommand}" Content="Create Mistake" Style="{StaticResource PtjPrimaryButtonStyle}" />
                     </StackPanel>
                 </StackPanel>
             </Border>
+
+            <Border Margin="0,16,0,0">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasSelectedTradingMistake}" Value="False"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                            <DataTrigger Binding="{Binding IsEditFormVisible}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="{Binding SelectedTradingMistake.Name}" />
+                        <Border Grid.Column="1" Style="{StaticResource PtjStatusBadgeStyle}">
+                            <TextBlock><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjInactiveStatusTextStyle}"><Setter Property="Text" Value="Inactive" /><Style.Triggers><DataTrigger Binding="{Binding SelectedTradingMistake.IsActive}" Value="True"><Setter Property="Text" Value="Active" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                        </Border>
+                    </Grid>
+                    <Grid Margin="0,16,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <TextBlock Style="{StaticResource PtjDetailLabelTextStyle}" Text="Description" />
+                        <TextBlock Grid.Column="1" Grid.ColumnSpan="3" Style="{StaticResource PtjDetailValueTextStyle}"
+                                   Text="{Binding SelectedTradingMistake.Description, TargetNullValue=—}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Created" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
+                                   Text="{Binding SelectedTradingMistake.CreatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                        <TextBlock Grid.Row="1" Grid.Column="2" Margin="24,10,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Updated" />
+                        <TextBlock Grid.Row="1" Grid.Column="3" Margin="0,10,0,0" Style="{StaticResource PtjDetailValueTextStyle}"
+                                   Text="{Binding SelectedTradingMistake.UpdatedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm} UTC}" />
+                    </Grid>
+                    <StackPanel Margin="0,20,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Button Command="{Binding CloseDetailsCommand}" Content="Close" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                        <Button Margin="8,0,0,0" Command="{Binding EditCommand}" CommandParameter="{Binding SelectedTradingMistake.Id}"
+                                Content="Edit" Style="{StaticResource PtjEntityActionButtonStyle}" />
+                        <Button Margin="8,0,0,0" AutomationProperties.Name="More trading mistake actions"
+                                interactions:EntityActionMenu.OpensContextMenu="True" Style="{StaticResource PtjIconButtonStyle}"
+                                Tag="{Binding}" ToolTip="More trading mistake actions">
+                            <Button.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+                                    <MenuItem Command="{Binding Tag.ToggleActiveCommand}" CommandParameter="{Binding Tag.SelectedTradingMistakeListItem}" Header="Activate">
+                                        <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconActivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                        <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Tag.SelectedTradingMistake.IsActive}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                    </MenuItem>
+                                    <MenuItem Command="{Binding Tag.ToggleActiveCommand}" CommandParameter="{Binding Tag.SelectedTradingMistakeListItem}" Header="Deactivate">
+                                        <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDeactivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                        <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding Tag.SelectedTradingMistake.IsActive}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                    </MenuItem>
+                                    <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                    <MenuItem Command="{Binding Tag.DeleteCommand}" CommandParameter="{Binding Tag.SelectedTradingMistake.Id}"
+                                              Header="Delete" Style="{StaticResource PtjDeleteMenuItemStyle}">
+                                        <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDelete}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <Viewbox Width="18" Height="18"><Path Data="{StaticResource PtjIconMore}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Stretch="Uniform" /></Viewbox>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Margin="0,16,0,0">
+                <Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsEditFormVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}" Text="Edit Trading Mistake" />
+                    <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Clarify the process taxonomy while preserving historical trade review associations." TextWrapping="Wrap" />
+                    <TextBlock Margin="0,16,0,6" Style="{StaticResource PtjFormLabelTextStyle}" Text="Name" />
+                    <TextBox validation:FormValidation.IsInvalid="{Binding IsEditNameInvalid}"
+                             Text="{Binding EditNameText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
+                    <StackPanel Margin="0,16,0,6" Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource PtjFormLabelTextStyle}" Text="Description" />
+                        <TextBlock Margin="4,0,0,0" Style="{StaticResource PtjFormOptionalTextStyle}" Text="(Optional)" />
+                    </StackPanel>
+                    <TextBox MinHeight="80" AcceptsReturn="True" TextWrapping="Wrap" VerticalContentAlignment="Top"
+                             Text="{Binding EditDescriptionText, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" />
+                    <TextBlock Margin="0,12,0,0" Text="{Binding EditErrorMessage}">
+                        <TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding HasEditError}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                    </TextBlock>
+                    <StackPanel Margin="0,16,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Button Command="{Binding CancelEditCommand}" Content="Cancel" Style="{StaticResource PtjSecondaryButtonStyle}" />
+                        <Button Margin="8,0,0,0" Command="{Binding SaveChangesCommand}" Content="Save Changes" Style="{StaticResource PtjPrimaryButtonStyle}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
             <StackPanel Margin="0,12">
-                <TextBlock Text="Loading trading mistakes..."><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}">
-                    <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsLoading}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                </Style></TextBlock.Style></TextBlock>
+                <TextBlock Text="Loading trading mistakes..."><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding IsLoading}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
                 <TextBlock Style="{StaticResource PtjFormErrorTextStyle}" Text="{Binding ListErrorMessage}" />
                 <TextBlock Style="{StaticResource PtjFormErrorTextStyle}" Text="{Binding SaveErrorMessage}" />
+                <TextBlock Style="{StaticResource PtjFormErrorTextStyle}" Text="{Binding ActionErrorMessage}" />
                 <TextBlock Style="{StaticResource PtjFormSuccessTextStyle}" Text="{Binding SuccessMessage}" />
             </StackPanel>
-            <Border Padding="24"><Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
-                <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsLoading}" Value="False" /><Condition Binding="{Binding HasTradingMistakes}" Value="False" />
-                    <Condition Binding="{Binding HasListError}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" />
-                </MultiDataTrigger></Style.Triggers></Style></Border.Style>
-                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}" Text="No trading mistakes yet. Create reusable process mistakes for trade review." />
+
+            <Border Padding="24">
+                <Border.Style><Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions><Condition Binding="{Binding IsLoading}" Value="False" /><Condition Binding="{Binding HasTradingMistakes}" Value="False" /><Condition Binding="{Binding HasListError}" Value="False" /></MultiDataTrigger.Conditions><Setter Property="Visibility" Value="Visible" /></MultiDataTrigger></Style.Triggers></Style></Border.Style>
+                <TextBlock HorizontalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
+                           Text="No trading mistakes yet. Create reusable process mistakes for trade review." />
             </Border>
-            <ItemsControl ItemsSource="{Binding TradingMistakes}"><ItemsControl.ItemTemplate><DataTemplate>
-                <Border Margin="0,0,0,10" Style="{StaticResource PtjCardStyle}"><Grid>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="100" /><ColumnDefinition Width="110" /></Grid.ColumnDefinitions>
-                    <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Name}" />
-                    <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
-                               Text="{Binding Description, TargetNullValue=—}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="2" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}">
-                        <Setter Property="Text" Value="Inactive" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
-                        <Style.Triggers><DataTrigger Binding="{Binding IsActive}" Value="True"><Setter Property="Text" Value="Active" />
-                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers>
-                    </Style></TextBlock.Style></TextBlock>
-                    <Button Grid.Column="3" CommandParameter="{Binding}"
-                            Command="{Binding DataContext.ToggleActiveCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}">
-                        <Button.Style><Style TargetType="{x:Type Button}" BasedOn="{StaticResource PtjButtonStyle}"><Setter Property="Content" Value="Activate" />
-                            <Style.Triggers><DataTrigger Binding="{Binding IsActive}" Value="True"><Setter Property="Content" Value="Deactivate" /></DataTrigger></Style.Triggers>
-                        </Style></Button.Style></Button>
-                </Grid></Border>
-            </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+
+            <ItemsControl ItemsSource="{Binding TradingMistakes}">
+                <ItemsControl.ItemTemplate><DataTemplate>
+                    <Border Margin="0,0,0,10" Style="{StaticResource PtjCardStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="2*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="90" /><ColumnDefinition Width="240" /></Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Name}" />
+                            <TextBlock Grid.Column="1" Margin="16,0" VerticalAlignment="Center" Style="{StaticResource PtjSecondaryTextStyle}"
+                                       Text="{Binding Description, TargetNullValue=—}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" VerticalAlignment="Center"><TextBlock.Style><Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjCaptionTextStyle}"><Setter Property="Text" Value="Inactive" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Style.Triggers><DataTrigger Binding="{Binding IsActive}" Value="True"><Setter Property="Text" Value="Active" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock>
+                            <StackPanel Grid.Column="3" Margin="8,0,0,0" HorizontalAlignment="Right" Orientation="Horizontal">
+                                <Button Command="{Binding DataContext.ViewCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="View trading mistake details">
+                                    <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14"><Path Data="{StaticResource PtjIconView}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox><TextBlock Margin="6,0,0,0" Text="View" /></StackPanel>
+                                </Button>
+                                <Button Margin="4,0,0,0" Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        CommandParameter="{Binding Id}" Style="{StaticResource PtjEntityActionButtonStyle}" ToolTip="Edit trading mistake">
+                                    <StackPanel Orientation="Horizontal"><Viewbox Width="14" Height="14"><Path Data="{StaticResource PtjIconEdit}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox><TextBlock Margin="6,0,0,0" Text="Edit" /></StackPanel>
+                                </Button>
+                                <Button Margin="4,0,0,0" AutomationProperties.Name="More trading mistake actions"
+                                        interactions:EntityActionMenu.OpensContextMenu="True" Style="{StaticResource PtjIconButtonStyle}"
+                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                        ToolTip="More trading mistake actions">
+                                    <Button.ContextMenu>
+                                        <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+                                            <MenuItem Command="{Binding Tag.ToggleActiveCommand}" CommandParameter="{Binding DataContext}" Header="Activate">
+                                                <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconActivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                                <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Visible" /><Style.Triggers><DataTrigger Binding="{Binding DataContext.IsActive}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                            </MenuItem>
+                                            <MenuItem Command="{Binding Tag.ToggleActiveCommand}" CommandParameter="{Binding DataContext}" Header="Deactivate">
+                                                <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDeactivate}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                                <MenuItem.Style><Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding DataContext.IsActive}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></MenuItem.Style>
+                                            </MenuItem>
+                                            <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                            <MenuItem Command="{Binding Tag.DeleteCommand}" CommandParameter="{Binding DataContext.Id}"
+                                                      Header="Delete" Style="{StaticResource PtjDeleteMenuItemStyle}">
+                                                <MenuItem.Icon><Viewbox><Path Data="{StaticResource PtjIconDelete}" Fill="{x:Null}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}" StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox></MenuItem.Icon>
+                                            </MenuItem>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <Viewbox Width="18" Height="18"><Path Data="{StaticResource PtjIconMore}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Stretch="Uniform" /></Viewbox>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

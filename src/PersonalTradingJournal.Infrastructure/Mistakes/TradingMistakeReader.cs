@@ -17,4 +17,22 @@ public sealed class TradingMistakeReader(IDbContextFactory<JournalDbContext> con
             .Select(x => new TradingMistakeListItem(x.Id, x.Name, x.Description, x.IsActive,
                 x.CreatedAtUtc, x.UpdatedAtUtc)).ToListAsync(token);
     }
+
+    public async Task<TradingMistakeDetails?> GetByIdAsync(
+        Guid mistakeId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _factory.CreateDbContextAsync(cancellationToken);
+        return await context.TradingMistakes.AsNoTracking()
+            .Where(record => record.Id == mistakeId)
+            .Select(record => new TradingMistakeDetails(
+                record.Id,
+                record.Name,
+                record.Description,
+                record.IsActive,
+                record.CreatedAtUtc,
+                record.UpdatedAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 }

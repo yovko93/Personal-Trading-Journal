@@ -77,6 +77,9 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<DeleteInstrumentUseCase>();
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();
             builder.Services.AddTransient<CreateTradingMistakeUseCase>();
+            builder.Services.AddTransient<GetTradingMistakeDetailsUseCase>();
+            builder.Services.AddTransient<UpdateTradingMistakeUseCase>();
+            builder.Services.AddTransient<DeleteTradingMistakeUseCase>();
             builder.Services.AddTransient<TradingMistakeLifecycleUseCase>();
             builder.Services.AddTransient<AssignTradeMistakeUseCase>();
             builder.Services.AddTransient<RemoveTradeMistakeUseCase>();

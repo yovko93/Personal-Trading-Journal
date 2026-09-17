@@ -139,6 +139,8 @@ A trade may reference an optional `TradingSetupId`. This setup is review metadat
 
 `TradingMistake` is a reusable, user-defined process/execution mistake catalog definition. It supports reversible active/inactive lifecycle state. Only active definitions are newly assignable, while inactive historical assignments remain visible and removable. Mistakes are not hardcoded as an enum and have no category taxonomy, severity, or calculated financial cost.
 
+`TradingMistake` owns explicit Name/Description update behavior with the same normalization and limits as creation. Canonically identical edits are no-ops. Referenced definitions may be renamed, have their description clarified, or be deactivated because `TradeMistake` retains the stable catalog Id. Hard deletion is an Application/persistence workflow and is allowed only when no `TradeMistake` association references the definition.
+
 `TradeMistake` represents one occurrence/association between a `Trade` and a `TradingMistake`. Its optional `Note` is specific to that occurrence. Neither related aggregate owns an association collection, and assignment or removal does not mutate `Trade.UpdatedAtUtc`. The current workflow supports assignment, viewing, and removal, but not standalone Note editing.
 
 M3 SQLite persistence allows a specific mistake on a trade at most once by enforcing:
