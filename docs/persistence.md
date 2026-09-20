@@ -54,7 +54,7 @@ Inactive reference records are still mapped and queryable. `IsActive` controls l
 
 ## Database Schema
 
-The database contains exactly eight application tables:
+The database contains exactly nine application tables:
 
 1. `Instruments`
 2. `TradingAccounts`
@@ -64,6 +64,7 @@ The database contains exactly eight application tables:
 6. `TradeExecutions`
 7. `TradeScreenshots`
 8. `TradeMistakes`
+9. `TradeBrowse`
 
 EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMigrationsLock` to coordinate migration execution; it is provider infrastructure, not an application table or Domain concept.
 
@@ -78,8 +79,9 @@ EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMig
 | `TradeScreenshots.TradeId` | `Trades.Id` | Yes | Restrict |
 | `TradeMistakes.TradeId` | `Trades.Id` | Yes | Restrict |
 | `TradeMistakes.TradingMistakeId` | `TradingMistakes.Id` | Yes | Restrict |
+| `TradeBrowse.TradeId` | `Trades.Id` | Yes | Cascade |
 
-`TradeExecution` is an aggregate-owned factual child, so it is the only cascading relationship. Screenshot records use restrict because their external-file lifecycle must not be silently implied by a database cascade. Trade-mistake associations are historical process-quality evidence, and reference records are protected so historical trades remain rehydratable.
+`TradeExecution` is an aggregate-owned factual child and `TradeBrowse` is a derived one-to-one projection, so those two relationships cascade from Trade. Screenshot records use restrict because their external-file lifecycle must not be silently implied by a database cascade. Trade-mistake associations are historical process-quality evidence, and reference records are protected so historical trades remain rehydratable.
 
 ### Trading Account Management
 
@@ -187,7 +189,7 @@ Tests verify exact equality, ascending and descending ordering, inclusive `>=`/`
 
 ## Migrations
 
-The current application migrations are:
+The current application has exactly three migrations:
 
 ```text
 20260908122839_InitialCreate
@@ -229,7 +231,7 @@ Infrastructure tests cover:
 - foreign-key, delete-behavior, and unique-index integrity;
 - initial migration metadata and migrated-schema behavior;
 - runtime initializer creation, idempotency, and cancellation;
-- exact decimal sort-key ordering, Domain-to-browse parity, migration-2 backfill, projection-version reconciliation, and transactional projection synchronization;
+- exact decimal sort-key ordering, Domain-to-browse parity, migration-3 projection creation followed by startup backfill, projection-version reconciliation, and transactional projection synchronization;
 - `TradeStore`, `TradeMutationStore`, `TradeDeletionStore`, `ManualTradeReferenceDataReader`, `TradeListReader`, `TradeDetailReader`, and fresh-read behavior;
 - Trading Setup and Trading Mistake catalog persistence, lifecycle, duplicate-name checks, and inactive visibility;
 - Trade Setup assignment/clearing and Trade Mistake assignment/removal, including active-selection validation and inactive historical preservation;

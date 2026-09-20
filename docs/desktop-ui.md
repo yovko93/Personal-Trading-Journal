@@ -161,6 +161,8 @@ The Trade surface uses fixed 20-row pages over the complete persisted dataset. S
 
 Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are clickable sort headers; Actions is not sortable. Only the active header shows an up/down arrow. New columns default to ascending except Opened UTC and Net P&L, which default to descending; clicking the active column toggles direction and every sort returns to page 1. Average Prices sorts by exact average entry price, Open Qty by exact open quantity, and Net P&L by exact numeric outcome with open/null Trades always last. Every order ends with Trade ID ascending for stable page boundaries.
 
+Sortable headers use a local border-free button template rather than changing the global button style. The active column keeps a theme-aware elevated background in either direction, inactive columns remain neutral, hover feedback is temporary, and keyboard focus remains available. The existing header/card Grid alignment is unchanged.
+
 Each row remains a distinct rounded card: winning and losing closed Trades receive restrained theme-aware success/danger surface tints, while flat and open Trades use the neutral elevated surface. Net P&L remains the primary outcome signal through semantic success/danger foregrounds; zero remains neutral and open Trades display a muted em dash rather than a fabricated zero or loss. Each row offers View, Edit, and a compact More menu containing destructive Delete. Account name and Instrument symbol are current reference-data labels, while lifecycle, prices, exposure, currency, and economics come from the Domain-derived browse projection and historical Trade snapshot.
 
 Refresh preserves page and sort, correcting to the highest valid page if external changes made the requested page invalid. Edit and Close preserve the current browse state and accept that a changed row may move to another page. Delete reloads the current page and explicitly retries the prior/highest page when the last row disappears. Trading Setup, Mistake, and screenshot-only changes do not trigger an unnecessary list reload. Navigating away clears transient detail, form, and preview state while retaining the loaded page, count, and sort.
@@ -199,13 +201,15 @@ Create actions require a non-blank Name and are blocked while saving. Opening an
 
 Accounts, Instruments, Trades, Trading Setups, and Trading Mistakes explicitly prevent overlapping major operations appropriate to each feature. This coordination remains per-feature ViewModel state rather than a generic operation coordinator.
 
-Accounts, Instruments, Trading Setups, and Trading Mistakes distinguish three conceptual error categories:
+Accounts, Instruments, Trading Setups, and Trading Mistakes keep separate feedback for:
 
 - list/read errors;
-- create errors; and
-- lifecycle errors.
+- create and field-validation errors;
+- edit errors;
+- activate/deactivate errors; and
+- row-action errors such as missing details or failed deletion.
 
-After a successful catalog create/lifecycle write, the corresponding ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained and a list-level refresh warning directs the user to retry Refresh.
+After a successful catalog create, update, lifecycle, or delete write, the corresponding ViewModel reloads its authoritative list projection. If that reload fails, the successful mutation is not reported as a write failure; the existing list is retained or corrected locally where required, and a list-level refresh warning directs the user to retry Refresh.
 
 Trades uses the separate read, validation, save, and success states documented in the Trades Feature section.
 
@@ -305,7 +309,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 ## Desktop ViewModel Testing
 
-`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog creation/lifecycle, Trade capture/browsing/closure, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, retained navigation instances with clean re-entry state, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
+`PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog create/view/edit/lifecycle/delete behavior, Trade capture/browsing/paging/sorting/correction/closure/deletion, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, retained navigation instances with clean re-entry state, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
 These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
 

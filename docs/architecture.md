@@ -36,10 +36,10 @@ The Application project is the application and use-case layer. It orchestrates D
 
 Current feature boundaries are:
 
-- **Accounts** — `ITradingAccountReader`, `ITradingAccountStore`, `CreateTradingAccountUseCase`, and `TradingAccountLifecycleUseCase`;
-- **Instruments** — `IInstrumentReader`, `IInstrumentStore`, `CreateInstrumentUseCase`, and `InstrumentLifecycleUseCase`;
-- **Setups** — Trading Setup catalog reads, create/lifecycle use cases, duplicate-name checks, and aggregate persistence;
-- **Mistakes** — Trading Mistake catalog reads and writes plus Trade Mistake assignment, removal, and Trade-scoped projections;
+- **Accounts** — purpose-specific list/detail reads and explicit create, update, activate/deactivate, and safe-delete workflows;
+- **Instruments** — purpose-specific list/detail reads and explicit create, update, activate/deactivate, and safe-delete workflows, including referenced-AssetClass protection;
+- **Setups** — Trading Setup list/detail reads, create/update/lifecycle/safe-delete use cases, duplicate-name checks, and aggregate persistence;
+- **Mistakes** — Trading Mistake list/detail and catalog lifecycle workflows plus separate Trade Mistake assignment, removal, and Trade-scoped projections;
 - **Trades** — manual create/correction/close/hard-delete workflows, optional Trading Setup validation and mutation, narrow aggregate-write and deletion boundaries, selector projections, pageable list reads, and complete one-Trade detail reads;
 - **Screenshots** — purpose-specific boundaries and use cases coordinate Trade existence checks, binary storage, metadata persistence, ordered metadata reads, content retrieval, and deletion without exposing provider details to presentation; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
@@ -153,7 +153,7 @@ PlaceholderViewModel -> PlaceholderView
 
 There are 19 destinations: seven concrete destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—and 12 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
 
-`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a concrete feature therefore preserves its established ViewModel state. Returning to Trades preserves its draft, successfully cached reference and list data, and selected Trade Detail state without repeating successful reads. The draft remains until Cancel or a successful Save; navigation itself does not reset Trade facts. This remains direct typed shell state; no `NavigationService` exists.
+`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a record-based feature reuses its successfully loaded collection/reference cache but calls that feature's explicit transient-state reset, so prior create/edit/detail surfaces, drafts, validation, and preview state do not reopen. Trades additionally retain the current page rows, page number, total count, sort column, and sort direction. Repeated navigation to the already-active destination is ignored. This remains direct typed shell state; no `NavigationService` exists.
 
 ### Desktop Theme System
 
@@ -167,7 +167,7 @@ Theme-sensitive brush consumers use `DynamicResource`, allowing materialized con
 
 ### Desktop Dialog Boundary
 
-`IDialogService` is a narrow Desktop-only abstraction for PTJ-styled confirmation and information dialogs. Callers provide small presentation request models containing contextual text and destructive intent; they do not provide arbitrary controls, domain policy, or modal routing metadata. `WpfDialogService` owns window creation and owner selection, and the composition root supplies it through dependency injection. This boundary lets feature ViewModels and adapters request confirmation without calling `MessageBox` or constructing WPF windows, while leaving entity-specific update, delete, reference-checking, and file-lifecycle rules in their proper future Application and Infrastructure workflows.
+`IDialogService` is a narrow Desktop-only abstraction for PTJ-styled confirmation and information dialogs. Callers provide small presentation request models containing contextual text and destructive intent; they do not provide arbitrary controls, domain policy, or modal routing metadata. `WpfDialogService` owns window creation and owner selection, and the composition root supplies it through dependency injection. This boundary lets feature ViewModels and adapters request confirmation without calling `MessageBox` or constructing WPF windows, while entity-specific update, delete, reference-checking, and file-lifecycle rules remain in their existing Application and Infrastructure workflows.
 
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
@@ -205,7 +205,7 @@ Desktop ViewModel
 
 After a successful catalog write, Desktop performs an authoritative reload through the corresponding reader. It does not manufacture an authoritative persisted projection locally.
 
-Write failures produce operation-specific create or lifecycle errors. If persistence succeeds but the projection reload fails, the mutation remains successful, the visible list may temporarily be stale, and Desktop presents a list-level refresh warning so the user can retry Refresh. This distinction avoids falsely reporting that a successful create or status change failed.
+Write failures produce operation-specific create, update, lifecycle, or delete errors. If persistence succeeds but the projection reload fails, the mutation remains successful, the visible list may temporarily be stale, and Desktop presents a list-level refresh warning so the user can retry Refresh. This distinction avoids falsely reporting that a successful mutation failed.
 
 Trades use separate purpose-specific write, list-read, and detail-read paths. Manual creation follows:
 
