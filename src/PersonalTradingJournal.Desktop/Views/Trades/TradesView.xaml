@@ -10,17 +10,48 @@
         <Style x:Key="TradeSortHeaderButtonStyle"
                TargetType="{x:Type Button}"
                BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+            <Setter Property="Background" Value="Transparent" />
             <Setter Property="MinHeight" Value="24" />
-            <Setter Property="Padding" Value="0" />
+            <Setter Property="Padding" Value="6,4" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Cursor" Value="Hand" />
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
-                    <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="HeaderChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderChrome"
+                                        Property="Background"
+                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource PtjTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HeaderChrome" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="HeaderChrome"
+                                        Property="Background"
+                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HeaderChrome" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -2186,8 +2217,19 @@
                             <Button Grid.Column="0"
                                     AutomationProperties.Name="Sort by Opened UTC"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Opened (UTC)" />
@@ -2199,8 +2241,19 @@
                             <Button Grid.Column="1"
                                     AutomationProperties.Name="Sort by Trade"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Instrument}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Instrument}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.Instrument}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Trade" />
@@ -2212,8 +2265,19 @@
                             <Button Grid.Column="2"
                                     AutomationProperties.Name="Sort by Account"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Account}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Account}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.Account}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Account" />
@@ -2225,8 +2289,19 @@
                             <Button Grid.Column="3"
                                     AutomationProperties.Name="Sort by Average Entry Price"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.AverageEntryPrice}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.AverageEntryPrice}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.AverageEntryPrice}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Average Prices" />
@@ -2238,8 +2313,19 @@
                             <Button Grid.Column="4"
                                     AutomationProperties.Name="Sort by Open Quantity"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Open Qty" />
@@ -2251,8 +2337,19 @@
                             <Button Grid.Column="5"
                                     AutomationProperties.Name="Sort by Net P&amp;L"
                                     Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.NetPnL}"
-                                    Style="{StaticResource TradeSortHeaderButtonStyle}">
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.NetPnL}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.NetPnL}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="Net P&amp;L" />

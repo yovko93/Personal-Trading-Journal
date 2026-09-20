@@ -5,6 +5,59 @@ namespace PersonalTradingJournal.Desktop.Tests.Trades;
 public sealed class TradesViewPagingXamlTests
 {
     [Fact]
+    public void TradeSortHeaderStyleUsesDedicatedBorderFreeTemplate()
+    {
+        string view = ReadTradesView();
+        string style = ExtractTradeSortHeaderStyle(view);
+
+        Assert.Contains("<ControlTemplate TargetType=\"{x:Type Button}\">", style, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"HeaderChrome\"", style, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{TemplateBinding Background}\"", style, StringComparison.Ordinal);
+        Assert.Contains("BorderThickness=\"0\"", style, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(style, "<Border\\s").Cast<Match>());
+        Assert.DoesNotContain("FocusIndicator", style, StringComparison.Ordinal);
+        Assert.DoesNotContain("Focusable=\"False\"", style, StringComparison.Ordinal);
+        Assert.Contains("Property=\"IsKeyboardFocused\"", style, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EverySortHeaderUsesCurrentColumnDrivenActiveBackground()
+    {
+        string view = ReadTradesView();
+        string[] sortColumns =
+        [
+            "OpenedAtUtc",
+            "Instrument",
+            "Account",
+            "AverageEntryPrice",
+            "OpenQuantity",
+            "NetPnL",
+        ];
+
+        Assert.Equal(
+            6,
+            Regex.Matches(
+                view,
+                "BasedOn=\"\\{StaticResource TradeSortHeaderButtonStyle\\}\"")
+                .Count);
+        Assert.Equal(
+            6,
+            Regex.Matches(view, "Binding=\"\\{Binding CurrentSortColumn\\}\"")
+                .Count);
+        Assert.All(sortColumns, column => Assert.Contains(
+            $"Value=\"{{x:Static applicationTrades:TradeListSortColumn.{column}}}\"",
+            view,
+            StringComparison.Ordinal));
+        Assert.Contains(
+            "<Setter Property=\"Background\" Value=\"Transparent\" />",
+            ExtractTradeSortHeaderStyle(view),
+            StringComparison.Ordinal);
+        Assert.True(Regex.Matches(
+            view,
+            "Value=\"\\{DynamicResource PtjSurfaceElevatedBrush\\}\"").Count >= 6);
+    }
+
+    [Fact]
     public void RequiredHeadersAreClickableAndActionsRemainStatic()
     {
         string view = ReadTradesView();
@@ -87,6 +140,17 @@ public sealed class TradesViewPagingXamlTests
         "Views",
         "Trades",
         "TradesView.xaml"));
+
+    private static string ExtractTradeSortHeaderStyle(string view)
+    {
+        int start = view.IndexOf(
+            "<Style x:Key=\"TradeSortHeaderButtonStyle\"",
+            StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        int end = view.IndexOf("</Style>", start, StringComparison.Ordinal);
+        Assert.True(end > start);
+        return view[start..(end + "</Style>".Length)];
+    }
 
     private static string FindRepositoryRoot()
     {
