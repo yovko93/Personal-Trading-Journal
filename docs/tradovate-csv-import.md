@@ -1,6 +1,6 @@
 # Tradovate CSV Import
 
-M10.1 provides only the parsing and source-normalization foundation for a future Tradovate import workflow. It does not reconstruct executions or Trades, resolve Instruments or accounts, show an import preview, or persist any data.
+M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. These stages do not resolve Instruments or accounts, interpret source timestamps as UTC, create Domain Trades, show an import preview, or persist data. The complete M10 import workflow is not yet implemented.
 
 ## Supported source contract
 
@@ -34,9 +34,25 @@ Expected source problems produce structured diagnostics containing severity, a s
 
 The parser is deterministic and leaves ownership of the input stream with its caller. It honors cancellation and does not turn cancellation, memory failures, or unrelated I/O failures into ordinary parse diagnostics.
 
-## Later M10 stages
+## Execution reconstruction
 
-Trade reconstruction remains a separate step. It will analyze repeated fill identifiers, matched quantities, execution consistency, event ordering, flat-to-flat grouping, and ambiguous or incomplete lifecycles.
+Reconstruction identifies a broker fill by the exact combination of broker contract symbol, Buy/Sell side, and external fill identifier. All rows for one fill must agree on its price, timezone-unspecified timestamp, and tick-size metadata. Its reconstructed quantity is the checked decimal sum of the matched quantities from those rows. Conflicting facts or arithmetic overflow block the affected symbol rather than selecting an arbitrary value.
+
+Every source row's buy-fill, sell-fill, matched-quantity, source-record, and source-reported-P&L evidence remains available after aggregation. Reconstructed buy and sell totals must each equal the source matched quantity for their exact broker symbol. Symbols such as `MNQU6` and `MNQZ6` remain independent streams even if both may later resolve to the same canonical Instrument.
+
+An identical matched row is not silently removed or unquestioningly counted as an independent match. The available format cannot distinguish duplicate export data from two identical match events, so the affected symbol is marked ambiguous and all source references are retained.
+
+For an unambiguous symbol stream, reconstructed fills are ordered by their source wall-clock timestamps. Same-side timestamp ties use a stable external-ID presentation order, which is not asserted to be broker chronology. If opposite sides share a timestamp and their order can change a flat boundary or direction, grouping is ambiguous.
+
+A candidate begins when signed position moves away from zero and completes when it returns to zero. Multiple opening fills and partial exits remain in one candidate; the next fill after flat begins a separate candidate. Sell-first streams form provisional Short candidates. An execution that crosses through zero blocks the lifecycle because splitting one broker fill would fabricate source events. No opposite-side execution is manufactured to force an incomplete lifecycle closed.
+
+Because every accepted matched row contributes the same quantity to one buy and one sell fill, a fully reconstructed supported matched-fills stream is quantity-balanced by construction. This does not prove that the export contains unmatched open fills or all activity from the account. The result therefore reports that source completeness is not independently verified, even when its visible flat-to-flat candidates are structurally reconstructed.
+
+## Financial and identity limitations
+
+Source-reported P&L remains row-level reconciliation evidence. It is not promoted to authoritative `Trade.NetPnL`, and no zero commission or fee facts are invented. The source contains no reliable Trading Account identity, so multiple-account activity cannot be distinguished without later configuration or additional evidence. Reconstructed fills carry no Domain identifiers, pricing snapshot, external order identifier, or fabricated UTC timestamp.
+
+## Later M10 stages
 
 Instrument resolution will later map contract symbols to canonical Instruments. Missing Instruments may be proposed with source metadata, reviewed and corrected in Import Preview, and persisted only after confirmation; tick value, currency, and other economics must not be inferred from `_tickSize` alone. Later stages will also select or map the Trading Account, apply an explicitly configured timezone, confirm the import, persist it transactionally, and provide durable deduplication.
 
