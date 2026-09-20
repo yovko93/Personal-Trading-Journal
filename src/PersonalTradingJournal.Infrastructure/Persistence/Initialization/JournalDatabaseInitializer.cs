@@ -5,11 +5,16 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 public sealed class JournalDatabaseInitializer
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
+    private readonly TradeBrowseProjectionReconciler _tradeBrowseReconciler;
 
     public JournalDatabaseInitializer(
-        IDbContextFactory<JournalDbContext> contextFactory)
+        IDbContextFactory<JournalDbContext> contextFactory,
+        TradeBrowseProjectionReconciler tradeBrowseReconciler)
     {
+        ArgumentNullException.ThrowIfNull(contextFactory);
+        ArgumentNullException.ThrowIfNull(tradeBrowseReconciler);
         _contextFactory = contextFactory;
+        _tradeBrowseReconciler = tradeBrowseReconciler;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -18,5 +23,6 @@ public sealed class JournalDatabaseInitializer
             await _contextFactory.CreateDbContextAsync(cancellationToken);
 
         await context.Database.MigrateAsync(cancellationToken);
+        await _tradeBrowseReconciler.ReconcileAsync(cancellationToken);
     }
 }

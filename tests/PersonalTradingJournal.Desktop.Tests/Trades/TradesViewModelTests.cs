@@ -752,7 +752,7 @@ public sealed partial class TradesViewModelTests
 
         Assert.Equal(1, fixture.TradeStore.AddCallCount);
         Assert.Equal(2, fixture.TradeListReader.CallCount);
-        Assert.Equal([50, 50], fixture.TradeListReader.RequestedLimits);
+        Assert.Equal([20, 20], fixture.TradeListReader.RequestedLimits);
         Assert.Same(authoritative, fixture.ViewModel.RecentTrades);
         Assert.Collection(
             fixture.ViewModel.RecentTrades,
@@ -1163,7 +1163,7 @@ public sealed partial class TradesViewModelTests
         Assert.Null(viewModel.TradeListErrorMessage);
         Assert.False(viewModel.HasTradeListError);
         Assert.Equal(1, tradeListReader.CallCount);
-        Assert.Equal([50], tradeListReader.RequestedLimits);
+        Assert.Equal([20], tradeListReader.RequestedLimits);
     }
 
     [Fact]
@@ -1346,7 +1346,7 @@ public sealed partial class TradesViewModelTests
         await viewModel.RefreshCommand.ExecuteAsync(null);
 
         Assert.Same(refreshed, viewModel.RecentTrades);
-        Assert.Equal([50, 50], tradeListReader.RequestedLimits);
+        Assert.Equal([20, 20], tradeListReader.RequestedLimits);
     }
 
     [Fact]
@@ -2688,6 +2688,340 @@ public sealed partial class TradesViewModelTests
         return viewModel;
     }
 
+    [Fact]
+    public async Task EditTradePrepopulatesAuthoritativeFieldsAndHistoricalOptions()
+    {
+        TradeListItem item = CreateTradeListItem();
+        Guid setupId = Guid.NewGuid();
+        TradeDetail detail = CreateEditableTradeDetail(item, setupId);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var referenceReader = new FakeManualTradeReferenceDataReader();
+        referenceReader.EnqueueResult(new ManualTradeReferenceData(
+            [
+                new ManualTradeAccountOption(
+                    item.TradingAccountId, item.TradingAccountName,
+                    TradingAccountType.Personal, "Broker", null, "USD", false),
+                new ManualTradeAccountOption(
+                    Guid.NewGuid(), "Active Account", TradingAccountType.Personal,
+                    null, null, "USD", true),
+            ],
+            [
+                new ManualTradeInstrumentOption(
+                    item.InstrumentId, item.InstrumentSymbol, "Historical instrument",
+                    AssetClass.Futures, "CME", "USD", 0.25m, 5m, 20m, false),
+                new ManualTradeInstrumentOption(
+                    Guid.NewGuid(), "ES", "Active instrument", AssetClass.Futures,
+                    "CME", "USD", 0.25m, 12.5m, 50m, true),
+            ]));
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult(
+            [
+                new TradingSetupListItem(
+                    setupId, "Historical Setup", null, false,
+                    detail.OpenedAtUtc, detail.OpenedAtUtc),
+                new TradingSetupListItem(
+                    Guid.NewGuid(), "Active Setup", null, true,
+                    detail.OpenedAtUtc, detail.OpenedAtUtc),
+            ]);
+        TradesViewModel viewModel = CreateViewModel(
+            reader: referenceReader,
+            tradeDetailReader: detailReader,
+            tradingSetupReader: setupReader);
+
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+
+        Assert.True(viewModel.IsTradeEditVisible);
+        Assert.True(viewModel.IsTradeFormVisible);
+        Assert.Equal("Edit Trade", viewModel.TradeFormTitle);
+        Assert.Equal(item.TradingAccountId, viewModel.SelectedAccount?.Id);
+        Assert.Equal(item.InstrumentId, viewModel.SelectedInstrument?.Id);
+        Assert.Equal(setupId, viewModel.SelectedTradingSetup?.Id);
+        Assert.Contains(viewModel.AccountOptions, option => !option.IsActive);
+        Assert.Contains(viewModel.InstrumentOptions, option => !option.IsActive);
+        Assert.Contains(viewModel.AvailableTradingSetups, option => !option.IsActive);
+        Assert.Equal(TradeDirection.Long, viewModel.SelectedDirection);
+        Assert.Equal("2", viewModel.QuantityText);
+        Assert.Equal("100", viewModel.EntryPriceText);
+        Assert.True(viewModel.HasExit);
+        Assert.Equal("105", viewModel.ExitPriceText);
+        Assert.Equal([true], referenceReader.IncludeInactiveRequests);
+    }
+
+    [Fact]
+    public async Task CancelEditDoesNotPersistAndReturnsToExistingDetail()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail detail = CreateEditableTradeDetail(item, null);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var referenceReader = CreateEditReferenceReader(detail);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateEditableDomainTrade(detail),
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            reader: referenceReader,
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader);
+
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+        viewModel.EntryPriceText = "999";
+        viewModel.CancelTradeEditCommand.Execute(null);
+
+        Assert.False(viewModel.IsTradeEditVisible);
+        Assert.True(viewModel.IsTradeDetailVisible);
+        Assert.Same(detail, viewModel.SelectedTradeDetail);
+        Assert.Equal(0, mutationStore.SaveCallCount);
+    }
+
+    [Fact]
+    public async Task SaveEditPersistsOnceAndReloadsDetailAndList()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail initial = CreateEditableTradeDetail(item, null);
+        TradeDetail updated = initial with { AverageEntryPrice = 101m, GrossPnL = 80m, NetPnL = 77m };
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(initial);
+        detailReader.EnqueueResult(updated);
+        var referenceReader = CreateEditReferenceReader(initial);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateEditableDomainTrade(initial),
+        };
+        var accountStore = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateTradingAccount(initial.TradingAccountId),
+        };
+        var instrumentStore = new FakeInstrumentStore
+        {
+            InstrumentToReturn = CreateInstrument(initial.InstrumentId),
+        };
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueuePage([item], 45);
+        listReader.EnqueuePage([item], 45, pageNumber: 2);
+        listReader.EnqueuePage([], 45, pageNumber: 2);
+        TradesViewModel viewModel = CreateViewModel(
+            reader: referenceReader,
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader,
+            accountStore: accountStore,
+            instrumentStore: instrumentStore,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader);
+
+        await viewModel.SortTradesCommand.ExecuteAsync(TradeListSortColumn.NetPnL);
+        await viewModel.NextTradePageCommand.ExecuteAsync(null);
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+        viewModel.EntryPriceText = "101";
+        await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, mutationStore.SaveCallCount);
+        Assert.Equal(101m, mutationStore.SavedTrade?.AverageEntryPrice);
+        Assert.False(viewModel.IsTradeEditVisible);
+        Assert.Same(updated, viewModel.SelectedTradeDetail);
+        Assert.Equal("Trade updated successfully.", viewModel.TradeUpdateSuccessMessage);
+        Assert.Equal(3, listReader.CallCount);
+        TradeListQuery reload = listReader.RequestedQueries[^1];
+        Assert.Equal(2, reload.PageNumber);
+        Assert.Equal(TradeListSortColumn.NetPnL, reload.SortColumn);
+        Assert.Equal(TradeListSortDirection.Descending, reload.SortDirection);
+    }
+
+    [Fact]
+    public async Task EditTradeRejectsFractionalFuturesQuantityBeforePersistence()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail detail = CreateEditableTradeDetail(item, null);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateEditableDomainTrade(detail),
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            reader: CreateEditReferenceReader(detail),
+            tradeDetailReader: detailReader,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader);
+
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+        viewModel.QuantityText = "1.5";
+        await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsTradeEditVisible);
+        Assert.True(viewModel.IsQuantityInvalid);
+        Assert.Contains(
+            TradeQuantityPolicy.FuturesWholeContractsMessage,
+            viewModel.ValidationErrorMessage,
+            StringComparison.Ordinal);
+        Assert.Equal(0, mutationStore.SaveCallCount);
+    }
+
+    [Fact]
+    public async Task EditPersistenceFailureRetainsDraftAndDetail()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail detail = CreateEditableTradeDetail(item, null);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var setupReader = new FakeTradingSetupReader();
+        setupReader.EnqueueResult([]);
+        var mutationStore = new FakeTradeMutationStore
+        {
+            TradeToReturn = CreateEditableDomainTrade(detail),
+            SaveException = new IOException("database unavailable"),
+        };
+        var accountStore = new FakeTradingAccountStore
+        {
+            AccountToReturn = CreateTradingAccount(detail.TradingAccountId),
+        };
+        var instrumentStore = new FakeInstrumentStore
+        {
+            InstrumentToReturn = CreateInstrument(detail.InstrumentId),
+        };
+        TradesViewModel viewModel = CreateViewModel(
+            reader: CreateEditReferenceReader(detail),
+            tradeDetailReader: detailReader,
+            accountStore: accountStore,
+            instrumentStore: instrumentStore,
+            tradeMutationStore: mutationStore,
+            tradingSetupReader: setupReader);
+
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+        viewModel.EntryPriceText = "101";
+        await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsTradeEditVisible);
+        Assert.Same(detail, viewModel.SelectedTradeDetail);
+        Assert.Equal("101", viewModel.EntryPriceText);
+        Assert.True(viewModel.HasTradeUpdateError);
+        Assert.Equal(1, mutationStore.SaveCallCount);
+    }
+
+    [Fact]
+    public async Task DeleteTradeUsesDangerConfirmationAndSurfacesCleanupWarning()
+    {
+        TradeListItem item = CreateTradeListItem();
+        var deletionStore = new FakeTradeDeletionStore
+        {
+            Result = new TradeDeletionInfo(item.Id, ["target.png"]),
+        };
+        var storage = new FakeTradeScreenshotFileStorage
+        {
+            DeleteException = new IOException("cleanup failed"),
+        };
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult([]);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeScreenshotFileStorage: storage,
+            tradeDeletionStore: deletionStore,
+            dialogService: dialog);
+
+        await viewModel.DeleteTradeCommand.ExecuteAsync(item);
+
+        Assert.Equal(1, deletionStore.CallCount);
+        Assert.Equal(item.Id, deletionStore.RequestedTradeId);
+        Assert.NotNull(dialog.ConfirmationRequest);
+        Assert.Equal("Delete trade?", dialog.ConfirmationRequest.Title);
+        Assert.Equal("Delete Trade", dialog.ConfirmationRequest.ConfirmButtonText);
+        Assert.True(dialog.ConfirmationRequest.IsDestructive);
+        Assert.Contains(item.InstrumentSymbol, dialog.ConfirmationRequest.Message, StringComparison.Ordinal);
+        Assert.True(viewModel.HasTradeDeleteWarning);
+        Assert.False(viewModel.HasTradeDeleteError);
+        Assert.Equal(1, listReader.CallCount);
+    }
+
+    [Fact]
+    public async Task DeleteTradeCancellationDoesNothing()
+    {
+        TradeListItem item = CreateTradeListItem();
+        var deletionStore = new FakeTradeDeletionStore
+        {
+            Result = new TradeDeletionInfo(item.Id, []),
+        };
+        var dialog = new FakeDialogService { ConfirmationResult = false };
+        TradesViewModel viewModel = CreateViewModel(
+            tradeDeletionStore: deletionStore,
+            dialogService: dialog);
+
+        await viewModel.DeleteTradeCommand.ExecuteAsync(item);
+
+        Assert.Equal(0, deletionStore.CallCount);
+        Assert.NotNull(dialog.ConfirmationRequest);
+    }
+
+    [Fact]
+    public async Task ConfirmedDeleteClearsSelectedTradeStateAndReloadsList()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail detail = CreateEditableTradeDetail(item, null);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var deletionStore = new FakeTradeDeletionStore
+        {
+            Result = new TradeDeletionInfo(item.Id, []),
+        };
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult([]);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader,
+            tradeDeletionStore: deletionStore,
+            dialogService: dialog);
+
+        await viewModel.ShowTradeDetailCommand.ExecuteAsync(item);
+        Assert.True(viewModel.IsTradeDetailVisible);
+
+        await viewModel.DeleteSelectedTradeCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsTradeDetailVisible);
+        Assert.Null(viewModel.SelectedTradeDetail);
+        Assert.Empty(viewModel.TradeScreenshots);
+        Assert.Empty(viewModel.TradeMistakes);
+        Assert.Equal(1, deletionStore.CallCount);
+        Assert.Equal(1, listReader.CallCount);
+    }
+
+    [Fact]
+    public async Task DeleteBusyStatePreventsDuplicateExecution()
+    {
+        TradeListItem item = CreateTradeListItem();
+        var deletionStore = new FakeTradeDeletionStore
+        {
+            Result = new TradeDeletionInfo(item.Id, []),
+            HoldDelete = true,
+        };
+        var dialog = new FakeDialogService { ConfirmationResult = true };
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueueResult([]);
+        TradesViewModel viewModel = CreateViewModel(
+            tradeListReader: listReader,
+            tradeDeletionStore: deletionStore,
+            dialogService: dialog);
+
+        Task deleteTask = viewModel.DeleteTradeCommand.ExecuteAsync(item);
+        await deletionStore.DeleteStarted;
+
+        Assert.True(viewModel.IsDeletingTrade);
+        Assert.False(viewModel.DeleteTradeCommand.CanExecute(item));
+        Assert.Equal(1, deletionStore.CallCount);
+
+        deletionStore.ReleaseDelete();
+        await deleteTask;
+        Assert.False(viewModel.IsDeletingTrade);
+    }
+
     private static TradesViewModel CreateViewModel(
         FakeManualTradeReferenceDataReader? reader = null,
         FakeTradeListReader? tradeListReader = null,
@@ -2711,7 +3045,9 @@ public sealed partial class TradesViewModelTests
         FakeTradingMistakeReader? tradingMistakeReader = null,
         FakeTradeMistakeReader? tradeMistakeReader = null,
         FakeTradingMistakeStore? tradingMistakeStore = null,
-        FakeTradeMistakeStore? tradeMistakeStore = null)
+        FakeTradeMistakeStore? tradeMistakeStore = null,
+        FakeTradeDeletionStore? tradeDeletionStore = null,
+        FakeDialogService? dialogService = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -2737,6 +3073,8 @@ public sealed partial class TradesViewModelTests
         tradeMistakeReader ??= new FakeTradeMistakeReader();
         tradingMistakeStore ??= new FakeTradingMistakeStore();
         tradeMistakeStore ??= new FakeTradeMistakeStore();
+        tradeDeletionStore ??= new FakeTradeDeletionStore();
+        dialogService ??= new FakeDialogService();
 
         return new TradesViewModel(
             reader,
@@ -2776,7 +3114,17 @@ public sealed partial class TradesViewModelTests
             new DeleteTradeScreenshotUseCase(
                 tradeScreenshotDeletionStore,
                 tradeScreenshotFileStorage),
-            tradeScreenshotDeleteConfirmation);
+            tradeScreenshotDeleteConfirmation,
+            new UpdateTradeUseCase(
+                tradeMutationStore,
+                accountStore,
+                instrumentStore,
+                tradingSetupStore,
+                timeProvider),
+            new DeleteTradeUseCase(
+                tradeDeletionStore,
+                tradeScreenshotFileStorage),
+            dialogService);
     }
 
     private static ManualTradeSaveFixture CreateSaveFixture(
@@ -2886,6 +3234,105 @@ public sealed partial class TradesViewModelTests
                     selectorPointValue,
                     true),
             ]);
+    }
+
+    private static FakeManualTradeReferenceDataReader CreateEditReferenceReader(
+        TradeDetail detail)
+    {
+        var reader = new FakeManualTradeReferenceDataReader();
+        reader.EnqueueResult(new ManualTradeReferenceData(
+            [
+                new ManualTradeAccountOption(
+                    detail.TradingAccountId,
+                    detail.TradingAccountName,
+                    TradingAccountType.Personal,
+                    "Broker",
+                    null,
+                    "USD",
+                    true),
+            ],
+            [
+                new ManualTradeInstrumentOption(
+                    detail.InstrumentId,
+                    detail.InstrumentSymbol,
+                    detail.InstrumentDisplayName,
+                    AssetClass.Futures,
+                    "CME",
+                    "USD",
+                    0.25m,
+                    5m,
+                    20m,
+                    true),
+            ]));
+        return reader;
+    }
+
+    private static TradeDetail CreateEditableTradeDetail(
+        TradeListItem item,
+        Guid? setupId)
+    {
+        DateTimeOffset entryAt = item.OpenedAtUtc;
+        DateTimeOffset exitAt = entryAt.AddHours(1);
+        return new TradeDetail(
+            item.Id,
+            item.TradingAccountId,
+            item.TradingAccountName,
+            item.InstrumentId,
+            item.InstrumentSymbol,
+            $"{item.InstrumentSymbol} display name",
+            setupId,
+            setupId.HasValue ? "Historical Setup" : null,
+            setupId.HasValue ? false : null,
+            TradeDirection.Long,
+            TradeStatus.Closed,
+            entryAt,
+            exitAt,
+            0m,
+            100m,
+            105m,
+            3m,
+            200m,
+            197m,
+            20m,
+            "USD",
+            [
+                new TradeExecutionDetailItem(
+                    Guid.NewGuid(), 1, entryAt, ExecutionSide.Buy,
+                    2m, 100m, 1m, 0.5m, 1.5m,
+                    "ESU6", "EXT-1", "ORDER-1"),
+                new TradeExecutionDetailItem(
+                    Guid.NewGuid(), 2, exitAt, ExecutionSide.Sell,
+                    2m, 105m, 1m, 0.5m, 1.5m,
+                    null, null, null),
+            ]);
+    }
+
+    private static Trade CreateEditableDomainTrade(TradeDetail detail)
+    {
+        IReadOnlyList<TradeExecution> executions = detail.Executions
+            .Select(item => TradeExecution.Rehydrate(
+                item.Id,
+                detail.Id,
+                item.Sequence,
+                item.ExecutedAtUtc,
+                item.Side,
+                item.Quantity,
+                item.Price,
+                item.Commission,
+                item.Fees,
+                item.ExternalExecutionId,
+                item.ExternalOrderId,
+                item.BrokerSymbol))
+            .ToList();
+        return Trade.Rehydrate(
+            detail.Id,
+            detail.TradingAccountId,
+            detail.InstrumentId,
+            new TradePricingSnapshot(detail.PricingPointValue, detail.Currency),
+            detail.TradingSetupId,
+            executions,
+            FixedTimeProvider.FixedUtcNow.AddDays(-1),
+            FixedTimeProvider.FixedUtcNow.AddDays(-1));
     }
 
     private static TradeListItem CreateTradeListItem(

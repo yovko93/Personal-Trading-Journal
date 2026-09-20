@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document describes the domain model established in M2, preserved by persistence, and consumed by the completed Trade capture, browsing, screenshot, Setup classification, and Trading Mistake workflows without compromising Domain boundaries. It remains focused on Domain behavior rather than Desktop or database-provider details.
+This document describes the domain model established in M2, preserved by persistence, and consumed by the completed Trade capture, browsing, correction, deletion, screenshot, Setup classification, and Trading Mistake workflows without compromising Domain boundaries. It remains focused on Domain behavior rather than Desktop or database-provider details.
 
 ## Core Principles
 
@@ -48,15 +48,17 @@ Audited entities record `CreatedAtUtc` and `UpdatedAtUtc` with zero offset. Thei
 
 ### Instrument
 
-`Instrument` is canonical/root instrument reference data such as NQ, MNQ, ES, or MES—not a specific futures expiration such as NQU6. Symbol and currency are canonicalized, tick size and tick value must be positive, and point value is derived from them. Its active flag represents reference-data lifecycle. Contract months, expiration, and rollover are outside M2.
+`Instrument` is canonical/root instrument reference data such as NQ, MNQ, ES, or MES—not a specific futures expiration such as NQU6. Symbol and currency are canonicalized, tick size and tick value must be positive, and point value is always derived as `TickValue / TickSize`; it is never independently editable. Explicit detail updates preserve identity, creation timestamp, and active state, and canonical no-ops do not advance `UpdatedAtUtc`. Activation and deactivation are reversible and advance the audit timestamp only for a real state change. Referenced Instruments remain editable for safe metadata and tick-economics corrections, but Application policy blocks changing their `AssetClass` because it controls quantity semantics. Hard deletion is limited to unused Instruments. Contract months, expiration, and rollover remain outside the model.
 
 ### TradingAccount
 
-`TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to its M2 state.
+`TradingAccount` represents stable account identity and reference data. An optional non-negative starting balance may provide a baseline. `UpdateDetails(...)` explicitly updates Name, Account Type, Provider, External Account ID, Currency, and Starting Balance through the same normalization and validation used at creation. A canonical same-value update is a no-op; a real change advances `UpdatedAtUtc` while preserving Id, `CreatedAtUtc`, and active state. Transactional values such as current balance, equity, realized or unrealized P&L, buying power, drawdown, profit targets, and prop-firm rules do not belong to the account.
+
+Account metadata may change while Trades reference the account because Trades retain the stable account Id and their own historical pricing facts. Activation and deactivation are reversible, canonical same-state operations do not advance `UpdatedAtUtc`, and historical references survive either transition. Hard deletion is an Application/persistence workflow rather than a Domain entity mutation: it is permitted only for an unused account. Referenced accounts remain available for metadata correction and reversible activation/deactivation so historical Trades stay valid.
 
 ### TradingSetup
 
-`TradingSetup` represents a specific repeatable market configuration and is the canonical reusable trade-pattern catalog. It supports reversible active/inactive lifecycle state. Only active Setups are newly assignable by Application workflows, while inactive historical references remain valid and visible. No broader parent taxonomy or current Strategy concept is modeled.
+`TradingSetup` represents a specific repeatable market configuration and is the canonical reusable trade-pattern catalog. It supports normalized Name/Description updates plus reversible active/inactive lifecycle state; canonical no-ops preserve audit timestamps. Only active Setups are newly assignable by Application workflows, while inactive historical references remain valid, visible, and editable. Unused Setups may be hard deleted, but referenced Setups cannot. No broader parent taxonomy or current Strategy concept is modeled.
 
 ## Trade Executions and Lifecycle
 
@@ -104,11 +106,17 @@ The following properties derive from execution history rather than separately mu
 
 M6's `CreateManualTradeUseCase` creates one opening execution and an optional full closing execution through the public `TradeExecution`, `Trade.Start(...)`, and `Trade.AddExecution(...)` APIs. It does not use `Rehydrate(...)` for creation. This narrower manual-capture shape does not remove the Domain's scale-in or partial scale-out capabilities.
 
-M7 list and detail readers reconstruct each persisted aggregate through the existing mapper and reuse these Domain-derived lifecycle and economics properties. They do not persist duplicate calculated state or recalculate Trade behavior in Application, Infrastructure, or Desktop.
+Trade Detail reconstructs each persisted aggregate through the existing mapper and reuses these Domain-derived lifecycle and economics properties. Infrastructure also persists a versioned per-Trade browse projection so SQLite can eventually sort and page exact derived values. That projection is not Domain state and contains no independent formulas: it is regenerated from the valid `Trade` aggregate, while canonical Trade and execution records remain the source of truth.
+
+`Trade.CorrectDetails(...)` is the explicit aggregate operation for correcting a recorded manual Trade. It validates the complete candidate Account, Instrument, optional Setup, pricing snapshot, and replacement immutable execution lifecycle before assigning any state. Failed validation therefore leaves the aggregate unchanged. A successful correction may replace immutable `TradeExecution` instances while preserving their identities and broker/import provenance; direction, status, exposure, averages, costs, timestamps, and P&L are then derived again from the corrected execution set. Canonically identical input is a no-op and does not advance `UpdatedAtUtc`; `Id` and `CreatedAtUtc` never change.
+
+Trade hard deletion is intentionally not a Domain mutation. The Application/Infrastructure workflow removes the persisted Trade aggregate and its owned or Trade-scoped dependent records while preserving Account, Instrument, Setup, and Mistake catalogs. Physical screenshot cleanup is separate best-effort storage work after the database delete commits.
 
 ## Historical Pricing and P&L
 
 Each trade owns an immutable `TradePricingSnapshot` with `PointValue` and `Currency`. This captures the pricing facts used for that trade so historical P&L does not depend on loading current `Instrument` metadata or change when instrument reference data changes later.
+
+Instrument catalog edits therefore apply to future usage only. Symbol, display name, exchange, currency, and tick economics may change without rewriting historical Trade pricing or executions. A later correction that keeps the same Trade Instrument preserves that historical snapshot; an explicit correction that changes Instrument rebuilds the snapshot from the newly selected authoritative Instrument and revalidates every edited quantity against the target asset class. Application policy additionally prevents changing `AssetClass` after an Instrument is referenced because asset class controls quantity semantics; unused Instruments may change it through validated Domain behavior.
 
 For a closed flat trade:
 
@@ -123,6 +131,10 @@ Notional sums quantity multiplied by price for the corresponding side. The sign 
 
 A trade may reference an optional `TradingSetupId`. This setup is review metadata rather than a market fact and may be assigned, changed, or cleared while a trade is open or after it closes without changing execution history or P&L. `Trade.SetTradingSetup(...)` rejects `Guid.Empty`, treats the same value as a no-op, and advances `UpdatedAtUtc` only for an actual mutation. The former Strategy classification was removed; Trading Setup is the sole current reusable trade-pattern concept.
 
+`TradingSetup` owns explicit Name/Description update behavior with the same normalization and limits as creation. Canonically identical edits are no-ops. Referenced Setups may be renamed, have their description changed, or be deactivated because Trades retain the stable Setup Id; only active Setups are eligible for new assignment. Hard deletion is an Application/persistence workflow and is allowed only when no Trade references the Setup.
+
+The full Trade correction operation may keep, assign, change, or clear `TradingSetupId`. An inactive Setup already referenced by the Trade remains representable, while a different inactive Setup cannot be newly selected. Correcting Trade facts preserves all separate `TradeMistake` associations and `TradeScreenshot` metadata because neither is part of the execution aggregate.
+
 ## Screenshots
 
 `TradeScreenshot` is storage-agnostic metadata associated with a trade through `TradeId`. It remains outside the `Trade` execution aggregate, which has no screenshot collection.
@@ -132,6 +144,8 @@ A trade may reference an optional `TradingSetupId`. This setup is review metadat
 ## Mistakes and Process Quality
 
 `TradingMistake` is a reusable, user-defined process/execution mistake catalog definition. It supports reversible active/inactive lifecycle state. Only active definitions are newly assignable, while inactive historical assignments remain visible and removable. Mistakes are not hardcoded as an enum and have no category taxonomy, severity, or calculated financial cost.
+
+`TradingMistake` owns explicit Name/Description update behavior with the same normalization and limits as creation. Canonically identical edits are no-ops. Referenced definitions may be renamed, have their description clarified, or be deactivated because `TradeMistake` retains the stable catalog Id. Hard deletion is an Application/persistence workflow and is allowed only when no `TradeMistake` association references the definition.
 
 `TradeMistake` represents one occurrence/association between a `Trade` and a `TradingMistake`. Its optional `Note` is specific to that occurrence. Neither related aggregate owns an association collection, and assignment or removal does not mutate `Trade.UpdatedAtUtc`. The current workflow supports assignment, viewing, and removal, but not standalone Note editing.
 
@@ -157,7 +171,7 @@ Profit does not prove correct execution, and loss does not prove poor execution.
 The following omissions remain intentional rather than accidental missing fields:
 
 - richer manual capture for scale-in and partial exits;
-- Trade edit/delete, CSV imports, and execution-grouping workflows;
+- CSV imports and execution-grouping workflows beyond the current manual correction shape;
 - initial risk, R-multiple, partial realized P&L, MAE/MFE, and mark-to-market;
 - trading rules, rule violations, and prop-firm rules;
 - journal entries and daily, weekly, or monthly reviews;

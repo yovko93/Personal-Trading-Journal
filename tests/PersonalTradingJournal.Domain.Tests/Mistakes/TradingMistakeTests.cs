@@ -286,6 +286,77 @@ public sealed class TradingMistakeTests
             () => RehydrateMistake(updatedAtUtc: nonUtcTimestamp));
     }
 
+    [Fact]
+    public void UpdateDetailsNormalizesAndChangesOnlyEditableFields()
+    {
+        TradingMistake mistake = CreateMistake();
+        Guid originalId = mistake.Id;
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddHours(1);
+
+        bool changed = mistake.UpdateDetails(
+            "  No Confirmation  ",
+            "  Entered without the required signal.  ",
+            updatedAtUtc);
+
+        Assert.True(changed);
+        Assert.Equal("No Confirmation", mistake.Name);
+        Assert.Equal("Entered without the required signal.", mistake.Description);
+        Assert.Equal(originalId, mistake.Id);
+        Assert.Equal(CreatedAtUtc, mistake.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, mistake.UpdatedAtUtc);
+        Assert.True(mistake.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDetailsClearsWhitespaceDescription()
+    {
+        TradingMistake mistake = CreateMistake();
+
+        Assert.True(mistake.UpdateDetails(
+            mistake.Name,
+            "   ",
+            CreatedAtUtc.AddMinutes(1)));
+
+        Assert.Null(mistake.Description);
+    }
+
+    [Fact]
+    public void UpdateDetailsCanonicalNoOpPreservesAuditTimestamp()
+    {
+        TradingMistake mistake = CreateMistake();
+
+        bool changed = mistake.UpdateDetails(
+            $"  {mistake.Name}  ",
+            $"  {mistake.Description}  ",
+            CreatedAtUtc.AddMinutes(1));
+
+        Assert.False(changed);
+        Assert.Equal(CreatedAtUtc, mistake.UpdatedAtUtc);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UpdateDetailsRejectsBlankName(string name)
+    {
+        TradingMistake mistake = CreateMistake();
+
+        Assert.Throws<ArgumentException>(() =>
+            mistake.UpdateDetails(name, null, CreatedAtUtc.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void UpdateDetailsPreservesCreationLimits()
+    {
+        TradingMistake mistake = CreateMistake();
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddMinutes(1);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            mistake.UpdateDetails(new string('N', 129), null, updatedAtUtc));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            mistake.UpdateDetails(mistake.Name, new string('D', 2001), updatedAtUtc));
+    }
+
     private static TradingMistake CreateMistake(
         string name = "Early Entry",
         string? description = "Entered before the planned confirmation.",

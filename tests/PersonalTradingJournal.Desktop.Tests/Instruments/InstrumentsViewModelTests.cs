@@ -311,18 +311,177 @@ public sealed class InstrumentsViewModelTests
         }
     }
 
+    [Fact]
+    public async Task ViewInstrumentAsync_LoadsAuthoritativeDetails()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        InstrumentsViewModel viewModel = CreateViewModel(reader);
+
+        await viewModel.ViewInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.Same(details, viewModel.SelectedInstrument);
+        Assert.True(viewModel.HasSelectedInstrument);
+        Assert.Equal(1, reader.DetailsCallCount);
+    }
+
+    [Fact]
+    public async Task EditInstrumentAsync_PrepopulatesFieldsAndCancelDoesNotPersist()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store);
+
+        await viewModel.EditInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.True(viewModel.IsEditFormVisible);
+        Assert.Equal(details.Symbol, viewModel.EditSymbol);
+        Assert.Equal(details.AssetClass, viewModel.EditSelectedAssetClass);
+        Assert.Equal(details.PointValue, viewModel.EditPointValuePreview);
+
+        viewModel.CancelEditCommand.Execute(null);
+
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Equal(0, store.UpdateCallCount);
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_UpdatesAndClosesEditForm()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        reader.EnqueueResult([CreateListItem(true) with { Id = details.Id }]);
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store);
+        await viewModel.EditInstrumentCommand.ExecuteAsync(details.Id);
+        viewModel.EditSymbol = " mnq ";
+        viewModel.EditDisplayName = "Micro Nasdaq";
+        viewModel.EditTickValueText = "0.50";
+
+        await viewModel.SaveChangesCommand.ExecuteAsync(null);
+
+        Assert.False(viewModel.IsEditFormVisible);
+        Assert.Equal(1, store.UpdateCallCount);
+        Assert.Equal("MNQ", viewModel.SelectedInstrument?.Symbol);
+        Assert.Equal(2m, viewModel.SelectedInstrument?.PointValue);
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_InvalidTickSizeShowsFieldErrorWithoutWrite()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store);
+        await viewModel.EditInstrumentCommand.ExecuteAsync(details.Id);
+        viewModel.EditTickSizeText = "0";
+
+        await viewModel.SaveChangesCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsEditTickSizeInvalid);
+        Assert.Equal("Tick size must be greater than zero.", viewModel.EditErrorMessage);
+        Assert.Equal(0, store.UpdateCallCount);
+    }
+
+    [Fact]
+    public async Task SaveChangesAsync_ReferencedAssetClassChangeShowsSafeFormError()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        var deletionStore = new FakeInstrumentDeletionStore { HasTrades = true };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store, deletionStore);
+        await viewModel.EditInstrumentCommand.ExecuteAsync(details.Id);
+        viewModel.EditSelectedAssetClass = AssetClass.Crypto;
+
+        await viewModel.SaveChangesCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            "Asset class cannot be changed because this instrument is used by existing trades.",
+            viewModel.EditErrorMessage);
+        Assert.True(viewModel.IsEditFormVisible);
+        Assert.Equal(0, store.UpdateCallCount);
+    }
+
+    [Fact]
+    public async Task DeleteInstrumentAsync_CancelDoesNotDelete()
+    {
+        InstrumentDetails details = CreateDetails();
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        var deletionStore = new FakeInstrumentDeletionStore();
+        var dialogService = new FakeDialogService { ConfirmationResult = false };
+        InstrumentsViewModel viewModel = CreateViewModel(
+            store: store,
+            deletionStore: deletionStore,
+            dialogService: dialogService);
+
+        await viewModel.DeleteInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal("Delete instrument?", dialogService.ConfirmationRequest?.Title);
+        Assert.Equal(0, deletionStore.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task DeleteInstrumentAsync_ReferencedShowsInformationDialog()
+    {
+        InstrumentDetails details = CreateDetails();
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        var deletionStore = new FakeInstrumentDeletionStore { HasTrades = true };
+        var dialogService = new FakeDialogService { ConfirmationResult = true };
+        InstrumentsViewModel viewModel = CreateViewModel(
+            store: store,
+            deletionStore: deletionStore,
+            dialogService: dialogService);
+
+        await viewModel.DeleteInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal("Cannot delete instrument", dialogService.InformationRequest?.Title);
+        Assert.Contains("Deactivate it instead", dialogService.InformationRequest?.Message);
+        Assert.Equal(0, deletionStore.DeleteCallCount);
+    }
+
+    [Fact]
+    public async Task DeleteInstrumentAsync_SuccessClearsSelectionAndReloads()
+    {
+        InstrumentDetails details = CreateDetails();
+        var reader = new FakeInstrumentReader { DetailsToReturn = details };
+        reader.EnqueueResult([CreateListItem(true) with { Id = details.Id }]);
+        reader.EnqueueResult([]);
+        var store = new FakeInstrumentStore { InstrumentToReturn = CreateAggregate(details.Id, true) };
+        var deletionStore = new FakeInstrumentDeletionStore();
+        var dialogService = new FakeDialogService { ConfirmationResult = true };
+        InstrumentsViewModel viewModel = CreateViewModel(reader, store, deletionStore, dialogService);
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.ViewInstrumentCommand.ExecuteAsync(details.Id);
+
+        await viewModel.DeleteInstrumentCommand.ExecuteAsync(details.Id);
+
+        Assert.Equal(1, deletionStore.DeleteCallCount);
+        Assert.Empty(viewModel.Instruments);
+        Assert.Null(viewModel.SelectedInstrument);
+    }
+
     private static InstrumentsViewModel CreateViewModel(
         FakeInstrumentReader? reader = null,
-        FakeInstrumentStore? store = null)
+        FakeInstrumentStore? store = null,
+        FakeInstrumentDeletionStore? deletionStore = null,
+        FakeDialogService? dialogService = null)
     {
         reader ??= new FakeInstrumentReader();
         store ??= new FakeInstrumentStore();
+        deletionStore ??= new FakeInstrumentDeletionStore();
+        dialogService ??= new FakeDialogService();
         var timeProvider = new FixedTimeProvider();
 
         return new InstrumentsViewModel(
             reader,
             new CreateInstrumentUseCase(store, timeProvider),
-            new InstrumentLifecycleUseCase(store, timeProvider));
+            new InstrumentLifecycleUseCase(store, timeProvider),
+            new GetInstrumentDetailsUseCase(reader),
+            new UpdateInstrumentUseCase(store, deletionStore, timeProvider),
+            new DeleteInstrumentUseCase(store, deletionStore),
+            dialogService);
     }
 
     private static void OpenValidCreateForm(InstrumentsViewModel viewModel)
@@ -361,6 +520,24 @@ public sealed class InstrumentsViewModelTests
             12.50m,
             50m,
             isActive);
+    }
+
+    private static InstrumentDetails CreateDetails()
+    {
+        DateTimeOffset createdAtUtc = FixedTimeProvider.FixedUtcNow.AddDays(-2);
+        return new InstrumentDetails(
+            Guid.NewGuid(),
+            "ES",
+            "E-mini S&P 500",
+            AssetClass.Futures,
+            "CME",
+            "USD",
+            0.25m,
+            12.50m,
+            50m,
+            true,
+            createdAtUtc,
+            createdAtUtc);
     }
 
     private static Instrument CreateAggregate(Guid id, bool isActive)

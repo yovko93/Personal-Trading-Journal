@@ -128,6 +128,51 @@ public sealed class InstrumentReaderTests
             () => reader.GetAllAsync(cancellationSource.Token));
     }
 
+    [Fact]
+    public async Task GetByIdAsyncReturnsEveryDetailFieldAndDerivedPointValue()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid instrumentId = Guid.NewGuid();
+        DateTimeOffset createdAtUtc = new(2026, 9, 14, 12, 0, 0, TimeSpan.Zero);
+        DateTimeOffset updatedAtUtc = createdAtUtc.AddDays(1);
+        await using (JournalDbContext context = await database.ContextFactory.CreateDbContextAsync())
+        {
+            context.Instruments.Add(new InstrumentRecord
+            {
+                Id = instrumentId,
+                Symbol = "MNQ",
+                DisplayName = "Micro Nasdaq-100",
+                AssetClass = AssetClass.Futures,
+                Exchange = null,
+                Currency = "USD",
+                TickSize = 0.25m,
+                TickValue = 0.50m,
+                IsActive = false,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = updatedAtUtc,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        IInstrumentReader reader = database.ServiceProvider.GetRequiredService<IInstrumentReader>();
+        InstrumentDetails details = Assert.IsType<InstrumentDetails>(
+            await reader.GetByIdAsync(instrumentId));
+
+        Assert.Equal(instrumentId, details.Id);
+        Assert.Equal("MNQ", details.Symbol);
+        Assert.Equal("Micro Nasdaq-100", details.DisplayName);
+        Assert.Equal(AssetClass.Futures, details.AssetClass);
+        Assert.Null(details.Exchange);
+        Assert.Equal("USD", details.Currency);
+        Assert.Equal(0.25m, details.TickSize);
+        Assert.Equal(0.50m, details.TickValue);
+        Assert.Equal(2m, details.PointValue);
+        Assert.False(details.IsActive);
+        Assert.Equal(createdAtUtc, details.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, details.UpdatedAtUtc);
+        Assert.Null(await reader.GetByIdAsync(Guid.NewGuid()));
+    }
+
     private static InstrumentRecord CreateRecord(Guid id, string symbol)
     {
         DateTimeOffset timestamp =

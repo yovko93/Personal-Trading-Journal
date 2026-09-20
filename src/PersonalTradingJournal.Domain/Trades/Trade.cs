@@ -39,11 +39,11 @@ public sealed class Trade : AuditableEntity
         _readOnlyExecutions = _executions.AsReadOnly();
     }
 
-    public Guid TradingAccountId { get; }
+    public Guid TradingAccountId { get; private set; }
 
-    public Guid InstrumentId { get; }
+    public Guid InstrumentId { get; private set; }
 
-    public TradePricingSnapshot Pricing { get; }
+    public TradePricingSnapshot Pricing { get; private set; }
 
     public Guid? TradingSetupId { get; private set; }
 
@@ -154,6 +154,58 @@ public sealed class Trade : AuditableEntity
 
         SetUpdatedAtUtc(updatedAtUtc);
         TradingSetupId = validatedTradingSetupId;
+    }
+
+    /// <summary>
+    /// Atomically corrects the authoritative references and immutable execution facts.
+    /// </summary>
+    /// <returns><see langword="true"/> when the canonical Trade state changed.</returns>
+    public bool CorrectDetails(
+        Guid tradingAccountId,
+        Guid instrumentId,
+        TradePricingSnapshot pricing,
+        Guid? tradingSetupId,
+        IEnumerable<TradeExecution> executions,
+        DateTimeOffset updatedAtUtc)
+    {
+        Guid validatedTradingAccountId = ValidateIdentifier(
+            tradingAccountId,
+            nameof(tradingAccountId),
+            "A trading account identifier cannot be empty.");
+        Guid validatedInstrumentId = ValidateIdentifier(
+            instrumentId,
+            nameof(instrumentId),
+            "An instrument identifier cannot be empty.");
+        ArgumentNullException.ThrowIfNull(pricing);
+        Guid? validatedTradingSetupId = ValidateOptionalIdentifier(
+            tradingSetupId,
+            nameof(tradingSetupId));
+
+        // Materialize and validate the complete candidate lifecycle before mutating
+        // any aggregate state. This preserves failure atomicity.
+        List<TradeExecution> validatedExecutions =
+            OrderAndValidateExecutions(Id, executions);
+
+        if (TradingAccountId == validatedTradingAccountId &&
+            InstrumentId == validatedInstrumentId &&
+            PricingEquals(Pricing, pricing) &&
+            TradingSetupId == validatedTradingSetupId &&
+            ExecutionsEqual(_executions, validatedExecutions))
+        {
+            return false;
+        }
+
+        // Timestamp validation can still fail, so perform it before assigning the
+        // candidate state.
+        SetUpdatedAtUtc(updatedAtUtc);
+        TradingAccountId = validatedTradingAccountId;
+        InstrumentId = validatedInstrumentId;
+        Pricing = pricing;
+        TradingSetupId = validatedTradingSetupId;
+        _executions.Clear();
+        _executions.AddRange(validatedExecutions);
+
+        return true;
     }
 
     public void AddExecution(
@@ -424,5 +476,53 @@ public sealed class Trade : AuditableEntity
         }
 
         return openQuantity;
+    }
+
+    private static bool PricingEquals(
+        TradePricingSnapshot left,
+        TradePricingSnapshot right) =>
+        left.PointValue == right.PointValue &&
+        string.Equals(left.Currency, right.Currency, StringComparison.Ordinal);
+
+    private static bool ExecutionsEqual(
+        IReadOnlyList<TradeExecution> current,
+        IReadOnlyList<TradeExecution> candidate)
+    {
+        if (current.Count != candidate.Count)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < current.Count; index++)
+        {
+            TradeExecution left = current[index];
+            TradeExecution right = candidate[index];
+            if (left.Id != right.Id ||
+                left.TradeId != right.TradeId ||
+                left.Sequence != right.Sequence ||
+                left.ExecutedAtUtc != right.ExecutedAtUtc ||
+                left.Side != right.Side ||
+                left.Quantity != right.Quantity ||
+                left.Price != right.Price ||
+                left.Commission != right.Commission ||
+                left.Fees != right.Fees ||
+                !string.Equals(
+                    left.ExternalExecutionId,
+                    right.ExternalExecutionId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    left.ExternalOrderId,
+                    right.ExternalOrderId,
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    left.BrokerSymbol,
+                    right.BrokerSymbol,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

@@ -35,9 +35,9 @@ public sealed class TradingMistake : AuditableEntity
         IsActive = isActive;
     }
 
-    public string Name { get; }
+    public string Name { get; private set; }
 
-    public string? Description { get; }
+    public string? Description { get; private set; }
 
     public bool IsActive { get; private set; }
 
@@ -78,6 +78,25 @@ public sealed class TradingMistake : AuditableEntity
 
         SetUpdatedAtUtc(updatedAtUtc);
         IsActive = false;
+    }
+
+    public bool UpdateDetails(
+        string name,
+        string? description,
+        DateTimeOffset updatedAtUtc)
+    {
+        string normalizedName = NormalizeName(name);
+        string? normalizedDescription = NormalizeDescription(description);
+
+        if (Name == normalizedName && Description == normalizedDescription)
+        {
+            return false;
+        }
+
+        SetUpdatedAtUtc(updatedAtUtc);
+        Name = normalizedName;
+        Description = normalizedDescription;
+        return true;
     }
 
     private static string NormalizeName(string name)

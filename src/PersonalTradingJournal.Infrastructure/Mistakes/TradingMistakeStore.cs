@@ -23,8 +23,7 @@ public sealed class TradingMistakeStore(IDbContextFactory<JournalDbContext> cont
     public async Task UpdateAsync(TradingMistake mistake, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(mistake); await using JournalDbContext c = await _factory.CreateDbContextAsync(token);
-        TradingMistakeRecord record = await c.TradingMistakes.SingleOrDefaultAsync(x => x.Id == mistake.Id, token)
-            ?? throw new KeyNotFoundException($"Trading mistake '{mistake.Id}' was not found.");
-        record.IsActive = mistake.IsActive; record.UpdatedAtUtc = mistake.UpdatedAtUtc; await c.SaveChangesAsync(token);
+        c.TradingMistakes.Update(TradingMistakePersistenceMapper.ToRecord(mistake));
+        await c.SaveChangesAsync(token);
     }
 }

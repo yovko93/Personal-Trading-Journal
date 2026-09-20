@@ -253,6 +253,117 @@ public sealed class TradingAccountTests
     }
 
     [Fact]
+    public void UpdateDetailsChangesEditableMetadataAndPreservesIdentityAndState()
+    {
+        TradingAccount account = CreateAccount();
+        Guid id = account.Id;
+        DateTimeOffset updatedAtUtc = CreatedAtUtc.AddHours(1);
+
+        bool changed = account.UpdateDetails(
+            "Funded Account",
+            TradingAccountType.PropFunded,
+            "New Provider",
+            "FUNDED-42",
+            "EUR",
+            100000m,
+            updatedAtUtc);
+
+        Assert.True(changed);
+        Assert.Equal(id, account.Id);
+        Assert.Equal(CreatedAtUtc, account.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, account.UpdatedAtUtc);
+        Assert.Equal("Funded Account", account.Name);
+        Assert.Equal(TradingAccountType.PropFunded, account.AccountType);
+        Assert.Equal("New Provider", account.ProviderName);
+        Assert.Equal("FUNDED-42", account.ExternalAccountId);
+        Assert.Equal("EUR", account.Currency);
+        Assert.Equal(100000m, account.StartingBalance);
+        Assert.True(account.IsActive);
+    }
+
+    [Fact]
+    public void UpdateDetailsNormalizesTextAndClearsOptionalValues()
+    {
+        TradingAccount account = CreateAccount();
+
+        account.UpdateDetails(
+            "  Personal Account  ",
+            TradingAccountType.Personal,
+            "   ",
+            null,
+            " gbp ",
+            null,
+            CreatedAtUtc.AddHours(1));
+
+        Assert.Equal("Personal Account", account.Name);
+        Assert.Null(account.ProviderName);
+        Assert.Null(account.ExternalAccountId);
+        Assert.Equal("GBP", account.Currency);
+        Assert.Null(account.StartingBalance);
+    }
+
+    [Fact]
+    public void UpdateDetailsWithCanonicalSameValuesIsNoOp()
+    {
+        TradingAccount account = CreateAccount();
+
+        bool changed = account.UpdateDetails(
+            "  Topstep 50K Evaluation  ",
+            TradingAccountType.PropEvaluation,
+            " Topstep ",
+            " TS-AbC-123 ",
+            " usd ",
+            50_000m,
+            CreatedAtUtc.AddHours(1));
+
+        Assert.False(changed);
+        Assert.Equal(CreatedAtUtc, account.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void UpdateDetailsRejectsInvalidValuesWithoutPartialMutation()
+    {
+        TradingAccount account = CreateAccount();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => account.UpdateDetails(
+            "Changed Name",
+            TradingAccountType.Personal,
+            null,
+            null,
+            "USD",
+            -1m,
+            CreatedAtUtc.AddHours(1)));
+
+        Assert.Equal("Topstep 50K Evaluation", account.Name);
+        Assert.Equal(TradingAccountType.PropEvaluation, account.AccountType);
+        Assert.Equal("Topstep", account.ProviderName);
+        Assert.Equal("TS-AbC-123", account.ExternalAccountId);
+        Assert.Equal("USD", account.Currency);
+        Assert.Equal(50_000m, account.StartingBalance);
+        Assert.Equal(CreatedAtUtc, account.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void UpdateDetailsRejectsBackwardsTimestampWithoutPartialMutation()
+    {
+        TradingAccount account = CreateAccount();
+        account.Deactivate(CreatedAtUtc.AddHours(2));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => account.UpdateDetails(
+            "Changed Name",
+            account.AccountType,
+            account.ProviderName,
+            account.ExternalAccountId,
+            account.Currency,
+            account.StartingBalance,
+            CreatedAtUtc.AddHours(1)));
+
+        Assert.Equal("Topstep 50K Evaluation", account.Name);
+        Assert.Equal(CreatedAtUtc.AddHours(2), account.UpdatedAtUtc);
+        Assert.False(account.IsActive);
+    }
+
+    [Fact]
     public void RehydratesExistingInactiveAccount()
     {
         DateTimeOffset updatedAtUtc = CreatedAtUtc.AddDays(1);

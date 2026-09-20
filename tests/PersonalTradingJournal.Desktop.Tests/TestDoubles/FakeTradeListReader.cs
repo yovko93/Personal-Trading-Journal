@@ -4,9 +4,9 @@ namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
 internal sealed class FakeTradeListReader : ITradeListReader
 {
-    private readonly Queue<Func<CancellationToken, Task<IReadOnlyList<TradeListItem>>>>
+    private readonly Queue<Func<TradeListQuery, CancellationToken, Task<TradeListPage>>>
         _behaviors = new();
-    private readonly List<int> _requestedLimits = [];
+    private readonly List<TradeListQuery> _requestedQueries = [];
     private readonly TaskCompletionSource<bool> _readStarted =
         new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource<bool> _releaseRead =
@@ -14,7 +14,11 @@ internal sealed class FakeTradeListReader : ITradeListReader
 
     public int CallCount { get; private set; }
 
-    public IReadOnlyList<int> RequestedLimits => _requestedLimits;
+    public IReadOnlyList<TradeListQuery> RequestedQueries => _requestedQueries;
+
+    public IReadOnlyList<int> RequestedLimits => _requestedQueries
+        .Select(query => query.PageSize)
+        .ToList();
 
     public CancellationToken CancellationToken { get; private set; }
 
@@ -29,27 +33,53 @@ internal sealed class FakeTradeListReader : ITradeListReader
 
     public void EnqueueResult(IReadOnlyList<TradeListItem> trades)
     {
-        _behaviors.Enqueue(_ => Task.FromResult(trades));
+        EnqueuePage(trades, trades.Count);
+    }
+
+    public void EnqueuePage(
+        IReadOnlyList<TradeListItem> trades,
+        int totalCount,
+        int? pageNumber = null)
+    {
+        _behaviors.Enqueue((query, _) => Task.FromResult(new TradeListPage(
+            trades,
+            pageNumber ?? query.PageNumber,
+            query.PageSize,
+            totalCount)));
     }
 
     public void EnqueueException(Exception exception)
     {
-        _behaviors.Enqueue(_ =>
-            Task.FromException<IReadOnlyList<TradeListItem>>(exception));
+        _behaviors.Enqueue((_, _) =>
+            Task.FromException<TradeListPage>(exception));
     }
 
     public void EnqueueBehavior(
         Func<CancellationToken, Task<IReadOnlyList<TradeListItem>>> behavior)
     {
+        _behaviors.Enqueue(async (query, cancellationToken) =>
+        {
+            IReadOnlyList<TradeListItem> items = await behavior(cancellationToken);
+            return new TradeListPage(
+                items,
+                query.PageNumber,
+                query.PageSize,
+                items.Count);
+        });
+    }
+
+    public void EnqueuePageBehavior(
+        Func<TradeListQuery, CancellationToken, Task<TradeListPage>> behavior)
+    {
         _behaviors.Enqueue(behavior);
     }
 
-    public async Task<IReadOnlyList<TradeListItem>> GetRecentAsync(
-        int limit,
+    public async Task<TradeListPage> GetPageAsync(
+        TradeListQuery query,
         CancellationToken cancellationToken = default)
     {
         CallCount++;
-        _requestedLimits.Add(limit);
+        _requestedQueries.Add(query);
         CancellationToken = cancellationToken;
         _readStarted.TrySetResult(true);
 
@@ -59,7 +89,7 @@ internal sealed class FakeTradeListReader : ITradeListReader
         }
 
         return _behaviors.Count == 0
-            ? []
-            : await _behaviors.Dequeue()(cancellationToken);
+            ? new TradeListPage([], query.PageNumber, query.PageSize, 0)
+            : await _behaviors.Dequeue()(query, cancellationToken);
     }
 }

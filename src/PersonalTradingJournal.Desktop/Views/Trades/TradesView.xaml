@@ -1,7 +1,60 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradesView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:applicationTrades="clr-namespace:PersonalTradingJournal.Application.Trades;assembly=PersonalTradingJournal.Application"
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
+    <UserControl.Resources>
+        <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
+        <Style x:Key="TradeSortHeaderButtonStyle"
+               TargetType="{x:Type Button}"
+               BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="HeaderChrome"
+                                Background="{TemplateBinding Background}"
+                                BorderThickness="0"
+                                CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderChrome"
+                                        Property="Background"
+                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                <Setter Property="Foreground"
+                                        Value="{DynamicResource PtjTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HeaderChrome" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="HeaderChrome"
+                                        Property="Background"
+                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="HeaderChrome" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
@@ -77,6 +130,39 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
+
+                <TextBlock Margin="0,8,0,0"
+                           Text="{Binding TradeDeleteErrorMessage}">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTradeDeleteError}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Margin="0,8,0,0"
+                           Text="{Binding TradeDeleteWarningMessage}"
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}"
+                               BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                            <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasTradeDeleteWarning}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </StackPanel>
 
             <Border Margin="0,16,0,0">
@@ -85,7 +171,7 @@
                            BasedOn="{StaticResource PtjFormSectionStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsManualEntryVisible}" Value="True">
+                            <DataTrigger Binding="{Binding IsTradeFormVisible}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
                             </DataTrigger>
                         </Style.Triggers>
@@ -94,10 +180,10 @@
 
                 <StackPanel>
                     <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
-                               Text="Manual Trade Entry" />
+                               Text="{Binding TradeFormTitle}" />
                     <TextBlock Margin="0,6,0,0"
                                Style="{StaticResource PtjSecondaryTextStyle}"
-                               Text="Enter the trade facts explicitly. Execution times are UTC." />
+                               Text="{Binding TradeFormDescription}" />
 
                     <StackPanel Margin="0,20,0,0">
                         <StackPanel.Style>
@@ -108,6 +194,9 @@
                                         <Setter Property="IsEnabled" Value="False" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding IsSaving}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsUpdatingTrade}" Value="True">
                                         <Setter Property="IsEnabled" Value="False" />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -435,15 +524,78 @@
                         </TextBlock.Style>
                     </TextBlock>
 
+                    <TextBlock Margin="0,8,0,0"
+                               Text="{Binding TradeUpdateErrorMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjSecondaryTextStyle}">
+                                <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasTradeUpdateError}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <TextBlock Margin="0,8,0,0" Text="Saving changes...">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjCaptionTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsUpdatingTrade}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
                     <StackPanel Margin="0,20,0,0"
                                 HorizontalAlignment="Right"
                                 Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="{x:Type StackPanel}">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTradeEditVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
                         <Button Command="{Binding CancelManualEntryCommand}"
                                 Content="Cancel"
                                 Style="{StaticResource PtjSecondaryButtonStyle}" />
                         <Button Margin="8,0,0,0"
                                 Command="{Binding SaveManualTradeCommand}"
                                 Content="Save Trade"
+                                Style="{StaticResource PtjPrimaryButtonStyle}" />
+                    </StackPanel>
+
+                    <StackPanel Margin="0,20,0,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="{x:Type StackPanel}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTradeEditVisible}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <Button Command="{Binding CancelTradeEditCommand}"
+                                Content="Cancel"
+                                Style="{StaticResource PtjSecondaryButtonStyle}" />
+                        <Button Margin="8,0,0,0"
+                                Command="{Binding SaveTradeEditCommand}"
+                                Content="Save Changes"
                                 Style="{StaticResource PtjPrimaryButtonStyle}" />
                     </StackPanel>
                 </StackPanel>
@@ -468,6 +620,8 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <TextBlock VerticalAlignment="Center"
@@ -480,6 +634,44 @@
                                 Command="{Binding CloseTradeDetailCommand}"
                                 Content="Close"
                                 Style="{StaticResource PtjButtonStyle}" />
+                        <Button Grid.Column="2"
+                                Margin="8,0,0,0"
+                                Padding="12,4"
+                                MinHeight="28"
+                                Command="{Binding ShowSelectedTradeEditCommand}"
+                                Content="Edit"
+                                Style="{StaticResource PtjEntityActionButtonStyle}" />
+                        <Button Grid.Column="3"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="More trade actions"
+                                interactions:EntityActionMenu.OpensContextMenu="True"
+                                Style="{StaticResource PtjIconButtonStyle}"
+                                Tag="{Binding}"
+                                ToolTip="More trade actions">
+                            <Button.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
+                                             Style="{StaticResource PtjEntityActionMenuStyle}">
+                                    <MenuItem Command="{Binding Tag.DeleteSelectedTradeCommand}"
+                                              Header="Delete"
+                                              Style="{StaticResource PtjDeleteMenuItemStyle}">
+                                        <MenuItem.Icon>
+                                            <Viewbox>
+                                                <Path Data="{StaticResource PtjIconDelete}"
+                                                      Fill="{x:Null}"
+                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                      StrokeLineJoin="Round"
+                                                      StrokeThickness="1.8" />
+                                            </Viewbox>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                            <Viewbox Width="18" Height="18">
+                                <Path Data="{StaticResource PtjIconMore}"
+                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                      Stretch="Uniform" />
+                            </Viewbox>
+                        </Button>
                     </Grid>
 
                     <TextBlock Margin="0,16,0,0"
@@ -730,6 +922,7 @@
                                         <TextBlock.Style>
                                             <Style TargetType="{x:Type TextBlock}"
                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL}" Value="{x:Null}">
@@ -750,8 +943,24 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                   Text="{Binding SelectedTradeDetail.GrossPnL}" />
+                                        <TextBlock Text="{Binding SelectedTradeDetail.GrossPnL}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}"
+                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Positive}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Negative}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Margin="4,0,0,0"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
                                                    Text="{Binding SelectedTradeDetail.Currency}" />
@@ -766,6 +975,7 @@
                                         <TextBlock.Style>
                                             <Style TargetType="{x:Type TextBlock}"
                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL}" Value="{x:Null}">
@@ -786,8 +996,25 @@
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                   Text="{Binding SelectedTradeDetail.NetPnL}" />
+                                        <TextBlock Text="{Binding SelectedTradeDetail.NetPnL}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}"
+                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                    <Setter Property="FontSize" Value="15" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Positive}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                     Value="{x:Static converters:PnLOutcome.Negative}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBlock Margin="4,0,0,0"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
                                                    Text="{Binding SelectedTradeDetail.Currency}" />
@@ -1909,7 +2136,7 @@
                     Style="{StaticResource PtjCardStyle}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
-                               Text="Recent Trades" />
+                               Text="Trades" />
 
                     <TextBlock Margin="0,12,0,0"
                                Text="Loading trades...">
@@ -1984,39 +2211,182 @@
                                 <ColumnDefinition Width="1.2*" />
                                 <ColumnDefinition Width="90" />
                                 <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="72" />
+                                <ColumnDefinition Width="220" />
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Opened (UTC)" />
-                            <TextBlock Grid.Column="1"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Trade" />
-                            <TextBlock Grid.Column="2"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Account" />
-                            <TextBlock Grid.Column="3"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Average Prices" />
-                            <TextBlock Grid.Column="4"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Open Qty" />
-                            <TextBlock Grid.Column="5"
-                                       Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Net P&amp;L" />
+                            <Button Grid.Column="0"
+                                    AutomationProperties.Name="Sort by Opened UTC"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Opened (UTC)" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding OpenedAtUtcSortIndicator}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="1"
+                                    AutomationProperties.Name="Sort by Trade"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Instrument}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.Instrument}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Trade" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding InstrumentSortIndicator}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="2"
+                                    AutomationProperties.Name="Sort by Account"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.Account}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.Account}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Account" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding AccountSortIndicator}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="3"
+                                    AutomationProperties.Name="Sort by Average Entry Price"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.AverageEntryPrice}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.AverageEntryPrice}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Average Prices" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding AverageEntryPriceSortIndicator}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="4"
+                                    AutomationProperties.Name="Sort by Open Quantity"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Open Qty" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding OpenQuantitySortIndicator}" />
+                                </StackPanel>
+                            </Button>
+                            <Button Grid.Column="5"
+                                    AutomationProperties.Name="Sort by Net P&amp;L"
+                                    Command="{Binding SortTradesCommand}"
+                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.NetPnL}">
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}"
+                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
+                                                         Value="{x:Static applicationTrades:TradeListSortColumn.NetPnL}">
+                                                <Setter Property="Background"
+                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="Net P&amp;L" />
+                                    <TextBlock Margin="4,0,0,0"
+                                               Style="{StaticResource PtjCaptionTextStyle}"
+                                               Text="{Binding NetPnLSortIndicator}" />
+                                </StackPanel>
+                            </Button>
                             <TextBlock Grid.Column="6"
                                        Margin="8,0,0,0"
                                        Style="{StaticResource PtjCaptionTextStyle}"
-                                       Text="Details" />
+                                       Text="Actions" />
                         </Grid>
 
                         <ItemsControl ItemsSource="{Binding RecentTrades}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Padding="0,12"
+                                    <Border Margin="0,0,0,8"
+                                            Padding="12"
                                             BorderBrush="{DynamicResource PtjBorderBrush}"
-                                            BorderThickness="0,1,0,0">
+                                            BorderThickness="1"
+                                            CornerRadius="{StaticResource PtjCornerRadiusMd}">
+                                        <Border.Style>
+                                            <Style TargetType="{x:Type Border}">
+                                                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
+                                                        <Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                 Value="{x:Static converters:PnLOutcome.Negative}">
+                                                        <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="110" />
@@ -2025,7 +2395,7 @@
                                                 <ColumnDefinition Width="1.2*" />
                                                 <ColumnDefinition Width="90" />
                                                 <ColumnDefinition Width="110" />
-                                                <ColumnDefinition Width="72" />
+                                                <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
 
                                             <StackPanel Grid.Column="0">
@@ -2084,6 +2454,7 @@
                                                     <TextBlock.Style>
                                                         <Style TargetType="{x:Type TextBlock}"
                                                                BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
@@ -2104,28 +2475,139 @@
                                                             </Style.Triggers>
                                                         </Style>
                                                     </StackPanel.Style>
-                                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding NetPnL}" />
+                                                    <TextBlock Text="{Binding NetPnL}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="{x:Type TextBlock}"
+                                                                   BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                 Value="{x:Static converters:PnLOutcome.Negative}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock Margin="4,0,0,0"
                                                                Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="{Binding Currency}" />
                                                 </StackPanel>
                                             </Grid>
 
-                                            <Button Grid.Column="6"
-                                                    Margin="8,0,0,0"
-                                                    Padding="10,4"
-                                                    MinHeight="28"
-                                                    VerticalAlignment="Center"
-                                                    Command="{Binding DataContext.ShowTradeDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    CommandParameter="{Binding}"
-                                                    Content="View"
-                                                    Style="{StaticResource PtjButtonStyle}" />
+                                            <StackPanel Grid.Column="6"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Horizontal">
+                                                <Button Command="{Binding DataContext.ShowTradeDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource PtjEntityActionButtonStyle}"
+                                                        ToolTip="View trade details">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Viewbox Width="14" Height="14">
+                                                            <Path Data="{StaticResource PtjIconView}"
+                                                                  Fill="{x:Null}"
+                                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                                  StrokeLineJoin="Round"
+                                                                  StrokeThickness="1.7" />
+                                                        </Viewbox>
+                                                        <TextBlock Margin="6,0,0,0" Text="View" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Margin="4,0,0,0"
+                                                        Command="{Binding DataContext.ShowTradeEditCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource PtjEntityActionButtonStyle}"
+                                                        ToolTip="Edit trade">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Viewbox Width="14" Height="14">
+                                                            <Path Data="{StaticResource PtjIconEdit}"
+                                                                  Fill="{x:Null}"
+                                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                                  StrokeLineJoin="Round"
+                                                                  StrokeThickness="1.7" />
+                                                        </Viewbox>
+                                                        <TextBlock Margin="6,0,0,0" Text="Edit" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Margin="4,0,0,0"
+                                                        AutomationProperties.Name="More trade actions"
+                                                        interactions:EntityActionMenu.OpensContextMenu="True"
+                                                        Style="{StaticResource PtjIconButtonStyle}"
+                                                        Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
+                                                        ToolTip="More trade actions">
+                                                    <Button.ContextMenu>
+                                                        <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
+                                                                     Style="{StaticResource PtjEntityActionMenuStyle}">
+                                                            <MenuItem Command="{Binding Tag.DeleteTradeCommand}"
+                                                                      CommandParameter="{Binding DataContext}"
+                                                                      Header="Delete"
+                                                                      Style="{StaticResource PtjDeleteMenuItemStyle}">
+                                                                <MenuItem.Icon>
+                                                                    <Viewbox>
+                                                                        <Path Data="{StaticResource PtjIconDelete}"
+                                                                              Fill="{x:Null}"
+                                                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                              StrokeLineJoin="Round"
+                                                                              StrokeThickness="1.8" />
+                                                                    </Viewbox>
+                                                                </MenuItem.Icon>
+                                                            </MenuItem>
+                                                        </ContextMenu>
+                                                    </Button.ContextMenu>
+                                                    <Viewbox Width="18" Height="18">
+                                                        <Path Data="{StaticResource PtjIconMore}"
+                                                              Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                              Stretch="Uniform" />
+                                                    </Viewbox>
+                                                </Button>
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock VerticalAlignment="Center"
+                                       Style="{StaticResource PtjCaptionTextStyle}"
+                                       Text="{Binding TotalTradesText}" />
+
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal">
+                                <StackPanel.Style>
+                                    <Style TargetType="{x:Type StackPanel}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasMultipleTradePages}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <Button AutomationProperties.Name="Previous trade page"
+                                        Command="{Binding PreviousTradePageCommand}"
+                                        Content="Previous"
+                                        Style="{StaticResource PtjSecondaryButtonStyle}" />
+                                <TextBlock Margin="12,0"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource PtjBodyTextStyle}"
+                                           Text="{Binding PageSummary}" />
+                                <Button AutomationProperties.Name="Next trade page"
+                                        Command="{Binding NextTradePageCommand}"
+                                        Content="Next"
+                                        Style="{StaticResource PtjSecondaryButtonStyle}" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </StackPanel>
             </Border>

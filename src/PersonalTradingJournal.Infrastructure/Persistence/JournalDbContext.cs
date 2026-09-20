@@ -21,6 +21,8 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradeRecord> Trades => Set<TradeRecord>();
 
+    public DbSet<TradeBrowseRecord> TradeBrowse => Set<TradeBrowseRecord>();
+
     public DbSet<TradeExecutionRecord> TradeExecutions => Set<TradeExecutionRecord>();
 
     public DbSet<TradeScreenshotRecord> TradeScreenshots => Set<TradeScreenshotRecord>();
@@ -36,6 +38,7 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TradingSetupRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingMistakeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradeBrowseRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeExecutionRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeScreenshotRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeMistakeRecordConfiguration());

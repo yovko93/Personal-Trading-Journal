@@ -103,9 +103,15 @@ public sealed class PersistenceRegistrationTests
             serviceProvider.GetRequiredService<ITradingAccountStore>();
         ITradingAccountStore secondStore =
             serviceProvider.GetRequiredService<ITradingAccountStore>();
+        ITradingAccountDeletionStore firstDeletionStore =
+            serviceProvider.GetRequiredService<ITradingAccountDeletionStore>();
+        ITradingAccountDeletionStore secondDeletionStore =
+            serviceProvider.GetRequiredService<ITradingAccountDeletionStore>();
 
         Assert.IsType<TradingAccountStore>(firstStore);
+        Assert.IsType<TradingAccountDeletionStore>(firstDeletionStore);
         Assert.NotSame(firstStore, secondStore);
+        Assert.NotSame(firstDeletionStore, secondDeletionStore);
     }
 
     [Fact]
@@ -134,9 +140,11 @@ public sealed class PersistenceRegistrationTests
         Assert.IsType<TradingSetupReader>(provider.GetRequiredService<ITradingSetupReader>());
         Assert.IsType<TradingSetupStore>(provider.GetRequiredService<ITradingSetupStore>());
         Assert.IsType<TradingSetupNameChecker>(provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.IsType<TradingSetupDeletionStore>(provider.GetRequiredService<ITradingSetupDeletionStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupReader>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupStore>(), provider.GetRequiredService<ITradingSetupStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingSetupNameChecker>(), provider.GetRequiredService<ITradingSetupNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingSetupDeletionStore>(), provider.GetRequiredService<ITradingSetupDeletionStore>());
     }
 
     [Fact]
@@ -148,9 +156,11 @@ public sealed class PersistenceRegistrationTests
         Assert.IsType<TradingMistakeReader>(provider.GetRequiredService<ITradingMistakeReader>());
         Assert.IsType<TradingMistakeStore>(provider.GetRequiredService<ITradingMistakeStore>());
         Assert.IsType<TradingMistakeNameChecker>(provider.GetRequiredService<ITradingMistakeNameChecker>());
+        Assert.IsType<TradingMistakeDeletionStore>(provider.GetRequiredService<ITradingMistakeDeletionStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingMistakeReader>(), provider.GetRequiredService<ITradingMistakeReader>());
         Assert.NotSame(provider.GetRequiredService<ITradingMistakeStore>(), provider.GetRequiredService<ITradingMistakeStore>());
         Assert.NotSame(provider.GetRequiredService<ITradingMistakeNameChecker>(), provider.GetRequiredService<ITradingMistakeNameChecker>());
+        Assert.NotSame(provider.GetRequiredService<ITradingMistakeDeletionStore>(), provider.GetRequiredService<ITradingMistakeDeletionStore>());
     }
 
     [Fact]

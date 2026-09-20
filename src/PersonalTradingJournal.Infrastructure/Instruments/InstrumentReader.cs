@@ -38,4 +38,30 @@ public sealed class InstrumentReader : IInstrumentReader
                 record.IsActive))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<InstrumentDetails?> GetByIdAsync(
+        Guid instrumentId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.Instruments
+            .AsNoTracking()
+            .Where(record => record.Id == instrumentId)
+            .Select(record => new InstrumentDetails(
+                record.Id,
+                record.Symbol,
+                record.DisplayName,
+                record.AssetClass,
+                record.Exchange,
+                record.Currency,
+                record.TickSize,
+                record.TickValue,
+                record.TickValue / record.TickSize,
+                record.IsActive,
+                record.CreatedAtUtc,
+                record.UpdatedAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 }

@@ -14,6 +14,8 @@ public sealed class JournalDatabaseInitializerTests
 {
     private const string InitialMigrationId = "20260908122839_InitialCreate";
     private const string RemoveStrategiesMigrationId = "20260914212911_RemoveStrategies";
+    private const string TradeBrowseMigrationId =
+        "20260917165522_AddTradeBrowseProjection";
 
     [Fact]
     public async Task InitializeAsyncCreatesMigratedUsableEmptyDatabase()
@@ -42,11 +44,12 @@ public sealed class JournalDatabaseInitializerTests
                 await contextFactory.CreateDbContextAsync();
 
             Assert.Equal(
-                [InitialMigrationId, RemoveStrategiesMigrationId],
+                [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
             Assert.Equal(0, await context.Trades.CountAsync());
+            Assert.Equal(0, await context.TradeBrowse.CountAsync());
             Assert.Equal(0, await context.TradeExecutions.CountAsync());
             Assert.Equal(0, await context.TradeScreenshots.CountAsync());
             Assert.Equal(0, await context.TradeMistakes.CountAsync());
@@ -100,7 +103,7 @@ public sealed class JournalDatabaseInitializerTests
                          await contextFactory.CreateDbContextAsync())
             {
                 Assert.Equal(
-                    [InitialMigrationId, RemoveStrategiesMigrationId],
+                    [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -114,7 +117,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(2L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(3L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

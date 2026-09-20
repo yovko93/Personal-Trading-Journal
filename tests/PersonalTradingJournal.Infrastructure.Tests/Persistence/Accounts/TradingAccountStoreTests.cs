@@ -206,4 +206,50 @@ public sealed class TradingAccountStoreTests
         Assert.True(persisted.IsActive);
         Assert.Equal(createdAtUtc, persisted.UpdatedAtUtc);
     }
+
+    [Fact]
+    public async Task UpdateAsyncPersistsEditedMetadataWithoutChangingIdentityOrCreatedTimestamp()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        ITradingAccountStore store =
+            database.ServiceProvider.GetRequiredService<ITradingAccountStore>();
+        DateTimeOffset createdAtUtc =
+            new(2026, 9, 7, 10, 45, 0, TimeSpan.Zero);
+        DateTimeOffset updatedAtUtc = createdAtUtc.AddDays(1);
+        var account = new TradingAccount(
+            "Original",
+            TradingAccountType.Demo,
+            "Old Provider",
+            "OLD-1",
+            "USD",
+            1000m,
+            createdAtUtc);
+        await store.AddAsync(account);
+        account.UpdateDetails(
+            "Updated",
+            TradingAccountType.Personal,
+            null,
+            null,
+            "EUR",
+            null,
+            updatedAtUtc);
+
+        await store.UpdateAsync(account);
+
+        await using JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync();
+        TradingAccountRecord persisted = await context.TradingAccounts
+            .AsNoTracking()
+            .SingleAsync(candidate => candidate.Id == account.Id);
+        Assert.Equal(account.Id, persisted.Id);
+        Assert.Equal(createdAtUtc, persisted.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, persisted.UpdatedAtUtc);
+        Assert.Equal("Updated", persisted.Name);
+        Assert.Equal(TradingAccountType.Personal, persisted.AccountType);
+        Assert.Null(persisted.ProviderName);
+        Assert.Null(persisted.ExternalAccountId);
+        Assert.Equal("EUR", persisted.Currency);
+        Assert.Null(persisted.StartingBalance);
+        Assert.True(persisted.IsActive);
+    }
 }

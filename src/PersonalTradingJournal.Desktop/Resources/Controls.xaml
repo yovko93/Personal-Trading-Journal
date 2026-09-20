@@ -80,6 +80,160 @@
         <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
     </Style>
 
+    <Style x:Key="PtjDangerButtonStyle"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource PtjButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjSurfaceBrush}" />
+    </Style>
+
+    <Style x:Key="PtjIconButtonStyle"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource PtjButtonStyle}">
+        <Setter Property="Width" Value="36" />
+        <Setter Property="Height" Value="36" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="PtjEntityActionButtonStyle"
+           TargetType="{x:Type Button}"
+           BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <Style x:Key="PtjEntityActionMenuItemStyle" TargetType="{x:Type MenuItem}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="StaysOpenOnClick" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type MenuItem}">
+                    <Border x:Name="MenuItemChrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="Transparent"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                        <Grid Margin="{TemplateBinding Padding}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ContentPresenter Width="16"
+                                              Height="16"
+                                              HorizontalAlignment="Left"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Icon" />
+                            <ContentPresenter Grid.Column="1"
+                                              Margin="8,0,14,0"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True" />
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource PtjTextMutedBrush}"
+                                       Text="{TemplateBinding InputGestureText}" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="MenuItemChrome"
+                                    Property="Background"
+                                    Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="MenuItemChrome"
+                                    Property="BorderBrush"
+                                    Value="{DynamicResource PtjAccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="MenuItemChrome" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjLifecycleMenuItemStyle"
+           TargetType="{x:Type MenuItem}"
+           BasedOn="{StaticResource PtjEntityActionMenuItemStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+    </Style>
+
+    <Style x:Key="PtjDeleteMenuItemStyle"
+           TargetType="{x:Type MenuItem}"
+           BasedOn="{StaticResource PtjEntityActionMenuItemStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+    </Style>
+
+    <Style x:Key="PtjEntityActionMenuSeparatorStyle"
+           TargetType="{x:Type Separator}">
+        <Setter Property="Background" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Margin" Value="2,5" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Separator}">
+                    <Border Height="{TemplateBinding Height}"
+                            Background="{TemplateBinding Background}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PtjEntityActionMenuStyle" TargetType="{x:Type ContextMenu}">
+        <Style.Resources>
+            <Style TargetType="{x:Type MenuItem}"
+                   BasedOn="{StaticResource PtjEntityActionMenuItemStyle}" />
+            <Style TargetType="{x:Type Separator}"
+                   BasedOn="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+        </Style.Resources>
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="HasDropShadow" Value="False" />
+        <Setter Property="Placement" Value="Bottom" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ContextMenu}">
+                    <Border MinWidth="168"
+                            Padding="4"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource PtjCornerRadiusMd}">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="10"
+                                              Color="{DynamicResource PtjColorBorder}"
+                                              Opacity="0.32"
+                                              ShadowDepth="2" />
+                        </Border.Effect>
+                        <StackPanel IsItemsHost="True"
+                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <ControlTemplate x:Key="PtjValidationErrorTemplate">
         <AdornedElementPlaceholder />
     </ControlTemplate>
@@ -619,6 +773,40 @@
            BasedOn="{StaticResource PtjSecondaryTextStyle}">
         <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
         <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="PtjDetailLabelTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjCaptionTextStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="PtjDetailValueTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjBodyTextStyle}">
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style x:Key="PtjStatusBadgeStyle" TargetType="{x:Type Border}">
+        <Setter Property="Padding" Value="8,3" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource PtjCornerRadiusSm}" />
+    </Style>
+
+    <Style x:Key="PtjActiveStatusTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjCaptionTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="PtjInactiveStatusTextStyle"
+           TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjCaptionTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <Style x:Key="PtjSeparatorStyle" TargetType="{x:Type Separator}">

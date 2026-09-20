@@ -36,16 +36,25 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDbContextFactory<JournalDbContext>(options =>
             options.UseSqlite(connectionString));
         services.AddTransient<JournalDatabaseInitializer>();
+        services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
+        services.AddTransient<
+            ITradingAccountDeletionStore,
+            TradingAccountDeletionStore>();
         services.AddTransient<IInstrumentReader, InstrumentReader>();
         services.AddTransient<IInstrumentStore, InstrumentStore>();
+        services.AddTransient<IInstrumentDeletionStore, InstrumentDeletionStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
+        services.AddTransient<ITradingSetupDeletionStore, TradingSetupDeletionStore>();
         services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();
         services.AddTransient<ITradingMistakeStore, TradingMistakeStore>();
         services.AddTransient<ITradingMistakeNameChecker, TradingMistakeNameChecker>();
+        services.AddTransient<
+            ITradingMistakeDeletionStore,
+            TradingMistakeDeletionStore>();
         services.AddTransient<ITradeMistakeReader, TradeMistakeReader>();
         services.AddTransient<ITradeMistakeStore, TradeMistakeStore>();
         services.AddTransient<
@@ -53,6 +62,7 @@ public static class PersistenceServiceCollectionExtensions
             ManualTradeReferenceDataReader>();
         services.AddTransient<ITradeStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
+        services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();

@@ -17,30 +17,28 @@ public sealed class TradeListReaderTests
         new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task GetRecentAsyncReturnsEmptyWhenNoTradesExist()
+    public async Task GetPageAsyncReturnsEmptyWhenNoTradesExist()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         ITradeListReader reader = GetReader(database);
 
-        IReadOnlyList<TradeListItem> items = await reader.GetRecentAsync(10);
+        TradeListPage page = await reader.GetPageAsync(Query(pageSize: 10));
 
-        Assert.Empty(items);
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task GetRecentAsyncRejectsNonPositiveLimit(int limit)
+    public void QueryRejectsNonPositivePageSize(int limit)
     {
-        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
-        ITradeListReader reader = GetReader(database);
-
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => reader.GetRecentAsync(limit));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => Query(pageSize: limit));
     }
 
     [Fact]
-    public async Task GetRecentAsyncProjectsOpenTradeExactly()
+    public async Task GetPageAsyncProjectsOpenTradeExactly()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(
@@ -58,7 +56,7 @@ public sealed class TradeListReaderTests
             new ExecutionFact(openedAtUtc, ExecutionSide.Buy, 2m, 100m, 1.5m, 0.5m));
         await PersistTradeAsync(database, trade);
 
-        TradeListItem item = Assert.Single(await GetReader(database).GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
 
         Assert.Equal(trade.Id, item.Id);
         Assert.Equal(account.Id, item.TradingAccountId);
@@ -79,7 +77,7 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncProjectsClosedTradeEconomicsExactly()
+    public async Task GetPageAsyncProjectsClosedTradeEconomicsExactly()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -96,7 +94,7 @@ public sealed class TradeListReaderTests
             new ExecutionFact(closedAtUtc, ExecutionSide.Sell, 2m, 110m, 1.5m, 0.25m));
         await PersistTradeAsync(database, trade);
 
-        TradeListItem item = Assert.Single(await GetReader(database).GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
 
         Assert.Equal(TradeStatus.Closed, item.Status);
         Assert.Equal(0m, item.OpenQuantity);
@@ -109,7 +107,7 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncOrdersByMarketTimeInsteadOfAuditTime()
+    public async Task GetPageAsyncOrdersByMarketTimeInsteadOfAuditTime()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -132,7 +130,7 @@ public sealed class TradeListReaderTests
         await PersistTradeAsync(database, olderMarketTrade);
         await PersistTradeAsync(database, newestMarketTrade);
 
-        IReadOnlyList<TradeListItem> items = await GetReader(database).GetRecentAsync(10);
+        IReadOnlyList<TradeListItem> items = await GetItemsAsync(GetReader(database));
 
         Assert.Equal(
             [newestMarketTrade.Id, olderMarketTrade.Id],
@@ -140,7 +138,7 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncUsesTradeIdAsDeterministicTieBreaker()
+    public async Task GetPageAsyncUsesTradeIdAsDeterministicTieBreaker()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -152,13 +150,13 @@ public sealed class TradeListReaderTests
         await PersistTradeAsync(database, higher);
         await PersistTradeAsync(database, lower);
 
-        IReadOnlyList<TradeListItem> items = await GetReader(database).GetRecentAsync(10);
+        IReadOnlyList<TradeListItem> items = await GetItemsAsync(GetReader(database));
 
         Assert.Equal([lowerId, higherId], items.Select(item => item.Id));
     }
 
     [Fact]
-    public async Task GetRecentAsyncTakesLimitAfterApplyingAuthoritativeOrder()
+    public async Task GetPageAsyncTakesPageSizeAfterApplyingAuthoritativeOrder()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -176,7 +174,9 @@ public sealed class TradeListReaderTests
             await PersistTradeAsync(database, trade);
         }
 
-        IReadOnlyList<TradeListItem> items = await GetReader(database).GetRecentAsync(3);
+        IReadOnlyList<TradeListItem> items = await GetItemsAsync(
+            GetReader(database),
+            pageSize: 3);
 
         Assert.Equal(
             trades.OrderByDescending(trade => trade.OpenedAtUtc)
@@ -186,7 +186,7 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncIncludesTradesWithInactiveReferences()
+    public async Task GetPageAsyncIncludesTradesWithInactiveReferences()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(
@@ -207,14 +207,14 @@ public sealed class TradeListReaderTests
         await database.ServiceProvider.GetRequiredService<IInstrumentStore>()
             .UpdateAsync(instrument);
 
-        TradeListItem item = Assert.Single(await GetReader(database).GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
 
         Assert.Equal("Retired Account", item.TradingAccountName);
         Assert.Equal("ES", item.InstrumentSymbol);
     }
 
     [Fact]
-    public async Task GetRecentAsyncUsesHistoricalPricingForCurrencyAndEconomics()
+    public async Task GetPageAsyncUsesHistoricalPricingForCurrencyAndEconomics()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -240,7 +240,7 @@ public sealed class TradeListReaderTests
             await context.SaveChangesAsync();
         }
 
-        TradeListItem item = Assert.Single(await GetReader(database).GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
 
         Assert.Equal("USD", item.Currency);
         Assert.Equal(400m, item.GrossPnL);
@@ -248,7 +248,7 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncProjectsScaleInAndPartialExitThroughDomainTrade()
+    public async Task GetPageAsyncProjectsScaleInAndPartialExitThroughBrowseProjection()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
@@ -265,7 +265,7 @@ public sealed class TradeListReaderTests
             new ExecutionFact(openedAtUtc.AddMinutes(20), ExecutionSide.Sell, 1m, 120m, 0.5m, 0.25m));
         await PersistTradeAsync(database, trade);
 
-        TradeListItem item = Assert.Single(await GetReader(database).GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
 
         Assert.Equal(TradeDirection.Long, item.Direction);
         Assert.Equal(TradeStatus.Open, item.Status);
@@ -279,12 +279,12 @@ public sealed class TradeListReaderTests
     }
 
     [Fact]
-    public async Task GetRecentAsyncUsesFreshContextForSubsequentRead()
+    public async Task GetPageAsyncUsesFreshContextForSubsequentRead()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
         ITradeListReader reader = GetReader(database);
-        Assert.Empty(await reader.GetRecentAsync(10));
+        Assert.Empty(await GetItemsAsync(reader));
         Trade trade = CreateOpenTrade(
             account.Id,
             instrument.Id,
@@ -292,13 +292,13 @@ public sealed class TradeListReaderTests
             Utc(10, 9));
         await PersistTradeAsync(database, trade);
 
-        TradeListItem item = Assert.Single(await reader.GetRecentAsync(10));
+        TradeListItem item = Assert.Single(await GetItemsAsync(reader));
 
         Assert.Equal(trade.Id, item.Id);
     }
 
     [Fact]
-    public async Task GetRecentAsyncPropagatesPreCancelledToken()
+    public async Task GetPageAsyncPropagatesPreCancelledToken()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         ITradeListReader reader = GetReader(database);
@@ -306,11 +306,26 @@ public sealed class TradeListReaderTests
         await cancellationSource.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => reader.GetRecentAsync(10, cancellationSource.Token));
+            () => reader.GetPageAsync(Query(), cancellationSource.Token));
     }
 
     private static ITradeListReader GetReader(ReaderTestDatabase database) =>
         database.ServiceProvider.GetRequiredService<ITradeListReader>();
+
+    private static async Task<IReadOnlyList<TradeListItem>> GetItemsAsync(
+        ITradeListReader reader,
+        int pageSize = 10)
+    {
+        TradeListPage page = await reader.GetPageAsync(Query(pageSize: pageSize));
+        return page.Items;
+    }
+
+    private static TradeListQuery Query(
+        int pageNumber = 1,
+        int pageSize = 10,
+        TradeListSortColumn sortColumn = TradeListSortColumn.OpenedAtUtc,
+        TradeListSortDirection sortDirection = TradeListSortDirection.Descending) =>
+        new(pageNumber, pageSize, sortColumn, sortDirection);
 
     private static async Task<(TradingAccount Account, Instrument Instrument)>
         PersistReferencesAsync(

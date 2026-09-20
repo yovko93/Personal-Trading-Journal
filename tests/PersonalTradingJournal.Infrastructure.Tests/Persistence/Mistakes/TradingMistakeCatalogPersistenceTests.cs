@@ -37,6 +37,27 @@ public sealed class TradingMistakeCatalogPersistenceTests
     }
 
     [Fact]
+    public async Task ReaderProjectsDetailsAndMissingReturnsNull()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid id = Guid.NewGuid();
+        await Seed(database, Record(
+            id, "FOMO Entry", "Entered early", false, Created.AddHours(1)));
+        ITradingMistakeReader reader =
+            database.ServiceProvider.GetRequiredService<ITradingMistakeReader>();
+
+        TradingMistakeDetails details = Assert.IsType<TradingMistakeDetails>(
+            await reader.GetByIdAsync(id));
+        Assert.Equal(id, details.Id);
+        Assert.Equal("FOMO Entry", details.Name);
+        Assert.Equal("Entered early", details.Description);
+        Assert.False(details.IsActive);
+        Assert.Equal(Created, details.CreatedAtUtc);
+        Assert.Equal(Created.AddHours(1), details.UpdatedAtUtc);
+        Assert.Null(await reader.GetByIdAsync(Guid.NewGuid()));
+    }
+
+    [Fact]
     public async Task StoreAddsAndRehydratesEveryFieldAndReturnsNullWhenMissing()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
@@ -51,18 +72,22 @@ public sealed class TradingMistakeCatalogPersistenceTests
     }
 
     [Fact]
-    public async Task StoreUpdateChangesLifecycleOnlyAndLeavesOtherMistakesUnchanged()
+    public async Task StoreUpdatePersistsCompleteAuthoritativeStateAndLeavesOtherMistakesUnchanged()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         ITradingMistakeStore store = database.ServiceProvider.GetRequiredService<ITradingMistakeStore>();
         var changed = new TradingMistake("FOMO", "Early entry", Created);
         var other = new TradingMistake("Overtrading", null, Created);
-        await store.AddAsync(changed); await store.AddAsync(other); changed.Deactivate(Created.AddDays(1)); await store.UpdateAsync(changed);
+        await store.AddAsync(changed); await store.AddAsync(other);
+        changed.UpdateDetails("  No Confirmation  ", "  Missing signal  ", Created.AddDays(1));
+        changed.Deactivate(Created.AddDays(2));
+        await store.UpdateAsync(changed);
         await using JournalDbContext context = await database.ContextFactory.CreateDbContextAsync();
         TradingMistakeRecord record = await context.TradingMistakes.AsNoTracking().SingleAsync(x => x.Id == changed.Id);
         TradingMistakeRecord untouched = await context.TradingMistakes.AsNoTracking().SingleAsync(x => x.Id == other.Id);
-        Assert.False(record.IsActive); Assert.Equal(Created.AddDays(1), record.UpdatedAtUtc); Assert.Equal("FOMO", record.Name);
-        Assert.Equal("Early entry", record.Description); Assert.Equal(Created, record.CreatedAtUtc); Assert.True(untouched.IsActive);
+        Assert.False(record.IsActive); Assert.Equal(Created.AddDays(2), record.UpdatedAtUtc);
+        Assert.Equal("No Confirmation", record.Name);
+        Assert.Equal("Missing signal", record.Description); Assert.Equal(Created, record.CreatedAtUtc); Assert.True(untouched.IsActive);
     }
 
     [Theory]
@@ -86,6 +111,7 @@ public sealed class TradingMistakeCatalogPersistenceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.GetByIdAsync(mistake.Id, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => store.UpdateAsync(mistake, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.ServiceProvider.GetRequiredService<ITradingMistakeReader>().GetAllAsync(source.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.ServiceProvider.GetRequiredService<ITradingMistakeReader>().GetByIdAsync(mistake.Id, source.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => database.ServiceProvider.GetRequiredService<ITradingMistakeNameChecker>().ExistsAsync("FOMO", cancellationToken: source.Token));
     }
 

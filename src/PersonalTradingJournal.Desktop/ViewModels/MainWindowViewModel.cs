@@ -203,26 +203,31 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Accounts)
         {
+            _accountsViewModel.ResetTransientState();
             _ = _accountsViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Instruments)
         {
+            _instrumentsViewModel.ResetTransientState();
             _ = _instrumentsViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Mistakes)
         {
+            _tradingMistakesViewModel.ResetTransientState();
             _ = _tradingMistakesViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Setups)
         {
+            _tradingSetupsViewModel.ResetTransientState();
             _ = _tradingSetupsViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Trades)
         {
+            _tradesViewModel.ResetTransientState();
             _ = _tradesViewModel.EnsureLoadedAsync();
         }
     }

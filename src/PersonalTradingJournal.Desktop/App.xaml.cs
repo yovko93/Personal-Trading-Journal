@@ -9,6 +9,7 @@ using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Settings;
 using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
@@ -66,18 +67,32 @@ public partial class App : System.Windows.Application
                 services.GetRequiredService<ISystemThemeProvider>()));
             builder.Services.AddSingleton<IDesktopSettingsStore, JsonDesktopSettingsStore>();
             builder.Services.AddTransient<CreateTradingAccountUseCase>();
+            builder.Services.AddTransient<GetTradingAccountDetailsUseCase>();
+            builder.Services.AddTransient<UpdateTradingAccountUseCase>();
+            builder.Services.AddTransient<DeleteTradingAccountUseCase>();
             builder.Services.AddTransient<TradingAccountLifecycleUseCase>();
             builder.Services.AddTransient<CreateInstrumentUseCase>();
+            builder.Services.AddTransient<GetInstrumentDetailsUseCase>();
+            builder.Services.AddTransient<UpdateInstrumentUseCase>();
+            builder.Services.AddTransient<DeleteInstrumentUseCase>();
             builder.Services.AddTransient<InstrumentLifecycleUseCase>();
             builder.Services.AddTransient<CreateTradingMistakeUseCase>();
+            builder.Services.AddTransient<GetTradingMistakeDetailsUseCase>();
+            builder.Services.AddTransient<UpdateTradingMistakeUseCase>();
+            builder.Services.AddTransient<DeleteTradingMistakeUseCase>();
             builder.Services.AddTransient<TradingMistakeLifecycleUseCase>();
             builder.Services.AddTransient<AssignTradeMistakeUseCase>();
             builder.Services.AddTransient<RemoveTradeMistakeUseCase>();
             builder.Services.AddTransient<CreateTradingSetupUseCase>();
+            builder.Services.AddTransient<GetTradingSetupDetailsUseCase>();
+            builder.Services.AddTransient<UpdateTradingSetupUseCase>();
+            builder.Services.AddTransient<DeleteTradingSetupUseCase>();
             builder.Services.AddTransient<TradingSetupLifecycleUseCase>();
             builder.Services.AddTransient<CreateManualTradeUseCase>();
             builder.Services.AddTransient<SetTradeTradingSetupUseCase>();
             builder.Services.AddTransient<CloseManualTradeUseCase>();
+            builder.Services.AddTransient<UpdateTradeUseCase>();
+            builder.Services.AddTransient<DeleteTradeUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<
@@ -86,6 +101,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<
                 ITradeScreenshotImageDecoder,
                 WpfTradeScreenshotImageDecoder>();
+            builder.Services.AddSingleton<IDialogService, WpfDialogService>();
             builder.Services.AddSingleton<
                 ITradeScreenshotDeleteConfirmation,
                 WpfTradeScreenshotDeleteConfirmation>();

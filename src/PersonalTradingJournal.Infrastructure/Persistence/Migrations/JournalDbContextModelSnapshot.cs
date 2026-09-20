@@ -64,6 +64,74 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("AverageEntryPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AverageEntryPriceSortKey")
+                        .IsRequired()
+                        .HasMaxLength(58)
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<decimal?>("AverageExitPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ClosedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal?>("GrossPnL")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("NetPnL")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NetPnLSortKey")
+                        .HasMaxLength(58)
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<decimal>("OpenQuantity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OpenQuantitySortKey")
+                        .IsRequired()
+                        .HasMaxLength(58)
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<DateTime>("OpenedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ProjectionVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("TotalCosts")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradeId");
+
+                    b.HasIndex("AverageEntryPriceSortKey");
+
+                    b.HasIndex("NetPnLSortKey");
+
+                    b.HasIndex("OpenQuantitySortKey");
+
+                    b.HasIndex("OpenedAtUtc");
+
+                    b.ToTable("TradeBrowse", (string)null);
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeExecutionRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -325,6 +393,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TradingSetups", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithOne()
+                        .HasForeignKey("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", "TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeExecutionRecord", b =>

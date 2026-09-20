@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, real Trading Account and Instrument management, Manual Trade Entry with later full closure of open Trades, an authoritative Recent Trades list, Trade Detail with complete execution-lifecycle presentation, local Trade Screenshot Management, and Trading Setup and Trading Mistake classification workflows. Trade editing and Trade deletion, imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, complete lifecycle management for Trading Accounts, Instruments, Trading Setups, and Trading Mistakes, and manual Trade create/list/view/edit/close/delete workflows. Trades also support local screenshots, Setup classification, Mistake assignments, and an authoritative SQLite-paged and sortable browse view. Imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -25,6 +25,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M9 — Setup and Mistake Classification: Complete**
 
 **Desktop Theme System — System / Dark / Light: Complete**
+
+**Entity Lifecycle & CRUD UX: Complete**
 
 The completed foundation includes:
 
@@ -125,6 +127,10 @@ The M9 Setup and Mistake Classification milestone includes:
 
 Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Setup and Mistake performance analytics are not implemented.
 
+The Entity Lifecycle & CRUD UX milestone completes consistent View/Edit/Delete presentation and explicit entity-specific update and deletion workflows. Accounts, Instruments, Trading Setups, and Trading Mistakes may be hard deleted only while unused; referenced records remain editable and can be deactivated without breaking historical Trades. Trades support correction through the Domain aggregate and confirmed hard deletion of their owned database records, followed by best-effort physical screenshot cleanup.
+
+Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, and take. Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are sortable; deterministic Trade-ID tie-breaking and exact decimal sort keys preserve stable page boundaries without SQLite floating-point economics.
+
 The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 The Desktop creation workflows share a compact form language for Manual Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes. Consistent section hierarchy, field labels, optional markers, restrained helper text, visible focus treatment, semantic feedback, and primary/secondary actions improve scanability without changing validation or persistence behavior.
@@ -210,7 +216,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The extended Theme System suite contains 1,193 passing tests: 367 Domain, 171 Application, 334 Infrastructure, and 321 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
+The accepted Entity Lifecycle & CRUD UX baseline contains 1,454 passing tests: 395 Domain, 226 Application, 399 Infrastructure, and 434 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
 
 ## Run
 

@@ -127,6 +127,62 @@ public sealed class TradingAccountReaderTests
             () => reader.GetAllAsync(cancellationSource.Token));
     }
 
+    [Fact]
+    public async Task GetByIdAsyncReturnsEveryDetailField()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = Guid.NewGuid();
+        DateTimeOffset createdAtUtc =
+            new(2026, 9, 8, 12, 0, 0, TimeSpan.Zero);
+        DateTimeOffset updatedAtUtc = createdAtUtc.AddDays(2);
+
+        await using (JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync())
+        {
+            context.TradingAccounts.Add(new TradingAccountRecord
+            {
+                Id = accountId,
+                Name = "Archived Funded",
+                AccountType = TradingAccountType.PropFunded,
+                ProviderName = "Provider",
+                ExternalAccountId = "FUNDED-42",
+                Currency = "EUR",
+                StartingBalance = 100000.25m,
+                IsActive = false,
+                CreatedAtUtc = createdAtUtc,
+                UpdatedAtUtc = updatedAtUtc,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        ITradingAccountReader reader =
+            database.ServiceProvider.GetRequiredService<ITradingAccountReader>();
+
+        TradingAccountDetails? details = await reader.GetByIdAsync(accountId);
+
+        TradingAccountDetails account = Assert.IsType<TradingAccountDetails>(details);
+        Assert.Equal(accountId, account.Id);
+        Assert.Equal("Archived Funded", account.Name);
+        Assert.Equal(TradingAccountType.PropFunded, account.AccountType);
+        Assert.Equal("Provider", account.ProviderName);
+        Assert.Equal("FUNDED-42", account.ExternalAccountId);
+        Assert.Equal("EUR", account.Currency);
+        Assert.Equal(100000.25m, account.StartingBalance);
+        Assert.False(account.IsActive);
+        Assert.Equal(createdAtUtc, account.CreatedAtUtc);
+        Assert.Equal(updatedAtUtc, account.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public async Task GetByIdAsyncReturnsNullWhenMissing()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        ITradingAccountReader reader =
+            database.ServiceProvider.GetRequiredService<ITradingAccountReader>();
+
+        Assert.Null(await reader.GetByIdAsync(Guid.NewGuid()));
+    }
+
     private static TradingAccountRecord CreateRecord(Guid id, string name)
     {
         DateTimeOffset timestamp =

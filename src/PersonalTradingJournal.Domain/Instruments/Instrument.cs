@@ -81,25 +81,25 @@ public sealed class Instrument : AuditableEntity
         IsActive = isActive;
     }
 
-    public string Symbol { get; }
+    public string Symbol { get; private set; }
 
-    public string DisplayName { get; }
+    public string DisplayName { get; private set; }
 
-    public AssetClass AssetClass { get; }
+    public AssetClass AssetClass { get; private set; }
 
-    public string? Exchange { get; }
+    public string? Exchange { get; private set; }
 
-    public string Currency { get; }
+    public string Currency { get; private set; }
 
     /// <summary>
     /// Gets the minimum valid price increment for the instrument.
     /// </summary>
-    public decimal TickSize { get; }
+    public decimal TickSize { get; private set; }
 
     /// <summary>
     /// Gets the monetary value of one tick for one standard trading unit or contract.
     /// </summary>
-    public decimal TickValue { get; }
+    public decimal TickValue { get; private set; }
 
     /// <summary>
     /// Gets the monetary value of one full price point.
@@ -155,6 +155,58 @@ public sealed class Instrument : AuditableEntity
 
         SetUpdatedAtUtc(updatedAtUtc);
         IsActive = false;
+    }
+
+    public bool UpdateDetails(
+        string symbol,
+        string displayName,
+        AssetClass assetClass,
+        string? exchange,
+        string currency,
+        decimal tickSize,
+        decimal tickValue,
+        DateTimeOffset updatedAtUtc)
+    {
+        string normalizedSymbol = NormalizeRequired(
+            symbol,
+            MaximumSymbolLength,
+            nameof(symbol),
+            useUppercase: true);
+        string normalizedDisplayName = NormalizeRequired(
+            displayName,
+            MaximumDisplayNameLength,
+            nameof(displayName),
+            useUppercase: false);
+        AssetClass validatedAssetClass = ValidateAssetClass(assetClass);
+        string? normalizedExchange = NormalizeExchange(exchange);
+        string normalizedCurrency = NormalizeRequired(
+            currency,
+            MaximumCurrencyLength,
+            nameof(currency),
+            useUppercase: true);
+        decimal validatedTickSize = ValidatePositive(tickSize, nameof(tickSize));
+        decimal validatedTickValue = ValidatePositive(tickValue, nameof(tickValue));
+
+        if (Symbol == normalizedSymbol &&
+            DisplayName == normalizedDisplayName &&
+            AssetClass == validatedAssetClass &&
+            Exchange == normalizedExchange &&
+            Currency == normalizedCurrency &&
+            TickSize == validatedTickSize &&
+            TickValue == validatedTickValue)
+        {
+            return false;
+        }
+
+        SetUpdatedAtUtc(updatedAtUtc);
+        Symbol = normalizedSymbol;
+        DisplayName = normalizedDisplayName;
+        AssetClass = validatedAssetClass;
+        Exchange = normalizedExchange;
+        Currency = normalizedCurrency;
+        TickSize = validatedTickSize;
+        TickValue = validatedTickValue;
+        return true;
     }
 
     private static string NormalizeRequired(

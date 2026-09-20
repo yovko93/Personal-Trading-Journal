@@ -23,4 +23,22 @@ public sealed class TradingSetupReader(IDbContextFactory<JournalDbContext> conte
                 record.Description, record.IsActive, record.CreatedAtUtc, record.UpdatedAtUtc))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<TradingSetupDetails?> GetByIdAsync(
+        Guid setupId,
+        CancellationToken cancellationToken = default)
+    {
+        await using JournalDbContext context =
+            await _contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.TradingSetups.AsNoTracking()
+            .Where(record => record.Id == setupId)
+            .Select(record => new TradingSetupDetails(
+                record.Id,
+                record.Name,
+                record.Description,
+                record.IsActive,
+                record.CreatedAtUtc,
+                record.UpdatedAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 }
