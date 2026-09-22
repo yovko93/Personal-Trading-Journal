@@ -17,6 +17,11 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
             return BlockedByParser(parseResult);
         }
 
+        if (parseResult.SourceRecordCount == 0)
+        {
+            return BlockedByEmptySource();
+        }
+
         TradovateMatchedFillRow[] rows = parseResult.Rows.ToArray();
         var diagnostics = new List<TradovateReconstructionDiagnostic>
         {
@@ -135,6 +140,26 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
             [],
             [diagnostic],
             parseResult.SourceRecordCount,
+            TradovateReconstructionStatus.Blocked);
+    }
+
+    private static TradovateExecutionReconstructionResult BlockedByEmptySource()
+    {
+        var diagnostic = new TradovateReconstructionDiagnostic(
+            TradovateReconstructionDiagnosticSeverity.Error,
+            TradovateReconstructionDiagnosticCodes.EmptySourceData,
+            brokerSymbol: null,
+            sourceRecordIndices: [],
+            externalFillIds: [],
+            "The source contains no matched-fill data records to reconstruct.");
+
+        return new TradovateExecutionReconstructionResult(
+            [],
+            [],
+            [],
+            [],
+            [diagnostic],
+            sourceRecordCount: 0,
             TradovateReconstructionStatus.Blocked);
     }
 

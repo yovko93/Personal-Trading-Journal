@@ -1,3 +1,4 @@
+using System.Text;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
@@ -7,6 +8,28 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Imports.Tradovate;
 public sealed class TradovateExecutionReconstructorTests
 {
     private readonly TradovateExecutionReconstructor _reconstructor = new();
+
+    [Fact]
+    public async Task CompleteHeaderOnlyInputIsBlockedAndNotEligible()
+    {
+        await using var stream = new MemoryStream(
+            Encoding.UTF8.GetBytes(TradovateCsvFixtures.Header));
+        TradovateCsvParseResult input = await new TradovateCsvParser().ParseAsync(stream);
+
+        Assert.True(input.IsHeaderUsable);
+        Assert.True(input.IsCompleteInputValid);
+        Assert.Equal(0, input.SourceRecordCount);
+        Assert.Empty(input.Rows);
+
+        TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
+
+        Assert.Equal(TradovateReconstructionStatus.Blocked, result.Status);
+        Assert.False(result.IsEligibleForAutomaticImport);
+        Assert.Empty(result.Executions);
+        Assert.Empty(result.MatchedPairs);
+        Assert.Empty(result.Candidates);
+        AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.EmptySourceData);
+    }
 
     [Fact]
     public void OneMatchedRowProducesTwoUniqueFillsAndOneLongCandidate()
@@ -318,6 +341,7 @@ public sealed class TradovateExecutionReconstructorTests
         TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(parseResult);
 
         Assert.Equal(TradovateReconstructionStatus.Blocked, result.Status);
+        Assert.False(result.IsEligibleForAutomaticImport);
         Assert.Empty(result.Executions);
         Assert.Empty(result.Candidates);
         Assert.Empty(result.MatchedPairs);

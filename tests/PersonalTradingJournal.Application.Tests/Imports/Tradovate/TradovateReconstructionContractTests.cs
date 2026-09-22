@@ -70,7 +70,7 @@ public sealed class TradovateReconstructionContractTests
     }
 
     [Fact]
-    public void ResultSnapshotsCollectionsAndExposesEligibilityAndCounts()
+    public void ReconstructedResultWithNoCandidatesIsNotEligibleForAutomaticImport()
     {
         TradovateReconstructedExecution execution = CreateExecution();
         var executions = new List<TradovateReconstructedExecution> { execution };
@@ -88,7 +88,7 @@ public sealed class TradovateReconstructionContractTests
         Assert.Equal(1, result.ReconciledSourceRecordCount);
         Assert.Equal(1, result.UniqueBuyFillCount);
         Assert.Equal(0, result.UniqueSellFillCount);
-        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.False(result.IsEligibleForAutomaticImport);
         Assert.False(result.IsSourceCompletenessIndependentlyVerified);
     }
 

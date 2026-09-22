@@ -3,6 +3,7 @@ namespace PersonalTradingJournal.Application.Imports.Tradovate;
 public static class TradovateReconstructionDiagnosticCodes
 {
     public const string ParserInputIncomplete = "PARSER_INPUT_INCOMPLETE";
+    public const string EmptySourceData = "EMPTY_SOURCE_DATA";
     public const string ConflictingFillSymbol = "CONFLICTING_FILL_SYMBOL";
     public const string ConflictingFillPrice = "CONFLICTING_FILL_PRICE";
     public const string ConflictingFillTimestamp = "CONFLICTING_FILL_TIMESTAMP";

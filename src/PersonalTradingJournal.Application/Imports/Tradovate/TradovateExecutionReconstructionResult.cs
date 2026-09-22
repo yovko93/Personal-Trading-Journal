@@ -54,7 +54,8 @@ public sealed class TradovateExecutionReconstructionResult
     public TradovateReconstructionStatus Status { get; }
 
     public bool IsEligibleForAutomaticImport =>
-        Status == TradovateReconstructionStatus.Reconstructed;
+        Status == TradovateReconstructionStatus.Reconstructed &&
+        Candidates.Count > 0;
 
     public bool IsSourceCompletenessIndependentlyVerified => false;
 }
