@@ -1,6 +1,6 @@
 # Tradovate CSV Import
 
-M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. These stages do not resolve Instruments or accounts, interpret source timestamps as UTC, create Domain Trades, show an import preview, or persist data. The complete M10 import workflow is not yet implemented.
+M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. These stages do not resolve accounts, interpret source timestamps as UTC, create Domain Trades, show an import preview, or persist data. The complete M10 import workflow is not yet implemented.
 
 ## Supported source contract
 
@@ -52,8 +52,20 @@ Because every accepted matched row contributes the same quantity to one buy and 
 
 Source-reported P&L remains row-level reconciliation evidence. It is not promoted to authoritative `Trade.NetPnL`, and no zero commission or fee facts are invented. The source contains no reliable Trading Account identity, so multiple-account activity cannot be distinguished without later configuration or additional evidence. Reconstructed fills carry no Domain identifiers, pricing snapshot, external order identifier, or fabricated UTC timestamp.
 
+## Instrument resolution and creation planning (M10.3)
+
+Only an eligible, nonempty M10.2 reconstruction proceeds to Instrument resolution. The resolver reads existing Instruments through `IInstrumentReader`; it does not call an Instrument write use case or save data. Each exact broker symbol used by a candidate is interpreted as a futures root followed by one recognized CME month code (`F G H J K M N Q U V X Z`) and one or two year digits. For example, `MNQU6` and `MNQZ6` both map to canonical `MNQ`, while their original broker symbols remain unchanged on reconstructed executions. Unrecognized syntax is not treated as a canonical Instrument symbol and requires user mapping. [CME contract month codes](https://www.cmegroup.com/month-codes.html) are the source for the month-code set.
+
+Contracts sharing a canonical root produce one canonical resolution. Their reconstructed source tick sizes must agree exactly. A single existing Instrument with the canonical symbol is reused, including when inactive; inactivity produces a warning but no automatic reactivation. Multiple existing records with the same symbol are blocking ambiguity. An existing Instrument must be Futures and must match the source tick size. Where a verified profile exists, currency and tick value must also match. Cosmetic DisplayName or Exchange differences do not overwrite or block an otherwise safe existing record.
+
+The initial verified profile is limited to `MNQ`: DisplayName `Micro E-mini Nasdaq-100`, AssetClass `Futures`, Exchange `CME`, Currency `USD`, TickSize `0.25`, and TickValue `0.50`. [CME's Micro E-mini contract specifications](https://www.cmegroup.com/articles/faqs/micro-e-mini-equity-index-futures-frequently-asked-questions.html) identify MNQ, its CME exchange, and the 0.25-point/$0.50 outright tick. The `CME` text is the chosen exchange-label representation; it is not treated as a strict equality requirement for an existing user-entered Exchange label. TickValue is verified separately, never derived from the CSV `_tickSize`.
+
+If MNQ is missing and its source tick size agrees with the profile, M10.3 returns one complete creation proposal for all MNQ contract symbols; the proposal has no persisted InstrumentId. A syntactically valid but missing root without a verified profile retains its canonical symbol and source tick size, but requires user-supplied metadata rather than invented currency or tick value. Source/profile conflicts and materially unsafe existing economics block automatic resolution.
+
+`ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The future Import Preview will allow review of proposals and manual resolution. Actual missing-Instrument creation occurs only after final confirmation, transactionally with imported Trades. The confirmation transaction must re-resolve the canonical symbol because another workflow could create an Instrument after Preview but before confirmation.
+
 ## Later M10 stages
 
-Instrument resolution will later map contract symbols to canonical Instruments. Missing Instruments may be proposed with source metadata, reviewed and corrected in Import Preview, and persisted only after confirmation; tick value, currency, and other economics must not be inferred from `_tickSize` alone. Later stages will also select or map the Trading Account, apply an explicitly configured timezone, confirm the import, persist it transactionally, and provide durable deduplication.
+Later stages will select or map the Trading Account, apply an explicitly configured timezone, provide Import Preview and manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.
