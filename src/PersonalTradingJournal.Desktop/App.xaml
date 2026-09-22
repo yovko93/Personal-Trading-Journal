@@ -7,6 +7,7 @@
              xmlns:commonViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Common"
              xmlns:dashboardViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Dashboard"
              xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
              xmlns:mistakeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Mistakes"
@@ -26,6 +27,8 @@
                 <ResourceDictionary Source="Resources/Icons.xaml" />
                 <ResourceDictionary Source="Resources/Controls.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <converters:UtcToTradingTimeConverter x:Key="UtcToTradingTimeConverter" />
 
             <DataTemplate DataType="{x:Type accountViewModels:AccountsViewModel}">
                 <accountViews:AccountsView />

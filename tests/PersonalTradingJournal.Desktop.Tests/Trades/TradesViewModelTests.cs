@@ -28,12 +28,12 @@ public sealed partial class TradesViewModelTests
 
         Assert.Null(viewModel.SelectedDirection);
         Assert.Equal(string.Empty, viewModel.QuantityText);
-        Assert.Equal(string.Empty, viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.EntryPriceText);
         Assert.Equal("0", viewModel.EntryCommissionText);
         Assert.Equal("0", viewModel.EntryFeesText);
         Assert.False(viewModel.HasExit);
-        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
@@ -219,11 +219,11 @@ public sealed partial class TradesViewModelTests
         Assert.False(viewModel.HasExit);
         Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
         Assert.Equal("2.5", viewModel.QuantityText);
-        Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
+        Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal("23950.25", viewModel.EntryPriceText);
         Assert.Equal("1.50", viewModel.EntryCommissionText);
         Assert.Equal("0.25", viewModel.EntryFeesText);
-        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
@@ -435,15 +435,13 @@ public sealed partial class TradesViewModelTests
     }
 
     [Theory]
-    [InlineData("2026-09-10 13:30:00")]
-    [InlineData("2026-09-10 13:30")]
-    [InlineData("2026-09-10T13:30:00Z")]
-    [InlineData("2026-09-10T13:30Z")]
-    public void TryBuildManualTradeCommandParsesSupportedUtcTimestamp(
+    [InlineData("2026-09-10 09:30:00")]
+    [InlineData("2026-09-10 09:30")]
+    public void TryBuildManualTradeCommandConvertsSupportedNewYorkTimestampToUtc(
         string timestampText)
     {
         TradesViewModel viewModel = CreateValidTradeForm();
-        viewModel.EntryExecutedAtUtcText = timestampText;
+        viewModel.EntryExecutedAtNewYorkText = timestampText;
 
         bool succeeded = viewModel.TryBuildManualTradeCommand(
             out CreateManualTradeCommand? command);
@@ -459,12 +457,14 @@ public sealed partial class TradesViewModelTests
     [Theory]
     [InlineData("")]
     [InlineData("09/10/2026 13:30")]
+    [InlineData("2026-09-10T13:30:00Z")]
+    [InlineData("2026-09-10T13:30Z")]
     [InlineData("2026-09-10T13:30:00+03:00")]
     public void TryBuildManualTradeCommandRejectsUnsupportedEntryTimestamp(
         string timestampText)
     {
         TradesViewModel viewModel = CreateValidTradeForm();
-        viewModel.EntryExecutedAtUtcText = timestampText;
+        viewModel.EntryExecutedAtNewYorkText = timestampText;
 
         bool succeeded = viewModel.TryBuildManualTradeCommand(
             out CreateManualTradeCommand? command);
@@ -472,8 +472,48 @@ public sealed partial class TradesViewModelTests
         Assert.False(succeeded);
         Assert.Null(command);
         Assert.Equal(
-            "Entry time must be a valid UTC timestamp.",
+            "Entry time must be a valid New York timestamp.",
             viewModel.ValidationErrorMessage);
+    }
+
+    [Theory]
+    [InlineData("2026-01-15 09:30:00", 2026, 1, 15, 14, 30)]
+    [InlineData("2026-09-10 09:30:00", 2026, 9, 10, 13, 30)]
+    public void ManualEntryUsesNewYorkSeasonalOffset(
+        string input,
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryExecutedAtNewYorkText = input;
+
+        Assert.True(viewModel.TryBuildManualTradeCommand(out var command));
+        Assert.Equal(
+            new DateTimeOffset(year, month, day, hour, minute, 0, TimeSpan.Zero),
+            command!.Entry.ExecutedAtUtc);
+    }
+
+    [Theory]
+    [InlineData(
+        "2026-03-08 02:30:00",
+        "Entry New York time does not exist because of the daylight-saving transition.")]
+    [InlineData(
+        "2026-11-01 01:30:00",
+        "Entry New York time is ambiguous because of the daylight-saving transition. Enter an unambiguous time.")]
+    public void ManualEntryRejectsNewYorkDstUncertainty(
+        string input,
+        string expectedMessage)
+    {
+        TradesViewModel viewModel = CreateValidTradeForm();
+        viewModel.EntryExecutedAtNewYorkText = input;
+
+        Assert.False(viewModel.TryBuildManualTradeCommand(out var command));
+        Assert.Null(command);
+        Assert.True(viewModel.IsEntryExecutedAtNewYorkInvalid);
+        Assert.Equal(expectedMessage, viewModel.ValidationErrorMessage);
     }
 
     [Theory]
@@ -582,7 +622,7 @@ public sealed partial class TradesViewModelTests
     public void TryBuildManualTradeCommandIgnoresExitFieldsForOpenTrade()
     {
         TradesViewModel viewModel = CreateValidTradeForm();
-        viewModel.ExitExecutedAtUtcText = "not-a-time";
+        viewModel.ExitExecutedAtNewYorkText = "not-a-time";
         viewModel.ExitPriceText = "not-a-price";
         viewModel.ExitCommissionText = "invalid";
         viewModel.ExitFeesText = "invalid";
@@ -596,7 +636,7 @@ public sealed partial class TradesViewModelTests
     }
 
     [Theory]
-    [InlineData("time", "Exit time must be a valid UTC timestamp.")]
+    [InlineData("time", "Exit time must be a valid New York timestamp.")]
     [InlineData("price", "Exit price must be a valid number.")]
     public void TryBuildManualTradeCommandRequiresEnabledExitFields(
         string invalidField,
@@ -605,7 +645,7 @@ public sealed partial class TradesViewModelTests
         TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
         if (invalidField == "time")
         {
-            viewModel.ExitExecutedAtUtcText = string.Empty;
+            viewModel.ExitExecutedAtNewYorkText = string.Empty;
         }
         else
         {
@@ -624,7 +664,7 @@ public sealed partial class TradesViewModelTests
     public void TryBuildManualTradeCommandRejectsExitEarlierThanEntry()
     {
         TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
-        viewModel.ExitExecutedAtUtcText = "2026-09-10 13:29:59";
+        viewModel.ExitExecutedAtNewYorkText = "2026-09-10 09:29:59";
 
         bool succeeded = viewModel.TryBuildManualTradeCommand(
             out CreateManualTradeCommand? command);
@@ -640,7 +680,7 @@ public sealed partial class TradesViewModelTests
     public void TryBuildManualTradeCommandAcceptsEqualEntryAndExitTimes()
     {
         TradesViewModel viewModel = CreateValidTradeForm(hasExit: true);
-        viewModel.ExitExecutedAtUtcText = viewModel.EntryExecutedAtUtcText;
+        viewModel.ExitExecutedAtNewYorkText = viewModel.EntryExecutedAtNewYorkText;
 
         bool succeeded = viewModel.TryBuildManualTradeCommand(
             out CreateManualTradeCommand? command);
@@ -944,7 +984,11 @@ public sealed partial class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
+        AssertRepresentativeTradeFacts(
+            fixture.ViewModel,
+            "2",
+            "2026-09-10 09:30:00",
+            "2026-09-10 10:15:00");
         Assert.Equal(
             "Trade could not be saved.",
             fixture.ViewModel.SaveErrorMessage);
@@ -974,7 +1018,11 @@ public sealed partial class TradesViewModelTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Same(selectedAccount, fixture.ViewModel.SelectedAccount);
         Assert.Same(selectedInstrument, fixture.ViewModel.SelectedInstrument);
-        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
+        AssertRepresentativeTradeFacts(
+            fixture.ViewModel,
+            "2",
+            "2026-09-10 09:30:00",
+            "2026-09-10 10:15:00");
         Assert.Equal(
             "The selected trading account or instrument is no longer available. " +
             "Refresh the reference data and try again.",
@@ -1120,7 +1168,11 @@ public sealed partial class TradesViewModelTests
         Assert.True(
             fixture.TradeStore.CancellationToken.IsCancellationRequested);
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
-        AssertRepresentativeTradeFacts(fixture.ViewModel, "2");
+        AssertRepresentativeTradeFacts(
+            fixture.ViewModel,
+            "2",
+            "2026-09-10 09:30:00",
+            "2026-09-10 10:15:00");
         Assert.Null(fixture.ViewModel.SaveErrorMessage);
         Assert.Null(fixture.ViewModel.SuccessMessage);
         Assert.False(fixture.ViewModel.IsSaving);
@@ -1710,12 +1762,12 @@ public sealed partial class TradesViewModelTests
         Assert.Null(viewModel.SelectedInstrument);
         Assert.Null(viewModel.SelectedDirection);
         Assert.Equal(string.Empty, viewModel.QuantityText);
-        Assert.Equal(string.Empty, viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.EntryPriceText);
         Assert.Equal("0", viewModel.EntryCommissionText);
         Assert.Equal("0", viewModel.EntryFeesText);
         Assert.False(viewModel.HasExit);
-        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
@@ -1778,7 +1830,7 @@ public sealed partial class TradesViewModelTests
         fixture.ViewModel.ShowCloseTradeCommand.Execute(null);
 
         Assert.True(fixture.ViewModel.IsCloseTradeVisible);
-        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtNewYorkText);
         Assert.Equal(string.Empty, fixture.ViewModel.CloseTradePriceText);
         Assert.Equal("0", fixture.ViewModel.CloseTradeCommissionText);
         Assert.Equal("0", fixture.ViewModel.CloseTradeFeesText);
@@ -1786,7 +1838,7 @@ public sealed partial class TradesViewModelTests
         Assert.Null(fixture.ViewModel.CloseTradeSaveErrorMessage);
         Assert.Null(fixture.ViewModel.CloseTradeSuccessMessage);
 
-        fixture.ViewModel.CloseTradeExecutedAtUtcText = "draft close";
+        fixture.ViewModel.CloseTradeExecutedAtNewYorkText = "draft close";
         fixture.ViewModel.CloseTradePriceText = "101";
         fixture.ViewModel.CancelCloseTradeCommand.Execute(null);
 
@@ -1795,7 +1847,7 @@ public sealed partial class TradesViewModelTests
         Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
         Assert.Same(fixture.Screenshots, fixture.ViewModel.TradeScreenshots);
         Assert.Equal("manual draft", fixture.ViewModel.QuantityText);
-        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Equal(string.Empty, fixture.ViewModel.CloseTradeExecutedAtNewYorkText);
         Assert.Equal(string.Empty, fixture.ViewModel.CloseTradePriceText);
     }
 
@@ -1818,21 +1870,20 @@ public sealed partial class TradesViewModelTests
     }
 
     [Theory]
-    [InlineData("2026-09-08 14:15:00")]
-    [InlineData("2026-09-08 14:15")]
-    [InlineData("2026-09-08T14:15:00Z")]
-    [InlineData("2026-09-08T14:15Z")]
-    public async Task CloseCommandUsesStrictSupportedUtcFormats(string timestamp)
+    [InlineData("2026-09-08 10:15:00")]
+    [InlineData("2026-09-08 10:15")]
+    public async Task CloseCommandUsesStrictSupportedNewYorkFormats(string timestamp)
     {
         CloseTradeFixture fixture = await CreateCloseTradeFixtureAsync();
         ShowValidCloseForm(fixture.ViewModel);
-        fixture.ViewModel.CloseTradeExecutedAtUtcText = timestamp;
+        fixture.ViewModel.CloseTradeExecutedAtNewYorkText = timestamp;
 
         bool succeeded = fixture.ViewModel.TryBuildCloseManualTradeCommand(
             out CloseManualTradeCommand? command);
 
         Assert.True(succeeded);
         Assert.NotNull(command);
+        Assert.Equal(CloseExecutedAtUtc, command.ExecutedAtUtc);
         Assert.Equal(TimeSpan.Zero, command.ExecutedAtUtc.Offset);
         Assert.Equal(101.25m, command.Price);
         Assert.Equal(1.50m, command.Commission);
@@ -1841,6 +1892,7 @@ public sealed partial class TradesViewModelTests
 
     [Theory]
     [InlineData("timestamp", "2026-09-08T14:15:00+03:00")]
+    [InlineData("timestamp", "2026-09-08T14:15:00Z")]
     [InlineData("price", "not-a-price")]
     [InlineData("commission", "-0.01")]
     [InlineData("fees", "-0.01")]
@@ -1853,7 +1905,7 @@ public sealed partial class TradesViewModelTests
         switch (field)
         {
             case "timestamp":
-                fixture.ViewModel.CloseTradeExecutedAtUtcText = value;
+                fixture.ViewModel.CloseTradeExecutedAtNewYorkText = value;
                 break;
             case "price":
                 fixture.ViewModel.CloseTradePriceText = value;
@@ -2036,8 +2088,8 @@ public sealed partial class TradesViewModelTests
                     fixture.OpenDetail.OpenQuantity);
                 break;
             case "chronology":
-                fixture.ViewModel.CloseTradeExecutedAtUtcText =
-                    "2026-09-08 09:00:00";
+                fixture.ViewModel.CloseTradeExecutedAtNewYorkText =
+                    "2026-09-08 05:00:00";
                 break;
             case "technical":
                 fixture.MutationStore.GetException =
@@ -2083,7 +2135,7 @@ public sealed partial class TradesViewModelTests
             async () => await closeTask);
         Assert.True(fixture.MutationStore.SaveCancellationToken.IsCancellationRequested);
         Assert.True(fixture.ViewModel.IsCloseTradeVisible);
-        Assert.Equal("2026-09-08 14:15:00", fixture.ViewModel.CloseTradeExecutedAtUtcText);
+        Assert.Equal("2026-09-08 10:15:00", fixture.ViewModel.CloseTradeExecutedAtNewYorkText);
         Assert.Same(fixture.OpenDetail, fixture.ViewModel.SelectedTradeDetail);
         Assert.Same(fixture.InitialTrades, fixture.ViewModel.RecentTrades);
         Assert.Same(fixture.Screenshots, fixture.ViewModel.TradeScreenshots);
@@ -2158,7 +2210,7 @@ public sealed partial class TradesViewModelTests
         viewModel.SelectedInstrument = Assert.Single(CreateReferenceData().Instruments);
         viewModel.SelectedDirection = TradeDirection.Long;
         viewModel.QuantityText = "1";
-        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryExecutedAtNewYorkText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "100";
 
         TradingSetupListItem option = Assert.Single(viewModel.AvailableTradingSetups);
@@ -2531,7 +2583,7 @@ public sealed partial class TradesViewModelTests
     private static void ShowValidCloseForm(TradesViewModel viewModel)
     {
         viewModel.ShowCloseTradeCommand.Execute(null);
-        viewModel.CloseTradeExecutedAtUtcText = "2026-09-08 14:15:00";
+        viewModel.CloseTradeExecutedAtNewYorkText = "2026-09-08 10:15:00";
         viewModel.CloseTradePriceText = "101.25";
         viewModel.CloseTradeCommissionText = "1.50";
         viewModel.CloseTradeFeesText = "0.25";
@@ -2671,7 +2723,7 @@ public sealed partial class TradesViewModelTests
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
         viewModel.QuantityText = quantityText;
-        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryExecutedAtNewYorkText = "2026-09-10 09:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
         viewModel.EntryFeesText = "0.25";
@@ -2679,7 +2731,7 @@ public sealed partial class TradesViewModelTests
 
         if (hasExit)
         {
-            viewModel.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+            viewModel.ExitExecutedAtNewYorkText = "2026-09-10 10:15:00";
             viewModel.ExitPriceText = "23900.00";
             viewModel.ExitCommissionText = "1.50";
             viewModel.ExitFeesText = "0.25";
@@ -2742,8 +2794,10 @@ public sealed partial class TradesViewModelTests
         Assert.Contains(viewModel.AvailableTradingSetups, option => !option.IsActive);
         Assert.Equal(TradeDirection.Long, viewModel.SelectedDirection);
         Assert.Equal("2", viewModel.QuantityText);
+        Assert.Equal("2026-09-10 09:30:00", viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal("100", viewModel.EntryPriceText);
         Assert.True(viewModel.HasExit);
+        Assert.Equal("2026-09-10 10:30:00", viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal("105", viewModel.ExitPriceText);
         Assert.Equal([true], referenceReader.IncludeInactiveRequests);
     }
@@ -2823,6 +2877,9 @@ public sealed partial class TradesViewModelTests
 
         Assert.Equal(1, mutationStore.SaveCallCount);
         Assert.Equal(101m, mutationStore.SavedTrade?.AverageEntryPrice);
+        Assert.Equal(
+            initial.Executions.Select(execution => execution.ExecutedAtUtc),
+            mutationStore.SavedTrade?.Executions.Select(execution => execution.ExecutedAtUtc));
         Assert.False(viewModel.IsTradeEditVisible);
         Assert.Same(updated, viewModel.SelectedTradeDetail);
         Assert.Equal("Trade updated successfully.", viewModel.TradeUpdateSuccessMessage);
@@ -3176,7 +3233,7 @@ public sealed partial class TradesViewModelTests
         viewModel.SelectedInstrument = Assert.Single(referenceData.Instruments);
         viewModel.SelectedDirection = direction;
         viewModel.QuantityText = quantityText;
-        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryExecutedAtNewYorkText = "2026-09-10 09:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
         viewModel.EntryFeesText = "0.25";
@@ -3184,7 +3241,7 @@ public sealed partial class TradesViewModelTests
 
         if (hasExit)
         {
-            viewModel.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+            viewModel.ExitExecutedAtNewYorkText = "2026-09-10 10:15:00";
             viewModel.ExitPriceText = "23900.00";
             viewModel.ExitCommissionText = "1.50";
             viewModel.ExitFeesText = "0.25";
@@ -3472,12 +3529,12 @@ public sealed partial class TradesViewModelTests
         Assert.Null(viewModel.SelectedInstrument);
         Assert.Null(viewModel.SelectedDirection);
         Assert.Equal(string.Empty, viewModel.QuantityText);
-        Assert.Equal(string.Empty, viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.EntryPriceText);
         Assert.Equal("0", viewModel.EntryCommissionText);
         Assert.Equal("0", viewModel.EntryFeesText);
         Assert.False(viewModel.HasExit);
-        Assert.Equal(string.Empty, viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(string.Empty, viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal(string.Empty, viewModel.ExitPriceText);
         Assert.Equal("0", viewModel.ExitCommissionText);
         Assert.Equal("0", viewModel.ExitFeesText);
@@ -3487,12 +3544,12 @@ public sealed partial class TradesViewModelTests
     {
         viewModel.SelectedDirection = TradeDirection.Short;
         viewModel.QuantityText = "2.5";
-        viewModel.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        viewModel.EntryExecutedAtNewYorkText = "2026-09-10 13:30:00";
         viewModel.EntryPriceText = "23950.25";
         viewModel.EntryCommissionText = "1.50";
         viewModel.EntryFeesText = "0.25";
         viewModel.HasExit = true;
-        viewModel.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+        viewModel.ExitExecutedAtNewYorkText = "2026-09-10 14:15:00";
         viewModel.ExitPriceText = "23900.00";
         viewModel.ExitCommissionText = "1.50";
         viewModel.ExitFeesText = "0.25";
@@ -3500,16 +3557,18 @@ public sealed partial class TradesViewModelTests
 
     private static void AssertRepresentativeTradeFacts(
         TradesViewModel viewModel,
-        string expectedQuantity = "2.5")
+        string expectedQuantity = "2.5",
+        string expectedEntryTimestamp = "2026-09-10 13:30:00",
+        string expectedExitTimestamp = "2026-09-10 14:15:00")
     {
         Assert.Equal(TradeDirection.Short, viewModel.SelectedDirection);
         Assert.Equal(expectedQuantity, viewModel.QuantityText);
-        Assert.Equal("2026-09-10 13:30:00", viewModel.EntryExecutedAtUtcText);
+        Assert.Equal(expectedEntryTimestamp, viewModel.EntryExecutedAtNewYorkText);
         Assert.Equal("23950.25", viewModel.EntryPriceText);
         Assert.Equal("1.50", viewModel.EntryCommissionText);
         Assert.Equal("0.25", viewModel.EntryFeesText);
         Assert.True(viewModel.HasExit);
-        Assert.Equal("2026-09-10 14:15:00", viewModel.ExitExecutedAtUtcText);
+        Assert.Equal(expectedExitTimestamp, viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal("23900.00", viewModel.ExitPriceText);
         Assert.Equal("1.50", viewModel.ExitCommissionText);
         Assert.Equal("0.25", viewModel.ExitFeesText);

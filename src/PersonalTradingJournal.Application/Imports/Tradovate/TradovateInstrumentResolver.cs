@@ -243,7 +243,8 @@ public sealed class TradovateInstrumentResolver
             isExistingInstrumentActive: null,
             matchingInstrumentIds: [],
             proposal,
-            diagnosticCodes: []);
+            diagnosticCodes: [],
+            resolvedCurrency: proposal.Currency);
     }
 
     private static TradovateCanonicalInstrumentResolution ResolveExisting(
@@ -303,7 +304,8 @@ public sealed class TradovateInstrumentResolver
                 instrument.IsActive,
                 [instrument.Id],
                 creationProposal: null,
-                codes);
+                codes,
+                resolvedCurrency: instrument.Currency);
         }
 
         if (!instrument.IsActive)
@@ -329,7 +331,8 @@ public sealed class TradovateInstrumentResolver
             instrument.IsActive,
             [instrument.Id],
             creationProposal: null,
-            codes);
+            codes,
+            resolvedCurrency: instrument.Currency);
     }
 
     private static TradovateCanonicalInstrumentResolution Failure(

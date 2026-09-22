@@ -373,12 +373,12 @@
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Margin="0,0,0,6"
                                            Style="{StaticResource PtjFormLabelTextStyle}"
-                                           Text="Entry time (UTC)" />
-                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryExecutedAtUtcInvalid}"
+                                           Text="Entry time (New York)" />
+                                <TextBox validation:FormValidation.IsInvalid="{Binding IsEntryExecutedAtNewYorkInvalid}"
                                          Style="{StaticResource PtjTextBoxStyle}"
-                                         Text="{Binding EntryExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
+                                         Text="{Binding EntryExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
                                 <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
-                                           Text="UTC, e.g. 2026-09-10 13:30:00" />
+                                           Text="New York, e.g. 2026-09-10 09:30:00" />
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Margin="8,0,8,0">
@@ -439,12 +439,12 @@
                                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                     <TextBlock Margin="0,0,0,6"
                                                Style="{StaticResource PtjFormLabelTextStyle}"
-                                               Text="Exit time (UTC)" />
-                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitExecutedAtUtcInvalid}"
+                                               Text="Exit time (New York)" />
+                                    <TextBox validation:FormValidation.IsInvalid="{Binding IsExitExecutedAtNewYorkInvalid}"
                                              Style="{StaticResource PtjTextBoxStyle}"
-                                             Text="{Binding ExitExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
+                                             Text="{Binding ExitExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
-                                               Text="UTC, e.g. 2026-09-10 13:30:00" />
+                                               Text="New York, e.g. 2026-09-10 10:30:00" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="1" Margin="8,0,8,0">
@@ -869,17 +869,17 @@
 
                             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,16">
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Opened (UTC)" />
+                                           Text="Opened (New York)" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
-                                           Text="{Binding SelectedTradeDetail.OpenedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
+                                           Text="{Binding SelectedTradeDetail.OpenedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,8,16">
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Closed (UTC)" />
+                                           Text="Closed (New York)" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
-                                           Text="{Binding SelectedTradeDetail.ClosedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=—}" />
+                                           Text="{Binding SelectedTradeDetail.ClosedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}, TargetNullValue=—}" />
                             </StackPanel>
                             <StackPanel Grid.Row="0" Grid.Column="2" Margin="8,0,8,16">
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
@@ -1128,12 +1128,12 @@
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                         <TextBlock Margin="0,0,0,6"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="Exit time (UTC)" />
+                                                   Text="Exit time (New York)" />
                                         <TextBox Style="{StaticResource PtjTextBoxStyle}"
-                                                 Text="{Binding CloseTradeExecutedAtUtcText, UpdateSourceTrigger=PropertyChanged}" />
+                                                 Text="{Binding CloseTradeExecutedAtNewYorkText, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Margin="0,6,0,0"
                                                    Style="{StaticResource PtjCaptionTextStyle}"
-                                                   Text="UTC, e.g. 2026-09-14 13:30:00" />
+                                                   Text="New York, e.g. 2026-09-14 09:30:00" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="8,0">
                                         <TextBlock Margin="0,0,0,6"
@@ -2041,10 +2041,10 @@
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="1" Margin="6,0">
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="Executed (UTC)" />
+                                                               Text="Executed (New York)" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding ExecutedAtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
+                                                               Text="{Binding ExecutedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2" Margin="6,0">
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
@@ -2215,7 +2215,7 @@
                             </Grid.ColumnDefinitions>
 
                             <Button Grid.Column="0"
-                                    AutomationProperties.Name="Sort by Opened UTC"
+                                    AutomationProperties.Name="Sort by Opened New York time"
                                     Command="{Binding SortTradesCommand}"
                                     CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenedAtUtc}">
                                 <Button.Style>
@@ -2232,7 +2232,7 @@
                                 </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="Opened (UTC)" />
+                                               Text="Opened (New York)" />
                                     <TextBlock Margin="4,0,0,0"
                                                Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="{Binding OpenedAtUtcSortIndicator}" />
@@ -2400,9 +2400,9 @@
 
                                             <StackPanel Grid.Column="0">
                                                 <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                           Text="{Binding OpenedAtUtc, StringFormat={}{0:yyyy-MM-dd}}" />
+                                                           Text="{Binding OpenedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:yyyy-MM-dd}}" />
                                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                                           Text="{Binding OpenedAtUtc, StringFormat={}{0:HH:mm}}" />
+                                                           Text="{Binding OpenedAtUtc, Converter={StaticResource UtcToTradingTimeConverter}, StringFormat={}{0:HH:mm}}" />
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="1"

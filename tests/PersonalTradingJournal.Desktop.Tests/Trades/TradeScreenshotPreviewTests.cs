@@ -274,7 +274,7 @@ public sealed class TradeScreenshotPreviewTests
         fixture.ViewModel.ShowManualEntryCommand.Execute(null);
         fixture.ViewModel.SelectedDirection = TradeDirection.Short;
         fixture.ViewModel.QuantityText = "2.5";
-        fixture.ViewModel.EntryExecutedAtUtcText = "2026-09-13 13:30";
+        fixture.ViewModel.EntryExecutedAtNewYorkText = "2026-09-13 13:30";
         fixture.ViewModel.ShowAddScreenshotCommand.Execute(null);
         fixture.ViewModel.SelectedScreenshotType = TradeScreenshotType.Management;
         fixture.ViewModel.ScreenshotCapturedAtUtcText = "2026-09-13 13:31";
@@ -288,7 +288,7 @@ public sealed class TradeScreenshotPreviewTests
         Assert.True(fixture.ViewModel.IsManualEntryVisible);
         Assert.Equal(TradeDirection.Short, fixture.ViewModel.SelectedDirection);
         Assert.Equal("2.5", fixture.ViewModel.QuantityText);
-        Assert.Equal("2026-09-13 13:30", fixture.ViewModel.EntryExecutedAtUtcText);
+        Assert.Equal("2026-09-13 13:30", fixture.ViewModel.EntryExecutedAtNewYorkText);
         Assert.True(fixture.ViewModel.IsAddScreenshotVisible);
         Assert.Equal(TradeScreenshotType.Management, fixture.ViewModel.SelectedScreenshotType);
         Assert.Equal("2026-09-13 13:31", fixture.ViewModel.ScreenshotCapturedAtUtcText);

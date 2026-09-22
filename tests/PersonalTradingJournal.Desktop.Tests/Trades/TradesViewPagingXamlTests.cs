@@ -63,7 +63,7 @@ public sealed class TradesViewPagingXamlTests
         string view = ReadTradesView();
         string[] accessibleNames =
         [
-            "Sort by Opened UTC",
+            "Sort by Opened New York time",
             "Sort by Trade",
             "Sort by Account",
             "Sort by Average Entry Price",

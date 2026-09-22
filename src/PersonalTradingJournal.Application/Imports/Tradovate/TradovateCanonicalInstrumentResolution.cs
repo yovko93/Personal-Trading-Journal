@@ -11,7 +11,8 @@ public sealed class TradovateCanonicalInstrumentResolution
         bool? isExistingInstrumentActive,
         IEnumerable<Guid> matchingInstrumentIds,
         TradovateInstrumentCreationProposal? creationProposal,
-        IEnumerable<string> diagnosticCodes)
+        IEnumerable<string> diagnosticCodes,
+        string? resolvedCurrency = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalSymbol);
         ArgumentNullException.ThrowIfNull(sourceBrokerSymbols);
@@ -32,6 +33,7 @@ public sealed class TradovateCanonicalInstrumentResolution
             .Order()
             .ToArray());
         CreationProposal = creationProposal;
+        ResolvedCurrency = resolvedCurrency;
         DiagnosticCodes = Array.AsReadOnly(diagnosticCodes
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
@@ -53,6 +55,11 @@ public sealed class TradovateCanonicalInstrumentResolution
     public IReadOnlyList<Guid> MatchingInstrumentIds { get; }
 
     public TradovateInstrumentCreationProposal? CreationProposal { get; }
+
+    /// <summary>
+    /// Currency read from the existing Instrument or preserved in the creation proposal.
+    /// </summary>
+    public string? ResolvedCurrency { get; }
 
     public IReadOnlyList<string> DiagnosticCodes { get; }
 }

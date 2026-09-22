@@ -1,6 +1,6 @@
 # Tradovate CSV Import
 
-M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. These stages do not resolve accounts, interpret source timestamps as UTC, create Domain Trades, show an import preview, or persist data. The complete M10 import workflow is not yet implemented.
+M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy, but it still does not create Domain Trades, show an import page, or persist import data. The complete M10 import workflow is not yet implemented.
 
 ## Supported source contract
 
@@ -24,7 +24,7 @@ The parser preserves the broker contract symbol, such as `MNQU6`, rather than re
 
 ## Time and duration
 
-Timestamps must use the exact invariant format `MM/dd/yyyy HH:mm:ss`. Because the export declares neither a timezone nor an offset, the normalized values are `DateTime` instances with `DateTimeKind.Unspecified`. No machine-local or UTC conversion occurs. A sell timestamp earlier than a buy timestamp is accepted because it can describe short-side activity.
+Timestamps must use the exact invariant format `MM/dd/yyyy HH:mm:ss`. Because the export declares neither a timezone nor an offset, the parser preserves normalized values as `DateTime` instances with `DateTimeKind.Unspecified`; parsing itself performs no machine-local or UTC conversion. M10.4 explicitly interprets these wall-clock values as `Europe/Sofia`. A sell timestamp earlier than a buy timestamp is accepted because it can describe short-side activity.
 
 The `duration` value is preserved as source text. It is not recalculated, parsed into business meaning, or used to infer direction or grouping.
 
@@ -50,7 +50,7 @@ Because every accepted matched row contributes the same quantity to one buy and 
 
 ## Financial and identity limitations
 
-Source-reported P&L remains row-level reconciliation evidence. It is not promoted to authoritative `Trade.NetPnL`, and no zero commission or fee facts are invented. The source contains no reliable Trading Account identity, so multiple-account activity cannot be distinguished without later configuration or additional evidence. Reconstructed fills carry no Domain identifiers, pricing snapshot, external order identifier, or fabricated UTC timestamp.
+Source-reported P&L remains row-level reconciliation evidence. It is not promoted to authoritative `Trade.NetPnL`, and no zero commission or fee facts are invented. The source contains no reliable Trading Account identity, so M10.4 requires an explicit PTJ Trading Account selection. Reconstructed fills carry no Domain identifiers, pricing snapshot, external order identifier, or fabricated UTC timestamp.
 
 ## Instrument resolution and creation planning (M10.3)
 
@@ -64,8 +64,18 @@ If MNQ is missing and its source tick size agrees with the profile, M10.3 return
 
 `ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The future Import Preview will allow review of proposals and manual resolution. Actual missing-Instrument creation occurs only after final confirmation, transactionally with imported Trades. The confirmation transaction must re-resolve the canonical symbol because another workflow could create an Instrument after Preview but before confirmation.
 
+## Account selection and trading-time preparation (M10.4)
+
+Preparation requires an eligible, nonempty M10.2 reconstruction, an M10.3 result ready for preview, and an explicitly selected Trading Account Id. The Account is read through the Application boundary and snapshotted for preview; it is never inferred from a filename, external account text, or the set of active Accounts. A missing Account blocks preparation. An inactive selected Account is allowed for historical import with a warning and is not reactivated. Accounts are never auto-created. A known difference between Account and Instrument currency is reported as a non-blocking warning, with no FX conversion or reference-data mutation.
+
+The unified time policy is explicit: Tradovate timestamps are `Europe/Sofia` wall-clock values, manual Trade input uses `America/New_York`, Domain and persistence timestamps remain zero-offset UTC, and Trade activity is presented in `America/New_York`. Conversion uses `TimeZoneInfo` rules for the exact date, never the machine-local zone or a fixed offset. Local inputs remain `DateTimeKind.Unspecified` until their named zone is applied. Nonexistent daylight-saving times block preparation with `INVALID_SOURCE_LOCAL_TIME`; repeated/ambiguous Sofia times require correction with `AMBIGUOUS_SOURCE_LOCAL_TIME`. No offset is guessed.
+
+Each prepared execution preserves the original Sofia wall-clock timestamp and `Europe/Sofia` identity, adds the canonical UTC instant, and projects that instant to New York with its exact resolved offset and `America/New_York` identity. UTC-to-New-York projection is deterministic even when the resulting wall clock falls in a repeated hour because the instant and offset are already known. Candidate times are derived from those prepared executions, M10.2 ordering is retained, equal instants remain allowed, and a sequence that becomes decreasing in UTC blocks with `UTC_CHRONOLOGY_INVALID`.
+
+Preparation reuses the exact M10.3 existing-Instrument Id or creation proposal. It neither re-resolves Instruments nor invents an Id for a proposal. M10.4 performs no Account, Instrument, or Trade write and never persists a proposed Instrument. UTC remains the only authoritative timestamp intended for future Domain and database writes; original Sofia and projected New York values are in-memory preview evidence.
+
 ## Later M10 stages
 
-Later stages will select or map the Trading Account, apply an explicitly configured timezone, provide Import Preview and manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
+Later stages will provide Import Preview and manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.

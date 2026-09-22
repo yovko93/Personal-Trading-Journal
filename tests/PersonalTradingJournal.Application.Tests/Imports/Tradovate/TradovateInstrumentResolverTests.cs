@@ -92,6 +92,7 @@ public sealed class TradovateInstrumentResolverTests
             Assert.Single(result.CanonicalInstrumentResolutions);
         Assert.Equal("MNQ", canonical.CanonicalSymbol);
         Assert.Equal(0.25m, canonical.SourceTickSize);
+        Assert.Equal("USD", canonical.ResolvedCurrency);
         Assert.Equal(["MNQU6", "MNQZ6"], canonical.SourceBrokerSymbols);
         TradovateInstrumentCreationProposal proposal = Assert.Single(result.CreationProposals);
         Assert.Same(proposal, canonical.CreationProposal);
@@ -139,6 +140,9 @@ public sealed class TradovateInstrumentResolverTests
 
         Assert.True(result.IsReadyForPreview);
         Assert.Empty(result.CreationProposals);
+        Assert.Equal(
+            "USD",
+            Assert.Single(result.CanonicalInstrumentResolutions).ResolvedCurrency);
         Assert.All(result.BrokerSymbolMappings, mapping =>
         {
             Assert.Equal(TradovateInstrumentResolutionStatus.ExistingInstrument, mapping.Status);

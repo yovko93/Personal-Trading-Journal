@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
@@ -21,11 +22,11 @@ internal enum ManualTradeInputField
     Instrument,
     Direction,
     Quantity,
-    EntryExecutedAtUtc,
+    EntryExecutedAtNewYork,
     EntryPrice,
     EntryCommission,
     EntryFees,
-    ExitExecutedAtUtc,
+    ExitExecutedAtNewYork,
     ExitPrice,
     ExitCommission,
     ExitFees,
@@ -120,6 +121,11 @@ public sealed class TradesViewModel : ObservableObject
         "yyyy-MM-dd'T'HH:mm:ss'Z'",
         "yyyy-MM-dd'T'HH:mm'Z'",
     ];
+    private static readonly string[] NewYorkTimestampFormats =
+    [
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd HH:mm",
+    ];
 
     private readonly IManualTradeReferenceDataReader _referenceDataReader;
     private readonly ITradingSetupReader _tradingSetupReader;
@@ -154,12 +160,12 @@ public sealed class TradesViewModel : ObservableObject
     private IReadOnlyList<TradingMistakeListItem> _availableTradingMistakes = [];
     private IReadOnlyList<TradeMistakeListItem> _tradeMistakes = [];
     private string _entryCommissionText = "0";
-    private string _entryExecutedAtUtcText = string.Empty;
+    private string _entryExecutedAtNewYorkText = string.Empty;
     private string _entryFeesText = "0";
     private string _entryPriceText = string.Empty;
     private string? _errorMessage;
     private string _exitCommissionText = "0";
-    private string _exitExecutedAtUtcText = string.Empty;
+    private string _exitExecutedAtNewYorkText = string.Empty;
     private string _exitFeesText = "0";
     private string _exitPriceText = string.Empty;
     private bool _hasExit;
@@ -238,7 +244,7 @@ public sealed class TradesViewModel : ObservableObject
     private string? _screenshotDeleteSuccessMessage;
     private bool _isCloseTradeVisible;
     private bool _isClosingTrade;
-    private string _closeTradeExecutedAtUtcText = string.Empty;
+    private string _closeTradeExecutedAtNewYorkText = string.Empty;
     private string _closeTradePriceText = string.Empty;
     private string _closeTradeCommissionText = "0";
     private string _closeTradeFeesText = "0";
@@ -652,10 +658,10 @@ public sealed class TradesViewModel : ObservableObject
     public bool IsSelectedTradeOpen =>
         SelectedTradeDetail?.Status == TradeStatus.Open;
 
-    public string CloseTradeExecutedAtUtcText
+    public string CloseTradeExecutedAtNewYorkText
     {
-        get => _closeTradeExecutedAtUtcText;
-        set => SetProperty(ref _closeTradeExecutedAtUtcText, value);
+        get => _closeTradeExecutedAtNewYorkText;
+        set => SetProperty(ref _closeTradeExecutedAtNewYorkText, value);
     }
 
     public string CloseTradePriceText
@@ -797,15 +803,15 @@ public sealed class TradesViewModel : ObservableObject
         }
     }
 
-    public string EntryExecutedAtUtcText
+    public string EntryExecutedAtNewYorkText
     {
-        get => _entryExecutedAtUtcText;
+        get => _entryExecutedAtNewYorkText;
         set
         {
-            if (SetProperty(ref _entryExecutedAtUtcText, value))
+            if (SetProperty(ref _entryExecutedAtNewYorkText, value))
             {
-                ClearManualTradeInputError(ManualTradeInputField.EntryExecutedAtUtc);
-                ClearManualTradeInputError(ManualTradeInputField.ExitExecutedAtUtc);
+                ClearManualTradeInputError(ManualTradeInputField.EntryExecutedAtNewYork);
+                ClearManualTradeInputError(ManualTradeInputField.ExitExecutedAtNewYork);
             }
         }
     }
@@ -854,7 +860,7 @@ public sealed class TradesViewModel : ObservableObject
             if (SetProperty(ref _hasExit, value) && !value)
             {
                 ResetExitFields();
-                if (_invalidManualTradeInput is >= ManualTradeInputField.ExitExecutedAtUtc)
+                if (_invalidManualTradeInput is >= ManualTradeInputField.ExitExecutedAtNewYork)
                 {
                     SetInvalidManualTradeInput(null);
                     ValidationErrorMessage = null;
@@ -863,14 +869,14 @@ public sealed class TradesViewModel : ObservableObject
         }
     }
 
-    public string ExitExecutedAtUtcText
+    public string ExitExecutedAtNewYorkText
     {
-        get => _exitExecutedAtUtcText;
+        get => _exitExecutedAtNewYorkText;
         set
         {
-            if (SetProperty(ref _exitExecutedAtUtcText, value))
+            if (SetProperty(ref _exitExecutedAtNewYorkText, value))
             {
-                ClearManualTradeInputError(ManualTradeInputField.ExitExecutedAtUtc);
+                ClearManualTradeInputError(ManualTradeInputField.ExitExecutedAtNewYork);
             }
         }
     }
@@ -915,11 +921,11 @@ public sealed class TradesViewModel : ObservableObject
     public bool IsInstrumentInvalid => _invalidManualTradeInput == ManualTradeInputField.Instrument;
     public bool IsDirectionInvalid => _invalidManualTradeInput == ManualTradeInputField.Direction;
     public bool IsQuantityInvalid => _invalidManualTradeInput == ManualTradeInputField.Quantity;
-    public bool IsEntryExecutedAtUtcInvalid => _invalidManualTradeInput == ManualTradeInputField.EntryExecutedAtUtc;
+    public bool IsEntryExecutedAtNewYorkInvalid => _invalidManualTradeInput == ManualTradeInputField.EntryExecutedAtNewYork;
     public bool IsEntryPriceInvalid => _invalidManualTradeInput == ManualTradeInputField.EntryPrice;
     public bool IsEntryCommissionInvalid => _invalidManualTradeInput == ManualTradeInputField.EntryCommission;
     public bool IsEntryFeesInvalid => _invalidManualTradeInput == ManualTradeInputField.EntryFees;
-    public bool IsExitExecutedAtUtcInvalid => _invalidManualTradeInput == ManualTradeInputField.ExitExecutedAtUtc;
+    public bool IsExitExecutedAtNewYorkInvalid => _invalidManualTradeInput == ManualTradeInputField.ExitExecutedAtNewYork;
     public bool IsExitPriceInvalid => _invalidManualTradeInput == ManualTradeInputField.ExitPrice;
     public bool IsExitCommissionInvalid => _invalidManualTradeInput == ManualTradeInputField.ExitCommission;
     public bool IsExitFeesInvalid => _invalidManualTradeInput == ManualTradeInputField.ExitFees;
@@ -1719,7 +1725,7 @@ public sealed class TradesViewModel : ObservableObject
 
     public string TradeFormDescription => IsTradeEditVisible
         ? "Correct the authoritative trade facts. Derived values will be recalculated."
-        : "Enter the trade facts explicitly. Execution times are UTC.";
+        : "Enter the trade facts explicitly. Execution times use New York time.";
 
     public bool IsUpdatingTrade
     {
@@ -1901,12 +1907,13 @@ public sealed class TradesViewModel : ObservableObject
             return FailCloseTradeValidation(AlreadyClosedTradeErrorMessage);
         }
 
-        if (!TryParseUtcTimestamp(
-                CloseTradeExecutedAtUtcText,
-                out DateTimeOffset executedAtUtc))
+        if (!TryParseNewYorkTimestamp(
+                CloseTradeExecutedAtNewYorkText,
+                out DateTimeOffset executedAtUtc,
+                out LocalTimeConversionStatus? conversionStatus))
         {
             return FailCloseTradeValidation(
-                "Exit time must be a valid UTC timestamp.");
+                GetNewYorkTimestampValidationMessage("Exit", conversionStatus));
         }
 
         if (!TryParseDecimal(CloseTradePriceText, out decimal price))
@@ -1987,11 +1994,14 @@ public sealed class TradesViewModel : ObservableObject
                 TradeQuantityPolicy.FuturesWholeContractsMessage);
         }
 
-        if (!TryParseUtcTimestamp(
-                EntryExecutedAtUtcText,
-                out DateTimeOffset entryExecutedAtUtc))
+        if (!TryParseNewYorkTimestamp(
+                EntryExecutedAtNewYorkText,
+                out DateTimeOffset entryExecutedAtUtc,
+                out LocalTimeConversionStatus? entryConversionStatus))
         {
-            return FailValidation(ManualTradeInputField.EntryExecutedAtUtc, "Entry time must be a valid UTC timestamp.");
+            return FailValidation(
+                ManualTradeInputField.EntryExecutedAtNewYork,
+                GetNewYorkTimestampValidationMessage("Entry", entryConversionStatus));
         }
 
         if (!TryParseDecimal(EntryPriceText, out decimal entryPrice))
@@ -2024,17 +2034,20 @@ public sealed class TradesViewModel : ObservableObject
 
         if (HasExit)
         {
-            if (!TryParseUtcTimestamp(
-                    ExitExecutedAtUtcText,
-                    out DateTimeOffset exitExecutedAtUtc))
+            if (!TryParseNewYorkTimestamp(
+                    ExitExecutedAtNewYorkText,
+                    out DateTimeOffset exitExecutedAtUtc,
+                    out LocalTimeConversionStatus? exitConversionStatus))
             {
-                return FailValidation(ManualTradeInputField.ExitExecutedAtUtc, "Exit time must be a valid UTC timestamp.");
+                return FailValidation(
+                    ManualTradeInputField.ExitExecutedAtNewYork,
+                    GetNewYorkTimestampValidationMessage("Exit", exitConversionStatus));
             }
 
             if (exitExecutedAtUtc < entryExecutedAtUtc)
             {
                 return FailValidation(
-                    ManualTradeInputField.ExitExecutedAtUtc,
+                    ManualTradeInputField.ExitExecutedAtNewYork,
                     "Exit time cannot be earlier than entry time.");
             }
 
@@ -2389,14 +2402,14 @@ public sealed class TradesViewModel : ObservableObject
             : null;
         SelectedDirection = detail.Direction;
         QuantityText = FormatDecimal(entry.Quantity);
-        EntryExecutedAtUtcText = FormatTimestamp(entry.ExecutedAtUtc);
+        EntryExecutedAtNewYorkText = FormatTradingTimestamp(entry.ExecutedAtUtc);
         EntryPriceText = FormatDecimal(entry.Price);
         EntryCommissionText = FormatDecimal(entry.Commission);
         EntryFeesText = FormatDecimal(entry.Fees);
         HasExit = exit is not null;
         if (exit is not null)
         {
-            ExitExecutedAtUtcText = FormatTimestamp(exit.ExecutedAtUtc);
+            ExitExecutedAtNewYorkText = FormatTradingTimestamp(exit.ExecutedAtUtc);
             ExitPriceText = FormatDecimal(exit.Price);
             ExitCommissionText = FormatDecimal(exit.Commission);
             ExitFeesText = FormatDecimal(exit.Fees);
@@ -2524,7 +2537,7 @@ public sealed class TradesViewModel : ObservableObject
             ? Task.CompletedTask
             : DeleteTradeCoreAsync(
                 item.Id,
-                $"{item.InstrumentSymbol} · {item.OpenedAtUtc:yyyy-MM-dd HH:mm} UTC",
+                $"{item.InstrumentSymbol} · {FormatTradingTimestamp(item.OpenedAtUtc)} New York",
                 cancellationToken);
 
     private bool CanDeleteSelectedTrade() =>
@@ -2548,7 +2561,7 @@ public sealed class TradesViewModel : ObservableObject
         SelectedTradeDetail is { } detail
             ? DeleteTradeCoreAsync(
                 detail.Id,
-                $"{detail.InstrumentSymbol} · {detail.OpenedAtUtc:yyyy-MM-dd HH:mm} UTC",
+                $"{detail.InstrumentSymbol} · {FormatTradingTimestamp(detail.OpenedAtUtc)} New York",
                 cancellationToken)
             : Task.CompletedTask;
 
@@ -3545,11 +3558,14 @@ public sealed class TradesViewModel : ObservableObject
         ManualTradeInputField.Instrument => SelectedInstrument is not null,
         ManualTradeInputField.Direction => SelectedDirection is { } direction && Enum.IsDefined(direction),
         ManualTradeInputField.Quantity => IsQuantityValid(),
-        ManualTradeInputField.EntryExecutedAtUtc => TryParseUtcTimestamp(EntryExecutedAtUtcText, out _),
+        ManualTradeInputField.EntryExecutedAtNewYork => TryParseNewYorkTimestamp(
+            EntryExecutedAtNewYorkText,
+            out _,
+            out _),
         ManualTradeInputField.EntryPrice => TryParseDecimal(EntryPriceText, out _),
         ManualTradeInputField.EntryCommission => TryParseNonNegativeCost(EntryCommissionText, out _),
         ManualTradeInputField.EntryFees => TryParseNonNegativeCost(EntryFeesText, out _),
-        ManualTradeInputField.ExitExecutedAtUtc => IsExitTimestampValid(),
+        ManualTradeInputField.ExitExecutedAtNewYork => IsExitTimestampValid(),
         ManualTradeInputField.ExitPrice => TryParseDecimal(ExitPriceText, out _),
         ManualTradeInputField.ExitCommission => TryParseNonNegativeCost(ExitCommissionText, out _),
         ManualTradeInputField.ExitFees => TryParseNonNegativeCost(ExitFeesText, out _),
@@ -3580,8 +3596,8 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     private bool IsExitTimestampValid() =>
-        TryParseUtcTimestamp(EntryExecutedAtUtcText, out DateTimeOffset entry) &&
-        TryParseUtcTimestamp(ExitExecutedAtUtcText, out DateTimeOffset exit) &&
+        TryParseNewYorkTimestamp(EntryExecutedAtNewYorkText, out DateTimeOffset entry, out _) &&
+        TryParseNewYorkTimestamp(ExitExecutedAtNewYorkText, out DateTimeOffset exit, out _) &&
         exit >= entry;
 
     private void SetInvalidManualTradeInput(ManualTradeInputField? value)
@@ -3596,11 +3612,11 @@ public sealed class TradesViewModel : ObservableObject
         OnPropertyChanged(nameof(IsInstrumentInvalid));
         OnPropertyChanged(nameof(IsDirectionInvalid));
         OnPropertyChanged(nameof(IsQuantityInvalid));
-        OnPropertyChanged(nameof(IsEntryExecutedAtUtcInvalid));
+        OnPropertyChanged(nameof(IsEntryExecutedAtNewYorkInvalid));
         OnPropertyChanged(nameof(IsEntryPriceInvalid));
         OnPropertyChanged(nameof(IsEntryCommissionInvalid));
         OnPropertyChanged(nameof(IsEntryFeesInvalid));
-        OnPropertyChanged(nameof(IsExitExecutedAtUtcInvalid));
+        OnPropertyChanged(nameof(IsExitExecutedAtNewYorkInvalid));
         OnPropertyChanged(nameof(IsExitPriceInvalid));
         OnPropertyChanged(nameof(IsExitCommissionInvalid));
         OnPropertyChanged(nameof(IsExitFeesInvalid));
@@ -3651,6 +3667,47 @@ public sealed class TradesViewModel : ObservableObject
             out value);
     }
 
+    private static bool TryParseNewYorkTimestamp(
+        string? text,
+        out DateTimeOffset value,
+        out LocalTimeConversionStatus? conversionStatus)
+    {
+        value = default;
+        conversionStatus = null;
+        if (!DateTime.TryParseExact(
+                text,
+                NewYorkTimestampFormats,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out DateTime localTimestamp))
+        {
+            return false;
+        }
+
+        localTimestamp = DateTime.SpecifyKind(localTimestamp, DateTimeKind.Unspecified);
+        LocalTimeConversionResult conversion =
+            TradingTimePolicy.ConvertTradingLocalToUtc(localTimestamp);
+        conversionStatus = conversion.Status;
+        if (!conversion.IsSuccess)
+        {
+            return false;
+        }
+
+        value = conversion.UtcTimestamp!.Value;
+        return true;
+    }
+
+    private static string GetNewYorkTimestampValidationMessage(
+        string fieldName,
+        LocalTimeConversionStatus? conversionStatus) => conversionStatus switch
+        {
+            LocalTimeConversionStatus.Invalid =>
+                $"{fieldName} New York time does not exist because of the daylight-saving transition.",
+            LocalTimeConversionStatus.Ambiguous =>
+                $"{fieldName} New York time is ambiguous because of the daylight-saving transition. Enter an unambiguous time.",
+            _ => $"{fieldName} time must be a valid New York timestamp.",
+        };
+
     private void ResetManualEntryForm()
     {
         SelectedAccount = null;
@@ -3658,7 +3715,7 @@ public sealed class TradesViewModel : ObservableObject
         SelectedTradingSetup = null;
         SelectedDirection = null;
         QuantityText = string.Empty;
-        EntryExecutedAtUtcText = string.Empty;
+        EntryExecutedAtNewYorkText = string.Empty;
         EntryPriceText = string.Empty;
         EntryCommissionText = "0";
         EntryFeesText = "0";
@@ -3694,12 +3751,13 @@ public sealed class TradesViewModel : ObservableObject
     private static string FormatDecimal(decimal value) =>
         value.ToString("G29", CultureInfo.InvariantCulture);
 
-    private static string FormatTimestamp(DateTimeOffset value) =>
-        value.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+    private static string FormatTradingTimestamp(DateTimeOffset value) =>
+        TradingTimePolicy.ConvertUtcToTradingTime(value)
+            .ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
 
     private void ResetExitFields()
     {
-        ExitExecutedAtUtcText = string.Empty;
+        ExitExecutedAtNewYorkText = string.Empty;
         ExitPriceText = string.Empty;
         ExitCommissionText = "0";
         ExitFeesText = "0";
@@ -3715,7 +3773,7 @@ public sealed class TradesViewModel : ObservableObject
 
     private void ResetCloseTradeDraft()
     {
-        CloseTradeExecutedAtUtcText = string.Empty;
+        CloseTradeExecutedAtNewYorkText = string.Empty;
         CloseTradePriceText = string.Empty;
         CloseTradeCommissionText = "0";
         CloseTradeFeesText = "0";
