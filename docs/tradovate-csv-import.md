@@ -1,6 +1,6 @@
 # Tradovate CSV Import
 
-M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy, but it still does not create Domain Trades, show an import page, or persist import data. The complete M10 import workflow is not yet implemented.
+M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy. M10.5 exposes that exact pipeline through a read-only Desktop preview. It still does not create Domain Trades, create Instruments, or persist import data. The complete M10 import workflow is not yet implemented.
 
 ## Supported source contract
 
@@ -62,7 +62,7 @@ The initial verified profile is limited to `MNQ`: DisplayName `Micro E-mini Nasd
 
 If MNQ is missing and its source tick size agrees with the profile, M10.3 returns one complete creation proposal for all MNQ contract symbols; the proposal has no persisted InstrumentId. A syntactically valid but missing root without a verified profile retains its canonical symbol and source tick size, but requires user-supplied metadata rather than invented currency or tick value. Source/profile conflicts and materially unsafe existing economics block automatic resolution.
 
-`ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The future Import Preview will allow review of proposals and manual resolution. Actual missing-Instrument creation occurs only after final confirmation, transactionally with imported Trades. The confirmation transaction must re-resolve the canonical symbol because another workflow could create an Instrument after Preview but before confirmation.
+`ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The M10.5 Import Preview displays complete proposals and keeps unresolved metadata blocked for future manual resolution. Actual missing-Instrument creation occurs only after final confirmation, transactionally with imported Trades. The confirmation transaction must re-resolve the canonical symbol because another workflow could create an Instrument after Preview but before confirmation.
 
 ## Account selection and trading-time preparation (M10.4)
 
@@ -74,8 +74,20 @@ Each prepared execution preserves the original Sofia wall-clock timestamp and `E
 
 Preparation reuses the exact M10.3 existing-Instrument Id or creation proposal. It neither re-resolves Instruments nor invents an Id for a proposal. M10.4 performs no Account, Instrument, or Trade write and never persists a proposed Instrument. UTC remains the only authoritative timestamp intended for future Domain and database writes; original Sofia and projected New York values are in-memory preview evidence.
 
+## Read-only import preview (M10.5)
+
+The Import destination is a concrete WPF page backed by one retained `ImportViewModel`. Entering it clears prior file, analysis, diagnostics, account selection, and preview state while retaining a successfully loaded Account list. The page does not open the file picker automatically. It lists every Account and requires an explicit selection; inactive Accounts remain available and produce the M10.4 warning.
+
+`Select CSV` uses a Desktop-only picker that exposes only the base filename and a caller-owned stream. The ViewModel disposes that stream immediately after parsing, retains no raw CSV content or full path, and then invokes the approved parser, reconstruction, and Instrument-resolution stages without waiting for an Account selection. A newly selected file clears the preceding analysis and preview before work begins. Cancellation, operation gating, and workflow version checks prevent stale or overlapping completion from replacing newer state.
+
+`Build Preview` becomes available only after structurally eligible reconstruction, complete Instrument resolution, and explicit Account selection. It calls `TradovateImportPreparationService` and a deterministic, side-effect-free `TradovateImportPreviewBuilder`. Changing the selected Account invalidates only the prepared preview; the file analysis remains available.
+
+The preview reports source/valid/rejected row counts, unique buy/sell fills, candidate counts, canonical/existing/proposed Instrument counts, Account and timezone context, the New York preview period, and diagnostic totals. Instrument rows distinguish existing records from complete creation proposals; unresolved metadata remains an explicit user-input state. Trade rows show broker and canonical symbols, direction, New York open/close time, execution count, opening quantity, exact-decimal weighted entry/exit prices, and source-reported P&L attributed once by source-record index. Source P&L is reconciliation evidence, not authoritative Domain P&L.
+
+Diagnostics retain their CSV, Reconstruction, Instrument, Preparation, or Preview stage and stable code. The preview always calls out that source completeness is not independently verified and that commissions and fees are unavailable. Consequently `IsReadyForConfirmation` remains false and there is deliberately no final Import command or button in M10.5.
+
 ## Later M10 stages
 
-Later stages will provide Import Preview and manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
+Later stages will provide manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.

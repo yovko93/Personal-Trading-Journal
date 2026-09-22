@@ -68,7 +68,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and its current transient state, and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, or Trades from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
 
 ## ViewModel-to-View Mapping
 
@@ -79,6 +79,7 @@ DashboardViewModel   -> DashboardView
 TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
+ImportViewModel      -> ImportView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
 SettingsViewModel        -> SettingsView
@@ -89,7 +90,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Policy
 
-Seven destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 12 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Eight destinations—Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 11 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -109,6 +110,14 @@ The Dashboard is presentation-only. It contains empty visual regions for:
 The four metric values display `—` rather than fake zeroes or sample financial data. `DashboardViewModel` is intentionally empty, and the Dashboard performs no analytics or database queries. Data loading and real calculations are deferred.
 
 Dashboard metrics describe financial and statistical results; they must not infer process quality from profit or loss. Good process can lose, and bad process can profit. Future process-quality analysis must be modeled explicitly.
+
+## Tradovate Import Preview
+
+Import is a read-only review workflow. It uses one vertically scrolling page with source-file selection, explicit Trading Account selection, analysis summary, Instrument resolution, Trade candidates, and staged diagnostics. Selecting a CSV immediately runs parsing, reconstruction, and Instrument resolution; selecting an Account is not required until `Build Preview`. Inactive Accounts remain selectable for historical data and are labeled as inactive.
+
+The picker returns only the filename and stream. The ViewModel closes the stream after parsing and does not retain raw CSV content or a full path. Preview times are labeled and rendered in `America/New_York`, while the summary makes the `Europe/Sofia -> UTC -> America/New_York` policy explicit. Unknown Instrument metadata, invalid or ambiguous source time, missing Accounts, and every upstream diagnostic remain visible without silently inventing values.
+
+The page has no final Import action. It presents source-reported P&L only as source evidence and prominently warns that commissions/fees and independent source-completeness proof are unavailable. Account changes invalidate the generated preview but preserve the file analysis. Navigating away and back clears the file workflow while preserving the successfully loaded Account options.
 
 ## Accounts Feature
 
@@ -268,6 +277,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - `InstrumentsViewModel` depends on instrument-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on purpose-specific Application catalog readers and create/detail/update/delete/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/correction/closure/deletion, Setup classification, Trading Mistake associations, and screenshots, plus the Desktop dialog boundary for destructive confirmation.
+- `ImportViewModel` orchestrates the Application import contracts and read-only preview builder; it neither resolves a database context nor calls a write store.
 - `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.

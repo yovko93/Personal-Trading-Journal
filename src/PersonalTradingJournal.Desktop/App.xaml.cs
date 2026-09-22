@@ -4,24 +4,28 @@ using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Screenshots;
 using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Desktop.Imports;
 using PersonalTradingJournal.Desktop.Settings;
 using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
+using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Storage;
 using Serilog;
 using System.IO;
@@ -95,6 +99,14 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<DeleteTradeUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
+            builder.Services.AddTransient<ITradovateCsvParser, TradovateCsvParser>();
+            builder.Services.AddTransient<
+                ITradovateExecutionReconstructor,
+                TradovateExecutionReconstructor>();
+            builder.Services.AddTransient<TradovateInstrumentResolver>();
+            builder.Services.AddTransient<TradovateImportPreparationService>();
+            builder.Services.AddTransient<TradovateImportPreviewBuilder>();
+            builder.Services.AddTransient<ITradovateCsvFilePicker, WpfTradovateCsvFilePicker>();
             builder.Services.AddTransient<
                 ITradeScreenshotFilePicker,
                 WpfTradeScreenshotFilePicker>();
@@ -108,6 +120,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
+            builder.Services.AddTransient<ImportViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
             builder.Services.AddTransient<SettingsViewModel>();

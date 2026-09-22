@@ -10,6 +10,8 @@
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
+             xmlns:importViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Import"
+             xmlns:importViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Import"
              xmlns:mistakeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Mistakes"
              xmlns:mistakeViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Mistakes"
              xmlns:setupViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Setups"
@@ -40,6 +42,10 @@
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">
                 <instrumentViews:InstrumentsView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type importViewModels:ImportViewModel}">
+                <importViews:ImportView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type mistakeViewModels:TradingMistakesViewModel}">

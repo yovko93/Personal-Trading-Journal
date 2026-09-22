@@ -145,15 +145,16 @@ DashboardViewModel   -> DashboardView
 TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
+ImportViewModel      -> ImportView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
 SettingsViewModel        -> SettingsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
-There are 19 destinations: seven concrete destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—and 12 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
+There are 19 destinations: eight concrete destinations—Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—and 11 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
 
-`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a record-based feature reuses its successfully loaded collection/reference cache but calls that feature's explicit transient-state reset, so prior create/edit/detail surfaces, drafts, validation, and preview state do not reopen. Trades additionally retain the current page rows, page number, total count, sort column, and sort direction. Repeated navigation to the already-active destination is ignored. This remains direct typed shell state; no `NavigationService` exists.
+`MainWindowViewModel` retains its injected Dashboard, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a record-based feature reuses its successfully loaded collection/reference cache but calls that feature's explicit transient-state reset, so prior create/edit/detail surfaces, drafts, validation, and preview state do not reopen. Import retains the Account options but clears its selected file and in-memory analysis/preview. Trades additionally retain the current page rows, page number, total count, sort column, and sort direction. Repeated navigation to the already-active destination is ignored. This remains direct typed shell state; no `NavigationService` exists.
 
 ### Desktop Theme System
 
@@ -176,6 +177,8 @@ The Dashboard is currently a presentation shell. It provides neutral metric and 
 Desktop may depend on Application abstractions and use cases. Its reference to Infrastructure exists because Desktop is the composition root that wires concrete implementations; it does not authorize feature ViewModels to query `JournalDbContext` directly. Accounts, Instruments, Trading Setups, Trading Mistakes, and Trades follow meaningful Application boundaries rather than a `ViewModel -> JournalDbContext` dependency.
 
 Desktop objects use constructor injection. ViewModels must not locate dependencies through `IServiceProvider` or another service-locator pattern.
+
+The Tradovate Import ViewModel is an orchestration boundary over the existing Application contracts. Its read-only flow is `ITradovateCsvParser -> ITradovateExecutionReconstructor -> TradovateInstrumentResolver -> TradovateImportPreparationService -> TradovateImportPreviewBuilder`. Infrastructure implements parsing and reconstruction; Application owns Instrument resolution, Account/time preparation, and deterministic preview projection. The Desktop picker owns the WPF dialog and returns a base filename plus a caller-owned stream. No layer in M10.5 writes an Instrument, Trade, or execution, and final confirmation remains unavailable until later transactional and deduplication policy exists.
 
 ### Feature Read and Write Flows
 
@@ -425,7 +428,7 @@ M5 introduces no new uniqueness business rule for account name, external account
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/correction/closure/deletion/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all seven retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/correction/closure/deletion/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, the read-only Tradovate preview pipeline, and all eight retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
