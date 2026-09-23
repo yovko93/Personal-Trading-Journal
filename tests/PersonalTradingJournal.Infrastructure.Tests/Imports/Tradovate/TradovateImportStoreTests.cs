@@ -219,6 +219,107 @@ public sealed class TradovateImportStoreTests
         Assert.Empty(await context.Trades.ToArrayAsync());
     }
 
+    [Theory]
+    [InlineData("MNQ")]
+    [InlineData("mnq")]
+    public async Task ExistingInstrumentBecomesAmbiguousAfterPreviewBlocksImport(
+        string secondSymbol)
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = await SeedAccountAsync(database);
+        Guid expectedInstrumentId = await SeedInstrumentAsync(database, 0.50m);
+        TradovateImportPreparationResult preparation = ExistingPreparation(
+            Preparation(accountId), expectedInstrumentId, expectedTickValue: 0.50m);
+        Guid secondInstrumentId = await SeedInstrumentAsync(
+            database, 0.50m, secondSymbol);
+        ITradovateImportStore store = database.ServiceProvider
+            .GetRequiredService<ITradovateImportStore>();
+
+        TradovateImportResult result = await store.ImportAsync(
+            new TradovateImportRequest(preparation, ImportedAt));
+
+        Assert.Equal(TradovateImportStatus.Blocked, result.Status);
+        Assert.Equal(
+            TradovateImportConflictCodes.ReferenceDataChanged,
+            result.ConflictCode);
+        await using JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync();
+        InstrumentRecord[] instruments = await context.Instruments
+            .AsNoTracking().OrderBy(item => item.Id).ToArrayAsync();
+        Assert.Equal(2, instruments.Length);
+        Assert.Contains(instruments, item => item.Id == expectedInstrumentId);
+        Assert.Contains(instruments, item => item.Id == secondInstrumentId);
+        Assert.Empty(await context.Trades.ToArrayAsync());
+        Assert.Empty(await context.TradeExecutions.ToArrayAsync());
+        Assert.Empty(await context.TradeBrowse.ToArrayAsync());
+        Assert.Empty(await context.TradovateImportedExecutions.ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task MissingExpectedExistingInstrumentAfterPreviewBlocksImport()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = await SeedAccountAsync(database);
+        Guid expectedInstrumentId = await SeedInstrumentAsync(database, 0.50m);
+        TradovateImportPreparationResult preparation = ExistingPreparation(
+            Preparation(accountId), expectedInstrumentId, expectedTickValue: 0.50m);
+        await DeleteInstrumentAsync(database, expectedInstrumentId);
+        ITradovateImportStore store = database.ServiceProvider
+            .GetRequiredService<ITradovateImportStore>();
+
+        TradovateImportResult result = await store.ImportAsync(
+            new TradovateImportRequest(preparation, ImportedAt));
+
+        AssertBlockedReferenceDataWithoutImportRows(result, database);
+    }
+
+    [Fact]
+    public async Task ReplacementExistingInstrumentAfterPreviewDoesNotSilentlyRemap()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = await SeedAccountAsync(database);
+        Guid expectedInstrumentId = await SeedInstrumentAsync(database, 0.50m);
+        TradovateImportPreparationResult preparation = ExistingPreparation(
+            Preparation(accountId), expectedInstrumentId, expectedTickValue: 0.50m);
+        await DeleteInstrumentAsync(database, expectedInstrumentId);
+        Guid replacementId = await SeedInstrumentAsync(database, 0.50m);
+        ITradovateImportStore store = database.ServiceProvider
+            .GetRequiredService<ITradovateImportStore>();
+
+        TradovateImportResult result = await store.ImportAsync(
+            new TradovateImportRequest(preparation, ImportedAt));
+
+        AssertBlockedReferenceDataWithoutImportRows(result, database);
+        await using JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            replacementId,
+            (await context.Instruments.AsNoTracking().SingleAsync()).Id);
+    }
+
+    [Fact]
+    public async Task SingleExpectedExistingInstrumentWithSafeEconomicsImports()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = await SeedAccountAsync(database);
+        Guid instrumentId = await SeedInstrumentAsync(database, 0.50m);
+        TradovateImportPreparationResult preparation = ExistingPreparation(
+            Preparation(accountId), instrumentId, expectedTickValue: 0.50m);
+        ITradovateImportStore store = database.ServiceProvider
+            .GetRequiredService<ITradovateImportStore>();
+
+        TradovateImportResult result = await store.ImportAsync(
+            new TradovateImportRequest(preparation, ImportedAt));
+
+        Assert.Equal(TradovateImportStatus.Imported, result.Status);
+        Assert.Equal(0, result.CreatedInstrumentCount);
+        await using JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            instrumentId,
+            (await context.Trades.AsNoTracking().SingleAsync()).InstrumentId);
+    }
+
     [Fact]
     public async Task AccountRemovedAfterPreviewReturnsTypedBlockedResult()
     {
@@ -440,7 +541,8 @@ public sealed class TradovateImportStoreTests
 
     private static async Task<Guid> SeedInstrumentAsync(
         ReaderTestDatabase database,
-        decimal tickValue)
+        decimal tickValue,
+        string symbol = "MNQ")
     {
         Guid instrumentId = Guid.NewGuid();
         await using JournalDbContext context =
@@ -448,7 +550,7 @@ public sealed class TradovateImportStoreTests
         context.Instruments.Add(new InstrumentRecord
         {
             Id = instrumentId,
-            Symbol = "MNQ",
+            Symbol = symbol,
             DisplayName = "Current MNQ",
             AssetClass = AssetClass.Futures,
             Exchange = "Current exchange",
@@ -461,6 +563,33 @@ public sealed class TradovateImportStoreTests
         });
         await context.SaveChangesAsync();
         return instrumentId;
+    }
+
+    private static async Task DeleteInstrumentAsync(
+        ReaderTestDatabase database,
+        Guid instrumentId)
+    {
+        await using JournalDbContext context =
+            await database.ContextFactory.CreateDbContextAsync();
+        context.Instruments.Remove(await context.Instruments.SingleAsync(item =>
+            item.Id == instrumentId));
+        await context.SaveChangesAsync();
+    }
+
+    private static void AssertBlockedReferenceDataWithoutImportRows(
+        TradovateImportResult result,
+        ReaderTestDatabase database)
+    {
+        Assert.Equal(TradovateImportStatus.Blocked, result.Status);
+        Assert.Equal(
+            TradovateImportConflictCodes.ReferenceDataChanged,
+            result.ConflictCode);
+
+        using JournalDbContext context = database.ContextFactory.CreateDbContext();
+        Assert.Empty(context.Trades);
+        Assert.Empty(context.TradeExecutions);
+        Assert.Empty(context.TradeBrowse);
+        Assert.Empty(context.TradovateImportedExecutions);
     }
 
     private static TradovateImportPreparationResult Preparation(

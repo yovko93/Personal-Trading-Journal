@@ -257,28 +257,32 @@ public sealed class TradovateImportStore : ITradovateImportStore
                 candidate.CanonicalSymbol,
                 StringComparison.Ordinal));
 
-        if (candidate.ExistingInstrumentId.HasValue)
-        {
-            InstrumentRecord? current = currentInstruments.SingleOrDefault(record =>
-                record.Id == candidate.ExistingInstrumentId.Value);
-            if (current is null || expected.ExistingInstrument is null ||
-                !MateriallyMatches(current, candidate.CanonicalSymbol, expected.ExistingInstrument))
-            {
-                return InstrumentResolution.Conflict(
-                    $"Instrument '{candidate.CanonicalSymbol}' changed after preview.");
-            }
-
-            return new InstrumentResolution(current, false, null);
-        }
-
-        TradovateInstrumentCreationProposal proposal =
-            candidate.InstrumentCreationProposal!;
         InstrumentRecord[] matches = currentInstruments
             .Where(record => string.Equals(
                 record.Symbol,
                 candidate.CanonicalSymbol,
                 StringComparison.OrdinalIgnoreCase))
             .ToArray();
+
+        if (candidate.ExistingInstrumentId.HasValue)
+        {
+            if (matches.Length != 1 ||
+                matches[0].Id != candidate.ExistingInstrumentId.Value ||
+                expected.ExistingInstrument is null ||
+                !MateriallyMatches(
+                    matches[0],
+                    candidate.CanonicalSymbol,
+                    expected.ExistingInstrument))
+            {
+                return InstrumentResolution.Conflict(
+                    $"Instrument '{candidate.CanonicalSymbol}' changed after preview.");
+            }
+
+            return new InstrumentResolution(matches[0], false, null);
+        }
+
+        TradovateInstrumentCreationProposal proposal =
+            candidate.InstrumentCreationProposal!;
         if (matches.Length > 1)
         {
             return InstrumentResolution.Conflict(
