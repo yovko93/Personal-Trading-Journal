@@ -18,9 +18,9 @@ public sealed class TradeExecutionRecord
 
     public decimal Price { get; set; }
 
-    public decimal Commission { get; set; }
+    public decimal? Commission { get; set; }
 
-    public decimal Fees { get; set; }
+    public decimal? Fees { get; set; }
 
     public string? ExternalExecutionId { get; set; }
 

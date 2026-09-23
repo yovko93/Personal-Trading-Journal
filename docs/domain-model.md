@@ -62,7 +62,7 @@ Account metadata may change while Trades reference the account because Trades re
 
 ## Trade Executions and Lifecycle
 
-`TradeExecution` is an immutable Buy/Sell market fact owned by a `TradeId` and ordered by a positive contiguous `Sequence`. It supports fractional quantities, zero or negative prices, and non-negative canonical commission and fee values. Buy/Sell records what happened in the market; Long/Short is derived at the trade level.
+`TradeExecution` is an immutable Buy/Sell market fact owned by a `TradeId` and ordered by a positive contiguous `Sequence`. It supports fractional quantities, zero or negative prices, and nullable commission and fee values: `null` means unavailable/unknown, while zero means a known zero cost; every non-null cost must be non-negative. Buy/Sell records what happened in the market; Long/Short is derived at the trade level.
 
 A `Trade` represents one directional flat-to-flat position lifecycle. It starts with an opening execution, supports scale-in and partial scale-out, and closes only when executions return the position exactly to zero. Its execution collection is externally read-only. Additions must preserve ownership, unique execution identity, exact next sequence, and non-decreasing execution chronology; equal timestamps are valid. An execution after closure or one that would reverse through zero is rejected atomically.
 
@@ -125,7 +125,7 @@ GrossPnL = (SellNotional - BuyNotional) * PointValue
 NetPnL   = GrossPnL - TotalCosts
 ```
 
-Notional sums quantity multiplied by price for the corresponding side. The sign naturally represents both long and short outcomes. Final `GrossPnL` and `NetPnL` are `null` while a trade is open. M2 does not implement mark-to-market, unrealized P&L, partial realized accounting policies, FIFO/LIFO, or R-multiple calculations.
+Notional sums quantity multiplied by price for the corresponding side. `TradeExecution.TotalCosts` is known only when both commission and fees are known, and `Trade.TotalCosts` is known only when every execution cost is known. A closed imported Trade can therefore have known `GrossPnL` while `TotalCosts` and `NetPnL` remain unknown. Known-cost manual Trades retain the numeric formula above, including known zero costs. The sign naturally represents both long and short outcomes. Final `GrossPnL` and `NetPnL` are `null` while a trade is open. M2 does not implement mark-to-market, unrealized P&L, partial realized accounting policies, FIFO/LIFO, or R-multiple calculations.
 
 ## Trade Classification
 

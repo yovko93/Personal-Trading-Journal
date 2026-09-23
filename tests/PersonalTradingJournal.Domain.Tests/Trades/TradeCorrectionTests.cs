@@ -278,8 +278,8 @@ public sealed class TradeCorrectionTests
         ExecutionSide side,
         decimal quantity,
         decimal price,
-        decimal commission,
-        decimal fees) =>
+        decimal? commission,
+        decimal? fees) =>
         TradeExecution.Rehydrate(
             current.Id,
             current.TradeId,

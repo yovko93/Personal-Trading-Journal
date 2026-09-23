@@ -26,7 +26,7 @@ public sealed record TradeListItem(
     decimal OpenQuantity,
     decimal AverageEntryPrice,
     decimal? AverageExitPrice,
-    decimal TotalCosts,
+    decimal? TotalCosts,
     decimal? GrossPnL,
     decimal? NetPnL,
     string Currency);

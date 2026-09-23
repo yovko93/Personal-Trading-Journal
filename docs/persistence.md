@@ -153,6 +153,14 @@ Opened UTC sorts on `TradeBrowse.OpenedAtUtc`; Instrument and Account sort on th
 
 Each `TradeListItem` uses current Trading Account and Instrument labels. Direction, status, market-event timestamps, exposure, averages, costs, and nullable P&L come from the versioned browse projection; currency remains canonical on the Trade root. The projection contains no calculation rules: write stores and startup reconciliation map it from an already-valid Domain Trade.
 
+### Transactional Tradovate Import
+
+`ITradovateImportStore` is a purpose-specific Application boundary implemented by one Infrastructure store using one fresh `JournalDbContext` and one explicit SQLite transaction. It revalidates the selected Account and current Instrument economics, classifies durable fill identities before proposal creation, reuses a safe Instrument that appeared after Preview or creates the approved Domain Instrument, constructs every Trade through `Trade.Start(...)`/`AddExecution(...)`, and stages Instrument, Trade, execution, browse, and identity rows before one save and commit. No sequential `IInstrumentStore`/`ITradeStore` calls or generic Unit of Work are involved.
+
+`TradovateImportedExecutions` records the exact identity `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId)` under a unique index; `TradeExecutionId` is its primary key, and its Trade foreign key cascades on hard deletion. An exact candidate identity-set match is skipped, while partial overlap, identities spanning multiple Trades, or a changed grouping boundary blocks the entire transaction. The Account component allows the same source fills to be imported intentionally into a different PTJ Account. Deleting an imported Trade removes the identities and permits a later re-import.
+
+Imported `TradeExecutions.Commission` and `Fees` are stored as `NULL`, never fabricated zeroes. `TradeBrowse.TotalCosts` and `NetPnL` consequently remain null while `GrossPnL` is still Domain-derived from execution prices, quantities, and the confirmed Instrument pricing snapshot. Source-reported P&amp;L remains preview evidence and is not persisted as Domain economics.
+
 ### Trade Detail Reader
 
 `TradeDetailReader` implements `ITradeDetailReader.GetByIdAsync(...)`. It rejects `Guid.Empty`, returns `null` for a valid missing identifier, and uses a fresh no-tracking context to load exactly one Trade with its current Account and Instrument display identity. A second query loads that Trade's complete execution set in ascending sequence order; there is no N+1 query pattern.
@@ -189,19 +197,20 @@ Tests verify exact equality, ascending and descending ordering, inclusive `>=`/`
 
 ## Migrations
 
-The current application has exactly three migrations:
+The current application has exactly four migrations:
 
 ```text
 20260908122839_InitialCreate
 20260914212911_RemoveStrategies
 20260917165522_AddTradeBrowseProjection
+20260923074655_AddTradovateImportPersistence
 ```
 
-`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. The latest schema has nine application tables and eight foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
+`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. `AddTradovateImportPersistence` makes execution costs and browse total costs nullable and adds durable account-scoped Tradovate execution identities without changing existing non-null values. The latest schema has ten application tables and nine foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
 
 ## Runtime Initialization
 
-`JournalDatabaseInitializer` applies migrations and then invokes `TradeBrowseProjectionReconciler`. Reconciliation finds canonical Trades whose projection is missing or whose `ProjectionVersion` is not 1, reconstructs them through `TradePersistenceMapper`, and upserts Domain-derived rows in one transaction. It is idempotent, does not rewrite current-version rows, and propagates cancellation or failure so startup cannot continue with an incomplete browse model.
+`JournalDatabaseInitializer` applies migrations and then invokes `TradeBrowseProjectionReconciler`. Reconciliation finds canonical Trades whose projection is missing or whose `ProjectionVersion` is not 2, reconstructs them through `TradePersistenceMapper`, and upserts Domain-derived rows in one transaction. It is idempotent, does not rewrite current-version rows, and propagates cancellation or failure so startup cannot continue with an incomplete browse model.
 
 Desktop startup follows this order:
 

@@ -19,7 +19,7 @@ public sealed class TradovateImportPreviewBuilderTests
             fixture.Preparation);
 
         Assert.True(preview.IsStructurallyReady);
-        Assert.False(preview.IsReadyForConfirmation);
+        Assert.True(preview.IsReadyForConfirmation);
         Assert.Equal("fills.csv", preview.Summary.FileName);
         Assert.Equal("Primary", preview.Summary.AccountName);
         Assert.Equal(2, preview.Summary.SourceRecordCount);

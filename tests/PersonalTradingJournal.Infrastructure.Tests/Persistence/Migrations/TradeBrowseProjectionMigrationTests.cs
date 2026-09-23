@@ -119,7 +119,7 @@ public sealed class TradeBrowseProjectionMigrationTests
             Trade trade = PersonalTradingJournal.Infrastructure.Persistence.Mapping
                 .TradePersistenceMapper.ToDomain(tradeRecord, executions);
 
-            Assert.Equal(1, projection.ProjectionVersion);
+            Assert.Equal(2, projection.ProjectionVersion);
             Assert.Equal(trade.OpenedAtUtc, projection.OpenedAtUtc);
             Assert.Equal(trade.ClosedAtUtc, projection.ClosedAtUtc);
             Assert.Equal(trade.Direction, projection.Direction);
@@ -139,7 +139,7 @@ public sealed class TradeBrowseProjectionMigrationTests
             Assert.Equal(
                 DecimalSortKey.Encode(trade.NetPnL!.Value),
                 projection.NetPnLSortKey);
-            Assert.Equal(3, (await verification.Database
+            Assert.Equal(4, (await verification.Database
                 .GetAppliedMigrationsAsync()).Count());
             Assert.Equal(1, await verification.TradeBrowse.CountAsync());
         }

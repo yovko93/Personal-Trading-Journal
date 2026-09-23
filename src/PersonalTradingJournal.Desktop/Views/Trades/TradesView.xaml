@@ -893,7 +893,7 @@
                                            Text="Total Costs" />
                                 <StackPanel Margin="0,4,0,0" Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                               Text="{Binding SelectedTradeDetail.TotalCosts}" />
+                                               Text="{Binding SelectedTradeDetail.TotalCosts, TargetNullValue=—}" />
                                     <TextBlock Margin="4,0,0,0"
                                                Style="{StaticResource PtjCaptionTextStyle}"
                                                Text="{Binding SelectedTradeDetail.Currency}" />
@@ -2072,21 +2072,21 @@
                                                                Text="Commission" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding Commission}" />
+                                                               Text="{Binding Commission, TargetNullValue=—}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="6" Margin="6,0">
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="Fees" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding Fees}" />
+                                                               Text="{Binding Fees, TargetNullValue=—}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="7" Margin="6,0,0,0">
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="Costs" />
                                                     <TextBlock Margin="0,4,0,0"
                                                                Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding TotalCosts}" />
+                                                               Text="{Binding TotalCosts, TargetNullValue=—}" />
                                                 </StackPanel>
                                             </Grid>
 

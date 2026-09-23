@@ -68,7 +68,24 @@ public sealed class Trade : AuditableEntity
 
     public IReadOnlyList<TradeExecution> Executions => _readOnlyExecutions;
 
-    public decimal TotalCosts => _executions.Sum(execution => execution.TotalCosts);
+    public decimal? TotalCosts
+    {
+        get
+        {
+            decimal total = 0m;
+            foreach (TradeExecution execution in _executions)
+            {
+                if (!execution.TotalCosts.HasValue)
+                {
+                    return null;
+                }
+
+                total = checked(total + execution.TotalCosts.Value);
+            }
+
+            return total;
+        }
+    }
 
     public decimal AverageEntryPrice =>
         CalculateAveragePrice(GetOpeningSide(Direction))
@@ -88,8 +105,9 @@ public sealed class Trade : AuditableEntity
         get
         {
             decimal? grossPnL = GrossPnL;
-            return grossPnL.HasValue
-                ? checked(grossPnL.Value - TotalCosts)
+            decimal? totalCosts = TotalCosts;
+            return grossPnL.HasValue && totalCosts.HasValue
+                ? checked(grossPnL.Value - totalCosts.Value)
                 : null;
         }
     }

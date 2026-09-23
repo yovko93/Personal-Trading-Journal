@@ -79,7 +79,8 @@ public sealed class TradovateImportPreviewBuilder
             trades,
             diagnostics,
             structurallyReady,
-            IsReadyForConfirmation: false);
+            IsReadyForConfirmation: structurallyReady && diagnostics.All(item =>
+                item.Severity != TradovateReconstructionDiagnosticSeverity.Error));
     }
 
     private static TradovateImportPreviewInstrumentItem ToInstrumentItem(
@@ -233,7 +234,7 @@ public sealed class TradovateImportPreviewBuilder
             TradovateImportPreviewDiagnosticStage.Preview,
             TradovateReconstructionDiagnosticSeverity.Warning,
             "COSTS_UNAVAILABLE",
-            "Commission and fee inputs are not available in this preview; final import remains disabled."));
+            "Commission and fee data is unavailable from this source and will be stored as unknown."));
 
         return diagnostics
             .DistinctBy(item => new

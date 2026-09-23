@@ -17,8 +17,8 @@ public sealed class TradeExecution : Entity
         ExecutionSide side,
         decimal quantity,
         decimal price,
-        decimal commission,
-        decimal fees,
+        decimal? commission,
+        decimal? fees,
         string? externalExecutionId,
         string? externalOrderId,
         string? brokerSymbol)
@@ -54,8 +54,8 @@ public sealed class TradeExecution : Entity
         ExecutionSide side,
         decimal quantity,
         decimal price,
-        decimal commission,
-        decimal fees,
+        decimal? commission,
+        decimal? fees,
         string? externalExecutionId,
         string? externalOrderId,
         string? brokerSymbol)
@@ -95,9 +95,9 @@ public sealed class TradeExecution : Entity
 
     public decimal Price { get; }
 
-    public decimal Commission { get; }
+    public decimal? Commission { get; }
 
-    public decimal Fees { get; }
+    public decimal? Fees { get; }
 
     public string? ExternalExecutionId { get; }
 
@@ -105,7 +105,10 @@ public sealed class TradeExecution : Entity
 
     public string? BrokerSymbol { get; }
 
-    public decimal TotalCosts => Commission + Fees;
+    public decimal? TotalCosts =>
+        Commission.HasValue && Fees.HasValue
+            ? checked(Commission.Value + Fees.Value)
+            : null;
 
     public static TradeExecution Rehydrate(
         Guid id,
@@ -115,8 +118,8 @@ public sealed class TradeExecution : Entity
         ExecutionSide side,
         decimal quantity,
         decimal price,
-        decimal commission,
-        decimal fees,
+        decimal? commission,
+        decimal? fees,
         string? externalExecutionId,
         string? externalOrderId,
         string? brokerSymbol)
@@ -197,9 +200,9 @@ public sealed class TradeExecution : Entity
         return quantity;
     }
 
-    private static decimal ValidateNonNegativeCost(decimal value, string parameterName)
+    private static decimal? ValidateNonNegativeCost(decimal? value, string parameterName)
     {
-        if (value < 0m)
+        if (value is < 0m)
         {
             throw new ArgumentOutOfRangeException(
                 parameterName,

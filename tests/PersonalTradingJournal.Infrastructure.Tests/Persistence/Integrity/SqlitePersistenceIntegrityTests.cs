@@ -58,6 +58,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradeExecutionRecord),
             typeof(TradeScreenshotRecord),
             typeof(TradeMistakeRecord),
+            typeof(TradovateImportedExecutionRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -69,7 +70,9 @@ public sealed class SqlitePersistenceIntegrityTests
         {
             string keyName = entityType.ClrType == typeof(TradeBrowseRecord)
                 ? nameof(TradeBrowseRecord.TradeId)
-                : "Id";
+                : entityType.ClrType == typeof(TradovateImportedExecutionRecord)
+                    ? nameof(TradovateImportedExecutionRecord.TradeExecutionId)
+                    : "Id";
             IProperty idProperty = entityType.FindProperty(keyName)!;
             Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
         }
@@ -132,6 +135,13 @@ public sealed class SqlitePersistenceIntegrityTests
             DeleteBehavior.Restrict);
         AssertForeignKey(
             model,
+            typeof(TradovateImportedExecutionRecord),
+            nameof(TradovateImportedExecutionRecord.TradeId),
+            typeof(TradeRecord),
+            isRequired: true,
+            DeleteBehavior.Cascade);
+        AssertForeignKey(
+            model,
             typeof(TradeMistakeRecord),
             nameof(TradeMistakeRecord.TradingMistakeId),
             typeof(TradingMistakeRecord),
@@ -141,19 +151,24 @@ public sealed class SqlitePersistenceIntegrityTests
         List<IForeignKey> foreignKeys = model.GetEntityTypes()
             .SelectMany(entityType => entityType.GetForeignKeys())
             .ToList();
-        Assert.Equal(8, foreignKeys.Count);
+        Assert.Equal(9, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(2, cascades.Length);
+        Assert.Equal(3, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeBrowseRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeBrowseRecord.TradeId));
+        Assert.Contains(cascades, foreignKey =>
+            foreignKey.DeclaringEntityType.ClrType ==
+                typeof(TradovateImportedExecutionRecord) &&
+            foreignKey.Properties.Single().Name ==
+                nameof(TradovateImportedExecutionRecord.TradeId));
     }
 
     [Fact]
@@ -208,7 +223,7 @@ public sealed class SqlitePersistenceIntegrityTests
     }
 
     [Fact]
-    public void ModelContainsOnlyTheTwoIntendedBusinessUniqueIndexes()
+    public void ModelContainsOnlyTheIntendedBusinessUniqueIndexes()
     {
         using JournalDbContext context = CreateModelContext();
         var uniqueIndexes = context.Model.GetEntityTypes()
@@ -223,7 +238,7 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(2, uniqueIndexes.Count);
+        Assert.Equal(3, uniqueIndexes.Count);
         Assert.Contains(
             uniqueIndexes,
             index => index.EntityType == typeof(TradeExecutionRecord) &&
@@ -239,6 +254,16 @@ public sealed class SqlitePersistenceIntegrityTests
                 [
                     nameof(TradeMistakeRecord.TradeId),
                     nameof(TradeMistakeRecord.TradingMistakeId),
+                ]));
+        Assert.Contains(
+            uniqueIndexes,
+            index => index.EntityType == typeof(TradovateImportedExecutionRecord) &&
+                index.Properties.SequenceEqual(
+                [
+                    nameof(TradovateImportedExecutionRecord.TradingAccountIdAtImport),
+                    nameof(TradovateImportedExecutionRecord.BrokerSymbol),
+                    nameof(TradovateImportedExecutionRecord.Side),
+                    nameof(TradovateImportedExecutionRecord.ExternalExecutionId),
                 ]));
     }
 

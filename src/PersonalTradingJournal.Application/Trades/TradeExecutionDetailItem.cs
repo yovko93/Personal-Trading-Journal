@@ -17,9 +17,9 @@ public sealed record TradeExecutionDetailItem(
     ExecutionSide Side,
     decimal Quantity,
     decimal Price,
-    decimal Commission,
-    decimal Fees,
-    decimal TotalCosts,
+    decimal? Commission,
+    decimal? Fees,
+    decimal? TotalCosts,
     string? BrokerSymbol,
     string? ExternalExecutionId,
     string? ExternalOrderId);

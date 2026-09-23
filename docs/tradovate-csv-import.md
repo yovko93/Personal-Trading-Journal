@@ -1,6 +1,6 @@
 # Tradovate CSV Import
 
-M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy. M10.5 exposes that exact pipeline through a read-only Desktop preview. It still does not create Domain Trades, create Instruments, or persist import data. The complete M10 import workflow is not yet implemented.
+M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy. M10.5 exposes that exact pipeline through a read-only Desktop preview. M10.6 adds the Application/Infrastructure confirmation core: Domain-safe Trade construction, one atomic SQLite write, confirmation-time reference revalidation, and durable deduplication. The Desktop still has no final Import command.
 
 ## Supported source contract
 
@@ -84,10 +84,18 @@ The Import destination is a concrete WPF page backed by one retained `ImportView
 
 The preview reports source/valid/rejected row counts, unique buy/sell fills, candidate counts, canonical/existing/proposed Instrument counts, Account and timezone context, the New York preview period, and diagnostic totals. Existing Instrument rows show the current PTJ display metadata and tick economics preserved by M10.3 resolution; the preview builder does not re-read them. Proposed rows show the authoritative verified creation proposal and state that creation occurs only during future confirmation. Unresolved metadata remains explicit rather than fabricated. Trade rows show broker and canonical symbols, direction, New York open/close time, execution count, opening quantity, exact-decimal weighted entry/exit prices, and source-reported P&L attributed once by source-record index. Source P&L is reconciliation evidence, not authoritative Domain P&L.
 
-Diagnostics retain their CSV, Reconstruction, Instrument, Preparation, or Preview stage and stable code. The preview always calls out that source completeness is not independently verified and that commissions and fees are unavailable. Consequently `IsReadyForConfirmation` remains false and there is deliberately no final Import command or button in M10.5.
+Diagnostics retain their CSV, Reconstruction, Instrument, Preparation, or Preview stage and stable code. The preview always calls out that source completeness is not independently verified and that commissions and fees are unavailable. `COSTS_UNAVAILABLE` remains a warning: unavailable costs are persisted as unknown, so a structurally valid preview with no Error diagnostics now has `IsReadyForConfirmation == true`. There is still deliberately no final Desktop Import command or button in M10.6.
+
+## Transactional persistence and durable deduplication (M10.6)
+
+`ImportTradovateTradesUseCase` reruns M10.4 preparation against the selected Account immediately before delegating to `ITradovateImportStore`. The store uses one context and explicit transaction to revalidate that Account and the current Instrument economics, re-resolve proposals, create an approved Instrument only if still absent, construct Trades through Domain APIs, and persist Trade roots, exact execution provenance, version-2 browse projections, and durable fill identities atomically. Existing-Instrument DisplayName/Exchange changes and inactivity do not block, but a material Symbol, AssetClass, Currency, TickSize, or TickValue conflict does.
+
+The durable identity is the exact tuple `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId)`. All identities absent means a new candidate; an exact match to one existing imported Trade's complete identity set is skipped; partial overlap, cross-Trade overlap, or a changed identity-set boundary blocks the entire import. Exact duplicates and new candidates may coexist, and importing the same source to a different explicitly selected PTJ Account is allowed. Deduplication runs before proposal creation, and hard-deleting the Trade cascades its identity rows so an intentional re-import is possible.
+
+The matched-fills source has no independent commission or fee facts. Imported executions therefore store both values as `null`: null means unknown, while zero remains known zero for manual workflows. Imported closed Trades can have Domain-derived `GrossPnL` but unknown `TotalCosts` and `NetPnL`. Source-reported P&amp;L remains preview-only reconciliation evidence; no import-history or source-P&amp;L persistence subsystem is introduced.
 
 ## Later M10 stages
 
-Later stages will provide manual corrections, confirm the import, persist it transactionally, and provide durable deduplication.
+Later stages will add the final Desktop confirmation command and post-import presentation flow.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.

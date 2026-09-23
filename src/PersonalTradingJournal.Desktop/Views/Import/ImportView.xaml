@@ -174,7 +174,7 @@
                     </Grid>
                     <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource PtjWarningBrush}"
                                Style="{StaticResource PtjBodyTextStyle}"
-                               Text="Read-only preview. Final import is unavailable until commission and fee policy is defined."
+                               Text="Commission and fee values are not present in this Tradovate export. Imported costs and Net P&amp;L will remain unknown until supplied."
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Border>

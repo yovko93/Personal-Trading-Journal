@@ -106,6 +106,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradovateInstrumentResolver>();
             builder.Services.AddTransient<TradovateImportPreparationService>();
             builder.Services.AddTransient<TradovateImportPreviewBuilder>();
+            builder.Services.AddTransient<ImportTradovateTradesUseCase>();
             builder.Services.AddTransient<ITradovateCsvFilePicker, WpfTradovateCsvFilePicker>();
             builder.Services.AddTransient<
                 ITradeScreenshotFilePicker,

@@ -2803,6 +2803,38 @@ public sealed partial class TradesViewModelTests
     }
 
     [Fact]
+    public async Task EditTradeRefusesUnknownImportedExecutionCosts()
+    {
+        TradeListItem item = CreateTradeListItem();
+        TradeDetail known = CreateEditableTradeDetail(item, null);
+        TradeDetail imported = known with
+        {
+            TotalCosts = null,
+            NetPnL = null,
+            Executions = known.Executions
+                .Select((execution, index) => index == 0
+                    ? execution with
+                    {
+                        Commission = null,
+                        Fees = null,
+                        TotalCosts = null,
+                    }
+                    : execution)
+                .ToArray(),
+        };
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(imported);
+        TradesViewModel viewModel = CreateViewModel(tradeDetailReader: detailReader);
+
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
+
+        Assert.False(viewModel.IsTradeEditVisible);
+        Assert.Equal(
+            "This trade cannot be edited with the current manual form because one or more execution costs are unknown.",
+            viewModel.TradeUpdateErrorMessage);
+    }
+
+    [Fact]
     public async Task CancelEditDoesNotPersistAndReturnsToExistingDetail()
     {
         TradeListItem item = CreateTradeListItem();

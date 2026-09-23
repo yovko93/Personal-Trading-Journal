@@ -6,7 +6,7 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Mapping;
 
 public static class TradeBrowsePersistenceMapper
 {
-    public const int CurrentProjectionVersion = 1;
+    public const int CurrentProjectionVersion = 2;
 
     public static TradeBrowseRecord ToRecord(Trade trade)
     {

@@ -2329,6 +2329,14 @@ public sealed class TradesViewModel : ObservableObject
                 return;
             }
 
+            if (detail.Executions.Any(execution =>
+                    !execution.Commission.HasValue || !execution.Fees.HasValue))
+            {
+                TradeUpdateErrorMessage =
+                    "This trade cannot be edited with the current manual form because one or more execution costs are unknown.";
+                return;
+            }
+
             if (!await LoadEditReferenceDataAsync(cancellationToken))
             {
                 TradeUpdateErrorMessage = LoadErrorMessage;
@@ -2411,8 +2419,8 @@ public sealed class TradesViewModel : ObservableObject
         _editingOriginalEntryNewYorkText = FormatTradingTimestamp(entry.ExecutedAtUtc);
         EntryExecutedAtNewYorkText = _editingOriginalEntryNewYorkText;
         EntryPriceText = FormatDecimal(entry.Price);
-        EntryCommissionText = FormatDecimal(entry.Commission);
-        EntryFeesText = FormatDecimal(entry.Fees);
+        EntryCommissionText = FormatDecimal(entry.Commission!.Value);
+        EntryFeesText = FormatDecimal(entry.Fees!.Value);
         ClearOriginalExitTimestampSnapshot();
         HasExit = exit is not null;
         if (exit is not null)
@@ -2421,8 +2429,8 @@ public sealed class TradesViewModel : ObservableObject
             _editingOriginalExitNewYorkText = FormatTradingTimestamp(exit.ExecutedAtUtc);
             ExitExecutedAtNewYorkText = _editingOriginalExitNewYorkText;
             ExitPriceText = FormatDecimal(exit.Price);
-            ExitCommissionText = FormatDecimal(exit.Commission);
-            ExitFeesText = FormatDecimal(exit.Fees);
+            ExitCommissionText = FormatDecimal(exit.Commission!.Value);
+            ExitFeesText = FormatDecimal(exit.Fees!.Value);
         }
 
         SetInvalidManualTradeInput(null);

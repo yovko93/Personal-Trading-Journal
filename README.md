@@ -131,6 +131,8 @@ The Entity Lifecycle & CRUD UX milestone completes consistent View/Edit/Delete p
 
 Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, and take. Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are sortable; deterministic Trade-ID tie-breaking and exact decimal sort keys preserve stable page boundaries without SQLite floating-point economics.
 
+The Tradovate import foundation now parses and reconstructs matched fills, resolves Instruments, prepares an explicit Account/time selection, builds a review preview, and persists approved in-memory candidates through one atomic SQLite boundary. Imported commission and fee values remain `null` (unknown, not known zero), exact fill identities are durable per selected PTJ Account, exact duplicates are skipped, and partial overlaps block the whole operation. The Desktop still has no final confirmation command; that integration remains a later M10 step.
+
 The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 The Desktop creation workflows share a compact form language for Manual Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes. Consistent section hierarchy, field labels, optional markers, restrained helper text, visible focus treatment, semantic feedback, and primary/secondary actions improve scanability without changing validation or persistence behavior.
@@ -139,7 +141,7 @@ Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, In
 
 The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
-The next milestone is **M10 — Tradovate CSV Import**.
+The active milestone is **M10 — Tradovate CSV Import**.
 
 Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
