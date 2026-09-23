@@ -113,6 +113,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ];
         UpdateNavigationSelection(CurrentDestination);
         _themeService.ThemeChanged += OnThemeChanged;
+        _importViewModel.ImportCommitted += OnImportCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -181,7 +182,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand ToggleThemeCommand { get; }
 
-    public void Dispose() => _themeService.ThemeChanged -= OnThemeChanged;
+    public void Dispose()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        _importViewModel.ImportCommitted -= OnImportCommitted;
+    }
 
     private void Navigate(NavigationDestination destination)
     {
@@ -277,5 +282,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsLightTheme));
         OnPropertyChanged(nameof(ThemeToggleToolTip));
+    }
+
+    private void OnImportCommitted(object? sender, ImportCommittedEventArgs e)
+    {
+        _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+        if (e.CreatedInstrumentCount > 0)
+        {
+            _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
+        }
     }
 }

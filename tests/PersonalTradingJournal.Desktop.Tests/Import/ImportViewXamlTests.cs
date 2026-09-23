@@ -5,7 +5,7 @@ public sealed class ImportViewXamlTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
-    public void ImportViewUsesOnePageScrollAndExposesReadOnlyWorkflowSections()
+    public void ImportViewUsesOnePageScrollAndExposesReviewAndConfirmationSections()
     {
         string xaml = File.ReadAllText(Path.Combine(
             RepositoryRoot,
@@ -25,8 +25,11 @@ public sealed class ImportViewXamlTests
         Assert.Contains("Will be created only when the import is confirmed.", xaml, StringComparison.Ordinal);
         Assert.Contains("Trade candidates", xaml, StringComparison.Ordinal);
         Assert.Contains("Diagnostics", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"Import\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("ImportCommand", xaml, StringComparison.Ordinal);
+        Assert.Contains("The preview is read-only.", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ConfirmImportCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Import Trades\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("DUPLICATES SKIPPED", xaml, StringComparison.Ordinal);
+        Assert.Contains("INSTRUMENTS CREATED", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("#", xaml, StringComparison.Ordinal);
     }
 

@@ -1219,6 +1219,32 @@ public sealed partial class TradesViewModelTests
     }
 
     [Fact]
+    public async Task ExternalImportInvalidationReloadsTradeListAndReferenceDataOnNextEntry()
+    {
+        ManualTradeReferenceData referenceData = CreateReferenceData();
+        var referenceReader = new FakeManualTradeReferenceDataReader();
+        referenceReader.EnqueueResult(referenceData);
+        referenceReader.EnqueueResult(referenceData);
+        IReadOnlyList<TradeListItem> initialTrades = [CreateTradeListItem()];
+        IReadOnlyList<TradeListItem> refreshedTrades =
+            [CreateTradeListItem(), CreateTradeListItem(symbol: "ES")];
+        var tradeListReader = new FakeTradeListReader();
+        tradeListReader.EnqueueResult(initialTrades);
+        tradeListReader.EnqueueResult(refreshedTrades);
+        TradesViewModel viewModel = CreateViewModel(
+            referenceReader,
+            tradeListReader: tradeListReader);
+        await viewModel.EnsureLoadedAsync();
+
+        viewModel.InvalidateLoadedDataAfterExternalImport();
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Same(refreshedTrades, viewModel.RecentTrades);
+        Assert.Equal(2, referenceReader.CallCount);
+        Assert.Equal(2, tradeListReader.CallCount);
+    }
+
+    [Fact]
     public async Task EnsureLoadedAsyncPreservesAuthoritativeReaderOrder()
     {
         TradeListItem tradeB = CreateTradeListItem(symbol: "ES");

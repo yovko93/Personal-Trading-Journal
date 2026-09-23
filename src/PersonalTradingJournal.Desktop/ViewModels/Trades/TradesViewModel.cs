@@ -2104,6 +2104,12 @@ public sealed class TradesViewModel : ObservableObject
         _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
     }
 
+    public void InvalidateLoadedDataAfterExternalImport()
+    {
+        _hasReferenceDataLoadedSuccessfully = false;
+        _hasTradeListLoadedSuccessfully = false;
+    }
+
     public void ResetTransientState()
     {
         ShowTradeDetailCommand.Cancel();

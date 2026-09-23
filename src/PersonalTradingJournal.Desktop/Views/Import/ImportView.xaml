@@ -11,7 +11,7 @@
 
         <StackPanel>
             <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
-                       Text="Analyze a Tradovate matched-fills CSV and review the normalized trades before a future import."
+                       Text="Analyze a Tradovate matched-fills CSV, review every proposed change, and explicitly confirm the import."
                        TextWrapping="Wrap" />
 
             <Border Margin="0,16,0,0" Style="{StaticResource PtjFormSectionStyle}">
@@ -60,8 +60,17 @@
                     <ComboBox Margin="0,12,0,0"
                               ItemsSource="{Binding Accounts}"
                               DisplayMemberPath="DisplayText"
-                              SelectedItem="{Binding SelectedAccount}"
-                              Style="{StaticResource PtjComboBoxStyle}" />
+                              SelectedItem="{Binding SelectedAccount}">
+                        <ComboBox.Style>
+                            <Style TargetType="{x:Type ComboBox}" BasedOn="{StaticResource PtjComboBoxStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ComboBox.Style>
+                    </ComboBox>
                     <TextBlock Margin="0,12,0,0" Text="{Binding AccountErrorMessage}">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
@@ -237,6 +246,79 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Margin="0,16,0,0">
+                <Border.Style>
+                    <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjFormSectionStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasPreview}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
+                               Text="3. Confirm import" />
+                    <TextBlock Margin="0,4,0,0"
+                               Style="{StaticResource PtjFormHelperTextStyle}"
+                               Text="The preview is read-only. Trades and proposed Instruments are persisted only after you review and confirm the operation."
+                               TextWrapping="Wrap" />
+                    <Button Margin="0,16,0,0"
+                            HorizontalAlignment="Right"
+                            Command="{Binding ConfirmImportCommand}"
+                            Content="Import Trades"
+                            Style="{StaticResource PtjPrimaryButtonStyle}" />
+                    <TextBlock Margin="0,12,0,0"
+                               Text="{Binding ImportErrorMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ImportErrorMessage}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Margin="0,12,0,0"
+                               Text="{Binding ImportSuccessMessage}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormSuccessTextStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ImportSuccessMessage}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Border Margin="0,12,0,0"
+                            Padding="12"
+                            Background="{DynamicResource PtjSurfaceElevatedBrush}"
+                            CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                        <Border.Style>
+                            <Style TargetType="{x:Type Border}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasImportResult}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <UniformGrid Columns="4">
+                            <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="OUTCOME" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" FontWeight="SemiBold" Text="{Binding ImportResultStatus}" /></StackPanel>
+                            <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="IMPORTED TRADES" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding ImportedTradeCount}" /></StackPanel>
+                            <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="DUPLICATES SKIPPED" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding SkippedDuplicateTradeCount}" /></StackPanel>
+                            <StackPanel><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="INSTRUMENTS CREATED" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding CreatedInstrumentCount}" /></StackPanel>
+                        </UniformGrid>
+                    </Border>
                 </StackPanel>
             </Border>
         </StackPanel>

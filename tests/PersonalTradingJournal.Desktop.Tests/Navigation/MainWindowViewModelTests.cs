@@ -690,7 +690,12 @@ public sealed class MainWindowViewModelTests
             new TradovateInstrumentResolver(instrumentReader),
             new TradovateImportPreparationService(accountReader),
             new TradovateImportPreviewBuilder(),
-            new EmptyTradovateCsvFilePicker());
+            new EmptyTradovateCsvFilePicker(),
+            new ImportTradovateTradesUseCase(
+                new TradovateImportPreparationService(accountReader),
+                new NeverCalledTradovateImportStore(),
+                timeProvider),
+            new FakeDialogService());
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
@@ -845,6 +850,14 @@ public sealed class MainWindowViewModelTests
             TradovateCsvParseResult parseResult,
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("The navigation test must not reconstruct executions.");
+    }
+
+    private sealed class NeverCalledTradovateImportStore : ITradovateImportStore
+    {
+        public Task<TradovateImportResult> ImportAsync(
+            TradovateImportRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The navigation test must not import trades.");
     }
 
     private sealed class EmptyTradovateCsvFilePicker : ITradovateCsvFilePicker

@@ -1,6 +1,7 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Imports;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
@@ -272,6 +273,218 @@ public sealed class ImportViewModelTests
     }
 
     [Fact]
+    public async Task ConfirmImportRequiresAConfirmationReadyPreviewAndExplicitAccount()
+    {
+        Fixture fixture = CreateFixture();
+
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        await fixture.ViewModel.EnsureLoadedAsync();
+        fixture.ViewModel.SelectedAccount = Assert.Single(fixture.ViewModel.Accounts);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+
+        Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task BuildPreviewRefreshesInstrumentResolutionAndPresentation()
+    {
+        Fixture fixture = CreateFixture(instrumentAppearsOnPreview: true);
+        await fixture.ViewModel.EnsureLoadedAsync();
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+        Assert.Equal("New Instrument", Assert.Single(fixture.ViewModel.Instruments).Resolution);
+        fixture.ViewModel.SelectedAccount = Assert.Single(fixture.ViewModel.Accounts);
+
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+
+        Assert.Equal(2, fixture.InstrumentReader.CallCount);
+        Assert.Equal(1, fixture.ViewModel.AnalysisSummary!.ExistingInstrumentCount);
+        Assert.Equal(0, fixture.ViewModel.AnalysisSummary.ProposedInstrumentCount);
+        Assert.Equal("Existing Instrument", Assert.Single(fixture.ViewModel.Instruments).Resolution);
+        Assert.Equal("Existing", Assert.Single(fixture.ViewModel.Trades).Resolution);
+    }
+
+    [Fact]
+    public async Task ConfirmImportRequiresDialogApprovalAndPreservesPreviewWhenCancelled()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = false;
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, fixture.ImportStore.CallCount);
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        Assert.NotNull(fixture.ViewModel.PreviewSummary);
+        Assert.Null(fixture.ViewModel.ImportErrorMessage);
+    }
+
+    [Fact]
+    public async Task ConfirmImportShowsCommittedCountsAndRaisesOneCompletionEvent()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.Result = new TradovateImportResult(
+            TradovateImportStatus.Imported,
+            3,
+            2,
+            1,
+            [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()],
+            [Guid.NewGuid()],
+            [Guid.NewGuid(), Guid.NewGuid()]);
+        ImportCommittedEventArgs? committed = null;
+        int eventCount = 0;
+        fixture.ViewModel.ImportCommitted += (_, args) =>
+        {
+            eventCount++;
+            committed = args;
+        };
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Equal(ImportWorkflowPhase.Completed, fixture.ViewModel.Phase);
+        Assert.Equal("Imported", fixture.ViewModel.ImportResultStatus);
+        Assert.Equal(3, fixture.ViewModel.ImportedTradeCount);
+        Assert.Equal(2, fixture.ViewModel.SkippedDuplicateTradeCount);
+        Assert.Equal(1, fixture.ViewModel.CreatedInstrumentCount);
+        Assert.True(fixture.ViewModel.HasImportResult);
+        Assert.NotNull(fixture.ViewModel.PreviewSummary);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        Assert.Equal(1, eventCount);
+        Assert.Equal(3, committed!.ImportedTradeCount);
+        Assert.Equal(1, committed.CreatedInstrumentCount);
+        Assert.Equal(1, fixture.ImportStore.CallCount);
+        ConfirmationDialogRequest request = Assert.IsType<ConfirmationDialogRequest>(
+            fixture.Dialog.ConfirmationRequest);
+        Assert.Equal("Import Tradovate trades?", request.Title);
+        Assert.Equal("Import Trades", request.ConfirmButtonText);
+        Assert.False(request.IsDestructive);
+        Assert.Contains("fills.csv", request.Message, StringComparison.Ordinal);
+        Assert.Contains("Tradovate Account", request.Message, StringComparison.Ordinal);
+        Assert.Contains("Trades in preview: 1", request.Message, StringComparison.Ordinal);
+        Assert.Contains("New Instruments: 1", request.Message, StringComparison.Ordinal);
+        Assert.Contains("remain unknown", request.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoChangesIsSuccessfulAndDoesNotRaiseCompletionEvent()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.Result = new TradovateImportResult(
+            TradovateImportStatus.NoChanges,
+            0,
+            1,
+            0,
+            [],
+            [],
+            [Guid.NewGuid()]);
+        int eventCount = 0;
+        fixture.ViewModel.ImportCommitted += (_, _) => eventCount++;
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Equal(ImportWorkflowPhase.Completed, fixture.ViewModel.Phase);
+        Assert.Equal("No changes", fixture.ViewModel.ImportResultStatus);
+        Assert.Equal(1, fixture.ViewModel.SkippedDuplicateTradeCount);
+        Assert.NotNull(fixture.ViewModel.ImportSuccessMessage);
+        Assert.Null(fixture.ViewModel.ImportErrorMessage);
+        Assert.Equal(0, eventCount);
+    }
+
+    [Fact]
+    public async Task ReferenceDataChangedDisablesConfirmationAndRequiresPreviewRebuild()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.Result = TradovateImportResult.Blocked(
+            TradovateImportConflictCodes.ReferenceDataChanged,
+            "Unsafe implementation detail must not be shown.");
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Equal(ImportWorkflowPhase.FileAnalyzed, fixture.ViewModel.Phase);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        Assert.Contains(
+            TradovateImportConflictCodes.ReferenceDataChanged,
+            fixture.ViewModel.ImportErrorMessage,
+            StringComparison.Ordinal);
+        Assert.Contains("Rebuild the preview", fixture.ViewModel.ImportErrorMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unsafe implementation", fixture.ViewModel.ImportErrorMessage, StringComparison.Ordinal);
+
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        Assert.Null(fixture.ViewModel.ImportErrorMessage);
+    }
+
+    [Fact]
+    public async Task MissingAccountResultClearsSelectionAndRefreshesAccountOptions()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.Result = TradovateImportResult.Blocked(
+            TradovateImportConflictCodes.TradingAccountNotFound,
+            "Trading Account internal identity no longer exists.");
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Null(fixture.ViewModel.SelectedAccount);
+        Assert.Equal(2, fixture.AccountReader.CallCount);
+        Assert.Equal(ImportWorkflowPhase.FileAnalyzed, fixture.ViewModel.Phase);
+        Assert.Contains(
+            "Select an Account and rebuild the preview",
+            fixture.ViewModel.ImportErrorMessage,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "internal identity",
+            fixture.ViewModel.ImportErrorMessage,
+            StringComparison.Ordinal);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ConfirmImportPreventsConcurrentDuplicateSubmission()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.PendingResult = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Task first = fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+        await fixture.ImportStore.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+        Assert.Equal(1, fixture.ImportStore.CallCount);
+
+        fixture.ImportStore.PendingResult.SetResult(fixture.ImportStore.Result);
+        await first;
+        Assert.Equal(1, fixture.ImportStore.CallCount);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task UnexpectedImportFailureUsesSafeMessageAndKeepsPreviewUsable()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.Exception = new InvalidOperationException(
+            "journal.db at C:\\sensitive\\path failed");
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        Assert.Equal(
+            "Tradovate import could not be completed.",
+            fixture.ViewModel.ImportErrorMessage);
+        Assert.DoesNotContain("journal.db", fixture.ViewModel.ImportErrorMessage, StringComparison.Ordinal);
+        Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task ResetClearsTransientWorkflowButKeepsLoadedAccounts()
     {
         Fixture fixture = CreateFixture();
@@ -288,6 +501,17 @@ public sealed class ImportViewModelTests
         Assert.Equal(1, fixture.AccountReader.CallCount);
     }
 
+    private static async Task<Fixture> CreateReadyFixtureAsync()
+    {
+        Fixture fixture = CreateFixture();
+        await fixture.ViewModel.EnsureLoadedAsync();
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+        fixture.ViewModel.SelectedAccount = Assert.Single(fixture.ViewModel.Accounts);
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        return fixture;
+    }
+
     private static Fixture CreateFixture(
         bool isAccountActive = true,
         bool accountExistsForPreparation = true,
@@ -295,11 +519,12 @@ public sealed class ImportViewModelTests
         DateTime? sourceTimestamp = null,
         bool invalidCsv = false,
         bool useExistingInstrument = false,
-        bool isInstrumentActive = true)
+        bool isInstrumentActive = true,
+        bool instrumentAppearsOnPreview = false)
     {
         Guid accountId = Guid.NewGuid();
         var accountReader = new FakeTradingAccountReader();
-        accountReader.EnqueueResult(
+        AccountListItem[] accountList =
         [
             new AccountListItem(
                 accountId,
@@ -310,8 +535,10 @@ public sealed class ImportViewModelTests
                 "USD",
                 50000m,
                 isAccountActive),
-        ]);
-        accountReader.EnqueueDetailResult(accountExistsForPreparation
+        ];
+        accountReader.EnqueueResult(accountList);
+        accountReader.EnqueueResult(accountList);
+        TradingAccountDetails? accountDetails = accountExistsForPreparation
             ? new TradingAccountDetails(
                 accountId,
                 "Tradovate Account",
@@ -323,12 +550,13 @@ public sealed class ImportViewModelTests
                 isAccountActive,
                 DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
                 DateTimeOffset.Parse("2026-01-01T00:00:00Z"))
-            : null);
+            : null;
+        for (int index = 0; index < 5; index++)
+        {
+            accountReader.EnqueueDetailResult(accountDetails);
+        }
         var instrumentReader = new FakeInstrumentReader();
-        instrumentReader.EnqueueResult(useExistingInstrument
-            ?
-            [
-                new InstrumentListItem(
+        var existingInstrument = new InstrumentListItem(
                     Guid.NewGuid(),
                     "MNQ",
                     "User MNQ",
@@ -338,9 +566,19 @@ public sealed class ImportViewModelTests
                     0.25m,
                     0.50m,
                     2m,
-                    isInstrumentActive),
-            ]
-            : []);
+                    isInstrumentActive);
+        IReadOnlyList<InstrumentListItem> initialInstruments = useExistingInstrument
+            ? [existingInstrument]
+            : [];
+        IReadOnlyList<InstrumentListItem> previewInstruments =
+            useExistingInstrument || instrumentAppearsOnPreview
+                ? [existingInstrument]
+                : [];
+        instrumentReader.EnqueueResult(initialInstruments);
+        for (int index = 0; index < 4; index++)
+        {
+            instrumentReader.EnqueueResult(previewInstruments);
+        }
         DateTime timestamp = sourceTimestamp ??
             new DateTime(2026, 9, 14, 16, 30, 0, DateTimeKind.Unspecified);
         TradovateCsvParseResult parse = invalidCsv
@@ -368,15 +606,29 @@ public sealed class ImportViewModelTests
                     ? TradovateReconstructionStatus.Blocked
                     : TradovateReconstructionStatus.Reconstructed);
         var picker = new FakeCsvFilePicker();
+        var importStore = new FakeImportStore();
+        var dialog = new FakeDialogService();
+        var preparationService = new TradovateImportPreparationService(accountReader);
         var viewModel = new ImportViewModel(
             accountReader,
             new FixedParser(parse),
             new FixedReconstructor(reconstruction),
             new TradovateInstrumentResolver(instrumentReader),
-            new TradovateImportPreparationService(accountReader),
+            preparationService,
             new TradovateImportPreviewBuilder(),
-            picker);
-        return new Fixture(viewModel, accountReader, picker);
+            picker,
+            new ImportTradovateTradesUseCase(
+                preparationService,
+                importStore,
+                new FixedTimeProvider()),
+            dialog);
+        return new Fixture(
+            viewModel,
+            accountReader,
+            instrumentReader,
+            picker,
+            importStore,
+            dialog);
     }
 
     private static TradovateCsvParseResult CreateParseResult(
@@ -476,8 +728,49 @@ public sealed class ImportViewModelTests
         }
     }
 
+    private sealed class FakeImportStore : ITradovateImportStore
+    {
+        public int CallCount { get; private set; }
+
+        public Exception? Exception { get; set; }
+
+        public TradovateImportResult Result { get; set; } = new(
+            TradovateImportStatus.Imported,
+            1,
+            0,
+            1,
+            [Guid.NewGuid()],
+            [Guid.NewGuid()],
+            []);
+
+        public TaskCompletionSource<bool> Called { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<TradovateImportResult>? PendingResult { get; set; }
+
+        public async Task<TradovateImportResult> ImportAsync(
+            TradovateImportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            CallCount++;
+            Called.TrySetResult(true);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Exception is not null)
+            {
+                throw Exception;
+            }
+
+            return PendingResult is null
+                ? Result
+                : await PendingResult.Task.WaitAsync(cancellationToken);
+        }
+    }
+
     private sealed record Fixture(
         ImportViewModel ViewModel,
         FakeTradingAccountReader AccountReader,
-        FakeCsvFilePicker FilePicker);
+        FakeInstrumentReader InstrumentReader,
+        FakeCsvFilePicker FilePicker,
+        FakeImportStore ImportStore,
+        FakeDialogService Dialog);
 }

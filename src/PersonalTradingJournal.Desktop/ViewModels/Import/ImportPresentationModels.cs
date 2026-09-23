@@ -13,6 +13,17 @@ public enum ImportWorkflowPhase
     RequiresUserInput = 5,
     Blocked = 6,
     Failed = 7,
+    Importing = 8,
+    Completed = 9,
+}
+
+public sealed class ImportCommittedEventArgs(
+    int importedTradeCount,
+    int createdInstrumentCount) : EventArgs
+{
+    public int ImportedTradeCount { get; } = importedTradeCount;
+
+    public int CreatedInstrumentCount { get; } = createdInstrumentCount;
 }
 
 public sealed record ImportAccountOption(

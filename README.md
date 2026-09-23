@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, complete lifecycle management for Trading Accounts, Instruments, Trading Setups, and Trading Mistakes, and manual Trade create/list/view/edit/close/delete workflows. Trades also support local screenshots, Setup classification, Mistake assignments, and an authoritative SQLite-paged and sortable browse view. Imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, complete lifecycle management for Trading Accounts, Instruments, Trading Setups, and Trading Mistakes, and manual Trade create/list/view/edit/close/delete workflows. Trades also support local screenshots, Setup classification, Mistake assignments, an authoritative SQLite-paged and sortable browse view, and a reviewed Tradovate matched-fills CSV import workflow. Journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -23,6 +23,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M8 — Screenshot Management: Complete**
 
 **Milestone M9 — Setup and Mistake Classification: Complete**
+
+**Milestone M10 — Tradovate CSV Import: Complete**
 
 **Desktop Theme System — System / Dark / Light: Complete**
 
@@ -131,17 +133,27 @@ The Entity Lifecycle & CRUD UX milestone completes consistent View/Edit/Delete p
 
 Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, and take. Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are sortable; deterministic Trade-ID tie-breaking and exact decimal sort keys preserve stable page boundaries without SQLite floating-point economics.
 
-The Tradovate import foundation now parses and reconstructs matched fills, resolves Instruments, prepares an explicit Account/time selection, builds a review preview, and persists approved in-memory candidates through one atomic SQLite boundary. Imported commission and fee values remain `null` (unknown, not known zero), exact fill identities are durable per selected PTJ Account, exact duplicates are skipped, and partial overlaps block the whole operation. The Desktop still has no final confirmation command; that integration remains a later M10 step.
+The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, resolves existing or proposed Instruments, applies the unified Europe/Sofia source-to-UTC-to-America/New_York time policy, and prepares an explicit Trading Account selection. The Desktop presents the analysis, warnings, blocking diagnostics, Instrument economics, New York trade times, and a read-only preview before showing a non-destructive confirmation dialog. Only an explicitly confirmed, currently valid preview reaches the Application import use case and its atomic SQLite transaction.
+
+To import a supported Tradovate matched-fills export:
+
+1. Open **Import** and choose **Select CSV**.
+2. Review the analysis and Instrument resolution, then explicitly select the destination Trading Account.
+3. Choose **Build Preview** and inspect the summary, proposed Instruments, candidate Trades, New York timestamps, warnings, and errors.
+4. Choose **Import Trades**, review the final confirmation, and accept it to persist the import.
+5. Review the Imported, Duplicates Skipped, and Instruments Created counts. Opening Trades or Instruments after a committed import reloads their authoritative data.
+
+Imported commission and fee values remain `null` (unknown, not known zero) because the supported export does not contain them. Exact fill identities are durable per selected PTJ Account: exact duplicate Trades are skipped, mixed new/duplicate imports report both counts, and unsafe partial overlaps block the whole operation. A reference-data change after preview never causes silent Instrument substitution; the user is directed to rebuild the preview, which re-runs Instrument resolution without reparsing the CSV. Unsupported or ambiguous Instrument metadata remains blocking and must be resolved in reference data before import.
 
 The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 The Desktop creation workflows share a compact form language for Manual Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes. Consistent section hierarchy, field labels, optional markers, restrained helper text, visible focus treatment, semantic feedback, and primary/secondary actions improve scanability without changing validation or persistence behavior.
 
-Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other five are functional data-backed pages. The other 12 destinations remain placeholders.
+Eight of the 19 shell destinations are concrete: Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other six are functional data-backed pages. The other 11 destinations remain placeholders.
 
 The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
-The active milestone is **M10 — Tradovate CSV Import**.
+The active milestone is not yet defined beyond the completed **M10 — Tradovate CSV Import** workflow.
 
 Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
@@ -218,7 +230,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted Entity Lifecycle & CRUD UX baseline contains 1,454 passing tests: 395 Domain, 226 Application, 399 Infrastructure, and 434 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
+The completed M10 baseline contains 1,668 passing tests: 400 Domain, 312 Application, 478 Infrastructure, and 478 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, an isolated SQLite acceptance path, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
 
 ## Run
 
