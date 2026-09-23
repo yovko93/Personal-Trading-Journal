@@ -113,11 +113,11 @@ Dashboard metrics describe financial and statistical results; they must not infe
 
 ## Tradovate Import Preview
 
-Import is a read-only review workflow. It uses one vertically scrolling page with source-file selection, explicit Trading Account selection, analysis summary, Instrument resolution, Trade candidates, and staged diagnostics. Selecting a CSV immediately runs parsing, reconstruction, and Instrument resolution; selecting an Account is not required until `Build Preview`. Inactive Accounts remain selectable for historical data and are labeled as inactive.
+Import is a read-only review workflow. It uses one vertically scrolling page with source-file selection, explicit Trading Account selection, analysis summary, Instrument resolution, Trade candidates, and staged diagnostics. Selecting a CSV immediately runs parsing, reconstruction, and Instrument resolution; selecting an Account is not required until `Build Preview`. Account options include type, currency, and available provider/external identity, allowing duplicate names to remain distinguishable. Inactive Accounts remain selectable for historical data and are labeled as inactive.
 
 The picker returns only the filename and stream. The ViewModel closes the stream after parsing and does not retain raw CSV content or a full path. Preview times are labeled and rendered in `America/New_York`, while the summary makes the `Europe/Sofia -> UTC -> America/New_York` policy explicit. Unknown Instrument metadata, invalid or ambiguous source time, missing Accounts, and every upstream diagnostic remain visible without silently inventing values.
 
-The page has no final Import action. It presents source-reported P&L only as source evidence and prominently warns that commissions/fees and independent source-completeness proof are unavailable. Account changes invalidate the generated preview but preserve the file analysis. Navigating away and back clears the file workflow while preserving the successfully loaded Account options.
+Instrument cards show display name, asset class, exchange, currency, Tick Size, and Tick Value. Existing values come from the PTJ Instrument snapshot preserved during resolution; proposals use the verified creation proposal and explicitly state that creation waits for confirmation. The page has no final Import action. It presents source-reported P&L only as source evidence and prominently warns that commissions/fees and independent source-completeness proof are unavailable. Account changes invalidate the generated preview but preserve the file analysis. Navigating away and back clears the file workflow while preserving the successfully loaded Account options.
 
 ## Accounts Feature
 

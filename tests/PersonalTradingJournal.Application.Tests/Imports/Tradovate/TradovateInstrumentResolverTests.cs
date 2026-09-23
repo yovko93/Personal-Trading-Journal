@@ -140,9 +140,18 @@ public sealed class TradovateInstrumentResolverTests
 
         Assert.True(result.IsReadyForPreview);
         Assert.Empty(result.CreationProposals);
-        Assert.Equal(
-            "USD",
-            Assert.Single(result.CanonicalInstrumentResolutions).ResolvedCurrency);
+        TradovateCanonicalInstrumentResolution canonical =
+            Assert.Single(result.CanonicalInstrumentResolutions);
+        Assert.Equal("USD", canonical.ResolvedCurrency);
+        TradovateExistingInstrumentSnapshot snapshot =
+            Assert.IsType<TradovateExistingInstrumentSnapshot>(canonical.ExistingInstrument);
+        Assert.Equal("My MNQ", snapshot.DisplayName);
+        Assert.Equal(AssetClass.Futures, snapshot.AssetClass);
+        Assert.Equal("CME Globex", snapshot.Exchange);
+        Assert.Equal("USD", snapshot.Currency);
+        Assert.Equal(0.25m, snapshot.TickSize);
+        Assert.Equal(0.50m, snapshot.TickValue);
+        Assert.Null(canonical.CreationProposal);
         Assert.All(result.BrokerSymbolMappings, mapping =>
         {
             Assert.Equal(TradovateInstrumentResolutionStatus.ExistingInstrument, mapping.Status);

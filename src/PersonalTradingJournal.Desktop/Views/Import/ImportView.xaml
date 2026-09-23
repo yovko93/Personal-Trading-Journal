@@ -115,13 +115,38 @@
                     <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Instruments}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,6,0,6">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition Width="180" /><ColumnDefinition Width="150" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}" FontWeight="SemiBold" Text="{Binding CanonicalSymbol}" />
-                                    <TextBlock Grid.Column="1" Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding SourceSymbols}" TextWrapping="Wrap" />
-                                    <TextBlock Grid.Column="2" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Resolution}" />
-                                    <TextBlock Grid.Column="3" Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding Details}" TextWrapping="Wrap" />
-                                </Grid>
+                                <Border Margin="0,6,0,6" Padding="12"
+                                        Background="{DynamicResource PtjSurfaceElevatedBrush}"
+                                        CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="160" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                            <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="{Binding CanonicalSymbol}" />
+                                            <TextBlock Grid.Column="1" Margin="16,0,16,0" VerticalAlignment="Center"
+                                                       Style="{StaticResource PtjSecondaryTextStyle}" Text="{Binding SourceSymbols}" TextWrapping="Wrap" />
+                                            <TextBlock Grid.Column="2" VerticalAlignment="Center"
+                                                       Style="{StaticResource PtjBodyTextStyle}" FontWeight="SemiBold" Text="{Binding StatusText}" />
+                                        </Grid>
+                                        <UniformGrid Margin="0,12,0,0" Columns="3">
+                                            <StackPanel Margin="0,0,12,8"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="DISPLAY NAME" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding DisplayName}" TextWrapping="Wrap" /></StackPanel>
+                                            <StackPanel Margin="0,0,12,8"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="ASSET CLASS" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding AssetClass}" /></StackPanel>
+                                            <StackPanel Margin="0,0,0,8"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="EXCHANGE" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Exchange}" /></StackPanel>
+                                            <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="CURRENCY" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding Currency}" /></StackPanel>
+                                            <StackPanel Margin="0,0,12,0"><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="TICK SIZE" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding TickSize}" /></StackPanel>
+                                            <StackPanel><TextBlock Style="{StaticResource PtjCaptionTextStyle}" Text="TICK VALUE" /><TextBlock Style="{StaticResource PtjBodyTextStyle}" Text="{Binding TickValue}" /></StackPanel>
+                                        </UniformGrid>
+                                        <TextBlock Margin="0,12,0,0"
+                                                   Text="Will be created only when the import is confirmed."
+                                                   TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                    <Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" />
+                                                    <Style.Triggers><DataTrigger Binding="{Binding CreationNotice}" Value=""><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

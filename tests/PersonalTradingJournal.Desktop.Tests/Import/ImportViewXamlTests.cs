@@ -20,9 +20,13 @@ public sealed class ImportViewXamlTests
         Assert.Contains("Build Preview", xaml, StringComparison.Ordinal);
         Assert.Contains("Analysis summary", xaml, StringComparison.Ordinal);
         Assert.Contains("Instrument resolution", xaml, StringComparison.Ordinal);
+        Assert.Contains("DisplayMemberPath=\"DisplayText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TICK VALUE", xaml, StringComparison.Ordinal);
+        Assert.Contains("Will be created only when the import is confirmed.", xaml, StringComparison.Ordinal);
         Assert.Contains("Trade candidates", xaml, StringComparison.Ordinal);
         Assert.Contains("Diagnostics", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Import\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImportCommand", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("#", xaml, StringComparison.Ordinal);
     }
 

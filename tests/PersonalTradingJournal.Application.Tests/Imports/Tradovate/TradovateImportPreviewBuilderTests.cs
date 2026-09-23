@@ -41,6 +41,15 @@ public sealed class TradovateImportPreviewBuilderTests
         Assert.Equal(
             TradovateInstrumentResolutionStatus.ProposedCreation,
             trade.InstrumentResolutionStatus);
+        TradovateImportPreviewInstrumentItem proposed = Assert.Single(preview.Instruments);
+        Assert.Null(proposed.ExistingInstrumentId);
+        Assert.Equal("Micro E-mini Nasdaq-100", proposed.DisplayName);
+        Assert.Equal("Futures", proposed.AssetClass);
+        Assert.Equal("CME", proposed.Exchange);
+        Assert.Equal("USD", proposed.Currency);
+        Assert.Equal(0.25m, proposed.TickSize);
+        Assert.Equal(0.50m, proposed.TickValue);
+        Assert.Equal("Verified profile", proposed.MetadataSource);
     }
 
     [Fact]
@@ -91,13 +100,41 @@ public sealed class TradovateImportPreviewBuilderTests
         Assert.Equal(TradovateInstrumentResolutionStatus.ExistingInstrument, instrument.Status);
         Assert.NotNull(instrument.ExistingInstrumentId);
         Assert.Null(instrument.MetadataSource);
+        Assert.Equal("User-entered MNQ", instrument.DisplayName);
+        Assert.Equal("Futures", instrument.AssetClass);
+        Assert.Equal("User Exchange", instrument.Exchange);
+        Assert.Equal("USD", instrument.Currency);
+        Assert.Equal(0.25m, instrument.TickSize);
+        Assert.Equal(0.50m, instrument.TickValue);
         Assert.Equal(1, preview.Summary.ExistingInstrumentCount);
         Assert.Equal(0, preview.Summary.ProposedInstrumentCount);
     }
 
+    [Fact]
+    public void BuildDoesNotFabricateUnknownInstrumentEconomics()
+    {
+        PreviewFixture fixture = CreateFixture(unknownInstrument: true);
+
+        TradovateImportPreview preview = new TradovateImportPreviewBuilder().Build(
+            "fills.csv",
+            fixture.Parse,
+            fixture.Reconstruction,
+            fixture.Preparation);
+
+        TradovateImportPreviewInstrumentItem instrument = Assert.Single(preview.Instruments);
+        Assert.Equal(TradovateInstrumentResolutionStatus.RequiresUserInput, instrument.Status);
+        Assert.Null(instrument.ExistingInstrumentId);
+        Assert.Null(instrument.DisplayName);
+        Assert.Null(instrument.AssetClass);
+        Assert.Null(instrument.Exchange);
+        Assert.Null(instrument.Currency);
+        Assert.Null(instrument.TickValue);
+    }
+
     private static PreviewFixture CreateFixture(
         bool includeDiagnostics = false,
-        bool useExistingInstrument = false)
+        bool useExistingInstrument = false,
+        bool unknownInstrument = false)
     {
         DateTime sourceOpen = new(2026, 9, 14, 16, 30, 0, DateTimeKind.Unspecified);
         DateTime sourceClose = sourceOpen.AddMinutes(10);
@@ -157,7 +194,7 @@ public sealed class TradovateImportPreviewBuilderTests
             TradovateReconstructionStatus.Reconstructed);
 
         Guid instrumentId = Guid.NewGuid();
-        TradovateInstrumentCreationProposal? proposal = useExistingInstrument
+        TradovateInstrumentCreationProposal? proposal = useExistingInstrument || unknownInstrument
             ? null
             : new TradovateInstrumentCreationProposal(
                 "MNQ",
@@ -169,10 +206,21 @@ public sealed class TradovateImportPreviewBuilderTests
                 0.50m,
                 ["MNQU6"],
                 "Verified profile");
-        TradovateInstrumentResolutionStatus resolutionStatus = useExistingInstrument
-            ? TradovateInstrumentResolutionStatus.ExistingInstrument
-            : TradovateInstrumentResolutionStatus.ProposedCreation;
+        TradovateInstrumentResolutionStatus resolutionStatus = unknownInstrument
+            ? TradovateInstrumentResolutionStatus.RequiresUserInput
+            : useExistingInstrument
+                ? TradovateInstrumentResolutionStatus.ExistingInstrument
+                : TradovateInstrumentResolutionStatus.ProposedCreation;
         Guid? existingId = useExistingInstrument ? instrumentId : null;
+        var existingSnapshot = useExistingInstrument
+            ? new TradovateExistingInstrumentSnapshot(
+                "User-entered MNQ",
+                Domain.Instruments.AssetClass.Futures,
+                "User Exchange",
+                "USD",
+                0.25m,
+                0.50m)
+            : null;
         var resolution = new TradovateInstrumentResolutionResult(
             [new TradovateBrokerSymbolMapping(
                 "MNQU6", "MNQ", resolutionStatus, existingId,
@@ -183,7 +231,8 @@ public sealed class TradovateImportPreviewBuilderTests
                 useExistingInstrument ? [instrumentId] : [],
                 proposal,
                 [],
-                "USD")],
+                unknownInstrument ? null : "USD",
+                existingSnapshot)],
             includeDiagnostics
                 ? [new TradovateInstrumentResolutionDiagnostic(
                     TradovateReconstructionDiagnosticSeverity.Warning,
@@ -193,7 +242,9 @@ public sealed class TradovateImportPreviewBuilderTests
                     [],
                     "Instrument warning")]
                 : [],
-            TradovateInstrumentResolutionOverallStatus.ReadyForPreview);
+            unknownInstrument
+                ? TradovateInstrumentResolutionOverallStatus.RequiresUserInput
+                : TradovateInstrumentResolutionOverallStatus.ReadyForPreview);
 
         DateTimeOffset utcOpen = new(2026, 9, 14, 13, 30, 0, TimeSpan.Zero);
         TradovatePreparedExecution preparedEntry1 = Prepared(
@@ -238,7 +289,9 @@ public sealed class TradovateImportPreviewBuilderTests
                     "PREPARATION_WARNING",
                     "Preparation warning")]
                 : [],
-            TradovateImportPreparationStatus.ReadyForPreview);
+            unknownInstrument
+                ? TradovateImportPreparationStatus.RequiresUserInput
+                : TradovateImportPreparationStatus.ReadyForPreview);
 
         return new PreviewFixture(parse, reconstruction, preparation);
     }

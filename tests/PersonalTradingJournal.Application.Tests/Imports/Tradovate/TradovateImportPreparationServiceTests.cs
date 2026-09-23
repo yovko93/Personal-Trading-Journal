@@ -381,7 +381,14 @@ public sealed class TradovateImportPreparationServiceTests
             [InstrumentId],
             creationProposal: null,
             diagnosticCodes: [],
-            resolvedCurrency: "USD");
+            resolvedCurrency: "USD",
+            existingInstrument: new TradovateExistingInstrumentSnapshot(
+                "Micro E-mini Nasdaq-100",
+                Domain.Instruments.AssetClass.Futures,
+                "CME",
+                "USD",
+                0.25m,
+                0.50m));
         return new TradovateInstrumentResolutionResult(
             [mapping],
             [canonical],

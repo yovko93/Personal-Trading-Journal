@@ -22,11 +22,51 @@ public sealed class ImportViewModelTests
         await fixture.ViewModel.EnsureLoadedAsync();
 
         ImportAccountOption option = Assert.Single(fixture.ViewModel.Accounts);
+        Assert.Equal(TradingAccountType.Personal, option.AccountType);
+        Assert.Equal("Tradovate", option.ProviderName);
+        Assert.Equal("SIM-1", option.ExternalAccountId);
+        Assert.Equal("USD", option.Currency);
         Assert.False(option.IsActive);
-        Assert.Contains("Inactive", option.DisplayText, StringComparison.Ordinal);
+        Assert.Equal(
+            "Tradovate Account · Tradovate · SIM-1 · Personal · USD · Inactive",
+            option.DisplayText);
         Assert.Null(fixture.ViewModel.SelectedAccount);
         Assert.Equal(1, fixture.AccountReader.CallCount);
         Assert.Equal(0, fixture.FilePicker.CallCount);
+    }
+
+    [Fact]
+    public void AccountDisplayTextSkipsMissingOptionalIdentityWithoutEmptySegments()
+    {
+        var option = new ImportAccountOption(
+            Guid.NewGuid(),
+            "My Account",
+            TradingAccountType.Personal,
+            ProviderName: null,
+            ExternalAccountId: " ",
+            "USD",
+            IsActive: true);
+
+        Assert.Equal("My Account · Personal · USD", option.DisplayText);
+        Assert.DoesNotContain("· ·", option.DisplayText, StringComparison.Ordinal);
+        Assert.False(option.DisplayText.EndsWith('·'));
+    }
+
+    [Fact]
+    public void DuplicateAccountNamesAreDisambiguatedByExternalAccountId()
+    {
+        var first = new ImportAccountOption(
+            Guid.NewGuid(), "Topstep 50K", TradingAccountType.PropFunded,
+            "Topstep", "123456", "USD", true);
+        var second = new ImportAccountOption(
+            Guid.NewGuid(), "Topstep 50K", TradingAccountType.PropFunded,
+            "Topstep", "654321", "USD", true);
+
+        Assert.Equal(
+            "Topstep 50K · Topstep · 123456 · PropFunded · USD",
+            first.DisplayText);
+        Assert.NotEqual(first.DisplayText, second.DisplayText);
+        Assert.DoesNotContain(first.Id.ToString(), first.DisplayText, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,8 +117,53 @@ public sealed class ImportViewModelTests
 
         Assert.Equal(1, fixture.ViewModel.AnalysisSummary!.ExistingInstrumentCount);
         Assert.Equal(0, fixture.ViewModel.AnalysisSummary.ProposedInstrumentCount);
-        Assert.Equal("ExistingInstrument", Assert.Single(fixture.ViewModel.Instruments).Resolution);
+        ImportInstrumentItem instrument = Assert.Single(fixture.ViewModel.Instruments);
+        Assert.Equal("Existing Instrument", instrument.Resolution);
+        Assert.Equal("Active", instrument.Activity);
+        Assert.Equal("User MNQ", instrument.DisplayName);
+        Assert.Equal("Futures", instrument.AssetClass);
+        Assert.Equal("User Exchange", instrument.Exchange);
+        Assert.Equal("USD", instrument.Currency);
+        Assert.Equal("0.25", instrument.TickSize);
+        Assert.Equal("0.5", instrument.TickValue);
+        Assert.Equal(string.Empty, instrument.CreationNotice);
         Assert.Equal("Existing", Assert.Single(fixture.ViewModel.Trades).Resolution);
+    }
+
+    [Fact]
+    public async Task ProposedInstrumentShowsEconomicsAndFutureConfirmationNotice()
+    {
+        Fixture fixture = CreateFixture();
+
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+
+        ImportInstrumentItem instrument = Assert.Single(fixture.ViewModel.Instruments);
+        Assert.Equal("New Instrument", instrument.Resolution);
+        Assert.Equal("Micro E-mini Nasdaq-100", instrument.DisplayName);
+        Assert.Equal("Futures", instrument.AssetClass);
+        Assert.Equal("CME", instrument.Exchange);
+        Assert.Equal("USD", instrument.Currency);
+        Assert.Equal("0.25", instrument.TickSize);
+        Assert.Equal("0.5", instrument.TickValue);
+        Assert.Equal(
+            "Will be created only when the import is confirmed.",
+            instrument.CreationNotice);
+    }
+
+    [Fact]
+    public async Task InactiveExistingInstrumentRemainsExistingAndClearlyLabeled()
+    {
+        Fixture fixture = CreateFixture(
+            useExistingInstrument: true,
+            isInstrumentActive: false);
+
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+
+        ImportInstrumentItem instrument = Assert.Single(fixture.ViewModel.Instruments);
+        Assert.Equal("Existing Instrument · Inactive", instrument.StatusText);
+        Assert.Equal(string.Empty, instrument.CreationNotice);
+        Assert.Contains(fixture.ViewModel.Diagnostics, item =>
+            item.Code == TradovateInstrumentResolutionDiagnosticCodes.ExistingInstrumentInactive);
     }
 
     [Fact]
@@ -209,7 +294,8 @@ public sealed class ImportViewModelTests
         string brokerSymbol = "MNQU6",
         DateTime? sourceTimestamp = null,
         bool invalidCsv = false,
-        bool useExistingInstrument = false)
+        bool useExistingInstrument = false,
+        bool isInstrumentActive = true)
     {
         Guid accountId = Guid.NewGuid();
         var accountReader = new FakeTradingAccountReader();
@@ -245,14 +331,14 @@ public sealed class ImportViewModelTests
                 new InstrumentListItem(
                     Guid.NewGuid(),
                     "MNQ",
-                    "Micro E-mini Nasdaq-100",
+                    "User MNQ",
                     AssetClass.Futures,
-                    "CME",
+                    "User Exchange",
                     "USD",
                     0.25m,
                     0.50m,
                     2m,
-                    true),
+                    isInstrumentActive),
             ]
             : []);
         DateTime timestamp = sourceTimestamp ??

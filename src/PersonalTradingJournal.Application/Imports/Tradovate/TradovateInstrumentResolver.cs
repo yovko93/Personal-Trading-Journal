@@ -305,7 +305,8 @@ public sealed class TradovateInstrumentResolver
                 [instrument.Id],
                 creationProposal: null,
                 codes,
-                resolvedCurrency: instrument.Currency);
+                resolvedCurrency: instrument.Currency,
+                existingInstrument: Snapshot(instrument));
         }
 
         if (!instrument.IsActive)
@@ -332,8 +333,19 @@ public sealed class TradovateInstrumentResolver
             [instrument.Id],
             creationProposal: null,
             codes,
-            resolvedCurrency: instrument.Currency);
+            resolvedCurrency: instrument.Currency,
+            existingInstrument: Snapshot(instrument));
     }
+
+    private static TradovateExistingInstrumentSnapshot Snapshot(
+        InstrumentListItem instrument) =>
+        new(
+            instrument.DisplayName,
+            instrument.AssetClass,
+            instrument.Exchange,
+            instrument.Currency,
+            instrument.TickSize,
+            instrument.TickValue);
 
     private static TradovateCanonicalInstrumentResolution Failure(
         string canonicalSymbol,

@@ -1,4 +1,5 @@
 using PersonalTradingJournal.Application.Imports.Tradovate;
+using PersonalTradingJournal.Domain.Accounts;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Import;
 
@@ -17,12 +18,30 @@ public enum ImportWorkflowPhase
 public sealed record ImportAccountOption(
     Guid Id,
     string Name,
+    TradingAccountType AccountType,
+    string? ProviderName,
+    string? ExternalAccountId,
     string Currency,
     bool IsActive)
 {
-    public string DisplayText => IsActive
-        ? $"{Name} · {Currency}"
-        : $"{Name} · {Currency} · Inactive";
+    public string DisplayText
+    {
+        get
+        {
+            string[] identitySegments =
+            [
+                Name,
+                ProviderName ?? string.Empty,
+                ExternalAccountId ?? string.Empty,
+                AccountType.ToString(),
+                Currency,
+                IsActive ? string.Empty : "Inactive",
+            ];
+            return string.Join(
+                " · ",
+                identitySegments.Where(segment => !string.IsNullOrWhiteSpace(segment)));
+        }
+    }
 }
 
 public sealed record ImportAnalysisSummary(
@@ -40,8 +59,20 @@ public sealed record ImportInstrumentItem(
     string CanonicalSymbol,
     string SourceSymbols,
     string Resolution,
-    string Details,
-    bool RequiresUserInput);
+    string Activity,
+    string DisplayName,
+    string AssetClass,
+    string Exchange,
+    string Currency,
+    string TickSize,
+    string TickValue,
+    string CreationNotice,
+    bool RequiresUserInput)
+{
+    public string StatusText => string.IsNullOrEmpty(Activity)
+        ? Resolution
+        : $"{Resolution} · {Activity}";
+}
 
 public sealed record ImportDiagnosticItem(
     string Stage,

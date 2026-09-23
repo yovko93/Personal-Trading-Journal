@@ -86,18 +86,19 @@ public sealed class TradovateImportPreviewBuilder
         TradovateCanonicalInstrumentResolution resolution)
     {
         TradovateInstrumentCreationProposal? proposal = resolution.CreationProposal;
+        TradovateExistingInstrumentSnapshot? existing = resolution.ExistingInstrument;
         return new TradovateImportPreviewInstrumentItem(
             resolution.CanonicalSymbol,
             resolution.SourceBrokerSymbols,
             resolution.Status,
             resolution.ExistingInstrumentId,
             resolution.IsExistingInstrumentActive,
-            proposal?.DisplayName,
-            proposal?.AssetClass.ToString(),
-            proposal?.Exchange,
-            resolution.ResolvedCurrency ?? proposal?.Currency,
-            resolution.SourceTickSize ?? proposal?.TickSize,
-            proposal?.TickValue,
+            existing?.DisplayName ?? proposal?.DisplayName,
+            (existing?.AssetClass ?? proposal?.AssetClass)?.ToString(),
+            existing?.Exchange ?? proposal?.Exchange,
+            existing?.Currency ?? proposal?.Currency ?? resolution.ResolvedCurrency,
+            existing?.TickSize ?? proposal?.TickSize ?? resolution.SourceTickSize,
+            existing?.TickValue ?? proposal?.TickValue,
             proposal?.MetadataSource);
     }
 

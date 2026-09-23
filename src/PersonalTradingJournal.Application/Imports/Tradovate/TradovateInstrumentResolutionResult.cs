@@ -46,6 +46,8 @@ public sealed class TradovateInstrumentResolutionResult
                     mapping.CanonicalSymbol,
                     StringComparison.Ordinal) &&
                 resolution.Status == mapping.Status &&
+                (resolution.Status != TradovateInstrumentResolutionStatus.ExistingInstrument ||
+                 resolution.ExistingInstrument is not null) &&
                 (resolution.Status != TradovateInstrumentResolutionStatus.ProposedCreation ||
                  resolution.CreationProposal is not null)) == 1) &&
         Diagnostics.All(diagnostic =>

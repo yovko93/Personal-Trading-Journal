@@ -181,6 +181,9 @@ public sealed class ImportViewModel : ObservableObject
                 .Select(account => new ImportAccountOption(
                     account.Id,
                     account.Name,
+                    account.AccountType,
+                    account.ProviderName,
+                    account.ExternalAccountId,
                     account.Currency,
                     account.IsActive))
                 .ToArray();
@@ -410,20 +413,23 @@ public sealed class ImportViewModel : ObservableObject
         TradovateCanonicalInstrumentResolution item)
     {
         TradovateInstrumentCreationProposal? proposal = item.CreationProposal;
-        string details = item.Status switch
-        {
-            TradovateInstrumentResolutionStatus.ExistingInstrument =>
-                $"Existing Instrument · {(item.IsExistingInstrumentActive == true ? "Active" : "Inactive")} · {item.ResolvedCurrency ?? "Currency unavailable"} · Tick {item.SourceTickSize:G29}",
-            TradovateInstrumentResolutionStatus.ProposedCreation when proposal is not null =>
-                $"New proposal · {proposal.DisplayName} · {proposal.AssetClass} · {proposal.Exchange ?? "Exchange unavailable"} · {proposal.Currency} · Tick {proposal.TickSize:G29} / {proposal.TickValue:G29} · {proposal.MetadataSource}",
-            TradovateInstrumentResolutionStatus.RequiresUserInput => "Metadata required",
-            _ => "Resolution blocked",
-        };
+        TradovateExistingInstrumentSnapshot? existing = item.ExistingInstrument;
         return new ImportInstrumentItem(
             item.CanonicalSymbol,
             string.Join(", ", item.SourceBrokerSymbols),
-            item.Status.ToString(),
-            details,
+            ResolutionText(item.Status),
+            item.Status == TradovateInstrumentResolutionStatus.ExistingInstrument
+                ? item.IsExistingInstrumentActive == true ? "Active" : "Inactive"
+                : string.Empty,
+            existing?.DisplayName ?? proposal?.DisplayName ?? "—",
+            (existing?.AssetClass ?? proposal?.AssetClass)?.ToString() ?? "—",
+            existing?.Exchange ?? proposal?.Exchange ?? "—",
+            existing?.Currency ?? proposal?.Currency ?? "—",
+            FormatDecimal(existing?.TickSize ?? proposal?.TickSize ?? item.SourceTickSize),
+            FormatDecimal(existing?.TickValue ?? proposal?.TickValue),
+            item.Status == TradovateInstrumentResolutionStatus.ProposedCreation
+                ? "Will be created only when the import is confirmed."
+                : string.Empty,
             item.Status == TradovateInstrumentResolutionStatus.RequiresUserInput);
     }
 
@@ -432,11 +438,32 @@ public sealed class ImportViewModel : ObservableObject
         new(
             item.CanonicalSymbol,
             string.Join(", ", item.SourceBrokerSymbols),
-            item.Status.ToString(),
+            ResolutionText(item.Status),
             item.Status == TradovateInstrumentResolutionStatus.ExistingInstrument
-                ? $"Existing Instrument · {(item.IsExistingInstrumentActive == true ? "Active" : "Inactive")} · {item.Currency ?? "Currency unavailable"} · Tick {item.TickSize:G29}"
-                : $"New proposal · {item.DisplayName} · {item.AssetClass} · {item.Exchange ?? "Exchange unavailable"} · {item.Currency} · Tick {item.TickSize:G29} / {item.TickValue:G29} · {item.MetadataSource}",
+                ? item.IsExistingInstrumentActive == true ? "Active" : "Inactive"
+                : string.Empty,
+            item.DisplayName ?? "—",
+            item.AssetClass ?? "—",
+            item.Exchange ?? "—",
+            item.Currency ?? "—",
+            FormatDecimal(item.TickSize),
+            FormatDecimal(item.TickValue),
+            item.Status == TradovateInstrumentResolutionStatus.ProposedCreation
+                ? "Will be created only when the import is confirmed."
+                : string.Empty,
             item.Status == TradovateInstrumentResolutionStatus.RequiresUserInput);
+
+    private static string ResolutionText(TradovateInstrumentResolutionStatus status) =>
+        status switch
+        {
+            TradovateInstrumentResolutionStatus.ExistingInstrument => "Existing Instrument",
+            TradovateInstrumentResolutionStatus.ProposedCreation => "New Instrument",
+            TradovateInstrumentResolutionStatus.RequiresUserInput => "Requires input",
+            _ => "Blocked",
+        };
+
+    private static string FormatDecimal(decimal? value) =>
+        value?.ToString("G29", CultureInfo.InvariantCulture) ?? "—";
 
     private static ImportTradePreviewItem ToTradeItem(TradovateImportPreviewTradeItem item) =>
         new(
