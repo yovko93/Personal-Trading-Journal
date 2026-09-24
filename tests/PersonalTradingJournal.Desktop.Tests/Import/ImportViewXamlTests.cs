@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+
 namespace PersonalTradingJournal.Desktop.Tests.Import;
 
 public sealed class ImportViewXamlTests
@@ -31,6 +33,25 @@ public sealed class ImportViewXamlTests
         Assert.Contains("DUPLICATES SKIPPED", xaml, StringComparison.Ordinal);
         Assert.Contains("INSTRUMENTS CREATED", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("#", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ImportRecoveryMessageIsOutsidePreviewDependentSections()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+        XElement message = Assert.Single(document.Descendants(presentation + "TextBlock"),
+            element => (string?)element.Attribute("Text") == "{Binding ImportErrorMessage}");
+        XElement page = document.Root!.Element(presentation + "ScrollViewer")!
+            .Element(presentation + "StackPanel")!;
+
+        // Account-not-found clears HasPreview. Recovery must remain a direct page child,
+        // not disappear with the preview or confirmation section.
+        Assert.Same(page, message.Parent);
+        Assert.Contains(message.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding ImportErrorMessage}" &&
+            (string?)trigger.Attribute("Value") == "{x:Null}");
     }
 
     [Fact]

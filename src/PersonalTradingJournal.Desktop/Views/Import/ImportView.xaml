@@ -89,6 +89,20 @@
                 </StackPanel>
             </Border>
 
+            <TextBlock Margin="0,12,0,0"
+                       Text="{Binding ImportErrorMessage}"
+                       TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ImportErrorMessage}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
             <Border Margin="0,16,0,0">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
@@ -272,19 +286,6 @@
                             Command="{Binding ConfirmImportCommand}"
                             Content="Import Trades"
                             Style="{StaticResource PtjPrimaryButtonStyle}" />
-                    <TextBlock Margin="0,12,0,0"
-                               Text="{Binding ImportErrorMessage}"
-                               TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource PtjFormErrorTextStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding ImportErrorMessage}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
                     <TextBlock Margin="0,12,0,0"
                                Text="{Binding ImportSuccessMessage}"
                                TextWrapping="Wrap">

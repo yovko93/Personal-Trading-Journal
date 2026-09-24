@@ -434,6 +434,7 @@ public sealed class ImportViewModelTests
 
         Assert.Null(fixture.ViewModel.SelectedAccount);
         Assert.Equal(2, fixture.AccountReader.CallCount);
+        Assert.False(fixture.ViewModel.HasPreview);
         Assert.Equal(ImportWorkflowPhase.FileAnalyzed, fixture.ViewModel.Phase);
         Assert.Contains(
             "Select an Account and rebuild the preview",
@@ -464,6 +465,33 @@ public sealed class ImportViewModelTests
         await first;
         Assert.Equal(1, fixture.ImportStore.CallCount);
         Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task CancelImportRestoresPreviewAndAllowsRetry()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+        fixture.ImportStore.PendingResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int eventCount = 0;
+        fixture.ViewModel.ImportCommitted += (_, _) => eventCount++;
+
+        Task submission = fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+        await fixture.ImportStore.Called.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        fixture.ViewModel.ConfirmImportCommand.Cancel();
+        await submission.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        Assert.False(fixture.ViewModel.IsBusy);
+        Assert.False(fixture.ViewModel.HasImportResult);
+        Assert.Null(fixture.ViewModel.ImportErrorMessage);
+        Assert.Equal(0, eventCount);
+        Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
+
+        fixture.ImportStore.PendingResult = null;
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+        Assert.Equal("Imported", fixture.ViewModel.ImportResultStatus);
+        Assert.Equal(1, eventCount);
     }
 
     [Fact]

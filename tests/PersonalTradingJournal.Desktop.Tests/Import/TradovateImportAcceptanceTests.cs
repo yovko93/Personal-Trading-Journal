@@ -78,6 +78,20 @@ public sealed class TradovateImportAcceptanceTests
             await viewModel.BuildPreviewCommand.ExecuteAsync(null);
             Assert.Equal(ImportWorkflowPhase.PreviewReady, viewModel.Phase);
 
+            IDbContextFactory<JournalDbContext> contextFactory =
+                provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
+            dialog.ConfirmationResult = false;
+            await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+            await using (JournalDbContext context = await contextFactory.CreateDbContextAsync())
+            {
+                Assert.Empty(await context.Trades.ToListAsync());
+                Assert.Empty(await context.TradeExecutions.ToListAsync());
+                Assert.Empty(await context.TradovateImportedExecutions.ToListAsync());
+                Assert.Empty(await context.Instruments.ToListAsync());
+            }
+            Assert.Equal(ImportWorkflowPhase.PreviewReady, viewModel.Phase);
+
+            dialog.ConfirmationResult = true;
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
 
             Assert.Equal(ImportWorkflowPhase.Completed, viewModel.Phase);
@@ -85,8 +99,6 @@ public sealed class TradovateImportAcceptanceTests
             Assert.Equal(1, viewModel.ImportedTradeCount);
             Assert.Equal(1, viewModel.CreatedInstrumentCount);
 
-            IDbContextFactory<JournalDbContext> contextFactory =
-                provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
             await using (JournalDbContext context =
                          await contextFactory.CreateDbContextAsync())
             {
@@ -105,6 +117,24 @@ public sealed class TradovateImportAcceptanceTests
             Assert.Equal(0, viewModel.ImportedTradeCount);
             Assert.Equal(1, viewModel.SkippedDuplicateTradeCount);
             Assert.Equal(2, picker.CallCount);
+
+            picker.Csv = Csv.Replace("M10-7-SELL", "M10-7-OVERLAPPING-SELL", StringComparison.Ordinal);
+            await viewModel.SelectCsvCommand.ExecuteAsync(null);
+            await viewModel.BuildPreviewCommand.ExecuteAsync(null);
+            await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+
+            Assert.False(viewModel.HasImportResult);
+            Assert.Contains(TradovateImportConflictCodes.DeduplicationConflict,
+                viewModel.ImportErrorMessage, StringComparison.Ordinal);
+            Assert.False(viewModel.ConfirmImportCommand.CanExecute(null));
+            Assert.True(viewModel.SelectCsvCommand.CanExecute(null));
+            await using (JournalDbContext context = await contextFactory.CreateDbContextAsync())
+            {
+                Assert.Equal(1, await context.Trades.CountAsync());
+                Assert.Equal(2, await context.TradeExecutions.CountAsync());
+                Assert.Equal(2, await context.TradovateImportedExecutions.CountAsync());
+                Assert.Equal(1, await context.Instruments.CountAsync());
+            }
         }
         finally
         {
@@ -125,12 +155,14 @@ public sealed class TradovateImportAcceptanceTests
     {
         public int CallCount { get; private set; }
 
+        public string Csv { get; set; } = csv;
+
         public TradovateCsvFileSelection Pick()
         {
             CallCount++;
             return new TradovateCsvFileSelection(
                 "acceptance.csv",
-                new MemoryStream(Encoding.UTF8.GetBytes(csv), writable: false));
+                new MemoryStream(Encoding.UTF8.GetBytes(Csv), writable: false));
         }
     }
 
