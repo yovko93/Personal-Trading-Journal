@@ -43,7 +43,7 @@ public sealed class TradesViewPagingXamlTests
     }
 
     [Fact]
-    public void RowOutcomeUsesNetThenGrossAndAveragePricesUseReadableDisplayFormatting()
+    public void RowOutcomeUsesNetThenGrossAndAveragePricesDisplayExactlyTwoDecimals()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XDocument view = XDocument.Parse(ReadTradesView());
@@ -70,14 +70,49 @@ public sealed class TradesViewPagingXamlTests
                 (string?)setter.Attribute("Value") == "{DynamicResource PtjSuccessSurfaceBrush}"));
 
         string xaml = ReadTradesView();
-        Assert.Contains("Text=\"{Binding AverageEntryPrice, StringFormat={}{0:0.########}}\"", xaml);
-        Assert.Contains("Text=\"{Binding AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}\"", xaml);
-        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageEntryPrice, StringFormat={}{0:0.########}}\"", xaml);
-        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}\"", xaml);
+        Assert.Contains("Text=\"{Binding AverageEntryPrice, StringFormat={}{0:F2}}\"", xaml);
+        Assert.Contains("Text=\"{Binding AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}\"", xaml);
+        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageEntryPrice, StringFormat={}{0:F2}}\"", xaml);
+        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}\"", xaml);
 
-        decimal weightedAverage = 100m / 3m;
-        Assert.Equal("33.33333333", weightedAverage.ToString("0.########", System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Equal("4500.25", 4500.25000000m.ToString("0.########", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("30907.38", 30907.375m.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("30907.48", 30907.48333333m.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("7688.00", 7688m.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("30907,38", 30907.375m.ToString("F2", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")));
+    }
+
+    [Fact]
+    public void ListAndDetailColorEachKnownGrossAndNetAmountByItsOwnSign()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        string[] amountPaths =
+        [
+            "GrossPnL",
+            "NetPnL",
+            "SelectedTradeDetail.GrossPnL",
+            "SelectedTradeDetail.NetPnL",
+        ];
+
+        foreach (string path in amountPaths)
+        {
+            XElement amount = Assert.Single(view.Descendants(presentation + "TextBlock"), item =>
+                (string?)item.Attribute("Text") == $"{{Binding {path}}}" ||
+                (string?)item.Attribute("Text") == $"{{Binding {path}, TargetNullValue=—}}");
+            XElement[] triggers = amount.Descendants(presentation + "DataTrigger")
+                .Where(trigger => (string?)trigger.Attribute("Binding") ==
+                    $"{{Binding {path}, Converter={{StaticResource PnLOutcomeConverter}}}}")
+                .ToArray();
+
+            Assert.Contains(triggers, trigger =>
+                (string?)trigger.Attribute("Value") == "{x:Static converters:PnLOutcome.Positive}" &&
+                trigger.Descendants(presentation + "Setter").Any(setter =>
+                    (string?)setter.Attribute("Value") == "{DynamicResource PtjSuccessBrush}"));
+            Assert.Contains(triggers, trigger =>
+                (string?)trigger.Attribute("Value") == "{x:Static converters:PnLOutcome.Negative}" &&
+                trigger.Descendants(presentation + "Setter").Any(setter =>
+                    (string?)setter.Attribute("Value") == "{DynamicResource PtjDangerBrush}"));
+        }
     }
 
     [Fact]

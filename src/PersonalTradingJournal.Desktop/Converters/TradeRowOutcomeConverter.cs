@@ -4,8 +4,8 @@ using System.Windows.Data;
 namespace PersonalTradingJournal.Desktop.Converters;
 
 /// <summary>
-/// Uses known net P&amp;L for row styling, or a known gross loss when net is unavailable.
-/// A gross gain alone cannot establish a net gain when costs are unknown.
+/// Uses known net P&amp;L for row styling, or the known gross sign when net is unavailable.
+/// Gross coloring does not imply that unknown net P&amp;L has the same sign.
 /// </summary>
 public sealed class TradeRowOutcomeConverter : IMultiValueConverter
 {
@@ -26,8 +26,9 @@ public sealed class TradeRowOutcomeConverter : IMultiValueConverter
                 net < 0m ? PnLOutcome.Negative : PnLOutcome.Zero;
         }
 
-        return values[1] is decimal gross && gross < 0m
-            ? PnLOutcome.Negative
+        return values[1] is decimal gross
+            ? gross > 0m ? PnLOutcome.Positive :
+                gross < 0m ? PnLOutcome.Negative : PnLOutcome.Zero
             : PnLOutcome.None;
     }
 

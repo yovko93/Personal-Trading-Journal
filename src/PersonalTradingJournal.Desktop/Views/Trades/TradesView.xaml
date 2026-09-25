@@ -907,14 +907,14 @@
                                            Text="Avg Entry" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
-                                           Text="{Binding SelectedTradeDetail.AverageEntryPrice, StringFormat={}{0:0.########}}" />
+                                           Text="{Binding SelectedTradeDetail.AverageEntryPrice, StringFormat={}{0:F2}}" />
                             </StackPanel>
                             <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0">
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                            Text="Avg Exit" />
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjBodyTextStyle}"
-                                           Text="{Binding SelectedTradeDetail.AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}" />
+                                           Text="{Binding SelectedTradeDetail.AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}" />
                             </StackPanel>
                             <StackPanel Grid.Row="1" Grid.Column="2" Margin="8,0">
                                 <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
@@ -2455,13 +2455,13 @@
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="Entry " />
                                                     <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding AverageEntryPrice, StringFormat={}{0:0.########}}" />
+                                                               Text="{Binding AverageEntryPrice, StringFormat={}{0:F2}}" />
                                                 </StackPanel>
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
                                                                Text="Exit " />
                                                     <TextBlock Style="{StaticResource PtjBodyTextStyle}"
-                                                               Text="{Binding AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}" />
+                                                               Text="{Binding AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}" />
                                                 </StackPanel>
                                             </StackPanel>
 
@@ -2482,6 +2482,10 @@
                                                             <Style TargetType="{x:Type TextBlock}"
                                                                    BasedOn="{StaticResource PtjBodyTextStyle}">
                                                                 <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                                    </DataTrigger>
                                                                     <DataTrigger Binding="{Binding GrossPnL, Converter={StaticResource PnLOutcomeConverter}}"
                                                                                  Value="{x:Static converters:PnLOutcome.Negative}">
                                                                         <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />

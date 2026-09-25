@@ -11,15 +11,16 @@ public sealed class TradeRowOutcomeConverterTests
         { -3300m, -3300m, PnLOutcome.Negative },
         { -1m, 5m, PnLOutcome.Negative },
         { 1m, -5m, PnLOutcome.Positive },
-        { null, 5m, PnLOutcome.None },
-        { null, 0m, PnLOutcome.None },
+        { null, 5m, PnLOutcome.Positive },
+        { null, 0m, PnLOutcome.Zero },
         { 0m, 0m, PnLOutcome.Zero },
+        { 0m, 5m, PnLOutcome.Zero },
         { null, null, PnLOutcome.None },
     };
 
     [Theory]
     [MemberData(nameof(Outcomes))]
-    public void ConvertPrioritizesKnownNetAndNeverTreatsUnknownNetAsAProfit(
+    public void ConvertPrioritizesKnownNetAndFallsBackToKnownGross(
         decimal? net,
         decimal? gross,
         PnLOutcome expected)
