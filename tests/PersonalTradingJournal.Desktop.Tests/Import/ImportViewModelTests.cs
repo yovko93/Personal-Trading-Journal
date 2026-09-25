@@ -99,7 +99,9 @@ public sealed class ImportViewModelTests
 
         Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
         Assert.NotNull(fixture.ViewModel.PreviewSummary);
-        Assert.Single(fixture.ViewModel.Trades);
+        ImportTradePreviewItem candidate = Assert.Single(fixture.ViewModel.Trades);
+        Assert.Equal(24000m, candidate.AverageEntry);
+        Assert.Equal(24010m, candidate.AverageExit);
         Assert.Contains(fixture.ViewModel.Diagnostics, item => item.Code == "COSTS_UNAVAILABLE");
         Assert.Contains(fixture.ViewModel.Diagnostics, item =>
             item.Code == TradovateReconstructionDiagnosticCodes.SourceCompletenessUnverified);

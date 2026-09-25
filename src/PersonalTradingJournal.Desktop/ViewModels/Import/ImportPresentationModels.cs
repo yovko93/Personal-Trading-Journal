@@ -101,7 +101,7 @@ public sealed record ImportTradePreviewItem(
     string ClosedAt,
     int ExecutionCount,
     string OpeningQuantity,
-    string AverageEntry,
-    string AverageExit,
+    decimal AverageEntry,
+    decimal? AverageExit,
     string SourcePnL,
     string Resolution);

@@ -772,8 +772,8 @@ public sealed class ImportViewModel : ObservableObject
             item.ClosedAtNewYork?.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture) ?? "Open",
             item.ExecutionCount,
             item.OpeningQuantity.ToString("G29", CultureInfo.InvariantCulture),
-            item.WeightedAverageEntryPrice.ToString("G29", CultureInfo.InvariantCulture),
-            item.WeightedAverageExitPrice?.ToString("G29", CultureInfo.InvariantCulture) ?? "—",
+            item.WeightedAverageEntryPrice,
+            item.WeightedAverageExitPrice,
             item.SourceReportedPnL?.ToString("G29", CultureInfo.InvariantCulture) ?? "—",
             item.InstrumentResolutionStatus == TradovateInstrumentResolutionStatus.ExistingInstrument
                 ? "Existing"

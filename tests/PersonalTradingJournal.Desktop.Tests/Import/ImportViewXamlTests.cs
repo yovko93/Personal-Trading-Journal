@@ -55,6 +55,37 @@ public sealed class ImportViewXamlTests
     }
 
     [Fact]
+    public void CandidateWeightedPricesAreFormattedOnlyAtTheVisibleBindings()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+        XElement candidates = Assert.Single(document.Descendants(presentation + "ItemsControl"), element =>
+            (string?)element.Attribute("ItemsSource") == "{Binding Trades}");
+
+        foreach (string binding in new[]
+        {
+            "{Binding AverageEntry, StringFormat={}{0:F2}}",
+            "{Binding AverageExit, StringFormat={}{0:F2}, TargetNullValue=—}",
+        })
+        {
+            XElement price = Assert.Single(candidates.Descendants(presentation + "TextBlock"), element =>
+                (string?)element.Attribute("Text") == binding);
+            Assert.Equal("CharacterEllipsis", (string?)price.Attribute("TextTrimming"));
+            Assert.Equal("True", (string?)price.Parent?.Attribute("ClipToBounds"));
+        }
+
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        Assert.Equal("30907.38", 30907.375m.ToString("F2", culture));
+        Assert.Equal("30907.48", 30907.48333333m.ToString("F2", culture));
+        Assert.Equal("30894.89", 30894.88636363m.ToString("F2", culture));
+        Assert.Equal("30897.48", 30897.47727272m.ToString("F2", culture));
+        Assert.Equal("7688.00", 7688m.ToString("F2", culture));
+        Assert.Equal("30907,38", 30907.375m.ToString(
+            "F2", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")));
+    }
+
+    [Fact]
     public void AppMapsImportViewModelToImportView()
     {
         string app = File.ReadAllText(Path.Combine(

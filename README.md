@@ -139,7 +139,7 @@ To import a supported Tradovate matched-fills export:
 
 1. Open **Import** and choose **Select CSV**.
 2. Review the analysis and Instrument resolution, then explicitly select the destination Trading Account.
-3. Choose **Build Preview** and inspect the summary, proposed Instruments, candidate Trades, New York timestamps, warnings, and errors.
+3. Choose **Build Preview** and inspect the summary, proposed Instruments, candidate Trades, New York timestamps, warnings, and errors. Candidate weighted average entry and exit prices display two culture-aware decimal places; underlying preview and imported execution prices retain full precision.
 4. Choose **Import Trades**, review the final confirmation, and accept it to persist the import.
 5. Review the Imported, Duplicates Skipped, and Instruments Created counts. Opening Trades or Instruments after a committed import reloads their authoritative data.
 

@@ -77,6 +77,9 @@ public sealed class TradovateImportAcceptanceTests
             viewModel.SelectedAccount = Assert.Single(viewModel.Accounts);
             await viewModel.BuildPreviewCommand.ExecuteAsync(null);
             Assert.Equal(ImportWorkflowPhase.PreviewReady, viewModel.Phase);
+            ImportTradePreviewItem candidate = Assert.Single(viewModel.Trades);
+            Assert.Equal(20123.125m, candidate.AverageEntry);
+            Assert.Equal(20124.375m, candidate.AverageExit);
 
             IDbContextFactory<JournalDbContext> contextFactory =
                 provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
@@ -104,6 +107,11 @@ public sealed class TradovateImportAcceptanceTests
             {
                 Assert.Equal(1, await context.Trades.CountAsync());
                 Assert.Equal(2, await context.TradeExecutions.CountAsync());
+                decimal[] persistedPrices = (await context.TradeExecutions
+                    .OrderBy(execution => execution.Sequence)
+                    .Select(execution => execution.Price)
+                    .ToListAsync()).ToArray();
+                Assert.Equal([20123.125m, 20124.375m], persistedPrices);
                 Assert.Equal(2, await context.TradovateImportedExecutions.CountAsync());
                 Assert.Equal(1, await context.Instruments.CountAsync());
             }
