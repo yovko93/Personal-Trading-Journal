@@ -147,13 +147,26 @@ public sealed class ImportViewModel : ObservableObject
     public ImportAnalysisSummary? AnalysisSummary
     {
         get => _analysisSummary;
-        private set => SetProperty(ref _analysisSummary, value);
+        private set
+        {
+            if (SetProperty(ref _analysisSummary, value))
+            {
+                OnPropertyChanged(nameof(HasAnalysis));
+            }
+        }
     }
 
     public TradovateImportPreviewSummary? PreviewSummary
     {
         get => _previewSummary;
-        private set => SetProperty(ref _previewSummary, value);
+        private set
+        {
+            if (SetProperty(ref _previewSummary, value))
+            {
+                OnPropertyChanged(nameof(HasPreview));
+                OnPropertyChanged(nameof(ShowConfirmationSection));
+            }
+        }
     }
 
     public IReadOnlyList<ImportInstrumentItem> Instruments
@@ -194,6 +207,7 @@ public sealed class ImportViewModel : ObservableObject
             if (SetProperty(ref _importResultStatus, value))
             {
                 OnPropertyChanged(nameof(HasImportResult));
+                OnPropertyChanged(nameof(ShowConfirmationSection));
             }
         }
     }
@@ -227,6 +241,8 @@ public sealed class ImportViewModel : ObservableObject
     public bool HasPreview => PreviewSummary is not null;
 
     public bool HasImportResult => ImportResultStatus is not null;
+
+    public bool ShowConfirmationSection => HasPreview || HasImportResult;
 
     public IAsyncRelayCommand SelectCsvCommand { get; }
 
@@ -563,6 +579,7 @@ public sealed class ImportViewModel : ObservableObject
                 ImportedTradeCount = result.ImportedTradeCount;
                 SkippedDuplicateTradeCount = result.SkippedDuplicateTradeCount;
                 CreatedInstrumentCount = result.CreatedInstrumentCount;
+                ClearCompletedPreviewState();
                 Phase = ImportWorkflowPhase.Completed;
                 ImportCommitted?.Invoke(
                     this,
@@ -575,6 +592,7 @@ public sealed class ImportViewModel : ObservableObject
                 ImportSuccessMessage =
                     "No new trades were imported. All previewed broker executions were already imported.";
                 SkippedDuplicateTradeCount = result.SkippedDuplicateTradeCount;
+                ClearCompletedPreviewState();
                 Phase = ImportWorkflowPhase.Completed;
                 break;
             case TradovateImportStatus.Blocked:
@@ -649,6 +667,29 @@ public sealed class ImportViewModel : ObservableObject
                         ? ImportWorkflowPhase.RequiresUserInput
                         : ImportWorkflowPhase.Blocked;
         }
+    }
+
+    private void ClearCompletedPreviewState()
+    {
+        _workflowVersion++;
+        _previewVersion++;
+        _preview = null;
+        _parseResult = null;
+        _reconstruction = null;
+        _instrumentResolution = null;
+        _analysisDiagnostics = [];
+        // Avoid SelectedAccount's change handler, which clears the completed result.
+        SetProperty(ref _selectedAccount, null, nameof(SelectedAccount));
+        SelectedFileName = null;
+        AnalysisSummary = null;
+        PreviewSummary = null;
+        Instruments = [];
+        Trades = [];
+        Diagnostics = [];
+        AccountErrorMessage = null;
+        WorkflowErrorMessage = null;
+        BuildPreviewCommand.NotifyCanExecuteChanged();
+        ConfirmImportCommand.NotifyCanExecuteChanged();
     }
 
     private void ClearAnalysis()

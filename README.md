@@ -141,7 +141,7 @@ To import a supported Tradovate matched-fills export:
 2. Review the analysis and Instrument resolution, then explicitly select the destination Trading Account.
 3. Choose **Build Preview** and inspect the summary, proposed Instruments, candidate Trades, New York timestamps, warnings, and errors. Candidate weighted average entry and exit prices display two culture-aware decimal places; underlying preview and imported execution prices retain full precision.
 4. Choose **Import Trades**, review the final confirmation, and accept it to persist the import.
-5. Review the Imported, Duplicates Skipped, and Instruments Created counts. Opening Trades or Instruments after a committed import reloads their authoritative data.
+5. Review the Imported, Duplicates Skipped, and Instruments Created counts. After an Imported or No changes result, temporary analysis, Instrument resolution, Trade candidates, and diagnostics are cleared; the source-file section and final outcome remain visible. Select another CSV to start a new preview and explicitly choose its Trading Account. Opening Trades or Instruments after a committed import reloads their authoritative data.
 
 If the selected Account disappears before confirmation, recovery guidance remains visible below the account selector even though the obsolete preview is cleared. Select an available Account and choose **Build Preview** again. Cancelling the confirmation dialog leaves the reviewed preview unchanged and performs no import.
 

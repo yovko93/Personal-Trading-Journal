@@ -320,6 +320,9 @@ public sealed class ImportViewModelTests
         Assert.Equal(0, fixture.ImportStore.CallCount);
         Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
         Assert.NotNull(fixture.ViewModel.PreviewSummary);
+        Assert.True(fixture.ViewModel.HasAnalysis);
+        Assert.True(fixture.ViewModel.ShowConfirmationSection);
+        Assert.Single(fixture.ViewModel.Trades);
         Assert.Null(fixture.ViewModel.ImportErrorMessage);
     }
 
@@ -352,11 +355,13 @@ public sealed class ImportViewModelTests
         Assert.Equal(2, fixture.ViewModel.SkippedDuplicateTradeCount);
         Assert.Equal(1, fixture.ViewModel.CreatedInstrumentCount);
         Assert.True(fixture.ViewModel.HasImportResult);
-        Assert.NotNull(fixture.ViewModel.PreviewSummary);
+        AssertCompletedPreviewIsCleared(fixture.ViewModel);
         Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
         Assert.Equal(1, eventCount);
         Assert.Equal(3, committed!.ImportedTradeCount);
         Assert.Equal(1, committed.CreatedInstrumentCount);
+        Assert.Equal(1, fixture.ImportStore.CallCount);
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
         Assert.Equal(1, fixture.ImportStore.CallCount);
         ConfirmationDialogRequest request = Assert.IsType<ConfirmationDialogRequest>(
             fixture.Dialog.ConfirmationRequest);
@@ -393,7 +398,39 @@ public sealed class ImportViewModelTests
         Assert.Equal(1, fixture.ViewModel.SkippedDuplicateTradeCount);
         Assert.NotNull(fixture.ViewModel.ImportSuccessMessage);
         Assert.Null(fixture.ViewModel.ImportErrorMessage);
+        AssertCompletedPreviewIsCleared(fixture.ViewModel);
+        Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
         Assert.Equal(0, eventCount);
+    }
+
+    [Fact]
+    public async Task NewFileAfterCompletionClearsOutcomeAndRestoresPreviewSections()
+    {
+        Fixture fixture = await CreateReadyFixtureAsync();
+        fixture.Dialog.ConfirmationResult = true;
+
+        await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
+        Assert.True(fixture.ViewModel.HasImportResult);
+
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+
+        Assert.False(fixture.ViewModel.HasImportResult);
+        Assert.Null(fixture.ViewModel.ImportSuccessMessage);
+        Assert.Equal(0, fixture.ViewModel.ImportedTradeCount);
+        Assert.True(fixture.ViewModel.HasAnalysis);
+        Assert.False(fixture.ViewModel.HasPreview);
+        Assert.Single(fixture.ViewModel.Instruments);
+        Assert.False(fixture.ViewModel.ShowConfirmationSection);
+        fixture.ViewModel.SelectedAccount = Assert.Single(fixture.ViewModel.Accounts);
+
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+
+        Assert.True(fixture.ViewModel.HasAnalysis);
+        Assert.True(fixture.ViewModel.HasPreview);
+        Assert.True(fixture.ViewModel.ShowConfirmationSection);
+        Assert.Single(fixture.ViewModel.Trades);
+        Assert.False(fixture.ViewModel.HasImportResult);
+        Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
     }
 
     [Fact]
@@ -408,6 +445,10 @@ public sealed class ImportViewModelTests
         await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
 
         Assert.Equal(ImportWorkflowPhase.FileAnalyzed, fixture.ViewModel.Phase);
+        Assert.True(fixture.ViewModel.HasAnalysis);
+        Assert.True(fixture.ViewModel.HasPreview);
+        Assert.True(fixture.ViewModel.ShowConfirmationSection);
+        Assert.Single(fixture.ViewModel.Trades);
         Assert.False(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
         Assert.Contains(
             TradovateImportConflictCodes.ReferenceDataChanged,
@@ -486,6 +527,8 @@ public sealed class ImportViewModelTests
         Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
         Assert.False(fixture.ViewModel.IsBusy);
         Assert.False(fixture.ViewModel.HasImportResult);
+        Assert.True(fixture.ViewModel.HasPreview);
+        Assert.True(fixture.ViewModel.ShowConfirmationSection);
         Assert.Null(fixture.ViewModel.ImportErrorMessage);
         Assert.Equal(0, eventCount);
         Assert.True(fixture.ViewModel.ConfirmImportCommand.CanExecute(null));
@@ -507,6 +550,9 @@ public sealed class ImportViewModelTests
         await fixture.ViewModel.ConfirmImportCommand.ExecuteAsync(null);
 
         Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
+        Assert.True(fixture.ViewModel.HasPreview);
+        Assert.True(fixture.ViewModel.ShowConfirmationSection);
+        Assert.Single(fixture.ViewModel.Trades);
         Assert.Equal(
             "Tradovate import could not be completed.",
             fixture.ViewModel.ImportErrorMessage);
@@ -540,6 +586,23 @@ public sealed class ImportViewModelTests
         await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
         Assert.Equal(ImportWorkflowPhase.PreviewReady, fixture.ViewModel.Phase);
         return fixture;
+    }
+
+    private static void AssertCompletedPreviewIsCleared(ImportViewModel viewModel)
+    {
+        Assert.False(viewModel.HasAnalysis);
+        Assert.False(viewModel.HasPreview);
+        Assert.True(viewModel.HasImportResult);
+        Assert.True(viewModel.ShowConfirmationSection);
+        Assert.Null(viewModel.SelectedFileName);
+        Assert.Null(viewModel.SelectedAccount);
+        Assert.Null(viewModel.AnalysisSummary);
+        Assert.Null(viewModel.PreviewSummary);
+        Assert.Empty(viewModel.Instruments);
+        Assert.Empty(viewModel.Trades);
+        Assert.Empty(viewModel.Diagnostics);
+        Assert.False(viewModel.BuildPreviewCommand.CanExecute(null));
+        Assert.True(viewModel.SelectCsvCommand.CanExecute(null));
     }
 
     private static Fixture CreateFixture(
@@ -732,7 +795,7 @@ public sealed class ImportViewModelTests
 
     private sealed class FakeCsvFilePicker : ITradovateCsvFilePicker
     {
-        public TrackingMemoryStream Stream { get; } = new();
+        public TrackingMemoryStream Stream { get; private set; } = new();
 
         public int CallCount { get; private set; }
 
@@ -741,6 +804,10 @@ public sealed class ImportViewModelTests
         public TradovateCsvFileSelection? Pick()
         {
             CallCount++;
+            if (Stream.IsDisposed)
+            {
+                Stream = new TrackingMemoryStream();
+            }
             return ReturnNull
                 ? null
                 : new TradovateCsvFileSelection("fills.csv", Stream);

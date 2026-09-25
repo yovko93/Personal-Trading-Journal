@@ -101,6 +101,9 @@ public sealed class TradovateImportAcceptanceTests
             Assert.Equal("Imported", viewModel.ImportResultStatus);
             Assert.Equal(1, viewModel.ImportedTradeCount);
             Assert.Equal(1, viewModel.CreatedInstrumentCount);
+            Assert.False(viewModel.HasAnalysis);
+            Assert.False(viewModel.HasPreview);
+            Assert.True(viewModel.ShowConfirmationSection);
 
             await using (JournalDbContext context =
                          await contextFactory.CreateDbContextAsync())
@@ -117,6 +120,8 @@ public sealed class TradovateImportAcceptanceTests
             }
 
             await viewModel.SelectCsvCommand.ExecuteAsync(null);
+            Assert.False(viewModel.HasImportResult);
+            viewModel.SelectedAccount = Assert.Single(viewModel.Accounts);
             await viewModel.BuildPreviewCommand.ExecuteAsync(null);
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
 
@@ -125,9 +130,13 @@ public sealed class TradovateImportAcceptanceTests
             Assert.Equal(0, viewModel.ImportedTradeCount);
             Assert.Equal(1, viewModel.SkippedDuplicateTradeCount);
             Assert.Equal(2, picker.CallCount);
+            Assert.False(viewModel.HasAnalysis);
+            Assert.False(viewModel.HasPreview);
+            Assert.True(viewModel.ShowConfirmationSection);
 
             picker.Csv = Csv.Replace("M10-7-SELL", "M10-7-OVERLAPPING-SELL", StringComparison.Ordinal);
             await viewModel.SelectCsvCommand.ExecuteAsync(null);
+            viewModel.SelectedAccount = Assert.Single(viewModel.Accounts);
             await viewModel.BuildPreviewCommand.ExecuteAsync(null);
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
 

@@ -55,6 +55,34 @@ public sealed class ImportViewXamlTests
     }
 
     [Fact]
+    public void CompletedResultHidesAccountSectionButKeepsConfirmationSectionVisible()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+
+        XElement account = FindSection(document, presentation, "2. Trading account");
+        Assert.Contains(account.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasImportResult}" &&
+            (string?)trigger.Attribute("Value") == "True" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Visibility" &&
+                (string?)setter.Attribute("Value") == "Collapsed"));
+
+        XElement confirmation = FindSection(document, presentation, "3. Confirm import");
+        Assert.Contains(confirmation.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding ShowConfirmationSection}" &&
+            (string?)trigger.Attribute("Value") == "True" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Visibility" &&
+                (string?)setter.Attribute("Value") == "Visible"));
+
+        XElement source = FindSection(document, presentation, "1. Source file");
+        Assert.DoesNotContain(source.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasImportResult}");
+    }
+
+    [Fact]
     public void CandidateWeightedPricesAreFormattedOnlyAtTheVisibleBindings()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -100,6 +128,11 @@ public sealed class ImportViewXamlTests
 
     private static int Count(string value, string text) =>
         value.Split(text, StringSplitOptions.None).Length - 1;
+
+    private static XElement FindSection(XDocument document, XNamespace presentation, string title) =>
+        Assert.Single(document.Descendants(presentation + "Border"), border =>
+            border.Element(presentation + "StackPanel")?.Elements(presentation + "TextBlock")
+                .Any(text => (string?)text.Attribute("Text") == title) == true);
 
     private static string FindRepositoryRoot()
     {
