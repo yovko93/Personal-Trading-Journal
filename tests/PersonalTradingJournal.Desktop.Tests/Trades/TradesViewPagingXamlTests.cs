@@ -43,6 +43,44 @@ public sealed class TradesViewPagingXamlTests
     }
 
     [Fact]
+    public void RowOutcomeUsesNetThenGrossAndAveragePricesUseReadableDisplayFormatting()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        XElement list = Assert.Single(view.Descendants(presentation + "ItemsControl"), item =>
+            (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}");
+
+        XElement[] rowTriggers = list.Descendants(presentation + "DataTrigger")
+            .Where(trigger => trigger.Descendants(presentation + "MultiBinding")
+                .Any(binding => (string?)binding.Attribute("Converter") ==
+                    "{StaticResource TradeRowOutcomeConverter}"))
+            .ToArray();
+        Assert.Equal(2, rowTriggers.Length);
+        Assert.All(rowTriggers, trigger => Assert.Equal(
+            ["NetPnL", "GrossPnL"],
+            trigger.Descendants(presentation + "Binding")
+                .Select(binding => (string?)binding.Attribute("Path"))));
+        Assert.Contains(rowTriggers, trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static converters:PnLOutcome.Negative}" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Value") == "{DynamicResource PtjDangerSurfaceBrush}"));
+        Assert.Contains(rowTriggers, trigger =>
+            (string?)trigger.Attribute("Value") == "{x:Static converters:PnLOutcome.Positive}" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Value") == "{DynamicResource PtjSuccessSurfaceBrush}"));
+
+        string xaml = ReadTradesView();
+        Assert.Contains("Text=\"{Binding AverageEntryPrice, StringFormat={}{0:0.########}}\"", xaml);
+        Assert.Contains("Text=\"{Binding AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}\"", xaml);
+        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageEntryPrice, StringFormat={}{0:0.########}}\"", xaml);
+        Assert.Contains("Text=\"{Binding SelectedTradeDetail.AverageExitPrice, StringFormat={}{0:0.########}, TargetNullValue=—}\"", xaml);
+
+        decimal weightedAverage = 100m / 3m;
+        Assert.Equal("33.33333333", weightedAverage.ToString("0.########", System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("4500.25", 4500.25000000m.ToString("0.########", System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void TradeSortHeaderStyleUsesDedicatedBorderFreeTemplate()
     {
         string view = ReadTradesView();
