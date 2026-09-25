@@ -83,6 +83,32 @@ public sealed class ImportViewXamlTests
     }
 
     [Fact]
+    public void ConfirmationHeadingUsesStepNumberOnlyForActivePreview()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+        XElement confirmation = FindSection(document, presentation, "3. Confirm import");
+        XElement numbered = Assert.Single(confirmation.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "3. Confirm import");
+        XElement completed = Assert.Single(confirmation.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Confirm import");
+
+        Assert.Contains(numbered.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasImportResult}" &&
+            (string?)trigger.Attribute("Value") == "True" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Visibility" &&
+                (string?)setter.Attribute("Value") == "Collapsed"));
+        Assert.Contains(completed.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasImportResult}" &&
+            (string?)trigger.Attribute("Value") == "True" &&
+            trigger.Descendants(presentation + "Setter").Any(setter =>
+                (string?)setter.Attribute("Property") == "Visibility" &&
+                (string?)setter.Attribute("Value") == "Visible"));
+    }
+
+    [Fact]
     public void CandidateWeightedPricesAreFormattedOnlyAtTheVisibleBindings()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";

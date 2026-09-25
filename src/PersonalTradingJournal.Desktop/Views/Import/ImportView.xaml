@@ -284,8 +284,31 @@
                     </Style>
                 </Border.Style>
                 <StackPanel>
-                    <TextBlock Style="{StaticResource PtjFormSectionTitleTextStyle}"
-                               Text="3. Confirm import" />
+                    <TextBlock Text="3. Confirm import">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjFormSectionTitleTextStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasImportResult}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="Confirm import">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}"
+                                   BasedOn="{StaticResource PtjFormSectionTitleTextStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasImportResult}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                     <TextBlock Margin="0,4,0,0"
                                Style="{StaticResource PtjFormHelperTextStyle}"
                                Text="The preview is read-only. Trades and proposed Instruments are persisted only after you review and confirm the operation."
