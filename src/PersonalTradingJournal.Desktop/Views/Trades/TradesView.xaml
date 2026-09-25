@@ -7,6 +7,7 @@
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
+        <converters:NetPnLUnavailableVisibilityConverter x:Key="NetPnLUnavailableVisibilityConverter" />
         <Style x:Key="TradeSortHeaderButtonStyle"
                TargetType="{x:Type Button}"
                BasedOn="{StaticResource PtjSecondaryButtonStyle}">
@@ -1020,6 +1021,18 @@
                                                    Text="{Binding SelectedTradeDetail.Currency}" />
                                     </StackPanel>
                                 </Grid>
+                                <TextBlock Margin="0,4,0,0"
+                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                           Text="Net unavailable: commission/fees unknown."
+                                           TextWrapping="Wrap"
+                                           AutomationProperties.Name="Net unavailable: commission and fees are unknown">
+                                    <TextBlock.Visibility>
+                                        <MultiBinding Converter="{StaticResource NetPnLUnavailableVisibilityConverter}">
+                                            <Binding Path="SelectedTradeDetail.GrossPnL" />
+                                            <Binding Path="SelectedTradeDetail.NetPnL" />
+                                        </MultiBinding>
+                                    </TextBlock.Visibility>
+                                </TextBlock>
                             </StackPanel>
                         </Grid>
 
@@ -2210,7 +2223,7 @@
                                 <ColumnDefinition Width="1.25*" />
                                 <ColumnDefinition Width="1.2*" />
                                 <ColumnDefinition Width="90" />
-                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="180" />
                                 <ColumnDefinition Width="220" />
                             </Grid.ColumnDefinitions>
 
@@ -2394,7 +2407,7 @@
                                                 <ColumnDefinition Width="1.25*" />
                                                 <ColumnDefinition Width="1.2*" />
                                                 <ColumnDefinition Width="90" />
-                                                <ColumnDefinition Width="110" />
+                                                <ColumnDefinition Width="180" />
                                                 <ColumnDefinition Width="220" />
                                             </Grid.ColumnDefinitions>
 
@@ -2447,57 +2460,94 @@
                                                        Style="{StaticResource PtjBodyTextStyle}"
                                                        Text="{Binding OpenQuantity}" />
 
-                                            <Grid Grid.Column="5"
-                                                  Margin="8,0,0,0"
-                                                  VerticalAlignment="Center">
-                                                <TextBlock Text="—">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="{x:Type TextBlock}"
-                                                               BasedOn="{StaticResource PtjBodyTextStyle}">
-                                                            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
+                                            <StackPanel Grid.Column="5"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <StackPanel.Style>
-                                                        <Style TargetType="{x:Type StackPanel}">
-                                                            <Setter Property="Visibility" Value="Visible" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </StackPanel.Style>
-                                                    <TextBlock Text="{Binding NetPnL}">
+                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                               Text="Gross P&amp;L " />
+                                                    <TextBlock Style="{StaticResource PtjBodyTextStyle}"
+                                                               Text="{Binding GrossPnL, TargetNullValue=—}" />
+                                                    <TextBlock Margin="4,0,0,0"
+                                                               Text="{Binding Currency}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="{x:Type TextBlock}"
-                                                                   BasedOn="{StaticResource PtjBodyTextStyle}">
-                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                                   BasedOn="{StaticResource PtjCaptionTextStyle}">
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
-                                                                                 Value="{x:Static converters:PnLOutcome.Positive}">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
-                                                                                 Value="{x:Static converters:PnLOutcome.Negative}">
-                                                                        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                                    <DataTrigger Binding="{Binding GrossPnL}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <TextBlock Margin="4,0,0,0"
-                                                               Style="{StaticResource PtjCaptionTextStyle}"
-                                                               Text="{Binding Currency}" />
                                                 </StackPanel>
-                                            </Grid>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
+                                                               Text="Net P&amp;L " />
+                                                    <Grid>
+                                                        <TextBlock Text="—">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}"
+                                                                       BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <StackPanel.Style>
+                                                                <Style TargetType="{x:Type StackPanel}">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </StackPanel.Style>
+                                                            <TextBlock Text="{Binding NetPnL}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="{x:Type TextBlock}"
+                                                                           BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                         Value="{x:Static converters:PnLOutcome.Positive}">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                                         Value="{x:Static converters:PnLOutcome.Negative}">
+                                                                                <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Margin="4,0,0,0"
+                                                                       Style="{StaticResource PtjCaptionTextStyle}"
+                                                                       Text="{Binding Currency}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </StackPanel>
+                                                <TextBlock Margin="0,4,0,0"
+                                                           Style="{StaticResource PtjCaptionTextStyle}"
+                                                           Text="Net unavailable: commission/fees unknown."
+                                                           TextWrapping="Wrap"
+                                                           AutomationProperties.Name="Net unavailable: commission and fees are unknown">
+                                                    <TextBlock.Visibility>
+                                                        <MultiBinding Converter="{StaticResource NetPnLUnavailableVisibilityConverter}">
+                                                            <Binding Path="GrossPnL" />
+                                                            <Binding Path="NetPnL" />
+                                                        </MultiBinding>
+                                                    </TextBlock.Visibility>
+                                                </TextBlock>
+                                            </StackPanel>
 
                                             <StackPanel Grid.Column="6"
                                                         Margin="8,0,0,0"

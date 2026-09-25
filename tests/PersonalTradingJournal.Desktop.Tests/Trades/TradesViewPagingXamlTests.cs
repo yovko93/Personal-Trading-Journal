@@ -1,9 +1,47 @@
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
 
 public sealed class TradesViewPagingXamlTests
 {
+    [Fact]
+    public void ListAndDetailBindGrossAndNetSeparatelyWithUnknownCostGuidance()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        XElement list = Assert.Single(view.Descendants(presentation + "ItemsControl"), item =>
+            (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}");
+
+        Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Gross P&L ");
+        Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Net P&L ");
+        Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding GrossPnL, TargetNullValue=—}");
+        Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding NetPnL}");
+
+        XElement[] explanations = view.Descendants(presentation + "TextBlock")
+            .Where(item => (string?)item.Attribute("Text") ==
+                "Net unavailable: commission/fees unknown.")
+            .ToArray();
+        Assert.Equal(2, explanations.Length);
+        Assert.All(explanations, item => Assert.Equal(
+            "Net unavailable: commission and fees are unknown",
+            (string?)item.Attribute("AutomationProperties.Name")));
+        Assert.Contains(explanations, item => item.Ancestors().Contains(list));
+        Assert.Contains(explanations, item => !item.Ancestors().Contains(list));
+        Assert.Contains(explanations, item => item.Descendants(presentation + "Binding")
+            .Any(binding => (string?)binding.Attribute("Path") == "GrossPnL"));
+        Assert.Contains(explanations, item => item.Descendants(presentation + "Binding")
+            .Any(binding => (string?)binding.Attribute("Path") == "SelectedTradeDetail.GrossPnL"));
+        Assert.All(explanations, item => Assert.Contains(
+            item.Descendants(presentation + "MultiBinding"), binding =>
+                (string?)binding.Attribute("Converter") ==
+                "{StaticResource NetPnLUnavailableVisibilityConverter}"));
+    }
+
     [Fact]
     public void TradeSortHeaderStyleUsesDedicatedBorderFreeTemplate()
     {
@@ -120,7 +158,7 @@ public sealed class TradesViewPagingXamlTests
             "<ColumnDefinition Width=\"1.25\\*\" />\\s*" +
             "<ColumnDefinition Width=\"1.2\\*\" />\\s*" +
             "<ColumnDefinition Width=\"90\" />\\s*" +
-            "<ColumnDefinition Width=\"110\" />\\s*" +
+            "<ColumnDefinition Width=\"180\" />\\s*" +
             "<ColumnDefinition Width=\"220\" />";
 
         Assert.True(Regex.Matches(view, columns).Count >= 2);
