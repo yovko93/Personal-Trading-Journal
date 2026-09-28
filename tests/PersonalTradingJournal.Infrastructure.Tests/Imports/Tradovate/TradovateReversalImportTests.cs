@@ -18,12 +18,14 @@ public sealed class TradovateReversalImportTests
     private static readonly DateTimeOffset Now = new(2026, 9, 26, 12, 0, 0, TimeSpan.Zero);
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PreviewConfirmationAndReplayConserveFillAcrossTwoTrades(bool startsShort)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task PreviewConfirmationAndReplayConserveFillAcrossTwoTrades(bool startsShort, bool tiedClosures)
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
-        var workflow = await PrepareAsync(database, startsShort);
+        var workflow = await PrepareAsync(database, startsShort, tiedClosures);
         decimal sign = startsShort ? -1m : 1m;
 
         Assert.True(workflow.Preview.IsReadyForConfirmation);
@@ -200,13 +202,14 @@ public sealed class TradovateReversalImportTests
 
     private static async Task<(Guid AccountId, TradovateExecutionReconstructionResult Reconstruction,
         TradovateImportPreparationService Service, TradovateImportPreparationResult Preparation,
-        TradovateImportPreview Preview)> PrepareAsync(ReaderTestDatabase database, bool startsShort = false)
+        TradovateImportPreview Preview)> PrepareAsync(ReaderTestDatabase database, bool startsShort = false, bool tiedClosures = false)
     {
         var account = new TradingAccount("Reversal test", TradingAccountType.Personal,
             "Tradovate", "SYNTHETIC", "USD", 10000m, Now.AddDays(-1));
         await database.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(startsShort
-            ? TradovateCsvFixtures.ShortReversal : TradovateCsvFixtures.Reversal));
+        string csv = startsShort ? TradovateCsvFixtures.ShortReversal : TradovateCsvFixtures.Reversal;
+        if (tiedClosures) csv = csv.Replace("16:10:00", "16:30:21", StringComparison.Ordinal);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
         TradovateCsvParseResult parsed = await new TradovateCsvParser().ParseAsync(stream);
         TradovateExecutionReconstructionResult reconstruction = new TradovateExecutionReconstructor().Reconstruct(parsed);
         Assert.True(reconstruction.IsEligibleForAutomaticImport);

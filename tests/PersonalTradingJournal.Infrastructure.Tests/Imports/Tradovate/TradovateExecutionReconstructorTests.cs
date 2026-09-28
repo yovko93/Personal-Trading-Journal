@@ -284,21 +284,23 @@ public sealed class TradovateExecutionReconstructorTests
     }
 
     [Fact]
-    public void SameSideTimestampTieThatCanChangeReversalAllocationIsAmbiguous()
+    public void SameSideTimestampTieUsesMatchedClosuresBeforeUnrelatedOpenings()
     {
         TradovateCsvParseResult input = TradovateReconstructionFixtures.Complete(
-            Row(1, "MNQU6", "BUY-1", "SELL-1", 1m, At(9), At(10)),
-            Row(2, "MNQU6", "BUY-2", "SELL-2", 1m, At(11), At(10)));
+            Row(1, "MNQU6", "BUY-1", "Z-CLOSE", 1m, At(9), At(10)),
+            Row(2, "MNQU6", "BUY-2", "A-OPEN", 1m, At(11), At(10)));
 
         TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
 
-        Assert.Equal(TradovateReconstructionStatus.Ambiguous, result.Status);
-        AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.TimestampOrderAmbiguous);
-        Assert.False(result.IsEligibleForAutomaticImport);
+        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.Equal([TradeDirection.Long, TradeDirection.Short], result.Candidates.Select(item => item.ProvisionalDirection));
+        Assert.Equal(["BUY-1", "Z-CLOSE"], result.Candidates[0].OrderedExecutions.Select(item => item.ExternalFillId));
+        Assert.Equal(["A-OPEN", "BUY-2"], result.Candidates[1].OrderedExecutions.Select(item => item.ExternalFillId));
+        Assert.All(result.Candidates.SelectMany(item => item.OrderedExecutions), item => Assert.Same(item, item.SourceFill));
     }
 
     [Fact]
-    public void OppositeSideTimestampTieThatCanChangeBoundaryIsAmbiguous()
+    public void OppositeSideTimestampTieSeparatesCompletedMatchedLotsFromNewLots()
     {
         TradovateCsvParseResult input = TradovateReconstructionFixtures.Complete(
             Row(1, "MNQU6", "BUY-1", "SELL-1", 1m, At(9), At(10)),
@@ -306,11 +308,89 @@ public sealed class TradovateExecutionReconstructorTests
 
         TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
 
-        Assert.Equal(TradovateReconstructionStatus.Ambiguous, result.Status);
-        TradovateTradeCandidate candidate = Assert.Single(result.Candidates);
-        Assert.Equal(TradovateReconstructionStatus.Ambiguous, candidate.Status);
-        Assert.Equal(0m, candidate.SignedPositionAtEnd);
+        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.Equal(2, result.Candidates.Count);
+        Assert.All(result.Candidates, item => Assert.Equal(TradeDirection.Long, item.ProvisionalDirection));
+        Assert.Equal([1], result.Candidates[0].SourceRecordIndices);
+        Assert.Equal([2], result.Candidates[1].SourceRecordIndices);
+    }
+
+    [Fact]
+    public void SameSecondShortClosurePrecedesNewShortOpeningWithoutMergingTrades()
+    {
+        var result = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(
+            Row(1, "MNQU6", "COVER", "EARLY-SELL", 1m, At(10), At(9)),
+            Row(2, "MNQU6", "LATER-COVER", "NEW-SELL", 20m, At(11), At(10))));
+
+        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.Equal(2, result.Candidates.Count);
+        Assert.All(result.Candidates, item => Assert.Equal(TradeDirection.Short, item.ProvisionalDirection));
+        Assert.Equal(new decimal?[] { 1m, 20m }, result.Candidates.Select(item => item.OpeningQuantity));
+    }
+
+    [Fact]
+    public void MatchedRowsDistinguishOneCoverFromSeveralSameSecondLongEntries()
+    {
+        TradovateMatchedFillRow[] rows =
+        [
+            Row(1, "MNQZ6", "Z-COVER", "EARLY-SELL", 5m, At(10), At(9)),
+            Row(2, "MNQZ6", "A-ENTRY", "EXIT-1", 5m, At(10), At(11), buyPrice: 100m),
+            Row(3, "MNQZ6", "B-ENTRY", "EXIT-2", 5m, At(10), At(11, 1), buyPrice: 101m),
+            Row(4, "MNQZ6", "C-ENTRY", "EXIT-3", 5m, At(10), At(11, 2), buyPrice: 102m),
+        ];
+        var result = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(rows));
+        var shuffled = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(rows.Reverse().ToArray()));
+
+        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.Equal([TradeDirection.Short, TradeDirection.Long], result.Candidates.Select(item => item.ProvisionalDirection));
+        Assert.Equal(new decimal?[] { 5m, 15m }, result.Candidates.Select(item => item.OpeningQuantity));
+        Assert.Equal([1], result.Candidates[0].SourceRecordIndices);
+        Assert.Equal([2, 3, 4], result.Candidates[1].SourceRecordIndices);
+        Assert.Equal(result.Candidates.SelectMany(item => item.OrderedExecutions).Select(ExecutionFingerprint),
+            shuffled.Candidates.SelectMany(item => item.OrderedExecutions).Select(ExecutionFingerprint));
+    }
+
+    [Fact]
+    public void LargeKnownRoleTieDoesNotRequirePermutationSearch()
+    {
+        TradovateMatchedFillRow[] rows = Enumerable.Range(1, 300).Select(index =>
+            Row(index + 1, "MNQU6", $"ENTRY-{index}", $"EXIT-{index}", 1m, At(10), At(11)))
+            .Prepend(Row(1, "MNQU6", "Z-COVER", "EARLY-SELL", 1m, At(10), At(9)))
+            .ToArray();
+
+        var result = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(rows));
+
+        Assert.True(result.IsEligibleForAutomaticImport);
+        Assert.Equal(new decimal?[] { 1m, 300m }, result.Candidates.Select(item => item.OpeningQuantity));
+        Assert.Equal([TradeDirection.Short, TradeDirection.Long], result.Candidates.Select(item => item.ProvisionalDirection));
+    }
+
+    [Fact]
+    public void SameSecondMatchedPairWithoutOrientationRemainsBlockedEvenWithSourceProfit()
+    {
+        var result = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(
+            Row(1, "MNQU6", "BUY", "SELL", 1m, At(10), At(10),
+                buyPrice: 100m, sellPrice: 102m, sourceReportedPnL: 4m)));
+
+        Assert.False(result.IsEligibleForAutomaticImport);
+        var diagnostic = Assert.Single(result.Diagnostics, item => item.Code ==
+            TradovateReconstructionDiagnosticCodes.TimestampOrderAmbiguous);
+        Assert.Equal(["BUY", "SELL"], diagnostic.ExternalFillIds);
+        Assert.Contains("MNQU6", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("2026-09-10 10:00:00", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("sub-second timestamps or sequence", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SameSecondPairThatCanEitherScaleInOrReverseIsGenuinelyAmbiguous()
+    {
+        var result = _reconstructor.Reconstruct(TradovateReconstructionFixtures.Complete(
+            Row(1, "MNQU6", "EARLY-BUY", "CROSS", 1m, At(9), At(10)),
+            Row(2, "MNQU6", "TIED-BUY", "CROSS", 1m, At(10), At(10))));
+
+        Assert.False(result.IsEligibleForAutomaticImport);
         AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.TimestampOrderAmbiguous);
+        Assert.Equal(2m, Assert.Single(result.Executions, item => item.ExternalFillId == "CROSS").Quantity);
     }
 
     [Fact]
