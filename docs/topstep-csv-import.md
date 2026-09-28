@@ -2,7 +2,7 @@
 
 M11.1 provides a read-only source boundary: Application owns `ITopstepCsvParser`, immutable `TopstepSourceRow` records, and structured parse results; Infrastructure implements `TopstepCsvParser`. It is not connected to the Desktop Import page yet. That page continues to accept the existing Tradovate matched-fill format only.
 
-No Topstep Trades, executions, reference data, import history, or database records are created. There is no Topstep preview/confirmation workflow at this stage. One accepted CSV source row produces one normalized row; matching timestamps do not group rows or establish broker execution identities.
+No Topstep Trades, executions, reference data, import history, or database records are created. M11.5 supplies a read-only Application preview, but no Topstep confirmation operation or Desktop workflow exists yet. One accepted CSV source row produces one normalized row; matching timestamps do not group rows or establish broker execution identities.
 
 M11.2 adds `ITopstepTradeCandidateReconstructor` and the independent Infrastructure implementation `TopstepTradeCandidateReconstructor`. It prepares **reported closed-row candidates**, not verified account-level positions. The result can be ready for further row-level review without establishing automatic-import eligibility. It does not call Tradovate reconstruction or change the M11.1 parser.
 
@@ -220,7 +220,56 @@ The local sample was exercised through production parsing → reconstruction →
 
 Verified scenarios preserve aggregate **1,241.00 USD Gross − 51.84 Fees − 36.00 Commissions = 1,153.16 USD Net**, with zero failed economics rows. Independent integration tests use fresh migrated temporary SQLite databases and real Account/Instrument readers with `Mode=ReadOnly`; existing and proposed paths make no import/reference writes. The customer file and IDs are not tracked. This is reference-preparation evidence, not Desktop or persistence acceptance.
 
+## M11.5 Read-only preview and validation
+
+### Composition and presentation contract
+
+`TopstepImportPreviewBuilder.BuildAsync` composes the existing `ITopstepCsvParser` → `ITopstepTradeCandidateReconstructor` → `TopstepReferencePreparationService` (including M11.3 economics). It accepts a file name, caller-owned readable stream, explicit destination Account ID, cost interpretation and optional exact-snapshot Instrument verification attestations. It neither selects an account nor changes the M11.1–M11.4 rules. The default cost interpretation remains unverified, and reference data is fetched again on every build. No Desktop registration, confirmation command, write interface, database migration or Tradovate change is introduced.
+
+The immutable result provides:
+
+- File basename, exact byte length and SHA-256 content identity; absolute customer paths are not retained.
+- Selected Account ID and resolved Account snapshot where available. Invalid parser/reconstruction input short-circuits reference reads, so the selected ID remains visible but no account is falsely presented as resolved.
+- Source/accepted/rejected row counts, **closed-row candidate count**, existing/proposed/blocked exact-contract resolution counts, distinct proposed canonical Instrument count, warning/error counts and nullable complete reconciled USD totals.
+- One `TopstepPreviewCandidate` per M11.2 candidate, labeled **Topstep closed-row record**: source record/physical line, exact source contract, direction, closed-row quantity, UTC entry/exit instants, exact prices, reported Gross, Fees, Commissions, calculated Gross/nullable Net, pricing currency, Instrument resolution and original normalized source row. Original offsets, broker date, duration and source ID remain accessible through that immutable row. No quantity sum is presented as peak exposure; no count is labeled broker position count.
+- Complete existing/proposed/blocked Instrument snapshots, including every proposed specification and evidence. Proposed objects are never database records.
+- Unified `Csv`, `Reconstruction`, `Account`, `Instrument`, `Economics` and `Preview` diagnostics with severity, original code/message, recovery guidance, field/line where applicable, and affected source-row references. Every original grouping warning remains independently visible; it is not collapsed into a single generic warning. Blocked account/Instrument results retain candidate rows for inspection; invalid source reconstruction produces no partial importable candidate set.
+
+Prices and costs remain decimals without presentation rounding or string formatting. Totals are available only when **every row** has reconciled economics; there is no partial verified Net total. Overflow or precision loss when summing otherwise valid rows adds blocking `TOTALS_OVERFLOW` / `TOTALS_PRECISION_LOSS` rather than exposing a rounded/partial total. Individual exact row values remain available. Two-decimal display formatting is deferred to M11.7.
+
+### Eligibility and mandatory review
+
+`State` is `Blocked` if reference/economics preparation is ineligible or any preview diagnostic is an error. Otherwise it is `RequiresReview`; a warning-only preview is not automatically accepted. Account, Instrument, parser and economics errors cannot be overridden by acknowledging warnings.
+
+Each warning produces a `WarningAcknowledgment` requirement retaining its message and affected source rows. This includes `POSITION_BOUNDARIES_UNVERIFIED` and **each** `POSITION_GROUPING_AMBIGUOUS` group. The caller must show and obtain acknowledgment that the records are separate reported closed rows, not recovered complete broker positions; acknowledging them never changes the candidates' false `ArePositionBoundariesVerified` value. Each distinct Instrument proposal also adds an `InstrumentCreationApproval` requirement linked to its canonical symbol, exact specifications and affected rows. A warning acknowledgment alone cannot approve creation.
+
+`TopstepPreviewReview` carries the reviewed `SnapshotFingerprint` and accepted requirement keys. `MeetsReviewRequirements` returns true only for an otherwise eligible preview, an exact matching fingerprint, and the complete exact set of required keys. It is a **pure review-completeness check**, not an import operation, freshness guarantee or write authorization. M11.6 must enforce it in addition to source/reference revalidation and transactional import. Consumers must never prepopulate acknowledgments from an older/different preview or treat programmatic key enumeration as user consent. There is no UI that captures this consent in M11.5.
+
+### Source identity, stale snapshots and concurrent requests
+
+The builder copies the source asynchronously into a private in-memory byte snapshot and both hashes and parses that same snapshot. Seekable streams must begin at position zero; nonseekable streams must supply the complete file. The source is consumed but left open. Callers must not concurrently read/mutate the supplied stream; when opening a file, use sharing that excludes writers. I/O failures and cancellation propagate rather than becoming a valid empty preview. No raw source content, full path or broker identifier is logged.
+
+The versioned `topstep-preview-v1` SHA-256 snapshot fingerprint covers basename/content hash/length, explicit Account selection, cost interpretation, copied and sorted verification attestations, prepared row/source economics and provenance, relevant Account/full canonical matching-set snapshots, proposals, diagnostics, summary and review requirements. JSON property order and invariant decimal/date serialization are fixed by this version; input verification sets and matching sets have deterministic ordering. Rebuilding the same input/facts is stable across culture; changed bytes (even if the normalized economics are unchanged), basename, account selection or relevant reference facts produce a different fingerprint and invalidate old review decisions. Unrelated catalog entries do not need to invalidate the review. Source IDs appear only within the in-memory model/hash input, not diagnostic messages; never log the whole preview or serialized hash payload.
+
+A fingerprint is a change detector, **not** an authenticated token, durable deduplication key, database lock or promise of present-time freshness. M11.6 must reopen/recheck content and revalidate the selected Account and complete matching set inside its write transaction, including newly ambiguous inactive matches and proposal absence/specifications. It must compare the fresh material facts to the accepted snapshot and require a new review on changes. Policy/serialization changes require a fingerprint-version change; no timestamp/random GUID makes identical previews spuriously different. Cross-import identity remains future work.
+
+Each builder permits one active request. An overlapping call throws a clear `InvalidOperationException` before consuming its source; requests are not silently queued behind an obsolete selection. `finally` releases this guard after success, failure or cancellation. There is no shared `LastPreview`, cached selection or publication callback; separate builder instances may prepare independent streams. A later UI must cancel/await the current request before rebuilding and own which returned result belongs to its current file/account selection. The stream copy, stages and reader operations receive cancellation, with cancellation checks before returning a result.
+
+### Supplied-file verification
+
+The production full preview pipeline was run on the supplied CSV against **three isolated migrated SQLite databases**, using real readers with `Mode=ReadOnly`. Customer source data/IDs were neither tracked nor persisted. The real journal was not opened.
+
+| Reference setup | Preview state | Counts, diagnostics and review requirements |
+| --- | --- | --- |
+| One verified MNQ + explicit compatible account | `RequiresReview` | 25 accepted, 0 rejected, 25 distinct closed-row candidates; 1 boundary + 3 grouping warnings, 0 errors. All four acknowledgments required. |
+| Missing MNQ | `RequiresReview` | Same 25 rows/four grouping warnings plus one creation-proposal warning; one complete canonical proposal with separate creation approval required. |
+| Two canonical MNQ matches | `Blocked` | Same 25 source candidates and four warnings; `MULTIPLE_INSTRUMENT_MATCHES` plus 25 row-specific `PRICING_NOT_VERIFIED` errors; Net/verified totals unavailable. Accepting all requirements cannot override the errors. |
+
+Both verified/proposed cases produce exact aggregates **1,241.00 USD Gross, 51.84 Fees, 36.00 Commissions and 1,153.16 Net**. Rebuilding each case produced the same fingerprint. Trades, executions, browse projections and import-ledger counts remained zero; seeded Account/Instrument counts were unchanged and the isolated database files were byte-for-byte unchanged after preview. Passing review-completeness checks with synthetic decisions was tested, not represented as actual user consent or interactive acceptance.
+
 ## Automated coverage
+
+M11.5 adds 25 cases (21 Application, 4 Infrastructure) for composed preview fields/counts, exact prices/costs, warning-only and proposed-Instrument review, stage-specific blockers, affected-row provenance, snapshot stability across culture, source/file/account/reference changes, deleted/cleared selection, cancellation/failure recovery, overlapping requests, and aggregate overflow/precision loss. Real-stage SQLite coverage protects existing/proposed/ambiguous results and zero import/reference writes. All **197 focused Topstep tests** and the **1,917-test full Release suite** pass (400 Domain, 400 Application, 613 Infrastructure, 504 Desktop), with no failures/skips. Release build has zero warnings/errors; `git diff --check` passes.
 
 M11.4 adds 31 Application and 4 SQLite integration cases for existing/missing/proposed/inactive/ambiguous references, profile/specification and explicit verification gates, exact contract tokens, account selection/provider/currency/deletion, repeated fresh resolution, cancellation/failures, unchanged costs/provenance and read-only real-reader operation. All **172 focused Topstep tests** and **1,892 full Release tests** pass (400 Domain, 379 Application, 609 Infrastructure, 504 Desktop), with no failures/skips and zero build warnings/errors; `git diff --check` passes. There is no M11.4 interactive UI claim.
 
@@ -234,10 +283,10 @@ M11.1 verification passed 108 focused Topstep/Tradovate CSV tests and the full 1
 
 The supplied 25-row export was parsed locally through the production parser: 25 accepted, 0 rejected, 0 diagnostics. Its source `+03:00` timestamps, `-05:00` TradeDay offsets, and all 25 subsecond durations were preserved. The customer CSV and its identifiers are not repository fixtures. This is parsing evidence, not import acceptance; the real journal was not opened.
 
-## Remaining limitations for M11.5–M11.7
+## Remaining limitations for M11.6–M11.7
 
 - M11.2 supports the reported closed quantity per row. Its membership in a complete broker flat-to-flat position remains unknown. A finer position-grouping mode would require reliable common position/fill identifiers, account context, or complete position history; shared times, TradeDay, and source Id proximity do not supply that evidence.
 - What are the scope and stability of `Id` across account exports and re-exports, and how is account identity supplied? This must be settled before durable deduplication in M11.6.
 - M11.4 resolves reviewed MNQ metadata and explicitly verified existing Instruments; other roots have no built-in creation profile. Historical specification changes need independent evidence and policy review. A zero-PnL row cannot verify point value. Short year tokens are preserved rather than expanded into a guessed absolute expiry.
 - The reviewed USD schema supports additive Fees and Commissions totals and Gross-reported PnL, but a different schema/currency, net-reported PnL, rebates, or rounded economics requires new evidence and explicit policy. Future rates must still come from the CSV, not the published table.
-- Later preview/persistence must retain row-level provenance, these diagnostics, grouping warnings, and the cost interpretation, then allocate each verified row cost total exactly once. No transactions, deduplication, Desktop wiring, or broker execution fabrication is implemented here. Tradovate's unknown-cost behavior remains unchanged.
+- M11.5 retains row-level provenance, diagnostics, grouping warnings, cost interpretation and snapshot-bound review requirements. Later persistence must enforce those requirements and allocate each verified row cost total exactly once. No transactions, durable deduplication, Desktop wiring, or broker execution fabrication is implemented here. Tradovate's unknown-cost behavior remains unchanged.

@@ -34,6 +34,8 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M11.4 — Topstep References: Read-only Instrument resolution and explicit Account mapping implemented**
 
+**Milestone M11.5 — Topstep Preview: Read-only composition, validation and snapshot-bound review implemented**
+
 **Desktop Theme System — System / Dark / Light: Complete**
 
 **Entity Lifecycle & CRUD UX: Complete**
@@ -159,6 +161,8 @@ M11.3 reconciles each Topstep row using caller-verified Instrument point value/c
 
 M11.4 adds `TopstepReferencePreparationService`, using the existing read-only Account and Instrument readers. Each request requires an explicitly selected **USD Account with ProviderName `Topstep`** (trimmed, case-insensitive exact match); there is no account inference, remembered fallback, or provider alias. Inactive explicitly selected Accounts and uniquely verified inactive Instruments are allowed for historical review with warnings, never reactivated. Contract root/month/year tokens remain traceable: MNQ is checked against reviewed CME/USD specifications (0.25 tick, 0.50 tick value, 2 point value, quarterly contracts). A missing MNQ produces a complete **read-only proposal requiring later approval**, not an Instrument. Multiple canonical matches always block before activity/specification filtering; wrong specifications also block. Other roots require an existing complete catalog entry plus explicit verification bound to the exact source contract and full catalog snapshot, never evidence inferred from PnL. Resolved pricing feeds M11.3 without changing rows or costs. Every run rereads reference data; the result retains matching-set/account snapshots for M11.5 review and M11.6 revalidation, plus separate provider/account/source-row identity. The sample retains 25 candidates and four grouping warnings. No Topstep persistence, deduplication, confirmation, or Desktop integration is added. See [reference resolution and account policy](docs/topstep-csv-import.md#m114-instrument-resolution-and-explicit-account-mapping).
 
+Topstep's read-only `TopstepImportPreviewBuilder.BuildAsync` now composes parsing, closed-row reconstruction, current reference resolution and economics. Supply a complete CSV stream, file name, explicitly selected Account and verified cost interpretation. The preview exposes exact row values, counts, account/Instrument snapshots, complete proposals and stage-specific diagnostics with affected source rows. **Topstep closed-row records are not verified broker positions.** Valid previews require acknowledgment of every warning; proposals additionally require approval of their exact specifications. Review decisions bind to a versioned fingerprint of source bytes and the reviewed snapshot and cannot bypass errors. Rebuild after changing the file/account/references; concurrent requests on the same builder are rejected until the active request finishes or is cancelled. No data is persisted and the Desktop Import page remains Tradovate-only. M11.6 must implement transactional source/reference revalidation and import; M11.7 owns display formatting/UI. See [Topstep preview and review requirements](docs/topstep-csv-import.md#m115-read-only-preview-and-validation).
+
 To import a supported Tradovate matched-fills export:
 
 1. Open **Import** and choose **Select CSV**.
@@ -261,6 +265,8 @@ dotnet build PersonalTradingJournal.sln
 ```
 
 ## Test
+
+The current Topstep read-only preview boundary is covered by 197 focused Topstep tests and a **1,917-test passing Release suite** (400 Domain, 400 Application, 613 Infrastructure, 504 Desktop), with zero build warnings/errors. Local supplied-file checks against isolated migrated read-only SQLite verified 25 closed-row candidates, required warning/proposal review, stable rebuild fingerprints, the expected exact Gross/cost/Net totals, and unchanged database bytes. These are Application/pipeline checks, not Desktop or import-confirmation acceptance.
 
 ```powershell
 dotnet test PersonalTradingJournal.sln
