@@ -2227,9 +2227,9 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="110" />
                                 <ColumnDefinition Width="1.1*" MinWidth="140" />
-                                <ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="94" />
                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
-                                <ColumnDefinition Width="80" />
+                                <ColumnDefinition Width="56" />
                                 <ColumnDefinition Width="180" />
                                 <ColumnDefinition Width="122" />
                             </Grid.ColumnDefinitions>
@@ -2405,9 +2405,9 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="110" />
                                                 <ColumnDefinition Width="1.1*" MinWidth="140" />
-                                                <ColumnDefinition Width="70" />
+                                                <ColumnDefinition Width="94" />
                                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
-                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="56" />
                                                 <ColumnDefinition Width="180" />
                                                 <ColumnDefinition Width="122" />
                                             </Grid.ColumnDefinitions>
@@ -2439,6 +2439,10 @@
                                                        Style="{StaticResource PtjBodyTextStyle}"
                                                        Text="{Binding TradingAccountName}"
                                                        ToolTip="{Binding TradingAccountName}"
+                                                       TextWrapping="Wrap"
+                                                       LineHeight="18"
+                                                       LineStackingStrategy="BlockLineHeight"
+                                                       MaxHeight="36"
                                                        TextTrimming="CharacterEllipsis" />
 
                                             <StackPanel Grid.Column="3"

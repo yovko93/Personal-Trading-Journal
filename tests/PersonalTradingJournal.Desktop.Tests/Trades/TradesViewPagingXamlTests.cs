@@ -286,9 +286,9 @@ public sealed class TradesViewPagingXamlTests
         const string columns =
             "<ColumnDefinition Width=\"110\" />\\s*" +
             "<ColumnDefinition Width=\"1.1\\*\" MinWidth=\"140\" />\\s*" +
-            "<ColumnDefinition Width=\"70\" />\\s*" +
+            "<ColumnDefinition Width=\"94\" />\\s*" +
             "<ColumnDefinition Width=\"1.2\\*\" MinWidth=\"155\" />\\s*" +
-            "<ColumnDefinition Width=\"80\" />\\s*" +
+            "<ColumnDefinition Width=\"56\" />\\s*" +
             "<ColumnDefinition Width=\"180\" />\\s*" +
             "<ColumnDefinition Width=\"122\" />";
 
@@ -336,7 +336,8 @@ public sealed class TradesViewPagingXamlTests
         // table's 884-DIP floor. Narrower viewports retain horizontal scrolling.
         var columns = header.Element(presentation + "Grid.ColumnDefinitions")!
             .Elements(presentation + "ColumnDefinition").ToArray();
-        Assert.Equal("70", (string?)columns[2].Attribute("Width"));
+        Assert.Equal("94", (string?)columns[2].Attribute("Width"));
+        Assert.Equal("56", (string?)columns[4].Attribute("Width"));
         Assert.Equal("122", (string?)columns[6].Attribute("Width"));
         double minimumColumns = columns.Sum(column => double.Parse(
             (string?)column.Attribute("MinWidth") ?? (string)column.Attribute("Width")!.Value,
@@ -348,6 +349,10 @@ public sealed class TradesViewPagingXamlTests
         XElement account = Assert.Single(row.Elements(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding TradingAccountName}");
         Assert.Equal("CharacterEllipsis", (string?)account.Attribute("TextTrimming"));
+        Assert.Equal("Wrap", (string?)account.Attribute("TextWrapping"));
+        Assert.Equal("18", (string?)account.Attribute("LineHeight"));
+        Assert.Equal("BlockLineHeight", (string?)account.Attribute("LineStackingStrategy"));
+        Assert.Equal("36", (string?)account.Attribute("MaxHeight"));
         Assert.Equal("{Binding TradingAccountName}", (string?)account.Attribute("ToolTip"));
         Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "Net unavailable: commission/fees unknown." &&
