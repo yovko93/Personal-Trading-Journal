@@ -284,8 +284,8 @@ public sealed class TradesViewPagingXamlTests
     {
         string view = ReadTradesView();
         const string columns =
-            "<ColumnDefinition Width=\"110\" />\\s*" +
-            "<ColumnDefinition Width=\"1.1\\*\" MinWidth=\"140\" />\\s*" +
+            "<ColumnDefinition Width=\"126\" />\\s*" +
+            "<ColumnDefinition Width=\"1.1\\*\" MinWidth=\"124\" />\\s*" +
             "<ColumnDefinition Width=\"94\" />\\s*" +
             "<ColumnDefinition Width=\"1.2\\*\" MinWidth=\"155\" />\\s*" +
             "<ColumnDefinition Width=\"56\" />\\s*" +
@@ -336,6 +336,8 @@ public sealed class TradesViewPagingXamlTests
         // table's 884-DIP floor. Narrower viewports retain horizontal scrolling.
         var columns = header.Element(presentation + "Grid.ColumnDefinitions")!
             .Elements(presentation + "ColumnDefinition").ToArray();
+        Assert.Equal("126", (string?)columns[0].Attribute("Width"));
+        Assert.Equal("124", (string?)columns[1].Attribute("MinWidth"));
         Assert.Equal("94", (string?)columns[2].Attribute("Width"));
         Assert.Equal("56", (string?)columns[4].Attribute("Width"));
         Assert.Equal("122", (string?)columns[6].Attribute("Width"));
@@ -345,6 +347,13 @@ public sealed class TradesViewPagingXamlTests
         Assert.Equal(857, minimumColumns);
         Assert.True(minimumColumns + 26 <= double.Parse(
             (string)table.Attribute("MinWidth")!, System.Globalization.CultureInfo.InvariantCulture));
+
+        XElement openedHeader = Assert.Single(header.Elements(presentation + "Button"), item =>
+            (string?)item.Attribute("Grid.Column") == "0");
+        Assert.Contains(openedHeader.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Opened (New York)");
+        Assert.Contains(openedHeader.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding OpenedAtUtcSortIndicator}");
 
         XElement account = Assert.Single(row.Elements(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding TradingAccountName}");

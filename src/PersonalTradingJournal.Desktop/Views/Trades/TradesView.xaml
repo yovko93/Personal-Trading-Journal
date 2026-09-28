@@ -2225,8 +2225,8 @@
                                         Width="{Binding ViewportWidth, ElementName=TradeListScrollViewer}">
                         <Grid Margin="13,0,13,8">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="110" />
-                                <ColumnDefinition Width="1.1*" MinWidth="140" />
+                                <ColumnDefinition Width="126" />
+                                <ColumnDefinition Width="1.1*" MinWidth="124" />
                                 <ColumnDefinition Width="94" />
                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                 <ColumnDefinition Width="56" />
@@ -2403,8 +2403,8 @@
                                         </Border.Style>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="110" />
-                                                <ColumnDefinition Width="1.1*" MinWidth="140" />
+                                                <ColumnDefinition Width="126" />
+                                                <ColumnDefinition Width="1.1*" MinWidth="124" />
                                                 <ColumnDefinition Width="94" />
                                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                                 <ColumnDefinition Width="56" />
