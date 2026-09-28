@@ -68,7 +68,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and its current transient state, and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, or Trades from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
+`MainWindowViewModel` retains the injected Dashboard, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
 
 ## ViewModel-to-View Mapping
 
@@ -79,6 +79,7 @@ DashboardViewModel   -> DashboardView
 TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
+ImportViewModel      -> ImportView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
 SettingsViewModel        -> SettingsView
@@ -89,7 +90,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Policy
 
-Seven destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 12 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Eight destinations—Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 11 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
@@ -109,6 +110,18 @@ The Dashboard is presentation-only. It contains empty visual regions for:
 The four metric values display `—` rather than fake zeroes or sample financial data. `DashboardViewModel` is intentionally empty, and the Dashboard performs no analytics or database queries. Data loading and real calculations are deferred.
 
 Dashboard metrics describe financial and statistical results; they must not infer process quality from profit or loss. Good process can lose, and bad process can profit. Future process-quality analysis must be modeled explicitly.
+
+## Tradovate Import
+
+Import has a read-only review phase followed by explicit transactional confirmation. It uses one vertically scrolling page with source-file selection, explicit Trading Account selection, analysis summary, Instrument resolution, Trade candidates, staged diagnostics, and confirmation/result feedback. Selecting a CSV immediately runs parsing, reconstruction, and Instrument resolution; selecting an Account is not required until `Build Preview`. Account options include type, currency, and available provider/external identity, allowing duplicate names to remain distinguishable. Inactive Accounts remain selectable for historical data and are labeled as inactive.
+
+The picker returns only the filename and stream. The ViewModel closes the stream after parsing and does not retain raw CSV content or a full path. Preview times are labeled and rendered in `America/New_York`, while the summary makes the `Europe/Sofia -> UTC -> America/New_York` policy explicit. Unknown Instrument metadata, invalid or ambiguous source time, missing Accounts, and every upstream diagnostic remain visible without silently inventing values.
+
+Instrument cards show display name, asset class, exchange, currency, Tick Size, and Tick Value. Existing values come from the PTJ Instrument snapshot preserved during resolution; proposals use the verified creation proposal and explicitly state that creation waits for confirmation. Unresolved mappings/metadata block confirmation; the page does not offer an arbitrary mapping editor or silently choose among ambiguous Instruments. `Build Preview` reruns resolution so catalog corrections can be reviewed. Candidate weighted average prices display exactly two culture-aware decimal places without changing preview data. Source-reported P&L is evidence only. Commission/fee and completeness warnings remain non-blocking; imported costs and Net P&L stay unknown. Account changes invalidate the generated preview but preserve file analysis. Navigating away and back clears the file workflow while preserving loaded Account options.
+
+`Import Trades` requires a current valid preview and opens the shared confirmation dialog with Account, file, counts, and warnings. Cancel performs no import and retains the preview. A completed `Imported` or `No changes` outcome clears the active preview and intermediate analysis/resolution/candidate/diagnostic sections, retains outcome counts, and changes `3. Confirm import` to `Confirm import`. The source section remains ready for another file, and the completed preview cannot be submitted again. Imported Trades/Instruments invalidate shell caches for subsequent authoritative reads; duplicate-only replay does not raise a write event. Duplicate counts are available after confirmation, not precomputed in the read-only preview.
+
+Blocked results retain the analysis and relevant recovery information but disable stale confirmation. `REFERENCE_DATA_CHANGED` requires rebuilding; a missing Account refreshes options and requires reselection. Unsafe duplicate overlaps remain blocked. Operation cancellation and unexpected failure restore usable state, and command/submission guards prevent concurrent acceptance. See [Tradovate CSV Import](tradovate-csv-import.md) for source constraints, transaction semantics, and limitations, and [M10 acceptance](m10-acceptance.md) for verification status.
 
 ## Accounts Feature
 
@@ -136,7 +149,7 @@ Add Trade opens an inline form organized into Reference, Trade, Entry, and condi
 - an opening execution timestamp, price, commission, and fees; and
 - optionally, one full closing execution with its own timestamp, price, commission, and fees.
 
-Execution timestamps are entered explicitly as UTC and accept only `yyyy-MM-dd HH:mm:ss`, `yyyy-MM-dd HH:mm`, `yyyy-MM-dd'T'HH:mm:ss'Z'`, or `yyyy-MM-dd'T'HH:mm'Z'`. Desktop does not infer the Windows or New York timezone, convert arbitrary offsets, or accept ambiguous culture-specific dates. The resulting market facts use zero-offset UTC.
+Execution timestamps are entered explicitly as `America/New_York` wall-clock time and accept only `yyyy-MM-dd HH:mm:ss` or `yyyy-MM-dd HH:mm`. A trailing `Z`, an explicit offset, and culture-specific dates are rejected. Desktop converts each value through the shared trading-time policy before constructing the Application command; nonexistent spring-forward times and ambiguous fall-back times are rejected with specific validation. When Edit displays an already persisted fall-back-overlap time and that generated text remains unchanged, it retains the execution's known UTC instant instead of resolving the ambiguous wall clock again. The resulting command and Domain market facts remain zero-offset UTC and never depend on the Windows local timezone.
 
 Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` with `.` as a fallback. Leading/trailing whitespace, a sign, and a decimal point are supported; thousands separators, exponents, and currency symbols are rejected. Quantity must be greater than zero. Futures require whole contract quantities, while other asset classes allow positive decimals. Prices may be zero or negative when syntactically valid. Blank Commission or Fees becomes zero; otherwise each cost must be non-negative.
 
@@ -144,7 +157,7 @@ Manual decimal values parse with `CurrentCulture` first and `InvariantCulture` w
 
 The M6 form supports one opening execution plus an optional full closing execution. This is a deliberately simple capture workflow; the Domain remains capable of scale-in and partial scale-out.
 
-After successful persistence, the draft resets, the form closes, and "Trade saved successfully." is shown. Desktop resets browsing to page 1 ordered by Opened UTC descending, performs a best-effort authoritative page reload, and never fabricates a local row. If that post-commit reload fails, the successful write and success feedback remain intact, the existing rows stay visible, and `TradeListErrorMessage` directs the user to Refresh. The reload is not treated as part of the Save failure outcome and does not inherit cancellation from the completed Save command.
+After successful persistence, the draft resets, the form closes, and "Trade saved successfully." is shown. Desktop resets browsing to page 1 ordered by canonical `OpenedAtUtc` descending, performs a best-effort authoritative page reload, and never fabricates a local row. If that post-commit reload fails, the successful write and success feedback remain intact, the existing rows stay visible, and `TradeListErrorMessage` directs the user to Refresh. The reload is not treated as part of the Save failure outcome and does not inherit cancellation from the completed Save command.
 
 Trade operation feedback remains separated:
 
@@ -157,13 +170,15 @@ Validation failure makes no persistence attempt and retains the draft. Technical
 
 ### Trade Browsing
 
-The Trade surface uses fixed 20-row pages over the complete persisted dataset. SQLite performs the count, selected ordering, `Skip`, and `Take`; Desktop retains only the current page. The initial order is Opened UTC descending. Previous and Next are shown only when more than one page exists, are disabled at their boundaries and during a page load, and display the current page plus total Trade count.
+The Trade surface uses fixed 20-row pages over the complete persisted dataset. SQLite performs the count, selected ordering, `Skip`, and `Take`; Desktop retains only the current page. The initial order is canonical `OpenedAtUtc` descending, while displayed Trade times are converted to New York. Previous and Next are shown only when more than one page exists, are disabled at their boundaries and during a page load, and display the current page plus total Trade count.
 
-Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are clickable sort headers; Actions is not sortable. Only the active header shows an up/down arrow. New columns default to ascending except Opened UTC and Net P&L, which default to descending; clicking the active column toggles direction and every sort returns to page 1. Average Prices sorts by exact average entry price, Open Qty by exact open quantity, and Net P&L by exact numeric outcome with open/null Trades always last. Every order ends with Trade ID ascending for stable page boundaries.
+Opened (New York), Trade, Account, Average Prices, and Net P&L are clickable sort headers; Size and Actions are not sortable. Only the active header shows an up/down arrow. New columns default to ascending except the canonical `OpenedAtUtc` sort and Net P&L, which default to descending; clicking the active column toggles direction and every sort returns to page 1. Average Prices sorts by exact average entry price and Net P&L by exact numeric outcome with null values always last. Every order ends with Trade ID ascending for stable page boundaries. Size is peak simultaneous absolute position quantity derived from that Trade's executions, including reversal allocations; it is distinct from cumulative entries and remaining Open Qty. Whole contracts omit redundant decimals, while fractional quantities retain precision.
 
 Sortable headers use a local border-free button template rather than changing the global button style. The active column keeps a theme-aware elevated background in either direction, inactive columns remain neutral, hover feedback is temporary, and keyboard focus remains available. The existing header/card Grid alignment is unchanged.
 
-Each row remains a distinct rounded card: winning and losing closed Trades receive restrained theme-aware success/danger surface tints, while flat and open Trades use the neutral elevated surface. Net P&L remains the primary outcome signal through semantic success/danger foregrounds; zero remains neutral and open Trades display a muted em dash rather than a fabricated zero or loss. Each row offers View, Edit, and a compact More menu containing destructive Delete. Account name and Instrument symbol are current reference-data labels, while lifecycle, prices, exposure, currency, and economics come from the Domain-derived browse projection and historical Trade snapshot.
+Each row remains a distinct rounded card. Row tint follows known Net P&L, falling back to known Gross when Net is unavailable; zero/null remains neutral. Gross and Net amounts independently use their own positive/negative semantic colors and currency. Unknown Net displays `—` with commission/fees guidance, while known zero remains numeric. Green Gross styling does not imply positive Net after unknown costs. Each row offers View and a compact More menu containing Edit and destructive Delete. Account name and Instrument symbol are current labels; lifecycle and economics remain authoritative. Average prices display exactly two culture-aware decimal places without rounding stored values.
+
+Header and row grids use matching columns. Opened reserves 126 DIP for the complete heading plus sort indicator; Account reserves 94 DIP and wraps within two 18-DIP lines, with ellipsis for excess text and a full-name tooltip; Size uses 56 DIP and Actions 122 DIP. Trade and Average Prices flex above their minimums. The table keeps an 884-DIP minimum inside its own horizontal scroller, preserving access to all fields at narrower viewports. Date/time, prices, P&L, and status retain their existing formatting; the unknown-cost explanation wraps.
 
 Refresh preserves page and sort, correcting to the highest valid page if external changes made the requested page invalid. Edit and Close preserve the current browse state and accept that a changed row may move to another page. Delete reloads the current page and explicitly retries the prior/highest page when the last row disappears. Trading Setup, Mistake, and screenshot-only changes do not trigger an unnecessary list reload. Navigating away clears transient detail, form, and preview state while retaining the loaded page, count, and sort.
 
@@ -171,23 +186,23 @@ Refresh preserves page and sort, correcting to the highest valid page if externa
 
 View loads the selected Trade through `ITradeDetailReader` and opens the authoritative detail surface. Its facts remain read-only; Edit and destructive Delete are explicit actions rather than inline setters. `TradesViewModel` exposes `SelectedTradeDetail`, `IsTradeDetailVisible`, `IsTradeDetailLoading`, `IsTradeDetailNotFound`, and `TradeDetailErrorMessage` for the selected projection and its loading, missing, and technical-error outcomes. Close clears detail state without clearing the loaded page. Returning to Trades also closes prior detail and related edit/screenshot/mistake state while preserving page, sort, rows, total count, and reference data.
 
-The detail presents current Account and Instrument identity labels; direction and status; current optional Trading Setup; opened and optional closed UTC timestamps; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. Gross and Net P&L use the same positive/negative/zero/null semantic foreground rules, with Net P&L given slightly stronger typographic emphasis. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
+The detail presents current Account and Instrument identity labels; direction and status; current optional Trading Setup; opened and optional closed timestamps in New York; open quantity; total costs; average entry and optional average exit prices; gross and net P&L; and the historical pricing point value and currency. Gross and Net P&L use the same positive/negative/zero/null semantic foreground rules, with Net P&L given slightly stronger typographic emphasis. An open partially exited Trade may have a non-null average exit price while gross and net P&L remain null under Domain semantics.
 
 The Setup section displays `—` when unclassified, marks an inactive historical Setup neutrally, lists active replacement options, and supports assign/change/clear through the Application use case. Successful mutations reload authoritative detail; safe section-local feedback distinguishes validation, persistence, and reload outcomes.
 
 Trading Mistakes are displayed as separate assigned observations with optional Notes. The picker excludes already assigned items and permits only active catalog definitions; inactive historical assignments remain visible and removable. Add and Remove use independent Application workflows, reload authoritative assignments and options, and never infer mistake severity or trade quality from P&L.
 
-Open Trades expose a close workflow that appends the full opposite-side execution for authoritative remaining quantity. Trade Detail also hosts screenshot add/list/preview/delete workflows. These operations retain their own loading, validation, success, error, and post-write reload states so unrelated sections do not overwrite one another.
+Open Trades expose a close workflow that accepts a New York exit time, converts it to canonical UTC, and appends the full opposite-side execution for authoritative remaining quantity. Trade Detail also hosts screenshot add/list/preview/delete workflows. These operations retain their own loading, validation, success, error, and post-write reload states so unrelated sections do not overwrite one another.
 
-Executions are shown individually in ascending sequence order as the complete lifecycle: sequence, execution UTC timestamp, side, quantity, price, commission, fees, total costs, and optional broker symbol, external execution ID, and external order ID provenance. The UI does not collapse scale-in or partial-exit history into an entry/exit pair.
+Executions are shown individually in ascending sequence order as the complete lifecycle: sequence, execution timestamp in New York, side, quantity, price, commission, fees, total costs, and optional broker symbol, external execution ID, and external order ID provenance. Unknown commission, fees, or total costs render as an em dash rather than zero. Underlying detail DTO values remain UTC. The UI does not collapse scale-in or partial-exit history into an entry/exit pair.
 
 ### Trade Edit and Delete
 
-Edit reuses the Manual Trade form language and prepopulates authoritative Account, Instrument, Direction, optional Setup, quantity, timestamps, prices, commission, and fees from `TradeDetail`, including execution identities rather than formatted display strings. The selector lists expose active alternatives plus an inactive Account, Instrument, or Setup already assigned to the Trade; other inactive records cannot be newly selected. Switching Long/Short is translated into corrected opening/closing execution sides. The current UI deliberately edits the one-entry/optional-full-exit manual shape and refuses to flatten a richer multi-execution lifecycle into that form.
+Edit reuses the Manual Trade form language and prepopulates authoritative Account, Instrument, Direction, optional Setup, quantity, timestamps, prices, commission, and fees from `TradeDetail`, including execution identities rather than formatted display strings. Persisted UTC execution instants are formatted as New York input and convert back to the same UTC instants when unchanged; imported Sofia source timestamps are not shown in the manual edit fields. A Trade containing any unknown execution commission or fee is refused rather than converting that unknown value to zero. The selector lists expose active alternatives plus an inactive Account, Instrument, or Setup already assigned to the Trade; other inactive records cannot be newly selected. Switching Long/Short is translated into corrected opening/closing execution sides. The current UI deliberately edits the one-entry/optional-full-exit manual shape and refuses to flatten a richer multi-execution lifecycle into that form.
 
 Saving calls `UpdateTradeUseCase`, which corrects immutable executions and lets the Domain recalculate status, exposure, averages, costs, and P&L. The same Instrument retains its historical pricing snapshot, while an Instrument change rebuilds it and revalidates quantity semantics. Existing execution IDs and hidden broker/import provenance are preserved when their logical execution remains. Setup may be kept, changed to an active Setup, or cleared. Trade Mistake assignments and screenshot metadata/files remain unchanged. Cancel performs no write and returns to the existing detail; success reloads authoritative detail and the current Trade page without clearing screenshot or mistake state.
 
-Delete uses the shared Danger confirmation and identifies the Trade by Instrument and opened UTC timestamp. A confirmed hard delete permanently removes the Trade plus its execution rows, Trade Mistake associations, and screenshot metadata, then attempts physical screenshot cleanup. Success clears stale detail, screenshot, mistake, and selection state and refreshes the current Trade page, correcting an invalid last page when necessary. A post-commit file cleanup failure is reported as a warning rather than presented as a failed database delete; cancellation at the confirmation performs no work.
+Delete uses the shared Danger confirmation and identifies the Trade by Instrument and opened New York timestamp. A confirmed hard delete permanently removes the Trade plus its execution rows, Trade Mistake associations, and screenshot metadata, then attempts physical screenshot cleanup. Success clears stale detail, screenshot, mistake, and selection state and refreshes the current Trade page, correcting an invalid last page when necessary. A post-commit file cleanup failure is reported as a warning rather than presented as a failed database delete; cancellation at the confirmation performs no work.
 
 ## Trading Setup and Trading Mistake Catalogs
 
@@ -219,7 +234,7 @@ Accounts, Instruments, Trading Setups, and Trading Mistakes each use one page-le
 
 This is appropriate for the current reference-data lists, but it is not a universal requirement for future large or virtualized datasets.
 
-Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scrolling disabled. The toolbar, manual form, conditional Exit section, Trade Detail, paged Trade list, execution lifecycle, action controls, and feedback surfaces remain in that scrolling region. This is the current feature-page layout, not a universal policy for future large or virtualized datasets.
+Trades likewise uses one page-level vertical `ScrollViewer`, with horizontal scrolling disabled at the page level. The paged list has its own horizontal `ScrollViewer` around both headers and rows. At narrow widths, scroll the page down to the table's horizontal scrollbar to reach columns beyond the viewport. The toolbar, manual form, conditional Exit section, Trade Detail, execution lifecycle, action controls, and feedback surfaces remain in the page's vertical region.
 
 ## Design System
 
@@ -268,6 +283,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - `InstrumentsViewModel` depends on instrument-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on purpose-specific Application catalog readers and create/detail/update/delete/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/correction/closure/deletion, Setup classification, Trading Mistake associations, and screenshots, plus the Desktop dialog boundary for destructive confirmation.
+- `ImportViewModel` orchestrates the Application import contracts, read-only preview builder, and `ImportTradovateTradesUseCase` after dialog approval; it neither resolves a database context nor calls an Infrastructure write store directly.
 - `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
 - Trading and domain rules must remain outside Desktop.
@@ -341,4 +357,4 @@ The following are intentionally not implemented:
 
 ## Next Milestone
 
-The Desktop Theme System is complete. The next milestone is M10 — Tradovate CSV Import; no CSV import implementation exists yet.
+M10's import implementation is present. Final interactive sign-off remains open as recorded in [M10 acceptance](m10-acceptance.md); no subsequent milestone is selected here.

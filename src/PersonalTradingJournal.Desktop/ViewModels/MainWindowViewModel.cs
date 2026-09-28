@@ -6,6 +6,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -18,6 +19,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
+    private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly SettingsViewModel _settingsViewModel;
@@ -30,6 +32,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         DashboardViewModel dashboardViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
+        ImportViewModel importViewModel,
         TradingMistakesViewModel tradingMistakesViewModel,
         TradingSetupsViewModel tradingSetupsViewModel,
         TradesViewModel tradesViewModel,
@@ -39,6 +42,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
+        ArgumentNullException.ThrowIfNull(importViewModel);
         ArgumentNullException.ThrowIfNull(tradingMistakesViewModel);
         ArgumentNullException.ThrowIfNull(tradingSetupsViewModel);
         ArgumentNullException.ThrowIfNull(tradesViewModel);
@@ -48,6 +52,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _dashboardViewModel = dashboardViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
+        _importViewModel = importViewModel;
         _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _tradesViewModel = tradesViewModel;
@@ -108,6 +113,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ];
         UpdateNavigationSelection(CurrentDestination);
         _themeService.ThemeChanged += OnThemeChanged;
+        _importViewModel.ImportCommitted += OnImportCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -176,7 +182,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand ToggleThemeCommand { get; }
 
-    public void Dispose() => _themeService.ThemeChanged -= OnThemeChanged;
+    public void Dispose()
+    {
+        _themeService.ThemeChanged -= OnThemeChanged;
+        _importViewModel.ImportCommitted -= OnImportCommitted;
+    }
 
     private void Navigate(NavigationDestination destination)
     {
@@ -194,6 +204,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
+            NavigationDestination.Import => _importViewModel,
             NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Trades => _tradesViewModel,
@@ -211,6 +222,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _instrumentsViewModel.ResetTransientState();
             _ = _instrumentsViewModel.EnsureLoadedAsync();
+        }
+
+        if (destination == NavigationDestination.Import)
+        {
+            _importViewModel.ResetTransientState();
+            _ = _importViewModel.EnsureLoadedAsync();
         }
 
         if (destination == NavigationDestination.Mistakes)
@@ -265,5 +282,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         OnPropertyChanged(nameof(IsLightTheme));
         OnPropertyChanged(nameof(ThemeToggleToolTip));
+    }
+
+    private void OnImportCommitted(object? sender, ImportCommittedEventArgs e)
+    {
+        _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+        if (e.CreatedInstrumentCount > 0)
+        {
+            _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
+        }
     }
 }

@@ -573,6 +573,11 @@ public sealed class InstrumentsViewModel : ObservableObject
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
     }
 
+    public void InvalidateLoadedDataAfterExternalImport()
+    {
+        _hasLoadedSuccessfully = false;
+    }
+
     public void ResetTransientState()
     {
         ViewInstrumentCommand.Cancel();

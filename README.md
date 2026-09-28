@@ -2,7 +2,7 @@
 
 Personal Trading Journal is a local-first Windows desktop application designed to help traders record, review, analyze, and improve their trading process. The initial focus is futures trading, especially instruments such as NQ and ES, while the architecture is intended to remain extensible to other markets and a possible future SaaS or web version.
 
-The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, complete lifecycle management for Trading Accounts, Instruments, Trading Setups, and Trading Mistakes, and manual Trade create/list/view/edit/close/delete workflows. Trades also support local screenshots, Setup classification, Mistake assignments, and an authoritative SQLite-paged and sortable browse view. Imports, journal workflows, operational analytics, and AI capabilities have not yet been implemented.
+The repository currently contains the application foundation, the core trading Domain model, local EF Core/SQLite persistence, the WPF shell and navigation foundation, persisted System/Dark/Light appearance preferences, complete lifecycle management for Trading Accounts, Instruments, Trading Setups, and Trading Mistakes, and manual Trade create/list/view/edit/close/delete workflows. Trades also support local screenshots, Setup classification, Mistake assignments, an authoritative SQLite-paged and sortable browse view, and a reviewed Tradovate matched-fills CSV import workflow. Journal workflows, operational analytics, and AI capabilities have not yet been implemented.
 
 ## Current Status
 
@@ -23,6 +23,8 @@ The repository currently contains the application foundation, the core trading D
 **Milestone M8 — Screenshot Management: Complete**
 
 **Milestone M9 — Setup and Mistake Classification: Complete**
+
+**Milestone M10 — Tradovate CSV Import: Implemented; final interactive acceptance pending**
 
 **Desktop Theme System — System / Dark / Light: Complete**
 
@@ -129,17 +131,49 @@ Trading Setup is the single reusable trade-pattern classification. The overlappi
 
 The Entity Lifecycle & CRUD UX milestone completes consistent View/Edit/Delete presentation and explicit entity-specific update and deletion workflows. Accounts, Instruments, Trading Setups, and Trading Mistakes may be hard deleted only while unused; referenced records remain editable and can be deactivated without breaking historical Trades. Trades support correction through the Domain aggregate and confirmed hard deletion of their owned database records, followed by best-effort physical screenshot cleanup.
 
-Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, and take. Opened UTC, Trade, Account, Average Prices, Open Qty, and Net P&L are sortable; deterministic Trade-ID tie-breaking and exact decimal sort keys preserve stable page boundaries without SQLite floating-point economics.
+Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, and take. Opened UTC, Trade, Account, Average Prices, and Net P&L are sortable; deterministic Trade-ID tie-breaking and exact decimal sort keys preserve stable page boundaries without SQLite floating-point economics.
+
+The Trades list's **Size** column shows peak simultaneous absolute position quantity (contracts for futures), including for closed Trades. It is calculated from each Trade's persisted execution sequence, using only that Trade's allocated portion of a reversal fill. Scaling back in after a partial close does not add previously closed exposure to Size. Only the current page's execution quantities are fetched, in one batch; no stored values or schema changes are required. Size is display-only, not sorted by the former Open Qty sort key. Whole quantities display without trailing decimals, while meaningful fractional quantities remain exact. Details and close-position controls still use the genuine remaining **Open Qty**.
+
+Each Trades list row shows **View** and a three-dot actions button. Open the actions menu for **Edit** or **Delete**; both actions apply to that row's Trade. Delete retains its confirmation dialog, and keyboard users can open and navigate the menu.
+
+The Trades table keeps header and row columns aligned. Its Opened column shows the full "Opened (New York)" heading and sort indicator, while Size remains compact and Account names can wrap across two lines. Longer account names may be shortened visually; hover or focus the name to read the full name in a tooltip. View and the three-dot actions menu remain visible at the normal window size. At narrower viewport widths the table scrolls horizontally so prices, P&L, status, and row actions remain accessible. The unknown-cost explanation wraps within the P&L column.
+
+The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, resolves existing or proposed Instruments, applies the unified Europe/Sofia source-to-UTC-to-America/New_York time policy, and prepares an explicit Trading Account selection. The Desktop presents the analysis, warnings, blocking diagnostics, Instrument economics, New York trade times, and a read-only preview before showing a non-destructive confirmation dialog. Only an explicitly confirmed, currently valid preview reaches the Application import use case and its atomic SQLite transaction.
+
+M10 covers stages M10.1–M10.7, not just Desktop confirmation. See [Tradovate CSV Import](docs/tradovate-csv-import.md) for the exact required matched-fills headers, reconstruction and confirmation contracts, and [M10 acceptance](docs/m10-acceptance.md) for the final acceptance matrix and remaining interactive checks. Arbitrary execution/order CSV formats are not supported. The current automatic Instrument-creation profile is MNQ; other canonical Instruments need complete compatible catalog metadata, and Import has no arbitrary symbol-mapping editor.
+
+To import a supported Tradovate matched-fills export:
+
+1. Open **Import** and choose **Select CSV**.
+2. Review the analysis and Instrument resolution, then explicitly select the destination Trading Account.
+3. Choose **Build Preview** and inspect the summary, proposed Instruments, candidate Trades, New York timestamps, warnings, and errors. Candidate weighted average entry and exit prices display two culture-aware decimal places; underlying preview and imported execution prices retain full precision.
+4. Choose **Import Trades**, review the final confirmation, and accept it to persist the import.
+5. Review the Imported, Duplicates Skipped, and Instruments Created counts. After an Imported or No changes result, temporary analysis, Instrument resolution, Trade candidates, and diagnostics are cleared; the source-file section and final outcome remain visible under the `Confirm import` heading. Select another CSV to start a new preview and explicitly choose its Trading Account. Opening Trades or Instruments after a committed import reloads their authoritative data.
+
+If the selected Account disappears before confirmation, recovery guidance remains visible below the account selector even though the obsolete preview is cleared. Select an available Account and choose **Build Preview** again. Cancelling the confirmation dialog leaves the reviewed preview unchanged and performs no import.
+
+Imported commission and fee values remain `null` (unknown, not known zero) because the supported export does not contain them. Exact fill identities are durable per selected PTJ Account: exact duplicate Trades are skipped, mixed new/duplicate imports report both counts, and unsafe partial overlaps block the whole operation. A reference-data change after preview never causes silent Instrument substitution; the user is directed to rebuild the preview, which re-runs Instrument resolution without reparsing the CSV. Unsupported or ambiguous Instrument metadata remains blocking and must be resolved in reference data before import.
+
+Duplicate counts are determined during transactional confirmation, not by the read-only preview. Commission/fee source identification and import remain explicitly deferred. The manual Edit form refuses unknown costs and richer imported execution lifecycles instead of fabricating costs or flattening the Trade. The import does not prove source completeness, archive raw CSV files, persist source-reported P&L, or provide an import-history screen.
+
+An unambiguous position reversal can allocate one real broker fill between closing the current Trade and opening the opposite Trade. Both allocations retain the same broker fill identity, price, and timestamp; their quantities sum exactly to the unchanged source fill quantity. The import ledger stores allocation ordinals and immutable source economics, so replay skips both Trades without duplicating fills or allocations. Existing identity-only ledger rows remain valid through an additive migration; their unknown historical economics are not inferred from subsequently edited Trades. Matched-row evidence is partitioned between reversal candidates so preview Source P&L is not double-counted. Commission and fees remain unknown.
+
+Equal timestamps alone do not block reconstruction. At one timestamp, matched quantities paired with earlier fills close those earlier lots before unrelated quantities paired with later fills open new lots; a source-supported crossing fill retains its closing/opening allocations. This is a matched-lot lifecycle rule, not a claim about the broker's unrecorded sub-second sequence. Harmless within-lifecycle ties may use a stable fill-ID order only when quantities, Trade membership, weighted prices, and P&L cannot change. For directly matched buy/sell fills sharing the same timestamp, reconstruction checks feasible allocations: if direction, boundaries, or allocation quantities remain unresolved, `TIMESTAMP_ORDER_AMBIGUOUS` names the symbol, timestamp, affected fills, and missing sequence/evidence. The order search is bounded and cancellable; an unresolved search also blocks safely. Source P&L is preserved as reported evidence, never rewritten or used by itself to invent an order. Contradictory matched quantities also remain blocking.
+
+**Build Preview** requires both an eligible reconstruction and an explicitly selected Account. A reconstruction blocker keeps it disabled; choosing an Account alone cannot bypass that blocker. Selecting a different CSV clears the obsolete preview and re-analyzes the source; changing the Account invalidates the old preview and requires rebuilding it. Analysis and preview never persist Trades, executions, allocations, or proposed Instruments. `SOURCE_COMPLETENESS_UNVERIFIED` remains a separate warning because matched fills alone cannot prove complete execution history.
+
+Trades list rows and Details show Gross P&L with its currency for closed Trades when it can be calculated. Each known Gross and Net amount is colored by its own sign; zero and unavailable amounts remain neutral. Net P&L stays `—` when costs are unknown, with an explicit commission/fees explanation; a calculated zero is displayed as `0`. Trades list row color follows known Net P&L, or known Gross P&L when Net is unavailable. A green Gross amount or row does not establish a positive Net result when costs are unknown. Average entry and exit prices display exactly two culture-aware decimal places in the list and Details; full stored and calculation precision is unchanged. The imported MNQ sample with two contracts, a 1.25-point gain, and a 2 USD point value has 5 USD Gross P&L and unknown Net P&L.
 
 The Desktop Theme System adds one semantic design system backed by parity-checked Dark and Light resource dictionaries. Theme-sensitive brushes update live through `DynamicResource`. Settings offers System, Dark, and Light; System follows the Windows application theme, while the compact header toggle switches the effective appearance to an explicit opposite preference. `%LocalAppData%\PersonalTradingJournal\settings.json` restores the preferred mode—not its resolved appearance—before the main window is shown. Missing or invalid settings safely fall back to System.
 
 The Desktop creation workflows share a compact form language for Manual Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes. Consistent section hierarchy, field labels, optional markers, restrained helper text, visible focus treatment, semantic feedback, and primary/secondary actions improve scanability without changing validation or persistence behavior.
 
-Seven of the 19 shell destinations are concrete: Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other five are functional data-backed pages. The other 12 destinations remain placeholders.
+Eight of the 19 shell destinations are concrete: Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other six are functional data-backed pages. The other 11 destinations remain placeholders.
 
 The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
-The next milestone is **M10 — Tradovate CSV Import**.
+M10 implementation and automated coverage are available. Final acceptance remains open until the interactive checks in the acceptance record are observed; a subsequent milestone is not selected here.
 
 Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
@@ -216,7 +250,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The accepted Entity Lifecycle & CRUD UX baseline contains 1,454 passing tests: 395 Domain, 226 Application, 399 Infrastructure, and 434 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
+The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Application, 504 Infrastructure, and 504 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, isolated SQLite acceptance, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior. These automated tests do not establish interactive WPF acceptance; see the [acceptance record](docs/m10-acceptance.md).
 
 ## Run
 

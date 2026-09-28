@@ -221,7 +221,7 @@ public sealed class TradeBrowseProjectionTests
         {
             TradeBrowseRecord projection = await context.TradeBrowse
                 .SingleAsync(record => record.TradeId == trade.Id);
-            projection.ProjectionVersion = 0;
+            projection.ProjectionVersion = 1;
             projection.OpenQuantity = 999m;
             projection.OpenQuantitySortKey = DecimalSortKey.Encode(999m);
             projection.NetPnL = null;
@@ -255,7 +255,7 @@ public sealed class TradeBrowseProjectionTests
     private static void AssertMatches(Trade trade, TradeBrowseRecord projection)
     {
         Assert.Equal(trade.Id, projection.TradeId);
-        Assert.Equal(1, projection.ProjectionVersion);
+        Assert.Equal(2, projection.ProjectionVersion);
         Assert.Equal(trade.OpenedAtUtc, projection.OpenedAtUtc);
         Assert.Equal(trade.ClosedAtUtc, projection.ClosedAtUtc);
         Assert.Equal(trade.Direction, projection.Direction);
@@ -425,7 +425,7 @@ public sealed class TradeBrowseProjectionTests
         decimal AverageEntryPrice,
         string AverageEntryPriceSortKey,
         decimal? AverageExitPrice,
-        decimal TotalCosts,
+        decimal? TotalCosts,
         decimal? GrossPnL,
         decimal? NetPnL,
         string? NetPnLSortKey);

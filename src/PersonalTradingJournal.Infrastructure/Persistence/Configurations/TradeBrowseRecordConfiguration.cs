@@ -54,7 +54,7 @@ public sealed class TradeBrowseRecordConfiguration :
             .IsRequired(false);
 
         builder.Property(record => record.TotalCosts)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(record => record.GrossPnL)
             .IsRequired(false);

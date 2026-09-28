@@ -26,7 +26,7 @@ public sealed class TradeBrowseRecord
 
     public decimal? AverageExitPrice { get; set; }
 
-    public decimal TotalCosts { get; set; }
+    public decimal? TotalCosts { get; set; }
 
     public decimal? GrossPnL { get; set; }
 

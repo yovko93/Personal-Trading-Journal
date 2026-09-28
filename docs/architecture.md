@@ -41,6 +41,7 @@ Current feature boundaries are:
 - **Setups** — Trading Setup list/detail reads, create/update/lifecycle/safe-delete use cases, duplicate-name checks, and aggregate persistence;
 - **Mistakes** — Trading Mistake list/detail and catalog lifecycle workflows plus separate Trade Mistake assignment, removal, and Trade-scoped projections;
 - **Trades** — manual create/correction/close/hard-delete workflows, optional Trading Setup validation and mutation, narrow aggregate-write and deletion boundaries, selector projections, pageable list reads, and complete one-Trade detail reads;
+- **Imports/Tradovate** — parser/reconstruction contracts, Instrument-resolution planning, explicit Account/time preparation, deterministic preview, and confirmation through `ImportTradovateTradesUseCase` and `ITradovateImportStore`;
 - **Screenshots** — purpose-specific boundaries and use cases coordinate Trade existence checks, binary storage, metadata persistence, ordered metadata reads, content retrieval, and deletion without exposing provider details to presentation; and
 - **Storage** — `IApplicationPaths`, which exposes required storage locations without knowing how Windows resolves them.
 
@@ -59,11 +60,12 @@ The Infrastructure project implements Application abstractions and owns external
 - `TradeStore`, `TradeMutationStore`, `TradeDeletionStore`, and `ManualTradeReferenceDataReader` for manual Trade creation, correction, closure, hard deletion, and Setup classification;
 - `TradeListReader` and `TradeDetailReader` for authoritative Trade browsing;
 - local screenshot file storage and SQLite screenshot metadata/read/delete implementations;
+- Tradovate CSV parsing, source-constrained execution reconstruction, and atomic SQLite import with durable fill allocations and reference revalidation;
 - the SQLite UTC timestamp converter;
 - EF Core migrations and the design-time context factory; and
 - `JournalDatabaseInitializer` for runtime migration application and version-aware Trade browse projection reconciliation.
 
-Future imports and alternative persistence providers also belong at this boundary when concrete use cases require them.
+Additional import providers and alternative persistence providers belong at this boundary when concrete use cases require them.
 
 ### PersonalTradingJournal.Contracts
 
@@ -81,6 +83,7 @@ The Desktop project contains the WPF presentation layer and the application comp
 - explicit Trade edit and destructive delete actions with authoritative post-write reloads;
 - optional Setup selection during entry, Setup assignment/change/clear, and Trading Mistake assignment/removal in Trade Detail;
 - screenshot file selection, metadata presentation, preview decoding, delete confirmation, and operation state;
+- Tradovate file selection, read-only review, explicit import confirmation, and result/recovery presentation;
 - the permanent shell and its navigation state;
 - implicit `DataTemplate` ViewModel-to-View resolution;
 - reusable XAML design resources;
@@ -145,15 +148,16 @@ DashboardViewModel   -> DashboardView
 TradesViewModel      -> TradesView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
+ImportViewModel      -> ImportView
 TradingSetupsViewModel -> TradingSetupsView
 TradingMistakesViewModel -> TradingMistakesView
 SettingsViewModel        -> SettingsView
 PlaceholderViewModel -> PlaceholderView
 ```
 
-There are 19 destinations: seven concrete destinations—Dashboard, Trades, Accounts, Instruments, Setups, Mistakes, and Settings—and 12 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
+There are 19 destinations: eight concrete destinations—Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—and 11 placeholders that share the placeholder mapping instead of carrying empty View/ViewModel pairs. A placeholder should be replaced only when its feature gains real presentation state and Application workflows.
 
-`MainWindowViewModel` retains its injected Dashboard, Trades, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a record-based feature reuses its successfully loaded collection/reference cache but calls that feature's explicit transient-state reset, so prior create/edit/detail surfaces, drafts, validation, and preview state do not reopen. Trades additionally retain the current page rows, page number, total count, sort column, and sort direction. Repeated navigation to the already-active destination is ignored. This remains direct typed shell state; no `NavigationService` exists.
+`MainWindowViewModel` retains its injected Dashboard, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the lifetime of the main window. Returning to a record-based feature reuses its successfully loaded collection/reference cache but calls that feature's explicit transient-state reset, so prior create/edit/detail surfaces, drafts, validation, and preview state do not reopen. Import retains the Account options but clears its selected file and in-memory analysis/preview. Trades additionally retain the current page rows, page number, total count, sort column, and sort direction. Repeated navigation to the already-active destination is ignored. This remains direct typed shell state; no `NavigationService` exists.
 
 ### Desktop Theme System
 
@@ -176,6 +180,10 @@ The Dashboard is currently a presentation shell. It provides neutral metric and 
 Desktop may depend on Application abstractions and use cases. Its reference to Infrastructure exists because Desktop is the composition root that wires concrete implementations; it does not authorize feature ViewModels to query `JournalDbContext` directly. Accounts, Instruments, Trading Setups, Trading Mistakes, and Trades follow meaningful Application boundaries rather than a `ViewModel -> JournalDbContext` dependency.
 
 Desktop objects use constructor injection. ViewModels must not locate dependencies through `IServiceProvider` or another service-locator pattern.
+
+The Tradovate Import ViewModel is an orchestration boundary over Application contracts. Its read-only flow is `ITradovateCsvParser -> ITradovateExecutionReconstructor -> TradovateInstrumentResolver -> TradovateImportPreparationService -> TradovateImportPreviewBuilder`. Infrastructure implements parsing and source-constrained reconstruction; Application owns Instrument resolution, Account/time preparation, and deterministic preview projection. The Desktop picker owns the WPF dialog and returns a base filename plus a caller-owned stream. Analysis/preview make no import writes.
+
+After explicit dialog approval, Desktop calls `ImportTradovateTradesUseCase`. Preparation rechecks the selected Account, then `ITradovateImportStore` owns one SQLite transaction: validate conserved source-fill allocations, classify duplicates, revalidate reference identity/uniqueness/economics for new candidates, build Domain Trades, and persist the complete graph. Reversals allocate one real fill across two directional Trades without changing Domain invariants. Desktop does not reproduce reconstruction, deduplication, or persistence policy. `Imported`, `NoChanges`, and `Blocked` have explicit presentation/recovery behavior; unknown commission/fees never become zero. See [Tradovate CSV Import](tradovate-csv-import.md).
 
 ### Feature Read and Write Flows
 
@@ -296,7 +304,7 @@ TradesViewModel
 
 Both read paths use current Account and Instrument values only as display labels. Trade Detail reconstructs the canonical aggregate. Trade list economics come from the persisted browse projection, which is regenerated exclusively from those same Domain properties during writes and startup reconciliation.
 
-`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext` and use no-tracking EF queries. `TradeDetailReader` reconstructs Domain Trades through `TradePersistenceMapper`; `TradeListReader` counts, sorts, skips, takes, and projects `TradeBrowse` plus live catalog labels entirely in SQLite without aggregate hydration. Exact decimal ordering uses the persisted sort keys, Net P&L explicitly keeps null/open Trades last in both directions, and Trade ID ascending is the final tie-breaker. `TradeBrowse` is an Infrastructure cache rather than Domain state: canonical Trade and execution records always win, and projection version 1 can be rebuilt from them.
+`TradeListReader` and `TradeDetailReader` each create a fresh `JournalDbContext` and use no-tracking EF queries. `TradeDetailReader` reconstructs Domain Trades through `TradePersistenceMapper`; `TradeListReader` counts, sorts, skips, takes, and projects `TradeBrowse` plus live catalog labels in SQLite without aggregate hydration. It then fetches the current page's execution sides/quantities in one batch to calculate peak Size. Exact decimal ordering uses the persisted sort keys, Net P&L explicitly keeps null values last in both directions, and Trade ID ascending is the final tie-breaker. `TradeBrowse` is an Infrastructure cache rather than Domain state: canonical Trade and execution records always win, and missing/outdated rows are rebuilt to projection version 2.
 
 After a successful Trade commit, Desktop resets and closes the draft, reports success, and performs a best-effort authoritative list reload. That post-commit reload deliberately does not inherit the completed Save command's cancellation. If it fails, the persisted write remains successful, the existing rows remain visible, and a list-level error allows an explicit Refresh; it is not reclassified as a Save failure.
 
@@ -425,7 +433,7 @@ M5 introduces no new uniqueness business rule for account name, external account
 
 Domain and Application must not know about WPF startup or application lifecycle details.
 
-The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/correction/closure/deletion/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, and all seven retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
+The composition root wires current Application workflows, their Infrastructure implementations, feature ViewModels, the Desktop theme/settings services, and the shell. This includes Trade creation/correction/closure/deletion/browsing/classification, Trading Setup and Trading Mistake catalogs, Trade Mistake associations, screenshot add/read/preview/delete dependencies, the Tradovate preview and transactional confirmation pipeline, and all eight retained concrete feature ViewModels. `MainWindowViewModel` and `MainWindow` are also created through dependency injection. Feature ViewModels receive dependencies through their constructors and do not resolve services themselves.
 
 The startup order is:
 
@@ -524,7 +532,7 @@ The workflow runs for pushes to `main` and pull requests targeting `main`, with 
 
 ### A Trade Is Flat-to-Flat
 
-A `Trade` represents one directional position lifecycle, from the opening execution until the position returns exactly to flat. Scale-in and partial scale-out are supported. An execution that would reverse through zero is rejected; the reversed remainder belongs to a different trade and future import/grouping behavior is responsible for splitting it.
+A `Trade` represents one directional position lifecycle, from the opening execution until the position returns exactly to flat. Scale-in and partial scale-out are supported. An execution that would reverse through zero is rejected by the aggregate. Tradovate reconstruction allocates a supported crossing broker fill between the closing Trade and a new opposite Trade, retaining one source identity with conserved quantities and distinct allocation indexes.
 
 ### Historical Pricing Is Stable
 

@@ -33,6 +33,28 @@ public sealed class InstrumentsViewModelTests
     }
 
     [Fact]
+    public async Task ExternalImportInvalidationReloadsAuthoritativeInstrumentsOnNextEntry()
+    {
+        var initial = new[] { CreateListItem(isActive: true) };
+        var refreshed = new[]
+        {
+            CreateListItem(isActive: true),
+            CreateListItem(isActive: true),
+        };
+        var reader = new FakeInstrumentReader();
+        reader.EnqueueResult(initial);
+        reader.EnqueueResult(refreshed);
+        InstrumentsViewModel viewModel = CreateViewModel(reader);
+        await viewModel.EnsureLoadedAsync();
+
+        viewModel.InvalidateLoadedDataAfterExternalImport();
+        await viewModel.EnsureLoadedAsync();
+
+        Assert.Same(refreshed, viewModel.Instruments);
+        Assert.Equal(2, reader.CallCount);
+    }
+
+    [Fact]
     public async Task RefreshAsync_WhenReaderFails_RetainsExistingRowsAndShowsListError()
     {
         var instruments = new[] { CreateListItem(isActive: true) };

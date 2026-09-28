@@ -32,7 +32,7 @@ public sealed record TradeDetail(
     decimal OpenQuantity,
     decimal AverageEntryPrice,
     decimal? AverageExitPrice,
-    decimal TotalCosts,
+    decimal? TotalCosts,
     decimal? GrossPnL,
     decimal? NetPnL,
     decimal PricingPointValue,

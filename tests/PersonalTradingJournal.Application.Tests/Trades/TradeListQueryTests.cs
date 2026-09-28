@@ -102,5 +102,6 @@ public sealed class TradeListQueryTests
         0m,
         null,
         null,
-        "USD");
+        "USD",
+        Size: 1m);
 }

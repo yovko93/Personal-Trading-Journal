@@ -116,7 +116,7 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
-                    b.Property<decimal>("TotalCosts")
+                    b.Property<decimal?>("TotalCosts")
                         .HasColumnType("TEXT");
 
                     b.HasKey("TradeId");
@@ -141,7 +141,7 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("Commission")
+                    b.Property<decimal?>("Commission")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("ExecutedAtUtc")
@@ -155,7 +155,7 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal>("Fees")
+                    b.Property<decimal?>("Fees")
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("Price")
@@ -395,6 +395,58 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("TradingSetups", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradovateImportedExecutionRecord", b =>
+                {
+                    b.Property<Guid>("TradeExecutionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("AllocatedQuantity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AllocationIndex")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BrokerSymbol")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExternalExecutionId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Side")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("SourceFillExecutedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SourceFillPrice")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SourceFillQuantity")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TradingAccountIdAtImport")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradeExecutionId");
+
+                    b.HasIndex("TradeId");
+
+                    b.HasIndex("TradingAccountIdAtImport", "BrokerSymbol", "Side", "ExternalExecutionId", "AllocationIndex")
+                        .IsUnique();
+
+                    b.ToTable("TradovateImportedExecutions", (string)null);
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", b =>
                 {
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
@@ -454,6 +506,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("TradeId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradovateImportedExecutionRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 #pragma warning restore 612, 618

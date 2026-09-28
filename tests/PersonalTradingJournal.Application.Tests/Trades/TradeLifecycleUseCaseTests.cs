@@ -417,14 +417,14 @@ public sealed class TradeLifecycleUseCaseTests
                 trade.Executions[0].Id,
                 trade.Executions[0].ExecutedAtUtc,
                 entryPrice,
-                trade.Executions[0].Commission,
-                trade.Executions[0].Fees),
+                trade.Executions[0].Commission!.Value,
+                trade.Executions[0].Fees!.Value),
             new UpdateTradeExecutionInput(
                 trade.Executions[1].Id,
                 trade.Executions[1].ExecutedAtUtc,
                 exitPrice,
-                trade.Executions[1].Commission,
-                trade.Executions[1].Fees));
+                trade.Executions[1].Commission!.Value,
+                trade.Executions[1].Fees!.Value));
 
     private static Trade CreateTrade(Guid? setupId = null)
     {

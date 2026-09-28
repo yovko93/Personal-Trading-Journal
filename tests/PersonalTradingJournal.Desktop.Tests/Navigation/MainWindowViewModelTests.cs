@@ -1,11 +1,13 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Desktop.Navigation;
+using PersonalTradingJournal.Desktop.Imports;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
@@ -13,6 +15,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
+using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -200,6 +203,21 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void NavigateToImport_UsesRetainedImportViewModelAndLoadsAccountsOnly()
+    {
+        ViewModelFixture fixture = CreateFixture();
+
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
+
+        Assert.Equal(NavigationDestination.Import, fixture.Main.CurrentDestination);
+        Assert.Equal("Import", fixture.Main.PageTitle);
+        Assert.Same(fixture.Import, fixture.Main.CurrentContentViewModel);
+        Assert.Equal(1, fixture.AccountReader.CallCount);
+        Assert.Equal(ImportWorkflowPhase.Idle, fixture.Import.Phase);
+        Assert.Null(fixture.Import.SelectedFileName);
+    }
+
+    [Fact]
     public void NavigateToSetupsUsesRetainedViewModelAndLoadsOnlyOnce()
     {
         ViewModelFixture fixture = CreateFixture();
@@ -256,12 +274,12 @@ public sealed class MainWindowViewModelTests
         fixture.Trades.SelectedInstrument = selectedInstrument;
         fixture.Trades.SelectedDirection = TradeDirection.Short;
         fixture.Trades.QuantityText = "2.5";
-        fixture.Trades.EntryExecutedAtUtcText = "2026-09-10 13:30:00";
+        fixture.Trades.EntryExecutedAtNewYorkText = "2026-09-10 13:30:00";
         fixture.Trades.EntryPriceText = "23950.25";
         fixture.Trades.EntryCommissionText = "1.50";
         fixture.Trades.EntryFeesText = "0.25";
         fixture.Trades.HasExit = true;
-        fixture.Trades.ExitExecutedAtUtcText = "2026-09-10 14:15:00";
+        fixture.Trades.ExitExecutedAtNewYorkText = "2026-09-10 14:15:00";
         fixture.Trades.ExitPriceText = "23900.00";
         fixture.Trades.ExitCommissionText = "1.50";
         fixture.Trades.ExitFeesText = "0.25";
@@ -275,12 +293,12 @@ public sealed class MainWindowViewModelTests
         Assert.Null(fixture.Trades.SelectedInstrument);
         Assert.Null(fixture.Trades.SelectedDirection);
         Assert.Empty(fixture.Trades.QuantityText);
-        Assert.Empty(fixture.Trades.EntryExecutedAtUtcText);
+        Assert.Empty(fixture.Trades.EntryExecutedAtNewYorkText);
         Assert.Empty(fixture.Trades.EntryPriceText);
         Assert.Equal("0", fixture.Trades.EntryCommissionText);
         Assert.Equal("0", fixture.Trades.EntryFeesText);
         Assert.False(fixture.Trades.HasExit);
-        Assert.Empty(fixture.Trades.ExitExecutedAtUtcText);
+        Assert.Empty(fixture.Trades.ExitExecutedAtNewYorkText);
         Assert.Empty(fixture.Trades.ExitPriceText);
         Assert.Equal("0", fixture.Trades.ExitCommissionText);
         Assert.Equal("0", fixture.Trades.ExitFeesText);
@@ -621,7 +639,8 @@ public sealed class MainWindowViewModelTests
             3.50m,
             1262.50m,
             1259m,
-            "USD");
+            "USD",
+            Size: 2.5m);
         tradeListReader.EnqueueResult(
         [
             tradeListItem,
@@ -664,6 +683,19 @@ public sealed class MainWindowViewModelTests
             new DeleteInstrumentUseCase(
                 instrumentStore,
                 new FakeInstrumentDeletionStore()),
+            new FakeDialogService());
+        var import = new ImportViewModel(
+            accountReader,
+            new NeverCalledTradovateCsvParser(),
+            new NeverCalledTradovateExecutionReconstructor(),
+            new TradovateInstrumentResolver(instrumentReader),
+            new TradovateImportPreparationService(accountReader),
+            new TradovateImportPreviewBuilder(),
+            new EmptyTradovateCsvFilePicker(),
+            new ImportTradovateTradesUseCase(
+                new TradovateImportPreparationService(accountReader),
+                new NeverCalledTradovateImportStore(),
+                timeProvider),
             new FakeDialogService());
         var setups = new TradingSetupsViewModel(
             setupReader,
@@ -727,6 +759,7 @@ public sealed class MainWindowViewModelTests
             dashboard,
             accounts,
             instruments,
+            import,
             mistakes,
             setups,
             trades,
@@ -738,6 +771,7 @@ public sealed class MainWindowViewModelTests
             dashboard,
             accounts,
             instruments,
+            import,
             mistakes,
             setups,
             trades,
@@ -786,6 +820,7 @@ public sealed class MainWindowViewModelTests
         DashboardViewModel Dashboard,
         AccountsViewModel Accounts,
         InstrumentsViewModel Instruments,
+        ImportViewModel Import,
         TradingMistakesViewModel Mistakes,
         TradingSetupsViewModel Setups,
         TradesViewModel Trades,
@@ -800,4 +835,34 @@ public sealed class MainWindowViewModelTests
         FakeTradeScreenshotReader TradeScreenshotReader,
         FakeThemeService ThemeService,
         FakeDesktopSettingsStore SettingsStore);
+
+    private sealed class NeverCalledTradovateCsvParser : ITradovateCsvParser
+    {
+        public Task<TradovateCsvParseResult> ParseAsync(
+            Stream source,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The navigation test must not parse a CSV.");
+    }
+
+    private sealed class NeverCalledTradovateExecutionReconstructor :
+        ITradovateExecutionReconstructor
+    {
+        public TradovateExecutionReconstructionResult Reconstruct(
+            TradovateCsvParseResult parseResult,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The navigation test must not reconstruct executions.");
+    }
+
+    private sealed class NeverCalledTradovateImportStore : ITradovateImportStore
+    {
+        public Task<TradovateImportResult> ImportAsync(
+            TradovateImportRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("The navigation test must not import trades.");
+    }
+
+    private sealed class EmptyTradovateCsvFilePicker : ITradovateCsvFilePicker
+    {
+        public TradovateCsvFileSelection? Pick() => null;
+    }
 }

@@ -38,10 +38,10 @@ public sealed class TradeExecutionRecordConfiguration :
             .IsRequired();
 
         builder.Property(record => record.Commission)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(record => record.Fees)
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(record => record.ExternalExecutionId)
             .IsRequired(false)

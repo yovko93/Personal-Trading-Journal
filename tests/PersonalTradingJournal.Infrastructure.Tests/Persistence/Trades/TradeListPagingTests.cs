@@ -28,7 +28,7 @@ public sealed class TradeListPagingTests
                 instrument.Id,
                 id,
                 CreatedAtUtc.AddMinutes(index),
-                1m,
+                index + 1m,
                 100m + index));
         }
 
@@ -46,6 +46,9 @@ public sealed class TradeListPagingTests
             .ToArray();
         Assert.Equal(45, actualIds.Distinct().Count());
         Assert.True(expectedIds.SetEquals(actualIds));
+        Assert.Equal(Enumerable.Range(1, 45).Reverse().Select(value => (decimal)value),
+            first.Items.Concat(second.Items).Concat(third.Items).Select(item => item.Size));
+        Assert.Empty((await reader.GetPageAsync(Query(4))).Items);
     }
 
     [Fact]
