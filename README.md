@@ -135,6 +135,8 @@ Trade browsing uses fixed 20-row pages with server-side count, sorting, skip, an
 
 The Trades list's **Size** column shows peak simultaneous absolute position quantity (contracts for futures), including for closed Trades. It is calculated from each Trade's persisted execution sequence, using only that Trade's allocated portion of a reversal fill. Scaling back in after a partial close does not add previously closed exposure to Size. Only the current page's execution quantities are fetched, in one batch; no stored values or schema changes are required. Size is display-only, not sorted by the former Open Qty sort key. Whole quantities display without trailing decimals, while meaningful fractional quantities remain exact. Details and close-position controls still use the genuine remaining **Open Qty**.
 
+Each Trades list row shows **View** and a three-dot actions button. Open the actions menu for **Edit** or **Delete**; both actions apply to that row's Trade. Delete retains its confirmation dialog, and keyboard users can open and navigate the menu.
+
 The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, resolves existing or proposed Instruments, applies the unified Europe/Sofia source-to-UTC-to-America/New_York time policy, and prepares an explicit Trading Account selection. The Desktop presents the analysis, warnings, blocking diagnostics, Instrument economics, New York trade times, and a read-only preview before showing a non-destructive confirmation dialog. Only an explicitly confirmed, currently valid preview reaches the Application import use case and its atomic SQLite transaction.
 
 To import a supported Tradovate matched-fills export:

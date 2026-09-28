@@ -2827,6 +2827,48 @@ public sealed partial class TradesViewModelTests
         Assert.Equal("2026-09-10 10:30:00", viewModel.ExitExecutedAtNewYorkText);
         Assert.Equal("105", viewModel.ExitPriceText);
         Assert.Equal([true], referenceReader.IncludeInactiveRequests);
+        Assert.Equal([item.Id], detailReader.RequestedTradeIds);
+    }
+
+    [Fact]
+    public async Task RowEditTargetsCurrentlyDisplayedTradeAfterPagingSortingAndRefresh()
+    {
+        TradeListItem first = CreateTradeListItem(symbol: "ES");
+        TradeListItem nextPage = CreateTradeListItem(symbol: "NQ");
+        TradeListItem sorted = CreateTradeListItem(symbol: "YM");
+        TradeListItem refreshed = CreateTradeListItem(symbol: "MNQ");
+        TradeDetail detail = CreateEditableTradeDetail(refreshed, null);
+        var listReader = new FakeTradeListReader();
+        listReader.EnqueuePage([first], 25);
+        listReader.EnqueuePage([nextPage], 25, pageNumber: 2);
+        listReader.EnqueuePage([sorted], 25);
+        listReader.EnqueuePage([refreshed], 25);
+        var detailReader = new FakeTradeDetailReader();
+        detailReader.EnqueueResult(detail);
+        var referenceReader = new FakeManualTradeReferenceDataReader();
+        ManualTradeReferenceData references = CreateReferenceData(
+            refreshed.TradingAccountId, refreshed.InstrumentId,
+            refreshed.TradingAccountName, refreshed.InstrumentSymbol);
+        referenceReader.EnqueueResult(references);
+        referenceReader.EnqueueResult(references);
+        referenceReader.EnqueueResult(references);
+        TradesViewModel viewModel = CreateViewModel(
+            reader: referenceReader,
+            tradeListReader: listReader,
+            tradeDetailReader: detailReader);
+
+        await viewModel.EnsureLoadedAsync();
+        await viewModel.NextTradePageCommand.ExecuteAsync(null);
+        await viewModel.SortTradesCommand.ExecuteAsync(TradeListSortColumn.Instrument);
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+        TradeListItem displayed = Assert.Single(viewModel.RecentTrades);
+        await viewModel.ShowTradeEditCommand.ExecuteAsync(displayed);
+
+        Assert.Same(refreshed, displayed);
+        Assert.Equal([refreshed.Id], detailReader.RequestedTradeIds);
+        Assert.Equal(refreshed.Id, viewModel.SelectedTradeDetail?.Id);
+        Assert.True(viewModel.IsTradeEditVisible);
+        Assert.Equal([1, 2, 1, 1], listReader.RequestedQueries.Select(query => query.PageNumber));
     }
 
     [Fact]

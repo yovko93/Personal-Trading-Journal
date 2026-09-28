@@ -2579,22 +2579,6 @@
                                                     </StackPanel>
                                                 </Button>
                                                 <Button Margin="4,0,0,0"
-                                                        Command="{Binding DataContext.ShowTradeEditCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource PtjEntityActionButtonStyle}"
-                                                        ToolTip="Edit trade">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <Viewbox Width="14" Height="14">
-                                                            <Path Data="{StaticResource PtjIconEdit}"
-                                                                  Fill="{x:Null}"
-                                                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                                  StrokeLineJoin="Round"
-                                                                  StrokeThickness="1.7" />
-                                                        </Viewbox>
-                                                        <TextBlock Margin="6,0,0,0" Text="Edit" />
-                                                    </StackPanel>
-                                                </Button>
-                                                <Button Margin="4,0,0,0"
                                                         AutomationProperties.Name="More trade actions"
                                                         interactions:EntityActionMenu.OpensContextMenu="True"
                                                         Style="{StaticResource PtjIconButtonStyle}"
@@ -2603,6 +2587,20 @@
                                                     <Button.ContextMenu>
                                                         <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
                                                                      Style="{StaticResource PtjEntityActionMenuStyle}">
+                                                            <MenuItem Command="{Binding Tag.ShowTradeEditCommand}"
+                                                                      CommandParameter="{Binding DataContext}"
+                                                                      Header="Edit"
+                                                                      AutomationProperties.Name="Edit trade">
+                                                                <MenuItem.Icon>
+                                                                    <Viewbox>
+                                                                        <Path Data="{StaticResource PtjIconEdit}"
+                                                                              Fill="{x:Null}"
+                                                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                              StrokeLineJoin="Round"
+                                                                              StrokeThickness="1.8" />
+                                                                    </Viewbox>
+                                                                </MenuItem.Icon>
+                                                            </MenuItem>
                                                             <MenuItem Command="{Binding Tag.DeleteTradeCommand}"
                                                                       CommandParameter="{Binding DataContext}"
                                                                       Header="Delete"

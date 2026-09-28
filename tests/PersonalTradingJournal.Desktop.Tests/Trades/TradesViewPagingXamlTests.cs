@@ -6,6 +6,42 @@ namespace PersonalTradingJournal.Desktop.Tests.Trades;
 public sealed class TradesViewPagingXamlTests
 {
     [Fact]
+    public void TradeRowsExposeViewAndKeyboardAccessibleMenuWithRowScopedEditAndDelete()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace interactions = "clr-namespace:PersonalTradingJournal.Desktop.Interactions";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        XElement list = Assert.Single(view.Descendants(presentation + "ItemsControl"), item =>
+            (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}");
+        XElement actions = Assert.Single(list.Descendants(presentation + "StackPanel"), item =>
+            (string?)item.Attribute("Grid.Column") == "6" &&
+            item.Elements(presentation + "Button").Any());
+        XElement[] buttons = actions.Elements(presentation + "Button").ToArray();
+        Assert.Equal(2, buttons.Length);
+        Assert.Equal("{Binding DataContext.ShowTradeDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}",
+            (string?)buttons[0].Attribute("Command"));
+        Assert.Equal("{Binding}", (string?)buttons[0].Attribute("CommandParameter"));
+        Assert.Contains(buttons[0].Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "View");
+        Assert.Equal("More trade actions", (string?)buttons[1].Attribute("AutomationProperties.Name"));
+        Assert.Equal("True", (string?)buttons[1].Attribute(interactions + "EntityActionMenu.OpensContextMenu"));
+        Assert.Equal("{Binding DataContext, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}",
+            (string?)buttons[1].Attribute("Tag"));
+
+        XElement menu = Assert.Single(buttons[1].Descendants(presentation + "ContextMenu"));
+        Assert.Equal("{Binding PlacementTarget, RelativeSource={RelativeSource Self}}",
+            (string?)menu.Attribute("DataContext"));
+        XElement[] items = menu.Elements(presentation + "MenuItem").ToArray();
+        Assert.Equal(["Edit", "Delete"], items.Select(item => (string?)item.Attribute("Header")));
+        Assert.Equal("{Binding Tag.ShowTradeEditCommand}", (string?)items[0].Attribute("Command"));
+        Assert.Equal("{Binding Tag.DeleteTradeCommand}", (string?)items[1].Attribute("Command"));
+        Assert.All(items, item => Assert.Equal("{Binding DataContext}",
+            (string?)item.Attribute("CommandParameter")));
+        Assert.Equal("Edit trade", (string?)items[0].Attribute("AutomationProperties.Name"));
+        Assert.Equal("{StaticResource PtjDeleteMenuItemStyle}", (string?)items[1].Attribute("Style"));
+    }
+
+    [Fact]
     public void ListShowsPeakSizeWithExactCompactQuantityWhileDetailsKeepOpenQuantity()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
