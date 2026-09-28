@@ -285,12 +285,12 @@ public sealed class TradesViewPagingXamlTests
         string view = ReadTradesView();
         const string columns =
             "<ColumnDefinition Width=\"110\" />\\s*" +
-            "<ColumnDefinition Width=\"1.1\\*\" />\\s*" +
-            "<ColumnDefinition Width=\"1.25\\*\" />\\s*" +
-            "<ColumnDefinition Width=\"1.2\\*\" />\\s*" +
-            "<ColumnDefinition Width=\"90\" />\\s*" +
+            "<ColumnDefinition Width=\"1.1\\*\" MinWidth=\"140\" />\\s*" +
+            "<ColumnDefinition Width=\"1.25\\*\" MinWidth=\"150\" />\\s*" +
+            "<ColumnDefinition Width=\"1.2\\*\" MinWidth=\"155\" />\\s*" +
+            "<ColumnDefinition Width=\"80\" />\\s*" +
             "<ColumnDefinition Width=\"180\" />\\s*" +
-            "<ColumnDefinition Width=\"220\" />";
+            "<ColumnDefinition Width=\"122\" />";
 
         Assert.True(Regex.Matches(view, columns).Count >= 2);
         Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", view, StringComparison.Ordinal);
@@ -300,6 +300,55 @@ public sealed class TradesViewPagingXamlTests
         Assert.DoesNotMatch(
             new Regex("#[0-9A-Fa-f]{6,8}", RegexOptions.CultureInvariant),
             view);
+    }
+
+    [Fact]
+    public void TradeTableScrollsAtNarrowWidthsAndKeepsValuesReadable()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        XElement scroller = Assert.Single(view.Descendants(presentation + "ScrollViewer"), element =>
+            (string?)element.Attribute(xaml + "Name") == "TradeListScrollViewer");
+        Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
+        Assert.Equal("Disabled", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
+        XElement table = Assert.Single(scroller.Elements(presentation + "StackPanel"));
+        Assert.Equal("980", (string?)table.Attribute("MinWidth"));
+        Assert.Equal("{Binding ViewportWidth, ElementName=TradeListScrollViewer}",
+            (string?)table.Attribute("Width"));
+
+        XElement header = Assert.Single(table.Elements(presentation + "Grid"));
+        XElement rows = Assert.Single(table.Elements(presentation + "ItemsControl"));
+        XElement card = Assert.Single(rows.Descendants(presentation + "DataTemplate")
+            .SelectMany(template => template.Elements(presentation + "Border")));
+        XElement row = Assert.Single(card.Elements(presentation + "Grid"));
+        Assert.Equal("13,0,13,8", (string?)header.Attribute("Margin"));
+        Assert.Equal("12", (string?)card.Attribute("Padding"));
+        Assert.Equal("1", (string?)card.Attribute("BorderThickness"));
+        Assert.Equal(
+            header.Element(presentation + "Grid.ColumnDefinitions")!.Elements(presentation + "ColumnDefinition")
+                .Select(column => ((string?)column.Attribute("Width"), (string?)column.Attribute("MinWidth"))),
+            row.Element(presentation + "Grid.ColumnDefinitions")!.Elements(presentation + "ColumnDefinition")
+                .Select(column => ((string?)column.Attribute("Width"), (string?)column.Attribute("MinWidth"))));
+
+        XElement account = Assert.Single(row.Elements(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding TradingAccountName}");
+        Assert.Equal("CharacterEllipsis", (string?)account.Attribute("TextTrimming"));
+        Assert.Equal("{Binding TradingAccountName}", (string?)account.Attribute("ToolTip"));
+        Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Net unavailable: commission/fees unknown." &&
+            (string?)item.Attribute("TextWrapping") == "Wrap");
+        Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding AverageEntryPrice, StringFormat={}{0:F2}}" &&
+            (string?)item.Attribute("TextWrapping") == "Wrap");
+        Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}" &&
+            (string?)item.Attribute("TextWrapping") == "Wrap");
+
+        // MainWindow reserves 252 DIP for navigation, 64 for content padding,
+        // and the Trades card reserves 48 for padding. Its table needs 980 DIP.
+        Assert.True(1366 - 252 - 64 - 48 >= 980);
+        Assert.True(1024 - 252 - 64 - 48 < 980);
     }
 
     private static string ReadTradesView() => File.ReadAllText(Path.Combine(
