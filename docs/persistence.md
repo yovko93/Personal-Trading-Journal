@@ -151,13 +151,15 @@ After the database transaction commits, `DeleteTradeUseCase` attempts physical s
 
 Opened UTC sorts on `TradeBrowse.OpenedAtUtc`; Instrument and Account sort on their live joined labels. Average Prices sorts by `AverageEntryPriceSortKey`, Open Qty by `OpenQuantitySortKey`, and Net P&L by `NetPnLSortKey`. Net P&L first orders an explicit null flag so open/null values remain last for both ascending and descending numeric order. Every branch ends with Trade ID ascending, giving deterministic boundaries across pages. The default Desktop query is page 1, Opened UTC descending.
 
-Each `TradeListItem` uses current Trading Account and Instrument labels. Direction, status, market-event timestamps, exposure, averages, costs, and nullable P&L come from the versioned browse projection; currency remains canonical on the Trade root. The projection contains no calculation rules: write stores and startup reconciliation map it from an already-valid Domain Trade.
+Each `TradeListItem` uses current Trading Account and Instrument labels. Direction, status, market-event timestamps, remaining exposure, averages, costs, and nullable P&L come from the versioned browse projection; currency remains canonical on the Trade root. The projection contains no calculation rules: write stores and startup reconciliation map it from an already-valid Domain Trade. Size is computed separately from one batched read of the current page's ordered execution sides/quantities as peak absolute signed position. This includes only each Trade's reversal allocation and requires no schema change. The Desktop displays Size without a sort action; the existing Application OpenQuantity sort remains available but is not exposed by that column.
 
 ### Transactional Tradovate Import
 
 `ITradovateImportStore` is a purpose-specific Application boundary implemented by one Infrastructure store using one fresh `JournalDbContext` and one explicit SQLite transaction. It revalidates the selected Account and current Instrument economics, classifies durable fill identities before proposal creation, reuses a safe Instrument that appeared after Preview or creates the approved Domain Instrument, constructs every Trade through `Trade.Start(...)`/`AddExecution(...)`, and stages Instrument, Trade, execution, browse, and identity rows before one save and commit. No sequential `IInstrumentStore`/`ITradeStore` calls or generic Unit of Work are involved.
 
-`TradovateImportedExecutions` records the exact identity `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId)` under a unique index; `TradeExecutionId` is its primary key, and its Trade foreign key cascades on hard deletion. An exact candidate identity-set match is skipped, while partial overlap, identities spanning multiple Trades, or a changed grouping boundary blocks the entire transaction. The Account component allows the same source fills to be imported intentionally into a different PTJ Account. Deleting an imported Trade removes the identities and permits a later re-import.
+`TradovateImportedExecutions` records the allocation identity `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId, AllocationIndex)` under a unique index; `TradeExecutionId` is its primary key, and its Trade foreign key cascades on hard deletion. Allocation index 0 represents a whole fill or a reversal's closing portion; index 1 represents its opening remainder in the opposite Trade. The ledger also stores source fill quantity, allocated quantity, price, and UTC timestamp. A reversal pair must conserve the source fill and be the final/first executions of opposite Trades. Source facts are not reconstructed from subsequently edited Trade rows.
+
+Exact complete candidate allocation sets are skipped. Partial overlap, changed source facts, cross-Trade overlap, or changed grouping blocks the whole transaction. The same source may be intentionally imported to another explicit PTJ Account. Duplicate classification precedes Instrument creation/revalidation: an all-duplicate request returns `NoChanges` without writing. New candidates recheck Account existence and Instrument identity, canonical uniqueness, and material economics; newly ambiguous existing Instruments return `REFERENCE_DATA_CHANGED`. A compatible newly created proposal Instrument may be reused. Deleting a standalone imported Trade permits re-import; deleting only one member of a shared reversal pair leaves a partial allocation conflict that blocks replay.
 
 Imported `TradeExecutions.Commission` and `Fees` are stored as `NULL`, never fabricated zeroes. `TradeBrowse.TotalCosts` and `NetPnL` consequently remain null while `GrossPnL` is still Domain-derived from execution prices, quantities, and the confirmed Instrument pricing snapshot. Source-reported P&amp;L remains preview evidence and is not persisted as Domain economics.
 
@@ -197,16 +199,17 @@ Tests verify exact equality, ascending and descending ordering, inclusive `>=`/`
 
 ## Migrations
 
-The current application has exactly four migrations:
+The current application has five migrations:
 
 ```text
 20260908122839_InitialCreate
 20260914212911_RemoveStrategies
 20260917165522_AddTradeBrowseProjection
 20260923074655_AddTradovateImportPersistence
+20260925214352_AddTradovateFillAllocations
 ```
 
-`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. `AddTradovateImportPersistence` makes execution costs and browse total costs nullable and adds durable account-scoped Tradovate execution identities without changing existing non-null values. The latest schema has ten application tables and nine foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
+`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. `AddTradovateImportPersistence` makes execution costs and browse total costs nullable and adds durable account-scoped Tradovate execution identities without changing existing non-null values. `AddTradovateFillAllocations` extends that ledger with allocation index and immutable source economics and updates its unique index. Legacy rows receive allocation index 0 and retain null source economics; no historical facts are invented from mutable Trades. The latest schema has ten application tables and nine foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
 
 ## Runtime Initialization
 
@@ -288,7 +291,7 @@ Before accepting a migration:
 
 The persistence foundation does not yet include:
 
-- Trade imports and richer multi-execution correction UI beyond the current manual form;
+- additional import formats, commission/fee source identification, and richer multi-execution correction UI beyond the current manual form;
 - backup and restore;
 - seed/reference-data provisioning;
 - analytics-specific database queries or read models;

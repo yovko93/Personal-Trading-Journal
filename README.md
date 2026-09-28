@@ -24,7 +24,7 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M9 — Setup and Mistake Classification: Complete**
 
-**Milestone M10 — Tradovate CSV Import: Complete**
+**Milestone M10 — Tradovate CSV Import: Implemented; final interactive acceptance pending**
 
 **Desktop Theme System — System / Dark / Light: Complete**
 
@@ -141,6 +141,8 @@ The Trades table keeps header and row columns aligned. Its Opened column shows t
 
 The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, resolves existing or proposed Instruments, applies the unified Europe/Sofia source-to-UTC-to-America/New_York time policy, and prepares an explicit Trading Account selection. The Desktop presents the analysis, warnings, blocking diagnostics, Instrument economics, New York trade times, and a read-only preview before showing a non-destructive confirmation dialog. Only an explicitly confirmed, currently valid preview reaches the Application import use case and its atomic SQLite transaction.
 
+M10 covers stages M10.1–M10.7, not just Desktop confirmation. See [Tradovate CSV Import](docs/tradovate-csv-import.md) for the exact required matched-fills headers, reconstruction and confirmation contracts, and [M10 acceptance](docs/m10-acceptance.md) for the final acceptance matrix and remaining interactive checks. Arbitrary execution/order CSV formats are not supported. The current automatic Instrument-creation profile is MNQ; other canonical Instruments need complete compatible catalog metadata, and Import has no arbitrary symbol-mapping editor.
+
 To import a supported Tradovate matched-fills export:
 
 1. Open **Import** and choose **Select CSV**.
@@ -152,6 +154,8 @@ To import a supported Tradovate matched-fills export:
 If the selected Account disappears before confirmation, recovery guidance remains visible below the account selector even though the obsolete preview is cleared. Select an available Account and choose **Build Preview** again. Cancelling the confirmation dialog leaves the reviewed preview unchanged and performs no import.
 
 Imported commission and fee values remain `null` (unknown, not known zero) because the supported export does not contain them. Exact fill identities are durable per selected PTJ Account: exact duplicate Trades are skipped, mixed new/duplicate imports report both counts, and unsafe partial overlaps block the whole operation. A reference-data change after preview never causes silent Instrument substitution; the user is directed to rebuild the preview, which re-runs Instrument resolution without reparsing the CSV. Unsupported or ambiguous Instrument metadata remains blocking and must be resolved in reference data before import.
+
+Duplicate counts are determined during transactional confirmation, not by the read-only preview. Commission/fee source identification and import remain explicitly deferred. The manual Edit form refuses unknown costs and richer imported execution lifecycles instead of fabricating costs or flattening the Trade. The import does not prove source completeness, archive raw CSV files, persist source-reported P&L, or provide an import-history screen.
 
 An unambiguous position reversal can allocate one real broker fill between closing the current Trade and opening the opposite Trade. Both allocations retain the same broker fill identity, price, and timestamp; their quantities sum exactly to the unchanged source fill quantity. The import ledger stores allocation ordinals and immutable source economics, so replay skips both Trades without duplicating fills or allocations. Existing identity-only ledger rows remain valid through an additive migration; their unknown historical economics are not inferred from subsequently edited Trades. Matched-row evidence is partitioned between reversal candidates so preview Source P&L is not double-counted. Commission and fees remain unknown.
 
@@ -169,7 +173,7 @@ Eight of the 19 shell destinations are concrete: Dashboard, Trades, Import, Acco
 
 The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
-The active milestone is not yet defined beyond the completed **M10 — Tradovate CSV Import** workflow.
+M10 implementation and automated coverage are available. Final acceptance remains open until the interactive checks in the acceptance record are observed; a subsequent milestone is not selected here.
 
 Historically, M9.1 introduced a Strategy catalog. M9.3.5 removed that concept after the taxonomy was simplified around Trading Setup as the sole reusable trade-pattern classification. M9 then completed Trading Setup and Trading Mistake catalogs, Trade classification and review associations, Desktop integration, UX hardening, acceptance, and documentation.
 
@@ -246,7 +250,7 @@ dotnet build PersonalTradingJournal.sln
 dotnet test PersonalTradingJournal.sln
 ```
 
-The completed M10 baseline contains 1,668 passing tests: 400 Domain, 312 Application, 478 Infrastructure, and 478 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, an isolated SQLite acceptance path, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior without serving as broad UI automation.
+The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Application, 504 Infrastructure, and 504 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, isolated SQLite acceptance, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior. These automated tests do not establish interactive WPF acceptance; see the [acceptance record](docs/m10-acceptance.md).
 
 ## Run
 

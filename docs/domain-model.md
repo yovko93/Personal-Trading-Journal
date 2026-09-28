@@ -66,6 +66,8 @@ Account metadata may change while Trades reference the account because Trades re
 
 A `Trade` represents one directional flat-to-flat position lifecycle. It starts with an opening execution, supports scale-in and partial scale-out, and closes only when executions return the position exactly to zero. Its execution collection is externally read-only. Additions must preserve ownership, unique execution identity, exact next sequence, and non-decreasing execution chronology; equal timestamps are valid. An execution after closure or one that would reverse through zero is rejected atomically.
 
+Tradovate import preserves this rule by allocating a supported broker reversal fill between two Trades before Domain construction. Each aggregate receives only its own closing or opening quantity; Infrastructure retains the shared source identity and immutable fill economics in its allocation ledger. This does not make reversal an allowed mutation of a single Domain Trade.
+
 Long example:
 
 ```text
@@ -100,7 +102,7 @@ Trade A: Buy 2, Sell 2
 Trade B: Sell 1
 ```
 
-Automatic splitting is deferred to future import/grouping logic.
+Tradovate reconstruction now performs this allocation when matched-fill evidence establishes the split. The two allocations retain one real broker fill identity; no broker execution is invented. Unresolved ordering or contradictory allocation evidence blocks import.
 
 The following properties derive from execution history rather than separately mutable state: direction, status, open quantity, opened/closed timestamps, total costs, average entry/exit prices, gross P&L, and net P&L.
 
@@ -171,7 +173,7 @@ Profit does not prove correct execution, and loss does not prove poor execution.
 The following omissions remain intentional rather than accidental missing fields:
 
 - richer manual capture for scale-in and partial exits;
-- CSV imports and execution-grouping workflows beyond the current manual correction shape;
+- additional import formats and commission/fee sourcing beyond the supported Tradovate matched-fills workflow;
 - initial risk, R-multiple, partial realized P&L, MAE/MFE, and mark-to-market;
 - trading rules, rule violations, and prop-firm rules;
 - journal entries and daily, weekly, or monthly reviews;

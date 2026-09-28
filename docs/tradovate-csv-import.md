@@ -1,6 +1,18 @@
 # Tradovate CSV Import
 
-M10.1 provides parsing and source normalization. M10.2 adds deterministic unique-fill reconstruction and provisional flat-to-flat Trade candidates. M10.3 plans canonical Instrument resolution and any missing-Instrument creation. M10.4 combines those approved results with an explicitly selected Trading Account and applies the fixed trading-time policy. M10.5 exposes that exact pipeline through a read-only Desktop preview. M10.6 adds the Application/Infrastructure confirmation core: Domain-safe Trade construction, one atomic SQLite write, confirmation-time reference revalidation, and durable deduplication. The Desktop still has no final Import command.
+M10 implements a reviewed Tradovate matched-fills import from file selection through atomic persistence and duplicate replay. Its scope includes all seven stages:
+
+| Stage | Responsibility |
+| --- | --- |
+| M10.1 | CSV parsing and source normalization |
+| M10.2 | Unique-fill reconstruction and flat-to-flat Trade grouping, including supported reversals |
+| M10.3 | Canonical Instrument resolution and missing-Instrument creation planning |
+| M10.4 | Explicit Account selection and named-zone timestamp preparation |
+| M10.5 | Read-only analysis and deterministic preview |
+| M10.6 | Transactional confirmation, reference revalidation, and durable deduplication |
+| M10.7 | WPF confirmation, result/recovery state, and imported Trade presentation |
+
+Implementation and automated acceptance are available. The remaining interactive sign-off and its evidence are recorded in [M10 acceptance](m10-acceptance.md).
 
 ## Supported source contract
 
@@ -42,9 +54,11 @@ Every source row's buy-fill, sell-fill, matched-quantity, source-record, and sou
 
 An identical matched row is not silently removed or unquestioningly counted as an independent match. The available format cannot distinguish duplicate export data from two identical match events, so the affected symbol is marked ambiguous and all source references are retained.
 
-For an unambiguous symbol stream, reconstructed fills are ordered by their source wall-clock timestamps. Same-side timestamp ties use a stable external-ID presentation order, which is not asserted to be broker chronology. If opposite sides share a timestamp and their order can change a flat boundary or direction, grouping is ambiguous.
+For an unambiguous symbol stream, reconstructed fills are ordered by source wall-clock time. Equal timestamps are not inherently ambiguous. Matched-row quantities paired with earlier fills identify closures; quantities paired with later fills identify openings. Closing earlier matched lots precedes unrelated new openings at the same timestamp. This source-constrained lifecycle rule does not claim to recover unrecorded sub-second broker chronology. A stable fill-ID presentation order is allowed only when it cannot change Trade membership, allocation quantities, direction, weighted prices, or P&L.
 
-A candidate begins when signed position moves away from zero and completes when it returns to zero. Multiple opening fills and partial exits remain in one candidate; the next fill after flat begins a separate candidate. Sell-first streams form provisional Short candidates. An execution that crosses through zero blocks the lifecycle because splitting one broker fill would fabricate source events. No opposite-side execution is manufactured to force an incomplete lifecycle closed.
+A candidate begins when signed position moves away from zero and completes when it returns to zero. Multiple opening fills and partial exits remain in one candidate; the next fill after flat begins a separate candidate. Sell-first streams form provisional Short candidates. A source-supported reversal allocates one real fill between the final closing execution of one Trade and the first opening execution of the opposite Trade. Both allocations preserve the same immutable broker fill identity, price, and timestamp. Allocation indexes 0 and 1 distinguish the portions; their quantities must sum exactly to the original fill quantity. Matched-row evidence is partitioned so Source P&L is attributed once. Domain Trades still cannot reverse through zero: each receives only its allocated portion. No broker fill ID or balancing execution is fabricated.
+
+Directly matched buy/sell fills at the same timestamp are checked for feasible source-constrained orders. If direction, boundaries, or allocation quantities remain unresolved, `TIMESTAMP_ORDER_AMBIGUOUS` blocks import and identifies the symbol, timestamp, affected fills, and missing evidence. The bounded, cancellable search also blocks when it cannot establish a safe order. Source P&L remains evidence and cannot by itself establish chronology. Contradictory reversal allocations remain blocking.
 
 Because every accepted matched row contributes the same quantity to one buy and one sell fill, a fully reconstructed supported matched-fills stream is quantity-balanced by construction. This does not prove that the export contains unmatched open fills or all activity from the account. The result therefore reports that source completeness is not independently verified, even when its visible flat-to-flat candidates are structurally reconstructed.
 
@@ -62,7 +76,7 @@ The initial verified profile is limited to `MNQ`: DisplayName `Micro E-mini Nasd
 
 If MNQ is missing and its source tick size agrees with the profile, M10.3 returns one complete creation proposal for all MNQ contract symbols; the proposal has no persisted InstrumentId. A syntactically valid but missing root without a verified profile retains its canonical symbol and source tick size, but requires user-supplied metadata rather than invented currency or tick value. Source/profile conflicts and materially unsafe existing economics block automatic resolution.
 
-`ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The M10.5 Import Preview displays complete proposals and keeps unresolved metadata blocked for future manual resolution. Actual missing-Instrument creation occurs only after final confirmation, transactionally with imported Trades. The confirmation transaction must re-resolve the canonical symbol because another workflow could create an Instrument after Preview but before confirmation.
+`ReadyForPreview` means every broker symbol has a safe existing Instrument or complete creation proposal; it does not mean any Instrument has been created. The preview displays complete proposals and keeps unresolved metadata blocked. There is no free-form mapping or Instrument-economics editor on the Import page. Supported canonical Instruments can be created or corrected in Instruments, then resolution can be rerun; unrecognized broker-symbol syntax requires source correction or future mapping support. Actual proposed-Instrument creation occurs only after final confirmation, transactionally with imported Trades.
 
 ## Account selection and trading-time preparation (M10.4)
 
@@ -80,22 +94,48 @@ The Import destination is a concrete WPF page backed by one retained `ImportView
 
 `Select CSV` uses a Desktop-only picker that exposes only the base filename and a caller-owned stream. The ViewModel disposes that stream immediately after parsing, retains no raw CSV content or full path, and then invokes the approved parser, reconstruction, and Instrument-resolution stages without waiting for an Account selection. A newly selected file clears the preceding analysis and preview before work begins. Cancellation, operation gating, and workflow version checks prevent stale or overlapping completion from replacing newer state.
 
-`Build Preview` becomes available only after structurally eligible reconstruction, complete Instrument resolution, and explicit Account selection. It calls `TradovateImportPreparationService` and a deterministic, side-effect-free `TradovateImportPreviewBuilder`. Changing the selected Account invalidates only the prepared preview; the file analysis remains available.
+`Build Preview` requires structurally eligible reconstruction and an explicit Account selection. It reruns Instrument resolution, then calls `TradovateImportPreparationService` and a deterministic, side-effect-free `TradovateImportPreviewBuilder`; unresolved Instrument decisions prevent a confirmation-ready preview. Changing the selected Account invalidates the prepared preview while preserving file analysis. A reconstruction blocker cannot be bypassed by selecting an Account. Selecting a different CSV replaces the old analysis; cancelling the file picker preserves it.
 
-The preview reports source/valid/rejected row counts, unique buy/sell fills, candidate counts, canonical/existing/proposed Instrument counts, Account and timezone context, the New York preview period, and diagnostic totals. Existing Instrument rows show the current PTJ display metadata and tick economics preserved by M10.3 resolution; the preview builder does not re-read them. Proposed rows show the authoritative verified creation proposal and state that creation occurs only during future confirmation. Unresolved metadata remains explicit rather than fabricated. Trade rows show broker and canonical symbols, direction, New York open/close time, execution count, opening quantity, exact-decimal weighted entry/exit prices, and source-reported P&L attributed once by source-record index. Source P&L is reconciliation evidence, not authoritative Domain P&L.
+The preview reports source/valid/rejected row counts, unique buy/sell fills, candidate counts, canonical/existing/proposed Instrument counts, Account and timezone context, the New York preview period, and diagnostic totals. Existing Instrument rows show the PTJ display metadata and tick economics preserved by resolution; the preview builder does not re-read them. Proposed rows show the verified creation proposal and state that creation waits for confirmation. Trade rows show broker and canonical symbols, direction, New York open/close time, execution count, opening quantity, weighted entry/exit prices, and source-reported P&L attributed once by source-record index. Weighted averages display two culture-aware decimal places, while calculations, preview identity, and confirmation retain full precision. Source P&L is reconciliation evidence, not authoritative Domain P&L. Preview does not query durable duplicate identities; duplicate counts are determined during confirmation.
 
-Diagnostics retain their CSV, Reconstruction, Instrument, Preparation, or Preview stage and stable code. The preview always calls out that source completeness is not independently verified and that commissions and fees are unavailable. `COSTS_UNAVAILABLE` remains a warning: unavailable costs are persisted as unknown, so a structurally valid preview with no Error diagnostics now has `IsReadyForConfirmation == true`. There is still deliberately no final Desktop Import command or button in M10.6.
+Diagnostics retain their CSV, Reconstruction, Instrument, Preparation, or Preview stage and stable code. `SOURCE_COMPLETENESS_UNVERIFIED` and `COSTS_UNAVAILABLE` remain warnings: neither complete history nor costs are invented. A structurally valid preview with no Error diagnostics can be confirmed.
+
+## Desktop confirmation and recovery (M10.7)
+
+After selecting the Account and CSV and reviewing **Build Preview**, choose **Import Trades**. A safe-default confirmation dialog identifies the file, destination Account, candidate count, proposed Instruments, and warnings. Cancelling leaves the reviewed preview intact and performs no write. Import rules and persistence remain in Application/Infrastructure; WPF coordinates the workflow and displays results.
+
+| Outcome | Desktop behavior |
+| --- | --- |
+| `Imported` | Shows imported Trades, duplicate Trades skipped, and Instruments created; invalidates Trades/Instruments caches for authoritative reload |
+| `NoChanges` (displayed as `No changes`) | Shows zero imported Trades and the duplicate count; no new data is written |
+| `Blocked` | Shows the conflict code and recovery guidance; disables the obsolete confirmation while retaining relevant analysis/diagnostics |
+| Cancelled operation | Retains usable workflow state; cancellation before commit performs no import |
+| Unexpected failure | Shows a safe failure message and permits retry; database failures roll back the transaction |
+
+Both completed outcomes clear the selected file/Account, candidates, diagnostics, Instrument-resolution presentation, and active preview. Only the source section and final counts remain, under **Confirm import**. During active review the heading is **3. Confirm import**. An old completed preview cannot be submitted again. Selecting a new file clears the old result and starts a new review. Command gating and a submission guard prevent concurrent/repeated acceptance; the backend still owns durable idempotency. Cancellation is supported during asynchronous analysis, preview, and import work; a committed import is reported as success rather than undone.
+
+Common recovery paths:
+
+- Invalid CSV, an empty source, conflicting fill facts, duplicate matched rows, or unresolved timestamp order: correct/reselect the source and rebuild. Diagnostics preserve stage, code, and available source locations.
+- Missing/ambiguous Instrument metadata: correct the canonical catalog data, return to Import, and rebuild/reselect; no Instrument is silently substituted.
+- `REFERENCE_DATA_CHANGED`: rebuild the preview to rerun resolution. Existing Instrument identity, uniqueness, and economics are revalidated for new candidates during confirmation, including a newly introduced duplicate canonical symbol.
+- `TRADING_ACCOUNT_NOT_FOUND`: Account options are refreshed; explicitly choose an available Account and rebuild.
+- `DEDUPLICATION_CONFLICT`: use the complete original source or resolve the conflicting history. Repeated acceptance cannot merge partial or changed fill/allocation sets.
 
 ## Transactional persistence and durable deduplication (M10.6)
 
 `ImportTradovateTradesUseCase` reruns M10.4 preparation against the selected Account immediately before delegating to `ITradovateImportStore`. The store uses one context and explicit transaction to revalidate that Account and the current Instrument economics, re-resolve proposals, create an approved Instrument only if still absent, construct Trades through Domain APIs, and persist Trade roots, exact execution provenance, version-2 browse projections, and durable fill identities atomically. Existing-Instrument DisplayName/Exchange changes and inactivity do not block, but a material Symbol, AssetClass, Currency, TickSize, or TickValue conflict does.
 
-The durable identity is the exact tuple `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId)`. All identities absent means a new candidate; an exact match to one existing imported Trade's complete identity set is skipped; partial overlap, cross-Trade overlap, or a changed identity-set boundary blocks the entire import. Exact duplicates and new candidates may coexist, and importing the same source to a different explicitly selected PTJ Account is allowed. Deduplication runs before proposal creation, and hard-deleting the Trade cascades its identity rows so an intentional re-import is possible.
+The durable allocation identity is `(TradingAccountIdAtImport, BrokerSymbol, Side, ExternalExecutionId, AllocationIndex)`. The ledger also stores immutable source quantity, allocated quantity, price, and UTC timestamp. All identities absent means a new candidate; an exact match to one existing imported Trade's complete allocation set is skipped. Partial overlap, changed source economics, a changed grouping boundary, or an incomplete reversal allocation set blocks the entire import. Exact duplicates and new candidates may coexist; importing the same source to another explicitly selected PTJ Account is allowed. Deduplication precedes proposal creation: an all-duplicate request returns `NoChanges` without creating or re-resolving Instruments. New candidates undergo confirmation-time reference validation. Legacy identity-only rows retain null source economics; migration never infers those facts from editable Trade data.
+
+Hard-deleting an imported Trade cascades its ledger rows. A complete deleted standalone Trade can be imported again. If only one Trade from a shared reversal fill is deleted, replay blocks the resulting partial allocation overlap rather than duplicating the surviving portion.
 
 The matched-fills source has no independent commission or fee facts. Imported executions therefore store both values as `null`: null means unknown, while zero remains known zero for manual workflows. Imported closed Trades can have Domain-derived `GrossPnL` but unknown `TotalCosts` and `NetPnL`. Source-reported P&amp;L remains preview-only reconciliation evidence; no import-history or source-P&amp;L persistence subsystem is introduced.
 
-## Later M10 stages
+## Imported Trade review and remaining limitations
 
-Later stages will add the final Desktop confirmation command and post-import presentation flow.
+The Trades list uses authoritative paged reads. **Size** is the peak absolute position over that Trade's own execution allocations, not cumulative entries or final Open Qty. Details retain the actual remaining Open Qty and full ordered executions. Average prices display exactly two decimal places in preview, list, and Details without changing stored precision. Gross and Net show their currencies and independent sign colors. A null Net is `—` with unknown-cost guidance; known zero is numeric. Row color follows known Net, otherwise known Gross; a green Gross result does not establish profitability after unknown costs.
+
+The current Edit form supports the manual one-entry/optional-full-exit shape and refuses unknown costs or richer imported lifecycles. The row menu still exposes Edit with that explanatory refusal, and Delete retains its confirmation. Cost source identification and commission/fee import are explicitly deferred. Other limits include the fixed Sofia source-time assumption, one destination Account per file, the MNQ-only automatic creation profile, no arbitrary mapping editor, no independent completeness proof, no source-P&L reconciliation/FX conversion, and no persisted import-history or raw-CSV archive.
 
 The original `Tradovate-A049.csv` contains private trading activity and must remain untracked. Synthetic fixtures are used for automated tests. Full-file validation is local-only when the original file is explicitly made available.
