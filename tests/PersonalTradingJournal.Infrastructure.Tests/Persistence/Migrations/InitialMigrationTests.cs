@@ -21,6 +21,7 @@ public sealed class InitialMigrationTests
         "20260923074655_AddTradovateImportPersistence";
     private const string FillAllocationsMigrationId =
         "20260925214352_AddTradovateFillAllocations";
+    private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -80,6 +81,11 @@ public sealed class InitialMigrationTests
                 "BrokerSymbol", "Side", "ExternalExecutionId", "ImportedAtUtc",
                 "AllocatedQuantity", "AllocationIndex", "SourceFillExecutedAtUtc", "SourceFillPrice", "SourceFillQuantity",
             ],
+            ["TopstepImportedRows"] =
+            [
+                "Id", "TradeId", "TradingAccountIdAtImport", "SourceId", "EconomicFingerprint", "SourceRowJson",
+                "PreviewFingerprint", "SourceContentSha256", "Representation", "DerivedEntryExecutionId", "DerivedExitExecutionId", "ImportedAtUtc",
+            ],
         };
 
     [Fact]
@@ -91,7 +97,7 @@ public sealed class InitialMigrationTests
 
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId, FillAllocationsMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -103,7 +109,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(5L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(6L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -414,7 +420,7 @@ public sealed class InitialMigrationTests
             using var readContext = new JournalDbContext(options);
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId, FillAllocationsMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -498,6 +504,7 @@ public sealed class InitialMigrationTests
             ("TradeBrowse", "OpenedAtUtc"),
             ("TradeBrowse", "ClosedAtUtc"),
             ("TradovateImportedExecutions", "ImportedAtUtc"),
+            ("TopstepImportedRows", "ImportedAtUtc"),
         ];
 
         foreach ((string table, string column) in timestampColumns)
@@ -544,7 +551,8 @@ public sealed class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(9, foreignKeys.Count);
+        Assert.Equal(10, foreignKeys.Count);
+        AssertForeignKey(foreignKeys, "TopstepImportedRows", "TradeId", "Trades", "CASCADE");
         AssertForeignKey(foreignKeys, "Trades", "TradingAccountId", "TradingAccounts", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "InstrumentId", "Instruments", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "TradingSetupId", "TradingSetups", "RESTRICT");
@@ -568,7 +576,7 @@ public sealed class InitialMigrationTests
         ForeignKeyDefinition[] cascades = foreignKeys
             .Where(foreignKey => foreignKey.OnDelete == "CASCADE")
             .ToArray();
-        Assert.Equal(3, cascades.Length);
+        Assert.Equal(4, cascades.Length);
         Assert.Contains(cascades, cascade =>
             cascade.DependentTable == "TradeExecutions" &&
             cascade.DependentColumn == "TradeId");
@@ -589,7 +597,9 @@ public sealed class InitialMigrationTests
             .Where(index => index.IsUnique && index.Origin != "pk")
             .ToList();
 
-        Assert.Equal(3, uniqueIndexes.Count);
+        Assert.Equal(5, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.Table == "TopstepImportedRows" && index.Columns.SequenceEqual(["TradingAccountIdAtImport", "SourceId"]));
+        Assert.Contains(uniqueIndexes, index => index.Table == "TopstepImportedRows" && index.Columns.SequenceEqual(["TradeId"]));
         Assert.Contains(
             uniqueIndexes,
             index => index.Table == "TradeExecutions" &&

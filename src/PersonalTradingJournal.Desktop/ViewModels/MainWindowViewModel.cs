@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
@@ -25,6 +26,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly SettingsViewModel _settingsViewModel;
     private readonly IThemeService _themeService;
     private readonly TradesViewModel _tradesViewModel;
+    private readonly TopstepImportChangeTracker? _topstepChanges;
+    private long _observedTopstepTradesVersion;
+    private long _observedTopstepInstrumentsVersion;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
 
@@ -37,7 +41,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         TradingSetupsViewModel tradingSetupsViewModel,
         TradesViewModel tradesViewModel,
         SettingsViewModel settingsViewModel,
-        IThemeService themeService)
+        IThemeService themeService,
+        TopstepImportChangeTracker? topstepChanges = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
@@ -58,6 +63,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel = tradesViewModel;
         _settingsViewModel = settingsViewModel;
         _themeService = themeService;
+        _topstepChanges = topstepChanges;
         _currentContentViewModel = dashboardViewModel;
         NavigateCommand = new RelayCommand<NavigationDestination>(Navigate);
         ToggleThemeCommand = new AsyncRelayCommand(ToggleThemeAsync);
@@ -190,6 +196,23 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        // Commit advances shared generations without invoking UI callbacks from a database worker.
+        // Retained data must be invalidated before navigation can reuse/load it.
+        if (_topstepChanges is not null)
+        {
+            long tradesVersion = _topstepChanges.TradesVersion;
+            long instrumentsVersion = _topstepChanges.InstrumentsVersion;
+            if (tradesVersion != _observedTopstepTradesVersion)
+            {
+                _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+                _observedTopstepTradesVersion = tradesVersion;
+            }
+            if (instrumentsVersion != _observedTopstepInstrumentsVersion)
+            {
+                _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
+                _observedTopstepInstrumentsVersion = instrumentsVersion;
+            }
+        }
         ExpandContainingSection(destination);
 
         if (destination == CurrentDestination)

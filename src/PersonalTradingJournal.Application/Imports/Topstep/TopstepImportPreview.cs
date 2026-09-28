@@ -64,12 +64,13 @@ public sealed class TopstepPreviewCandidate
 
 public sealed class TopstepImportPreview
 {
-    public const string PolicyVersion = "topstep-preview-v1";
+    public const string PolicyVersion = "topstep-preview-v2";
 
     internal TopstepImportPreview(TopstepPreviewSourceIdentity sourceIdentity, string fingerprint,
         TopstepReferencePreparationResult preparation, TopstepPreviewSummary summary,
         IEnumerable<TopstepPreviewCandidate> candidates, IEnumerable<TopstepPreviewDiagnostic> diagnostics,
-        IEnumerable<TopstepPreviewReviewRequirement> requirements)
+        IEnumerable<TopstepPreviewReviewRequirement> requirements,
+        IEnumerable<TopstepInstrumentVerification> verifications)
     {
         SourceIdentity = sourceIdentity;
         SnapshotFingerprint = fingerprint;
@@ -78,6 +79,7 @@ public sealed class TopstepImportPreview
         Candidates = Array.AsReadOnly(candidates.ToArray());
         Diagnostics = Array.AsReadOnly(diagnostics.ToArray());
         ReviewRequirements = Array.AsReadOnly(requirements.ToArray());
+        VerifiedExistingInstruments = Array.AsReadOnly(verifications.ToArray());
     }
 
     public string SourceProvider => "Topstep";
@@ -93,6 +95,7 @@ public sealed class TopstepImportPreview
     public IReadOnlyList<TopstepInstrumentCreationProposal> CreationProposals => Preparation.CreationProposals;
     public IReadOnlyList<TopstepPreviewDiagnostic> Diagnostics { get; }
     public IReadOnlyList<TopstepPreviewReviewRequirement> ReviewRequirements { get; }
+    public IReadOnlyList<TopstepInstrumentVerification> VerifiedExistingInstruments { get; }
     public bool IsEligibleForReview => Preparation.IsReadyForPreview && Summary.BlockingErrorCount == 0;
     public TopstepPreviewState State => IsEligibleForReview ? TopstepPreviewState.RequiresReview : TopstepPreviewState.Blocked;
 

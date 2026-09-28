@@ -20,6 +20,7 @@ public sealed class JournalDatabaseInitializerTests
         "20260923074655_AddTradovateImportPersistence";
     private const string FillAllocationsMigrationId =
         "20260925214352_AddTradovateFillAllocations";
+    private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
 
     [Fact]
     public async Task InitializeAsyncCreatesMigratedUsableEmptyDatabase()
@@ -49,7 +50,7 @@ public sealed class JournalDatabaseInitializerTests
 
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId, FillAllocationsMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
@@ -59,6 +60,7 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(0, await context.TradeScreenshots.CountAsync());
             Assert.Equal(0, await context.TradeMistakes.CountAsync());
             Assert.Equal(0, await context.TradovateImportedExecutions.CountAsync());
+            Assert.Equal(0, await context.TopstepImportedRows.CountAsync());
 
             IProperty executedAtProperty = context.Model
                 .FindEntityType(typeof(TradeExecutionRecord))!
@@ -110,7 +112,7 @@ public sealed class JournalDatabaseInitializerTests
             {
                 Assert.Equal(
                     [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                        TradovateImportMigrationId, FillAllocationsMigrationId],
+                        TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -124,7 +126,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(5L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(6L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

@@ -255,6 +255,69 @@ public sealed class TopstepImportPreviewBuilderTests
         Assert.Contains(preview.Diagnostics, d => d.Code == (overflow ? "TOTALS_OVERFLOW" : "TOTALS_PRECISION_LOSS"));
     }
 
+    [Fact]
+    public async Task ReferenceDecimalsWithDifferentScaleHaveTheSameFingerprint()
+    {
+        TopstepImportPreview first = await Build();
+        _catalog.Items = [_catalog.Items[0] with { PointValue = 2.000m, TickSize = .25000m, TickValue = .5000m }];
+        TopstepImportPreview second = await Build();
+        Assert.Equal(first.SnapshotFingerprint, second.SnapshotFingerprint);
+        Assert.True(second.MeetsReviewRequirements(Review(first)));
+    }
+
+    [Theory]
+    [InlineData(TopstepImportStatus.Imported, 1)]
+    [InlineData(TopstepImportStatus.NoChanges, 0)]
+    [InlineData(TopstepImportStatus.Blocked, 0)]
+    public async Task UseCaseAdvancesRetainedDataGenerationsOnlyAfterCommit(TopstepImportStatus status, long expected)
+    {
+        TopstepImportPreview preview = await Build();
+        var store = new ImportStore { Result = new(status, 1, 0, 1, [], [], []) };
+        var changes = new TopstepImportChangeTracker();
+        var clock = new ImportTime();
+        var useCase = new ImportTopstepTradesUseCase(store, clock, changes);
+        using var stream = new MemoryStream([1]);
+        using var cancellation = new CancellationTokenSource();
+        TopstepImportResult result = await useCase.ImportAsync(preview, Review(preview), "synthetic.csv", stream, cancellation.Token);
+        Assert.Equal(status, result.Status);
+        Assert.Equal(expected, changes.TradesVersion);
+        Assert.Equal(expected, changes.InstrumentsVersion);
+        Assert.Equal(clock.GetUtcNow(), store.Request!.ImportedAtUtc);
+        Assert.Same(stream, store.Request.Source);
+        Assert.Equal(cancellation.Token, store.Token);
+    }
+
+    [Fact]
+    public async Task UseCaseRejectsStaleReviewWithoutStoreAndDoesNotInvalidateAfterFailure()
+    {
+        TopstepImportPreview preview = await Build();
+        var store = new ImportStore();
+        var changes = new TopstepImportChangeTracker();
+        var useCase = new ImportTopstepTradesUseCase(store, new ImportTime(), changes);
+        using var stream = new MemoryStream([1]);
+        Assert.Equal(TopstepImportStatus.Blocked, (await useCase.ImportAsync(preview, new("stale", []), "synthetic.csv", stream)).Status);
+        Assert.Null(store.Request);
+        store.Failure = new IOException("Synthetic import failure");
+        await Assert.ThrowsAsync<IOException>(() => useCase.ImportAsync(preview, Review(preview), "synthetic.csv", stream));
+        Assert.Equal(0, changes.TradesVersion);
+        Assert.Equal(0, changes.InstrumentsVersion);
+    }
+
+    private sealed class ImportTime : TimeProvider { public override DateTimeOffset GetUtcNow() => DateTimeOffset.UnixEpoch; }
+    private sealed class ImportStore : ITopstepImportStore
+    {
+        public TopstepImportResult Result { get; set; } = new(TopstepImportStatus.NoChanges, 0, 1, 0, [], [], []);
+        public TopstepImportRequest? Request { get; private set; }
+        public Exception? Failure { get; set; }
+        public CancellationToken Token { get; private set; }
+        public Task<TopstepImportResult> ImportAsync(TopstepImportRequest request, CancellationToken cancellationToken = default)
+        {
+            Request = request; Token = cancellationToken;
+            if (Failure is not null) throw Failure;
+            return Task.FromResult(Result);
+        }
+    }
+
     private async Task<TopstepImportPreview> Build(TopstepImportPreviewBuilder? builder = null, CancellationToken cancellationToken = default)
     {
         using var source = new MemoryStream(Encoding.UTF8.GetBytes("synthetic"));

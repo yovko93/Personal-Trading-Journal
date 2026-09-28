@@ -1,6 +1,9 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Imports.Tradovate;
+using PersonalTradingJournal.Application.Imports.Topstep;
+using PersonalTradingJournal.Infrastructure.Imports.Topstep;
+using System.Text;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
@@ -601,9 +604,49 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(1, fixture.ThemeService.SubscriberCount);
     }
 
+    [Theory]
+    [InlineData(TopstepImportStatus.Imported, 1, 2, 2)]
+    [InlineData(TopstepImportStatus.Imported, 0, 2, 1)]
+    [InlineData(TopstepImportStatus.NoChanges, 0, 1, 1)]
+    [InlineData(TopstepImportStatus.Blocked, 0, 1, 1)]
+    public async Task TopstepCommitGenerationsInvalidateOnlyAffectedRetainedDataBeforeReuse(
+        TopstepImportStatus status, int created, int expectedTradeReads, int expectedInstrumentReads)
+    {
+        var changes = new TopstepImportChangeTracker();
+        ViewModelFixture fixture = CreateFixture(topstepChanges: changes);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
+        var accounts = new FakeTradingAccountReader();
+        Guid accountId = Guid.NewGuid();
+        accounts.EnqueueDetailResult(new(accountId, "Synthetic Topstep", TradingAccountType.PropFunded,
+            "Topstep", null, "USD", null, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        var builder = new TopstepImportPreviewBuilder(new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(),
+            new(new FakeInstrumentReader(), accounts));
+        const string csv = "Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions\n" +
+            "SYNTH-1,MNQZ6,07/10/2026 17:00:00 +03:00,07/10/2026 17:01:00 +03:00,20000,20001,0.72,2,1,Long,07/10/2026 00:00:00 -05:00,00:01:00,0.50";
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        TopstepImportPreview preview = await builder.BuildAsync("synthetic.csv", input, accountId,
+            TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd);
+        var useCase = new ImportTopstepTradesUseCase(new TopstepResultStore(new(status, 1, 0, created, [], [], [])), TimeProvider.System, changes);
+        using var confirmationSource = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        await useCase.ImportAsync(preview, new(preview.SnapshotFingerprint, preview.ReviewRequirements.Select(r => r.Key).ToArray()),
+            "synthetic.csv", confirmationSource);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        Assert.Equal(expectedTradeReads, fixture.TradeListReader.CallCount);
+        Assert.Equal(expectedInstrumentReads, fixture.InstrumentReader.CallCount);
+    }
+
+    private sealed class TopstepResultStore(TopstepImportResult result) : ITopstepImportStore
+    {
+        public Task<TopstepImportResult> ImportAsync(TopstepImportRequest request, CancellationToken cancellationToken = default) => Task.FromResult(result);
+    }
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
-        AppTheme? effectiveTheme = null)
+        AppTheme? effectiveTheme = null,
+        TopstepImportChangeTracker? topstepChanges = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -764,7 +807,8 @@ public sealed class MainWindowViewModelTests
             setups,
             trades,
             settings,
-            themeService);
+            themeService,
+            topstepChanges);
 
         return new ViewModelFixture(
             main,

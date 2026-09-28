@@ -1,6 +1,8 @@
 using System.Numerics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Globalization;
 
 namespace PersonalTradingJournal.Application.Imports.Topstep;
 
@@ -11,6 +13,7 @@ public sealed class TopstepImportPreviewBuilder
     private readonly ITopstepTradeCandidateReconstructor _reconstructor;
     private readonly TopstepReferencePreparationService _references;
     private int _building;
+    private static readonly JsonSerializerOptions FingerprintJson = new() { Converters = { new CanonicalDecimalConverter() } };
 
     public TopstepImportPreviewBuilder(ITopstepCsvParser parser, ITopstepTradeCandidateReconstructor reconstructor,
         TopstepReferencePreparationService references)
@@ -45,7 +48,7 @@ public sealed class TopstepImportPreviewBuilder
         try
         {
             TopstepInstrumentVerification[] verificationSnapshot = (verifiedExistingInstruments ?? [])
-                .Distinct().OrderBy(v => JsonSerializer.Serialize(v), StringComparer.Ordinal).ToArray();
+                .Distinct().OrderBy(v => JsonSerializer.Serialize(v, FingerprintJson), StringComparer.Ordinal).ToArray();
             using var bytes = new MemoryStream();
             await source.CopyToAsync(bytes, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
@@ -92,7 +95,7 @@ public sealed class TopstepImportPreviewBuilder
             string fingerprint = Hash(new { TopstepImportPreview.PolicyVersion, identity, selectedTradingAccountId,
                 costInterpretation, verificationSnapshot, preparation, summary, diagnostics, requirements });
             cancellationToken.ThrowIfCancellationRequested();
-            return new(identity, fingerprint, preparation, summary, candidates, diagnostics, requirements);
+            return new(identity, fingerprint, preparation, summary, candidates, diagnostics, requirements, verificationSnapshot);
         }
         finally
         {
@@ -100,7 +103,14 @@ public sealed class TopstepImportPreviewBuilder
         }
     }
 
-    private static string Hash<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value)));
+    private static string Hash<T>(T value) => Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(value, FingerprintJson)));
+
+    private sealed class CanonicalDecimalConverter : JsonConverter<decimal>
+    {
+        public override decimal Read(ref Utf8JsonReader reader, Type type, JsonSerializerOptions options) => reader.GetDecimal();
+        public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options) =>
+            writer.WriteRawValue(value.ToString("G29", CultureInfo.InvariantCulture));
+    }
 
     private static TopstepPreviewTotals? Totals(TopstepReferencePreparationResult preparation, List<TopstepPreviewDiagnostic> diagnostics)
     {
