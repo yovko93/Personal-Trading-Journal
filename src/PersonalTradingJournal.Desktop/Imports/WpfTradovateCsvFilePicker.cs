@@ -12,7 +12,7 @@ public sealed class WpfTradovateCsvFilePicker : ITradovateCsvFilePicker
             CheckFileExists = true,
             Filter = "CSV files (*.csv)|*.csv",
             Multiselect = false,
-            Title = "Select Tradovate Matched Fills CSV",
+            Title = "Select Topstep or Tradovate CSV",
         };
 
         if (dialog.ShowDialog() != true)
@@ -27,6 +27,9 @@ public sealed class WpfTradovateCsvFilePicker : ITradovateCsvFilePicker
             FileShare.Read,
             bufferSize: 4096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return new TradovateCsvFileSelection(Path.GetFileName(dialog.FileName), content);
+        string path = dialog.FileName;
+        return new TradovateCsvFileSelection(Path.GetFileName(path), content,
+            () => new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan));
     }
 }

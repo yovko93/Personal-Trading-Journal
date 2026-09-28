@@ -739,7 +739,7 @@ public sealed class MainWindowViewModelTests
                 new TradovateImportPreparationService(accountReader),
                 new NeverCalledTradovateImportStore(),
                 timeProvider),
-            new FakeDialogService());
+            new FakeDialogService(), new TradovateOnlyFormatDetector(), null!, null!, null!, null!);
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),

@@ -52,7 +52,8 @@ public sealed class TradovateTimestampWorkflowTests
                 new TradovateInstrumentResolver(provider.GetRequiredService<IInstrumentReader>()),
                 preparation, new TradovateImportPreviewBuilder(), picker,
                 new ImportTradovateTradesUseCase(preparation, provider.GetRequiredService<ITradovateImportStore>(), TimeProvider.System),
-                new FakeDialogService { ConfirmationResult = true });
+                new FakeDialogService { ConfirmationResult = true },
+                new PersonalTradingJournal.Infrastructure.Imports.Csv.ImportCsvFormatDetector(), null!, null!, null!, null!);
             var factory = provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
 
             await vm.EnsureLoadedAsync();
@@ -66,6 +67,8 @@ public sealed class TradovateTimestampWorkflowTests
             picker.Csv = ResolvedCsv;
             await vm.SelectCsvCommand.ExecuteAsync(null);
             Assert.Equal(ImportWorkflowPhase.FileAnalyzed, vm.Phase);
+            Assert.Null(vm.SelectedAccount);
+            vm.SelectedAccount = vm.Accounts[0];
             Assert.True(vm.BuildPreviewCommand.CanExecute(null));
             Assert.False(vm.HasPreview);
             Assert.DoesNotContain(vm.Diagnostics, item => item.Code == TradovateReconstructionDiagnosticCodes.TimestampOrderAmbiguous);

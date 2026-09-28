@@ -7,6 +7,30 @@ public sealed class ImportViewXamlTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
+    public void TopstepHasDistinctClosedRowEconomicsAndExplicitSnapshotReviewControls()
+    {
+        string directory = Path.Combine(RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import");
+        string xaml = File.ReadAllText(Path.Combine(directory, "TopstepReviewView.xaml"));
+        Assert.Contains("not verified broker positions", xaml);
+        Assert.Contains("{Binding ReviewChoices}", xaml);
+        Assert.Contains("{Binding IsAccepted, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}", xaml);
+        Assert.Contains("AutomationProperties.Name=\"{Binding Description}\"", xaml);
+        Assert.Contains("{Binding TopstepCandidates}", xaml);
+        Assert.Contains("{Binding TopstepTotals}", xaml);
+        Assert.Contains("{Binding Economics}", xaml);
+        Assert.Contains("{Binding IsBusy}", xaml);
+        Assert.DoesNotContain("SourceRow.Id", xaml);
+        Assert.DoesNotContain("SourceRowJson", xaml);
+        XDocument.Parse(xaml);
+
+        string page = File.ReadAllText(Path.Combine(directory, "ImportView.xaml"));
+        Assert.Contains("Topstep closed-trades or Tradovate", page);
+        Assert.Contains("{Binding CancelOperationCommand}", page);
+        Assert.Contains("<local:TopstepReviewView>", page);
+        Assert.Contains("{Binding CandidateLabel}", page);
+    }
+
+    [Fact]
     public void ImportViewUsesOnePageScrollAndExposesReviewAndConfirmationSections()
     {
         string xaml = File.ReadAllText(Path.Combine(

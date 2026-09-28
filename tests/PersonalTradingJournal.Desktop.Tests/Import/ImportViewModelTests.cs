@@ -714,7 +714,7 @@ public sealed class ImportViewModelTests
                 preparationService,
                 importStore,
                 new FixedTimeProvider()),
-            dialog);
+            dialog, new TradovateOnlyFormatDetector(), null!, null!, null!, null!);
         return new Fixture(
             viewModel,
             accountReader,
