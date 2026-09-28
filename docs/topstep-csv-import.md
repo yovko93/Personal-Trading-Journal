@@ -1,4 +1,4 @@
-# Topstep CSV Source Rows, Candidates and Economics
+# Topstep CSV Source Rows, Candidates, Economics and References
 
 M11.1 provides a read-only source boundary: Application owns `ITopstepCsvParser`, immutable `TopstepSourceRow` records, and structured parse results; Infrastructure implements `TopstepCsvParser`. It is not connected to the Desktop Import page yet. That page continues to accept the existing Tradovate matched-fill format only.
 
@@ -7,6 +7,8 @@ No Topstep Trades, executions, reference data, import history, or database recor
 M11.2 adds `ITopstepTradeCandidateReconstructor` and the independent Infrastructure implementation `TopstepTradeCandidateReconstructor`. It prepares **reported closed-row candidates**, not verified account-level positions. The result can be ready for further row-level review without establishing automatic-import eligibility. It does not call Tradovate reconstruction or change the M11.1 parser.
 
 M11.3 adds the pure Application `TopstepEconomicsReconciler`. It reconciles each existing candidate against caller-verified Instrument pricing and an explicitly verified cost interpretation. It neither changes the source rows/candidates nor makes them importable by itself. The parser still requires every financial field; missing costs are rejected, never normalized to zero.
+
+M11.4 adds Application `TopstepReferencePreparationService`, which reads the existing Instrument and Account catalogs, resolves independently verified pricing, and calls M11.3. Its result is ready for read-only preview only when reference and economics checks pass. It has no write-service dependency, confirmation operation, or Desktop registration. Reference proposals are data, not authorization to create anything.
 
 ## Supported schema
 
@@ -166,7 +168,61 @@ The production parser → candidate reconstruction → economics path was exerci
 
 All original row/candidate references and the four M11.2 boundary/grouping warnings remained intact. No row blocks the economics gate for this verified sample. Broker-position grouping is still unverified; this is not import acceptance. The customer file and identifiers remain outside Git, and no journal database was opened.
 
+## M11.4 Instrument resolution and explicit Account mapping
+
+### Contract identity and verified economics
+
+The normalized `ContractName` stays unchanged. Resolution parses a case-insensitive futures root + month code + one/two-digit year suffix into `TopstepContractIdentity`: for example, `MNQZ6` retains that exact source token and maps to canonical Instrument `MNQ`, month `Z`, year token `6`. The Domain catalog represents a canonical product, not an expiry-specific contract. No absolute year/century, exact expiry date, continuous symbol, fuzzy alias, or tick-aligned average price is inferred. Unsupported tokens block with `UNRECOGNIZED_CONTRACT`.
+
+All canonical matches are inspected **before** filtering by activity, validity or verification. Two matches block with `MULTIPLE_INSTRUMENT_MATCHES`, even if only one is active or economically plausible. There is no silent tie-breaker or fallback Instrument. A unique inactive, verified Instrument is retained with `INSTRUMENT_INACTIVE`, without activation.
+
+The built-in verified profile is deliberately limited to MNQ: Futures, Micro E-mini Nasdaq-100, CME, USD, tick size **0.25**, tick value **0.50**, point value **2**, quarterly months H/M/U/Z. These are independent reference specifications, not values solved from source prices/PnL. CME's [MNQ contract specifications](https://www.cmegroup.com/markets/equities/nasdaq/micro-e-mini-nasdaq-100.contractSpecs.html) confirm the USD multiplier and tick; its [Micro E-mini FAQ](https://www.cmegroup.com/articles/faqs/micro-e-mini-equity-index-futures-frequently-asked-questions.html) confirms the quarterly cycle (reviewed 2026-09-28). Production preparation makes no network request and does not use any published commission schedule.
+
+- One matching MNQ must agree with all those specifications. Wrong asset class, exchange, currency, tick size/value or point value blocks with `INSTRUMENT_SPECIFICATION_MISMATCH`; the catalog and source values are not corrected automatically.
+- No matching MNQ yields `ProposedCreation` plus `INSTRUMENT_CREATION_PROPOSED`. The complete immutable proposal includes name, symbol, asset class, exchange, currency, tick/point economics and reference evidence. Its pricing can be reconciled read-only; a later workflow must obtain explicit creation approval. Multiple source expiries can share one canonical proposal without merging their row candidates.
+- No matching Instrument for another root yields `INSTRUMENT_METADATA_REQUIRED`: supply independently verified contract identity and complete specifications, create/verify the catalog entry separately, then rerun. There is no incomplete or price-derived proposal.
+- An existing non-profile Instrument must have complete Futures metadata, positive mutually consistent tick/point economics, and explicit independent verification. Because the catalog has no verified flag, the caller supplies `TopstepInstrumentVerification` bound to the **exact source contract and complete immutable `InstrumentListItem` snapshot**, not merely an ID. This is a trust-boundary attestation, not automatic verification by the program. Missing/stale attestation yields `INSTRUMENT_VERIFICATION_REQUIRED`; it cannot override duplicate matches. No attestation UI is implemented in M11.4.
+
+Verified pricing snapshots are keyed by exact source contract and passed directly to the unchanged M11.3 reconciler. The caller must still explicitly select `SeparateReportedRoundTurnTotalsUsd` for the reviewed cost schema; its default is unverified. Every row must pass exact Gross comparison and the existing cost checks. Instrument failures withhold pricing, so affected rows additionally retain `PRICING_NOT_VERIFIED` and null Net. A mismatched source PnL retains its reported amount and row-located `GROSS_PNL_MISMATCH`; no partial batch becomes preview-ready. Nothing rounds source prices, adjusts quantities, replaces costs, or infers specifications from a zero/profitable row.
+
+### Destination Account policy
+
+The CSV contains no destination Account identity. Each call requires an explicit nullable Account ID; null/empty yields `ACCOUNT_SELECTION_REQUIRED` without an Account lookup. The service never selects from the account list, derives an account from a filename/source ID, or falls back to a previously successful request. A missing/deleted selected account yields `ACCOUNT_NOT_FOUND`. Both diagnostics direct the caller to refresh/select an available account.
+
+`ProviderName` must be exactly **Topstep**, after trimming and case-insensitive comparison. The project's provider field is free text, so this is an explicit Topstep policy, not a pre-existing verified-provider flag. Blank, unrelated providers and unreviewed aliases such as TopstepX produce `ACCOUNT_PROVIDER_MISMATCH`; the user must verify/correct provider metadata or select another account, not have it silently reassigned. Account type alone does not prove provider identity. Currency must be USD for the reviewed source schema (`ACCOUNT_CURRENCY_MISMATCH` otherwise); no FX conversion or relabeling occurs.
+
+Consistent with M10's historical-import selector, an explicitly selected inactive account is allowed with `ACCOUNT_INACTIVE`, never reactivated. The result includes its activity status for later review. Preparation still requires an explicit selection on every call; a future selector must not infer confirmation of an old choice.
+
+### Read-only result and future revalidation
+
+`TopstepReferencePreparationResult` retains the policy version, source provider `Topstep`, explicit selection and full Account read snapshot, each exact contract's complete canonical matching set, existing Instrument/proposal, verification evidence, pricing, all economics rows and all upstream parse/grouping diagnostics. `TopstepMappedCandidate` links the original candidate and separate source `Id` to the destination Account and resolution; it generates no journal Trade ID, execution ID or durable deduplication key. Provider + selected internal Account ID + source-row ID are available for later account-scoped identity policy; they do not prove that the broker IDs are stable across exports.
+
+`IsReadyForPreview` requires valid source, account mapping, nonblocked Instrument resolutions, and successful economics for every row. It does **not** grant import permission. `RequiresInstrumentCreationApproval` makes proposed reference data visible. Account failures leave no destination-mapped rows while preserving source/economics/instrument diagnostics for recovery. Instrument failures retain affected row links for inspection but keep readiness false. Diagnostics expose contract and source locations through these links, never complete customer rows or broker identifiers in messages; consumers must not log result objects wholesale.
+
+Every preparation call reads current Account and Instrument data; there is no cached account selection or catalog. A new duplicate, deletion, provider/currency/specification change, or replaced Instrument is reflected on rerun. Earlier results are immutable review snapshots, **not** locks or an atomic cross-reader database snapshot. M11.6 must revalidate the whole canonical matching set (including newly added inactive matches), selected account and material facts inside its future transaction, compare with the accepted snapshot, and require renewed review on changes. Checking only a previously selected Instrument ID is insufficient. Creation proposals also need renewed absence/specification checks and explicit approval. This milestone implements none of that confirmation transaction and leaves M10.6's existing safeguard untouched.
+
+Cancellation is forwarded to both readers and checked during resolution/mapping and reconciliation. Reader/cancellation failures propagate rather than becoming missing-reference results. Production changes are confined to new Topstep Application types; no database schema, records, Instrument creation, Tradovate behavior, Domain calculations, or Desktop controls change.
+
+### Supplied-file reference preparation
+
+The local sample was exercised through production parsing → reconstruction → reference preparation → economics with isolated in-memory read-only reference readers, never the real journal. All **25 accepted rows, 25 candidates, original source links and four grouping warnings** were preserved. Synthetic reference scenarios on that same source produced:
+
+| Reference scenario | Preview readiness / outcome |
+| --- | --- |
+| Explicit USD Topstep account + existing verified MNQ | Ready; 25 mappings, no reference/economics errors. |
+| MNQ absent | Ready for review; one complete canonical creation proposal, approval still required later. |
+| Inactive selected account and unique verified MNQ | Ready; two activity warnings, no reactivation. |
+| Two canonical MNQ matches | Blocked: `MULTIPLE_INSTRUMENT_MATCHES`; no pricing/Net guessed. |
+| Incorrect MNQ tick/point economics | Blocked: `INSTRUMENT_SPECIFICATION_MISMATCH`. |
+| No account selection / deleted account | Blocked: `ACCOUNT_SELECTION_REQUIRED` / `ACCOUNT_NOT_FOUND`. |
+| Wrong provider / wrong account currency | Blocked: `ACCOUNT_PROVIDER_MISMATCH` / `ACCOUNT_CURRENCY_MISMATCH`. |
+| References corrected and same service rerun | Ready again; current facts reread. |
+
+Verified scenarios preserve aggregate **1,241.00 USD Gross − 51.84 Fees − 36.00 Commissions = 1,153.16 USD Net**, with zero failed economics rows. Independent integration tests use fresh migrated temporary SQLite databases and real Account/Instrument readers with `Mode=ReadOnly`; existing and proposed paths make no import/reference writes. The customer file and IDs are not tracked. This is reference-preparation evidence, not Desktop or persistence acceptance.
+
 ## Automated coverage
+
+M11.4 adds 31 Application and 4 SQLite integration cases for existing/missing/proposed/inactive/ambiguous references, profile/specification and explicit verification gates, exact contract tokens, account selection/provider/currency/deletion, repeated fresh resolution, cancellation/failures, unchanged costs/provenance and read-only real-reader operation. All **172 focused Topstep tests** and **1,892 full Release tests** pass (400 Domain, 379 Application, 609 Infrastructure, 504 Desktop), with no failures/skips and zero build warnings/errors; `git diff --check` passes. There is no M11.4 interactive UI claim.
 
 M11.3 adds 37 synthetic economics/pipeline cases covering Long/Short profit/loss/zero, exact fractional economics, actual row costs differing from published rates, Domain parity without double charging, missing/malformed costs, reported-PnL mismatches, pricing/currency/interpretation gates, negative costs, overflow/precision loss, provenance, grouping-warning retention, and cancellation. All **137 focused Topstep tests** and the full **1,857-test Release suite** pass (400 Domain, 348 Application, 605 Infrastructure, 504 Desktop), with no failed/skipped tests. Release build has zero warnings/errors; `git diff --check` passes.
 
@@ -178,10 +234,10 @@ M11.1 verification passed 108 focused Topstep/Tradovate CSV tests and the full 1
 
 The supplied 25-row export was parsed locally through the production parser: 25 accepted, 0 rejected, 0 diagnostics. Its source `+03:00` timestamps, `-05:00` TradeDay offsets, and all 25 subsecond durations were preserved. The customer CSV and its identifiers are not repository fixtures. This is parsing evidence, not import acceptance; the real journal was not opened.
 
-## Remaining limitations for M11.4–M11.7
+## Remaining limitations for M11.5–M11.7
 
 - M11.2 supports the reported closed quantity per row. Its membership in a complete broker flat-to-flat position remains unknown. A finer position-grouping mode would require reliable common position/fill identifiers, account context, or complete position history; shared times, TradeDay, and source Id proximity do not supply that evidence.
 - What are the scope and stability of `Id` across account exports and re-exports, and how is account identity supplied? This must be settled before durable deduplication in M11.6.
-- Instrument resolution must supply verified historical point value and currency for each exact contract; a zero-PnL row cannot independently verify its point value. No Instrument creation or reference-data lookup is added in M11.3.
+- M11.4 resolves reviewed MNQ metadata and explicitly verified existing Instruments; other roots have no built-in creation profile. Historical specification changes need independent evidence and policy review. A zero-PnL row cannot verify point value. Short year tokens are preserved rather than expanded into a guessed absolute expiry.
 - The reviewed USD schema supports additive Fees and Commissions totals and Gross-reported PnL, but a different schema/currency, net-reported PnL, rebates, or rounded economics requires new evidence and explicit policy. Future rates must still come from the CSV, not the published table.
 - Later preview/persistence must retain row-level provenance, these diagnostics, grouping warnings, and the cost interpretation, then allocate each verified row cost total exactly once. No transactions, deduplication, Desktop wiring, or broker execution fabrication is implemented here. Tradovate's unknown-cost behavior remains unchanged.

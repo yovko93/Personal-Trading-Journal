@@ -32,6 +32,8 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M11.3 — Topstep Economics: Read-only Gross/cost/Net reconciliation implemented**
 
+**Milestone M11.4 — Topstep References: Read-only Instrument resolution and explicit Account mapping implemented**
+
 **Desktop Theme System — System / Dark / Light: Complete**
 
 **Entity Lifecycle & CRUD UX: Complete**
@@ -155,6 +157,8 @@ M11.2 retains **one closed-row Trade candidate per Topstep source row**, with ex
 
 M11.3 reconciles each Topstep row using caller-verified Instrument point value/currency and an explicit verified USD source interpretation. Reported PnL must equal calculated directional Gross exactly; then Net is Gross minus the CSV's separate Fees and Commissions totals, each counted once. Published fees corroborate the interpretation but are never a rate schedule in application code. Missing costs, mismatched Gross, unknown interpretation/pricing, unsupported currency or rebates, and decimal overflow/precision loss block verified numeric Net. The supplied 25 rows reconcile to **1,241.00 USD Gross − 51.84 USD Fees − 36.00 USD Commissions = 1,153.16 USD Net**, while retaining all M11.2 grouping warnings. This remains read-only economics evidence, not import authorization; Tradovate costs remain unknown. See [Topstep economics](docs/topstep-csv-import.md#m113-gross-fees-commissions-and-net) for sources, formulas, the zero-tolerance policy, and remaining limitations.
 
+M11.4 adds `TopstepReferencePreparationService`, using the existing read-only Account and Instrument readers. Each request requires an explicitly selected **USD Account with ProviderName `Topstep`** (trimmed, case-insensitive exact match); there is no account inference, remembered fallback, or provider alias. Inactive explicitly selected Accounts and uniquely verified inactive Instruments are allowed for historical review with warnings, never reactivated. Contract root/month/year tokens remain traceable: MNQ is checked against reviewed CME/USD specifications (0.25 tick, 0.50 tick value, 2 point value, quarterly contracts). A missing MNQ produces a complete **read-only proposal requiring later approval**, not an Instrument. Multiple canonical matches always block before activity/specification filtering; wrong specifications also block. Other roots require an existing complete catalog entry plus explicit verification bound to the exact source contract and full catalog snapshot, never evidence inferred from PnL. Resolved pricing feeds M11.3 without changing rows or costs. Every run rereads reference data; the result retains matching-set/account snapshots for M11.5 review and M11.6 revalidation, plus separate provider/account/source-row identity. The sample retains 25 candidates and four grouping warnings. No Topstep persistence, deduplication, confirmation, or Desktop integration is added. See [reference resolution and account policy](docs/topstep-csv-import.md#m114-instrument-resolution-and-explicit-account-mapping).
+
 To import a supported Tradovate matched-fills export:
 
 1. Open **Import** and choose **Select CSV**.
@@ -269,6 +273,8 @@ The M11.1 parsing baseline adds 65 synthetic Topstep contract/parser tests: the 
 The M11.2 closed-row candidate baseline adds 35 tests, bringing the full suite to **1,820 passing tests** (400 Domain, 320 Application, 596 Infrastructure, 504 Desktop). Its synthetic coverage protects row-level conservation, ambiguous grouping warnings, direction changes, source traceability, cancellation, and Domain representability without claiming recovered broker execution history.
 
 The M11.3 economics baseline adds 37 tests: **1,857 tests pass** (400 Domain, 348 Application, 605 Infrastructure, 504 Desktop), including 137 focused Topstep tests. Reconciliation covers exact Gross, separate actual costs, nullable unverified Net, source/pricing/interpretation gates, Domain parity, and decimal failure diagnostics. The local 25-row sample reconciles fully without persistence or customer data being added to Git.
+
+The M11.4 reference-preparation baseline adds 35 tests: **1,892 tests pass** (400 Domain, 379 Application, 609 Infrastructure, 504 Desktop), including **172 focused Topstep tests**. Coverage includes verified/existing/proposed/inactive/ambiguous Instruments, incorrect metadata, explicit/missing/deleted/incompatible Accounts, reference changes, unchanged source economics/provenance, cancellation, and real readers against migrated SQLite opened read-only. The supplied 25-row CSV passes preparation with verified MNQ and an explicit compatible account; negative reference scenarios block as designed. Release build has zero warnings/errors, with no failed/skipped tests; `git diff --check` passes. This does not claim Topstep Desktop or confirmation acceptance.
 
 ## Run
 
