@@ -26,6 +26,8 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M10 — Tradovate CSV Import: Implemented; final interactive acceptance pending**
 
+**Milestone M11.1 — Topstep CSV Parsing & Normalization: Read-only foundation implemented**
+
 **Desktop Theme System — System / Dark / Light: Complete**
 
 **Entity Lifecycle & CRUD UX: Complete**
@@ -143,6 +145,8 @@ The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, re
 
 M10 covers stages M10.1–M10.7, not just Desktop confirmation. See [Tradovate CSV Import](docs/tradovate-csv-import.md) for the exact required matched-fills headers, reconstruction and confirmation contracts, and [M10 acceptance](docs/m10-acceptance.md) for the final acceptance matrix and remaining interactive checks. Arbitrary execution/order CSV formats are not supported. The current automatic Instrument-creation profile is MNQ; other canonical Instruments need complete compatible catalog metadata, and Import has no arbitrary symbol-mapping editor.
 
+M11.1 adds a separate, read-only **Topstep CSV parser**, not a Desktop import workflow. It validates the `Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions` schema and returns one normalized record per accepted source row with line-located diagnostics. Entry/exit offsets produce unambiguous UTC instants; the broker's TradeDay date/offset and subsecond duration remain source evidence. Duplicate/conflicting IDs within a file are rejected. Fees, Commissions, and reported PnL stay separate: no Net P&L is computed, rows are not grouped, and no Trades, executions, or reference data are persisted. The Desktop Import page remains Tradovate-only. See [Topstep CSV Parsing and Normalization](docs/topstep-csv-import.md) for supported formats and the unresolved grouping/cost questions for M11.2/M11.3.
+
 To import a supported Tradovate matched-fills export:
 
 1. Open **Import** and choose **Select CSV**.
@@ -251,6 +255,8 @@ dotnet test PersonalTradingJournal.sln
 ```
 
 The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Application, 504 Infrastructure, and 504 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, isolated SQLite acceptance, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior. These automated tests do not establish interactive WPF acceptance; see the [acceptance record](docs/m10-acceptance.md).
+
+The M11.1 parsing baseline adds 65 synthetic Topstep contract/parser tests: the full suite passes 1,785 tests (400 Domain, 317 Application, 564 Infrastructure, 504 Desktop). The supplied Topstep export was parsed read-only with 25 accepted rows, 0 rejected rows, and no diagnostics; it is not stored as a repository fixture. Topstep import and Desktop acceptance remain outside M11.1.
 
 ## Run
 
