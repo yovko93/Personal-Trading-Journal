@@ -242,7 +242,7 @@ public sealed class TradovateExecutionReconstructorTests
     }
 
     [Fact]
-    public void ReversalCrossingZeroBlocksLifecycleWithoutReassigningPriorCandidate()
+    public void ReversalAllocatesOneRealFillWithoutReassigningPriorCandidate()
     {
         TradovateCsvParseResult input = TradovateReconstructionFixtures.Complete(
             Row(1, "MNQU6", "BUY-0", "SELL-0", 1m, At(8), At(8, 1)),
@@ -251,16 +251,50 @@ public sealed class TradovateExecutionReconstructorTests
 
         TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
 
-        Assert.Equal(TradovateReconstructionStatus.Blocked, result.Status);
-        Assert.Equal(2, result.Candidates.Count);
-        Assert.Equal(TradovateReconstructionStatus.Reconstructed, result.Candidates[0].Status);
-        Assert.Equal(TradovateReconstructionStatus.Blocked, result.Candidates[1].Status);
-        AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.PositionReversal);
-        string[] assignedIds = result.Candidates
+        Assert.Equal(TradovateReconstructionStatus.Reconstructed, result.Status);
+        Assert.Equal(3, result.Candidates.Count);
+        Assert.Equal([1], result.Candidates[0].SourceRecordIndices);
+        Assert.Equal([2], result.Candidates[1].SourceRecordIndices);
+        Assert.Equal([3], result.Candidates[2].SourceRecordIndices);
+        TradovateReconstructedExecution source = Assert.Single(result.Executions,
+            execution => execution.ExternalFillId == "SELL-1");
+        TradovateReconstructedExecution[] allocations = result.Candidates
             .SelectMany(candidate => candidate.OrderedExecutions)
-            .Select(execution => execution.ExternalFillId)
+            .Where(execution => execution.ExternalFillId == "SELL-1")
             .ToArray();
-        Assert.Equal(assignedIds.Length, assignedIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal([0, 1], allocations.Select(execution => execution.AllocationIndex));
+        Assert.All(allocations, allocation => Assert.Same(source, allocation.SourceFill));
+        Assert.Equal(source.Quantity, allocations.Sum(allocation => allocation.Quantity));
+    }
+
+    [Fact]
+    public void ReversalWithConflictingMatchedRowAllocationIsBlocked()
+    {
+        TradovateCsvParseResult input = TradovateReconstructionFixtures.Complete(
+            Row(1, "MNQU6", "BUY-1", "CROSS", 1m, At(9), At(10)),
+            Row(2, "MNQU6", "BUY-1", "SELL-LATER", 1m, At(9), At(12)),
+            Row(3, "MNQU6", "BUY-2", "CROSS", 2m, At(11), At(10)));
+
+        TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
+
+        Assert.Equal(TradovateReconstructionStatus.Blocked, result.Status);
+        AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.ReversalAllocationConflict);
+        Assert.False(result.IsEligibleForAutomaticImport);
+        Assert.Equal(3m, Assert.Single(result.Executions, item => item.ExternalFillId == "CROSS").Quantity);
+    }
+
+    [Fact]
+    public void SameSideTimestampTieThatCanChangeReversalAllocationIsAmbiguous()
+    {
+        TradovateCsvParseResult input = TradovateReconstructionFixtures.Complete(
+            Row(1, "MNQU6", "BUY-1", "SELL-1", 1m, At(9), At(10)),
+            Row(2, "MNQU6", "BUY-2", "SELL-2", 1m, At(11), At(10)));
+
+        TradovateExecutionReconstructionResult result = _reconstructor.Reconstruct(input);
+
+        Assert.Equal(TradovateReconstructionStatus.Ambiguous, result.Status);
+        AssertDiagnostic(result, TradovateReconstructionDiagnosticCodes.TimestampOrderAmbiguous);
+        Assert.False(result.IsEligibleForAutomaticImport);
     }
 
     [Fact]

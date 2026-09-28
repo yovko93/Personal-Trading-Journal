@@ -87,6 +87,7 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
                 candidates.AddRange(GroupFlatToFlat(
                     symbolRows.Key,
                     symbolExecutions,
+                    symbolRows.ToArray(),
                     diagnostics,
                     cancellationToken));
             }
@@ -454,12 +455,12 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
     private static IReadOnlyList<TradovateTradeCandidate> GroupFlatToFlat(
         string brokerSymbol,
         IReadOnlyList<TradovateReconstructedExecution> executions,
+        IReadOnlyList<TradovateMatchedFillRow> sourceRows,
         List<TradovateReconstructionDiagnostic> diagnostics,
         CancellationToken cancellationToken)
     {
         var candidates = new List<TradovateTradeCandidate>();
         var current = new List<TradovateReconstructedExecution>();
-        var assigned = new HashSet<TradovateReconstructedExecution>();
         decimal signedPosition = 0m;
         TradeDirection? direction = null;
         List<IGrouping<DateTime, TradovateReconstructedExecution>> timestampGroups = executions
@@ -471,8 +472,7 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
         {
             cancellationToken.ThrowIfCancellationRequested();
             TradovateReconstructedExecution[] timestampGroup = timestampGroups[groupIndex].ToArray();
-            if (ContainsBothSides(timestampGroup) &&
-                CanTimestampOrderAffectLifecycle(signedPosition, timestampGroup))
+            if (CanTimestampOrderAffectLifecycle(signedPosition, timestampGroup))
             {
                 int[] affectedRecords = timestampGroup
                     .SelectMany(execution => execution.SourceRecordIndices)
@@ -485,7 +485,7 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
                     brokerSymbol,
                     affectedRecords,
                     timestampGroup.Select(execution => execution.ExternalFillId),
-                    "Opposite-side fills share a timestamp and their unknown ordering can change position boundaries."));
+                    "Fills share a timestamp and their unknown ordering can change Trade boundaries or reversal allocations."));
 
                 current.AddRange(OrderForPresentation(timestampGroup));
                 current.AddRange(timestampGroups
@@ -516,35 +516,55 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
                 }
 
                 decimal nextPosition = checked(signedPosition + SignedQuantity(execution));
-                current.Add(execution);
                 if (CrossesThroughZero(signedPosition, nextPosition))
                 {
-                    diagnostics.Add(new TradovateReconstructionDiagnostic(
-                        TradovateReconstructionDiagnosticSeverity.Error,
-                        TradovateReconstructionDiagnosticCodes.PositionReversal,
-                        brokerSymbol,
-                        current.SelectMany(item => item.SourceRecordIndices),
-                        current.Select(item => item.ExternalFillId),
-                        "An execution crosses the position through zero and cannot be split without fabricating broker fills."));
+                    // Matched rows must corroborate both portions. Keep the original broker
+                    // identity and partition evidence, so source P&L is not counted twice.
+                    TradovateMatchedFillRow[] fillRows = sourceRows
+                        .Where(row => execution.SourceRecordIndices.Contains(row.SourceRecordIndex))
+                        .ToArray();
+                    DateTime CounterpartTime(TradovateMatchedFillRow row) =>
+                        execution.Side == ExecutionSide.Sell
+                            ? row.BoughtLocalTimestamp : row.SoldLocalTimestamp;
+                    TradovateMatchedFillRow[] closingRows = fillRows
+                        .Where(row => CounterpartTime(row) < execution.SourceLocalTimestamp).ToArray();
+                    TradovateMatchedFillRow[] openingRows = fillRows
+                        .Where(row => CounterpartTime(row) > execution.SourceLocalTimestamp).ToArray();
+                    decimal closingQuantity = Math.Abs(signedPosition);
+                    decimal openingQuantity = Math.Abs(nextPosition);
+                    if (closingRows.Length + openingRows.Length != fillRows.Length ||
+                        CheckedSum(closingRows.Select(row => row.MatchedQuantity)) != closingQuantity ||
+                        CheckedSum(openingRows.Select(row => row.MatchedQuantity)) != openingQuantity)
+                    {
+                        diagnostics.Add(new TradovateReconstructionDiagnostic(
+                            TradovateReconstructionDiagnosticSeverity.Error,
+                            TradovateReconstructionDiagnosticCodes.ReversalAllocationConflict,
+                            brokerSymbol, execution.SourceRecordIndices, [execution.ExternalFillId],
+                            "Matched-fill evidence does not unambiguously reconcile the closing and opening quantities of a reversal."));
+                        current.Add(execution);
+                        candidates.Add(CreateCandidate(brokerSymbol, direction, current, null,
+                            nextPosition, TradovateReconstructionStatus.Blocked,
+                            [TradovateReconstructionDiagnosticCodes.ReversalAllocationConflict]));
+                        return candidates;
+                    }
 
-                    HashSet<TradovateReconstructedExecution> included =
-                        assigned.Concat(current).ToHashSet();
-                    current.AddRange(executions
-                        .Where(item => !included.Contains(item))
-                        .OrderBy(item => item.SourceLocalTimestamp)
-                        .ThenBy(item => item.Side)
-                        .ThenBy(item => item.ExternalFillId, StringComparer.Ordinal));
+                    TradovateReconstructedExecution Allocate(
+                        decimal quantity, int index, TradovateMatchedFillRow[] rows) =>
+                        execution.Allocate(quantity, index,
+                            rows.Select(row => row.SourceRecordIndex),
+                            rows.Where(row => row.SourceLineNumber.HasValue)
+                                .Select(row => row.SourceLineNumber!.Value));
+                    current.Add(Allocate(closingQuantity, 0, closingRows));
                     candidates.Add(CreateCandidate(
-                        brokerSymbol,
-                        direction,
-                        current,
-                        closingLocalTimestamp: null,
-                        nextPosition,
-                        TradovateReconstructionStatus.Blocked,
-                        [TradovateReconstructionDiagnosticCodes.PositionReversal]));
-                    return candidates;
+                        brokerSymbol, direction, current, execution.SourceLocalTimestamp,
+                        0m, TradovateReconstructionStatus.Reconstructed, []));
+                    current = [Allocate(openingQuantity, 1, openingRows)];
+                    direction = nextPosition > 0m ? TradeDirection.Long : TradeDirection.Short;
+                    signedPosition = nextPosition;
+                    continue;
                 }
 
+                current.Add(execution);
                 signedPosition = nextPosition;
                 if (signedPosition == 0m)
                 {
@@ -556,7 +576,6 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
                         signedPosition,
                         TradovateReconstructionStatus.Reconstructed,
                         []));
-                    assigned.UnionWith(current);
                     current = [];
                     direction = null;
                 }
@@ -705,7 +724,14 @@ public sealed class TradovateExecutionReconstructor : ITradovateExecutionReconst
 
         if (signedPosition == 0m)
         {
-            return true;
+            return ContainsBothSides(timestampGroup);
+        }
+
+        if (!ContainsBothSides(timestampGroup))
+        {
+            return timestampGroup.Count > 1 && (signedPosition > 0m
+                ? sellQuantity > signedPosition
+                : buyQuantity > -signedPosition);
         }
 
         return signedPosition > 0m

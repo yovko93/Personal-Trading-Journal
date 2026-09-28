@@ -16,5 +16,16 @@ public sealed class TradovateImportedExecutionRecord
 
     public string ExternalExecutionId { get; set; } = null!;
 
+    public int AllocationIndex { get; set; }
+
+    // Null only for legacy identity-only ledger rows. Never backfill from mutable Trade data.
+    public decimal? SourceFillQuantity { get; set; }
+
+    public decimal? AllocatedQuantity { get; set; }
+
+    public decimal? SourceFillPrice { get; set; }
+
+    public DateTimeOffset? SourceFillExecutedAtUtc { get; set; }
+
     public DateTimeOffset ImportedAtUtc { get; set; }
 }

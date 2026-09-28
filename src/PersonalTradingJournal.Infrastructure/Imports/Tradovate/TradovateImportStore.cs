@@ -58,7 +58,8 @@ public sealed class TradovateImportStore : ITradovateImportStore
 
         Classification classification = ClassifyCandidates(
             request.Preparation.PreparedCandidates,
-            persistedIdentities);
+            persistedIdentities,
+            accountId);
         if (classification.ConflictMessage is not null)
         {
             await transaction.RollbackAsync(CancellationToken.None);
@@ -137,6 +138,9 @@ public sealed class TradovateImportStore : ITradovateImportStore
             browseRecords.Add(TradeBrowsePersistenceMapper.ToRecord(trade));
             foreach (TradeExecution execution in trade.Executions)
             {
+                TradovatePreparedExecution allocation = candidate.OrderedExecutions
+                    .Single(item => item.ExternalFillId == execution.ExternalExecutionId &&
+                        item.Side == execution.Side && item.BrokerSymbol == execution.BrokerSymbol);
                 executionRecords.Add(TradeExecutionPersistenceMapper.ToRecord(execution));
                 identityRecords.Add(new TradovateImportedExecutionRecord
                 {
@@ -146,6 +150,11 @@ public sealed class TradovateImportStore : ITradovateImportStore
                     BrokerSymbol = execution.BrokerSymbol!,
                     Side = execution.Side,
                     ExternalExecutionId = execution.ExternalExecutionId!,
+                    AllocationIndex = allocation.AllocationIndex,
+                    SourceFillQuantity = allocation.SourceFillQuantity ?? allocation.Quantity,
+                    AllocatedQuantity = allocation.Quantity,
+                    SourceFillPrice = allocation.Price,
+                    SourceFillExecutedAtUtc = allocation.ExecutedAtUtc,
                     ImportedAtUtc = request.ImportedAtUtc,
                 });
             }
@@ -179,8 +188,15 @@ public sealed class TradovateImportStore : ITradovateImportStore
 
     private static Classification ClassifyCandidates(
         IReadOnlyList<TradovatePreparedTradeCandidate> candidates,
-        IReadOnlyList<TradovateImportedExecutionRecord> persisted)
+        IReadOnlyList<TradovateImportedExecutionRecord> persisted,
+        Guid accountId)
     {
+        string? allocationConflict = ValidateAllocations(candidates, persisted, accountId);
+        if (allocationConflict is not null)
+        {
+            return Classification.Conflict(allocationConflict);
+        }
+
         var newCandidates = new List<TradovatePreparedTradeCandidate>();
         var duplicateTradeIds = new List<Guid>();
         var incomingOwners = new Dictionary<ExecutionIdentity, int>();
@@ -193,7 +209,8 @@ public sealed class TradovateImportStore : ITradovateImportStore
                     candidate.TradingAccountId,
                     execution.BrokerSymbol,
                     execution.Side,
-                    execution.ExternalFillId))
+                    execution.ExternalFillId,
+                    execution.AllocationIndex))
                 .ToArray();
             if (keys.Distinct().Count() != keys.Length || keys.Any(key =>
                     incomingOwners.TryGetValue(key, out int owner) && owner != candidateIndex))
@@ -242,6 +259,64 @@ public sealed class TradovateImportStore : ITradovateImportStore
             newCandidates,
             duplicateTradeIds.Distinct().ToArray(),
             null);
+    }
+
+    private static string? ValidateAllocations(
+        IReadOnlyList<TradovatePreparedTradeCandidate> candidates,
+        IReadOnlyList<TradovateImportedExecutionRecord> persisted,
+        Guid accountId)
+    {
+        if (candidates.Any(candidate => candidate.TradingAccountId != accountId))
+        {
+            return "An import candidate belongs to a different Trading Account.";
+        }
+
+        var allocations = candidates.SelectMany((candidate, owner) =>
+            candidate.OrderedExecutions.Select((execution, index) =>
+                new { Candidate = candidate, Owner = owner, Index = index, Execution = execution }));
+        foreach (var group in allocations.GroupBy(item =>
+                     (item.Execution.BrokerSymbol, item.Execution.Side, item.Execution.ExternalFillId)))
+        {
+            var parts = group.OrderBy(item => item.Execution.AllocationIndex).ToArray();
+            TradovatePreparedExecution source = parts[0].Execution;
+            decimal sourceQuantity = source.SourceFillQuantity ?? source.Quantity;
+            bool whole = parts.Length == 1 && source.AllocationIndex == 0;
+            bool reversal = parts.Length == 2 && source.AllocationIndex == 0 &&
+                parts[1].Execution.AllocationIndex == 1 && parts[0].Owner != parts[1].Owner &&
+                parts[0].Index == parts[0].Candidate.OrderedExecutions.Count - 1 &&
+                parts[1].Index == 0 &&
+                parts[0].Candidate.ProvisionalDirection != parts[1].Candidate.ProvisionalDirection;
+            if ((!whole && !reversal) || sourceQuantity <= 0m ||
+                parts.Any(item => item.Execution.Quantity <= 0m ||
+                    (item.Execution.SourceFillQuantity ?? item.Execution.Quantity) != sourceQuantity ||
+                    item.Execution.Price != source.Price ||
+                    item.Execution.ExecutedAtUtc != source.ExecutedAtUtc) ||
+                parts.Sum(item => item.Execution.Quantity) != sourceQuantity)
+            {
+                return "Broker fill allocations do not conserve one source fill or form a closing/opening reversal pair.";
+            }
+
+            TradovateImportedExecutionRecord[] existing = persisted.Where(record =>
+                record.BrokerSymbol == source.BrokerSymbol && record.Side == source.Side &&
+                record.ExternalExecutionId == source.ExternalFillId).ToArray();
+            if (existing.Length == 0)
+            {
+                continue;
+            }
+
+            if (existing.Length != parts.Length || parts.Any(part => !existing.Any(record =>
+                    record.AllocationIndex == part.Execution.AllocationIndex &&
+                    (record.SourceFillQuantity is null ||
+                        (record.SourceFillQuantity == sourceQuantity &&
+                         record.AllocatedQuantity == part.Execution.Quantity &&
+                         record.SourceFillPrice == source.Price &&
+                         record.SourceFillExecutedAtUtc == source.ExecutedAtUtc)))))
+            {
+                return "The import overlaps a partial or changed broker fill allocation set. Reuse the complete original source.";
+            }
+        }
+
+        return null;
     }
 
     private static InstrumentResolution ResolveInstrument(
@@ -393,13 +468,15 @@ public sealed class TradovateImportStore : ITradovateImportStore
         Guid TradingAccountId,
         string BrokerSymbol,
         ExecutionSide Side,
-        string ExternalExecutionId)
+        string ExternalExecutionId,
+        int AllocationIndex)
     {
         public static ExecutionIdentity From(TradovateImportedExecutionRecord record) =>
             new(
                 record.TradingAccountIdAtImport,
                 record.BrokerSymbol,
                 record.Side,
-                record.ExternalExecutionId);
+                record.ExternalExecutionId,
+                record.AllocationIndex);
     }
 }

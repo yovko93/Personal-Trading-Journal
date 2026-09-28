@@ -3,7 +3,7 @@ using PersonalTradingJournal.Domain.Trades;
 namespace PersonalTradingJournal.Application.Imports.Tradovate;
 
 /// <summary>
-/// A unique broker fill reconstructed from one or more matched-fill source rows.
+/// A broker fill, or a quantity allocation linked to that unchanged source fill.
 /// </summary>
 public sealed class TradovateReconstructedExecution
 {
@@ -54,7 +54,40 @@ public sealed class TradovateReconstructedExecution
         TickSize = tickSize;
         SourceRecordIndices = Array.AsReadOnly(sourceRecordIndices.Distinct().Order().ToArray());
         SourceLineNumbers = Array.AsReadOnly(sourceLineNumbers.Distinct().Order().ToArray());
+        SourceFill = this;
     }
+
+    private TradovateReconstructedExecution(
+        TradovateReconstructedExecution sourceFill,
+        decimal quantity,
+        int allocationIndex,
+        IEnumerable<int> sourceRecordIndices,
+        IEnumerable<int> sourceLineNumbers)
+        : this(sourceFill.BrokerSymbol, sourceFill.Side, sourceFill.ExternalFillId,
+            quantity, sourceFill.Price, sourceFill.SourceLocalTimestamp, sourceFill.TickSize,
+            sourceRecordIndices, sourceLineNumbers)
+    {
+        if (quantity >= sourceFill.Quantity || allocationIndex is < 0 or > 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity));
+        }
+
+        SourceFill = sourceFill.SourceFill;
+        AllocationIndex = allocationIndex;
+    }
+
+    /// <summary>The original immutable fill; its quantity is never split or replaced.</summary>
+    public TradovateReconstructedExecution SourceFill { get; }
+
+    /// <summary>Zero for a whole fill or closing allocation; one for a reversal opening allocation.</summary>
+    public int AllocationIndex { get; }
+
+    public TradovateReconstructedExecution Allocate(
+        decimal quantity,
+        int allocationIndex,
+        IEnumerable<int> sourceRecordIndices,
+        IEnumerable<int> sourceLineNumbers) =>
+        new(SourceFill, quantity, allocationIndex, sourceRecordIndices, sourceLineNumbers);
 
     public string BrokerSymbol { get; }
 

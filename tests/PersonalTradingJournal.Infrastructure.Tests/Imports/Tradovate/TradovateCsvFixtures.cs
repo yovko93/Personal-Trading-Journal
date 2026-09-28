@@ -5,6 +5,18 @@ internal static class TradovateCsvFixtures
     public const string Header =
         "symbol,_priceFormat,_priceFormatType,_tickSize,buyFillId,sellFillId,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration";
 
+    // One real sell fill (20) closes the remaining Long 19 and opens Short 1.
+    // All identifiers and economics below are synthetic.
+    public const string Reversal = Header + "\n" +
+        "MNQU6,2,0,0.25,ENTRY,PARTIAL,1,100,101,$2,09/10/2026 16:00:00,09/10/2026 16:10:00,10min\n" +
+        "MNQU6,2,0,0.25,ENTRY,CROSS,19,100,102,$76,09/10/2026 16:00:00,09/10/2026 16:30:21,30min 21sec\n" +
+        "MNQU6,2,0,0.25,COVER,CROSS,1,101,102,$2,09/10/2026 16:40:00,09/10/2026 16:30:21,9min 39sec";
+
+    public const string ShortReversal = Header + "\n" +
+        "MNQU6,2,0,0.25,PARTIAL,ENTRY,1,101,100,$-2,09/10/2026 16:10:00,09/10/2026 16:00:00,10min\n" +
+        "MNQU6,2,0,0.25,CROSS,ENTRY,19,102,100,$-76,09/10/2026 16:30:21,09/10/2026 16:00:00,30min 21sec\n" +
+        "MNQU6,2,0,0.25,CROSS,COVER,1,102,101,$-2,09/10/2026 16:30:21,09/10/2026 16:40:00,9min 39sec";
+
     public const string LongLikeRow =
         "MNQU6,2,0,0.25,000BUY01,000SELL01,2,20123.125,20124.375,$125.00,09/10/2026 16:30:03,09/10/2026 16:30:15,12sec";
 

@@ -15,4 +15,6 @@ public sealed record TradovatePreparedExecution(
     TimeSpan TradingUtcOffset,
     string TradingTimeZoneId,
     IReadOnlyList<int> SourceRecordIndices,
-    IReadOnlyList<int> SourceLineNumbers);
+    IReadOnlyList<int> SourceLineNumbers,
+    int AllocationIndex = 0,
+    decimal? SourceFillQuantity = null);

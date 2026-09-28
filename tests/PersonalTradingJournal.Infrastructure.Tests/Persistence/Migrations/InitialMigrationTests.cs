@@ -19,6 +19,8 @@ public sealed class InitialMigrationTests
         "20260917165522_AddTradeBrowseProjection";
     private const string TradovateImportMigrationId =
         "20260923074655_AddTradovateImportPersistence";
+    private const string FillAllocationsMigrationId =
+        "20260925214352_AddTradovateFillAllocations";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -76,6 +78,7 @@ public sealed class InitialMigrationTests
             [
                 "TradeExecutionId", "TradeId", "TradingAccountIdAtImport",
                 "BrokerSymbol", "Side", "ExternalExecutionId", "ImportedAtUtc",
+                "AllocatedQuantity", "AllocationIndex", "SourceFillExecutedAtUtc", "SourceFillPrice", "SourceFillQuantity",
             ],
         };
 
@@ -88,7 +91,7 @@ public sealed class InitialMigrationTests
 
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -100,7 +103,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(4L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(5L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -309,6 +312,43 @@ public sealed class InitialMigrationTests
     }
 
     [Fact]
+    public void FillAllocationMigrationPreservesLegacyIdentityWithoutInventingEconomics()
+    {
+        RunWithMigratedDatabase((_, options) =>
+        {
+            Guid tradeId = Guid.NewGuid();
+            Guid originalExecutionId = Guid.NewGuid();
+            using (var context = new JournalDbContext(options))
+            {
+                AddTradeGraph(context, tradeId);
+                context.SaveChanges();
+                Guid accountId = context.Trades.Single().TradingAccountId;
+                // Old ledger identities survive even when subsequent edits replaced executions.
+                context.Database.ExecuteSqlInterpolated($"""
+                    INSERT INTO TradovateImportedExecutions
+                        (TradeExecutionId, TradeId, TradingAccountIdAtImport, BrokerSymbol,
+                         Side, ExternalExecutionId, ImportedAtUtc)
+                    VALUES ({originalExecutionId}, {tradeId}, {accountId}, {"MNQU6"},
+                            {(int)ExecutionSide.Sell}, {"SYNTHETIC-LEGACY"}, {CreatedAtUtc.UtcDateTime})
+                    """);
+                context.Database.Migrate();
+            }
+
+            using var read = new JournalDbContext(options);
+            TradovateImportedExecutionRecord identity = read.TradovateImportedExecutions.Single();
+            Assert.Equal(originalExecutionId, identity.TradeExecutionId);
+            Assert.Equal(tradeId, identity.TradeId);
+            Assert.Equal("SYNTHETIC-LEGACY", identity.ExternalExecutionId);
+            Assert.Equal(0, identity.AllocationIndex);
+            Assert.Null(identity.SourceFillQuantity);
+            Assert.Null(identity.AllocatedQuantity);
+            Assert.Null(identity.SourceFillPrice);
+            Assert.Null(identity.SourceFillExecutedAtUtc);
+            Assert.Empty(read.TradeExecutions);
+        }, TradovateImportMigrationId);
+    }
+
+    [Fact]
     public void RemoveStrategiesMigrationPreservesNonStrategyTradeData()
     {
         RunWithMigratedDatabase((_, options) =>
@@ -374,7 +414,7 @@ public sealed class InitialMigrationTests
             using var readContext = new JournalDbContext(options);
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -567,6 +607,7 @@ public sealed class InitialMigrationTests
                     "BrokerSymbol",
                     "Side",
                     "ExternalExecutionId",
+                    "AllocationIndex",
                 ]));
     }
 

@@ -13,6 +13,7 @@ public static class TradovateReconstructionDiagnosticCodes
     public const string QuantityReconciliationFailed = "QUANTITY_RECONCILIATION_FAILED";
     public const string TimestampOrderAmbiguous = "TIMESTAMP_ORDER_AMBIGUOUS";
     public const string PositionReversal = "POSITION_REVERSAL";
+    public const string ReversalAllocationConflict = "REVERSAL_ALLOCATION_CONFLICT";
     public const string IncompleteLifecycle = "INCOMPLETE_LIFECYCLE";
     public const string SourceCompletenessUnverified = "SOURCE_COMPLETENESS_UNVERIFIED";
 }

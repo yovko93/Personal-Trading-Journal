@@ -126,7 +126,9 @@ public sealed class TradovateImportPreparationService
                 tradingTimestamp.Offset,
                 TradingTimePolicy.TradingTimeZoneId,
                 execution.SourceRecordIndices,
-                execution.SourceLineNumbers);
+                execution.SourceLineNumbers,
+                execution.AllocationIndex,
+                execution.SourceFill.Quantity);
             preparedExecutions.Add(prepared);
             preparedByKey.Add(ExecutionKey.From(execution), prepared);
         }
@@ -184,7 +186,14 @@ public sealed class TradovateImportPreparationService
             }
 
             TradovatePreparedExecution[] orderedExecutions = candidate.OrderedExecutions
-                .Select(execution => preparedByKey[ExecutionKey.From(execution)])
+                .Select(execution => preparedByKey[ExecutionKey.From(execution)] with
+                {
+                    Quantity = execution.Quantity,
+                    AllocationIndex = execution.AllocationIndex,
+                    SourceFillQuantity = execution.SourceFill.Quantity,
+                    SourceRecordIndices = execution.SourceRecordIndices,
+                    SourceLineNumbers = execution.SourceLineNumbers,
+                })
                 .ToArray();
             if (!HasNonDecreasingUtcChronology(orderedExecutions))
             {

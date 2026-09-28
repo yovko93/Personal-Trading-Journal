@@ -30,6 +30,8 @@ public sealed class TradovateImportedExecutionRecordConfiguration :
         builder.Property(record => record.ImportedAtUtc)
             .IsRequired()
             .HasConversion<SqliteUtcDateTimeOffsetConverter>();
+        builder.Property(record => record.SourceFillExecutedAtUtc)
+            .HasConversion<SqliteUtcDateTimeOffsetConverter>();
 
         builder.HasOne<TradeRecord>()
             .WithMany()
@@ -42,6 +44,7 @@ public sealed class TradovateImportedExecutionRecordConfiguration :
                 record.BrokerSymbol,
                 record.Side,
                 record.ExternalExecutionId,
+                record.AllocationIndex,
             })
             .IsUnique();
     }

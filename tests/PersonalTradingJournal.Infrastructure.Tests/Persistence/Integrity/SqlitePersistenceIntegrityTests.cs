@@ -264,6 +264,7 @@ public sealed class SqlitePersistenceIntegrityTests
                     nameof(TradovateImportedExecutionRecord.BrokerSymbol),
                     nameof(TradovateImportedExecutionRecord.Side),
                     nameof(TradovateImportedExecutionRecord.ExternalExecutionId),
+                    nameof(TradovateImportedExecutionRecord.AllocationIndex),
                 ]));
     }
 
