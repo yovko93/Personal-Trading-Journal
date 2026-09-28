@@ -286,7 +286,7 @@ public sealed class TradesViewPagingXamlTests
         const string columns =
             "<ColumnDefinition Width=\"110\" />\\s*" +
             "<ColumnDefinition Width=\"1.1\\*\" MinWidth=\"140\" />\\s*" +
-            "<ColumnDefinition Width=\"1.25\\*\" MinWidth=\"150\" />\\s*" +
+            "<ColumnDefinition Width=\"70\" />\\s*" +
             "<ColumnDefinition Width=\"1.2\\*\" MinWidth=\"155\" />\\s*" +
             "<ColumnDefinition Width=\"80\" />\\s*" +
             "<ColumnDefinition Width=\"180\" />\\s*" +
@@ -313,7 +313,7 @@ public sealed class TradesViewPagingXamlTests
         Assert.Equal("Auto", (string?)scroller.Attribute("HorizontalScrollBarVisibility"));
         Assert.Equal("Disabled", (string?)scroller.Attribute("VerticalScrollBarVisibility"));
         XElement table = Assert.Single(scroller.Elements(presentation + "StackPanel"));
-        Assert.Equal("980", (string?)table.Attribute("MinWidth"));
+        Assert.Equal("884", (string?)table.Attribute("MinWidth"));
         Assert.Equal("{Binding ViewportWidth, ElementName=TradeListScrollViewer}",
             (string?)table.Attribute("Width"));
 
@@ -331,6 +331,20 @@ public sealed class TradesViewPagingXamlTests
             row.Element(presentation + "Grid.ColumnDefinitions")!.Elements(presentation + "ColumnDefinition")
                 .Select(column => ((string?)column.Attribute("Width"), (string?)column.Attribute("MinWidth"))));
 
+        // The seven columns need 857 DIP at their minimums. The header margins
+        // and row padding/border each add 26 DIP, leaving 1 DIP inside the
+        // table's 884-DIP floor. Narrower viewports retain horizontal scrolling.
+        var columns = header.Element(presentation + "Grid.ColumnDefinitions")!
+            .Elements(presentation + "ColumnDefinition").ToArray();
+        Assert.Equal("70", (string?)columns[2].Attribute("Width"));
+        Assert.Equal("122", (string?)columns[6].Attribute("Width"));
+        double minimumColumns = columns.Sum(column => double.Parse(
+            (string?)column.Attribute("MinWidth") ?? (string)column.Attribute("Width")!.Value,
+            System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(857, minimumColumns);
+        Assert.True(minimumColumns + 26 <= double.Parse(
+            (string)table.Attribute("MinWidth")!, System.Globalization.CultureInfo.InvariantCulture));
+
         XElement account = Assert.Single(row.Elements(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding TradingAccountName}");
         Assert.Equal("CharacterEllipsis", (string?)account.Attribute("TextTrimming"));
@@ -344,11 +358,6 @@ public sealed class TradesViewPagingXamlTests
         Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding AverageExitPrice, StringFormat={}{0:F2}, TargetNullValue=—}" &&
             (string?)item.Attribute("TextWrapping") == "Wrap");
-
-        // MainWindow reserves 252 DIP for navigation, 64 for content padding,
-        // and the Trades card reserves 48 for padding. Its table needs 980 DIP.
-        Assert.True(1366 - 252 - 64 - 48 >= 980);
-        Assert.True(1024 - 252 - 64 - 48 < 980);
     }
 
     private static string ReadTradesView() => File.ReadAllText(Path.Combine(

@@ -137,7 +137,7 @@ The Trades list's **Size** column shows peak simultaneous absolute position quan
 
 Each Trades list row shows **View** and a three-dot actions button. Open the actions menu for **Edit** or **Delete**; both actions apply to that row's Trade. Delete retains its confirmation dialog, and keyboard users can open and navigate the menu.
 
-The Trades table keeps header and row columns aligned, with a compact Actions column. At narrower window widths the table scrolls horizontally so prices, P&L, status, and row actions remain accessible. Account names may show an ellipsis; hover or focus the name to read it in a tooltip. The unknown-cost explanation wraps within the P&L column.
+The Trades table keeps header and row columns aligned, with a compact Account column so View and the three-dot actions menu remain visible at the normal window size. Long account names show an ellipsis; hover or focus the name to read the full name in a tooltip. At narrower viewport widths the table scrolls horizontally so prices, P&L, status, and row actions remain accessible. The unknown-cost explanation wraps within the P&L column.
 
 The M10 Tradovate CSV Import milestone parses and reconstructs matched fills, resolves existing or proposed Instruments, applies the unified Europe/Sofia source-to-UTC-to-America/New_York time policy, and prepares an explicit Trading Account selection. The Desktop presents the analysis, warnings, blocking diagnostics, Instrument economics, New York trade times, and a read-only preview before showing a non-destructive confirmation dialog. Only an explicitly confirmed, currently valid preview reaches the Application import use case and its atomic SQLite transaction.
 

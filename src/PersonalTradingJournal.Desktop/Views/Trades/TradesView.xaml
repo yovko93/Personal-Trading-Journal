@@ -2221,13 +2221,13 @@
                                       HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Disabled"
                                       PanningMode="HorizontalOnly">
-                            <StackPanel MinWidth="980"
+                            <StackPanel MinWidth="884"
                                         Width="{Binding ViewportWidth, ElementName=TradeListScrollViewer}">
                         <Grid Margin="13,0,13,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="110" />
                                 <ColumnDefinition Width="1.1*" MinWidth="140" />
-                                <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                <ColumnDefinition Width="70" />
                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                 <ColumnDefinition Width="80" />
                                 <ColumnDefinition Width="180" />
@@ -2405,7 +2405,7 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="110" />
                                                 <ColumnDefinition Width="1.1*" MinWidth="140" />
-                                                <ColumnDefinition Width="1.25*" MinWidth="150" />
+                                                <ColumnDefinition Width="70" />
                                                 <ColumnDefinition Width="1.2*" MinWidth="155" />
                                                 <ColumnDefinition Width="80" />
                                                 <ColumnDefinition Width="180" />
