@@ -2638,7 +2638,8 @@ public sealed partial class TradesViewModelTests
             1.50m,
             null,
             null,
-            "USD");
+            "USD",
+            Size: openQuantity);
     }
 
     private static TradeDetail CreateOpenTradeDetail(
@@ -3473,7 +3474,8 @@ public sealed partial class TradesViewModelTests
             3.50m,
             1262.50m,
             1259m,
-            "USD");
+            "USD",
+            Size: 2.5m);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem listItem)

@@ -68,6 +68,7 @@ public sealed class TradeListReaderTests
         Assert.Equal(openedAtUtc, item.OpenedAtUtc);
         Assert.Null(item.ClosedAtUtc);
         Assert.Equal(2m, item.OpenQuantity);
+        Assert.Equal(2m, item.Size);
         Assert.Equal(100m, item.AverageEntryPrice);
         Assert.Null(item.AverageExitPrice);
         Assert.Equal(2m, item.TotalCosts);
@@ -98,6 +99,7 @@ public sealed class TradeListReaderTests
 
         Assert.Equal(TradeStatus.Closed, item.Status);
         Assert.Equal(0m, item.OpenQuantity);
+        Assert.Equal(2m, item.Size);
         Assert.Equal(closedAtUtc, item.ClosedAtUtc);
         Assert.Equal(100m, item.AverageEntryPrice);
         Assert.Equal(110m, item.AverageExitPrice);
@@ -295,6 +297,52 @@ public sealed class TradeListReaderTests
         TradeListItem item = Assert.Single(await GetItemsAsync(reader));
 
         Assert.Equal(trade.Id, item.Id);
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    public async Task SizeIsPeakSimultaneousExposureNotCumulativeEntriesOrRemainingQuantity(
+        bool shortTrade, bool closed, bool fractional)
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        (TradingAccount account, Instrument instrument) = await PersistReferencesAsync(database);
+        decimal unit = fractional ? 0.01m : 1m;
+        ExecutionSide entry = shortTrade ? ExecutionSide.Sell : ExecutionSide.Buy;
+        ExecutionSide exit = shortTrade ? ExecutionSide.Buy : ExecutionSide.Sell;
+        DateTimeOffset time = Utc(10, 9);
+        // Equal timestamps intentionally require authoritative execution Sequence ordering.
+        List<ExecutionFact> facts =
+        [
+            new(time, entry, 10m * unit, 100m, 0m, 0m),
+            new(time, exit, 6m * unit, 101m, 0m, 0m),
+            new(time, entry, 8m * unit, 102m, 0m, 0m),
+            new(time, exit, 3m * unit, 103m, 0m, 0m),
+        ];
+        if (closed)
+        {
+            facts.Add(new(time, exit, 9m * unit, 104m, 0m, 0m));
+        }
+
+        Trade trade = CreateTrade(account.Id, instrument.Id, Guid.NewGuid(), time,
+            2m, "USD", facts.ToArray());
+        await PersistTradeAsync(database, trade);
+
+        TradeListItem item = Assert.Single(await GetItemsAsync(GetReader(database)));
+        Assert.Equal(12m * unit, item.Size);
+        Assert.NotEqual(18m * unit, item.Size); // Cumulative entries.
+        Assert.Equal((closed ? 0m : 9m) * unit, item.OpenQuantity);
+        Assert.Equal(trade.Direction, item.Direction);
+        Assert.Equal(trade.Status, item.Status);
+        Assert.Equal(trade.GrossPnL, item.GrossPnL);
+        Assert.Equal(trade.NetPnL, item.NetPnL);
+        Assert.Equal(item, Assert.Single(await GetItemsAsync(GetReader(database))));
     }
 
     [Fact]

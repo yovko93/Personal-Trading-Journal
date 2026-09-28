@@ -10,6 +10,8 @@ namespace PersonalTradingJournal.Application.Trades;
 /// profit/loss values come from the Domain-derived browse projection. Currency comes from
 /// the Trade's historical pricing snapshot rather than current Instrument reference data.
 /// Open quantity is the current directional exposure and is zero for a closed Trade.
+/// Size is the peak absolute position across this Trade's ordered execution quantities,
+/// including only its allocated portion of a shared import fill, not cumulative entries.
 /// An open Trade may have an average exit price after a partial exit, while its gross and
 /// net profit/loss values remain null under the current Domain semantics.
 /// </remarks>
@@ -29,4 +31,5 @@ public sealed record TradeListItem(
     decimal? TotalCosts,
     decimal? GrossPnL,
     decimal? NetPnL,
-    string Currency);
+    string Currency,
+    decimal Size);

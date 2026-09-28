@@ -485,7 +485,8 @@ public sealed class TradeScreenshotPreviewTests
             3m,
             1250m,
             1247m,
-            "USD");
+            "USD",
+            Size: 2.5m);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem item) =>

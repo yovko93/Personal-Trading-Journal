@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 
 namespace PersonalTradingJournal.Infrastructure.Trades;
@@ -86,10 +87,11 @@ public sealed class TradeListReader : ITradeListReader
         };
 
         int skip = checked((query.PageNumber - 1) * query.PageSize);
-        List<TradeListItem> items = await orderedRows
+        var pageRows = await orderedRows
             .Skip(skip)
             .Take(query.PageSize)
-            .Select(row => new TradeListItem(
+            .Select(row => new
+            {
                 row.Trade.Id,
                 row.Trade.TradingAccountId,
                 row.AccountName,
@@ -105,8 +107,38 @@ public sealed class TradeListReader : ITradeListReader
                 row.Browse.TotalCosts,
                 row.Browse.GrossPnL,
                 row.Browse.NetPnL,
-                row.Trade.PricingCurrency))
+                row.Trade.PricingCurrency,
+            })
             .ToListAsync(cancellationToken);
+
+        // Keep paging in SQL; fetch only the execution facts for this page in one batch.
+        // Trade executions already contain the allocated quantities of reversal fills.
+        Guid[] tradeIds = pageRows.Select(row => row.Id).ToArray();
+        var executions = await context.TradeExecutions.AsNoTracking()
+            .Where(execution => tradeIds.Contains(execution.TradeId))
+            .OrderBy(execution => execution.Sequence)
+            .Select(execution => new { execution.TradeId, execution.Side, execution.Quantity })
+            .ToListAsync(cancellationToken);
+        Dictionary<Guid, decimal> sizes = executions.GroupBy(execution => execution.TradeId)
+            .ToDictionary(group => group.Key, group =>
+            {
+                decimal position = 0m;
+                decimal peak = 0m;
+                foreach (var execution in group)
+                {
+                    position = checked(position + (execution.Side == ExecutionSide.Buy
+                        ? execution.Quantity : -execution.Quantity));
+                    peak = Math.Max(peak, Math.Abs(position));
+                }
+
+                return peak;
+            });
+        TradeListItem[] items = pageRows.Select(row => new TradeListItem(
+            row.Id, row.TradingAccountId, row.AccountName, row.InstrumentId,
+            row.InstrumentSymbol, row.Direction, row.Status, row.OpenedAtUtc,
+            row.ClosedAtUtc, row.OpenQuantity, row.AverageEntryPrice, row.AverageExitPrice,
+            row.TotalCosts, row.GrossPnL, row.NetPnL, row.PricingCurrency, sizes[row.Id]))
+            .ToArray();
 
         return new TradeListPage(
             items,

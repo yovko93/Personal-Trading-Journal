@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
@@ -101,6 +102,17 @@ public sealed class TradovateReversalImportTests
         Assert.Equal(5, await fresh.TradeExecutions.CountAsync());
         Assert.Equal(5, await fresh.TradovateImportedExecutions.CountAsync());
         Assert.Equal(imported.ImportedTradeIds.Order(), (await fresh.Trades.Select(item => item.Id).ToArrayAsync()).Order());
+        // The shared fill of 20 closes 19 and opens only 1 in the opposite Trade.
+        // A fresh paged list after replay must not count its full broker quantity twice.
+        ITradeListReader reader = database.ServiceProvider.GetRequiredService<ITradeListReader>();
+        TradeListPage first = await reader.GetPageAsync(new TradeListQuery(
+            1, 1, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Ascending));
+        TradeListPage second = await reader.GetPageAsync(new TradeListQuery(
+            2, 1, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Ascending));
+        Assert.Equal(20m, Assert.Single(first.Items).Size);
+        Assert.Equal(1m, Assert.Single(second.Items).Size);
+        Assert.Equal(0m, first.Items[0].OpenQuantity);
+        Assert.Equal(0m, second.Items[0].OpenQuantity);
     }
 
     [Fact]

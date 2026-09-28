@@ -704,7 +704,8 @@ public sealed class TradeScreenshotWorkflowTests
             3.50m,
             1262.50m,
             1259m,
-            "USD");
+            "USD",
+            Size: 2.5m);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem item)

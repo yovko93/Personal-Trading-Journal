@@ -6,6 +6,31 @@ namespace PersonalTradingJournal.Desktop.Tests.Trades;
 public sealed class TradesViewPagingXamlTests
 {
     [Fact]
+    public void ListShowsPeakSizeWithExactCompactQuantityWhileDetailsKeepOpenQuantity()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XDocument view = XDocument.Parse(ReadTradesView());
+        XElement list = Assert.Single(view.Descendants(presentation + "ItemsControl"), item =>
+            (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}");
+        const string format = "0.############################";
+        XElement size = Assert.Single(list.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == $"{{Binding Size, StringFormat={{}}{{0:{format}}}}}");
+        Assert.Contains("Peak position quantity", (string?)size.Attribute("AutomationProperties.Name"));
+        Assert.DoesNotContain(list.Descendants(presentation + "TextBlock"), item =>
+            ((string?)item.Attribute("Text"))?.Contains("OpenQuantity", StringComparison.Ordinal) == true);
+        Assert.Contains(view.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "Size");
+        Assert.Contains(view.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.OpenQuantity}");
+        Assert.DoesNotContain("Sort by Open Quantity", ReadTradesView());
+        Assert.Equal("20", 20.0m.ToString(format, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("0.12", 0.120m.ToString(format, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal("0,12", 0.120m.ToString(format, System.Globalization.CultureInfo.GetCultureInfo("fr-FR")));
+        Assert.Equal("0.0000000000000000000000000001",
+            0.0000000000000000000000000001m.ToString(format, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
     public void ListAndDetailBindGrossAndNetSeparatelyWithUnknownCostGuidance()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -141,18 +166,17 @@ public sealed class TradesViewPagingXamlTests
             "Instrument",
             "Account",
             "AverageEntryPrice",
-            "OpenQuantity",
             "NetPnL",
         ];
 
         Assert.Equal(
-            6,
+            5,
             Regex.Matches(
                 view,
                 "BasedOn=\"\\{StaticResource TradeSortHeaderButtonStyle\\}\"")
                 .Count);
         Assert.Equal(
-            6,
+            5,
             Regex.Matches(view, "Binding=\"\\{Binding CurrentSortColumn\\}\"")
                 .Count);
         Assert.All(sortColumns, column => Assert.Contains(
@@ -165,7 +189,7 @@ public sealed class TradesViewPagingXamlTests
             StringComparison.Ordinal);
         Assert.True(Regex.Matches(
             view,
-            "Value=\"\\{DynamicResource PtjSurfaceElevatedBrush\\}\"").Count >= 6);
+            "Value=\"\\{DynamicResource PtjSurfaceElevatedBrush\\}\"").Count >= 5);
     }
 
     [Fact]
@@ -178,7 +202,6 @@ public sealed class TradesViewPagingXamlTests
             "Sort by Trade",
             "Sort by Account",
             "Sort by Average Entry Price",
-            "Sort by Open Quantity",
             "Sort by Net P&amp;L",
         ];
         string[] sortColumns =
@@ -187,7 +210,6 @@ public sealed class TradesViewPagingXamlTests
             "Instrument",
             "Account",
             "AverageEntryPrice",
-            "OpenQuantity",
             "NetPnL",
         ];
 
@@ -213,7 +235,7 @@ public sealed class TradesViewPagingXamlTests
         Assert.Contains("InstrumentSortIndicator", view, StringComparison.Ordinal);
         Assert.Contains("AccountSortIndicator", view, StringComparison.Ordinal);
         Assert.Contains("AverageEntryPriceSortIndicator", view, StringComparison.Ordinal);
-        Assert.Contains("OpenQuantitySortIndicator", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("OpenQuantitySortIndicator", view, StringComparison.Ordinal);
         Assert.Contains("NetPnLSortIndicator", view, StringComparison.Ordinal);
         Assert.Contains("PreviousTradePageCommand", view, StringComparison.Ordinal);
         Assert.Contains("NextTradePageCommand", view, StringComparison.Ordinal);

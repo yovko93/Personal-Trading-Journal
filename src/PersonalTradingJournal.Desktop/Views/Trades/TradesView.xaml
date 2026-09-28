@@ -2324,30 +2324,13 @@
                                                Text="{Binding AverageEntryPriceSortIndicator}" />
                                 </StackPanel>
                             </Button>
-                            <Button Grid.Column="4"
-                                    AutomationProperties.Name="Sort by Open Quantity"
-                                    Command="{Binding SortTradesCommand}"
-                                    CommandParameter="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
-                                <Button.Style>
-                                    <Style TargetType="{x:Type Button}"
-                                           BasedOn="{StaticResource TradeSortHeaderButtonStyle}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding CurrentSortColumn}"
-                                                         Value="{x:Static applicationTrades:TradeListSortColumn.OpenQuantity}">
-                                                <Setter Property="Background"
-                                                        Value="{DynamicResource PtjSurfaceElevatedBrush}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="Open Qty" />
-                                    <TextBlock Margin="4,0,0,0"
-                                               Style="{StaticResource PtjCaptionTextStyle}"
-                                               Text="{Binding OpenQuantitySortIndicator}" />
-                                </StackPanel>
-                            </Button>
+                            <TextBlock Grid.Column="4"
+                                       Margin="8,0"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource PtjCaptionTextStyle}"
+                                       AutomationProperties.Name="Size: peak position quantity"
+                                       ToolTip="Maximum simultaneous position quantity during this Trade (contracts for futures)."
+                                       Text="Size" />
                             <Button Grid.Column="5"
                                     AutomationProperties.Name="Sort by Net P&amp;L"
                                     Command="{Binding SortTradesCommand}"
@@ -2469,7 +2452,8 @@
                                                        Margin="8,0"
                                                        VerticalAlignment="Center"
                                                        Style="{StaticResource PtjBodyTextStyle}"
-                                                       Text="{Binding OpenQuantity}" />
+                                                       AutomationProperties.Name="{Binding Size, StringFormat=Peak position quantity: {0:0.############################}}"
+                                                       Text="{Binding Size, StringFormat={}{0:0.############################}}" />
 
                                             <StackPanel Grid.Column="5"
                                                         Margin="8,0,0,0"
