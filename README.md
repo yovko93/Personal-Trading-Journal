@@ -30,6 +30,8 @@ The repository currently contains the application foundation, the core trading D
 
 **Milestone M11.2 — Topstep Trade Row Semantics: Read-only closed-row candidates implemented; broker position grouping unverified**
 
+**Milestone M11.3 — Topstep Economics: Read-only Gross/cost/Net reconciliation implemented**
+
 **Desktop Theme System — System / Dark / Light: Complete**
 
 **Entity Lifecycle & CRUD UX: Complete**
@@ -149,7 +151,9 @@ M10 covers stages M10.1–M10.7, not just Desktop confirmation. See [Tradovate C
 
 M11.1 adds a separate, read-only **Topstep CSV parser**, not a Desktop import workflow. It validates the `Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions` schema and returns one normalized record per accepted source row with line-located diagnostics. Entry/exit offsets produce unambiguous UTC instants; the broker's TradeDay date/offset and subsecond duration remain source evidence. Duplicate/conflicting IDs within a file are rejected. Fees, Commissions, and reported PnL stay separate: no Net P&L is computed, rows are not grouped, and no Trades, executions, or reference data are persisted. The Desktop Import page remains Tradovate-only. See [Topstep Source Rows and Read-Only Candidates](docs/topstep-csv-import.md) for supported formats, row semantics, and unresolved cost questions.
 
-M11.2 retains **one closed-row Trade candidate per Topstep source row**, with exact quantity, entry/exit prices, direction, UTC instants, and the complete original normalized row for traceability. Shared entry timestamps, apparent partial closes, overlaps, TradeDay labels, and Long/Short transitions do not prove common fills or a complete account position. Related intervals receive explicit grouping warnings without merging or splitting the source activity. The supplied 25-row file produces 25 row-based candidates with a conserved closed-quantity total of 72, not 25 verified broker positions or peak exposure of 72. Invalid input blocks candidate preparation; valid candidates remain read-only review evidence, not automatic-import approval. There is no execution-ID fabrication, reversal inference, Tradovate behavior change, Desktop wiring, or persistence. Cost/PnL reconciliation remains deferred to M11.3.
+M11.2 retains **one closed-row Trade candidate per Topstep source row**, with exact quantity, entry/exit prices, direction, UTC instants, and the complete original normalized row for traceability. Shared entry timestamps, apparent partial closes, overlaps, TradeDay labels, and Long/Short transitions do not prove common fills or a complete account position. Related intervals receive explicit grouping warnings without merging or splitting the source activity. The supplied 25-row file produces 25 row-based candidates with a conserved closed-quantity total of 72, not 25 verified broker positions or peak exposure of 72. Invalid input blocks candidate preparation; valid candidates remain read-only review evidence, not automatic-import approval. There is no execution-ID fabrication, reversal inference, Tradovate behavior change, Desktop wiring, or persistence.
+
+M11.3 reconciles each Topstep row using caller-verified Instrument point value/currency and an explicit verified USD source interpretation. Reported PnL must equal calculated directional Gross exactly; then Net is Gross minus the CSV's separate Fees and Commissions totals, each counted once. Published fees corroborate the interpretation but are never a rate schedule in application code. Missing costs, mismatched Gross, unknown interpretation/pricing, unsupported currency or rebates, and decimal overflow/precision loss block verified numeric Net. The supplied 25 rows reconcile to **1,241.00 USD Gross − 51.84 USD Fees − 36.00 USD Commissions = 1,153.16 USD Net**, while retaining all M11.2 grouping warnings. This remains read-only economics evidence, not import authorization; Tradovate costs remain unknown. See [Topstep economics](docs/topstep-csv-import.md#m113-gross-fees-commissions-and-net) for sources, formulas, the zero-tolerance policy, and remaining limitations.
 
 To import a supported Tradovate matched-fills export:
 
@@ -263,6 +267,8 @@ The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Applic
 The M11.1 parsing baseline adds 65 synthetic Topstep contract/parser tests: the full suite passes 1,785 tests (400 Domain, 317 Application, 564 Infrastructure, 504 Desktop). The supplied Topstep export was parsed read-only with 25 accepted rows, 0 rejected rows, and no diagnostics; it is not stored as a repository fixture. Topstep import and Desktop acceptance remain outside M11.1.
 
 The M11.2 closed-row candidate baseline adds 35 tests, bringing the full suite to **1,820 passing tests** (400 Domain, 320 Application, 596 Infrastructure, 504 Desktop). Its synthetic coverage protects row-level conservation, ambiguous grouping warnings, direction changes, source traceability, cancellation, and Domain representability without claiming recovered broker execution history.
+
+The M11.3 economics baseline adds 37 tests: **1,857 tests pass** (400 Domain, 348 Application, 605 Infrastructure, 504 Desktop), including 137 focused Topstep tests. Reconciliation covers exact Gross, separate actual costs, nullable unverified Net, source/pricing/interpretation gates, Domain parity, and decimal failure diagnostics. The local 25-row sample reconciles fully without persistence or customer data being added to Git.
 
 ## Run
 
