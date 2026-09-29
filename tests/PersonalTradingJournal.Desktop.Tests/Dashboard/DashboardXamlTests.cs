@@ -30,6 +30,9 @@ public sealed class DashboardXamlTests
             Assert.Equal("True", (string?)c.Attribute("Focusable"));
             Assert.Equal("{Binding PeriodStart}", (string?)c.Attribute("StartDate"));
             Assert.NotNull(c.Attribute("AutomationProperties.Name"));
+            Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)c.Attribute("PositiveBrush"));
+            Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)c.Attribute("NegativeBrush"));
+            Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)c.Attribute("NeutralBrush"));
         });
         Assert.Equal(2, selected.Descendants(p + "Expander").Count());
         Assert.Contains(selected.Descendants(p + "WrapPanel"), _ => true);
@@ -41,7 +44,21 @@ public sealed class DashboardXamlTests
         Assert.DoesNotContain(view.Descendants(p + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding Explanation}");
         Assert.Contains("ToolTip=\"{Binding Explanation}\"", xaml);
         Assert.Contains("AutomationProperties.HelpText=\"{Binding Explanation}\"", xaml);
-        Assert.Contains("{Binding Badge}", xaml);
+        XElement cards = Assert.Single(selected.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == "{Binding Cards}");
+        Assert.DoesNotContain(cards.Descendants(p + "TextBlock"), t =>
+            ((string?)t.Attribute("Text")) is "Estimated" or "{Binding Badge}" or "{Binding IsEstimated}");
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement daily = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "DailyValues");
+        Assert.Equal(new[] { "{Binding Date, StringFormat={}{0:yyyy-MM-dd}}", "{Binding AmountText}", "{Binding TradeCountText}" },
+            daily.Descendants(p + "TextBlock").Select(t => (string?)t.Attribute("Text")));
+        Assert.Contains(daily.Descendants(p + "TextBlock"), t => (string?)t.Attribute("AutomationProperties.HelpText") == "{Binding Description}");
+        XElement cumulative = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "CumulativeValues");
+        Assert.All(new[] { daily, cumulative }, template => Assert.Contains(template.Descendants(p + "TextBlock"),
+            t => (string?)t.Attribute("Text") == "{Binding AmountText}" && (string?)t.Attribute("Style") == "{StaticResource ChartAmountStyle}"));
+        XElement amountStyle = Assert.Single(view.Descendants(p + "Style"), s => (string?)s.Attribute(x + "Key") == "ChartAmountStyle");
+        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjSuccessBrush}");
+        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjDangerBrush}");
+        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjTextMutedBrush}");
         XElement ring = Assert.Single(view.Descendants(chart + "WinRateRing"));
         Assert.Equal("True", (string?)ring.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)ring.Attribute("AutomationProperties.Name"));

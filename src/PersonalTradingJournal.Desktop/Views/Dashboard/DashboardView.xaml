@@ -18,9 +18,34 @@
                     Foreground="{DynamicResource PtjTextPrimaryBrush}" />
             </Grid>
         </DataTemplate>
-        <DataTemplate x:Key="ChartValues">
-            <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,3"
-                       Style="{StaticResource PtjBodyTextStyle}" />
+        <Style x:Key="ChartAmountStyle" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Value, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Positive}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Value, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Negative}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="DailyValues">
+            <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}" Style="{StaticResource PtjBodyTextStyle}" />
+                <TextBlock Grid.Column="1" Text="{Binding AmountText}" Style="{StaticResource ChartAmountStyle}" Margin="8,0"
+                           Focusable="True" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" />
+                <TextBlock Grid.Column="2" Text="{Binding TradeCountText}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
+            </Grid>
+        </DataTemplate>
+        <DataTemplate x:Key="CumulativeValues">
+            <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <TextBlock Text="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}" Style="{StaticResource PtjBodyTextStyle}" />
+                <TextBlock Grid.Column="1" Text="{Binding AmountText}" Style="{StaticResource ChartAmountStyle}" Margin="8,0"
+                           Focusable="True" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" />
+            </Grid>
         </DataTemplate>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
@@ -96,7 +121,6 @@
                                             </DataTrigger></Style.Triggers>
                                         </Style></ContentControl.Style>
                                     </ContentControl>
-                                    <TextBlock Text="{Binding Badge}" Style="{StaticResource PtjCaptionTextStyle}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -109,10 +133,11 @@
                                    Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding CoverageNote}" Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" />
                         <dashboard:PnlChart Points="{Binding CumulativePnl}" StartDate="{Binding PeriodStart}" IsCumulative="True" Height="240"
-                                            Foreground="{DynamicResource PtjAccentBrush}" Focusable="True"
+                                            Foreground="{DynamicResource PtjTextSecondaryBrush}" Focusable="True"
+                                            PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
                                             AutomationProperties.Name="Cumulative realized P&amp;L chart. Exact dates, values and estimate coverage are in Show cumulative values below." />
                         <Expander Header="Show cumulative values" Foreground="{DynamicResource PtjTextPrimaryBrush}">
-                            <ItemsControl ItemsSource="{Binding CumulativePnl}" ItemTemplate="{StaticResource ChartValues}" />
+                            <ItemsControl ItemsSource="{Binding CumulativePnl}" ItemTemplate="{StaticResource CumulativeValues}" />
                         </Expander>
                     </StackPanel>
                 </Border>
@@ -123,10 +148,11 @@
                                    Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding CoverageNote}" Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" />
                         <dashboard:PnlChart Points="{Binding DailyPnl}" StartDate="{Binding PeriodStart}" Height="240"
-                                            Foreground="{DynamicResource PtjAccentBrush}" Focusable="True"
+                                            Foreground="{DynamicResource PtjTextSecondaryBrush}" Focusable="True"
+                                            PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
                                             AutomationProperties.Name="Daily P&amp;L chart. Exact values and estimate coverage are in Show daily values below." />
                         <Expander Header="Show daily values" Foreground="{DynamicResource PtjTextPrimaryBrush}">
-                            <ItemsControl ItemsSource="{Binding DailyPnl}" ItemTemplate="{StaticResource ChartValues}" />
+                            <ItemsControl ItemsSource="{Binding DailyPnl}" ItemTemplate="{StaticResource DailyValues}" />
                         </Expander>
                     </StackPanel>
                 </Border>

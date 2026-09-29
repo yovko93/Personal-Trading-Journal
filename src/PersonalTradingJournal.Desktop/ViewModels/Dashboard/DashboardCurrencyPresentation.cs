@@ -4,7 +4,7 @@ using PersonalTradingJournal.Application.Analytics;
 namespace PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
 public sealed record DashboardCard(string Label, string Value, string Explanation,
-    string Badge = "", string Date = "", WinRatePresentation? Ring = null);
+    bool IsEstimated = false, string Date = "", WinRatePresentation? Ring = null);
 
 public sealed record WinRatePresentation(PnlMetrics Metrics)
 {
@@ -17,9 +17,11 @@ public sealed record WinRatePresentation(PnlMetrics Metrics)
         ? $"Win rate {Value}. {Metrics.KnownWins} wins, {Metrics.KnownLosses} losses, {Metrics.KnownBreakEvens} break-even Trades.{(Metrics.IsEstimated ? " Estimated — commission/fees unknown." : "")}"
         : "Win rate unavailable: no Trades or incomplete outcome coverage.";
 }
-public sealed record DashboardChartRow(DateOnly Date, decimal? Value, bool IsEstimated, string Currency, string Coverage)
+public sealed record DashboardChartRow(DateOnly Date, decimal? Value, bool IsEstimated, string Currency, string Coverage, int TradeCount)
 {
-    public string Text => $"{Date:yyyy-MM-dd}: {DashboardCurrencyPresentation.Money(Value, Currency)}{(IsEstimated ? " · estimated" : "")} · {Coverage}";
+    public string AmountText => DashboardCurrencyPresentation.Money(Value, Currency);
+    public string TradeCountText => $"{TradeCount.ToString(CultureInfo.CurrentCulture)} Trades";
+    public string Description => $"{Date:yyyy-MM-dd}: {AmountText} · {TradeCountText}{(IsEstimated ? " · estimated — unknown costs use Gross as Net" : "")} · {Coverage}";
 }
 public sealed record DashboardSetupRow(string Name, string Summary);
 
@@ -31,7 +33,7 @@ public sealed class DashboardCurrencyPresentation
         PeriodStart = periodStart ?? source.DailyPnl.FirstOrDefault()?.NewYorkDate;
         PnlMetrics net = source.Metrics.EffectiveNet;
         string note = Coverage(net);
-        string badge = net.IsEstimated ? "Estimated" : "";
+        bool estimated = net.IsEstimated;
         DailyPnl = source.DailyPnl.Select(p => Row(p, source.Currency)).ToArray();
         CumulativePnl = source.CumulativeRealizedPnl.Select(p => Row(p, source.Currency)).ToArray();
         // Do not rank a known subset as a complete Best/Worst result. Earliest date wins ties.
@@ -39,11 +41,11 @@ public sealed class DashboardCurrencyPresentation
         BestDay = rankable ? DailyPnl.OrderByDescending(p => p.Value).ThenBy(p => p.Date).First() : null;
         WorstDay = rankable ? DailyPnl.OrderBy(p => p.Value).ThenBy(p => p.Date).First() : null;
         Cards = [
-            new("Net P&L", Money(net.Total, source.Currency), note, badge),
-            new("Win Rate", Number(net.WinRatePercent, "%"), note, badge, Ring: new(net)),
-            new("Profit Factor", Number(net.ProfitFactor.Value), $"{note} · {net.ProfitFactor.Status}", badge),
-            new("Average Win", Money(net.AverageWin.Value, source.Currency), $"{note} · {net.AverageWin.Status}", badge),
-            new("Average Loss", Money(net.AverageLoss.Value, source.Currency), $"Positive loss magnitude · {note} · {net.AverageLoss.Status}", badge),
+            new("Net P&L", Money(net.Total, source.Currency), note, estimated),
+            new("Win Rate", Number(net.WinRatePercent, "%"), note, estimated, Ring: new(net)),
+            new("Profit Factor", Number(net.ProfitFactor.Value), $"{note} · {net.ProfitFactor.Status}", estimated),
+            new("Average Win", Money(net.AverageWin.Value, source.Currency), $"{note} · {net.AverageWin.Status}", estimated),
+            new("Average Loss", Money(net.AverageLoss.Value, source.Currency), $"Positive loss magnitude · {note} · {net.AverageLoss.Status}", estimated),
             DayCard("Best Day", BestDay),
             DayCard("Worst Day", WorstDay),
             new("Total Trades", source.Metrics.ClosedTradeCount.ToString(CultureInfo.CurrentCulture), "Fully closed Trades in this period and currency; excludes open and partially exited Trades."),
@@ -72,12 +74,12 @@ public sealed class DashboardCurrencyPresentation
     public static string Money(decimal? value, string currency) => value is { } amount ? $"{amount:N2} {currency}" : "—";
     private static string Number(decimal? value, string suffix = "") => value is { } amount ? $"{amount:N2}{suffix}" : "—";
     private DashboardCard DayCard(string label, DashboardChartRow? day) => new(label,
-        Money(day?.Value, Currency), day?.Text ?? "Unavailable: no closed Trades or incomplete daily outcome coverage.",
-        day?.IsEstimated == true ? "Estimated" : "", day?.Date.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) ?? "");
+        Money(day?.Value, Currency), day?.Description ?? "Unavailable: no closed Trades or incomplete daily outcome coverage.",
+        day?.IsEstimated == true, day?.Date.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) ?? "");
     private static string Coverage(PnlMetrics metrics) =>
-        $"{(metrics.IsEstimated ? "Estimated — commission/fees unknown" : metrics.Basis == PnlBasis.Gross ? "Gross" : "Verified Net")} · " +
+        $"{(metrics.IsEstimated ? "Estimated — commission/fees unknown; Gross used as Net" : metrics.Basis == PnlBasis.Gross ? "Gross" : "Verified Net")} · " +
         $"{metrics.Coverage.KnownTradeCount}/{metrics.Coverage.ClosedTradeCount} available · {metrics.EstimatedTradeCount} estimated · {metrics.Coverage.Status}";
     private static DashboardChartRow Row(PnlChartPoint point, string currency) =>
         new(point.NewYorkDate, point.Metrics.EffectiveNet.Total, point.Metrics.EffectiveNet.IsEstimated,
-            currency, Coverage(point.Metrics.EffectiveNet));
+            currency, Coverage(point.Metrics.EffectiveNet), point.Metrics.ClosedTradeCount);
 }

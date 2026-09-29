@@ -14,13 +14,13 @@ public sealed class DashboardViewModelTests
             [Fact(100m), Fact(-40m), Fact(0m), Fact(20m, null)]).Currencies));
         Assert.DoesNotContain(presentation.Cards, c => c.Label is "Gross P&L" or "Verified Net P&L");
         DashboardCard net = Assert.Single(presentation.Cards, c => c.Label == "Net P&L");
-        Assert.Equal("Estimated", net.Badge);
+        Assert.True(net.IsEstimated);
         Assert.DoesNotContain("coverage", net.Value, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("commission/fees unknown", net.Explanation);
         DashboardCard day = presentation.Cards.Single(c => c.Label == "Best Day");
         Assert.Equal("2026-09-01", day.Date);
         Assert.Equal(DashboardCurrencyPresentation.Money(80m, "USD"), day.Value);
-        Assert.Equal("Estimated", day.Badge);
+        Assert.True(day.IsEstimated);
         var ring = presentation.Cards.Single(c => c.Label == "Win Rate").Ring!;
         Assert.Equal(0.5m, ring.WinsShare);
         Assert.Equal(0.25m, ring.LossesShare);
@@ -162,7 +162,7 @@ public sealed class DashboardViewModelTests
         Assert.True(vm.Selected!.Source.Metrics.EffectiveNet.IsEstimated);
         Assert.Contains("Estimated", vm.Selected.CoverageNote);
         Assert.Equal(-285m, Assert.Single(vm.Selected.DailyPnl).Value);
-        Assert.Equal("Estimated", vm.Selected.Cards.Single(c => c.Label == "Net P&L").Badge);
+        Assert.True(vm.Selected.Cards.Single(c => c.Label == "Net P&L").IsEstimated);
         Assert.Contains("Estimated", Assert.Single(vm.Selected.Setups).Summary);
         Assert.Null(vm.Selected.Source.Metrics.Net.Total);
         vm.SelectedCurrency = "EUR";
