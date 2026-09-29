@@ -12,7 +12,7 @@
 
         <StackPanel>
             <TextBlock Style="{StaticResource PtjSecondaryTextStyle}"
-                       Text="Analyze a Topstep closed-trades or Tradovate matched-fills CSV. Format is detected from its header. Review every proposed change and explicitly confirm the import."
+                       Text="Choose Tradovate or TopstepX before selecting its CSV. Review the preview, then confirm the import."
                        TextWrapping="Wrap" />
 
             <Border Margin="0,16,0,0" Style="{StaticResource PtjFormSectionStyle}">
@@ -21,6 +21,15 @@
                     <TextBlock Margin="0,4,0,0" Style="{StaticResource PtjFormHelperTextStyle}"
                                Text="The file is read in place. Its local location is retained only for this workflow so Topstep preview and confirmation can reopen and verify the source; it is not logged."
                                TextWrapping="Wrap" />
+                    <TextBlock Margin="0,12,0,0" Text="Import source" Style="{StaticResource PtjFormHelperTextStyle}" />
+                    <ComboBox Margin="0,4,0,0" ItemsSource="{Binding Sources}" DisplayMemberPath="Name"
+                              SelectedItem="{Binding SelectedSource}" AutomationProperties.Name="Import source">
+                        <ComboBox.Style>
+                            <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}">
+                                <Style.Triggers><DataTrigger Binding="{Binding IsBusy}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers>
+                            </Style>
+                        </ComboBox.Style>
+                    </ComboBox>
                     <Grid Margin="0,16,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -38,7 +47,6 @@
                                    Style="{StaticResource PtjCaptionTextStyle}"
                                    Text="{Binding Phase}" />
                     </Grid>
-                    <TextBlock Margin="0,8,0,0" Text="{Binding SourceFormat}" Style="{StaticResource PtjBodyTextStyle}" />
                     <Button Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding CancelOperationCommand}"
                             Content="Cancel operation" IsEnabled="{Binding IsBusy}" Style="{StaticResource PtjSecondaryButtonStyle}" />
                     <TextBlock Margin="0,12,0,0" Text="{Binding WorkflowErrorMessage}">

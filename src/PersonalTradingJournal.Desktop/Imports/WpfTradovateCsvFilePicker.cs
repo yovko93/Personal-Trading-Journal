@@ -12,7 +12,7 @@ public sealed class WpfTradovateCsvFilePicker : ITradovateCsvFilePicker
             CheckFileExists = true,
             Filter = "CSV files (*.csv)|*.csv",
             Multiselect = false,
-            Title = "Select Topstep or Tradovate CSV",
+            Title = "Select Tradovate or TopstepX CSV",
         };
 
         if (dialog.ShowDialog() != true)

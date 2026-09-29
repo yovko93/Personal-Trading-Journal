@@ -57,6 +57,7 @@ public sealed class TradovateTimestampWorkflowTests
             var factory = provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
 
             await vm.EnsureLoadedAsync();
+            vm.SelectedSource = vm.Sources.Single(s => s.Name == "Tradovate");
             await vm.SelectCsvCommand.ExecuteAsync(null);
             Assert.Equal(ImportWorkflowPhase.Blocked, vm.Phase);
             vm.SelectedAccount = vm.Accounts[0];

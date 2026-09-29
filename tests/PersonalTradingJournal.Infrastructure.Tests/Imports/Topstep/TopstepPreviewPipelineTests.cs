@@ -53,10 +53,8 @@ public sealed class TopstepPreviewPipelineTests
         Assert.Equal([1, 2], preview.Candidates.Select(c => c.SourceRecordIndex));
         Assert.Equal([2, 3], preview.Candidates.Select(c => c.SourceLineNumber));
         Assert.All(preview.Candidates, c => Assert.Equal(20000.125m, c.EntryPrice));
-        Assert.Contains(preview.Diagnostics, d => d.Code == TopstepReconstructionDiagnosticCodes.PositionBoundariesUnverified && d.SourceReferences.Count == 2);
-        Assert.Contains(preview.Diagnostics, d => d.Code == TopstepReconstructionDiagnosticCodes.PositionGroupingAmbiguous && d.SourceReferences.Count == 2);
-        Assert.False(preview.MeetsReviewRequirements(new(preview.SnapshotFingerprint, [])));
-        Assert.Equal(matches < 2, preview.MeetsReviewRequirements(new(preview.SnapshotFingerprint, preview.ReviewRequirements.Select(r => r.Key).ToArray())));
+        Assert.Equal(matches == 1, preview.AcceptsConfirmation(new(preview.SnapshotFingerprint, [])));
+        Assert.Equal(matches < 2, preview.AcceptsConfirmation(new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray())));
         if (matches < 2) Assert.Equal(new TopstepPreviewTotals("USD", 10m, 10m, 2.88m, 2m, 5.12m), preview.Summary.ReconciledTotals);
         else Assert.Null(preview.Summary.ReconciledTotals);
         Assert.Equal(matches == 0 ? 1 : 0, preview.Summary.ProposedInstrumentCount);

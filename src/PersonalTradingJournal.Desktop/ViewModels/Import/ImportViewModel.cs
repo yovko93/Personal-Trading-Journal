@@ -103,6 +103,20 @@ public sealed partial class ImportViewModel : ObservableObject
 
     public event EventHandler<ImportCommittedEventArgs>? ImportCommitted;
 
+    public IReadOnlyList<ImportSourceOption> Sources { get; } =
+        [new(ImportCsvFormat.Tradovate, "Tradovate"), new(ImportCsvFormat.Topstep, "TopstepX")];
+    private ImportSourceOption? _selectedSource;
+    public ImportSourceOption? SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (!SetProperty(ref _selectedSource, value)) return;
+            ResetTransientState();
+            SelectCsvCommand.NotifyCanExecuteChanged();
+        }
+    }
+
     public IReadOnlyList<ImportAccountOption> Accounts
     {
         get => _accounts;
@@ -124,6 +138,8 @@ public sealed partial class ImportViewModel : ObservableObject
             ConfirmImportCommand.Cancel();
             InvalidatePreview();
             ClearImportResult();
+            if (IsTopstep) Diagnostics = [];
+            WorkflowErrorMessage = null;
             BuildPreviewCommand.NotifyCanExecuteChanged();
             ConfirmImportCommand.NotifyCanExecuteChanged();
         }
@@ -325,7 +341,7 @@ public sealed partial class ImportViewModel : ObservableObject
         Phase = ImportWorkflowPhase.Idle;
     }
 
-    private bool CanSelectCsv() => !IsBusy && Volatile.Read(ref _isImportSubmissionInProgress) == 0;
+    private bool CanSelectCsv() => SelectedSource is not null && !IsBusy && Volatile.Read(ref _isImportSubmissionInProgress) == 0;
 
     private bool CanBuildPreview() =>
         !IsBusy &&
@@ -339,7 +355,7 @@ public sealed partial class ImportViewModel : ObservableObject
         !IsBusy &&
         Volatile.Read(ref _isImportSubmissionInProgress) == 0 &&
         Phase == ImportWorkflowPhase.PreviewReady &&
-        (IsTopstep ? !_topstepReviewStale && _topstepPreview?.MeetsReviewRequirements(CurrentTopstepReview()) == true :
+        (IsTopstep ? !_topstepReviewStale && _topstepPreview?.IsEligibleForReview == true :
         _preview?.IsReadyForConfirmation == true &&
         SelectedAccount is not null &&
         _reconstruction is not null &&
@@ -347,6 +363,8 @@ public sealed partial class ImportViewModel : ObservableObject
 
     private async Task SelectCsvAsync(CancellationToken cancellationToken)
     {
+        if (!CanSelectCsv()) return;
+        ImportCsvFormat selectedFormat = SelectedSource!.Format;
         TradovateCsvFileSelection? selection;
         try
         {
@@ -381,15 +399,17 @@ public sealed partial class ImportViewModel : ObservableObject
                 ImportCsvFormatResult format = await Task.Run(() => _formatDetector.DetectAsync(buffer, cancellationToken), cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (version != _workflowVersion) return;
-                SourceFormat = format.Format;
                 buffer.Position = 0;
-                if (format.Format == ImportCsvFormat.Unknown)
+                if (format.Format == ImportCsvFormat.Unknown || format.Format != selectedFormat)
                 {
-                    WorkflowErrorMessage = $"CSV_FORMAT_UNSUPPORTED: {format.Message}" +
-                        (format.SourceLineNumber is { } line ? $" Header starts at line {line}." : "");
+                    WorkflowErrorMessage = format.Format == ImportCsvFormat.Unknown
+                        ? $"CSV_FORMAT_UNSUPPORTED: Select a valid {SelectedSource!.Name} CSV. {format.Message}" +
+                        (format.SourceLineNumber is { } line ? $" Header starts at line {line}." : "")
+                        : $"CSV_SOURCE_MISMATCH: This file does not match {SelectedSource!.Name}. Choose the correct source, then select its CSV.";
                     Phase = ImportWorkflowPhase.Blocked;
                     return;
                 }
+                SourceFormat = selectedFormat;
                 if (IsTopstep)
                 {
                     _accountsLoaded = false;
@@ -614,6 +634,8 @@ public sealed partial class ImportViewModel : ObservableObject
         finally
         {
             Volatile.Write(ref _isImportSubmissionInProgress, 0);
+            SelectCsvCommand.NotifyCanExecuteChanged();
+            BuildPreviewCommand.NotifyCanExecuteChanged();
             ConfirmImportCommand.NotifyCanExecuteChanged();
         }
     }

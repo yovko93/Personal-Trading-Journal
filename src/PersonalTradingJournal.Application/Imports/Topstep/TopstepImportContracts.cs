@@ -21,7 +21,7 @@ public static class TopstepImportConflictCodes
 }
 
 /// <summary>The caller owns a newly opened complete source stream; confirmation leaves it open.</summary>
-public sealed record TopstepImportRequest(TopstepImportPreview Preview, TopstepPreviewReview Review,
+public sealed record TopstepImportRequest(TopstepImportPreview Preview, TopstepImportConfirmation Confirmation,
     string FileName, Stream Source, DateTimeOffset ImportedAtUtc);
 
 public interface ITopstepImportStore

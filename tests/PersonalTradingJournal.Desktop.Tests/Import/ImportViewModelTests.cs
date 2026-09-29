@@ -715,6 +715,7 @@ public sealed class ImportViewModelTests
                 importStore,
                 new FixedTimeProvider()),
             dialog, new TradovateOnlyFormatDetector(), null!, null!, null!, null!);
+        viewModel.SelectedSource = viewModel.Sources.Single(s => s.Name == "Tradovate");
         return new Fixture(
             viewModel,
             accountReader,

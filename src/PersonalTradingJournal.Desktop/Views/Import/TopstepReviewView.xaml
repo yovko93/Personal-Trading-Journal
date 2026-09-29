@@ -3,26 +3,12 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Border Margin="0,16,0,0" Style="{StaticResource PtjCardStyle}">
         <StackPanel>
-            <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="Topstep closed-row records — not verified broker positions" TextWrapping="Wrap" />
+            <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="TopstepX Trade candidates" TextWrapping="Wrap" />
             <TextBlock Margin="0,8,0,0" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding TopstepPreview.DestinationAccount.Name, StringFormat=Reviewed account: {0}}" TextWrapping="Wrap" />
             <TextBlock Margin="0,8,0,0" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding TopstepTotals}" TextWrapping="Wrap" />
             <TextBlock Margin="0,8,0,0" Style="{StaticResource PtjCaptionTextStyle}" Text="Reviewed TopstepX USD schema: PnL is Gross; Fees and Commissions are separate row totals. Net = Gross − Fees − Commissions. No fee schedule is substituted. Entry/exit below use UTC; broker TradeDay remains source evidence." TextWrapping="Wrap" />
             <TextBlock Margin="0,8,0,0" Style="{StaticResource PtjBodyTextStyle}" Text="{Binding TopstepPreview.State}" />
-            <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding ReviewChoices}">
-                <ItemsControl.Style>
-                    <Style TargetType="ItemsControl">
-                        <Style.Triggers><DataTrigger Binding="{Binding IsBusy}" Value="True"><Setter Property="IsEnabled" Value="False" /></DataTrigger></Style.Triggers>
-                    </Style>
-                </ItemsControl.Style>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <CheckBox Margin="0,8,0,8" IsChecked="{Binding IsAccepted, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                  AutomationProperties.Name="{Binding Description}">
-                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}" />
-                        </CheckBox>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <TextBlock Margin="0,8,0,0" Style="{StaticResource PtjCaptionTextStyle}" Text="TopstepX Trades rows are imported individually." TextWrapping="Wrap" />
             <ItemsControl Margin="0,12,0,0" ItemsSource="{Binding TopstepCandidates}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>

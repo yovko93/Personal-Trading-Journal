@@ -630,7 +630,7 @@ public sealed class MainWindowViewModelTests
             TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd);
         var useCase = new ImportTopstepTradesUseCase(new TopstepResultStore(new(status, 1, 0, created, [], [], [])), TimeProvider.System, changes);
         using var confirmationSource = new MemoryStream(Encoding.UTF8.GetBytes(csv));
-        await useCase.ImportAsync(preview, new(preview.SnapshotFingerprint, preview.ReviewRequirements.Select(r => r.Key).ToArray()),
+        await useCase.ImportAsync(preview, new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray()),
             "synthetic.csv", confirmationSource);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);

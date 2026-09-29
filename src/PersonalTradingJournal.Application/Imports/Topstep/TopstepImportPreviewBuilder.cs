@@ -67,24 +67,6 @@ public sealed class TopstepImportPreviewBuilder
             TopstepPreviewCandidate[] candidates = preparation.Economics.Rows
                 .Select(row => new TopstepPreviewCandidate(row, resolutions[row.Candidate.ContractName])).ToArray();
             TopstepPreviewTotals? totals = Totals(preparation, diagnostics);
-            var requirements = new List<TopstepPreviewReviewRequirement>();
-            foreach (TopstepPreviewDiagnostic diagnostic in diagnostics.Where(d => d.Severity == TopstepPreviewSeverity.Warning))
-            {
-                string key = "warning:" + Hash(diagnostic);
-                requirements.Add(new(key, TopstepPreviewReviewKind.WarningAcknowledgment, diagnostic.Message, diagnostic.SourceReferences));
-            }
-            // Defensive explicit boundary notice even if an alternate reconstructor omitted its warning.
-            if (candidates.Length > 0 && !diagnostics.Any(d => d.Stage == TopstepPreviewDiagnosticStage.Reconstruction &&
-                    d.Code == TopstepReconstructionDiagnosticCodes.PositionBoundariesUnverified))
-                requirements.Add(new("closed-row-boundaries", TopstepPreviewReviewKind.WarningAcknowledgment,
-                    "These are separate reported closed rows, not verified broker positions. Review unverified position boundaries before accepting.",
-                    Array.AsReadOnly(candidates.Select(c => new TopstepSourceReference(c.SourceRecordIndex, c.SourceLineNumber)).ToArray())));
-            foreach (TopstepInstrumentCreationProposal proposal in preparation.CreationProposals)
-                requirements.Add(new("create:" + proposal.CanonicalSymbol, TopstepPreviewReviewKind.InstrumentCreationApproval,
-                    "Explicitly approve the displayed verified Instrument specifications for later creation; preview creates nothing.",
-                    Array.AsReadOnly(candidates.Where(c => c.Instrument.CreationProposal == proposal)
-                        .Select(c => new TopstepSourceReference(c.SourceRecordIndex, c.SourceLineNumber)).ToArray()), proposal.CanonicalSymbol));
-
             var summary = new TopstepPreviewSummary(parsed.SourceRecordCount, parsed.ValidRecordCount, parsed.RejectedRecordCount,
                 candidates.Length, preparation.Instruments.Count(i => i.Status == TopstepInstrumentResolutionStatus.ExistingInstrument),
                 preparation.Instruments.Count(i => i.Status == TopstepInstrumentResolutionStatus.ProposedCreation),
@@ -93,9 +75,9 @@ public sealed class TopstepImportPreviewBuilder
             // Versioned deterministic JSON uses fixed property order, invariant decimal/date serialization,
             // sorted verification/matching sets and source-record ordering. Never a runtime GetHashCode.
             string fingerprint = Hash(new { TopstepImportPreview.PolicyVersion, identity, selectedTradingAccountId,
-                costInterpretation, verificationSnapshot, preparation, summary, diagnostics, requirements });
+                costInterpretation, verificationSnapshot, preparation, summary, diagnostics });
             cancellationToken.ThrowIfCancellationRequested();
-            return new(identity, fingerprint, preparation, summary, candidates, diagnostics, requirements, verificationSnapshot);
+            return new(identity, fingerprint, preparation, summary, candidates, diagnostics, verificationSnapshot);
         }
         finally
         {
@@ -166,12 +148,16 @@ public sealed class TopstepImportPreviewBuilder
                 d.Severity == TopstepCsvDiagnosticSeverity.Error ? TopstepPreviewSeverity.Error : TopstepPreviewSeverity.Warning,
                 d.Code, d.Message, "Correct the indicated CSV field/line or select a valid Topstep export, then rebuild preview.",
                 Row(d.SourceRecordIndex, d.SourceLineNumber), FieldName: d.FieldName, SourceLineNumber: d.SourceLineNumber));
-        foreach (TopstepReconstructionDiagnostic d in source.Diagnostics)
+        // Closed-row boundaries are technical provenance, not a user review gate.
+        foreach (TopstepReconstructionDiagnostic d in source.Diagnostics.Where(d =>
+            d.Severity == TopstepReconstructionDiagnosticSeverity.Error ||
+            d.Code is not (TopstepReconstructionDiagnosticCodes.PositionBoundariesUnverified or
+                TopstepReconstructionDiagnosticCodes.PositionGroupingAmbiguous)))
             diagnostics.Add(new(TopstepPreviewDiagnosticStage.Reconstruction,
                 d.Severity == TopstepReconstructionDiagnosticSeverity.Error ? TopstepPreviewSeverity.Error : TopstepPreviewSeverity.Warning,
-                d.Code, d.Message, d.Severity == TopstepReconstructionDiagnosticSeverity.Warning
-                    ? "Review the affected closed-row records and explicitly acknowledge that complete broker position boundaries are unverified."
-                    : "Correct the source rows indicated by the reconstruction diagnostic and rebuild; rows cannot be merged or guessed.", d.SourceReferences));
+                d.Code, d.Message, d.Severity == TopstepReconstructionDiagnosticSeverity.Error
+                    ? "Correct the source rows indicated by the reconstruction diagnostic and rebuild; rows cannot be merged or guessed."
+                    : "Inspect the indicated source rows before confirming.", d.SourceReferences));
         foreach (TopstepReferenceDiagnostic d in preparation.Diagnostics)
         {
             bool account = d.Code.StartsWith("ACCOUNT_", StringComparison.Ordinal);

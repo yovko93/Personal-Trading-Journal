@@ -19,7 +19,7 @@ public sealed class TopstepImportPreviewBuilderTests
     private TopstepImportPreviewBuilder Builder() => new(_parser, _reconstructor, new(_catalog, _accounts));
 
     [Fact]
-    public async Task ValidPreviewExposesExactClosedRowsCountsIdentityAndExplicitReviewGate()
+    public async Task ValidPreviewExposesExactRowsAndNeedsNoWarningAcknowledgments()
     {
         byte[] data = Encoding.UTF8.GetBytes("synthetic source bytes");
         using var stream = new MemoryStream(data);
@@ -46,14 +46,12 @@ public sealed class TopstepImportPreviewBuilderTests
         Assert.Equal(2m, row.ClosedRowQuantity);
         Assert.Equal(2.56m, row.CalculatedNet);
         Assert.False(row.ArePositionBoundariesVerified);
-        Assert.Equal(TopstepPreviewState.RequiresReview, preview.State);
-        Assert.False(preview.MeetsReviewRequirements(null));
-        Assert.False(preview.MeetsReviewRequirements(new(preview.SnapshotFingerprint, [])));
-        Assert.True(preview.MeetsReviewRequirements(Review(preview)));
-        TopstepPreviewDiagnostic warning = Assert.Single(preview.Diagnostics);
-        Assert.Equal(TopstepPreviewDiagnosticStage.Reconstruction, warning.Stage);
-        Assert.Equal(new TopstepSourceReference(1, 2), Assert.Single(warning.SourceReferences));
-        Assert.Single(preview.ReviewRequirements);
+        Assert.Equal(TopstepPreviewState.ReadyForConfirmation, preview.State);
+        Assert.False(preview.AcceptsConfirmation(null));
+        Assert.True(preview.AcceptsConfirmation(new(preview.SnapshotFingerprint, [])));
+        Assert.True(preview.AcceptsConfirmation(Review(preview)));
+        Assert.Empty(preview.Diagnostics);
+        Assert.Empty(preview.CreationProposals);
     }
 
     [Fact]
@@ -70,9 +68,8 @@ public sealed class TopstepImportPreviewBuilderTests
         Assert.Equal(AssetClass.Futures, proposal.AssetClass);
         Assert.NotEmpty(proposal.DisplayName);
         Assert.NotEmpty(proposal.MetadataSource);
-        Assert.False(preview.MeetsReviewRequirements(new(preview.SnapshotFingerprint,
-            preview.ReviewRequirements.Where(r => r.Kind == TopstepPreviewReviewKind.WarningAcknowledgment).Select(r => r.Key).ToArray())));
-        Assert.True(preview.MeetsReviewRequirements(Review(preview)));
+        Assert.False(preview.AcceptsConfirmation(new(preview.SnapshotFingerprint, [])));
+        Assert.True(preview.AcceptsConfirmation(Review(preview)));
         Assert.Empty(_catalog.Items);
     }
 
@@ -89,7 +86,7 @@ public sealed class TopstepImportPreviewBuilderTests
         if (stage == "parser") _parser.Invalid = true;
         TopstepImportPreview preview = await Build();
         Assert.Equal(TopstepPreviewState.Blocked, preview.State);
-        Assert.False(preview.MeetsReviewRequirements(Review(preview)));
+        Assert.False(preview.AcceptsConfirmation(Review(preview)));
         TopstepPreviewDiagnosticStage expected = stage switch
         {
             "account" => TopstepPreviewDiagnosticStage.Account,
@@ -110,17 +107,16 @@ public sealed class TopstepImportPreviewBuilderTests
     }
 
     [Fact]
-    public async Task AllAffectedGroupingRowsRemainVisibleAndMustBeAcknowledged()
+    public async Task GroupingProvenanceRemainsTraceableWithoutWarningGate()
     {
         _parser.Rows = [Row(), Row() with { Id = "SYNTH-2", SourceRecordIndex = 2, SourceLineNumber = 3 }];
         _reconstructor.GroupingWarning = true;
         TopstepImportPreview preview = await Build();
         Assert.Equal(2, preview.Summary.ClosedRowCandidateCount);
-        Assert.Equal(2, preview.Summary.WarningCount);
-        Assert.All(preview.Diagnostics, d => Assert.Equal(2, d.SourceReferences.Count));
-        Assert.Equal(2, preview.ReviewRequirements.Count);
-        Assert.False(preview.MeetsReviewRequirements(new(preview.SnapshotFingerprint, [preview.ReviewRequirements[0].Key])));
-        Assert.True(preview.MeetsReviewRequirements(Review(preview)));
+        Assert.Equal(0, preview.Summary.WarningCount);
+        Assert.Empty(preview.Diagnostics);
+        Assert.Equal(2, preview.Preparation.Economics.Source.Diagnostics.Count);
+        Assert.True(preview.AcceptsConfirmation(new(preview.SnapshotFingerprint, [])));
     }
 
     [Fact]
@@ -134,7 +130,7 @@ public sealed class TopstepImportPreviewBuilderTests
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
             TopstepImportPreview second = await Build(builder);
             Assert.Equal(first.SnapshotFingerprint, second.SnapshotFingerprint);
-            Assert.True(second.MeetsReviewRequirements(Review(first)));
+            Assert.True(second.AcceptsConfirmation(Review(first)));
         }
         finally { CultureInfo.CurrentCulture = previous; }
         Assert.Equal(2, _accounts.ReadCount);
@@ -160,7 +156,7 @@ public sealed class TopstepImportPreviewBuilderTests
         TopstepImportPreview second = await builder.BuildAsync(change == "filename" ? "renamed.csv" : "synthetic.csv", source,
             _accounts.Item!.Id, TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd);
         Assert.NotEqual(first.SnapshotFingerprint, second.SnapshotFingerprint);
-        Assert.False(second.MeetsReviewRequirements(Review(first)));
+        Assert.False(second.AcceptsConfirmation(Review(first)));
         Assert.Equal(change == "bytes", first.SourceIdentity.ContentSha256 != second.SourceIdentity.ContentSha256);
         Assert.True(first.IsEligibleForReview); // Immutable original result is not rewritten by a rerun.
         Assert.Single(first.Instruments[0].MatchingInstruments);
@@ -262,7 +258,7 @@ public sealed class TopstepImportPreviewBuilderTests
         _catalog.Items = [_catalog.Items[0] with { PointValue = 2.000m, TickSize = .25000m, TickValue = .5000m }];
         TopstepImportPreview second = await Build();
         Assert.Equal(first.SnapshotFingerprint, second.SnapshotFingerprint);
-        Assert.True(second.MeetsReviewRequirements(Review(first)));
+        Assert.True(second.AcceptsConfirmation(Review(first)));
     }
 
     [Theory]
@@ -324,8 +320,8 @@ public sealed class TopstepImportPreviewBuilderTests
         return await (builder ?? Builder()).BuildAsync("synthetic.csv", source, AccountId,
             TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd, cancellationToken: cancellationToken);
     }
-    private static TopstepPreviewReview Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint,
-        preview.ReviewRequirements.Select(r => r.Key).ToArray());
+    private static TopstepImportConfirmation Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint,
+        preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray());
     private static TopstepSourceRow Row() => new(1, 2, "SYNTH-1", "MNQZ6", DateTimeOffset.UnixEpoch,
         DateTimeOffset.UnixEpoch.AddSeconds(1), 20000.125m, 20001.375m, 1.44m, 5m, 2m, TopstepTradeType.Long,
         DateTimeOffset.UnixEpoch, TimeSpan.FromSeconds(1), "00:00:01", 1m);

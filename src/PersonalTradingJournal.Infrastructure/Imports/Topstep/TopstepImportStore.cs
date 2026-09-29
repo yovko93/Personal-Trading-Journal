@@ -19,13 +19,13 @@ public sealed class TopstepImportStore(IDbContextFactory<JournalDbContext> conte
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Preview);
-        ArgumentNullException.ThrowIfNull(request.Review);
+        ArgumentNullException.ThrowIfNull(request.Confirmation);
         cancellationToken.ThrowIfCancellationRequested();
         TopstepImportPreview expected = request.Preview;
-        var review = new TopstepPreviewReview(request.Review.SnapshotFingerprint,
-            Array.AsReadOnly((request.Review.AcceptedRequirementKeys ?? []).ToArray()));
-        if (!expected.MeetsReviewRequirements(review)) return Block(TopstepImportConflictCodes.ReviewRequired,
-            "A valid preview and explicit review of every snapshot-bound warning and Instrument proposal are required.");
+        var review = new TopstepImportConfirmation(request.Confirmation.SnapshotFingerprint,
+            Array.AsReadOnly((request.Confirmation.ApprovedInstrumentSymbols ?? []).ToArray()));
+        if (!expected.AcceptsConfirmation(review)) return Block(TopstepImportConflictCodes.ReviewRequired,
+            "A valid preview and confirmation of its snapshot-bound Instrument proposals are required.");
         if (request.ImportedAtUtc.Offset != TimeSpan.Zero) throw new ArgumentException("Import audit time must be UTC.", nameof(request));
 
         await using JournalDbContext context = await contextFactory.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
@@ -42,7 +42,7 @@ public sealed class TopstepImportStore(IDbContextFactory<JournalDbContext> conte
             expected.Candidates[0].Economics.CostInterpretation, expected.VerifiedExistingInstruments, cancellationToken).ConfigureAwait(false);
         if (current.SourceIdentity != expected.SourceIdentity) return Block(TopstepImportConflictCodes.SourceChanged,
             "The source file differs from the reviewed snapshot. Select the current file, rebuild preview and review it again.");
-        if (current.SnapshotFingerprint != expected.SnapshotFingerprint || !current.MeetsReviewRequirements(review))
+        if (current.SnapshotFingerprint != expected.SnapshotFingerprint || !current.AcceptsConfirmation(review))
             return Block(TopstepImportConflictCodes.ReferenceDataChanged,
                 "Account, Instrument resolution, pricing or review policy changed. Rebuild and review the current preview; no Instrument is substituted.");
 

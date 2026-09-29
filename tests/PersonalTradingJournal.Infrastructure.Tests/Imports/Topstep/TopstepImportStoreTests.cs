@@ -20,7 +20,7 @@ public sealed class TopstepImportStoreTests
 {
     private static readonly DateTimeOffset ImportedAt = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
     private static string Csv(params string[] rows) => TopstepCsvFixtures.WithRows(rows.Length == 0 ? [TopstepCsvFixtures.Row] : rows);
-    private static TopstepPreviewReview Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint, preview.ReviewRequirements.Select(r => r.Key).ToArray());
+    private static TopstepImportConfirmation Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray());
 
     [Theory]
     [InlineData(false)]
@@ -165,11 +165,10 @@ public sealed class TopstepImportStoreTests
         await using Fixture f = await Fixture.Create(proposal: true);
         string csv = reason == "blocked" ? Csv(TopstepCsvFixtures.Replace(7, "99")) : Csv();
         TopstepImportPreview preview = await f.Preview(csv);
-        TopstepPreviewReview review = Review(preview);
+        TopstepImportConfirmation review = Review(preview);
         if (reason == "none") review = new(preview.SnapshotFingerprint, []);
         if (reason == "stale") review = review with { SnapshotFingerprint = "OTHER" };
-        if (reason == "proposal") review = new(preview.SnapshotFingerprint, preview.ReviewRequirements
-            .Where(r => r.Kind != TopstepPreviewReviewKind.InstrumentCreationApproval).Select(r => r.Key).ToArray());
+        if (reason == "proposal") review = new(preview.SnapshotFingerprint, ["WRONG-SYMBOL"]);
         TopstepImportResult result = await f.Import(preview, reason == "source" ? csv + "\n" : csv, review);
         Assert.Equal(reason == "source" ? TopstepImportConflictCodes.SourceChanged : TopstepImportConflictCodes.ReviewRequired, result.ConflictCode);
         await f.AssertCounts(0, 0);
@@ -323,7 +322,7 @@ public sealed class TopstepImportStoreTests
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
             return await builder.BuildAsync("synthetic.csv", stream, selected ?? accountId, TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd);
         }
-        public async Task<TopstepImportResult> Import(TopstepImportPreview preview, string csv, TopstepPreviewReview? review = null, CancellationToken token = default)
+        public async Task<TopstepImportResult> Import(TopstepImportPreview preview, string csv, TopstepImportConfirmation? review = null, CancellationToken token = default)
         {
             var useCase = new ImportTopstepTradesUseCase(database.ServiceProvider.GetRequiredService<ITopstepImportStore>(), new FixedTime(), Changes);
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));

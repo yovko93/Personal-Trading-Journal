@@ -23,6 +23,73 @@ namespace PersonalTradingJournal.Desktop.Tests.Import;
 
 public sealed class TopstepDesktopRoutingTests
 {
+    [Fact]
+    public async Task SourceSelectionIsExplicitAndRequiredBeforePickerCanOpen()
+    {
+        await using var f = await Fixture.Create();
+        Assert.Equal(new[] { "Tradovate", "TopstepX" }, f.Vm.Sources.Select(s => s.Name));
+        Assert.Null(f.Vm.SelectedSource);
+        Assert.False(f.Vm.SelectCsvCommand.CanExecute(null));
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.Equal(0, f.Picker.PickCount);
+        f.Vm.SelectedSource = f.Vm.Sources[1];
+        Assert.True(f.Vm.SelectCsvCommand.CanExecute(null));
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.Equal(1, f.Picker.PickCount);
+    }
+
+    [Theory]
+    [InlineData("Tradovate")]
+    [InlineData("TopstepX")]
+    public async Task WrongSourceSchemaBlocksOnceWithoutInvokingEitherProviderPipeline(string source)
+    {
+        await using var f = await Fixture.Create();
+        f.Vm.SelectedSource = f.Vm.Sources.Single(s => s.Name == source);
+        f.Picker.Csv = source == "Tradovate" ? Csv : TradovateCsv;
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.StartsWith("CSV_SOURCE_MISMATCH:", f.Vm.WorkflowErrorMessage);
+        Assert.Null(f.Vm.AnalysisSummary);
+        Assert.Empty(f.Vm.Diagnostics);
+        Assert.Empty(f.Vm.Instruments);
+        Assert.Null(f.Vm.TopstepPreview);
+        Assert.False(f.Vm.BuildPreviewCommand.CanExecute(null));
+        Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
+        await f.AssertTradeCount(0);
+        f.Picker.Csv = source == "Tradovate" ? TradovateCsv : Csv;
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.WorkflowErrorMessage);
+        Assert.Equal(1, f.Vm.AnalysisSummary!.ValidRecordCount);
+    }
+
+    [Theory]
+    [InlineData("preview")]
+    [InlineData("blocked")]
+    [InlineData("completed")]
+    public async Task SourceSwitchClearsAllPriorPresentationAndCannotReuseConfirmation(string state)
+    {
+        await using var f = await Fixture.Create();
+        await f.Preview();
+        if (state == "blocked") f.Picker.Csv += "\n";
+        if (state != "preview") await f.Vm.ConfirmImportCommand.ExecuteAsync(null);
+        f.Vm.SelectedSource = f.Vm.Sources.Single(s => s.Name == "Tradovate");
+        Assert.Equal(ImportWorkflowPhase.Idle, f.Vm.Phase);
+        Assert.Null(f.Vm.SelectedAccount);
+        Assert.Null(f.Vm.SelectedFileName);
+        Assert.Null(f.Vm.AnalysisSummary);
+        Assert.False(f.Vm.HasPreview);
+        Assert.False(f.Vm.HasImportResult);
+        Assert.Null(f.Vm.ImportErrorMessage);
+        Assert.Null(f.Vm.WorkflowErrorMessage);
+        Assert.Empty(f.Vm.Diagnostics);
+        Assert.Empty(f.Vm.Instruments);
+        Assert.Empty(f.Vm.TopstepCandidates);
+        Assert.Empty(f.Vm.Trades);
+        Assert.False(f.Vm.BuildPreviewCommand.CanExecute(null));
+        Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
+        f.Vm.SelectedSource = f.Vm.Sources.Single(s => s.Name == "TopstepX");
+        Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
+    }
+
     public const string Csv = "Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions\n" +
         "SYNTHETIC-1,MNQZ6,07/10/2026 17:00:00 +03:00,07/10/2026 17:00:02 +03:00,20000.125,20001.375,1.44,5,2,Long,07/10/2026 00:00:00 -05:00,00:00:01.1234567,1.00";
     public const string TradovateCsv = "symbol,_priceFormat,_priceFormatType,_tickSize,buyFillId,sellFillId,qty,buyPrice,sellPrice,pnl,boughtTimestamp,soldTimestamp,duration\n" +
@@ -34,45 +101,51 @@ public sealed class TopstepDesktopRoutingTests
         await using var f = await Fixture.Create();
         await f.Preview();
         var vm = f.Vm;
+        bool? notifiedSelectCsvAvailable = null;
+        vm.SelectCsvCommand.CanExecuteChanged += (_, _) => notifiedSelectCsvAvailable = vm.SelectCsvCommand.CanExecute(null);
         Assert.Equal(ImportCsvFormat.Topstep, vm.SourceFormat);
         Assert.Equal(1, vm.AnalysisSummary!.ValidRecordCount);
         Assert.DoesNotContain(vm.Diagnostics, d => d.Code == "MISSING_HEADER");
-        Assert.False(vm.ConfirmImportCommand.CanExecute(null));
-        Assert.Contains(vm.ReviewChoices, r => r.Requirement.Kind == TopstepPreviewReviewKind.InstrumentCreationApproval && r.Description.Contains("Point value 2"));
+        Assert.True(vm.ConfirmImportCommand.CanExecute(null));
+        Assert.DoesNotContain(vm.Diagnostics, d => d.Stage == "Reconstruction");
         TopstepCandidatePresentation row = Assert.Single(vm.TopstepCandidates);
         Assert.Equal(20000.125m, row.Candidate.EntryPrice);
         Assert.Contains("20000.13", row.Prices);
         Assert.Equal(2.56m, row.Candidate.CalculatedNet);
         await f.AssertTradeCount(0);
-        f.Accept();
+
         f.Dialog.ConfirmationResult = false;
         await vm.ConfirmImportCommand.ExecuteAsync(null);
         await f.AssertTradeCount(0);
         Assert.True(vm.HasPreview);
+        Assert.Contains("Point value 2", f.Dialog.ConfirmationRequest!.Message);
+        Assert.Contains("Tick 0.25 / value 0.5", f.Dialog.ConfirmationRequest.Message);
+        Assert.Contains("USD", f.Dialog.ConfirmationRequest.Message);
         f.Dialog.ConfirmationResult = true;
         await vm.ConfirmImportCommand.ExecuteAsync(null);
         Assert.Equal("Imported", vm.ImportResultStatus);
+        Assert.True(notifiedSelectCsvAvailable); // The actual bound button must be re-enabled, not just its queried predicate.
         Assert.Equal(1, vm.ImportedTradeCount);
         Assert.False(vm.HasPreview);
-        Assert.Empty(vm.ReviewChoices);
+
         Assert.False(vm.ConfirmImportCommand.CanExecute(null));
         await vm.ConfirmImportCommand.ExecuteAsync(null);
         await f.AssertTradeCount(1);
         await f.Preview();
         Assert.Null(vm.ImportResultStatus);
-        Assert.All(vm.ReviewChoices, r => Assert.False(r.IsAccepted));
-        f.Accept();
+
         await vm.ConfirmImportCommand.ExecuteAsync(null);
         Assert.Equal("NoChanges", vm.ImportResultStatus);
         Assert.Equal(1, vm.SkippedDuplicateTradeCount);
         await f.AssertTradeCount(1);
 
+        vm.SelectedSource = vm.Sources.Single(s => s.Name == "Tradovate");
         f.Picker.Csv = TradovateCsv;
         await vm.SelectCsvCommand.ExecuteAsync(null);
         Assert.Equal(ImportCsvFormat.Tradovate, vm.SourceFormat);
         Assert.Null(vm.SelectedAccount);
         Assert.Null(vm.ImportResultStatus);
-        Assert.Empty(vm.ReviewChoices);
+
         Assert.Null(vm.TopstepPreview);
         vm.SelectedAccount = vm.Accounts.Single(a => a.ProviderName == "Tradovate");
         await vm.BuildPreviewCommand.ExecuteAsync(null);
@@ -85,11 +158,13 @@ public sealed class TopstepDesktopRoutingTests
     [InlineData("account")]
     [InlineData("instrument")]
     [InlineData("source")]
-    public async Task ChangesAfterReviewBlockAndRequireFreshAcknowledgments(string change)
+    public async Task ChangesAfterConfirmationBlockAndRequireFreshPreview(string change)
     {
         await using var f = await Fixture.Create();
         await f.Preview();
-        f.Accept();
+        bool? notifiedBuildAvailable = null;
+        f.Vm.BuildPreviewCommand.CanExecuteChanged += (_, _) => notifiedBuildAvailable = f.Vm.BuildPreviewCommand.CanExecute(null);
+
         if (change == "source") f.Picker.Csv += "\n";
         else
         {
@@ -102,14 +177,13 @@ public sealed class TopstepDesktopRoutingTests
         Assert.Contains(change == "source" ? "SOURCE_CHANGED" : "REFERENCE_DATA_CHANGED", f.Vm.ImportErrorMessage);
         Assert.Contains("Rebuild", f.Vm.ImportErrorMessage);
         Assert.True(f.Vm.HasPreview);
-        Assert.All(f.Vm.ReviewChoices, r => Assert.False(r.IsAccepted));
-        f.Accept(); // Old checkboxes cannot reactivate a stale preview.
+
         Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
         Assert.True(f.Vm.BuildPreviewCommand.CanExecute(null));
+        Assert.True(notifiedBuildAvailable); // WPF must receive recovery-command availability after the guard is released.
         await f.AssertTradeCount(0);
         await f.Vm.BuildPreviewCommand.ExecuteAsync(null);
-        Assert.All(f.Vm.ReviewChoices, r => Assert.False(r.IsAccepted));
-        f.Accept();
+
         Assert.True(f.Vm.ConfirmImportCommand.CanExecute(null));
     }
 
@@ -121,7 +195,7 @@ public sealed class TopstepDesktopRoutingTests
     {
         await using var f = await Fixture.Create();
         await f.Preview();
-        f.Accept();
+
         if (kind == "provider") f.Vm.SelectedAccount = f.Vm.Accounts.Single(a => a.ProviderName == "Tradovate");
         else
         {
@@ -132,10 +206,10 @@ public sealed class TopstepDesktopRoutingTests
             if (kind == "ambiguous") db.Instruments.Add(Instrument());
             await db.SaveChangesAsync();
         }
-        if (kind == "provider") { Assert.Null(f.Vm.TopstepPreview); Assert.Empty(f.Vm.ReviewChoices); }
+        if (kind == "provider") { Assert.Null(f.Vm.TopstepPreview); Assert.Empty(f.Vm.Diagnostics); }
         await f.Vm.BuildPreviewCommand.ExecuteAsync(null);
         Assert.Equal(TopstepPreviewState.Blocked, f.Vm.TopstepPreview!.State);
-        f.Accept();
+
         Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
         await f.Vm.ConfirmImportCommand.ExecuteAsync(null);
         await f.AssertTradeCount(0);
@@ -146,19 +220,19 @@ public sealed class TopstepDesktopRoutingTests
     {
         await using var f = await Fixture.Create();
         await f.Preview();
-        f.Accept();
+
         f.Picker.Csv = "Unknown,Mixed\n1,2";
         await f.Vm.SelectCsvCommand.ExecuteAsync(null);
         Assert.Equal(ImportCsvFormat.Unknown, f.Vm.SourceFormat);
         Assert.StartsWith("CSV_FORMAT_UNSUPPORTED:", f.Vm.WorkflowErrorMessage);
         Assert.Empty(f.Vm.Diagnostics);
-        Assert.Empty(f.Vm.ReviewChoices);
+
         Assert.Null(f.Vm.SelectedAccount);
         Assert.False(f.Vm.BuildPreviewCommand.CanExecute(null));
         f.Picker.Csv = Csv;
         await f.Preview();
         Assert.Null(f.Vm.WorkflowErrorMessage);
-        Assert.Equal(TopstepPreviewState.RequiresReview, f.Vm.TopstepPreview!.State);
+        Assert.Equal(TopstepPreviewState.ReadyForConfirmation, f.Vm.TopstepPreview!.State);
     }
 
     [Theory]
@@ -169,7 +243,7 @@ public sealed class TopstepDesktopRoutingTests
         var gate = new GatedStore();
         await using var f = await Fixture.Create(gate);
         await f.Preview();
-        f.Accept();
+
         Assert.True(f.Vm.ConfirmImportCommand.CanExecute(null));
         Task first = f.Vm.ConfirmImportCommand.ExecuteAsync(null);
         await gate.Started.Task.WaitAsync(TimeSpan.FromSeconds(15));
@@ -202,12 +276,12 @@ public sealed class TopstepDesktopRoutingTests
     {
         await using var f = await Fixture.Create();
         await f.Preview();
-        f.Accept();
+
         f.Picker.Csv = TradovateCsv;
         await f.Vm.BuildPreviewCommand.ExecuteAsync(null);
         Assert.StartsWith("CSV_FORMAT_CHANGED:", f.Vm.WorkflowErrorMessage);
         Assert.Null(f.Vm.TopstepPreview);
-        Assert.Empty(f.Vm.ReviewChoices);
+
         Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
         Assert.DoesNotContain(f.Vm.Diagnostics, d => d.Code == "MISSING_HEADER");
         await f.AssertTradeCount(0);
@@ -239,9 +313,11 @@ public sealed class TopstepDesktopRoutingTests
                 view.Arrange(new System.Windows.Rect(0, 0, 1280, 900));
                 view.UpdateLayout();
                 var checkboxes = Descendants(view).OfType<System.Windows.Controls.CheckBox>().ToArray();
-                Assert.Equal(f.Vm.ReviewChoices.Count, checkboxes.Length);
-                Assert.All(checkboxes, checkbox => Assert.False(checkbox.IsChecked));
-                Assert.All(checkboxes, checkbox => Assert.False(string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(checkbox))));
+                Assert.Empty(checkboxes);
+                var sourceSelector = Assert.Single(Descendants(view).OfType<System.Windows.Controls.ComboBox>(),
+                    combo => System.Windows.Automation.AutomationProperties.GetName(combo) == "Import source");
+                Assert.Equal(new[] { "Tradovate", "TopstepX" },
+                    sourceSelector.Items.Cast<ImportSourceOption>().Select(s => s.Name));
                 Assert.Contains(Descendants(view).OfType<System.Windows.Controls.TextBlock>(), text => text.Text.Contains("Net 2.56 USD"));
                 completed.SetResult();
             }
@@ -275,7 +351,12 @@ public sealed class TopstepDesktopRoutingTests
     private sealed class Picker : ITradovateCsvFilePicker
     {
         public string Csv { get; set; } = TopstepDesktopRoutingTests.Csv;
-        public TradovateCsvFileSelection Pick() => new("synthetic.csv", Open(), Open);
+        public int PickCount { get; private set; }
+        public TradovateCsvFileSelection Pick()
+        {
+            PickCount++;
+            return new("synthetic.csv", Open(), Open);
+        }
         private Stream Open() => new MemoryStream(Encoding.UTF8.GetBytes(Csv));
     }
 
@@ -314,12 +395,12 @@ public sealed class TopstepDesktopRoutingTests
         }
         public async Task Preview()
         {
+            vm.SelectedSource = vm.Sources.Single(s => s.Name == "TopstepX");
             await vm.SelectCsvCommand.ExecuteAsync(null);
             vm.SelectedAccount = vm.Accounts.Single(a => a.ProviderName == "Topstep");
             Assert.True(vm.BuildPreviewCommand.CanExecute(null));
             await vm.BuildPreviewCommand.ExecuteAsync(null);
         }
-        public void Accept() { foreach (var choice in vm.ReviewChoices) choice.IsAccepted = true; }
         public async Task AssertTradeCount(int count)
         {
             await using var db = await Factory.CreateDbContextAsync();

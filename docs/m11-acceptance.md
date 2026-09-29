@@ -1,93 +1,109 @@
-# M11 Topstep acceptance — Desktop routing correction
+# M11.7 acceptance — explicit source and simplified TopstepX import
 
-Review date: 2026-09-29. Base revision: `bdd7ebc0a6d0c64cde586bb45e09271659322122` on `develop`; checkout was clean at the start (the prior 24-file M11.6 work had been committed). The changes described here are uncommitted. No commit/push or real-journal access was performed.
+Review date: 2026-09-29. Actual starting HEAD: `dccce62c479794ef48cac0c6c3d6c80794905d4b` on `develop`; the checkout was clean. The earlier routing work was already committed. This request supersedes automatic source selection and warning-checkbox consent. No commit, push, branch change or real-journal access was performed.
 
-## Root cause and binary provenance
+## Implemented behavior
 
-The baseline `ImportViewModel.SelectCsvAsync` unconditionally invoked `ITradovateCsvParser.ParseAsync`. Its build guard required Tradovate reconstruction and its confirmation command invoked only `ImportTradovateTradesUseCase`. `App.xaml.cs` registered Topstep confirmation but neither injected its preview/confirmation path into the Import ViewModel nor presented review controls. `ImportView.xaml` also had a fixed Tradovate-only description. This explains the wrong-provider header errors in current source; changing the customer's CSV or weakening either parser is not a fix.
+- Exactly two source choices: **Tradovate** and **TopstepX**, with neither selected initially. Select CSV is disabled until a source is chosen.
+- Header validation must match the selected source. Wrong source yields one `CSV_SOURCE_MISMATCH`; unknown/mixed/malformed schemas yield one `CSV_FORMAT_UNSUPPORTED`. Neither case reaches the other parser.
+- User-confirmed rule: one TopstepX Trades row is one Trade. The 25-row sample yields 25 candidates without grouping/source-completeness checkboxes or warning gates.
+- Snapshot-bound `TopstepImportConfirmation` replaces the warning-review contract. An ordinary final confirmation explicitly approves its displayed Instrument specifications. No separate approval checkbox remains.
+- Source changes clear file/account/preview/diagnostics/outcome; file and account changes invalidate prior confirmation. Source/reference/economic revalidation remains transactional and cannot be overridden.
+- Completed outcomes clear active preview and retain counts under Confirm import. Command-availability notifications now run after releasing the submission guard, so Select CSV and stale-preview Build Preview recovery actually re-enable in WPF bindings.
 
-No journal process was running at audit start, including an elevated process-path check. The executable used for the earlier screenshots therefore **cannot be identified retrospectively**; a stale published/Debug binary for those screenshots is unverified, not ruled out by assumption. The source-level routing defect exists independently of that uncertainty.
+Internal provider identity remains Topstep for compatible accounts and durable deduplication; the source's visible name is TopstepX. No parser, Domain economics, stored-execution, schema, migration, package or Tradovate import-rule changes were needed. Technical row provenance remains distinct from broker-fill reconstruction.
 
-The acceptance launch used the actual production executable:
+## Acceptance matrix
+
+**Passed** below denotes automated evidence, not interactive UI acceptance.
+
+| Scenario | Status | Evidence |
+| --- | --- | --- |
+| Required source and exact visible names | Passed | Command test starts with no source and proves the picker is not called; compiled WPF view materializes exactly Tradovate/TopstepX. |
+| Wrong format in either direction | Passed | Real Desktop command tests return one mismatch, no parser diagnostics/candidates/writes, then recover with the selected format. |
+| Unknown schema | Passed | One format message, cleared prior state and successful subsequent selection. |
+| Supplied TopstepX preview | Passed | 25 accepted, 0 rejected, 25 candidates; zero displayed grouping diagnostics; normal confirmation available with one proposed MNQ. |
+| No review checkboxes | Passed | Compiled-WPF STA test loads production resources and asserts no CheckBox controls, while rendering economics. |
+| Cancel then confirm proposal | Passed | Cancel leaves zero Trades/ledger/Instruments; exact proposal specs appear in the final request; affirmative confirmation imports 25 Trades, 50 derived executions and one Instrument. |
+| Persisted economics | Passed | Fresh Domain aggregates from isolated SQLite: Gross **1,241.00**, Fees **51.84**, Commissions **36.00**, Net **1,153.16 USD**. |
+| Exact duplicate replay | Passed | Fresh preview against existing MNQ → NoChanges, 25 skipped, no extra Instrument; old preview cannot resubmit. |
+| Bad economics, incompatible account, ambiguous/wrong Instrument | Passed | Existing real-stage/SQLite and Desktop tests still block without writes. |
+| Stale source/account/Instrument and invalid proposal approval | Passed | Exact fingerprint/specification checks retained before and within the transaction; stale UI disables confirmation and enables Build Preview recovery. |
+| Duplicate content conflicts, mixed overlap, cancellation, concurrent imports, rollback | Passed | Existing isolated SQLite transaction tests pass, including injected mid-import exception/cancellation rollback. |
+| Source switching from preview, blocked or completed state | Passed | Dedicated state tests prove file/account/diagnostics/outcome/candidates are cleared; switching back cannot reuse old confirmation. |
+| Tradovate regression | Passed | Supplied small fixture builds one ready candidate after an explicit same-session source switch; existing import/replay tests pass. |
+| Interactive source selector / Import page / final dialog / replay | Unverified | Windows helper could observe Dashboard but could not click Import or capture the window; no interactive import was performed. |
+
+The supplied-file runs used the ignored local helper with the **real Desktop ViewModel commands and production services**, substituting only file picker/final-dialog decisions. Storage was fresh migrated databases under `.tools/m11-routing-check/isolated-20260929-m117/PersonalTradingJournal/` and `isolated-20260929-m117-final/PersonalTradingJournal/` (final-code rerun). Both ended with 25 Trades, 50 executions, 25 Topstep ledger rows, one Instrument and zero Tradovate ledger rows. The Tradovate step was preview-only. This is synthetic automated consent, not a claim of human confirmation.
+
+## Interactive attempt and binary provenance
+
+The actual production Release executable was launched with `--isolated-data-root`:
 
 ```text
 C:\Users\Yovko\source\repos\Personal-Trading-Journal\src\PersonalTradingJournal.Desktop\bin\Release\net10.0-windows\PersonalTradingJournal.Desktop.exe
 ```
 
-Observed version: `1.0.0.0`; product/informational version `1.0.0+bdd7ebc0a6d0c64cde586bb45e09271659322122`. This version identifies the base commit, **not a clean binary**: the executable was built with the uncommitted routing changes. Process command lines were verified to include `--isolated-data-root` pointing under ignored `.tools/m11-routing-check/isolated-20260929-a`, whose `PersonalTradingJournal/journal.db` was seeded with synthetic Topstep/Tradovate USD Accounts and no Trades/Instruments. No special test App implementation replaced production startup.
+It used only `.tools/m11-routing-check/isolated-20260929-m117-ui`, a separate migrated database seeded with synthetic Topstep/Tradovate USD accounts and no Trades/Instruments. Executable path and command-line isolation were checked. File version: `1.0.0.0`; product version: `1.0.0+dccce62c479794ef48cac0c6c3d6c80794905d4b`. This identifies the base commit plus the uncommitted build, not a clean committed binary.
 
-The final Release binary was also launched once more against that same isolated root after the code/tests were finalized (startup-only, no renewed interactive claim). Its Desktop DLL SHA-256 was `434F49E5C1918432B59DF3F792334DA739F4B4366E7A135D60BCC89DE281ECEA`; the informational version remained the base commit plus uncommitted changes.
+The sandbox launch was not discoverable by Windows automation. After an approved isolated relaunch, the Dashboard accessibility tree was readable. Clicking Import failed with **coordinate input geometry is unavailable**. The prescribed fresh-window/activation/capture retry failed with **FrameArrived timed out: timed out waiting on channel**. Automation stopped, and only the path/argument-verified isolated process was terminated. No interactive acceptance is claimed. Subsequent final command-notification hardening was verified by tests/build, not another interactive run.
 
-Startup/migration completed and the Dashboard accessibility tree was readable. The first capture failed with `FrameArrived timed out`; clicking Import failed with `coordinate input geometry is unavailable`. Refreshing window selection and activating/capturing again failed with `window capture timed out`. The helper was not used further to invent an interactive result. The isolated acceptance processes were stopped after verification.
+## Verification
 
-## Acceptance matrix
+- Release build (including restore): **passed, zero warnings/errors**.
+- Full suite: **1,984 passed**, zero failures/skips — Domain **400**, Application **405**, Infrastructure **651**, Desktop **528**.
+- Focused Topstep/Tradovate/import UI tests: **460 passed** (169 Application, 231 Infrastructure, 60 Desktop); `git diff --check` passed.
+- No new schema/migration; all existing migration and isolated database tests passed.
+- No customer CSV/IDs were added to tracked fixtures or documentation.
 
-Automated observations below are **Desktop ViewModel command + real pipeline/SQLite checks**, not a person or automation navigating the rendered Import page.
+## Changed files
 
-| Gate | Automated evidence | Interactive status |
-| --- | --- | --- |
-| A: supplied Topstep file/account → preview | **Passed:** 25 accepted, 0 rejected, 25 closed-row candidates, four reconstruction warnings, one proposed MNQ; confirmation disabled before review; no Tradovate header errors. | **Unverified** — Import navigation could not be operated. |
-| B: cancel then explicitly confirm | **Passed:** cancelled final dialog retained preview and left zero Trades/ledger/Instruments; reviewed confirmation imported 25 Trades, 50 derived executions, one Instrument. | **Unverified**. |
-| B: stored economics | **Passed:** fresh persisted aggregates Gross **1,241.00**, Fees **51.84**, Commissions **36.00**, Net **1,153.16 USD**. | **Unverified** presentation; amounts verified from SQLite/Domain. |
-| C: fresh review and replay | **Passed:** `NoChanges`, 25 skipped, zero new Instruments; completed preview cleared and resubmit disabled. | **Unverified**. |
-| D: same-session Tradovate | **Passed:** small valid CSV routed to Tradovate, one candidate, PreviewReady and confirmation available; existing Tradovate import/replay tests retained. | **Unverified**. |
-| E: unknown/mixed schema and provider switch | **Passed:** one format diagnostic, no wrong-parser cascade; new selection clears old account/review/outcome and can recover. | **Unverified**. |
-| E: stale source/account/Instrument | **Passed:** SOURCE_CHANGED / REFERENCE_DATA_CHANGED retain recovery context, disable old review, require fresh preview/acknowledgments and write nothing. | **Unverified**. |
-| E: blocked Instrument/incompatible Account | **Passed:** ambiguous/wrong pricing/wrong provider produce blocked previews; checked boxes cannot override them. | **Unverified**. |
-| Cancellation/concurrent submission | **Passed:** Cancel operation reaches the active token; failure/cancel retain retryable preview; WPF CanExecute disables repeated submission and store call count remains one. M11.6 tests protect concurrent transactions/rollback. | **Unverified** button interaction. |
+New:
 
-The supplied-file command-path run used separate isolated migrated databases under ignored `.tools/m11-routing-check/isolated-20260929-b` and `isolated-20260929-c` (repeat with the final code). Customer rows/IDs were not printed or added to repository fixtures. Programmatically accepting checkboxes in this helper is synthetic test consent, not a claim of human review. Both runs confirmed 25 Topstep ledger rows and zero Tradovate ledger rows after the same-session Tradovate preview (which was not imported).
+```text
+src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportSourceOption.cs
+```
 
-## Verification results and changed files
-
-- Release build: **passed, 0 warnings / 0 errors**.
-- Full Release suite rerun: **1,978 passed, 0 failed/skipped** — Domain 400, Application 405, Infrastructure 651, Desktop 522.
-- Focused Desktop routing/compiled-XAML tests: **20 passed**. Focused Infrastructure header-routing tests: **12 passed**; the full suite includes both sets.
-- The compiled-WPF test loads the actual Import view and production theme resources on an STA thread, materializes the unchecked review checkboxes, validates accessible names and rendered economics text. It does not instantiate production `App`, open real storage, or substitute for interactive acceptance.
-- EF `has-pending-model-changes` (Release): **none**. Existing migration tests and isolated migrated database checks pass. No schema/migration changes are part of this correction.
-- `git diff --check`: passed; newly added files were also checked separately.
-- The first full run had one disposed-SQLite-connection failure in the unchanged setup-classification test `TradeMutationStoreTests.SaveAsyncPersistsSetupClassificationWithoutReplacingTradeState`. Both cases passed in a focused rerun, and the complete suite then passed without changing that persistence code. The initial test failure is not represented as a clean first run.
-
-Changed files (12 modified, 11 added; all uncommitted):
+Modified:
 
 ```text
 README.md
 docs/topstep-csv-import.md
-docs/m11-acceptance.md (new)
-src/PersonalTradingJournal.Application/Imports/IImportCsvFormatDetector.cs (new)
-src/PersonalTradingJournal.Infrastructure/Imports/Csv/ImportCsvFormatDetector.cs (new)
-src/PersonalTradingJournal.Desktop/App.xaml.cs
-src/PersonalTradingJournal.Desktop/Imports/ITradovateCsvFilePicker.cs
+docs/m11-acceptance.md
+src/PersonalTradingJournal.Application/Imports/Topstep/ImportTopstepTradesUseCase.cs
+src/PersonalTradingJournal.Application/Imports/Topstep/TopstepImportContracts.cs
+src/PersonalTradingJournal.Application/Imports/Topstep/TopstepImportPreview.cs
+src/PersonalTradingJournal.Application/Imports/Topstep/TopstepImportPreviewBuilder.cs
 src/PersonalTradingJournal.Desktop/Imports/WpfTradovateCsvFilePicker.cs
-src/PersonalTradingJournal.Desktop/Imports/DesktopApplicationPaths.cs (new)
-src/PersonalTradingJournal.Desktop/Imports/ImportServiceCollectionExtensions.cs (new)
 src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.cs
-src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.Topstep.cs (new)
+src/PersonalTradingJournal.Desktop/ViewModels/Import/ImportViewModel.Topstep.cs
 src/PersonalTradingJournal.Desktop/Views/Import/ImportView.xaml
-src/PersonalTradingJournal.Desktop/Views/Import/TopstepReviewView.xaml (new)
-src/PersonalTradingJournal.Desktop/Views/Import/TopstepReviewView.xaml.cs (new)
+src/PersonalTradingJournal.Desktop/Views/Import/TopstepReviewView.xaml
+src/PersonalTradingJournal.Infrastructure/Imports/Topstep/TopstepImportStore.cs
+tests/PersonalTradingJournal.Application.Tests/Imports/Topstep/TopstepImportPreviewBuilderTests.cs
 tests/PersonalTradingJournal.Desktop.Tests/Import/ImportViewModelTests.cs
 tests/PersonalTradingJournal.Desktop.Tests/Import/ImportViewXamlTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Import/TopstepDesktopRoutingTests.cs
 tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateImportAcceptanceTests.cs
 tests/PersonalTradingJournal.Desktop.Tests/Import/TradovateTimestampWorkflowTests.cs
-tests/PersonalTradingJournal.Desktop.Tests/Import/TopstepDesktopRoutingTests.cs (new)
 tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs
-tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/TradovateOnlyFormatDetector.cs (new)
-tests/PersonalTradingJournal.Infrastructure.Tests/Imports/ImportCsvFormatDetectorTests.cs (new)
+tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Topstep/TopstepImportStoreTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Imports/Topstep/TopstepPreviewPipelineTests.cs
 ```
 
-The real parsers, Domain economics and M11.6 transaction/deduplication implementation are unchanged. The new detector is a routing boundary, not relaxed validation. Legacy parser-double unit tests receive an explicit Tradovate routing double; production-header routing is exercised separately with real CSV and both pipelines.
+Ignored acceptance helper/data under `.tools/` were reused locally and are not Git deliverables. Initial status was clean; final status is 22 modified tracked files and one new untracked source file, all uncommitted.
 
-## Manual completion checklist
+## Remaining manual checks
 
-Use the production Release executable with `--isolated-data-root` and a **fresh separate test directory**, never the normal journal or a junction to it. Seed/create synthetic Topstep USD and Tradovate USD accounts there; leave MNQ absent to exercise explicit proposal approval.
+Use the Release executable with an explicit fresh isolated root, never the real journal or an alias/junction to it.
 
-1. Open Import → Select CSV → supplied Topstep export. Expect format Topstep, **25 valid / 0 rejected**, 25 closed-row candidates, no Tradovate missing headers. Choose the synthetic Topstep account → Build Preview.
-2. Inspect four grouping/boundary warnings plus proposal-related review, exact MNQ specifications and totals **1,241.00 / 51.84 / 36.00 / 1,153.16 USD**. Import Trades must stay disabled until every warning and separate proposal approval is checked. Confirm closed-row labels and source lines, not broker-position/fill claims.
-3. Choose Import Trades → Cancel. Verify preview/decisions remain and the isolated database has no Trades. Choose Import Trades again → accept. Expect Imported 25 and one Instrument; intermediate sections hide, Confirm import retains counts, old preview cannot resubmit.
-4. Re-select the same file/account, rebuild and explicitly review the now-existing Instrument. Confirm → expect NoChanges with 25 skipped and no new Instrument.
-5. In the same application session select the small valid Tradovate CSV. Account/review/outcome must reset; select the Tradovate account and verify its existing preview behavior and unknown-cost explanation.
-6. Try a synthetic unknown/mixed header → one format diagnostic. Recover by selecting a valid file. Try a wrong-provider account or ambiguous Instrument catalog → blocked preview. Change an isolated source/reference after preview → confirmation blocks with a clear rebuild/review path.
-7. Check Cancel operation during work, disabled repeat submission, keyboard access to every review box, readable wrapping at a narrow window, and retained Trades/Instruments refresh after commit.
+1. Open Import. Select CSV must be disabled; source choices must read Tradovate and TopstepX.
+2. Choose TopstepX, select the supplied CSV and a synthetic Topstep USD account, then Build Preview. Expect 25 valid/25 Trades, concise individual-row text and no warning checkboxes.
+3. Inspect economics and proposed MNQ; Import Trades opens the exact-specification dialog. Cancel (no writes), then accept: Imported 25, totals **1,241.00 / 51.84 / 36.00 / 1,153.16 USD**.
+4. Re-select/rebuild/confirm: NoChanges, 25 skipped. Select CSV must be usable after completion; intermediate sections are hidden.
+5. Switch to Tradovate: previous state clears. Its valid CSV works; selecting the TopstepX file while Tradovate is chosen gives one mismatch instead of switching source.
+6. Try a wrong-provider account or stale isolated source/reference; verify clear blocking/rebuild recovery, enabled recovery buttons, cancellation and keyboard access.
 
-M11 must **not** be marked interactively accepted until these remaining checks pass. No Desktop editor for arbitrary non-MNQ verification attestations was added; such references remain blocked rather than guessed. Domain economics, both parsers' validation, M11.6 transactions/deduplication and Tradovate rules are unchanged.
+Implementation and automated acceptance pass. **Interactive acceptance remains open**. Independent non-MNQ verification still has no Desktop editor and must not be guessed.
+
+Suggested manual commit message: `feat: simplify TopstepX import with explicit source selection`

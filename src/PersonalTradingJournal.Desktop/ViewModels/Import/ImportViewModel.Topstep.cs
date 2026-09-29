@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.IO;
-using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Topstep;
@@ -37,9 +36,8 @@ public sealed partial class ImportViewModel
     }
     public bool IsTopstep => SourceFormat == ImportCsvFormat.Topstep;
     public bool IsTradovate => SourceFormat == ImportCsvFormat.Tradovate;
-    public string CandidateLabel => IsTopstep ? "CLOSED-ROW CANDIDATES" : "TRADE CANDIDATES";
+    public string CandidateLabel => "TRADE CANDIDATES";
     public TopstepImportPreview? TopstepPreview => _topstepPreview;
-    public IReadOnlyList<TopstepReviewChoice> ReviewChoices { get; private set; } = [];
     public IReadOnlyList<TopstepCandidatePresentation> TopstepCandidates { get; private set; } = [];
     public string TopstepTotals => _topstepPreview?.Summary.ReconciledTotals is { } totals
         ? $"Gross {Money(totals.CalculatedGross, totals.Currency)} · Fees {Money(totals.Fees, totals.Currency)} · Commissions {Money(totals.Commissions, totals.Currency)} · Net {Money(totals.Net, totals.Currency)}"
@@ -56,7 +54,9 @@ public sealed partial class ImportViewModel
         AnalysisSummary = new(parse.SourceRecordCount, parse.ValidRecordCount, parse.RejectedRecordCount, 0, 0,
             reconstruction.Candidates.Count, 0, 0, 0);
         _analysisDiagnostics = parse.Diagnostics.Select(d => new ImportDiagnosticItem("CSV", d.Severity.ToString(), d.Code, d.Message, $"Line {d.SourceLineNumber}"))
-            .Concat(reconstruction.Diagnostics.Select(d => new ImportDiagnosticItem("Reconstruction", d.Severity.ToString(), d.Code, d.Message,
+            .Concat(reconstruction.Diagnostics.Where(d => d.Severity == TopstepReconstructionDiagnosticSeverity.Error ||
+                d.Code is not (TopstepReconstructionDiagnosticCodes.PositionBoundariesUnverified or
+                    TopstepReconstructionDiagnosticCodes.PositionGroupingAmbiguous)).Select(d => new ImportDiagnosticItem("Reconstruction", d.Severity.ToString(), d.Code, d.Message,
                 SourceLines(d.SourceReferences)))).ToArray();
         Diagnostics = _analysisDiagnostics;
         if (_topstepOpenRead is null) WorkflowErrorMessage = "Select this CSV again to enable source revalidation at confirmation.";
@@ -85,7 +85,7 @@ public sealed partial class ImportViewModel
             if (workflow != _workflowVersion || version != _previewVersion) return;
             if (format.Format != ImportCsvFormat.Topstep)
             {
-                WorkflowErrorMessage = "CSV_FORMAT_CHANGED: The file no longer has the reviewed Topstep header. Select CSV again to detect the current format.";
+                WorkflowErrorMessage = "CSV_FORMAT_CHANGED: The file no longer matches the selected TopstepX source. Select its current CSV again.";
                 Phase = ImportWorkflowPhase.Blocked;
                 return;
             }
@@ -95,9 +95,6 @@ public sealed partial class ImportViewModel
             token.ThrowIfCancellationRequested();
             if (workflow != _workflowVersion || version != _previewVersion || SelectedAccount?.Id != account) return;
             _topstepPreview = preview;
-            ReviewChoices = preview.ReviewRequirements.Select(r => new TopstepReviewChoice(r, () => ConfirmImportCommand.NotifyCanExecuteChanged(),
-                r.Kind == TopstepPreviewReviewKind.InstrumentCreationApproval
-                    ? ProposalDescription(preview.CreationProposals.Single(p => p.CanonicalSymbol == r.CanonicalSymbol)) : "")).ToArray();
             TopstepCandidates = preview.Candidates.Select(c => new TopstepCandidatePresentation(c)).ToArray();
             AnalysisSummary = new(preview.Summary.SourceRowCount, preview.Summary.AcceptedRowCount, preview.Summary.RejectedRowCount, 0, 0,
                 preview.Summary.ClosedRowCandidateCount, preview.Instruments.Count, preview.Summary.ExistingContractResolutionCount, preview.Summary.ProposedInstrumentCount);
@@ -122,14 +119,11 @@ public sealed partial class ImportViewModel
         {
             if (workflow == _workflowVersion && version == _previewVersion)
             {
-                WorkflowErrorMessage = "Topstep preview could not be built. Check file access, select the current CSV and retry.";
+                WorkflowErrorMessage = "TopstepX preview could not be built. Check file access, select the current CSV and retry.";
                 Phase = ImportWorkflowPhase.Failed;
             }
         }
     }
-
-    private TopstepPreviewReview CurrentTopstepReview() => new(_topstepPreview?.SnapshotFingerprint ?? "",
-        ReviewChoices.Where(c => c.IsAccepted).Select(c => c.Requirement.Key).ToArray());
 
     private async Task ConfirmTopstepImportAsync(CancellationToken token)
     {
@@ -139,34 +133,35 @@ public sealed partial class ImportViewModel
         token = cancellation.Token;
         long workflow = _workflowVersion, version = _previewVersion;
         TopstepImportPreview preview = _topstepPreview!;
-        TopstepPreviewReview review = CurrentTopstepReview();
         Func<Stream> open = _topstepOpenRead!;
         try
         {
             ConfirmImportCommand.NotifyCanExecuteChanged();
-            if (!_dialogService.Confirm(new ConfirmationDialogRequest("Import Topstep closed-row records?",
-                $"Account: {preview.DestinationAccount!.Name}\nFile: {preview.SourceIdentity.FileName}\nClosed-row records: {preview.Candidates.Count}\n{TopstepTotals}\n\nThese are reported closed rows, not verified broker positions. Reviewed Instruments will be created only in the atomic import. Exact duplicates are skipped.",
+            if (!_dialogService.Confirm(new ConfirmationDialogRequest("Confirm TopstepX import?",
+                $"Account: {preview.DestinationAccount!.Name}\nFile: {preview.SourceIdentity.FileName}\nTrades: {preview.Candidates.Count}\n{TopstepTotals}\n\nTopstepX Trades rows are imported individually. Exact duplicates are skipped.{InstrumentApprovalMessage(preview)}",
                 "Import Trades", "Cancel", isDestructive: false))) return;
             token.ThrowIfCancellationRequested();
             if (workflow != _workflowVersion || version != _previewVersion) return;
             ClearImportResult();
             Phase = ImportWorkflowPhase.Importing;
+            // The affirmative dialog approves its displayed specifications, not a checkbox or a retained decision.
+            var confirmation = new TopstepImportConfirmation(preview.SnapshotFingerprint,
+                preview.CreationProposals.Select(p => p.CanonicalSymbol).ToArray());
             await using Stream source = open();
-            TopstepImportResult result = await Task.Run(() => _topstepImport.ImportAsync(preview, review, preview.SourceIdentity.FileName, source, token), token);
+            TopstepImportResult result = await Task.Run(() => _topstepImport.ImportAsync(preview, confirmation, preview.SourceIdentity.FileName, source, token), token);
             // The use case invalidates retained data after commit even if navigation discarded this presentation.
             if (workflow != _workflowVersion || version != _previewVersion) return;
             if (result.Status == TopstepImportStatus.Blocked)
             {
                 _topstepReviewStale = true;
-                foreach (TopstepReviewChoice choice in ReviewChoices) choice.IsAccepted = false;
                 ImportErrorMessage = $"{result.ConflictCode}: {result.Message} Rebuild Preview and review again; select another file/account if needed.";
                 Phase = ImportWorkflowPhase.Blocked;
                 return;
             }
             ImportResultStatus = result.Status == TopstepImportStatus.Imported ? "Imported" : "NoChanges";
             ImportSuccessMessage = result.Status == TopstepImportStatus.Imported
-                ? "Topstep closed-row import completed successfully."
-                : "No new Trades: every reviewed closed-row record was already imported in this account.";
+                ? "TopstepX import completed successfully."
+                : "No new Trades: every reviewed Trade row was already imported in this account.";
             ImportedTradeCount = result.ImportedTradeCount;
             SkippedDuplicateTradeCount = result.SkippedDuplicateTradeCount;
             CreatedInstrumentCount = result.CreatedInstrumentCount;
@@ -185,7 +180,7 @@ public sealed partial class ImportViewModel
         {
             if (workflow == _workflowVersion && version == _previewVersion)
             {
-                ImportErrorMessage = "Topstep import could not be completed. Check file access and retry or rebuild preview. No source contents are included in this message.";
+                ImportErrorMessage = "TopstepX import could not be completed. Check file access and retry or rebuild preview. No source contents are included in this message.";
                 Phase = ImportWorkflowPhase.PreviewReady;
             }
         }
@@ -193,6 +188,8 @@ public sealed partial class ImportViewModel
         {
             _topstepConfirmationCancellation = null;
             Volatile.Write(ref _isImportSubmissionInProgress, 0);
+            SelectCsvCommand.NotifyCanExecuteChanged();
+            BuildPreviewCommand.NotifyCanExecuteChanged();
             ConfirmImportCommand.NotifyCanExecuteChanged();
         }
     }
@@ -201,7 +198,6 @@ public sealed partial class ImportViewModel
     {
         _topstepPreview = null;
         _topstepReviewStale = false;
-        ReviewChoices = [];
         TopstepCandidates = [];
         if (IsTopstep)
         {
@@ -225,7 +221,6 @@ public sealed partial class ImportViewModel
         OnPropertyChanged(nameof(TopstepPreview));
         OnPropertyChanged(nameof(TopstepCandidates));
         OnPropertyChanged(nameof(TopstepTotals));
-        OnPropertyChanged(nameof(ReviewChoices));
         OnPropertyChanged(nameof(HasPreview));
         OnPropertyChanged(nameof(ShowConfirmationSection));
     }
@@ -233,27 +228,19 @@ public sealed partial class ImportViewModel
     internal static string SourceLines(IReadOnlyList<TopstepSourceReference> rows) =>
         rows.Count == 0 ? "" : "Source lines: " + string.Join(", ", rows.Select(r => r.SourceLineNumber).Distinct());
     private static string Money(decimal value, string currency) => $"{value.ToString("G29", CultureInfo.CurrentCulture)} {currency}";
+    private static string InstrumentApprovalMessage(TopstepImportPreview preview) => preview.CreationProposals.Count == 0
+        ? ""
+        : "\n\nConfirming also approves creation of these exact Instruments:\n" +
+            string.Join("\n", preview.CreationProposals.Select(ProposalDescription));
     private static string ProposalDescription(TopstepInstrumentCreationProposal p) =>
         $"{p.CanonicalSymbol} · {p.DisplayName} · {p.AssetClass} · {p.Exchange} · {p.Currency} · Tick {p.TickSize:G29} / value {p.TickValue:G29} · Point value {p.PointValue:G29}. Evidence: {p.MetadataSource}";
-}
-
-public sealed class TopstepReviewChoice(TopstepPreviewReviewRequirement requirement, Action changed, string specifications = "") : ObservableObject
-{
-    private bool _isAccepted;
-    public TopstepPreviewReviewRequirement Requirement { get; } = requirement;
-    public string Description => $"{Requirement.Kind}: {Requirement.Message} {specifications} {ImportViewModel.SourceLines(Requirement.SourceReferences)}";
-    public bool IsAccepted
-    {
-        get => _isAccepted;
-        set { if (SetProperty(ref _isAccepted, value)) changed(); }
-    }
 }
 
 public sealed class TopstepCandidatePresentation(TopstepPreviewCandidate candidate)
 {
     public TopstepPreviewCandidate Candidate { get; } = candidate;
     public string Identity => $"Source line {Candidate.SourceLineNumber} · {Candidate.ContractName} · {Candidate.Direction} · {Candidate.ResolutionState}";
-    public string Quantity => $"Closed-row quantity: {Candidate.ClosedRowQuantity.ToString("G29", CultureInfo.CurrentCulture)} (not broker peak exposure)";
+    public string Quantity => $"Quantity: {Candidate.ClosedRowQuantity.ToString("G29", CultureInfo.CurrentCulture)}";
     public string Times => $"Entry UTC: {Candidate.EnteredAtUtc:yyyy-MM-dd HH:mm:ss} · Exit UTC: {Candidate.ExitedAtUtc:yyyy-MM-dd HH:mm:ss}";
     public string Prices => $"Entry: {Candidate.EntryPrice.ToString("F2", CultureInfo.CurrentCulture)} · Exit: {Candidate.ExitPrice.ToString("F2", CultureInfo.CurrentCulture)}";
     public string Economics => $"Reported Gross: {Candidate.ReportedGross:G29} · Fees: {Candidate.Fees:G29} · Commissions: {Candidate.Commissions:G29} · Verified Net: {Candidate.CalculatedNet?.ToString("G29", CultureInfo.CurrentCulture) ?? "—"} {Candidate.Currency ?? "(currency unverified)"}";
