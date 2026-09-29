@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -23,17 +24,90 @@ public sealed class DashboardAnalyticsReaderTests
     private static readonly DateTimeOffset Close = new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task SetupMetadataAndClassificationRefreshWithoutLosingHistoricalOutcomes()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        TradingSetup a = await Setup(db, "Original", true), b = await Setup(db, "Other", false);
+        Trade classified = TradeFact(account, instrument, 100m, setup: a.Id);
+        await Add(db, classified, TradeFact(account, instrument, -40m, setup: b.Id),
+            TradeFact(account, instrument, 5m, costs: null));
+        IDashboardAnalyticsReader reader = Reader(db);
+        CurrencyTradeMetrics before = Assert.Single((await reader.GetAsync(new())).Currencies);
+        Assert.Equal(3, before.Setups.Count);
+        Assert.Equal("Original", Assert.Single(before.Setups, s => s.TradingSetupId == a.Id).Name);
+        Assert.False(Assert.Single(before.Setups, s => s.TradingSetupId == b.Id).IsActive);
+        Assert.Equal(SetupReferenceStatus.Unclassified, Assert.Single(before.Setups, s => s.TradingSetupId is null).ReferenceStatus);
+        Assert.Equal(65m, Assert.Single(before.CumulativeRealizedPnl).Metrics.EffectiveNet.Total);
+
+        await using (JournalDbContext context = await db.ContextFactory.CreateDbContextAsync())
+        {
+            var record = await context.TradingSetups.SingleAsync(s => s.Id == a.Id);
+            record.Name = "Renamed";
+            record.IsActive = false;
+            await context.SaveChangesAsync();
+        }
+        CurrencyTradeMetrics renamed = Assert.Single((await reader.GetAsync(new())).Currencies);
+        Assert.Equal("Renamed", Assert.Single(renamed.Setups, s => s.TradingSetupId == a.Id).Name);
+        Assert.False(Assert.Single(renamed.Setups, s => s.TradingSetupId == a.Id).IsActive);
+        Assert.Equal(before.DailyPnl.ToArray(), renamed.DailyPnl.ToArray());
+        ITradingSetupDeletionStore deletions = db.ServiceProvider.GetRequiredService<ITradingSetupDeletionStore>();
+        await Assert.ThrowsAsync<TradingSetupDeleteBlockedException>(() => deletions.DeleteAsync(a.Id));
+
+        classified.SetTradingSetup(b.Id, Audit.AddDays(1));
+        await db.ServiceProvider.GetRequiredService<ITradeMutationStore>().SaveAsync(classified);
+        await deletions.DeleteAsync(a.Id); // Only unreferenced Setups may be deleted normally.
+        CurrencyTradeMetrics changed = Assert.Single((await reader.GetAsync(new())).Currencies);
+        Assert.DoesNotContain(changed.Setups, s => s.TradingSetupId == a.Id);
+        SetupTradeMetrics moved = Assert.Single(changed.Setups, s => s.TradingSetupId == b.Id);
+        Assert.Equal(2, moved.Metrics.ClosedTradeCount);
+        Assert.Equal(50m, moved.Metrics.Net.WinRatePercent);
+        Assert.Equal(100m, moved.Metrics.Net.AverageWin.Value);
+        Assert.Equal(40m, moved.Metrics.Net.AverageLoss.Value);
+        Assert.Equal(before.CumulativeRealizedPnl.ToArray(), changed.CumulativeRealizedPnl.ToArray());
+        Assert.Equal("Original", Assert.Single(before.Setups, s => s.TradingSetupId == a.Id).Name);
+    }
+
+    [Fact]
+    public async Task LeftJoinRetainsTradeIfItsSetupReferenceIsMissingOutsideNormalDeletionRules()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        TradingSetup setup = await Setup(db, "Missing reference", true);
+        await Add(db, TradeFact(account, instrument, 6m, setup: setup.Id));
+        await using JournalDbContext info = await db.ContextFactory.CreateDbContextAsync();
+        // Simulate legacy/out-of-band damage in this disposable database only. Production FK policy is unchanged.
+        string connection = new SqliteConnectionStringBuilder(info.Database.GetConnectionString())
+            { ForeignKeys = false, Pooling = false }.ToString();
+        await using (var damaged = new JournalDbContext(new DbContextOptionsBuilder<JournalDbContext>().UseSqlite(connection).Options))
+        {
+            damaged.TradingSetups.Remove(await damaged.TradingSetups.SingleAsync());
+            await damaged.SaveChangesAsync();
+        }
+        CurrencyTradeMetrics result = Assert.Single((await Reader(db).GetAsync(new())).Currencies);
+        SetupTradeMetrics group = Assert.Single(result.Setups);
+        Assert.Equal(setup.Id, group.TradingSetupId);
+        Assert.Equal(SetupReferenceStatus.Missing, group.ReferenceStatus);
+        Assert.Null(group.Name);
+        Assert.Null(group.IsActive);
+        Assert.Equal(6m, group.Metrics.Net.Total);
+        Assert.Equal(6m, Assert.Single(result.DailyPnl).Metrics.Net.Total);
+        Assert.True(result.HasClassifiedTrades);
+    }
+
+    [Fact]
     public async Task OutcomeAveragesUseAllFilteredClosedTradesAndHistoricalCurrency()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
         var (account, instrument) = await References(db);
         var (otherAccount, otherInstrument) = await References(db);
+        TradingSetup setup = await Setup(db, "Filtered Setup", false);
         await Add(db, TradeFact(account, instrument, 100m), TradeFact(account, instrument, -40m),
             TradeFact(account, instrument, 0m), TradeFact(account, instrument, 20m),
-            TradeFact(account, instrument, 500m, currency: "EUR"),
-            TradeFact(otherAccount, instrument, 900m), TradeFact(account, otherInstrument, 900m),
-            TradeFact(account, instrument, 900m, Close.AddDays(-1)),
-            TradeFact(account, instrument, 900m, Close.AddDays(1)),
+            TradeFact(account, instrument, 500m, currency: "EUR", setup: setup.Id),
+            TradeFact(otherAccount, instrument, 900m, setup: setup.Id), TradeFact(account, otherInstrument, 900m, setup: setup.Id),
+            TradeFact(account, instrument, 900m, Close.AddDays(-1), setup: setup.Id),
+            TradeFact(account, instrument, 900m, Close.AddDays(1), setup: setup.Id),
             TradeFact(account, instrument, 900m, exitQuantity: 1m));
         IDashboardAnalyticsReader reader = Reader(db);
         DashboardAnalyticsSnapshot snapshot = await reader.GetAsync(new(account, instrument,
@@ -52,6 +126,12 @@ public sealed class DashboardAnalyticsReaderTests
             Assert.False(basis.IsEstimated);
         }
         PnlMetrics eur = Assert.Single(snapshot.Currencies, c => c.Currency == "EUR").Metrics.Net;
+        Assert.False(usd.HasClassifiedTrades);
+        Assert.Equal(80m, Assert.Single(usd.DailyPnl).Metrics.Net.Total);
+        CurrencyTradeMetrics eurBucket = Assert.Single(snapshot.Currencies, c => c.Currency == "EUR");
+        Assert.Equal(setup.Id, Assert.Single(eurBucket.Setups).TradingSetupId);
+        Assert.Equal("Filtered Setup", eurBucket.Setups[0].Name);
+        Assert.Equal(500m, Assert.Single(eurBucket.CumulativeRealizedPnl).Metrics.Net.Total);
         Assert.Equal(500m, eur.AverageWin.Value);
         Assert.Equal(new AveragePnlMetric(AveragePnlStatus.NoLosses, null), eur.AverageLoss);
         Assert.Equal(new ProfitFactorMetric(ProfitFactorStatus.NoLosses, null), eur.ProfitFactor);
@@ -218,6 +298,8 @@ public sealed class DashboardAnalyticsReaderTests
         Assert.Equal(2, result.SelectedTradeCount);
         Assert.Equal(3m, Total(result));
         Assert.Equal(date, Assert.Single(Assert.Single(result.Currencies).Days).NewYorkDate);
+        Assert.Equal(date, Assert.Single(Assert.Single(result.Currencies).DailyPnl).NewYorkDate);
+        Assert.Equal(3m, Assert.Single(Assert.Single(result.Currencies).CumulativeRealizedPnl).Metrics.Net.Total);
         Assert.Equal(1.5m, Assert.Single(result.Currencies).Metrics.Net.AverageWin.Value);
         Assert.Equal(1003m, Total(await Reader(db).GetAsync(new(closedFromNewYork: date))));
         Assert.Equal(103m, Total(await Reader(db).GetAsync(new(closedThroughNewYork: date))));
@@ -273,7 +355,9 @@ public sealed class DashboardAnalyticsReaderTests
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
         var (account, instrument) = await References(db);
-        await Add(db, Enumerable.Range(0, 121).Select(_ => TradeFact(account, instrument, 1m)).ToArray());
+        TradingSetup a = await Setup(db, "First", true), b = await Setup(db, "Second", false);
+        await Add(db, Enumerable.Range(0, 121).Select(i => TradeFact(account, instrument, 1m,
+            setup: i % 3 == 0 ? a.Id : i % 3 == 1 ? b.Id : null)).ToArray());
         await using JournalDbContext connectionInfo = await db.ContextFactory.CreateDbContextAsync();
         // SQLite itself rejects writes on these reader connections, not just an assertion on row counts.
         string readOnlyConnection = new SqliteConnectionStringBuilder(connectionInfo.Database.GetConnectionString())
@@ -291,7 +375,15 @@ public sealed class DashboardAnalyticsReaderTests
         Assert.Equal(121m, Assert.Single(series.Weeks).CumulativeMetrics.Net.Total);
         Assert.Equal(1m, series.Metrics.Net.AverageWin.Value);
         Assert.Equal(1m, series.Weeks[0].CumulativeMetrics.Net.AverageWin.Value);
+        Assert.Equal(121m, Assert.Single(series.DailyPnl).Metrics.Net.Total);
+        Assert.Equal(121m, Assert.Single(series.CumulativeRealizedPnl).Metrics.Net.Total);
+        Assert.Equal(3, series.Setups.Count);
+        Assert.Equal(41, Assert.Single(series.Setups, s => s.TradingSetupId == a.Id).Metrics.ClosedTradeCount);
+        Assert.Equal("Second", Assert.Single(series.Setups, s => s.TradingSetupId == b.Id).Name);
+        Assert.Equal(40, Assert.Single(series.Setups, s => s.TradingSetupId is null).Metrics.ClosedTradeCount);
         string sql = Assert.Single(commands.Sql);
+        Assert.Contains("LEFT JOIN", sql);
+        Assert.Contains("TradingSetups", sql);
         Assert.Contains("WHERE", sql);
         Assert.Contains("TradingAccountId", sql);
         Assert.Contains("InstrumentId", sql);
@@ -376,8 +468,19 @@ public sealed class DashboardAnalyticsReaderTests
         return (account.Id, instrument.Id);
     }
 
+    private static async Task<TradingSetup> Setup(ReaderTestDatabase db, string name, bool active)
+    {
+        var setup = new TradingSetup(name, null, Audit);
+        if (!active) setup.Deactivate(Audit.AddDays(1));
+        await using JournalDbContext context = await db.ContextFactory.CreateDbContextAsync();
+        context.TradingSetups.Add(TradingSetupPersistenceMapper.ToRecord(setup));
+        await context.SaveChangesAsync();
+        return setup;
+    }
+
     private static Trade TradeFact(Guid account, Guid instrument, decimal gross,
-        DateTimeOffset? closed = null, decimal? costs = 0m, string currency = "USD", decimal exitQuantity = 2m)
+        DateTimeOffset? closed = null, decimal? costs = 0m, string currency = "USD", decimal exitQuantity = 2m,
+        Guid? setup = null)
     {
         DateTimeOffset close = closed ?? Close;
         Guid id = Guid.NewGuid();
@@ -385,7 +488,7 @@ public sealed class DashboardAnalyticsReaderTests
             0m, 0m, null, null, null) };
         if (exitQuantity > 0m) executions.Add(new(id, 2, close, ExecutionSide.Sell, exitQuantity, 100m + gross / 2m,
             costs, 0m, null, null, null));
-        return Trade.Rehydrate(id, account, instrument, new(1m, currency), null, executions, Audit, Audit);
+        return Trade.Rehydrate(id, account, instrument, new(1m, currency), setup, executions, Audit, Audit);
     }
 
     private static async Task Add(ReaderTestDatabase db, params Trade[] trades)

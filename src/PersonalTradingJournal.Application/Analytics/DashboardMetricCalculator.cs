@@ -9,10 +9,37 @@ public static class DashboardMetricCalculator
 {
     public static DashboardAnalyticsSnapshot Calculate(
         IEnumerable<TradeAnalyticsFact> trades,
+        CancellationToken cancellationToken = default) => CalculateCore(trades, null, cancellationToken);
+
+    /// <summary>Reference metadata must cover the selected population; absent IDs are marked Missing.</summary>
+    public static DashboardAnalyticsSnapshot Calculate(
+        IEnumerable<TradeAnalyticsFact> trades,
+        IReadOnlyCollection<TradingSetupAnalyticsReference> setupReferences,
         CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(setupReferences);
+        return CalculateCore(trades, setupReferences, cancellationToken);
+    }
+
+    private static DashboardAnalyticsSnapshot CalculateCore(
+        IEnumerable<TradeAnalyticsFact> trades,
+        IReadOnlyCollection<TradingSetupAnalyticsReference>? setupReferences,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(trades);
         cancellationToken.ThrowIfCancellationRequested();
+        Dictionary<Guid, TradingSetupAnalyticsReference>? references = null;
+        if (setupReferences is not null)
+        {
+            references = new();
+            foreach (TradingSetupAnalyticsReference reference in setupReferences)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (reference is null || reference.TradingSetupId == Guid.Empty ||
+                    string.IsNullOrWhiteSpace(reference.Name) || !references.TryAdd(reference.TradingSetupId, reference))
+                    throw new ArgumentException("Provide one valid reference per Setup ID.", nameof(setupReferences));
+            }
+        }
         var selected = new List<TradeAnalyticsFact>();
         var identities = new HashSet<Guid>();
         foreach (TradeAnalyticsFact trade in trades)
@@ -33,6 +60,8 @@ public static class DashboardMetricCalculator
                 .OrderBy(t => t.ClosedAtUtc).ThenBy(t => t.TradeId).ToArray();
             var days = new List<DailyTradeMetrics>();
             var weeks = new List<WeeklyTradeMetrics>();
+            var dailyPnl = new List<PnlChartPoint>();
+            var cumulativePnl = new List<PnlChartPoint>();
             var cumulativeDays = new ClosedMetricsAccumulator();
             foreach (var day in closed.GroupBy(t => GetNewYorkCloseDate(t.ClosedAtUtc!.Value)).OrderBy(g => g.Key))
             {
@@ -43,7 +72,10 @@ public static class DashboardMetricCalculator
                     period.Add(trade);
                     cumulativeDays.Add(trade);
                 }
-                days.Add(new(day.Key, period.Snapshot(), cumulativeDays.Snapshot()));
+                var metrics = new DailyTradeMetrics(day.Key, period.Snapshot(), cumulativeDays.Snapshot());
+                days.Add(metrics);
+                dailyPnl.Add(new(day.Key, metrics.Metrics));
+                cumulativePnl.Add(new(day.Key, metrics.CumulativeMetrics));
             }
             var cumulativeWeeks = new ClosedMetricsAccumulator();
             foreach (var week in closed.GroupBy(t => GetWeekStartingMonday(GetNewYorkCloseDate(t.ClosedAtUtc!.Value)))
@@ -60,9 +92,18 @@ public static class DashboardMetricCalculator
             }
             SetupTradeMetrics[] setups = closed.GroupBy(t => t.TradingSetupId)
                 .OrderBy(g => g.Key)
-                .Select(g => new SetupTradeMetrics(g.Key, Summarize(g.ToArray(), cancellationToken))).ToArray();
+                .Select(g =>
+                {
+                    var metrics = new SetupTradeMetrics(g.Key, Summarize(g.ToArray(), cancellationToken));
+                    if (g.Key is not { } id || references is null) return metrics;
+                    return references.TryGetValue(id, out TradingSetupAnalyticsReference? reference)
+                        ? metrics with { Name = reference.Name, IsActive = reference.IsActive,
+                            ReferenceStatus = SetupReferenceStatus.Available }
+                        : metrics with { ReferenceStatus = SetupReferenceStatus.Missing };
+                }).ToArray();
             currencies.Add(new(currency.Key, currency.Count() - closed.Length,
-                cumulativeDays.Snapshot(), days.AsReadOnly(), weeks.AsReadOnly(), Array.AsReadOnly(setups)));
+                cumulativeDays.Snapshot(), days.AsReadOnly(), weeks.AsReadOnly(), Array.AsReadOnly(setups),
+                dailyPnl.AsReadOnly(), cumulativePnl.AsReadOnly()));
         }
 
         return new(selected.Count, selected.Count(t => t.Status == TradeStatus.Open), currencies.AsReadOnly());

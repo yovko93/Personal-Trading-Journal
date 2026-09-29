@@ -12,7 +12,13 @@ public sealed record DailyTradeMetrics(
 /// </summary>
 public sealed record WeeklyTradeMetrics(
     DateOnly WeekStartingMonday, ClosedTradeMetrics Metrics, ClosedTradeMetrics CumulativeMetrics);
-public sealed record SetupTradeMetrics(Guid? TradingSetupId, ClosedTradeMetrics Metrics);
+public sealed record SetupTradeMetrics(Guid? TradingSetupId, ClosedTradeMetrics Metrics)
+{
+    public string? Name { get; init; }
+    public bool? IsActive { get; init; }
+    public SetupReferenceStatus ReferenceStatus { get; init; } =
+        TradingSetupId is null ? SetupReferenceStatus.Unclassified : SetupReferenceStatus.NotLoaded;
+}
 
 /// <summary>There is deliberately no combined-currency P&amp;L total.</summary>
 public sealed record CurrencyTradeMetrics(
@@ -21,7 +27,13 @@ public sealed record CurrencyTradeMetrics(
     ClosedTradeMetrics Metrics,
     IReadOnlyList<DailyTradeMetrics> Days,
     IReadOnlyList<WeeklyTradeMetrics> Weeks,
-    IReadOnlyList<SetupTradeMetrics> Setups);
+    IReadOnlyList<SetupTradeMetrics> Setups,
+    IReadOnlyList<PnlChartPoint> DailyPnl,
+    IReadOnlyList<PnlChartPoint> CumulativeRealizedPnl)
+{
+    public bool HasClosedTrades => Metrics.ClosedTradeCount > 0;
+    public bool HasClassifiedTrades => Setups.Any(setup => setup.TradingSetupId.HasValue);
+}
 
 /// <summary>
 /// Read-only calculations and period series only: no chart rendering, UI wiring or risk estimation.
