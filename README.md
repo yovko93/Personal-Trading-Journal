@@ -391,7 +391,9 @@ GitHub Actions runs the CI workflow:
 
 Read-only Application metric contracts and rules are available in `Application/Analytics`. They consume authoritative, unrounded Trade facts, partition results by historical pricing currency, and report separate Gross/Net coverage. Unknown costs never become zero or a Gross fallback for Net; incomplete Net selections expose a labeled known subtotal but no complete total, Win Rate or Profit Factor. Daily results use the New York calendar date of closure. Avg R remains unavailable because authoritative initial risk is not recorded.
 
-The Dashboard remains a placeholder: database aggregation, live cards, charts and presentation wiring are not implemented. See [Dashboard Analytics](docs/dashboard-analytics.md) for the metric definitions, empty/zero-denominator rules, Setup attribution and later-stage boundaries.
+`IDashboardAnalyticsReader.GetAsync(DashboardAnalyticsQuery)` now reads all matching closed Trades from the persisted Domain-derived browse projection and feeds these rules. Optional Account/Instrument IDs and inclusive New York closure dates filter in SQL; dates become DST-aware half-open UTC bounds. Every call uses a fresh context, with no retained Account or result, paging, execution loading or query-time writes. Invalid filter IDs/date ranges produce parameter-specific argument exceptions before database access; valid IDs with no matches return an empty snapshot.
+
+The Dashboard remains a placeholder: live cards, charts and presentation wiring are not implemented. See [Dashboard Analytics](docs/dashboard-analytics.md) for the read boundary, metric definitions, empty/zero-denominator rules, Setup attribution and later-stage boundaries.
 
 ## Architectural Principles
 

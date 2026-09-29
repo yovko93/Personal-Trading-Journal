@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Accounts;
@@ -16,6 +17,26 @@ public sealed class TradovateImportStoreTests
 {
     private static readonly DateTimeOffset ImportedAt =
         new(2026, 9, 23, 16, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task AnalyticsRefreshesAfterCommittedTradovateImportWithoutInventingNet()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid accountId = await SeedAccountAsync(database);
+        IDashboardAnalyticsReader reader = database.ServiceProvider.GetRequiredService<IDashboardAnalyticsReader>();
+        var query = new DashboardAnalyticsQuery(accountId);
+        Assert.Empty((await reader.GetAsync(query)).Currencies);
+        ITradovateImportStore store = database.ServiceProvider.GetRequiredService<ITradovateImportStore>();
+        var request = new TradovateImportRequest(Preparation(accountId), ImportedAt);
+        Assert.Equal(TradovateImportStatus.Imported, (await store.ImportAsync(request)).Status);
+        ClosedTradeMetrics metrics = Assert.Single((await reader.GetAsync(query)).Currencies).Metrics;
+        Assert.Equal(2m, metrics.Gross.Total);
+        Assert.Null(metrics.Net.Total);
+        Assert.Null(metrics.Net.KnownSubtotal);
+        Assert.Equal(1, metrics.UnknownCostTradeCount);
+        Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
+        Assert.Equal(metrics, Assert.Single((await reader.GetAsync(query)).Currencies).Metrics);
+    }
 
     [Fact]
     public async Task ImportAsyncPersistsCompleteGraphUnknownCostsAndDurableIdentities()
