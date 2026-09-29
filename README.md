@@ -141,7 +141,7 @@ The M9 Setup and Mistake Classification milestone includes:
 - authoritative post-write reloads and safe Desktop operation feedback; and
 - regression protection for project-owned WPF `StaticResource` keys.
 
-Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Setup and Mistake performance analytics are not implemented.
+Trading Setup is the single reusable trade-pattern classification. The overlapping Strategy concept was intentionally removed, and no Strategy catalog or Trade Strategy assignment exists in the current architecture. Dashboard Setup performance breakdowns are available; Mistake performance analytics are not implemented.
 
 The Entity Lifecycle & CRUD UX milestone completes consistent View/Edit/Delete presentation and explicit entity-specific update and deletion workflows. Accounts, Instruments, Trading Setups, and Trading Mistakes may be hard deleted only while unused; referenced records remain editable and can be deactivated without breaking historical Trades. Trades support correction through the Domain aggregate and confirmed hard deletion of their owned database records, followed by best-effort physical screenshot cleanup.
 
@@ -232,7 +232,7 @@ The Desktop Theme System adds one semantic design system backed by parity-checke
 
 The Desktop creation workflows share a compact form language for Manual Trades, Accounts, Instruments, Trading Setups, and Trading Mistakes. Consistent section hierarchy, field labels, optional markers, restrained helper text, visible focus treatment, semantic feedback, and primary/secondary actions improve scanability without changing validation or persistence behavior.
 
-Eight of the 19 shell destinations are concrete: Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard remains presentation-only, Settings owns appearance preference, and the other six are functional data-backed pages. The other 11 destinations remain placeholders.
+Eight of the 19 shell destinations are concrete: Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings. Dashboard shows read-only analytics, Settings owns appearance preference, and the other six are functional data-backed pages. The other 11 destinations remain placeholders.
 
 The fixed-width sidebar renders all 19 destinations from one Desktop-owned navigation catalog. Dashboard and Notebook remain top-level, four labeled feature groups can be collapsed independently, and Accounts, Instruments, and Settings remain standalone utilities below a divider. Every destination uses a project-owned vector icon and the existing semantic theme resources in both Dark and Light modes.
 
@@ -399,7 +399,9 @@ Each currency includes ordered daily and Monday–Sunday weekly series. Empty pe
 
 Chart-ready `DailyPnl` and `CumulativeRealizedPnl` points reuse those daily snapshots, retaining dates, coverage and estimate provenance. The future “Equity Curve” panel represents **cumulative realized Trade P&L**, not account equity: starting balance, deposits/withdrawals and open valuation are not available. Setup breakdowns include current names/activity and explicit unclassified or missing-reference states, without discarding historical results. One filtered, no-tracking query left-joins Setup metadata; no per-point/Setup query is made. Renaming and classification edits appear on the next read. Empty selections have no currency/point buckets; unclassified-only results remain visible; unknown verified Net stays null rather than zero. See the analytics contracts for these distinct empty states.
 
-The Dashboard remains a placeholder: live cards, charts and presentation wiring are not implemented. See [Dashboard Analytics](docs/dashboard-analytics.md) for the read boundary, metric definitions, empty/zero-denominator rules, Setup attribution and later-stage boundaries.
+The Dashboard now loads live read-only summary cards, daily P&L and **Cumulative Realized P&L** charts, Setup breakdowns and the latest ten closed Trades. It defaults to **All** history. Week (Monday–Sunday), Month and Year initially select the current New York calendar period; Previous/Next move calendar periods without allowing a future period. An explicit currency selector scopes every section; Account/Instrument scope is currently all. Best/Worst Day rank daily EffectiveNet, with earliest-date tie-breaking and explicit estimates; incomplete daily values prevent a misleading subset ranking. Total Trades counts only fully closed Trades. Avg R stays unavailable because initial risk is not recorded.
+
+Charts start cumulative realized P&L at zero at the selected period's beginning, never an account balance. Expand their value tables for exact dates, amounts and coverage; unavailable values remain gaps. Refresh reloads the complete selected population, independent of the ten Recent Trades. Navigation back to Dashboard rereads committed data; active Dashboard loads refresh after manual Trade writes and both import providers. Cancel loading and safe retry messages are available, and superseded reads cannot replace newer results. See [Dashboard Analytics](docs/dashboard-analytics.md) for exact scope, metric and interaction rules.
 
 The user has visually verified the estimated-Net presentation in Trades and Details. This is separate from automated analytics coverage and is **not Dashboard visual verification**.
 

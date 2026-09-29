@@ -125,6 +125,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _themeService.ThemeChanged += OnThemeChanged;
         _importViewModel.ImportCommitted += OnImportCommitted;
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
+        _tradesViewModel.TradeDataCommitted += OnDashboardDataCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -199,6 +200,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _themeService.ThemeChanged -= OnThemeChanged;
         _importViewModel.ImportCommitted -= OnImportCommitted;
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
+        _tradesViewModel.TradeDataCommitted -= OnDashboardDataCommitted;
+        _dashboardViewModel.Deactivate();
     }
 
     private (bool Trades, bool Instruments) InvalidateTopstepChanges()
@@ -240,6 +243,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         var changed = InvalidateTopstepChanges();
         // Consume each generation once, including when navigation already observed the commit.
+        if (changed.Trades) OnDashboardDataCommitted(this, EventArgs.Empty);
         // Load methods handle errors and reread an invalidated in-flight result under their gates.
         if (changed.Trades && CurrentDestination == NavigationDestination.Trades)
             _ = _tradesViewModel.EnsureLoadedAsync();
@@ -250,6 +254,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void Navigate(NavigationDestination destination)
     {
         var changed = InvalidateTopstepChanges();
+        if (changed.Trades) OnDashboardDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
 
         if (destination == CurrentDestination)
@@ -261,6 +266,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
+        if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
@@ -350,10 +356,22 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnImportCommitted(object? sender, ImportCommittedEventArgs e)
     {
+        OnDashboardDataCommitted(sender, EventArgs.Empty);
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         if (e.CreatedInstrumentCount > 0)
         {
             _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
         }
+    }
+
+    private void OnDashboardDataCommitted(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnDashboardDataCommitted(sender, e));
+            return;
+        }
+        _dashboardViewModel.OnDataCommitted();
     }
 }

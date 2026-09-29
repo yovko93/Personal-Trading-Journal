@@ -18,6 +18,8 @@ public sealed record TradeAnalyticsFact(
     decimal? TotalCosts,
     decimal? NetPnL)
 {
+    public string? InstrumentSymbol { get; init; }
+
     public static TradeAnalyticsFact FromTrade(Trade trade)
     {
         ArgumentNullException.ThrowIfNull(trade);

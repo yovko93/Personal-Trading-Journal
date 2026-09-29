@@ -34,6 +34,7 @@ internal enum ManualTradeInputField
 
 public sealed class TradesViewModel : ObservableObject
 {
+    public event EventHandler? TradeDataCommitted;
     private const int TradePageSize = 20;
     private const NumberStyles DecimalNumberStyles =
         NumberStyles.AllowLeadingWhite |
@@ -2502,6 +2503,7 @@ public sealed class TradesViewModel : ObservableObject
         try
         {
             _ = await _updateTradeUseCase.ExecuteAsync(command, cancellationToken);
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
             ResetTradeEditState();
             TradeUpdateSuccessMessage = TradeUpdatedMessage;
 
@@ -2621,6 +2623,7 @@ public sealed class TradesViewModel : ObservableObject
             DeleteTradeResult result = await _deleteTradeUseCase.ExecuteAsync(
                 tradeId,
                 cancellationToken);
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
             if (result == DeleteTradeResult.DeletedWithFileCleanupWarning)
             {
                 TradeDeleteWarningMessage = TradeDeleteCleanupWarningMessage;
@@ -2844,6 +2847,7 @@ public sealed class TradesViewModel : ObservableObject
             await _closeManualTradeUseCase.ExecuteAsync(
                 command,
                 cancellationToken);
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
 
             ResetCloseTradeDraft();
             IsCloseTradeVisible = false;
@@ -2967,6 +2971,7 @@ public sealed class TradesViewModel : ObservableObject
             await _setTradeTradingSetupUseCase.ExecuteAsync(
                 new SetTradeTradingSetupCommand(detail.Id, tradingSetupId),
                 cancellationToken);
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
             TradingSetupSuccessMessage = TradingSetupSavedMessage;
 
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
@@ -3520,6 +3525,7 @@ public sealed class TradesViewModel : ObservableObject
             _ = await _createManualTradeUseCase.ExecuteAsync(
                 command,
                 cancellationToken);
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
 
             ResetManualEntryForm();
             IsManualEntryVisible = false;

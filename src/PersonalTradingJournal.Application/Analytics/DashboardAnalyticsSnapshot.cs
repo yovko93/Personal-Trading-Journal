@@ -32,6 +32,8 @@ public sealed record CurrencyTradeMetrics(
     IReadOnlyList<PnlChartPoint> CumulativeRealizedPnl)
 {
     public bool HasClosedTrades => Metrics.ClosedTradeCount > 0;
+    /// <summary>Latest ten selected closed Trades by closure descending, then ID; never a metric population.</summary>
+    public IReadOnlyList<TradeAnalyticsFact> RecentTrades { get; init; } = Array.Empty<TradeAnalyticsFact>();
     public bool HasClassifiedTrades => Setups.Any(setup => setup.TradingSetupId.HasValue);
 }
 

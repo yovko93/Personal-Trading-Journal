@@ -103,7 +103,11 @@ public static class DashboardMetricCalculator
                 }).ToArray();
             currencies.Add(new(currency.Key, currency.Count() - closed.Length,
                 cumulativeDays.Snapshot(), days.AsReadOnly(), weeks.AsReadOnly(), Array.AsReadOnly(setups),
-                dailyPnl.AsReadOnly(), cumulativePnl.AsReadOnly()));
+                dailyPnl.AsReadOnly(), cumulativePnl.AsReadOnly())
+            {
+                RecentTrades = Array.AsReadOnly(closed.OrderByDescending(t => t.ClosedAtUtc)
+                    .ThenBy(t => t.TradeId).Take(10).ToArray())
+            });
         }
 
         return new(selected.Count, selected.Count(t => t.Status == TradeStatus.Open), currencies.AsReadOnly());

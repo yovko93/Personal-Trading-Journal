@@ -22,8 +22,10 @@ public sealed class DashboardAnalyticsReader(IDbContextFactory<JournalDbContext>
                    join browse in context.TradeBrowse.AsNoTracking() on trade.Id equals browse.TradeId
                    join setup in context.TradingSetups.AsNoTracking() on trade.TradingSetupId equals setup.Id into setups
                    from setup in setups.DefaultIfEmpty()
+                   join instrument in context.Instruments.AsNoTracking() on trade.InstrumentId equals instrument.Id into instruments
+                   from instrument in instruments.DefaultIfEmpty()
                    where browse.Status == TradeStatus.Closed && browse.ClosedAtUtc != null
-                   select new { Trade = trade, Browse = browse, Setup = setup };
+                   select new { Trade = trade, Browse = browse, Setup = setup, Instrument = instrument };
         if (query.TradingAccountId is { } accountId)
             rows = rows.Where(row => row.Trade.TradingAccountId == accountId);
         if (query.InstrumentId is { } instrumentId)
@@ -37,7 +39,8 @@ public sealed class DashboardAnalyticsReader(IDbContextFactory<JournalDbContext>
         {
             Fact = new TradeAnalyticsFact(row.Trade.Id, row.Browse.Status, row.Browse.OpenedAtUtc, row.Browse.ClosedAtUtc,
                 row.Trade.PricingCurrency, row.Trade.TradingSetupId, row.Browse.GrossPnL,
-                row.Browse.TotalCosts, row.Browse.NetPnL),
+                row.Browse.TotalCosts, row.Browse.NetPnL)
+                { InstrumentSymbol = row.Instrument == null ? null : row.Instrument.Symbol },
             Setup = row.Setup == null ? null : new TradingSetupAnalyticsReference(
                 row.Setup.Id, row.Setup.Name, row.Setup.IsActive)
         }).ToListAsync(cancellationToken);
