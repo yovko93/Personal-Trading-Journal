@@ -23,6 +23,67 @@ public sealed class DashboardAnalyticsReaderTests
     private static readonly DateTimeOffset Close = new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task OutcomeAveragesUseAllFilteredClosedTradesAndHistoricalCurrency()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        var (otherAccount, otherInstrument) = await References(db);
+        await Add(db, TradeFact(account, instrument, 100m), TradeFact(account, instrument, -40m),
+            TradeFact(account, instrument, 0m), TradeFact(account, instrument, 20m),
+            TradeFact(account, instrument, 500m, currency: "EUR"),
+            TradeFact(otherAccount, instrument, 900m), TradeFact(account, otherInstrument, 900m),
+            TradeFact(account, instrument, 900m, Close.AddDays(-1)),
+            TradeFact(account, instrument, 900m, Close.AddDays(1)),
+            TradeFact(account, instrument, 900m, exitQuantity: 1m));
+        IDashboardAnalyticsReader reader = Reader(db);
+        DashboardAnalyticsSnapshot snapshot = await reader.GetAsync(new(account, instrument,
+            new(2026, 3, 8), new(2026, 3, 8)));
+        Assert.Equal(5, snapshot.SelectedTradeCount);
+        CurrencyTradeMetrics usd = Assert.Single(snapshot.Currencies, c => c.Currency == "USD");
+        foreach (ClosedTradeMetrics scope in new[] { usd.Metrics, usd.Days[0].Metrics,
+                     usd.Weeks[0].CumulativeMetrics, usd.Setups[0].Metrics })
+        foreach (PnlMetrics basis in new[] { scope.Gross, scope.Net, scope.EffectiveNet })
+        {
+            Assert.Equal(4, basis.Coverage.ClosedTradeCount);
+            Assert.Equal(50m, basis.WinRatePercent);
+            Assert.Equal(new AveragePnlMetric(AveragePnlStatus.Defined, 60m), basis.AverageWin);
+            Assert.Equal(new AveragePnlMetric(AveragePnlStatus.Defined, 40m), basis.AverageLoss);
+            Assert.Equal(new ProfitFactorMetric(ProfitFactorStatus.Defined, 3m), basis.ProfitFactor);
+            Assert.False(basis.IsEstimated);
+        }
+        PnlMetrics eur = Assert.Single(snapshot.Currencies, c => c.Currency == "EUR").Metrics.Net;
+        Assert.Equal(500m, eur.AverageWin.Value);
+        Assert.Equal(new AveragePnlMetric(AveragePnlStatus.NoLosses, null), eur.AverageLoss);
+        Assert.Equal(new ProfitFactorMetric(ProfitFactorStatus.NoLosses, null), eur.ProfitFactor);
+        Assert.Empty((await reader.GetAsync(new(account, instrument, new(2026, 3, 11)))).Currencies);
+    }
+
+    [Fact]
+    public async Task PersistedOppositeSignsAndEstimatedLossKeepIndependentOutcomeMetrics()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        await Add(db, TradeFact(account, instrument, 5m, costs: 8m),
+            TradeFact(account, instrument, 10m, costs: 2m), TradeFact(account, instrument, -285m, costs: null));
+        ClosedTradeMetrics result = Assert.Single((await Reader(db).GetAsync(new())).Currencies).Metrics;
+        Assert.Equal(7.5m, result.Gross.AverageWin.Value);
+        Assert.Equal(285m, result.Gross.AverageLoss.Value);
+        Assert.Equal(200m / 3m, result.Gross.WinRatePercent);
+        Assert.Equal(15m / 285m, result.Gross.ProfitFactor.Value);
+        Assert.Equal(new AveragePnlMetric(AveragePnlStatus.IncompleteCoverage, null), result.Net.AverageWin);
+        Assert.Equal(new AveragePnlMetric(AveragePnlStatus.IncompleteCoverage, null), result.Net.AverageLoss);
+        Assert.Null(result.Net.WinRatePercent);
+        Assert.Null(result.Net.ProfitFactor.Value);
+        Assert.True(result.EffectiveNet.IsEstimated);
+        Assert.Equal(1, result.EffectiveNet.EstimatedTradeCount);
+        Assert.Equal(2, result.EffectiveNet.VerifiedTradeCount);
+        Assert.Equal(8m, result.EffectiveNet.AverageWin.Value);
+        Assert.Equal(144m, result.EffectiveNet.AverageLoss.Value);
+        Assert.Equal(100m / 3m, result.EffectiveNet.WinRatePercent);
+        Assert.Equal(8m / 288m, result.EffectiveNet.ProfitFactor.Value);
+    }
+
+    [Fact]
     public async Task EstimatedNetIsNotPersistedAndRealCostCorrectionReplacesItOnEveryRead()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
@@ -37,6 +98,8 @@ public sealed class DashboardAnalyticsReaderTests
         Assert.Null(initial.Metrics.Net.Total);
         Assert.Equal(-285m, initial.Metrics.EffectiveNet.Total);
         Assert.True(initial.Days[0].CumulativeMetrics.EffectiveNet.IsEstimated);
+        Assert.Equal(285m, initial.Metrics.EffectiveNet.AverageLoss.Value);
+        Assert.Equal(AveragePnlStatus.IncompleteCoverage, initial.Metrics.Net.AverageLoss.Status);
         TradeListItem row = Assert.Single((await list.GetPageAsync(listQuery)).Items);
         TradeDetail detail = Assert.IsType<TradeDetail>(await details.GetByIdAsync(trade.Id));
         Assert.Equal(new EffectiveNetPnL(-285m, NetPnLProvenance.Estimated), row.EffectiveNet);
@@ -59,6 +122,12 @@ public sealed class DashboardAnalyticsReaderTests
         Assert.Equal(-286.5m, refreshed.Metrics.EffectiveNet.Total);
         Assert.False(refreshed.Metrics.EffectiveNet.IsEstimated);
         Assert.False(refreshed.Weeks[0].CumulativeMetrics.EffectiveNet.IsEstimated);
+        Assert.Equal(286.5m, refreshed.Metrics.Net.AverageLoss.Value);
+        Assert.Equal(refreshed.Metrics.Net.AverageLoss, refreshed.Metrics.EffectiveNet.AverageLoss);
+        Assert.Equal(0, refreshed.Metrics.EffectiveNet.EstimatedTradeCount);
+        Assert.Equal(AveragePnlStatus.NoWins, refreshed.Metrics.Net.AverageWin.Status);
+        Assert.Equal(0m, refreshed.Metrics.Net.WinRatePercent);
+        Assert.Equal(0m, refreshed.Metrics.Net.ProfitFactor.Value);
         Assert.Equal(new EffectiveNetPnL(-286.5m, NetPnLProvenance.Verified),
             Assert.Single((await list.GetPageAsync(listQuery)).Items).EffectiveNet);
         Assert.Equal(NetPnLProvenance.Verified, (await details.GetByIdAsync(trade.Id))!.EffectiveNet.Provenance);
@@ -149,6 +218,7 @@ public sealed class DashboardAnalyticsReaderTests
         Assert.Equal(2, result.SelectedTradeCount);
         Assert.Equal(3m, Total(result));
         Assert.Equal(date, Assert.Single(Assert.Single(result.Currencies).Days).NewYorkDate);
+        Assert.Equal(1.5m, Assert.Single(result.Currencies).Metrics.Net.AverageWin.Value);
         Assert.Equal(1003m, Total(await Reader(db).GetAsync(new(closedFromNewYork: date))));
         Assert.Equal(103m, Total(await Reader(db).GetAsync(new(closedThroughNewYork: date))));
     }
@@ -219,6 +289,8 @@ public sealed class DashboardAnalyticsReaderTests
         CurrencyTradeMetrics series = Assert.Single(result.Currencies);
         Assert.Equal(121m, Assert.Single(series.Days).CumulativeMetrics.Net.Total);
         Assert.Equal(121m, Assert.Single(series.Weeks).CumulativeMetrics.Net.Total);
+        Assert.Equal(1m, series.Metrics.Net.AverageWin.Value);
+        Assert.Equal(1m, series.Weeks[0].CumulativeMetrics.Net.AverageWin.Value);
         string sql = Assert.Single(commands.Sql);
         Assert.Contains("WHERE", sql);
         Assert.Contains("TradingAccountId", sql);
