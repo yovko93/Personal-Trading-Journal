@@ -175,6 +175,8 @@ Theme-sensitive brush consumers use `DynamicResource`, allowing materialized con
 
 The Dashboard is currently a presentation shell. It provides neutral metric and panel surfaces but performs no analytics or database queries. Financial outcome must not be interpreted as process quality: good process can lose, and bad process can profit. Future process-quality analysis must model that distinction explicitly.
 
+M12.1 supplies independent, read-only Application rules in `Analytics`: authoritative Trade facts, currency-isolated Gross/Net metrics with completeness, New York closure-day buckets and current Setup buckets. No Infrastructure reader, Desktop registration or migration is introduced. A future reader must provide the complete selected population, not a page of the browse list, and preserve the Domain-derived P&L and historical pricing currency. See [Dashboard Analytics](dashboard-analytics.md) for the calculation contract and deferred chart/UI work.
+
 ### Desktop Data-Access Boundary
 
 Desktop may depend on Application abstractions and use cases. Its reference to Infrastructure exists because Desktop is the composition root that wires concrete implementations; it does not authorize feature ViewModels to query `JournalDbContext` directly. Accounts, Instruments, Trading Setups, Trading Mistakes, and Trades follow meaningful Application boundaries rather than a `ViewModel -> JournalDbContext` dependency.

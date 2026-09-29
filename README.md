@@ -387,6 +387,12 @@ GitHub Actions runs the CI workflow:
 - with the SDK resolved from `global.json`; and
 - through restore, Release build, and test stages.
 
+## Dashboard Analytics Foundation
+
+Read-only Application metric contracts and rules are available in `Application/Analytics`. They consume authoritative, unrounded Trade facts, partition results by historical pricing currency, and report separate Gross/Net coverage. Unknown costs never become zero or a Gross fallback for Net; incomplete Net selections expose a labeled known subtotal but no complete total, Win Rate or Profit Factor. Daily results use the New York calendar date of closure. Avg R remains unavailable because authoritative initial risk is not recorded.
+
+The Dashboard remains a placeholder: database aggregation, live cards, charts and presentation wiring are not implemented. See [Dashboard Analytics](docs/dashboard-analytics.md) for the metric definitions, empty/zero-denominator rules, Setup attribution and later-stage boundaries.
+
 ## Architectural Principles
 
 The repository follows a domain-first design with dependencies directed toward the Domain. Infrastructure implements meaningful Application abstractions, while Desktop remains the composition and presentation layer. The system is local-first today, but the core should remain independent of WPF so a future web or SaaS presentation can evolve without replacing domain and application logic.
