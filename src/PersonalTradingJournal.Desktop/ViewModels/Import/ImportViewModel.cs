@@ -220,8 +220,16 @@ public sealed partial class ImportViewModel : ObservableObject
     public IReadOnlyList<ImportDiagnosticItem> Diagnostics
     {
         get => _diagnostics;
-        private set => SetProperty(ref _diagnostics, value);
+        private set
+        {
+            if (SetProperty(ref _diagnostics, value))
+            {
+                OnPropertyChanged(nameof(HasDiagnostics));
+            }
+        }
     }
+
+    public bool HasDiagnostics => Diagnostics.Count > 0;
 
     public string? ImportSuccessMessage
     {

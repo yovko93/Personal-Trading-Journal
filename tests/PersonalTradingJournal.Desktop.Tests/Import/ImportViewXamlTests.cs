@@ -79,6 +79,32 @@ public sealed class ImportViewXamlTests
     }
 
     [Fact]
+    public void DiagnosticsCardAndItsSpacingDependOnlyOnDiagnosticContent()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+        XElement card = Assert.Single(document.Descendants(presentation + "Border"),
+            element => (string?)element.Attribute(x + "Name") == "DiagnosticsSection");
+        Assert.Equal("0,16,0,0", (string?)card.Attribute("Margin"));
+        Assert.Contains(card.Descendants(presentation + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(card.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasDiagnostics}" &&
+            (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(card.Descendants(presentation + "TextBlock"), heading =>
+            (string?)heading.Attribute("Text") == "Diagnostics");
+        Assert.Contains(card.Descendants(presentation + "ItemsControl"), items =>
+            (string?)items.Attribute("ItemsSource") == "{Binding Diagnostics}");
+        Assert.DoesNotContain(card.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding IsTopstep}");
+        XNamespace local = document.Root!.GetNamespaceOfPrefix("local")!;
+        Assert.Same(card.Parent, Assert.Single(document.Descendants(local + "TopstepReviewView")).Parent);
+    }
+
+    [Fact]
     public void CompletedResultHidesAccountSectionButKeepsConfirmationSectionVisible()
     {
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";

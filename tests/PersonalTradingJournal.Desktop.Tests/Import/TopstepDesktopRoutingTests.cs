@@ -96,6 +96,56 @@ public sealed class TopstepDesktopRoutingTests
         "MNQU6,2,0,0.25,SYN-BUY,SYN-SELL,2,20123.125,20124.375,$125.00,09/10/2026 16:30:03,09/10/2026 16:30:15,12sec";
 
     [Fact]
+    public async Task DiagnosticVisibilityTracksPreviewAccountSourceFileAndCompletion()
+    {
+        await using var f = await Fixture.Create();
+        var vm = f.Vm;
+        Assert.False(vm.HasDiagnostics);
+
+        await f.Preview(); // Missing MNQ produces a real proposal warning.
+        Assert.Contains(vm.Diagnostics, d => d.Code == TopstepReferenceDiagnosticCodes.InstrumentCreationProposed);
+        Assert.True(vm.HasDiagnostics);
+
+        vm.SelectedAccount = vm.Accounts.Single(a => a.ProviderName == "Tradovate");
+        Assert.Empty(vm.Diagnostics);
+        Assert.False(vm.HasDiagnostics);
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Equal(ImportWorkflowPhase.Blocked, vm.Phase);
+        Assert.Contains(vm.Diagnostics, d => d.Code == TopstepReferenceDiagnosticCodes.AccountProviderMismatch);
+        Assert.True(vm.HasDiagnostics);
+
+        vm.SelectedSource = vm.Sources.Single(s => s.Name == "Tradovate");
+        Assert.Empty(vm.Diagnostics);
+        Assert.False(vm.HasDiagnostics);
+        vm.SelectedSource = vm.Sources.Single(s => s.Name == "TopstepX");
+        await using (var db = await f.Factory.CreateDbContextAsync())
+        {
+            db.Instruments.Add(Instrument());
+            await db.SaveChangesAsync();
+        }
+
+        await f.Preview(); // Existing verified MNQ has no warning or error.
+        Assert.Equal(ImportWorkflowPhase.PreviewReady, vm.Phase);
+        Assert.Empty(vm.Diagnostics);
+        Assert.False(vm.HasDiagnostics);
+
+        f.Picker.Csv = "Unknown,Mixed\n1,2";
+        await vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.Equal(ImportWorkflowPhase.Blocked, vm.Phase);
+        Assert.Empty(vm.Diagnostics);
+        Assert.False(vm.HasDiagnostics);
+        Assert.StartsWith("CSV_FORMAT_UNSUPPORTED:", vm.WorkflowErrorMessage);
+
+        f.Picker.Csv = Csv;
+        await f.Preview();
+        Assert.False(vm.HasDiagnostics);
+        await vm.ConfirmImportCommand.ExecuteAsync(null);
+        Assert.Equal("Imported", vm.ImportResultStatus);
+        Assert.Empty(vm.Diagnostics);
+        Assert.False(vm.HasDiagnostics);
+    }
+
+    [Fact]
     public async Task ActualDesktopCommandsRouteReviewCancelImportReplayAndSwitchToTradovate()
     {
         await using var f = await Fixture.Create();
@@ -319,6 +369,13 @@ public sealed class TopstepDesktopRoutingTests
                 Assert.Equal(new[] { "Tradovate", "TopstepX" },
                     sourceSelector.Items.Cast<ImportSourceOption>().Select(s => s.Name));
                 Assert.Contains(Descendants(view).OfType<System.Windows.Controls.TextBlock>(), text => text.Text.Contains("Net 2.56 USD"));
+                var diagnosticsSection = Assert.IsType<System.Windows.Controls.Border>(view.FindName("DiagnosticsSection"));
+                Assert.True(f.Vm.HasDiagnostics);
+                Assert.Equal(System.Windows.Visibility.Visible, diagnosticsSection.Visibility);
+                f.Vm.SelectedSource = f.Vm.Sources.Single(s => s.Name == "Tradovate");
+                view.UpdateLayout();
+                Assert.False(f.Vm.HasDiagnostics);
+                Assert.Equal(System.Windows.Visibility.Collapsed, diagnosticsSection.Visibility);
                 completed.SetResult();
             }
             catch (Exception exception) { completed.SetException(exception); }

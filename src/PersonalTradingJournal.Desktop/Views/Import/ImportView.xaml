@@ -262,22 +262,35 @@
                 </StackPanel>
             </Border>
 
-            <Border Margin="0,16,0,0">
+            <local:TopstepReviewView>
+                <local:TopstepReviewView.Style>
+                    <Style TargetType="local:TopstepReviewView">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding HasAnalysis}" Value="True" />
+                                    <Condition Binding="{Binding IsTopstep}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </local:TopstepReviewView.Style>
+            </local:TopstepReviewView>
+
+            <Border x:Name="DiagnosticsSection" Margin="0,16,0,0">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}" BasedOn="{StaticResource PtjCardStyle}">
                         <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers><DataTrigger Binding="{Binding HasAnalysis}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasDiagnostics}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
                     </Style>
                 </Border.Style>
                 <StackPanel>
-                    <local:TopstepReviewView>
-                        <local:TopstepReviewView.Style>
-                            <Style TargetType="local:TopstepReviewView">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers><DataTrigger Binding="{Binding IsTopstep}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
-                            </Style>
-                        </local:TopstepReviewView.Style>
-                    </local:TopstepReviewView>
                     <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}" Text="Diagnostics" />
                     <ItemsControl Margin="0,10,0,0" ItemsSource="{Binding Diagnostics}">
                         <ItemsControl.ItemTemplate>

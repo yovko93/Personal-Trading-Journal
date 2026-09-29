@@ -103,6 +103,7 @@ public sealed class ImportViewModelTests
         Assert.Equal(24000m, candidate.AverageEntry);
         Assert.Equal(24010m, candidate.AverageExit);
         Assert.Contains(fixture.ViewModel.Diagnostics, item => item.Code == "COSTS_UNAVAILABLE");
+        Assert.True(fixture.ViewModel.HasDiagnostics);
         Assert.Contains(fixture.ViewModel.Diagnostics, item =>
             item.Code == TradovateReconstructionDiagnosticCodes.SourceCompletenessUnverified);
         Assert.Equal(1, fixture.AccountReader.DetailCallCount);
@@ -240,6 +241,7 @@ public sealed class ImportViewModelTests
         Assert.Equal(ImportWorkflowPhase.Blocked, fixture.ViewModel.Phase);
         Assert.Contains(fixture.ViewModel.Diagnostics, item =>
             item.Stage == "CSV" && item.Code == "INVALID_TEST_CSV");
+        Assert.True(fixture.ViewModel.HasDiagnostics);
         Assert.False(fixture.ViewModel.BuildPreviewCommand.CanExecute(null));
     }
 
