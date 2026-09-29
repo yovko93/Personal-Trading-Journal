@@ -393,6 +393,8 @@ Read-only Application metric contracts and rules are available in `Application/A
 
 `IDashboardAnalyticsReader.GetAsync(DashboardAnalyticsQuery)` now reads all matching closed Trades from the persisted Domain-derived browse projection and feeds these rules. Optional Account/Instrument IDs and inclusive New York closure dates filter in SQL; dates become DST-aware half-open UTC bounds. Every call uses a fresh context, with no retained Account or result, paging, execution loading or query-time writes. Invalid filter IDs/date ranges produce parameter-specific argument exceptions before database access; valid IDs with no matches return an empty snapshot.
 
+Each currency now includes ordered daily and Monday–Sunday weekly P&L series, with period and cumulative metrics. Empty periods are omitted, not invented as zero results. Cumulative values start from the filtered selection, not the account balance; once a selected Trade has unknown Net, later cumulative Net totals stay unavailable while labeled known subtotals and coverage remain accessible. Weeks cut by date filters contain only selected Trades. Decimal overflow fails the calculation rather than returning a partial or capped series.
+
 The Dashboard remains a placeholder: live cards, charts and presentation wiring are not implemented. See [Dashboard Analytics](docs/dashboard-analytics.md) for the read boundary, metric definitions, empty/zero-denominator rules, Setup attribution and later-stage boundaries.
 
 ## Architectural Principles

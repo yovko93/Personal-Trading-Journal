@@ -23,6 +23,51 @@ public sealed class DashboardAnalyticsReaderTests
     private static readonly DateTimeOffset Close = new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task FilteredPersistedFactsProduceDailyWeeklyAndSelectionRelativeCumulativeSeries()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        var (otherAccount, otherInstrument) = await References(db);
+        DateTimeOffset sunday = new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero);
+        DateTimeOffset monday = sunday.AddDays(1);
+        await Add(db, Enumerable.Range(0, 121).Select(_ => TradeFact(account, instrument, 1m, sunday)).ToArray());
+        await Add(db, TradeFact(account, instrument, 5m, monday, costs: null),
+            TradeFact(account, instrument, 0m, monday.AddDays(1)),
+            TradeFact(account, instrument, 2m, monday, currency: "EUR"),
+            TradeFact(account, instrument, 900m, sunday.AddDays(-1)),
+            TradeFact(account, instrument, 900m, monday.AddDays(2)),
+            TradeFact(otherAccount, instrument, 900m, sunday),
+            TradeFact(account, otherInstrument, 900m, sunday),
+            TradeFact(account, instrument, 900m, sunday, exitQuantity: 1m));
+
+        IDashboardAnalyticsReader reader = Reader(db);
+        DashboardAnalyticsSnapshot result = await reader.GetAsync(new(account, instrument, new(2026, 3, 8), new(2026, 3, 10)));
+        Assert.Equal(124, result.SelectedTradeCount);
+        CurrencyTradeMetrics usd = Assert.Single(result.Currencies, c => c.Currency == "USD");
+        Assert.Equal(3, usd.Days.Count);
+        Assert.Equal(121, usd.Days[0].Metrics.ClosedTradeCount);
+        Assert.Equal(121m, usd.Days[0].Metrics.Net.Total);
+        Assert.Equal(new DateOnly(2026, 3, 2), usd.Weeks[0].WeekStartingMonday);
+        Assert.Equal(new DateOnly(2026, 3, 9), usd.Weeks[1].WeekStartingMonday);
+        Assert.Equal(5m, usd.Weeks[1].Metrics.Gross.Total);
+        Assert.Null(usd.Weeks[1].Metrics.Net.Total);
+        Assert.Equal(0m, usd.Weeks[1].Metrics.Net.KnownSubtotal);
+        Assert.Equal(126m, usd.Weeks[1].CumulativeMetrics.Gross.Total);
+        Assert.Equal(121m, usd.Weeks[1].CumulativeMetrics.Net.KnownSubtotal);
+        Assert.Null(usd.Weeks[1].CumulativeMetrics.Net.Total);
+        Assert.Equal(new MetricCoverage(123, 122), usd.Weeks[1].CumulativeMetrics.Net.Coverage);
+        Assert.Equal(usd.Metrics, usd.Days[^1].CumulativeMetrics);
+        Assert.Equal(2m, Assert.Single(result.Currencies, c => c.Currency == "EUR").Weeks[0].CumulativeMetrics.Net.Total);
+
+        // Excluding the earlier unknown-Net day starts a fresh complete sequence, not retained coverage.
+        CurrencyTradeMetrics zeroOnly = Assert.Single((await reader.GetAsync(
+            new(account, instrument, new(2026, 3, 10), new(2026, 3, 10)))).Currencies);
+        Assert.Equal(0m, Assert.Single(zeroOnly.Weeks).CumulativeMetrics.Net.Total);
+        Assert.Equal(new DateOnly(2026, 3, 9), zeroOnly.Weeks[0].WeekStartingMonday);
+        Assert.Empty((await reader.GetAsync(new(account, instrument, new(2026, 3, 12), new(2026, 3, 12)))).Currencies);
+    }
+
+    [Fact]
     public async Task FiltersAreIndependentCombinedAndStatelessIncludingMissingIds()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
@@ -127,6 +172,9 @@ public sealed class DashboardAnalyticsReaderTests
         DashboardAnalyticsSnapshot result = await reader.GetAsync(query);
         Assert.Equal(121, result.SelectedTradeCount);
         Assert.Equal(121m, Total(result));
+        CurrencyTradeMetrics series = Assert.Single(result.Currencies);
+        Assert.Equal(121m, Assert.Single(series.Days).CumulativeMetrics.Net.Total);
+        Assert.Equal(121m, Assert.Single(series.Weeks).CumulativeMetrics.Net.Total);
         string sql = Assert.Single(commands.Sql);
         Assert.Contains("WHERE", sql);
         Assert.Contains("TradingAccountId", sql);
