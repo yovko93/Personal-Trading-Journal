@@ -29,6 +29,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly TopstepImportChangeTracker? _topstepChanges;
     private long _observedTopstepTradesVersion;
     private long _observedTopstepInstrumentsVersion;
+    private bool _disposed;
+    private readonly System.Windows.Threading.Dispatcher? _dispatcher =
+        SynchronizationContext.Current is System.Windows.Threading.DispatcherSynchronizationContext
+            ? System.Windows.Threading.Dispatcher.CurrentDispatcher : null;
     private NavigationDestination _currentDestination = NavigationDestination.Dashboard;
     private ObservableObject _currentContentViewModel;
 
@@ -120,6 +124,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         UpdateNavigationSelection(CurrentDestination);
         _themeService.ThemeChanged += OnThemeChanged;
         _importViewModel.ImportCommitted += OnImportCommitted;
+        _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -190,14 +195,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         _themeService.ThemeChanged -= OnThemeChanged;
         _importViewModel.ImportCommitted -= OnImportCommitted;
+        _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
     }
 
-    private void Navigate(NavigationDestination destination)
+    private (bool Trades, bool Instruments) InvalidateTopstepChanges()
     {
-        // Commit advances shared generations without invoking UI callbacks from a database worker.
-        // Retained data must be invalidated before navigation can reuse/load it.
+        bool tradesChanged = false, instrumentsChanged = false;
         if (_topstepChanges is not null)
         {
             long tradesVersion = _topstepChanges.TradesVersion;
@@ -206,17 +212,52 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             {
                 _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
                 _observedTopstepTradesVersion = tradesVersion;
+                tradesChanged = true;
             }
             if (instrumentsVersion != _observedTopstepInstrumentsVersion)
             {
                 _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
                 _observedTopstepInstrumentsVersion = instrumentsVersion;
+                instrumentsChanged = true;
             }
         }
+        return (tradesChanged, instrumentsChanged);
+    }
+
+    private void OnTopstepImportCommitted(object? sender, EventArgs e)
+    {
+        // Database work only advances generations; Desktop dispatches after the use case returns.
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(RefreshActiveTopstepDestination);
+            return;
+        }
+        RefreshActiveTopstepDestination();
+    }
+
+    private void RefreshActiveTopstepDestination()
+    {
+        if (_disposed) return;
+        var changed = InvalidateTopstepChanges();
+        // Consume each generation once, including when navigation already observed the commit.
+        // Load methods handle errors and reread an invalidated in-flight result under their gates.
+        if (changed.Trades && CurrentDestination == NavigationDestination.Trades)
+            _ = _tradesViewModel.EnsureLoadedAsync();
+        if (changed.Instruments && CurrentDestination == NavigationDestination.Instruments)
+            _ = _instrumentsViewModel.EnsureLoadedAsync();
+    }
+
+    private void Navigate(NavigationDestination destination)
+    {
+        var changed = InvalidateTopstepChanges();
         ExpandContainingSection(destination);
 
         if (destination == CurrentDestination)
         {
+            if (changed.Trades && destination == NavigationDestination.Trades)
+                _ = _tradesViewModel.EnsureLoadedAsync();
+            if (changed.Instruments && destination == NavigationDestination.Instruments)
+                _ = _instrumentsViewModel.EnsureLoadedAsync();
             return;
         }
 

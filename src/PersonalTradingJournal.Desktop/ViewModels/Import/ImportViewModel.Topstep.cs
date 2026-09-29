@@ -10,6 +10,8 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Import;
 
 public sealed partial class ImportViewModel
 {
+    // Separate from transient preview state and the existing Tradovate notification.
+    public event EventHandler? TopstepImportCommitted;
     private readonly IImportCsvFormatDetector _formatDetector;
     private readonly ITopstepCsvParser _topstepParser;
     private readonly ITopstepTradeCandidateReconstructor _topstepReconstructor;
@@ -149,7 +151,10 @@ public sealed partial class ImportViewModel
                 preview.CreationProposals.Select(p => p.CanonicalSymbol).ToArray());
             await using Stream source = open();
             TopstepImportResult result = await Task.Run(() => _topstepImport.ImportAsync(preview, confirmation, preview.SourceIdentity.FileName, source, token), token);
-            // The use case invalidates retained data after commit even if navigation discarded this presentation.
+            // The use case has advanced retained-data generations. Notify even if navigation
+            // cancelled/cleared this presentation after the transaction actually committed.
+            if (result.Status == TopstepImportStatus.Imported)
+                TopstepImportCommitted?.Invoke(this, EventArgs.Empty);
             if (workflow != _workflowVersion || version != _previewVersion) return;
             if (result.Status == TopstepImportStatus.Blocked)
             {

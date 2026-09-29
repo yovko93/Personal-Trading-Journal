@@ -171,6 +171,7 @@ public sealed class TradesViewModel : ObservableObject
     private bool _hasExit;
     private bool _hasReferenceDataLoadedSuccessfully;
     private bool _hasTradeListLoadedSuccessfully;
+    private long _externalImportVersion;
     private bool _hasTradingMistakeOptionsLoadedSuccessfully;
     private Guid? _loadedTradeMistakesTradeId;
     private Guid? _loadedTradeScreenshotsTradeId;
@@ -2106,6 +2107,7 @@ public sealed class TradesViewModel : ObservableObject
 
     public void InvalidateLoadedDataAfterExternalImport()
     {
+        _externalImportVersion++;
         _hasReferenceDataLoadedSuccessfully = false;
         _hasTradeListLoadedSuccessfully = false;
     }
@@ -4030,57 +4032,67 @@ public sealed class TradesViewModel : ObservableObject
                 return true;
             }
 
-            IsLoading = true;
-            ErrorMessage = null;
+            while (true)
+            {
+                long version = _externalImportVersion;
+                IsLoading = true;
+                ErrorMessage = null;
 
-            try
-            {
-                ManualTradeReferenceData referenceData =
-                    await _referenceDataReader.GetAsync(
-                        includeInactiveReferences: false,
-                        cancellationToken);
-                IReadOnlyList<TradingSetupListItem> tradingSetups =
-                    await _tradingSetupReader.GetAllAsync(cancellationToken);
+                try
+                {
+                    ManualTradeReferenceData referenceData =
+                        await _referenceDataReader.GetAsync(
+                            includeInactiveReferences: false,
+                            cancellationToken);
+                    IReadOnlyList<TradingSetupListItem> tradingSetups =
+                        await _tradingSetupReader.GetAllAsync(cancellationToken);
 
-                Guid? selectedAccountId = SelectedAccount?.Id;
-                Guid? selectedInstrumentId = SelectedInstrument?.Id;
-                Guid? selectedTradingSetupId = SelectedTradingSetup?.Id;
-                _allAccountOptions = referenceData.Accounts;
-                _allInstrumentOptions = referenceData.Instruments;
-                AccountOptions = referenceData.Accounts;
-                InstrumentOptions = referenceData.Instruments;
-                _allTradingSetups = tradingSetups;
-                AvailableTradingSetups = tradingSetups
-                    .Where(setup => setup.IsActive)
-                    .ToList();
-                SelectedAccount = selectedAccountId.HasValue
-                    ? AccountOptions.SingleOrDefault(
-                        option => option.Id == selectedAccountId.Value)
-                    : null;
-                SelectedInstrument = selectedInstrumentId.HasValue
-                    ? InstrumentOptions.SingleOrDefault(
-                        option => option.Id == selectedInstrumentId.Value)
-                    : null;
-                SelectedTradingSetup = selectedTradingSetupId.HasValue
-                    ? AvailableTradingSetups.SingleOrDefault(
-                        setup => setup.Id == selectedTradingSetupId.Value)
-                    : null;
-                SynchronizeTradeDetailTradingSetupOptions();
-                _hasReferenceDataLoadedSuccessfully = true;
-                return true;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                ErrorMessage = LoadErrorMessage;
-                return false;
-            }
-            finally
-            {
-                IsLoading = false;
+                    if (version != _externalImportVersion) continue;
+
+                    Guid? selectedAccountId = SelectedAccount?.Id;
+                    Guid? selectedInstrumentId = SelectedInstrument?.Id;
+                    Guid? selectedTradingSetupId = SelectedTradingSetup?.Id;
+                    _allAccountOptions = referenceData.Accounts;
+                    _allInstrumentOptions = referenceData.Instruments;
+                    AccountOptions = referenceData.Accounts;
+                    InstrumentOptions = referenceData.Instruments;
+                    _allTradingSetups = tradingSetups;
+                    AvailableTradingSetups = tradingSetups
+                        .Where(setup => setup.IsActive)
+                        .ToList();
+                    SelectedAccount = selectedAccountId.HasValue
+                        ? AccountOptions.SingleOrDefault(
+                            option => option.Id == selectedAccountId.Value)
+                        : null;
+                    SelectedInstrument = selectedInstrumentId.HasValue
+                        ? InstrumentOptions.SingleOrDefault(
+                            option => option.Id == selectedInstrumentId.Value)
+                        : null;
+                    SelectedTradingSetup = selectedTradingSetupId.HasValue
+                        ? AvailableTradingSetups.SingleOrDefault(
+                            setup => setup.Id == selectedTradingSetupId.Value)
+                        : null;
+                    SynchronizeTradeDetailTradingSetupOptions();
+                    _hasReferenceDataLoadedSuccessfully = true;
+                    return true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception) when (version != _externalImportVersion && !cancellationToken.IsCancellationRequested)
+                {
+                    continue;
+                }
+                catch (Exception)
+                {
+                    ErrorMessage = LoadErrorMessage;
+                    return false;
+                }
+                finally
+                {
+                    IsLoading = false;
+                }
             }
         }
         finally
@@ -4209,48 +4221,58 @@ public sealed class TradesViewModel : ObservableObject
                 return true;
             }
 
-            IsTradeListLoading = true;
-            TradeListErrorMessage = null;
-
-            try
+            while (true)
             {
-                TradeListQuery query = requestedQuery ?? CreateTradeListQuery();
-                TradeListPage page = await _tradeListReader.GetPageAsync(
-                    query,
-                    cancellationToken);
-                int highestPage = Math.Max(1, page.TotalPages);
-                if (query.PageNumber > highestPage)
+                long version = _externalImportVersion;
+                IsTradeListLoading = true;
+                TradeListErrorMessage = null;
+
+                try
                 {
-                    query = new TradeListQuery(
-                        highestPage,
-                        query.PageSize,
-                        query.SortColumn,
-                        query.SortDirection);
-                    page = await _tradeListReader.GetPageAsync(
+                    TradeListQuery query = requestedQuery ?? CreateTradeListQuery();
+                    TradeListPage page = await _tradeListReader.GetPageAsync(
                         query,
                         cancellationToken);
-                }
+                    int highestPage = Math.Max(1, page.TotalPages);
+                    if (query.PageNumber > highestPage)
+                    {
+                        query = new TradeListQuery(
+                            highestPage,
+                            query.PageSize,
+                            query.SortColumn,
+                            query.SortDirection);
+                        page = await _tradeListReader.GetPageAsync(
+                            query,
+                            cancellationToken);
+                    }
 
-                CurrentPage = page.PageNumber;
-                CurrentSortColumn = query.SortColumn;
-                CurrentSortDirection = query.SortDirection;
-                TotalCount = page.TotalCount;
-                RecentTrades = page.Items;
-                _hasTradeListLoadedSuccessfully = true;
-                return true;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                TradeListErrorMessage = TradeListLoadErrorMessage;
-                return false;
-            }
-            finally
-            {
-                IsTradeListLoading = false;
+                    if (version != _externalImportVersion) continue;
+
+                    CurrentPage = page.PageNumber;
+                    CurrentSortColumn = query.SortColumn;
+                    CurrentSortDirection = query.SortDirection;
+                    TotalCount = page.TotalCount;
+                    RecentTrades = page.Items;
+                    _hasTradeListLoadedSuccessfully = true;
+                    return true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception) when (version != _externalImportVersion && !cancellationToken.IsCancellationRequested)
+                {
+                    continue;
+                }
+                catch (Exception)
+                {
+                    TradeListErrorMessage = TradeListLoadErrorMessage;
+                    return false;
+                }
+                finally
+                {
+                    IsTradeListLoading = false;
+                }
             }
         }
         finally
