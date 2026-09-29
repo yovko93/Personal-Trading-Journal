@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text;
+using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Tradovate;
+using PersonalTradingJournal.Infrastructure.Imports.Csv;
 
 namespace PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 
@@ -35,16 +37,10 @@ public sealed class TradovateCsvParser : ITradovateCsvParser
             throw new ArgumentException("The CSV source stream must be readable.", nameof(source));
         }
 
-        string content;
+        List<CsvRecord> nonBlankRecords;
         try
         {
-            using var reader = new StreamReader(
-                source,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
-                detectEncodingFromByteOrderMarks: true,
-                bufferSize: 4096,
-                leaveOpen: true);
-            content = await reader.ReadToEndAsync(cancellationToken);
+            nonBlankRecords = await CsvRecordReader.ReadNonBlankAsync(source, cancellationToken);
         }
         catch (DecoderFallbackException)
         {
@@ -52,14 +48,12 @@ public sealed class TradovateCsvParser : ITradovateCsvParser
                 TradovateCsvDiagnosticCodes.InvalidEncoding,
                 "The source is not valid UTF-8 text.");
         }
+        catch (CsvImportLimitException exception)
+        {
+            return Failure(CsvImportLimitException.DiagnosticCode, exception.Message);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<CsvRecord> records = CsvRecordReader.ReadAll(
-            content,
-            cancellationToken);
-        List<CsvRecord> nonBlankRecords = records
-            .Where(record => !record.IsBlank)
-            .ToList();
         if (nonBlankRecords.Count == 0)
         {
             return Failure(
@@ -554,186 +548,4 @@ public sealed class TradovateCsvParser : ITradovateCsvParser
             message));
     }
 
-    private sealed record CsvRecord(
-        IReadOnlyList<string> Fields,
-        int StartLineNumber,
-        bool IsBlank,
-        string? ErrorMessage);
-
-    private static class CsvRecordReader
-    {
-        public static IReadOnlyList<CsvRecord> ReadAll(
-            string content,
-            CancellationToken cancellationToken)
-        {
-            var records = new List<CsvRecord>();
-            var fields = new List<string>();
-            var field = new StringBuilder();
-            FieldState state = FieldState.Start;
-            int lineNumber = 1;
-            int recordStartLine = 1;
-            bool recordStarted = false;
-            bool hasCsvSyntax = false;
-            bool hasNonWhitespace = false;
-            string? errorMessage = null;
-
-            for (int index = 0; index < content.Length; index++)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                char character = content[index];
-                if (character is '\r' or '\n')
-                {
-                    bool isCrLf = character == '\r' &&
-                                  index + 1 < content.Length &&
-                                  content[index + 1] == '\n';
-                    if (state == FieldState.Quoted)
-                    {
-                        field.Append(character);
-                        if (isCrLf)
-                        {
-                            field.Append('\n');
-                            index++;
-                        }
-
-                        lineNumber++;
-                        continue;
-                    }
-
-                    EndRecord();
-                    if (isCrLf)
-                    {
-                        index++;
-                    }
-
-                    lineNumber++;
-                    recordStartLine = lineNumber;
-                    continue;
-                }
-
-                recordStarted = true;
-                switch (state)
-                {
-                    case FieldState.Start:
-                        if (character == ',')
-                        {
-                            fields.Add(string.Empty);
-                            hasCsvSyntax = true;
-                        }
-                        else if (character == '"')
-                        {
-                            state = FieldState.Quoted;
-                            hasCsvSyntax = true;
-                        }
-                        else
-                        {
-                            field.Append(character);
-                            hasNonWhitespace |= !char.IsWhiteSpace(character);
-                            state = FieldState.Unquoted;
-                        }
-
-                        break;
-
-                    case FieldState.Unquoted:
-                        if (character == ',')
-                        {
-                            fields.Add(field.ToString());
-                            field.Clear();
-                            state = FieldState.Start;
-                            hasCsvSyntax = true;
-                        }
-                        else
-                        {
-                            if (character == '"')
-                            {
-                                errorMessage ??= "An unexpected quote was found in an unquoted field.";
-                                hasCsvSyntax = true;
-                            }
-
-                            field.Append(character);
-                            hasNonWhitespace |= !char.IsWhiteSpace(character);
-                        }
-
-                        break;
-
-                    case FieldState.Quoted:
-                        if (character == '"')
-                        {
-                            state = FieldState.AfterQuoted;
-                        }
-                        else
-                        {
-                            field.Append(character);
-                            hasNonWhitespace |= !char.IsWhiteSpace(character);
-                        }
-
-                        break;
-
-                    case FieldState.AfterQuoted:
-                        if (character == '"')
-                        {
-                            field.Append('"');
-                            hasNonWhitespace = true;
-                            state = FieldState.Quoted;
-                        }
-                        else if (character == ',')
-                        {
-                            fields.Add(field.ToString());
-                            field.Clear();
-                            state = FieldState.Start;
-                        }
-                        else
-                        {
-                            errorMessage ??= "Unexpected content followed a closing quote.";
-                            field.Append(character);
-                            hasNonWhitespace |= !char.IsWhiteSpace(character);
-                            state = FieldState.Unquoted;
-                        }
-
-                        break;
-
-                    default:
-                        throw new InvalidOperationException("Unsupported CSV parser state.");
-                }
-            }
-
-            if (state == FieldState.Quoted)
-            {
-                errorMessage ??= "A quoted field was not closed.";
-            }
-
-            if (recordStarted || fields.Count > 0 || field.Length > 0)
-            {
-                EndRecord();
-            }
-
-            return records;
-
-            void EndRecord()
-            {
-                fields.Add(field.ToString());
-                bool isBlank = !hasCsvSyntax && !hasNonWhitespace;
-                records.Add(new CsvRecord(
-                    fields.ToArray(),
-                    recordStartLine,
-                    isBlank,
-                    errorMessage));
-
-                fields.Clear();
-                field.Clear();
-                state = FieldState.Start;
-                recordStarted = false;
-                hasCsvSyntax = false;
-                hasNonWhitespace = false;
-                errorMessage = null;
-            }
-        }
-
-        private enum FieldState
-        {
-            Start,
-            Unquoted,
-            Quoted,
-            AfterQuoted,
-        }
-    }
 }

@@ -12,7 +12,8 @@ public interface ITradovateCsvFilePicker
 /// </summary>
 public sealed record TradovateCsvFileSelection(
     string FileName,
-    Stream Content) : IAsyncDisposable
+    Stream Content,
+    Func<Stream>? OpenRead = null) : IAsyncDisposable
 {
     public ValueTask DisposeAsync() => Content.DisposeAsync();
 }

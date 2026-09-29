@@ -1,6 +1,10 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Imports.Tradovate;
+using PersonalTradingJournal.Application.Imports.Topstep;
+using PersonalTradingJournal.Infrastructure.Imports.Topstep;
+using PersonalTradingJournal.Infrastructure.Imports.Csv;
+using System.Text;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
@@ -601,9 +605,299 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(1, fixture.ThemeService.SubscriberCount);
     }
 
+    [Theory]
+    [InlineData(TopstepImportStatus.Imported, 1, 2, 2)]
+    [InlineData(TopstepImportStatus.Imported, 0, 2, 1)]
+    [InlineData(TopstepImportStatus.NoChanges, 0, 1, 1)]
+    [InlineData(TopstepImportStatus.Blocked, 0, 1, 1)]
+    public async Task TopstepCommitGenerationsInvalidateOnlyAffectedRetainedDataBeforeReuse(
+        TopstepImportStatus status, int created, int expectedTradeReads, int expectedInstrumentReads)
+    {
+        var changes = new TopstepImportChangeTracker();
+        ViewModelFixture fixture = CreateFixture(topstepChanges: changes);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
+        var accounts = new FakeTradingAccountReader();
+        Guid accountId = Guid.NewGuid();
+        accounts.EnqueueDetailResult(new(accountId, "Synthetic Topstep", TradingAccountType.PropFunded,
+            "Topstep", null, "USD", null, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        var builder = new TopstepImportPreviewBuilder(new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(),
+            new(new FakeInstrumentReader(), accounts));
+        const string csv = "Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions\n" +
+            "SYNTH-1,MNQZ6,07/10/2026 17:00:00 +03:00,07/10/2026 17:01:00 +03:00,20000,20001,0.72,2,1,Long,07/10/2026 00:00:00 -05:00,00:01:00,0.50";
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        TopstepImportPreview preview = await builder.BuildAsync("synthetic.csv", input, accountId,
+            TopstepCostInterpretation.SeparateReportedRoundTurnTotalsUsd);
+        var useCase = new ImportTopstepTradesUseCase(new TopstepResultStore(new(status, 1, 0, created, [], [], [])), TimeProvider.System, changes);
+        using var confirmationSource = new MemoryStream(Encoding.UTF8.GetBytes(csv));
+        await useCase.ImportAsync(preview, new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray()),
+            "synthetic.csv", confirmationSource);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
+        Assert.Equal(expectedTradeReads, fixture.TradeListReader.CallCount);
+        Assert.Equal(expectedInstrumentReads, fixture.InstrumentReader.CallCount);
+    }
+
+    [Theory]
+    [InlineData(NavigationDestination.Trades, false, false, false)]
+    [InlineData(NavigationDestination.Instruments, false, false, false)]
+    [InlineData(NavigationDestination.Trades, true, false, false)]
+    [InlineData(NavigationDestination.Instruments, true, false, false)]
+    [InlineData(NavigationDestination.Trades, true, true, false)]
+    [InlineData(NavigationDestination.Instruments, true, true, false)]
+    [InlineData(NavigationDestination.Trades, true, false, true)]
+    [InlineData(NavigationDestination.Instruments, true, false, true)]
+    public async Task TopstepCommitRefreshesActiveDestinationWithoutNavigationAndDiscardsOldRead(
+        NavigationDestination destination, bool delayedRead, bool clearPresentation, bool oldReadFails)
+    {
+        var (fixture, store) = await CreateDelayedTopstepFixture();
+        using var main = fixture.Main;
+        await fixture.Trades.EnsureLoadedAsync();
+        await fixture.Instruments.EnsureLoadedAsync();
+        TradeListItem committedTrade = fixture.Trades.RecentTrades.Single() with { Id = Guid.NewGuid() };
+        TradeListItem staleTrade = committedTrade with { Id = Guid.NewGuid() };
+        var committedInstrument = new InstrumentListItem(Guid.NewGuid(), "MNQ", "Committed MNQ",
+            AssetClass.Futures, "CME", "USD", 0.25m, 0.5m, 2m, true);
+        var staleInstrument = committedInstrument with { Id = Guid.NewGuid() };
+        var readStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldTradeRead = new TaskCompletionSource<IReadOnlyList<TradeListItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldInstrumentRead = new TaskCompletionSource<IReadOnlyList<InstrumentListItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var refreshed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publishedIds = new List<Guid>();
+        fixture.Trades.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(fixture.Trades.RecentTrades)) return;
+            publishedIds.AddRange(fixture.Trades.RecentTrades.Select(t => t.Id));
+            if (fixture.Trades.RecentTrades.Any(t => t.Id == committedTrade.Id)) refreshed.TrySetResult();
+        };
+        fixture.Instruments.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(fixture.Instruments.Instruments)) return;
+            publishedIds.AddRange(fixture.Instruments.Instruments.Select(i => i.Id));
+            if (fixture.Instruments.Instruments.Any(i => i.Id == committedInstrument.Id)) refreshed.TrySetResult();
+        };
+        if (destination == NavigationDestination.Trades)
+        {
+            fixture.Trades.InvalidateLoadedDataAfterExternalImport();
+            fixture.TradeListReader.EnqueueBehavior(_ =>
+            {
+                readStarted.TrySetResult();
+                return delayedRead ? oldTradeRead.Task : Task.FromResult<IReadOnlyList<TradeListItem>>([]);
+            });
+            fixture.TradeListReader.EnqueueResult([committedTrade]);
+        }
+        else
+        {
+            fixture.Instruments.InvalidateLoadedDataAfterExternalImport();
+            fixture.InstrumentReader.EnqueueBehavior(_ =>
+            {
+                readStarted.TrySetResult();
+                return delayedRead ? oldInstrumentRead.Task : Task.FromResult<IReadOnlyList<InstrumentListItem>>([]);
+            });
+            fixture.InstrumentReader.EnqueueResult([committedInstrument]);
+        }
+
+        Task confirmation = fixture.Import.ConfirmImportCommand.ExecuteAsync(null);
+        await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        main.NavigateCommand.Execute(destination);
+        await readStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // Model commit completing before the store returns to its caller/dispatcher.
+        store.Commit(new(TopstepImportStatus.Imported, 1, 0, 1, [committedTrade.Id], [], [committedInstrument.Id]));
+        if (clearPresentation)
+        {
+            main.NavigateCommand.Execute(NavigationDestination.Import); // Cancels transient presentation.
+            Assert.True(store.Token.IsCancellationRequested);
+            main.NavigateCommand.Execute(destination);
+            Assert.False(fixture.Import.HasPreview);
+        }
+        store.ReturnResult.TrySetResult();
+        await confirmation.WaitAsync(TimeSpan.FromSeconds(10));
+        if (delayedRead)
+        {
+            if (oldReadFails)
+            {
+                if (destination == NavigationDestination.Trades) oldTradeRead.SetException(new IOException("Old read failed"));
+                else oldInstrumentRead.SetException(new IOException("Old read failed"));
+            }
+            else if (destination == NavigationDestination.Trades) oldTradeRead.SetResult([staleTrade]);
+            else oldInstrumentRead.SetResult([staleInstrument]);
+        }
+        await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.DoesNotContain(staleTrade.Id, publishedIds);
+        Assert.DoesNotContain(staleInstrument.Id, publishedIds);
+        if (destination == NavigationDestination.Trades)
+            Assert.Equal(committedTrade.Id, Assert.Single(fixture.Trades.RecentTrades).Id);
+        else
+            Assert.Equal(committedInstrument.Id, Assert.Single(fixture.Instruments.Instruments).Id);
+        if (clearPresentation) Assert.Null(fixture.Import.ImportResultStatus);
+        int reads = destination == NavigationDestination.Trades ? fixture.TradeListReader.CallCount : fixture.InstrumentReader.CallCount;
+        Assert.Equal(3, reads); // Initial retained data, pre-commit read, one post-commit read.
+        main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        main.NavigateCommand.Execute(destination);
+        Assert.Equal(reads, destination == NavigationDestination.Trades ? fixture.TradeListReader.CallCount : fixture.InstrumentReader.CallCount);
+    }
+
+    [Theory]
+    [InlineData(NavigationDestination.Trades, "NoChanges")]
+    [InlineData(NavigationDestination.Instruments, "NoChanges")]
+    [InlineData(NavigationDestination.Trades, "Blocked")]
+    [InlineData(NavigationDestination.Instruments, "Blocked")]
+    [InlineData(NavigationDestination.Trades, "Rollback")]
+    [InlineData(NavigationDestination.Instruments, "Rollback")]
+    [InlineData(NavigationDestination.Trades, "Failure")]
+    [InlineData(NavigationDestination.Instruments, "Failure")]
+    [InlineData(NavigationDestination.Instruments, "ImportedWithoutInstrument")]
+    public async Task TopstepNonCommitOrUnaffectedDestinationDoesNotRefresh(NavigationDestination destination, string outcome)
+    {
+        var (fixture, store) = await CreateDelayedTopstepFixture();
+        using var main = fixture.Main;
+        Task confirmation = fixture.Import.ConfirmImportCommand.ExecuteAsync(null);
+        await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        main.NavigateCommand.Execute(destination);
+        int reads = destination == NavigationDestination.Trades ? fixture.TradeListReader.CallCount : fixture.InstrumentReader.CallCount;
+        if (outcome == "Rollback")
+        {
+            fixture.Import.CancelOperationCommand.Execute(null);
+            store.ReturnResult.SetCanceled(store.Token);
+        }
+        else if (outcome == "Failure") store.ReturnResult.SetException(new IOException("Transaction rolled back"));
+        else
+        {
+            TopstepImportStatus status = outcome == "ImportedWithoutInstrument" ? TopstepImportStatus.Imported
+                : Enum.Parse<TopstepImportStatus>(outcome);
+            store.Commit(new(status, status == TopstepImportStatus.Imported ? 1 : 0, 0, 0, [], [], []));
+            store.ReturnResult.SetResult();
+        }
+        await confirmation.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(reads, destination == NavigationDestination.Trades ? fixture.TradeListReader.CallCount : fixture.InstrumentReader.CallCount);
+    }
+
+    [Theory]
+    [InlineData(NavigationDestination.Trades)]
+    [InlineData(NavigationDestination.Instruments)]
+    public async Task BackgroundCommitNotificationRefreshesOnOwningWpfDispatcher(NavigationDestination destination)
+    {
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(dispatcher));
+            dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try
+                {
+                    var (fixture, store) = await CreateDelayedTopstepFixture();
+                    using var main = fixture.Main;
+                    int uiThread = Environment.CurrentManagedThreadId;
+                    // Intentionally return the Desktop notification from a worker to exercise marshaling.
+                    Task confirmation = Task.Run(() => fixture.Import.ConfirmImportCommand.ExecuteAsync(null));
+                    await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    main.NavigateCommand.Execute(destination);
+                    var refreshed = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    if (destination == NavigationDestination.Trades)
+                    {
+                        var row = fixture.Trades.RecentTrades.Single() with { Id = Guid.NewGuid() };
+                        fixture.TradeListReader.EnqueueResult([row]);
+                        fixture.Trades.PropertyChanged += (_, e) =>
+                        {
+                            if (e.PropertyName == nameof(fixture.Trades.RecentTrades))
+                                refreshed.TrySetResult(Environment.CurrentManagedThreadId);
+                        };
+                    }
+                    else
+                    {
+                        fixture.InstrumentReader.EnqueueResult([new(Guid.NewGuid(), "MNQ", "MNQ", AssetClass.Futures,
+                            "CME", "USD", .25m, .5m, 2m, true)]);
+                        fixture.Instruments.PropertyChanged += (_, e) =>
+                        {
+                            if (e.PropertyName == nameof(fixture.Instruments.Instruments))
+                                refreshed.TrySetResult(Environment.CurrentManagedThreadId);
+                        };
+                    }
+                    store.Commit(new(TopstepImportStatus.Imported, 1, 0, 1, [], [], []));
+                    store.ReturnResult.SetResult();
+                    await confirmation.WaitAsync(TimeSpan.FromSeconds(10));
+                    Assert.Equal(uiThread, await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(10)));
+                    completed.TrySetResult();
+                }
+                catch (Exception error) { completed.TrySetException(error); }
+                finally { dispatcher.BeginInvokeShutdown(System.Windows.Threading.DispatcherPriority.Background); }
+            }));
+            System.Windows.Threading.Dispatcher.Run();
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
+    }
+
+    private static async Task<(ViewModelFixture Fixture, DelayedTopstepStore Store)> CreateDelayedTopstepFixture()
+    {
+        var changes = new TopstepImportChangeTracker();
+        var store = new DelayedTopstepStore();
+        var accountReader = new FakeTradingAccountReader();
+        Guid id = Guid.NewGuid();
+        accountReader.EnqueueResult([new(id, "Synthetic Topstep", TradingAccountType.PropFunded, "Topstep", null, "USD", null, true)]);
+        accountReader.EnqueueResult([new(id, "Synthetic Topstep", TradingAccountType.PropFunded, "Topstep", null, "USD", null, true)]);
+        accountReader.EnqueueDetailResult(new(id, "Synthetic Topstep", TradingAccountType.PropFunded,
+            "Topstep", null, "USD", null, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        var instruments = new FakeInstrumentReader();
+        var preparation = new TradovateImportPreparationService(accountReader);
+        var vm = new ImportViewModel(accountReader, new NeverCalledTradovateCsvParser(),
+            new NeverCalledTradovateExecutionReconstructor(), new TradovateInstrumentResolver(instruments),
+            preparation, new TradovateImportPreviewBuilder(), new SyntheticTopstepPicker(),
+            new ImportTradovateTradesUseCase(preparation, new NeverCalledTradovateImportStore(), TimeProvider.System),
+            new FakeDialogService { ConfirmationResult = true }, new ImportCsvFormatDetector(),
+            new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(),
+            new TopstepImportPreviewBuilder(new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(), new(instruments, accountReader)),
+            new ImportTopstepTradesUseCase(store, TimeProvider.System, changes));
+        ViewModelFixture fixture = CreateFixture(topstepChanges: changes, importViewModel: vm);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
+        await vm.EnsureLoadedAsync();
+        vm.SelectedSource = vm.Sources.Single(s => s.Name == "TopstepX");
+        await vm.SelectCsvCommand.ExecuteAsync(null);
+        vm.SelectedAccount = Assert.Single(vm.Accounts);
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.True(vm.ConfirmImportCommand.CanExecute(null));
+        return (fixture, store);
+    }
+
+    private sealed class DelayedTopstepStore : ITopstepImportStore
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReturnResult { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public CancellationToken Token { get; private set; }
+        private TopstepImportResult? _committedResult;
+        public void Commit(TopstepImportResult result) => _committedResult = result;
+        public async Task<TopstepImportResult> ImportAsync(TopstepImportRequest request, CancellationToken cancellationToken = default)
+        {
+            Token = cancellationToken;
+            Started.SetResult();
+            // Deliberately do not cancel the committed result when presentation is subsequently cancelled.
+            await ReturnResult.Task;
+            return _committedResult!;
+        }
+    }
+
+    private sealed class SyntheticTopstepPicker : ITradovateCsvFilePicker
+    {
+        public TradovateCsvFileSelection Pick() => new("synthetic.csv", Open(), Open);
+        private static Stream Open() => new MemoryStream(Encoding.UTF8.GetBytes(
+            "Id,ContractName,EnteredAt,ExitedAt,EntryPrice,ExitPrice,Fees,PnL,Size,Type,TradeDay,TradeDuration,Commissions\n" +
+            "SYNTH-1,MNQZ6,07/10/2026 17:00:00 +03:00,07/10/2026 17:01:00 +03:00,20000,20001,0.72,2,1,Long,07/10/2026 00:00:00 -05:00,00:01:00,0.50"));
+    }
+
+
+    private sealed class TopstepResultStore(TopstepImportResult result) : ITopstepImportStore
+    {
+        public Task<TopstepImportResult> ImportAsync(TopstepImportRequest request, CancellationToken cancellationToken = default) => Task.FromResult(result);
+    }
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
-        AppTheme? effectiveTheme = null)
+        AppTheme? effectiveTheme = null,
+        TopstepImportChangeTracker? topstepChanges = null,
+        ImportViewModel? importViewModel = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -684,7 +978,7 @@ public sealed class MainWindowViewModelTests
                 instrumentStore,
                 new FakeInstrumentDeletionStore()),
             new FakeDialogService());
-        var import = new ImportViewModel(
+        var import = importViewModel ?? new ImportViewModel(
             accountReader,
             new NeverCalledTradovateCsvParser(),
             new NeverCalledTradovateExecutionReconstructor(),
@@ -696,7 +990,7 @@ public sealed class MainWindowViewModelTests
                 new TradovateImportPreparationService(accountReader),
                 new NeverCalledTradovateImportStore(),
                 timeProvider),
-            new FakeDialogService());
+            new FakeDialogService(), new TradovateOnlyFormatDetector(), null!, null!, null!, null!);
         var setups = new TradingSetupsViewModel(
             setupReader,
             new CreateTradingSetupUseCase(setupStore, setupNameChecker, timeProvider),
@@ -764,7 +1058,8 @@ public sealed class MainWindowViewModelTests
             setups,
             trades,
             settings,
-            themeService);
+            themeService,
+            topstepChanges);
 
         return new ViewModelFixture(
             main,

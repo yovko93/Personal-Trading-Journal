@@ -70,9 +70,10 @@ public sealed class TradovateImportAcceptanceTests
                     preparation,
                     provider.GetRequiredService<ITradovateImportStore>(),
                     new AcceptanceTimeProvider(now)),
-                dialog);
+                dialog, new PersonalTradingJournal.Infrastructure.Imports.Csv.ImportCsvFormatDetector(), null!, null!, null!, null!);
 
             await viewModel.EnsureLoadedAsync();
+            viewModel.SelectedSource = viewModel.Sources.Single(s => s.Name == "Tradovate");
             await viewModel.SelectCsvCommand.ExecuteAsync(null);
             viewModel.SelectedAccount = Assert.Single(viewModel.Accounts);
             await viewModel.BuildPreviewCommand.ExecuteAsync(null);

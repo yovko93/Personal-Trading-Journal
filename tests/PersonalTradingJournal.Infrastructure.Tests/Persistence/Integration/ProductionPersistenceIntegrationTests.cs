@@ -84,6 +84,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20260917165522_AddTradeBrowseProjection",
                     "20260923074655_AddTradovateImportPersistence",
                     "20260925214352_AddTradovateFillAllocations",
+                    "20260928201843_AddTopstepImportPersistence",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

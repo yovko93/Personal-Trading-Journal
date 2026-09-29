@@ -5,6 +5,7 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Imports.Tradovate;
+using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Application.Mistakes;
 using PersonalTradingJournal.Application.Screenshots;
 using PersonalTradingJournal.Application.Setups;
@@ -12,6 +13,7 @@ using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
+using PersonalTradingJournal.Infrastructure.Imports.Topstep;
 using PersonalTradingJournal.Infrastructure.Mistakes;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Screenshots;
@@ -69,6 +71,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();
         services.AddTransient<ITradovateImportStore, TradovateImportStore>();
+        services.AddTransient<ITopstepImportStore, TopstepImportStore>();
+        services.AddSingleton<TopstepImportChangeTracker>();
         services.AddTransient<ITradeScreenshotStore, TradeScreenshotStore>();
         services.AddTransient<
             ITradeScreenshotDeletionStore,

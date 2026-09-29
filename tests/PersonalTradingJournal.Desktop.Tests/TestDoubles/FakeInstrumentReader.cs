@@ -15,6 +15,9 @@ internal sealed class FakeInstrumentReader : IInstrumentReader
 
     public int CallCount { get; private set; }
 
+    public void EnqueueBehavior(Func<CancellationToken, Task<IReadOnlyList<InstrumentListItem>>> behavior) =>
+        _behaviors.Enqueue(behavior);
+
     public void EnqueueResult(IReadOnlyList<InstrumentListItem> instruments)
     {
         _behaviors.Enqueue(_ => Task.FromResult(instruments));

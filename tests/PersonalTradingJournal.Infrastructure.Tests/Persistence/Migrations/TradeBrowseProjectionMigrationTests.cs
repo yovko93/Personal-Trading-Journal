@@ -139,7 +139,7 @@ public sealed class TradeBrowseProjectionMigrationTests
             Assert.Equal(
                 DecimalSortKey.Encode(trade.NetPnL!.Value),
                 projection.NetPnLSortKey);
-            Assert.Equal(5, (await verification.Database
+            Assert.Equal(6, (await verification.Database
                 .GetAppliedMigrationsAsync()).Count());
             Assert.Equal(1, await verification.TradeBrowse.CountAsync());
         }

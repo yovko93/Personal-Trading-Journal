@@ -7,6 +7,30 @@ public sealed class ImportViewXamlTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
+    public void TopstepHasIndividualTradeEconomicsWithoutReviewCheckboxes()
+    {
+        string directory = Path.Combine(RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import");
+        string xaml = File.ReadAllText(Path.Combine(directory, "TopstepReviewView.xaml"));
+        Assert.Contains("TopstepX Trades rows are imported individually.", xaml);
+        Assert.DoesNotContain("CheckBox", xaml);
+        Assert.DoesNotContain("WarningAcknowledgment", xaml);
+        Assert.Contains("{Binding TopstepCandidates}", xaml);
+        Assert.Contains("{Binding TopstepTotals}", xaml);
+        Assert.Contains("{Binding Economics}", xaml);
+        Assert.DoesNotContain("SourceRow.Id", xaml);
+        Assert.DoesNotContain("SourceRowJson", xaml);
+        XDocument.Parse(xaml);
+
+        string page = File.ReadAllText(Path.Combine(directory, "ImportView.xaml"));
+        Assert.Contains("{Binding Sources}", page);
+        Assert.Contains("{Binding SelectedSource}", page);
+        Assert.Contains("AutomationProperties.Name=\"Import source\"", page);
+        Assert.Contains("{Binding CancelOperationCommand}", page);
+        Assert.Contains("<local:TopstepReviewView>", page);
+        Assert.Contains("{Binding CandidateLabel}", page);
+    }
+
+    [Fact]
     public void ImportViewUsesOnePageScrollAndExposesReviewAndConfirmationSections()
     {
         string xaml = File.ReadAllText(Path.Combine(
@@ -52,6 +76,32 @@ public sealed class ImportViewXamlTests
         Assert.Contains(message.Descendants(presentation + "DataTrigger"), trigger =>
             (string?)trigger.Attribute("Binding") == "{Binding ImportErrorMessage}" &&
             (string?)trigger.Attribute("Value") == "{x:Null}");
+    }
+
+    [Fact]
+    public void DiagnosticsCardAndItsSpacingDependOnlyOnDiagnosticContent()
+    {
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XDocument document = XDocument.Load(Path.Combine(
+            RepositoryRoot, "src", "PersonalTradingJournal.Desktop", "Views", "Import", "ImportView.xaml"));
+        XElement card = Assert.Single(document.Descendants(presentation + "Border"),
+            element => (string?)element.Attribute(x + "Name") == "DiagnosticsSection");
+        Assert.Equal("0,16,0,0", (string?)card.Attribute("Margin"));
+        Assert.Contains(card.Descendants(presentation + "Setter"), setter =>
+            (string?)setter.Attribute("Property") == "Visibility" &&
+            (string?)setter.Attribute("Value") == "Collapsed");
+        Assert.Contains(card.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding HasDiagnostics}" &&
+            (string?)trigger.Attribute("Value") == "True");
+        Assert.Contains(card.Descendants(presentation + "TextBlock"), heading =>
+            (string?)heading.Attribute("Text") == "Diagnostics");
+        Assert.Contains(card.Descendants(presentation + "ItemsControl"), items =>
+            (string?)items.Attribute("ItemsSource") == "{Binding Diagnostics}");
+        Assert.DoesNotContain(card.Descendants(presentation + "DataTrigger"), trigger =>
+            (string?)trigger.Attribute("Binding") == "{Binding IsTopstep}");
+        XNamespace local = document.Root!.GetNamespaceOfPrefix("local")!;
+        Assert.Same(card.Parent, Assert.Single(document.Descendants(local + "TopstepReviewView")).Parent);
     }
 
     [Fact]

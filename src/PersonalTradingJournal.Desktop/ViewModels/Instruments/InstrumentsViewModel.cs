@@ -53,6 +53,7 @@ public sealed class InstrumentsViewModel : ObservableObject
     private string? _errorMessage;
     private string _exchange = string.Empty;
     private bool _hasLoadedSuccessfully;
+    private long _externalImportVersion;
     private IReadOnlyList<InstrumentListItem> _instruments = [];
     private bool _isCreateFormVisible;
     private bool _isChangingInstrumentState;
@@ -575,6 +576,7 @@ public sealed class InstrumentsViewModel : ObservableObject
 
     public void InvalidateLoadedDataAfterExternalImport()
     {
+        _externalImportVersion++;
         _hasLoadedSuccessfully = false;
     }
 
@@ -1205,36 +1207,46 @@ public sealed class InstrumentsViewModel : ObservableObject
                 return true;
             }
 
-            IsLoading = true;
-            ErrorMessage = null;
-
-            try
+            while (true)
             {
-                IReadOnlyList<InstrumentListItem> instruments =
-                    await _instrumentReader.GetAllAsync(cancellationToken);
+                long version = _externalImportVersion;
+                IsLoading = true;
+                ErrorMessage = null;
 
-                Instruments = instruments;
-                if (SelectedInstrument is not null &&
-                    instruments.All(item => item.Id != SelectedInstrument.Id))
+                try
                 {
-                    IsEditFormVisible = false;
-                    SelectedInstrument = null;
+                    IReadOnlyList<InstrumentListItem> instruments =
+                        await _instrumentReader.GetAllAsync(cancellationToken);
+
+                    // A pre-commit read must neither publish stale rows nor mark this cache current.
+                    if (version != _externalImportVersion) continue;
+                    Instruments = instruments;
+                    if (SelectedInstrument is not null &&
+                        instruments.All(item => item.Id != SelectedInstrument.Id))
+                    {
+                        IsEditFormVisible = false;
+                        SelectedInstrument = null;
+                    }
+                    _hasLoadedSuccessfully = true;
+                    return true;
                 }
-                _hasLoadedSuccessfully = true;
-                return true;
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception)
-            {
-                ErrorMessage = LoadErrorMessage;
-                return false;
-            }
-            finally
-            {
-                IsLoading = false;
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception) when (version != _externalImportVersion && !cancellationToken.IsCancellationRequested)
+                {
+                    continue;
+                }
+                catch (Exception)
+                {
+                    ErrorMessage = LoadErrorMessage;
+                    return false;
+                }
+                finally
+                {
+                    IsLoading = false;
+                }
             }
         }
         finally

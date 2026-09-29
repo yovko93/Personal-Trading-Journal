@@ -29,6 +29,8 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradeMistakeRecord> TradeMistakes => Set<TradeMistakeRecord>();
 
+    public DbSet<TopstepImportedRowRecord> TopstepImportedRows => Set<TopstepImportedRowRecord>();
+
     public DbSet<TradovateImportedExecutionRecord> TradovateImportedExecutions =>
         Set<TradovateImportedExecutionRecord>();
 
@@ -45,6 +47,7 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TradeExecutionRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeScreenshotRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeMistakeRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TopstepImportedRowRecordConfiguration());
         modelBuilder.ApplyConfiguration(
             new TradovateImportedExecutionRecordConfiguration());
     }

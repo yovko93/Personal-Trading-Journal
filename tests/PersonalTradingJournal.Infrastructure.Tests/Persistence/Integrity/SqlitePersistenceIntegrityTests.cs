@@ -59,6 +59,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradeScreenshotRecord),
             typeof(TradeMistakeRecord),
             typeof(TradovateImportedExecutionRecord),
+            typeof(TopstepImportedRowRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -151,13 +152,15 @@ public sealed class SqlitePersistenceIntegrityTests
         List<IForeignKey> foreignKeys = model.GetEntityTypes()
             .SelectMany(entityType => entityType.GetForeignKeys())
             .ToList();
-        Assert.Equal(9, foreignKeys.Count);
+        AssertForeignKey(model, typeof(TopstepImportedRowRecord), nameof(TopstepImportedRowRecord.TradeId),
+            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
+        Assert.Equal(10, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(3, cascades.Length);
+        Assert.Equal(4, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));
@@ -238,7 +241,11 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(3, uniqueIndexes.Count);
+        Assert.Equal(5, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TopstepImportedRowRecord) &&
+            index.Properties.SequenceEqual([nameof(TopstepImportedRowRecord.TradingAccountIdAtImport), nameof(TopstepImportedRowRecord.SourceId)]));
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TopstepImportedRowRecord) &&
+            index.Properties.SequenceEqual([nameof(TopstepImportedRowRecord.TradeId)]));
         Assert.Contains(
             uniqueIndexes,
             index => index.EntityType == typeof(TradeExecutionRecord) &&

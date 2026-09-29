@@ -64,6 +64,65 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TopstepImportedRowRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DerivedEntryExecutionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("DerivedExitExecutionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EconomicFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviewFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Representation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceContentSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceId")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<string>("SourceRowJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TradingAccountIdAtImport")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TradeId")
+                        .IsUnique();
+
+                    b.HasIndex("TradingAccountIdAtImport", "SourceId")
+                        .IsUnique();
+
+                    b.ToTable("TopstepImportedRows", (string)null);
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", b =>
                 {
                     b.Property<Guid>("TradeId")
@@ -445,6 +504,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TradovateImportedExecutions", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TopstepImportedRowRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeBrowseRecord", b =>

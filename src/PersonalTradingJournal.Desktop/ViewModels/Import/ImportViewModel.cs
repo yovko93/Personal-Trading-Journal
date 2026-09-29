@@ -5,10 +5,13 @@ using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Imports;
 using System.Globalization;
+using System.IO;
+using PersonalTradingJournal.Application.Imports;
+using PersonalTradingJournal.Application.Imports.Topstep;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Import;
 
-public sealed class ImportViewModel : ObservableObject
+public sealed partial class ImportViewModel : ObservableObject
 {
     private readonly ITradingAccountReader _accountReader;
     private readonly ITradovateCsvParser _csvParser;
@@ -56,7 +59,12 @@ public sealed class ImportViewModel : ObservableObject
         TradovateImportPreviewBuilder previewBuilder,
         ITradovateCsvFilePicker filePicker,
         ImportTradovateTradesUseCase importUseCase,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IImportCsvFormatDetector formatDetector,
+        ITopstepCsvParser topstepParser,
+        ITopstepTradeCandidateReconstructor topstepReconstructor,
+        TopstepImportPreviewBuilder topstepPreviewBuilder,
+        ImportTopstepTradesUseCase topstepImport)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(csvParser);
@@ -76,12 +84,38 @@ public sealed class ImportViewModel : ObservableObject
         _filePicker = filePicker;
         _importUseCase = importUseCase;
         _dialogService = dialogService;
+        _formatDetector = formatDetector;
+        _topstepParser = topstepParser;
+        _topstepReconstructor = topstepReconstructor;
+        _topstepPreviewBuilder = topstepPreviewBuilder;
+        _topstepImport = topstepImport;
         SelectCsvCommand = new AsyncRelayCommand(SelectCsvAsync, CanSelectCsv);
         BuildPreviewCommand = new AsyncRelayCommand(BuildPreviewAsync, CanBuildPreview);
         ConfirmImportCommand = new AsyncRelayCommand(ConfirmImportAsync, CanConfirmImport);
+        CancelOperationCommand = new RelayCommand(() =>
+        {
+            SelectCsvCommand.Cancel();
+            BuildPreviewCommand.Cancel();
+            ConfirmImportCommand.Cancel();
+            _topstepConfirmationCancellation?.Cancel();
+        });
     }
 
     public event EventHandler<ImportCommittedEventArgs>? ImportCommitted;
+
+    public IReadOnlyList<ImportSourceOption> Sources { get; } =
+        [new(ImportCsvFormat.Tradovate, "Tradovate"), new(ImportCsvFormat.Topstep, "TopstepX")];
+    private ImportSourceOption? _selectedSource;
+    public ImportSourceOption? SelectedSource
+    {
+        get => _selectedSource;
+        set
+        {
+            if (!SetProperty(ref _selectedSource, value)) return;
+            ResetTransientState();
+            SelectCsvCommand.NotifyCanExecuteChanged();
+        }
+    }
 
     public IReadOnlyList<ImportAccountOption> Accounts
     {
@@ -104,6 +138,8 @@ public sealed class ImportViewModel : ObservableObject
             ConfirmImportCommand.Cancel();
             InvalidatePreview();
             ClearImportResult();
+            if (IsTopstep) Diagnostics = [];
+            WorkflowErrorMessage = null;
             BuildPreviewCommand.NotifyCanExecuteChanged();
             ConfirmImportCommand.NotifyCanExecuteChanged();
         }
@@ -184,8 +220,16 @@ public sealed class ImportViewModel : ObservableObject
     public IReadOnlyList<ImportDiagnosticItem> Diagnostics
     {
         get => _diagnostics;
-        private set => SetProperty(ref _diagnostics, value);
+        private set
+        {
+            if (SetProperty(ref _diagnostics, value))
+            {
+                OnPropertyChanged(nameof(HasDiagnostics));
+            }
+        }
     }
+
+    public bool HasDiagnostics => Diagnostics.Count > 0;
 
     public string? ImportSuccessMessage
     {
@@ -238,7 +282,7 @@ public sealed class ImportViewModel : ObservableObject
 
     public bool HasAnalysis => AnalysisSummary is not null;
 
-    public bool HasPreview => PreviewSummary is not null;
+    public bool HasPreview => PreviewSummary is not null || TopstepPreview is not null;
 
     public bool HasImportResult => ImportResultStatus is not null;
 
@@ -305,25 +349,30 @@ public sealed class ImportViewModel : ObservableObject
         Phase = ImportWorkflowPhase.Idle;
     }
 
-    private bool CanSelectCsv() => !IsBusy;
+    private bool CanSelectCsv() => SelectedSource is not null && !IsBusy && Volatile.Read(ref _isImportSubmissionInProgress) == 0;
 
     private bool CanBuildPreview() =>
         !IsBusy &&
+        Volatile.Read(ref _isImportSubmissionInProgress) == 0 &&
         SelectedAccount is not null &&
+        (IsTopstep ? _topstepParse?.IsCompleteInputValid == true && _topstepOpenRead is not null :
         _parseResult is not null &&
-        _reconstruction?.IsEligibleForAutomaticImport == true;
+        _reconstruction?.IsEligibleForAutomaticImport == true);
 
     private bool CanConfirmImport() =>
         !IsBusy &&
         Volatile.Read(ref _isImportSubmissionInProgress) == 0 &&
         Phase == ImportWorkflowPhase.PreviewReady &&
+        (IsTopstep ? !_topstepReviewStale && _topstepPreview?.IsEligibleForReview == true :
         _preview?.IsReadyForConfirmation == true &&
         SelectedAccount is not null &&
         _reconstruction is not null &&
-        _instrumentResolution is not null;
+        _instrumentResolution is not null);
 
     private async Task SelectCsvAsync(CancellationToken cancellationToken)
     {
+        if (!CanSelectCsv()) return;
+        ImportCsvFormat selectedFormat = SelectedSource!.Format;
         TradovateCsvFileSelection? selection;
         try
         {
@@ -331,7 +380,7 @@ public sealed class ImportViewModel : ObservableObject
         }
         catch
         {
-            WorkflowErrorMessage = "The CSV file picker could not be opened.";
+            WorkflowErrorMessage = "The CSV picker or selected file could not be opened. Check file access and choose the CSV again.";
             Phase = ImportWorkflowPhase.Failed;
             return;
         }
@@ -345,14 +394,37 @@ public sealed class ImportViewModel : ObservableObject
         _previewVersion++;
         ConfirmImportCommand.Cancel();
         ClearAnalysis();
+        SelectedAccount = null;
         SelectedFileName = selection.FileName;
         Phase = ImportWorkflowPhase.AnalyzingFile;
         try
         {
             await using (selection)
             {
+                using var buffer = await CsvImportLimits.ReadSnapshotAsync(selection.Content, cancellationToken);
+                ImportCsvFormatResult format = await Task.Run(() => _formatDetector.DetectAsync(buffer, cancellationToken), cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (version != _workflowVersion) return;
+                buffer.Position = 0;
+                if (format.Format == ImportCsvFormat.Unknown || format.Format != selectedFormat)
+                {
+                    WorkflowErrorMessage = format.Format == ImportCsvFormat.Unknown
+                        ? $"CSV_FORMAT_UNSUPPORTED: Select a valid {SelectedSource!.Name} CSV. {format.Message}" +
+                        (format.SourceLineNumber is { } line ? $" Header starts at line {line}." : "")
+                        : $"CSV_SOURCE_MISMATCH: This file does not match {SelectedSource!.Name}. Choose the correct source, then select its CSV.";
+                    Phase = ImportWorkflowPhase.Blocked;
+                    return;
+                }
+                SourceFormat = selectedFormat;
+                if (IsTopstep)
+                {
+                    _accountsLoaded = false;
+                    await EnsureLoadedAsync();
+                    await AnalyzeTopstepAsync(selection, buffer, version, cancellationToken);
+                    return;
+                }
                 TradovateCsvParseResult parseResult = await _csvParser.ParseAsync(
-                    selection.Content,
+                    buffer,
                     cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 TradovateExecutionReconstructionResult reconstruction =
@@ -404,6 +476,15 @@ public sealed class ImportViewModel : ObservableObject
                 Phase = ImportWorkflowPhase.Idle;
             }
         }
+        catch (CsvImportLimitException exception)
+        {
+            if (version == _workflowVersion)
+            {
+                ClearAnalysis();
+                WorkflowErrorMessage = $"{CsvImportLimitException.DiagnosticCode}: {exception.Message}";
+                Phase = ImportWorkflowPhase.Blocked;
+            }
+        }
         catch
         {
             if (version == _workflowVersion)
@@ -420,6 +501,8 @@ public sealed class ImportViewModel : ObservableObject
         {
             return;
         }
+
+        if (IsTopstep) { await BuildTopstepPreviewAsync(cancellationToken); return; }
 
         long version = _workflowVersion;
         long previewVersion = _previewVersion;
@@ -500,6 +583,7 @@ public sealed class ImportViewModel : ObservableObject
 
     private async Task ConfirmImportAsync(CancellationToken cancellationToken)
     {
+        if (IsTopstep) { await ConfirmTopstepImportAsync(cancellationToken); return; }
         if (!CanConfirmImport())
         {
             return;
@@ -565,6 +649,8 @@ public sealed class ImportViewModel : ObservableObject
         finally
         {
             Volatile.Write(ref _isImportSubmissionInProgress, 0);
+            SelectCsvCommand.NotifyCanExecuteChanged();
+            BuildPreviewCommand.NotifyCanExecuteChanged();
             ConfirmImportCommand.NotifyCanExecuteChanged();
         }
     }
@@ -653,6 +739,7 @@ public sealed class ImportViewModel : ObservableObject
 
     private void InvalidatePreview()
     {
+        ClearTopstepPreview();
         _preview = null;
         PreviewSummary = null;
         Trades = [];
@@ -671,6 +758,7 @@ public sealed class ImportViewModel : ObservableObject
 
     private void ClearCompletedPreviewState()
     {
+        ClearTopstepState();
         _workflowVersion++;
         _previewVersion++;
         _preview = null;
@@ -694,6 +782,7 @@ public sealed class ImportViewModel : ObservableObject
 
     private void ClearAnalysis()
     {
+        ClearTopstepState();
         _parseResult = null;
         _reconstruction = null;
         _instrumentResolution = null;

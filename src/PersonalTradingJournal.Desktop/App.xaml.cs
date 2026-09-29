@@ -42,7 +42,7 @@ public partial class App : System.Windows.Application
 
     public App()
     {
-        var applicationPaths = new LocalApplicationPaths();
+        var applicationPaths = DesktopApplicationPaths.FromArguments(Environment.GetCommandLineArgs().Skip(1).ToArray());
         applicationPaths.EnsureDirectoriesExist();
 
         Log.Logger = new LoggerConfiguration()
@@ -107,6 +107,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradovateImportPreparationService>();
             builder.Services.AddTransient<TradovateImportPreviewBuilder>();
             builder.Services.AddTransient<ImportTradovateTradesUseCase>();
+            builder.Services.AddTopstepDesktopImport();
             builder.Services.AddTransient<ITradovateCsvFilePicker, WpfTradovateCsvFilePicker>();
             builder.Services.AddTransient<
                 ITradeScreenshotFilePicker,
