@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Imports.Csv;
 
@@ -36,16 +37,10 @@ public sealed class TradovateCsvParser : ITradovateCsvParser
             throw new ArgumentException("The CSV source stream must be readable.", nameof(source));
         }
 
-        string content;
+        List<CsvRecord> nonBlankRecords;
         try
         {
-            using var reader = new StreamReader(
-                source,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
-                detectEncodingFromByteOrderMarks: true,
-                bufferSize: 4096,
-                leaveOpen: true);
-            content = await reader.ReadToEndAsync(cancellationToken);
+            nonBlankRecords = await CsvRecordReader.ReadNonBlankAsync(source, cancellationToken);
         }
         catch (DecoderFallbackException)
         {
@@ -53,14 +48,12 @@ public sealed class TradovateCsvParser : ITradovateCsvParser
                 TradovateCsvDiagnosticCodes.InvalidEncoding,
                 "The source is not valid UTF-8 text.");
         }
+        catch (CsvImportLimitException exception)
+        {
+            return Failure(CsvImportLimitException.DiagnosticCode, exception.Message);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<CsvRecord> records = CsvRecordReader.ReadAll(
-            content,
-            cancellationToken);
-        List<CsvRecord> nonBlankRecords = records
-            .Where(record => !record.IsBlank)
-            .ToList();
         if (nonBlankRecords.Count == 0)
         {
             return Failure(

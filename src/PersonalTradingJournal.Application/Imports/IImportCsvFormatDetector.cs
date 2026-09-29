@@ -6,6 +6,7 @@ public sealed record ImportCsvFormatResult(ImportCsvFormat Format, string? Messa
 
 public interface IImportCsvFormatDetector
 {
-    // Consumes a complete source, leaves it open. Routing validates the header, not row economics.
+    // Consumes only the first nonblank bounded CSV record, leaves the stream open.
+    // Throws CsvImportLimitException for resource limits; routing does not validate data rows.
     Task<ImportCsvFormatResult> DetectAsync(Stream source, CancellationToken cancellationToken = default);
 }

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Domain.Instruments;
@@ -40,6 +41,8 @@ public sealed class TopstepImportStore(IDbContextFactory<JournalDbContext> conte
         var builder = new TopstepImportPreviewBuilder(new TopstepCsvParser(), new TopstepTradeCandidateReconstructor(), new(readers, readers));
         TopstepImportPreview current = await builder.BuildAsync(request.FileName, request.Source, accountId,
             expected.Candidates[0].Economics.CostInterpretation, expected.VerifiedExistingInstruments, cancellationToken).ConfigureAwait(false);
+        if (current.Diagnostics.FirstOrDefault(d => d.Code == CsvImportLimitException.DiagnosticCode) is { } limit)
+            return Block(CsvImportLimitException.DiagnosticCode, limit.Message);
         if (current.SourceIdentity != expected.SourceIdentity) return Block(TopstepImportConflictCodes.SourceChanged,
             "The source file differs from the reviewed snapshot. Select the current file, rebuild preview and review it again.");
         if (current.SnapshotFingerprint != expected.SnapshotFingerprint || !current.AcceptsConfirmation(review))

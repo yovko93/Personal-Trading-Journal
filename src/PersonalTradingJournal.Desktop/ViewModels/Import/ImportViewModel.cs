@@ -401,9 +401,7 @@ public sealed partial class ImportViewModel : ObservableObject
         {
             await using (selection)
             {
-                using var buffer = new MemoryStream();
-                await selection.Content.CopyToAsync(buffer, cancellationToken);
-                buffer.Position = 0;
+                using var buffer = await CsvImportLimits.ReadSnapshotAsync(selection.Content, cancellationToken);
                 ImportCsvFormatResult format = await Task.Run(() => _formatDetector.DetectAsync(buffer, cancellationToken), cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (version != _workflowVersion) return;
@@ -476,6 +474,15 @@ public sealed partial class ImportViewModel : ObservableObject
             {
                 ClearAnalysis();
                 Phase = ImportWorkflowPhase.Idle;
+            }
+        }
+        catch (CsvImportLimitException exception)
+        {
+            if (version == _workflowVersion)
+            {
+                ClearAnalysis();
+                WorkflowErrorMessage = $"{CsvImportLimitException.DiagnosticCode}: {exception.Message}";
+                Phase = ImportWorkflowPhase.Blocked;
             }
         }
         catch

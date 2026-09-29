@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Infrastructure.Imports.Csv;
 
@@ -25,22 +26,21 @@ public sealed class TopstepCsvParser : ITopstepCsvParser
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        string content;
+        List<CsvRecord> records;
         try
         {
-            using var reader = new StreamReader(source,
-                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
-                detectEncodingFromByteOrderMarks: true, bufferSize: 4096, leaveOpen: true);
-            content = await reader.ReadToEndAsync(cancellationToken);
+            records = await CsvRecordReader.ReadNonBlankAsync(source, cancellationToken);
         }
         catch (DecoderFallbackException)
         {
             return Failure(TopstepCsvDiagnosticCodes.InvalidEncoding, "The source is not valid UTF-8 text.");
         }
+        catch (CsvImportLimitException exception)
+        {
+            return Failure(CsvImportLimitException.DiagnosticCode, exception.Message);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
-        List<CsvRecord> records = CsvRecordReader.ReadAll(content, cancellationToken)
-            .Where(record => !record.IsBlank).ToList();
         if (records.Count == 0)
         {
             return Failure(TopstepCsvDiagnosticCodes.EmptyInput, "Select a non-empty Topstep CSV export.");

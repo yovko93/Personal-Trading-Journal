@@ -175,6 +175,19 @@ Topstep replay identity is **Topstep + explicitly selected destination Account +
 
 ### Tradovate and TopstepX Desktop import
 
+Both sources share these resource limits. They apply to actual counted reads, including non-seekable streams, not just file metadata:
+
+| Resource | Supported maximum |
+| --- | ---: |
+| Complete source (including UTF-8 BOM/newlines) | 16 MiB (16,777,216 bytes) |
+| Header detection, including leading blank records/BOM | 64 KiB (65,536 bytes), through the first nonblank record |
+| CSV records, including header and blank records | 50,000 |
+| Fields per record, including empty fields | 32 |
+| Decoded field length | 4,096 UTF-16 code units |
+| Raw record length, including quotes, commas and embedded newlines | 16,384 UTF-16 code units, excluding the terminating newline |
+
+Every limit must be satisfied; quoted multiline content is one CSV record, while blank lines outside quotes count as records. Parsing is incremental and strict UTF-8 (optional UTF-8 BOM). Header detection stops at the first nonblank record without parsing the data rows. `CSV_LIMIT_EXCEEDED` means **CSV exceeds the supported limit**, not an unsupported schema. Export a smaller date range, reduce unnecessary extra columns/oversized fields or excessive blank lines, then select the complete CSV again. The app never imports a truncated prefix. TopstepX rechecks source bytes when reopening for preview and transactional confirmation; oversized/changed sources require a fresh valid preview. Cancellation/limit failure leaves the workflow reusable and cannot save a partial import. Limits do not change within-budget pricing, costs or duplicate identity rules.
+
 1. Open **Import** and choose **Tradovate** or **TopstepX** in **Import source**. There is no default choice; **Select CSV** is disabled until a source is chosen.
 2. Select the CSV. Its header must match the chosen source. A wrong source gives one `CSV_SOURCE_MISMATCH` message; unknown, mixed or malformed headers give one `CSV_FORMAT_UNSUPPORTED` message. Neither case invokes the other provider's parser.
 3. For TopstepX, explicitly choose a **USD Account with ProviderName Topstep**, then **Build Preview**. The supported Trades export imports **each row individually as one Trade**: the supplied 25 rows yield 25 candidates. Review quantities, UTC times, two-decimal displayed prices, Gross, Fees, Commissions and Net. MNQ is the built-in verified profile; other roots requiring independent attestations remain blocked rather than guessed.

@@ -23,6 +23,58 @@ namespace PersonalTradingJournal.Desktop.Tests.Import;
 
 public sealed class TopstepDesktopRoutingTests
 {
+    [Theory]
+    [InlineData("TopstepX", true)]
+    [InlineData("Tradovate", true)]
+    [InlineData("TopstepX", false)]
+    [InlineData("Tradovate", false)]
+    public async Task OverLimitSelectionCannotConfirmAndSelectingValidFileRecovers(string source, bool bytes)
+    {
+        await using var f = await Fixture.Create();
+        f.Vm.SelectedSource = f.Vm.Sources.Single(s => s.Name == source);
+        string valid = source == "TopstepX" ? Csv : TradovateCsv;
+        f.Picker.Csv = valid + "\n" + (bytes ? new string(' ', CsvImportLimits.SourceBytes + 1) : new string(',', 100_000));
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
+        Assert.False(f.Vm.BuildPreviewCommand.CanExecute(null));
+        Assert.True(f.Vm.SelectCsvCommand.CanExecute(null));
+        Assert.True(f.Vm.WorkflowErrorMessage?.Contains(CsvImportLimitException.DiagnosticCode) == true ||
+            f.Vm.Diagnostics.Any(d => d.Code == CsvImportLimitException.DiagnosticCode));
+        await f.AssertTradeCount(0);
+        f.Picker.Csv = valid;
+        await f.Vm.SelectCsvCommand.ExecuteAsync(null);
+        f.Vm.SelectedAccount = f.Vm.Accounts.Single(a => a.ProviderName == (source == "TopstepX" ? "Topstep" : "Tradovate"));
+        await f.Vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.True(f.Vm.ConfirmImportCommand.CanExecute(null));
+        Assert.Null(f.Vm.WorkflowErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public async Task ReopenedTopstepSourceIsLimitedAtPreviewAndConfirmationWithoutPartialWrites(bool confirming, bool bytes)
+    {
+        await using var f = await Fixture.Create();
+        await f.Preview();
+        f.Picker.Csv = Csv + "\n" + (bytes ? new string(' ', CsvImportLimits.SourceBytes + 1) : new string(',', 100_000));
+        if (confirming) await f.Vm.ConfirmImportCommand.ExecuteAsync(null);
+        else await f.Vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Equal(ImportWorkflowPhase.Blocked, f.Vm.Phase);
+        Assert.False(f.Vm.ConfirmImportCommand.CanExecute(null));
+        Assert.True(f.Vm.ImportErrorMessage?.Contains(CsvImportLimitException.DiagnosticCode) == true ||
+            f.Vm.WorkflowErrorMessage?.Contains(CsvImportLimitException.DiagnosticCode) == true ||
+            f.Vm.Diagnostics.Any(d => d.Code == CsvImportLimitException.DiagnosticCode));
+        await f.AssertTradeCount(0);
+        await using (var db = await f.Factory.CreateDbContextAsync()) Assert.False(await db.Instruments.AnyAsync());
+        f.Picker.Csv = Csv;
+        await f.Preview();
+        await f.Vm.ConfirmImportCommand.ExecuteAsync(null);
+        Assert.Equal("Imported", f.Vm.ImportResultStatus);
+        await f.AssertTradeCount(1);
+    }
+
     [Fact]
     public async Task SourceSelectionIsExplicitAndRequiredBeforePickerCanOpen()
     {

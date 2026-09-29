@@ -2,6 +2,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -21,6 +22,27 @@ public sealed class TopstepImportStoreTests
     private static readonly DateTimeOffset ImportedAt = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
     private static string Csv(params string[] rows) => TopstepCsvFixtures.WithRows(rows.Length == 0 ? [TopstepCsvFixtures.Row] : rows);
     private static TopstepImportConfirmation Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray());
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ChangedOverLimitSourceCannotCommitEvenWhenItStartsWithValidReviewedRows(bool bytes)
+    {
+        await using Fixture f = await Fixture.Create(proposal: true);
+        TopstepImportPreview preview = await f.Preview(Csv());
+        string changed = Csv() + "\n" + (bytes ? new string(' ', CsvImportLimits.SourceBytes + 1) : new string(',', 100_000));
+        if (bytes) await Assert.ThrowsAsync<CsvImportLimitException>(() => f.Import(preview, changed));
+        else
+        {
+            TopstepImportResult result = await f.Import(preview, changed);
+            Assert.Equal(TopstepImportStatus.Blocked, result.Status);
+            Assert.Equal(CsvImportLimitException.DiagnosticCode, result.ConflictCode);
+        }
+        await f.AssertCounts(0, 0);
+        Assert.Equal(0, f.Changes.TradesVersion);
+        Assert.Equal(0, f.Changes.InstrumentsVersion);
+        Assert.Equal(TopstepImportStatus.Imported, (await f.Import(preview, Csv())).Status);
+    }
 
     [Theory]
     [InlineData(false)]

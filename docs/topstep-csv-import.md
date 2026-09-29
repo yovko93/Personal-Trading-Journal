@@ -18,6 +18,16 @@ M11.4 adds Application `TopstepReferencePreparationService`, which reads the exi
 
 ## Supported schema
 
+### Resource limits and recovery
+
+The shared CSV policy limits the complete source to **16 MiB**, header detection (including BOM/leading blanks) to **64 KiB**, all CSV records including header/blanks to **50,000**, fields including empty fields to **32 per record**, decoded field length to **4,096 UTF-16 code units**, and raw record length to **16,384 UTF-16 code units**. Raw length includes quotes, commas and embedded CR/LF, but excludes the terminating newline. All bounds apply together; multiline quoted fields do not create extra records. See the [shared import limits](../README.md#tradovate-and-topstepx-desktop-import).
+
+Selection snapshots use counted reads and reject byte overflow before writing the extra byte into a growing buffer. Header detection stops at the first nonblank record; full parsing streams through bounded fields/records rather than reading all text into a string. Strict UTF-8 with an optional UTF-8 BOM is supported; invalid data-row encoding is rejected by complete parsing even when the header is valid. Caller-owned streams remain open, cancellation propagates, and file length/seekability are not trusted as enforcement.
+
+TopstepX repeats the byte check when reopening for Build Preview and when rebuilding inside the confirmation transaction. Every full parse enforces structural bounds too. Limit failures surface as **CSV_LIMIT_EXCEEDED / CSV exceeds the supported limit**, separately from schema errors. A source exceeding any bound is unusable as a whole: previously parsed rows are not returned as an importable prefix, and failed confirmation writes no Trades, ledger rows or proposed Instruments. Export a smaller date range or remove excessive blank lines/extra columns/oversized fields, select the complete corrected file and rebuild preview. Source/reference fingerprint revalidation and exact economic reconciliation remain enforced; a smaller buffer is never used to truncate the source silently.
+
+### Required columns
+
 The following case-sensitive headers are required; order may vary:
 
 ```text

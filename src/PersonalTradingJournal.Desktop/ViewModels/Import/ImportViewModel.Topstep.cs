@@ -79,9 +79,7 @@ public sealed partial class ImportViewModel
         {
             // Reopen the source, not rounded presentation values or a silently retained byte copy.
             await using Stream source = open();
-            using var snapshot = new MemoryStream();
-            await source.CopyToAsync(snapshot, token);
-            snapshot.Position = 0;
+            using var snapshot = await CsvImportLimits.ReadSnapshotAsync(source, token);
             ImportCsvFormatResult format = await Task.Run(() => _formatDetector.DetectAsync(snapshot, token), token);
             token.ThrowIfCancellationRequested();
             if (workflow != _workflowVersion || version != _previewVersion) return;
@@ -116,6 +114,14 @@ public sealed partial class ImportViewModel
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             if (workflow == _workflowVersion && version == _previewVersion) Phase = ImportWorkflowPhase.FileAnalyzed;
+        }
+        catch (CsvImportLimitException exception)
+        {
+            if (workflow == _workflowVersion && version == _previewVersion)
+            {
+                WorkflowErrorMessage = $"{CsvImportLimitException.DiagnosticCode}: {exception.Message}";
+                Phase = ImportWorkflowPhase.Blocked;
+            }
         }
         catch
         {
@@ -179,6 +185,15 @@ public sealed partial class ImportViewModel
             {
                 ImportErrorMessage = "Import cancelled. The reviewed preview is retained; no partial import was saved.";
                 Phase = ImportWorkflowPhase.PreviewReady;
+            }
+        }
+        catch (CsvImportLimitException exception)
+        {
+            if (workflow == _workflowVersion && version == _previewVersion)
+            {
+                _topstepReviewStale = true;
+                ImportErrorMessage = $"{CsvImportLimitException.DiagnosticCode}: {exception.Message}";
+                Phase = ImportWorkflowPhase.Blocked;
             }
         }
         catch

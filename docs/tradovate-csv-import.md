@@ -16,6 +16,10 @@ Implementation and automated acceptance are available. The remaining interactive
 
 ## Supported source contract
 
+The shared limits are **16 MiB of source bytes**, **64 KiB for header detection including BOM/leading blanks**, **50,000 CSV records including header and blank records**, **32 fields per record**, **4,096 decoded UTF-16 code units per field**, and **16,384 raw UTF-16 code units per record**. Raw record length includes syntax and embedded newlines but not the terminating newline; quoted multiline fields remain one record. All limits apply together. See [shared limits and recovery](../README.md#tradovate-and-topstepx-desktop-import).
+
+Selection counts bytes without trusting file length, and format detection stops after the first nonblank record. Complete parsing is incremental, strict UTF-8 with optional UTF-8 BOM, cancellation-aware and bounded before field/list growth. `CSV_LIMIT_EXCEEDED` is distinct from unsupported schema: export a smaller range or remove unnecessary columns/oversized fields/excessive blanks, then select the complete CSV again. Limit failure rejects the whole input and cannot confirm a partially parsed prefix. Within-budget matched-fill reconstruction, economics, warnings, transactional confirmation and replay remain unchanged.
+
 The parser recognizes the following required headers by their exact, case-sensitive names:
 
 ```text

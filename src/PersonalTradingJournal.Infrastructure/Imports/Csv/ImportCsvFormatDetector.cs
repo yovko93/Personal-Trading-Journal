@@ -13,9 +13,13 @@ public sealed class ImportCsvFormatDetector : IImportCsvFormatDetector
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            using var reader = new StreamReader(source, new UTF8Encoding(false, true), true, 4096, leaveOpen: true);
-            string content = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
-            CsvRecord? header = CsvRecordReader.ReadAll(content, cancellationToken).FirstOrDefault(r => !r.IsBlank);
+            CsvRecord? header = null;
+            await foreach (CsvRecord record in CsvRecordReader.ReadAsync(source, headerOnly: true, cancellationToken).ConfigureAwait(false))
+            {
+                if (record.IsBlank) continue;
+                header = record;
+                break;
+            }
             if (header is null) return Unknown(null);
             string[] fields = header.Fields.Select(f => f.Trim()).ToArray();
             var names = fields.ToHashSet(StringComparer.Ordinal);

@@ -49,8 +49,7 @@ public sealed class TopstepImportPreviewBuilder
         {
             TopstepInstrumentVerification[] verificationSnapshot = (verifiedExistingInstruments ?? [])
                 .Distinct().OrderBy(v => JsonSerializer.Serialize(v, FingerprintJson), StringComparer.Ordinal).ToArray();
-            using var bytes = new MemoryStream();
-            await source.CopyToAsync(bytes, cancellationToken);
+            using var bytes = await CsvImportLimits.ReadSnapshotAsync(source, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             string contentHash = Convert.ToHexString(SHA256.HashData(bytes.GetBuffer().AsSpan(0, checked((int)bytes.Length))));
             var identity = new TopstepPreviewSourceIdentity(displayName, bytes.Length, contentHash);
