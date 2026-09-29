@@ -2378,31 +2378,7 @@
                                             BorderBrush="{DynamicResource PtjBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="{StaticResource PtjCornerRadiusMd}">
-                                        <Border.Style>
-                                            <Style TargetType="{x:Type Border}">
-                                                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
-                                                <Style.Triggers>
-                                                    <DataTrigger Value="{x:Static converters:PnLOutcome.Positive}">
-                                                        <DataTrigger.Binding>
-                                                            <MultiBinding Converter="{StaticResource TradeRowOutcomeConverter}">
-                                                                <Binding Path="NetPnL" />
-                                                                <Binding Path="GrossPnL" />
-                                                            </MultiBinding>
-                                                        </DataTrigger.Binding>
-                                                        <Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" />
-                                                    </DataTrigger>
-                                                    <DataTrigger Value="{x:Static converters:PnLOutcome.Negative}">
-                                                        <DataTrigger.Binding>
-                                                            <MultiBinding Converter="{StaticResource TradeRowOutcomeConverter}">
-                                                                <Binding Path="NetPnL" />
-                                                                <Binding Path="GrossPnL" />
-                                                            </MultiBinding>
-                                                        </DataTrigger.Binding>
-                                                        <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Border.Style>
+                                        <Border.Style><StaticResource ResourceKey="PtjTradeOutcomeRowStyle" /></Border.Style>
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="126" />

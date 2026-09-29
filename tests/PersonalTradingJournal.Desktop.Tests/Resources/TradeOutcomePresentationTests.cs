@@ -45,8 +45,10 @@ public sealed class TradeOutcomePresentationTests
         Assert.Contains("Margin=\"0,0,0,8\"", view, StringComparison.Ordinal);
         Assert.Contains("CornerRadius=\"{StaticResource PtjCornerRadiusMd}\"", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjSurfaceElevatedBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("{DynamicResource PtjDangerSurfaceBrush}", view, StringComparison.Ordinal);
+        Assert.Contains("PtjTradeOutcomeRowStyle", view, StringComparison.Ordinal);
+        string controls = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src/PersonalTradingJournal.Desktop/Resources/Controls.xaml"));
+        Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", controls, StringComparison.Ordinal);
+        Assert.Contains("{DynamicResource PtjDangerSurfaceBrush}", controls, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -117,10 +117,13 @@ public sealed class TradesViewPagingXamlTests
         XElement list = Assert.Single(view.Descendants(presentation + "ItemsControl"), item =>
             (string?)item.Attribute("ItemsSource") == "{Binding RecentTrades}");
 
-        XElement[] rowTriggers = list.Descendants(presentation + "DataTrigger")
+        Assert.Contains(list.Descendants(presentation + "StaticResource"), resource =>
+            (string?)resource.Attribute("ResourceKey") == "PtjTradeOutcomeRowStyle");
+        XDocument controls = XDocument.Parse(File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src/PersonalTradingJournal.Desktop/Resources/Controls.xaml")));
+        XElement[] rowTriggers = controls.Descendants(presentation + "DataTrigger")
             .Where(trigger => trigger.Descendants(presentation + "MultiBinding")
                 .Any(binding => (string?)binding.Attribute("Converter") ==
-                    "{StaticResource TradeRowOutcomeConverter}"))
+                    "{StaticResource PtjTradeRowOutcomeConverter}"))
             .ToArray();
         Assert.Equal(2, rowTriggers.Length);
         Assert.All(rowTriggers, trigger => Assert.Equal(
@@ -299,8 +302,7 @@ public sealed class TradesViewPagingXamlTests
             "<ColumnDefinition Width=\"122\" />";
 
         Assert.True(Regex.Matches(view, columns).Count >= 2);
-        Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("{DynamicResource PtjDangerSurfaceBrush}", view, StringComparison.Ordinal);
+        Assert.Contains("PtjTradeOutcomeRowStyle", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjSuccessBrush}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjDangerBrush}", view, StringComparison.Ordinal);
         Assert.DoesNotMatch(

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Application.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
@@ -12,6 +13,8 @@ public enum DashboardPeriod { All, Week, Month, Year }
 public sealed class DashboardViewModel : ObservableObject
 {
     private readonly IDashboardAnalyticsReader _reader;
+    private readonly ITradeListReader _tradeReader;
+    private IReadOnlyList<TradeListItem> _recentTrades = [];
     private readonly TimeProvider _time;
     private readonly ILogger<DashboardViewModel> _logger;
     private CancellationTokenSource? _loadCancellation;
@@ -24,10 +27,11 @@ public sealed class DashboardViewModel : ObservableObject
     private DashboardCurrencyPresentation? _selected;
     private IReadOnlyList<string> _currencies = [];
 
-    public DashboardViewModel(IDashboardAnalyticsReader reader, TimeProvider timeProvider,
+    public DashboardViewModel(IDashboardAnalyticsReader reader, TimeProvider timeProvider, ITradeListReader tradeReader,
         ILogger<DashboardViewModel>? logger = null)
     {
         _reader = reader;
+        _tradeReader = tradeReader;
         _time = timeProvider;
         _logger = logger ?? NullLogger<DashboardViewModel>.Instance;
         _anchor = Today;
@@ -35,6 +39,16 @@ public sealed class DashboardViewModel : ObservableObject
         PreviousCommand = new RelayCommand(() => Move(-1), () => Period != DashboardPeriod.All && _anchor.Year > 1);
         NextCommand = new RelayCommand(() => Move(1), () => Period != DashboardPeriod.All && Start(_anchor) < Start(Today));
         CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(async item =>
+        {
+            if (item is null || OpenTradeAsync is null) return;
+            try { await OpenTradeAsync(item); }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Dashboard Trade navigation failed");
+                ErrorMessage = "Trade could not be opened. Refresh and try again.";
+            }
+        }, item => item is not null && !IsLoading);
     }
 
     public IReadOnlyList<DashboardPeriod> Periods { get; } = Enum.GetValues<DashboardPeriod>();
@@ -50,8 +64,8 @@ public sealed class DashboardViewModel : ObservableObject
             _ = RefreshAsync();
         }
     }
-    public string PeriodLabel => Period == DashboardPeriod.All ? "All history · New York closure dates"
-        : $"{Start(_anchor):yyyy-MM-dd} – {End(_anchor):yyyy-MM-dd} · New York";
+    public string PeriodLabel => Period == DashboardPeriod.All ? "All history"
+        : $"{Start(_anchor):yyyy-MM-dd} – {End(_anchor):yyyy-MM-dd}";
     public DashboardAnalyticsQuery Query => Period == DashboardPeriod.All ? new()
         : new(closedFromNewYork: Start(_anchor), closedThroughNewYork: End(_anchor));
     public IReadOnlyList<string> Currencies { get => _currencies; private set => SetProperty(ref _currencies, value); }
@@ -61,7 +75,11 @@ public sealed class DashboardViewModel : ObservableObject
         set { if (SetProperty(ref _selectedCurrency, value)) Present(); }
     }
     public DashboardCurrencyPresentation? Selected { get => _selected; private set => SetProperty(ref _selected, value); }
-    public bool IsLoading { get => _isLoading; private set { SetProperty(ref _isLoading, value); CancelCommand.NotifyCanExecuteChanged(); } }
+    public bool IsLoading { get => _isLoading; private set { SetProperty(ref _isLoading, value); CancelCommand.NotifyCanExecuteChanged(); ViewTradeCommand.NotifyCanExecuteChanged(); OnPropertyChanged(nameof(HasNoRecentTrades)); } }
+    public IReadOnlyList<TradeListItem> RecentTrades { get => _recentTrades; private set { SetProperty(ref _recentTrades, value); OnPropertyChanged(nameof(HasNoRecentTrades)); } }
+    public bool HasNoRecentTrades => !IsLoading && _snapshot is not null && ErrorMessage is null && RecentTrades.Count == 0;
+    public IAsyncRelayCommand<TradeListItem> ViewTradeCommand { get; }
+    public Func<TradeListItem, Task>? OpenTradeAsync { get; set; }
     public bool IsEmpty => !IsLoading && ErrorMessage is null && _snapshot is not null && Currencies.Count == 0;
     public string? ErrorMessage { get => _errorMessage; private set => SetProperty(ref _errorMessage, value); }
     public string? StatusMessage { get => _statusMessage; private set => SetProperty(ref _statusMessage, value); }
@@ -85,6 +103,7 @@ public sealed class DashboardViewModel : ObservableObject
         string? preferredCurrency = _selectedCurrency;
         _snapshot = null;
         Selected = null;
+        RecentTrades = [];
         Currencies = [];
         ErrorMessage = null;
         StatusMessage = "Loading Dashboard…";
@@ -95,9 +114,17 @@ public sealed class DashboardViewModel : ObservableObject
             DashboardAnalyticsQuery query = Query;
             // SQLite's async provider and aggregation can do substantial synchronous work.
             // Keep it off the dispatcher; resume here to publish UI state on the captured context.
-            DashboardAnalyticsSnapshot snapshot = await Task.Run(
-                () => _reader.GetAsync(query, cancellation.Token), cancellation.Token);
+            var result = await Task.Run(async () =>
+            {
+                DashboardAnalyticsSnapshot analytics = await _reader.GetAsync(query, cancellation.Token);
+                // Independent of analytics period/currency; includes open Trades. Paging/order is in SQL.
+                TradeListPage recent = await _tradeReader.GetPageAsync(
+                    new(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending), cancellation.Token);
+                return (analytics, recent);
+            }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested) return;
+            DashboardAnalyticsSnapshot snapshot = result.analytics;
+            RecentTrades = result.recent.Items;
             _snapshot = snapshot;
             Currencies = snapshot.Currencies.Select(c => c.Currency).ToArray();
             _selectedCurrency = preferredCurrency is not null && Currencies.Contains(preferredCurrency)
@@ -122,6 +149,7 @@ public sealed class DashboardViewModel : ObservableObject
                 _loadCancellation = null;
                 IsLoading = false;
                 OnPropertyChanged(nameof(IsEmpty));
+                OnPropertyChanged(nameof(HasNoRecentTrades));
                 UpdatePeriod();
             }
         }

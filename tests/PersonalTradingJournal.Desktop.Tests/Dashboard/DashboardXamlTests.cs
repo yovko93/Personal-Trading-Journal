@@ -33,8 +33,29 @@ public sealed class DashboardXamlTests
         });
         Assert.Equal(2, selected.Descendants(p + "Expander").Count());
         Assert.Contains(selected.Descendants(p + "WrapPanel"), _ => true);
-        foreach (string binding in new[] { "Cards", "DailyPnl", "CumulativePnl", "Setups", "RecentTrades" })
+        foreach (string binding in new[] { "Cards", "DailyPnl", "CumulativePnl", "Setups" })
             Assert.Contains(selected.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == $"{{Binding {binding}}}");
+        Assert.Contains(view.Descendants(p + "ItemsControl").Except(selected.Descendants(p + "ItemsControl")),
+            c => (string?)c.Attribute("ItemsSource") == "{Binding RecentTrades}");
         Assert.Contains("TextWrapping=\"Wrap\"", xaml);
+        Assert.DoesNotContain(view.Descendants(p + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding Explanation}");
+        Assert.Contains("ToolTip=\"{Binding Explanation}\"", xaml);
+        Assert.Contains("AutomationProperties.HelpText=\"{Binding Explanation}\"", xaml);
+        Assert.Contains("{Binding Badge}", xaml);
+        XElement ring = Assert.Single(view.Descendants(chart + "WinRateRing"));
+        Assert.Equal("True", (string?)ring.Attribute("Focusable"));
+        Assert.Equal("{Binding Description}", (string?)ring.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)ring.Attribute("WinBrush"));
+        Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)ring.Attribute("LossBrush"));
+        Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)ring.Attribute("NeutralBrush"));
+        XElement recent = Assert.Single(view.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == "{Binding RecentTrades}");
+        XElement action = Assert.Single(recent.Descendants(p + "Button"));
+        Assert.Contains("ViewTradeCommand", (string?)action.Attribute("Command"));
+        Assert.Equal("{Binding}", (string?)action.Attribute("CommandParameter"));
+        Assert.Contains("PtjTradeOutcomeRowStyle", xaml);
+        Assert.Contains("{Binding TradingAccountName}", xaml);
+        Assert.Contains("MaxHeight=\"36\"", xaml);
+        Assert.Contains("{0:F2}", xaml);
+        Assert.Contains("HorizontalScrollBarVisibility=\"Auto\"", xaml);
     }
 }

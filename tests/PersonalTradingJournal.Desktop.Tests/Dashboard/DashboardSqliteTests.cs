@@ -50,13 +50,13 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             await store.AddAsync(estimated);
             await store.AddAsync(Create(10m, 0m, "EUR"));
             await store.AddAsync(Create(500m, 0m, closed: now.AddYears(-1)));
-            var vm = new DashboardViewModel(provider.GetRequiredService<IDashboardAnalyticsReader>(), new FixedTime(now));
+            var vm = new DashboardViewModel(provider.GetRequiredService<IDashboardAnalyticsReader>(), new FixedTime(now), provider.GetRequiredService<ITradeListReader>());
             await vm.ActivateAsync();
             vm.SelectedCurrency = "USD";
             Assert.Equal(6, vm.Selected!.Source.Metrics.ClosedTradeCount);
             Assert.Equal(295m, vm.Selected.Source.Metrics.EffectiveNet.Total);
             Assert.Null(vm.Selected.Source.Metrics.Net.Total);
-            Assert.Contains(vm.Selected.RecentTrades, t => t.Contains("DASH"));
+            Assert.Contains(vm.RecentTrades, t => t.InstrumentSymbol == "DASH");
 
             vm.Period = DashboardPeriod.Year;
             await vm.LoadTask;
@@ -82,6 +82,26 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             vm.PreviousCommand.Execute(null);
             await vm.LoadTask;
             Assert.True(vm.IsEmpty);
+            // Latest-10 query is independently paged in SQLite, includes open Trades and deterministic ties.
+            var openTrades = new List<Trade>();
+            for (int i = 0; i < 12; i++)
+            {
+                Guid id = Guid.NewGuid();
+                var open = Trade.Rehydrate(id, account.Id, instrument.Id, new(1m, i % 2 == 0 ? "EUR" : "USD"), null,
+                    [new TradeExecution(id, 1, now.AddDays(1 + i / 2), ExecutionSide.Buy, 2m, 1000m, null, null, null, null, null)], audit, audit);
+                await store.AddAsync(open);
+                openTrades.Add(open);
+            }
+            await vm.RefreshAsync();
+            Assert.True(vm.IsEmpty); // Empty closed period must not hide the independently loaded rows.
+            var expectedIds = openTrades.OrderByDescending(t => t.Executions[0].ExecutedAtUtc).ThenBy(t => t.Id).Take(10).Select(t => t.Id).ToArray();
+            Assert.Equal(expectedIds, vm.RecentTrades.Select(t => t.Id));
+            Assert.All(vm.RecentTrades, t => Assert.Equal(TradeStatus.Open, t.Status));
+            vm.Period = DashboardPeriod.All;
+            await vm.LoadTask;
+            vm.SelectedCurrency = "EUR";
+            Assert.Equal(expectedIds, vm.RecentTrades.Select(t => t.Id));
+            Assert.Equal(2, vm.RecentTrades.Select(t => t.Currency).Distinct().Count());
             // Leave a representative estimate in opt-in visual seed data after testing mutation behavior.
             if (Environment.GetEnvironmentVariable("PTJ_KEEP_DASHBOARD_TEST_DATA") == "1")
                 await store.AddAsync(Create(-285m, null, closed: now.AddDays(-1)));

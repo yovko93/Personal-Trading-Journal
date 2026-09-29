@@ -126,6 +126,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.ImportCommitted += OnImportCommitted;
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted += OnDashboardDataCommitted;
+        _dashboardViewModel.OpenTradeAsync = OpenDashboardTradeAsync;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -201,6 +202,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.ImportCommitted -= OnImportCommitted;
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted -= OnDashboardDataCommitted;
+        _dashboardViewModel.OpenTradeAsync = null;
         _dashboardViewModel.Deactivate();
     }
 
@@ -249,6 +251,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _tradesViewModel.EnsureLoadedAsync();
         if (changed.Instruments && CurrentDestination == NavigationDestination.Instruments)
             _ = _instrumentsViewModel.EnsureLoadedAsync();
+    }
+
+    private Task _tradeNavigationLoad = Task.CompletedTask;
+
+    private async Task OpenDashboardTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)
+    {
+        Navigate(NavigationDestination.Trades);
+        await _tradeNavigationLoad;
+        if (!_disposed && CurrentDestination == NavigationDestination.Trades && _tradesViewModel.ShowTradeDetailCommand.CanExecute(trade))
+            await _tradesViewModel.ShowTradeDetailCommand.ExecuteAsync(trade);
     }
 
     private void Navigate(NavigationDestination destination)
@@ -315,7 +327,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (destination == NavigationDestination.Trades)
         {
             _tradesViewModel.ResetTransientState();
-            _ = _tradesViewModel.EnsureLoadedAsync();
+            _tradeNavigationLoad = _tradesViewModel.EnsureLoadedAsync();
         }
     }
 
