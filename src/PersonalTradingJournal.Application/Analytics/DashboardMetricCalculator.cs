@@ -1,4 +1,5 @@
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Application.Analytics;
@@ -92,23 +93,28 @@ public static class DashboardMetricCalculator
         private int _count, _unknownCosts;
         private readonly PnlAccumulator _gross = new(PnlBasis.Gross);
         private readonly PnlAccumulator _net = new(PnlBasis.Net);
+        private readonly PnlAccumulator _effectiveNet = new(PnlBasis.EffectiveNet);
         public void Add(TradeAnalyticsFact trade)
         {
             _count = checked(_count + 1);
             if (!trade.TotalCosts.HasValue) _unknownCosts = checked(_unknownCosts + 1);
             _gross.Add(trade.GrossPnL);
             _net.Add(trade.NetPnL);
+            EffectiveNetPnL effective = EffectiveNetPnL.Resolve(trade.Status, trade.GrossPnL, trade.NetPnL);
+            _effectiveNet.Add(effective.Value, effective.IsEstimated);
         }
-        public ClosedTradeMetrics Snapshot() => new(_count, _unknownCosts, _gross.Snapshot(_count), _net.Snapshot(_count));
+        public ClosedTradeMetrics Snapshot() => new(_count, _unknownCosts, _gross.Snapshot(_count),
+            _net.Snapshot(_count), _effectiveNet.Snapshot(_count));
     }
 
     private sealed class PnlAccumulator(PnlBasis basis)
     {
         private decimal _subtotal, _profits, _losses;
-        private int _wins, _lossCount, _breakEvens;
-        public void Add(decimal? value)
+        private int _wins, _lossCount, _breakEvens, _estimated;
+        public void Add(decimal? value, bool estimated = false)
         {
             if (value is not { } amount) return;
+            if (estimated) _estimated++;
             _subtotal = checked(_subtotal + amount);
             if (amount > 0m) { _wins++; _profits = checked(_profits + amount); }
             else if (amount < 0m) { _lossCount++; _losses = checked(_losses - amount); }
@@ -128,7 +134,7 @@ public static class DashboardMetricCalculator
 
             return new(basis, coverage, complete ? _subtotal : null, knownCount > 0 ? _subtotal : null,
                 _wins, _lossCount, _breakEvens, knownCount > 0 ? _profits : null, knownCount > 0 ? _losses : null,
-                complete ? 100m * _wins / closedCount : null, factor);
+                complete ? 100m * _wins / closedCount : null, factor, _estimated);
         }
     }
 

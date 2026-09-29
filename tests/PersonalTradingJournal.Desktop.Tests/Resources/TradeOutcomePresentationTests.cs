@@ -28,12 +28,12 @@ public sealed class TradeOutcomePresentationTests
         string view = ReadTradesView();
 
         Assert.Contains("SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
-        Assert.Contains("SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
-        Assert.Contains("NetPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
+        Assert.Contains("SelectedTradeDetail.EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjSuccessBrush}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjDangerBrush}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjTextMutedBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("Binding=\"{Binding NetPnL}\" Value=\"{x:Null}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding EffectiveNet.Value}\" Value=\"{x:Null}\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"—\"", view, StringComparison.Ordinal);
     }
 

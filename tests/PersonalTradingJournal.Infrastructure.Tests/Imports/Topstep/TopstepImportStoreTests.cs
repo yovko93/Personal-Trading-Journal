@@ -38,6 +38,9 @@ public sealed class TopstepImportStoreTests
         Assert.Equal(1, metrics.ClosedTradeCount);
         Assert.Equal(5m, metrics.Gross.Total);
         Assert.Equal(2.56m, metrics.Net.Total);
+        Assert.Equal(2.56m, metrics.EffectiveNet.Total);
+        Assert.False(metrics.EffectiveNet.IsEstimated);
+        Assert.Equal(1, metrics.EffectiveNet.VerifiedTradeCount);
         Assert.Equal(0, metrics.UnknownCostTradeCount);
         Assert.Equal(TopstepImportStatus.NoChanges, (await f.Import(await f.Preview(Csv()), Csv())).Status);
         Assert.Equal(metrics, Assert.Single((await reader.GetAsync(query)).Currencies).Metrics);

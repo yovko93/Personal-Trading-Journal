@@ -23,6 +23,50 @@ public sealed class DashboardAnalyticsReaderTests
     private static readonly DateTimeOffset Close = new(2026, 3, 8, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task EstimatedNetIsNotPersistedAndRealCostCorrectionReplacesItOnEveryRead()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        Trade trade = TradeFact(account, instrument, -285m, costs: null);
+        await db.ServiceProvider.GetRequiredService<ITradeStore>().AddAsync(trade);
+        IDashboardAnalyticsReader reader = Reader(db);
+        ITradeListReader list = db.ServiceProvider.GetRequiredService<ITradeListReader>();
+        ITradeDetailReader details = db.ServiceProvider.GetRequiredService<ITradeDetailReader>();
+        var listQuery = new TradeListQuery(1, 20, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending);
+        var initial = Assert.Single((await reader.GetAsync(new())).Currencies);
+        Assert.Null(initial.Metrics.Net.Total);
+        Assert.Equal(-285m, initial.Metrics.EffectiveNet.Total);
+        Assert.True(initial.Days[0].CumulativeMetrics.EffectiveNet.IsEstimated);
+        TradeListItem row = Assert.Single((await list.GetPageAsync(listQuery)).Items);
+        TradeDetail detail = Assert.IsType<TradeDetail>(await details.GetByIdAsync(trade.Id));
+        Assert.Equal(new EffectiveNetPnL(-285m, NetPnLProvenance.Estimated), row.EffectiveNet);
+        Assert.Equal(row.EffectiveNet, detail.EffectiveNet);
+        Assert.Null(row.NetPnL);
+        Assert.Null(detail.NetPnL);
+        await using (JournalDbContext context = await db.ContextFactory.CreateDbContextAsync())
+        {
+            Assert.Null((await context.TradeBrowse.SingleAsync()).NetPnL);
+            Assert.Null((await context.TradeExecutions.SingleAsync(e => e.Sequence == 2)).Commission);
+        }
+
+        TradeExecution[] corrected = trade.Executions.Select(e => TradeExecution.Rehydrate(e.Id, trade.Id, e.Sequence,
+            e.ExecutedAtUtc, e.Side, e.Quantity, e.Price, e.Sequence == 2 ? 1.2m : 0m, e.Sequence == 2 ? .3m : 0m,
+            null, null, null)).ToArray();
+        trade.CorrectDetails(account, instrument, trade.Pricing, null, corrected, Audit.AddDays(1));
+        await db.ServiceProvider.GetRequiredService<ITradeMutationStore>().SaveAsync(trade);
+        var refreshed = Assert.Single((await reader.GetAsync(new())).Currencies);
+        Assert.Equal(-286.5m, refreshed.Metrics.Net.Total);
+        Assert.Equal(-286.5m, refreshed.Metrics.EffectiveNet.Total);
+        Assert.False(refreshed.Metrics.EffectiveNet.IsEstimated);
+        Assert.False(refreshed.Weeks[0].CumulativeMetrics.EffectiveNet.IsEstimated);
+        Assert.Equal(new EffectiveNetPnL(-286.5m, NetPnLProvenance.Verified),
+            Assert.Single((await list.GetPageAsync(listQuery)).Items).EffectiveNet);
+        Assert.Equal(NetPnLProvenance.Verified, (await details.GetByIdAsync(trade.Id))!.EffectiveNet.Provenance);
+        await db.ServiceProvider.GetRequiredService<ITradeDeletionStore>().DeleteAsync(trade.Id);
+        Assert.Empty((await reader.GetAsync(new())).Currencies);
+    }
+
+    [Fact]
     public async Task FilteredPersistedFactsProduceDailyWeeklyAndSelectionRelativeCumulativeSeries()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();

@@ -1,4 +1,4 @@
-# Dashboard Analytics — M12.1 metrics, M12.2 queries and M12.3 period series
+# Dashboard Analytics — metric rules, queries, period series and estimated Net
 
 ## Scope and authoritative inputs
 
@@ -37,9 +37,32 @@ Gross and Net have separate `PnlBasis` labels and independent `MetricCoverage`:
 
 `ClosedTradeCount`, `KnownTradeCount`, `UnknownTradeCount` and `UnknownCostTradeCount` let the later UI explain coverage and cause. Missing Gross is also represented as unavailable, never zero; it must not be described as an unknown-cost problem when costs are actually known. Complete `Total` is numeric **only** for a nonempty, complete basis. `KnownSubtotal` adds available values, but is explicitly a subset, not an estimated complete result; it is null if none are available. Known win/loss/break-even counts and profit/loss sums describe that same known subset. Win Rate and Profit Factor are suppressed when coverage is incomplete rather than presenting a potentially biased subset ratio.
 
-For example: a +5 USD Gross Trade with unknown costs plus a +10 USD Gross Trade with 2 USD known costs gives **Gross total 15 USD**, **Net total unavailable**, **known Net subtotal 8 USD**, Net coverage 1/2 and one unknown-cost Trade. Unknown costs never become zero; Gross never fills a missing Net value. Explicit zero costs, zero outcomes and an actual zero sum remain numeric zero, not missing data.
+For example: a +5 USD Gross Trade with unknown costs plus a +10 USD Gross Trade with 2 USD known costs gives **Gross total 15 USD**, **strict Net total unavailable**, **known verified-Net subtotal 8 USD**, Net coverage 1/2 and one unknown-cost Trade. Unknown costs never become persisted zero; Gross never fills an authoritative Net value. The separate effective-Net total is **13 USD estimated**, with one verified and one estimated Trade. Explicit zero costs, zero outcomes and an actual zero sum remain numeric zero, not missing data.
 
 Arithmetic uses `decimal` without monetary/display rounding in this layer. Ratios use normal decimal division precision. Arithmetic overflow propagates rather than wrapping, capping or silently dropping a Trade. Collection results are read-only snapshots and calculations do not mutate input facts. Cancellation propagates.
+
+## Effective Net estimates (M12 product rule)
+
+Authoritative commission/fees and `NetPnL` are unchanged. `EffectiveNetPnL.Resolve` supplies a **separate read-only amount and provenance** for the list, Details and analytics:
+
+| Input | Effective amount | Provenance |
+| --- | --- | --- |
+| Closed, authoritative Net known (including zero) | Net | Verified |
+| Closed, Net unknown, Gross known | Gross | Estimated |
+| Closed, Gross and Net unknown | null | Unavailable |
+| Open, including partial exits | null | Unavailable |
+
+For a valid closed Domain Trade with known Gross, unknown Net means some commission/fees are missing. The estimate does not fill missing costs, deduct individually known cost components, infer a broker rate or assert free trading. It is explicitly a no-cost-deduction approximation: actual Net may differ. Gross −285 USD gives estimated Net −285 USD; positive Gross gives a positive estimate, not verified profitability. Unknown costs with zero Gross give **estimated zero**, whereas known zero costs/Net remain verified.
+
+Trade list/detail DTOs expose `EffectiveNet` without replacing their authoritative fields. Both WPF surfaces show the effective value with the wrapping, accessible **Estimated — commission/fees unknown** explanation only for estimates. Sign colors and row precedence are unchanged. Unavailable effective values retain the dash. Server-side Net sorting still uses authoritative Net; estimates retain null-Net placement, explained by the header tooltip. No migration or persisted estimate is introduced.
+
+`ClosedTradeMetrics` now carries `Gross`, strict `Net`, and separate **`EffectiveNet`** metrics. `PnlBasis.EffectiveNet` uses the same arithmetic, denominator and break-even rules on effective inputs. `EstimatedTradeCount` counts estimates; `VerifiedTradeCount` counts authoritative numeric inputs. `Coverage.KnownTradeCount` on this basis means **available numeric inputs**, verified plus estimated; `Coverage.UnknownTradeCount` counts Trades with no usable amount. `IsEstimated` is true if any estimate participates and applies to the entire bundle: total/subtotal, Win Rate, Profit Factor and outcome counts. Later Dashboard consumers must label every such amount, ratio and curve **estimated**. Complete numeric coverage does not mean verified costs, and an estimated zero still needs the label.
+
+If all selected Trades have effective amounts, effective totals and ratios are available even when strict Net is incomplete. If any lack both Gross and Net, the effective total and ratios remain unavailable; `KnownSubtotal` is only the available subset and may itself be estimated. Strict Net never contains estimates. Verified Net +8 and estimated Net −285 produce **−277 estimated total**, **50% estimated Win Rate**, **8/285 estimated Profit Factor**, one verified input and one estimate; strict total/ratios remain unavailable with verified subtotal +8.
+
+The same rules apply per historical currency, Setup, day, week and cumulative prefix. A later verified-only period is not estimated by itself, but its cumulative effective result stays estimated while an earlier selected estimate participates. Strict cumulative Net remains unavailable. Missing Gross can leave even the effective curve incomplete. In the year-boundary example below, effective final cumulative Net is **10 USD estimated** (three verified inputs, one estimate), alongside unavailable strict Net and verified subtotal 5 USD.
+
+Estimates are derived anew on each read. Supplying actual costs replaces an estimate with verified Net (−285 Gross minus costs 1.50 becomes −286.50 verified). Deletes and committed imports appear through the same fresh query path. TopstepX known-cost economics, Gross, source identities, deduplication, currencies and transaction rules are unchanged. Automated isolated-SQLite tests check list, detail and analytics before/after cost correction, stored nulls before correction, deletion and both provider import/replay paths. Application tests cover mixed metrics and period/prefix provenance; XAML/converter tests cover both labels/bindings and sign styling. These are not interactive visual acceptance.
 
 ## Metric definitions
 

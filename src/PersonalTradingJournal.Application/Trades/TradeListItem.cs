@@ -32,4 +32,7 @@ public sealed record TradeListItem(
     decimal? GrossPnL,
     decimal? NetPnL,
     string Currency,
-    decimal Size);
+    decimal Size)
+{
+    public EffectiveNetPnL EffectiveNet => EffectiveNetPnL.Resolve(Status, GrossPnL, NetPnL);
+}

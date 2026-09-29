@@ -980,7 +980,7 @@
                                                 <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL}" Value="{x:Null}">
+                                                    <DataTrigger Binding="{Binding SelectedTradeDetail.EffectiveNet.Value}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Visible" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
@@ -992,24 +992,24 @@
                                             <Style TargetType="{x:Type StackPanel}">
                                                 <Setter Property="Visibility" Value="Visible" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL}" Value="{x:Null}">
+                                                    <DataTrigger Binding="{Binding SelectedTradeDetail.EffectiveNet.Value}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Text="{Binding SelectedTradeDetail.NetPnL}">
+                                        <TextBlock Text="{Binding SelectedTradeDetail.EffectiveNet.Value}">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
                                                        BasedOn="{StaticResource PtjBodyTextStyle}">
                                                     <Setter Property="FontSize" Value="15" />
                                                     <Setter Property="FontWeight" Value="SemiBold" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}}"
                                                                      Value="{x:Static converters:PnLOutcome.Positive}">
                                                             <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                                         </DataTrigger>
-                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                        <DataTrigger Binding="{Binding SelectedTradeDetail.EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}}"
                                                                      Value="{x:Static converters:PnLOutcome.Negative}">
                                                             <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
                                                         </DataTrigger>
@@ -1024,13 +1024,14 @@
                                 </Grid>
                                 <TextBlock Margin="0,4,0,0"
                                            Style="{StaticResource PtjCaptionTextStyle}"
-                                           Text="Net unavailable: commission/fees unknown."
+                                           Text="Estimated — commission/fees unknown."
                                            TextWrapping="Wrap"
-                                           AutomationProperties.Name="Net unavailable: commission and fees are unknown">
+                                           AutomationProperties.Name="Estimated Net P&amp;L: commission or fees are unknown">
                                     <TextBlock.Visibility>
                                         <MultiBinding Converter="{StaticResource NetPnLUnavailableVisibilityConverter}">
                                             <Binding Path="SelectedTradeDetail.GrossPnL" />
                                             <Binding Path="SelectedTradeDetail.NetPnL" />
+                                            <Binding Path="SelectedTradeDetail.Status" />
                                         </MultiBinding>
                                     </TextBlock.Visibility>
                                 </TextBlock>
@@ -2340,6 +2341,7 @@
                                        Text="Size" />
                             <Button Grid.Column="5"
                                     AutomationProperties.Name="Sort by Net P&amp;L"
+                                    ToolTip="Sort by verified Net P&amp;L. Estimates remain with unknown Net values."
                                     Command="{Binding SortTradesCommand}"
                                     CommandParameter="{x:Static applicationTrades:TradeListSortColumn.NetPnL}">
                                 <Button.Style>
@@ -2524,7 +2526,7 @@
                                                                     <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
+                                                                        <DataTrigger Binding="{Binding EffectiveNet.Value}" Value="{x:Null}">
                                                                             <Setter Property="Visibility" Value="Visible" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
@@ -2536,7 +2538,7 @@
                                                                 <Style TargetType="{x:Type WrapPanel}">
                                                                     <Setter Property="Visibility" Value="Visible" />
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding NetPnL}" Value="{x:Null}">
+                                                                        <DataTrigger Binding="{Binding EffectiveNet.Value}" Value="{x:Null}">
                                                                             <Setter Property="Visibility" Value="Collapsed" />
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
@@ -2544,17 +2546,17 @@
                                                             </WrapPanel.Style>
                                                             <TextBlock MaxWidth="145"
                                                                        TextWrapping="Wrap"
-                                                                       Text="{Binding NetPnL}">
+                                                                       Text="{Binding EffectiveNet.Value}">
                                                                 <TextBlock.Style>
                                                                     <Style TargetType="{x:Type TextBlock}"
                                                                            BasedOn="{StaticResource PtjBodyTextStyle}">
                                                                         <Setter Property="FontWeight" Value="SemiBold" />
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                            <DataTrigger Binding="{Binding EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}}"
                                                                                          Value="{x:Static converters:PnLOutcome.Positive}">
                                                                                 <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
                                                                             </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding NetPnL, Converter={StaticResource PnLOutcomeConverter}}"
+                                                                            <DataTrigger Binding="{Binding EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}}"
                                                                                          Value="{x:Static converters:PnLOutcome.Negative}">
                                                                                 <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
                                                                             </DataTrigger>
@@ -2570,13 +2572,14 @@
                                                 </WrapPanel>
                                                 <TextBlock Margin="0,4,0,0"
                                                            Style="{StaticResource PtjCaptionTextStyle}"
-                                                           Text="Net unavailable: commission/fees unknown."
+                                                           Text="Estimated — commission/fees unknown."
                                                            TextWrapping="Wrap"
-                                                           AutomationProperties.Name="Net unavailable: commission and fees are unknown">
+                                                           AutomationProperties.Name="Estimated Net P&amp;L: commission or fees are unknown">
                                                     <TextBlock.Visibility>
                                                         <MultiBinding Converter="{StaticResource NetPnLUnavailableVisibilityConverter}">
                                                             <Binding Path="GrossPnL" />
                                                             <Binding Path="NetPnL" />
+                                                            <Binding Path="Status" />
                                                         </MultiBinding>
                                                     </TextBlock.Visibility>
                                                 </TextBlock>

@@ -33,6 +33,9 @@ public sealed class TradovateImportStoreTests
         Assert.Equal(2m, metrics.Gross.Total);
         Assert.Null(metrics.Net.Total);
         Assert.Null(metrics.Net.KnownSubtotal);
+        Assert.Equal(2m, metrics.EffectiveNet.Total);
+        Assert.True(metrics.EffectiveNet.IsEstimated);
+        Assert.Equal(1, metrics.EffectiveNet.EstimatedTradeCount);
         Assert.Equal(1, metrics.UnknownCostTradeCount);
         Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(request)).Status);
         Assert.Equal(metrics, Assert.Single((await reader.GetAsync(query)).Currencies).Metrics);

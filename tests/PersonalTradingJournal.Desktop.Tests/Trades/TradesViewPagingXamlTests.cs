@@ -81,15 +81,17 @@ public sealed class TradesViewPagingXamlTests
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding GrossPnL, TargetNullValue=—}");
         Assert.Contains(list.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "{Binding NetPnL}");
+            (string?)item.Attribute("Text") == "{Binding EffectiveNet.Value}");
+        Assert.Contains(view.Descendants(presentation + "TextBlock"), item =>
+            (string?)item.Attribute("Text") == "{Binding SelectedTradeDetail.EffectiveNet.Value}");
 
         XElement[] explanations = view.Descendants(presentation + "TextBlock")
             .Where(item => (string?)item.Attribute("Text") ==
-                "Net unavailable: commission/fees unknown.")
+                "Estimated — commission/fees unknown.")
             .ToArray();
         Assert.Equal(2, explanations.Length);
         Assert.All(explanations, item => Assert.Equal(
-            "Net unavailable: commission and fees are unknown",
+            "Estimated Net P&L: commission or fees are unknown",
             (string?)item.Attribute("AutomationProperties.Name")));
         Assert.Contains(explanations, item => item.Ancestors().Contains(list));
         Assert.Contains(explanations, item => !item.Ancestors().Contains(list));
@@ -97,6 +99,10 @@ public sealed class TradesViewPagingXamlTests
             .Any(binding => (string?)binding.Attribute("Path") == "GrossPnL"));
         Assert.Contains(explanations, item => item.Descendants(presentation + "Binding")
             .Any(binding => (string?)binding.Attribute("Path") == "SelectedTradeDetail.GrossPnL"));
+        Assert.Contains(explanations, item => item.Descendants(presentation + "Binding")
+            .Any(binding => (string?)binding.Attribute("Path") == "Status"));
+        Assert.Contains(explanations, item => item.Descendants(presentation + "Binding")
+            .Any(binding => (string?)binding.Attribute("Path") == "SelectedTradeDetail.Status"));
         Assert.All(explanations, item => Assert.Contains(
             item.Descendants(presentation + "MultiBinding"), binding =>
                 (string?)binding.Attribute("Converter") ==
@@ -150,9 +156,9 @@ public sealed class TradesViewPagingXamlTests
         string[] amountPaths =
         [
             "GrossPnL",
-            "NetPnL",
+            "EffectiveNet.Value",
             "SelectedTradeDetail.GrossPnL",
-            "SelectedTradeDetail.NetPnL",
+            "SelectedTradeDetail.EffectiveNet.Value",
         ];
 
         foreach (string path in amountPaths)
@@ -364,7 +370,7 @@ public sealed class TradesViewPagingXamlTests
         Assert.Equal("36", (string?)account.Attribute("MaxHeight"));
         Assert.Equal("{Binding TradingAccountName}", (string?)account.Attribute("ToolTip"));
         Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
-            (string?)item.Attribute("Text") == "Net unavailable: commission/fees unknown." &&
+            (string?)item.Attribute("Text") == "Estimated — commission/fees unknown." &&
             (string?)item.Attribute("TextWrapping") == "Wrap");
         Assert.Contains(row.Descendants(presentation + "TextBlock"), item =>
             (string?)item.Attribute("Text") == "{Binding AverageEntryPrice, StringFormat={}{0:F2}}" &&

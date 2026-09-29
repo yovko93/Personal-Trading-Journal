@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Application.Analytics;
 
-public enum PnlBasis { Gross, Net }
+public enum PnlBasis { Gross, Net, EffectiveNet }
 public enum MetricCoverageStatus { Empty, Complete, Partial, Unavailable }
 public enum ProfitFactorStatus { Defined, NoTrades, IncompleteCoverage, NoLosses, AllBreakEven }
 
@@ -19,6 +19,8 @@ public sealed record ProfitFactorMetric(ProfitFactorStatus Status, decimal? Valu
 /// Total, WinRatePercent and ProfitFactor are complete-population metrics, never subset estimates.
 /// KnownSubtotal and known counts are explicitly partial evidence when Coverage is incomplete.
 /// Empty/all-unknown selections have a null subtotal, distinct from an actual zero.
+/// For EffectiveNet, numeric coverage includes estimates. IsEstimated applies to every
+/// amount, ratio and outcome count; complete numeric coverage does not mean verified costs.
 /// </summary>
 public sealed record PnlMetrics(
     PnlBasis Basis,
@@ -31,10 +33,17 @@ public sealed record PnlMetrics(
     decimal? KnownProfitSum,
     decimal? KnownLossMagnitude,
     decimal? WinRatePercent,
-    ProfitFactorMetric ProfitFactor);
+    ProfitFactorMetric ProfitFactor,
+    int EstimatedTradeCount = 0)
+{
+    /// <summary>Applies to this entire metric bundle: total/subtotal, ratios and outcome counts.</summary>
+    public bool IsEstimated => EstimatedTradeCount > 0;
+    public int VerifiedTradeCount => Coverage.KnownTradeCount - EstimatedTradeCount;
+}
 
 public sealed record ClosedTradeMetrics(
     int ClosedTradeCount,
     int UnknownCostTradeCount,
     PnlMetrics Gross,
-    PnlMetrics Net);
+    PnlMetrics Net,
+    PnlMetrics EffectiveNet);
