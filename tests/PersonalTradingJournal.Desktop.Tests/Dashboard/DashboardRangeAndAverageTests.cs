@@ -184,21 +184,33 @@ public sealed class DashboardRangeAndAverageTests
                 Assert.Equal(new[] { 2d, 1d }, outline.StrokeDashArray);
                 Assert.Equal(Color((Brush)resources["PtjTextPrimaryBrush"]), Color(outline.Stroke));
             }
-            var metrics = Assert.Single(DashboardMetricCalculator.Calculate([
-                DashboardViewModelTests.Fact(100m), DashboardViewModelTests.Fact(20m), DashboardViewModelTests.Fact(-40m)]).Currencies).Metrics.EffectiveNet;
-            var comparison = new AverageComparisonBar { Resources = resources, Value = new(metrics, "USD") };
+            var comparison = new AverageComparisonBar { Resources = resources };
             comparison.SetResourceReference(AverageComparisonBar.WinBrushProperty, "PtjSuccessBrush");
             comparison.SetResourceReference(AverageComparisonBar.LossBrushProperty, "PtjDangerBrush");
             comparison.SetResourceReference(AverageComparisonBar.NeutralBrushProperty, "PtjTextMutedBrush");
-            Draw(comparison, 200, 10, dpi);
-            var bars = VisualTreeHelper.GetDrawing(comparison).Children.OfType<GeometryDrawing>().ToArray();
-            Assert.Equal(2, bars.Length);
-            Assert.Equal(120d, bars[0].Geometry.Bounds.Width, 5);
-            Assert.Equal(80d, bars[1].Geometry.Bounds.Width, 5);
-            Assert.Equal(Color((Brush)resources["PtjSuccessBrush"]), Color(bars[0].Brush));
-            Assert.Equal(Color((Brush)resources["PtjDangerBrush"]), Color(bars[1].Brush));
-            comparison.Value = new(null, ""); Draw(comparison, 200, 10, dpi);
-            Assert.Equal(Color((Brush)resources["PtjTextMutedBrush"]), Color(Assert.Single(VisualTreeHelper.GetDrawing(comparison).Children.OfType<GeometryDrawing>()).Brush));
+            foreach (int width in new[] { 162, 88 })
+            {
+                foreach (var (values, key) in new (decimal[] Values, string BrushKey)[]
+                {
+                    ([100m, 20m, -40m], "PtjSuccessBrush"),
+                    ([20m, -40m], "PtjDangerBrush"),
+                    ([40m, -40m], "PtjTextMutedBrush"),
+                    ([-40m], "PtjTextMutedBrush")
+                })
+                {
+                    var metrics = Assert.Single(DashboardMetricCalculator.Calculate(values.Select(v => DashboardViewModelTests.Fact(v))).Currencies).Metrics.EffectiveNet;
+                    comparison.Value = new(metrics, "USD");
+                    Draw(comparison, width, 10, dpi);
+                    var bar = Assert.Single(VisualTreeHelper.GetDrawing(comparison).Children.OfType<GeometryDrawing>());
+                    Assert.Equal(width, bar.Geometry.Bounds.Width, 5);
+                    Assert.Equal(Color((Brush)resources[key]), Color(bar.Brush));
+                }
+                comparison.Value = new(null, "");
+                Draw(comparison, width, 10, dpi);
+                var unavailable = Assert.Single(VisualTreeHelper.GetDrawing(comparison).Children.OfType<GeometryDrawing>());
+                Assert.Equal(width, unavailable.Geometry.Bounds.Width, 5);
+                Assert.Equal(Color((Brush)resources["PtjTextMutedBrush"]), Color(unavailable.Brush));
+            }
         });
     }
 

@@ -77,12 +77,27 @@ public sealed class DashboardXamlTests
             ((string?)t.Attribute("Text")) is "Estimated" or "{Binding Badge}" or "{Binding IsEstimated}");
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement averages = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "AverageWinLossTemplate");
+        XElement averageLayout = Assert.Single(averages.Elements(p + "Grid"));
+        Assert.Equal("64", (string?)averageLayout.Attribute("MinHeight"));
+        Assert.Equal(new[] { "86", "*" }, averageLayout.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
+        Assert.Contains(averageLayout.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "Avg Win / Avg Loss");
+        XElement ratio = Assert.Single(averageLayout.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding RatioText}");
+        Assert.Contains("Win / Loss ratio", (string?)ratio.Attribute("AutomationProperties.Name"));
+        XElement right = Assert.Single(averageLayout.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Column") == "1");
+        XElement amountRow = Assert.Single(right.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Row") == "1");
+        Assert.Equal(new[] { "*", "*" }, amountRow.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
+        Assert.Equal("Right", (string?)Assert.Single(amountRow.Elements(p + "TextBlock"), t => (string?)t.Attribute("Grid.Column") == "1").Attribute("TextAlignment"));
         Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding WinText}" &&
             (string?)t.Attribute("Foreground") == "{DynamicResource PtjSuccessBrush}");
         Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding LossText}" &&
             (string?)t.Attribute("Foreground") == "{DynamicResource PtjDangerBrush}");
         Assert.Contains("{Binding RatioText", averages.ToString());
         XElement comparison = Assert.Single(averages.Descendants(chart + "AverageComparisonBar"));
+        Assert.Null(comparison.Attribute("Grid.Row"));
+        XElement cardWidthTrigger = Assert.Single(cards.Descendants(p + "DataTrigger"), t =>
+            (string?)t.Attribute("Binding") == "{Binding Label}" && (string?)t.Attribute("Value") == "Average Win / Average Loss" &&
+            t.Elements(p + "Setter").Any(s => (string?)s.Attribute("Property") == "Width"));
+        Assert.Equal("280", (string?)Assert.Single(cardWidthTrigger.Elements(p + "Setter")).Attribute("Value"));
         Assert.Equal("{Binding}", (string?)comparison.Attribute("Value"));
         Assert.Equal("True", (string?)comparison.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)comparison.Attribute("AutomationProperties.Name"));

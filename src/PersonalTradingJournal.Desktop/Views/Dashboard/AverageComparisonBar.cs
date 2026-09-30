@@ -30,8 +30,8 @@ public sealed class AverageComparisonBar : FrameworkElement
             dc.DrawRectangle(NeutralBrush, null, new(0, 0, ActualWidth, ActualHeight));
             return;
         }
-        double width = (double)value.WinShare * ActualWidth;
-        dc.DrawRectangle(WinBrush, null, new(0, 0, width, ActualHeight));
-        dc.DrawRectangle(LossBrush, null, new(width, 0, ActualWidth - width, ActualHeight));
+        Brush brush = value.Win!.Value > value.LossMagnitude!.Value ? WinBrush
+            : value.Win.Value < value.LossMagnitude.Value ? LossBrush : NeutralBrush;
+        dc.DrawRectangle(brush, null, new(0, 0, ActualWidth, ActualHeight));
     }
 }
