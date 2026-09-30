@@ -97,15 +97,6 @@
                            AutomationProperties.Name="{Binding RatioText, StringFormat=Win / Loss ratio: {0}}" />
             </Grid>
         </DataTemplate>
-        <DataTemplate x:Key="DailyValues">
-            <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}" Style="{StaticResource PtjBodyTextStyle}" />
-                <TextBlock Grid.Column="1" Text="{Binding AmountText}" Style="{StaticResource ChartAmountStyle}" Margin="8,0"
-                           Focusable="True" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" />
-                <TextBlock Grid.Column="2" Text="{Binding TradeCountText}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
-            </Grid>
-        </DataTemplate>
         <DataTemplate x:Key="CumulativeValues">
             <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -298,13 +289,10 @@
                         <TextBlock Text="Effective Net by New York closure date · empty dates omitted; unavailable values are gaps."
                                    Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding CoverageNote}" Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" />
-                        <dashboard:PnlChart Points="{Binding DailyPnl}" StartDate="{Binding PeriodStart}" Height="240"
-                                            Foreground="{DynamicResource PtjTextSecondaryBrush}" Focusable="True"
-                                            PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
-                                            AutomationProperties.Name="Daily P&amp;L chart. Exact values and estimate coverage are in Show daily values below." />
-                        <Expander Header="Show daily values" Foreground="{DynamicResource PtjTextPrimaryBrush}">
-                            <ItemsControl ItemsSource="{Binding DailyPnl}" ItemTemplate="{StaticResource DailyValues}" />
-                        </Expander>
+                        <dashboard:DailyPnlChart Points="{Binding DailyPnl}" Height="260"
+                                                 Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                                                 PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
+                                                 AutomationProperties.Name="Daily P&amp;L chart. Tab through days for exact New York dates, values and coverage." />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">

@@ -64,19 +64,23 @@ public sealed class DashboardXamlTests
         Assert.Contains("{Binding CancelRangeCommand}", xaml);
         Assert.Contains("{Binding RangeValidationMessage}", xaml);
         XElement selected = Assert.Single(view.Descendants(p + "StackPanel"), e => (string?)e.Attribute("DataContext") == "{Binding Selected}");
-        Assert.Equal(2, selected.Descendants(chart + "PnlChart").Count());
-        Assert.All(selected.Descendants(chart + "PnlChart"), c =>
+        XElement cumulativeChart = Assert.Single(selected.Descendants(chart + "PnlChart"));
+        Assert.Equal("True", (string?)cumulativeChart.Attribute("Focusable"));
+        Assert.Equal("{Binding CumulativePnl}", (string?)cumulativeChart.Attribute("Points"));
+        Assert.Equal("{Binding PeriodStart}", (string?)cumulativeChart.Attribute("StartDate"));
+        XElement dailyChart = Assert.Single(selected.Descendants(chart + "DailyPnlChart"));
+        Assert.Equal("{Binding DailyPnl}", (string?)dailyChart.Attribute("Points"));
+        Assert.DoesNotContain("Show daily values", xaml);
+        foreach (XElement c in new[] { cumulativeChart, dailyChart })
         {
-            Assert.Equal("True", (string?)c.Attribute("Focusable"));
-            Assert.Equal("{Binding PeriodStart}", (string?)c.Attribute("StartDate"));
             Assert.NotNull(c.Attribute("AutomationProperties.Name"));
             Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)c.Attribute("PositiveBrush"));
             Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)c.Attribute("NegativeBrush"));
             Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)c.Attribute("NeutralBrush"));
-        });
-        Assert.Equal(2, selected.Descendants(p + "Expander").Count());
+        }
+        Assert.Equal("Show cumulative values", (string?)Assert.Single(selected.Descendants(p + "Expander")).Attribute("Header"));
         Assert.Contains(selected.Descendants(p + "WrapPanel"), _ => true);
-        foreach (string binding in new[] { "Cards", "DailyPnl", "CumulativePnl", "Setups" })
+        foreach (string binding in new[] { "Cards", "CumulativePnl", "Setups" })
             Assert.Contains(selected.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == $"{{Binding {binding}}}");
         Assert.Contains(view.Descendants(p + "ItemsControl").Except(selected.Descendants(p + "ItemsControl")),
             c => (string?)c.Attribute("ItemsSource") == "{Binding RecentTrades}");
@@ -140,13 +144,10 @@ public sealed class DashboardXamlTests
         Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)comparison.Attribute("WinBrush"));
         Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)comparison.Attribute("LossBrush"));
         Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)comparison.Attribute("NeutralBrush"));
-        XElement daily = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "DailyValues");
-        Assert.Equal(new[] { "{Binding Date, StringFormat={}{0:yyyy-MM-dd}}", "{Binding AmountText}", "{Binding TradeCountText}" },
-            daily.Descendants(p + "TextBlock").Select(t => (string?)t.Attribute("Text")));
-        Assert.Contains(daily.Descendants(p + "TextBlock"), t => (string?)t.Attribute("AutomationProperties.HelpText") == "{Binding Description}");
+        Assert.DoesNotContain(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "DailyValues");
         XElement cumulative = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "CumulativeValues");
-        Assert.All(new[] { daily, cumulative }, template => Assert.Contains(template.Descendants(p + "TextBlock"),
-            t => (string?)t.Attribute("Text") == "{Binding AmountText}" && (string?)t.Attribute("Style") == "{StaticResource ChartAmountStyle}"));
+        Assert.Contains(cumulative.Descendants(p + "TextBlock"),
+            t => (string?)t.Attribute("Text") == "{Binding AmountText}" && (string?)t.Attribute("Style") == "{StaticResource ChartAmountStyle}");
         XElement amountStyle = Assert.Single(view.Descendants(p + "Style"), s => (string?)s.Attribute(x + "Key") == "ChartAmountStyle");
         Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjSuccessBrush}");
         Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjDangerBrush}");
