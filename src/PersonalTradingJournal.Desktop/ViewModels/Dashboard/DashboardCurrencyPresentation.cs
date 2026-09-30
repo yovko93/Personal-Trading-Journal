@@ -5,7 +5,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
 public sealed record DashboardCard(string Label, string Value, string Explanation,
     bool IsEstimated = false, string Date = "", WinRatePresentation? Ring = null, ProfitFactorPresentation? Factor = null,
-    AverageWinLossPresentation? Averages = null);
+    AverageWinLossPresentation? Averages = null, decimal? PnlValue = null);
 
 public interface IOutcomeRingPresentation
 {
@@ -85,7 +85,8 @@ public sealed class DashboardCurrencyPresentation
         WorstDay = rankable ? DailyPnl.OrderBy(p => p.Value).ThenBy(p => p.Date).First() : null;
         var averages = new AverageWinLossPresentation(net, Currency);
         Cards = [
-            new("Net P&L", IsEmpty ? Money(0m, Currency) : Money(net!.Total, Currency), note, estimated),
+            new("Net P&L", IsEmpty ? Money(0m, Currency) : Money(net!.Total, Currency), note, estimated,
+                PnlValue: IsEmpty ? 0m : net!.Total),
             new("Win Rate", new WinRatePresentation(net).Value, note, estimated, Ring: new(net)),
             new("Profit Factor", new ProfitFactorPresentation(net, Currency).Value, $"{note} · {net?.ProfitFactor.Status}", estimated, Factor: new(net, Currency)),
             new("Avg Win / Avg Loss", averages.RatioText, averages.Description, estimated, Averages: averages),
@@ -121,7 +122,7 @@ public sealed class DashboardCurrencyPresentation
     private static string Number(decimal? value, string suffix = "") => value is { } amount ? $"{amount:N2}{suffix}" : "—";
     private DashboardCard DayCard(string label, DashboardChartRow? day) => new(label,
         CardMoney(day?.Value), day?.Description ?? "Unavailable: no closed Trades or incomplete daily outcome coverage.",
-        day?.IsEstimated == true, day?.Date.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) ?? "");
+        day?.IsEstimated == true, day?.Date.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture) ?? "", PnlValue: day?.Value);
     private static string Coverage(PnlMetrics metrics) =>
         $"{(metrics.IsEstimated ? "Estimated — commission/fees unknown; Gross used as Net" : metrics.Basis == PnlBasis.Gross ? "Gross" : "Verified Net")} · " +
         $"{metrics.Coverage.KnownTradeCount}/{metrics.Coverage.ClosedTradeCount} available · {metrics.EstimatedTradeCount} estimated · {metrics.Coverage.Status}";

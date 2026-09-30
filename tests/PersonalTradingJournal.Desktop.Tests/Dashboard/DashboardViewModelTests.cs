@@ -1,4 +1,6 @@
+using System.Globalization;
 using PersonalTradingJournal.Application.Analytics;
+using PersonalTradingJournal.Desktop.Converters;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Domain.Trades;
@@ -7,6 +9,27 @@ namespace PersonalTradingJournal.Desktop.Tests.Dashboard;
 
 public sealed class DashboardViewModelTests
 {
+    [Theory]
+    [InlineData(25, PnLOutcome.Positive)]
+    [InlineData(-25, PnLOutcome.Negative)]
+    [InlineData(0, PnLOutcome.Zero)]
+    [InlineData(null, PnLOutcome.None)]
+    public void NetAndDayCardsExposeNullableNumericOutcomeForThemeColoring(int? amount, PnLOutcome expected)
+    {
+        decimal? pnl = amount;
+        var source = Assert.Single(DashboardMetricCalculator.Calculate([
+            Fact(pnl, pnl.HasValue ? 0m : null)]).Currencies);
+        var cards = new DashboardCurrencyPresentation(source).Cards;
+        var converter = new PnLOutcomeConverter();
+        foreach (string label in new[] { "Net P&L", "Best Day", "Worst Day" })
+        {
+            DashboardCard card = Assert.Single(cards, c => c.Label == label);
+            Assert.Equal(pnl, card.PnlValue);
+            Assert.Equal(expected, converter.Convert(card.PnlValue, typeof(PnLOutcome), null, CultureInfo.InvariantCulture));
+            Assert.Equal(pnl is null ? (label == "Net P&L" ? "—" : "N/A") : DashboardCurrencyPresentation.Money(pnl, "USD"), card.Value);
+        }
+    }
+
     [Fact]
     public void CardsAreConciseAndRingIncludesBreakEvensWithoutInventingUnavailablePercentages()
     {

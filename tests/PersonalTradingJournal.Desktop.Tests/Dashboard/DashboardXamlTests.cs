@@ -15,6 +15,18 @@ public sealed class DashboardXamlTests
         XDocument view = XDocument.Parse(xaml);
         XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XNamespace chart = "clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard";
+        XElement controls = Assert.Single(view.Root!.Elements(p + "ScrollViewer")).Element(p + "StackPanel")!;
+        Assert.DoesNotContain("Closed-Trade performance · all Instruments", xaml);
+        XElement accountRow = Assert.IsType<XElement>(controls.Elements().First());
+        Assert.Equal(p + "StackPanel", accountRow.Name);
+        Assert.Equal("Account", (string?)Assert.Single(accountRow.Elements(p + "TextBlock")).Attribute("Text"));
+        Assert.Equal("{Binding Accounts}", (string?)Assert.Single(accountRow.Elements(p + "ComboBox")).Attribute("ItemsSource"));
+        XElement remainingControls = Assert.IsType<XElement>(controls.Elements().Skip(1).First());
+        Assert.Equal(p + "WrapPanel", remainingControls.Name);
+        Assert.Equal("Period", (string?)Assert.Single(remainingControls.Elements(p + "StackPanel").First().Elements(p + "TextBlock")).Attribute("Text"));
+        Assert.Contains(remainingControls.Descendants(p + "ComboBox"), c => (string?)c.Attribute("ItemsSource") == "{Binding Currencies}");
+        Assert.Contains(remainingControls.Elements(p + "Button"), b => (string?)b.Attribute("Content") == "Refresh");
+        Assert.Equal("{Binding ToggleRangeCommand}", (string?)controls.Elements().Skip(2).First().Attribute("Command"));
         Assert.Contains("Cumulative Realized P&amp;L", xaml);
         Assert.DoesNotContain("Equity Curve", xaml);
         Assert.DoesNotContain("No trading data yet.", xaml);
@@ -108,6 +120,20 @@ public sealed class DashboardXamlTests
             (string?)t.Attribute("Text") == "{Binding Label}" && (string?)t.Attribute("Style") == "{StaticResource PtjSecondaryTextStyle}");
         Assert.Contains(cardLayout.Elements(p + "ContentControl"), c =>
             (string?)c.Attribute("Grid.Row") == "1" && (string?)c.Attribute("ContentTemplate") == "{StaticResource AverageWinLossTemplate}");
+        XElement cardValue = Assert.Single(cards.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding Value}");
+        Assert.Equal("{StaticResource DashboardCardValueStyle}",
+            (string?)cardValue.Element(p + "TextBlock.Style")?.Element(p + "Style")?.Attribute("BasedOn"));
+        Assert.Null(cardValue.Attribute("Foreground"));
+        XElement valueStyle = Assert.Single(view.Descendants(p + "Style"), s => (string?)s.Attribute(x + "Key") == "DashboardCardValueStyle");
+        Assert.Contains(valueStyle.Elements(p + "Setter"), s =>
+            (string?)s.Attribute("Property") == "Foreground" && (string?)s.Attribute("Value") == "{DynamicResource PtjTextPrimaryBrush}");
+        foreach (var (outcome, brush) in new[] { ("Positive", "PtjSuccessBrush"), ("Negative", "PtjDangerBrush") })
+        {
+            XElement trigger = Assert.Single(valueStyle.Descendants(p + "DataTrigger"), t =>
+                (string?)t.Attribute("Binding") == "{Binding PnlValue, Converter={StaticResource PnlOutcome}}" &&
+                (string?)t.Attribute("Value") == $"{{x:Static converters:PnLOutcome.{outcome}}}");
+            Assert.Equal($"{{DynamicResource {brush}}}", (string?)Assert.Single(trigger.Elements(p + "Setter")).Attribute("Value"));
+        }
         Assert.Equal("{Binding}", (string?)comparison.Attribute("Value"));
         Assert.Equal("True", (string?)comparison.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)comparison.Attribute("AutomationProperties.Name"));

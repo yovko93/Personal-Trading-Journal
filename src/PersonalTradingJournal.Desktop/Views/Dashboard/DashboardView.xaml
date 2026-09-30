@@ -61,6 +61,17 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="DashboardCardValueStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PnlValue, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Positive}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PnlValue, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Negative}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <DataTemplate x:Key="AverageWinLossTemplate">
             <Grid ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
                 <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -108,15 +119,13 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
         <StackPanel>
-            <TextBlock Text="Closed-Trade performance · all Instruments"
-                       Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
-            <WrapPanel Margin="0,12">
-                <StackPanel Margin="0,0,12,8">
-                    <TextBlock Text="Account" Style="{StaticResource PtjCaptionTextStyle}" />
-                    <ComboBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Name" Width="220"
-                              ToolTip="{Binding SelectedAccount.Name}" AutomationProperties.Name="Dashboard account"
-                              Style="{StaticResource PtjComboBoxStyle}" />
-                </StackPanel>
+            <StackPanel HorizontalAlignment="Left" Margin="0,0,0,8">
+                <TextBlock Text="Account" Style="{StaticResource PtjCaptionTextStyle}" />
+                <ComboBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Name" Width="220"
+                          ToolTip="{Binding SelectedAccount.Name}" AutomationProperties.Name="Dashboard account"
+                          Style="{StaticResource PtjComboBoxStyle}" />
+            </StackPanel>
+            <WrapPanel Margin="0,0,0,4">
                 <StackPanel Margin="0,0,12,8">
                     <TextBlock Text="Period" Style="{StaticResource PtjCaptionTextStyle}" />
                     <ComboBox ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" Width="130"
@@ -228,9 +237,9 @@
                                     </Style></StackPanel.Style>
                                     <TextBlock Text="{Binding Date}" Style="{StaticResource PtjCaptionTextStyle}" />
                                     <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap"
-                                               Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,6" Focusable="True"
+                                               Margin="0,6" Focusable="True"
                                                ToolTip="{Binding Explanation}" AutomationProperties.HelpText="{Binding Explanation}">
-                                        <TextBlock.Style><Style TargetType="TextBlock">
+                                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource DashboardCardValueStyle}">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
                                                 <Condition Binding="{Binding Ring}" Value="{x:Null}" />
