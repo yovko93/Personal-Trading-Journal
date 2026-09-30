@@ -78,13 +78,16 @@ public sealed class DashboardXamlTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement averages = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "AverageWinLossTemplate");
         XElement averageLayout = Assert.Single(averages.Elements(p + "Grid"));
-        Assert.Equal("64", (string?)averageLayout.Attribute("MinHeight"));
-        Assert.Equal(new[] { "86", "*" }, averageLayout.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
-        Assert.Contains(averageLayout.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "Avg Win / Avg Loss");
+        Assert.Equal(new[] { "Auto", "Auto", "Auto" }, averageLayout.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").Select(c => (string?)c.Attribute("Height")));
+        XElement barRow = Assert.Single(averageLayout.Elements(p + "Grid"), g => g.Attribute("Grid.Row") is null);
+        Assert.Equal(new[] { "*", "4*", "*" }, barRow.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
+        XElement comparison = Assert.Single(barRow.Elements(chart + "AverageComparisonBar"));
+        Assert.Equal("1", (string?)comparison.Attribute("Grid.Column"));
         XElement ratio = Assert.Single(averageLayout.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding RatioText}");
+        Assert.Equal("1", (string?)ratio.Attribute("Grid.Row"));
+        Assert.Equal("Center", (string?)ratio.Attribute("TextAlignment"));
         Assert.Contains("Win / Loss ratio", (string?)ratio.Attribute("AutomationProperties.Name"));
-        XElement right = Assert.Single(averageLayout.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Column") == "1");
-        XElement amountRow = Assert.Single(right.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Row") == "1");
+        XElement amountRow = Assert.Single(averageLayout.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Row") == "2");
         Assert.Equal(new[] { "*", "*" }, amountRow.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
         Assert.Equal("Right", (string?)Assert.Single(amountRow.Elements(p + "TextBlock"), t => (string?)t.Attribute("Grid.Column") == "1").Attribute("TextAlignment"));
         Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding WinText}" &&
@@ -92,12 +95,12 @@ public sealed class DashboardXamlTests
         Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding LossText}" &&
             (string?)t.Attribute("Foreground") == "{DynamicResource PtjDangerBrush}");
         Assert.Contains("{Binding RatioText", averages.ToString());
-        XElement comparison = Assert.Single(averages.Descendants(chart + "AverageComparisonBar"));
-        Assert.Null(comparison.Attribute("Grid.Row"));
         XElement cardWidthTrigger = Assert.Single(cards.Descendants(p + "DataTrigger"), t =>
-            (string?)t.Attribute("Binding") == "{Binding Label}" && (string?)t.Attribute("Value") == "Average Win / Average Loss" &&
+            (string?)t.Attribute("Binding") == "{Binding Label}" && (string?)t.Attribute("Value") == "Avg Win / Avg Loss" &&
             t.Elements(p + "Setter").Any(s => (string?)s.Attribute("Property") == "Width"));
         Assert.Equal("280", (string?)Assert.Single(cardWidthTrigger.Elements(p + "Setter")).Attribute("Value"));
+        Assert.Contains(cards.Descendants(p + "TextBlock"), t =>
+            (string?)t.Attribute("Text") == "{Binding Label}" && (string?)t.Attribute("Style") == "{StaticResource PtjSecondaryTextStyle}");
         Assert.Equal("{Binding}", (string?)comparison.Attribute("Value"));
         Assert.Equal("True", (string?)comparison.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)comparison.Attribute("AutomationProperties.Name"));

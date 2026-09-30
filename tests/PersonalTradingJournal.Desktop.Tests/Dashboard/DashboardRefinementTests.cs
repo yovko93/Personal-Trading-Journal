@@ -39,7 +39,7 @@ public sealed class DashboardRefinementTests
         Assert.Equal("0 wins", win.WinsText);
         Assert.Equal("0 losses", win.LossesText);
         Assert.Equal(0m, win.WinsShare + win.LossesShare + win.BreakEvenShare);
-        foreach (string label in new[] { "Profit Factor", "Average Win / Average Loss", "Best Day", "Worst Day" })
+        foreach (string label in new[] { "Profit Factor", "Avg Win / Avg Loss", "Best Day", "Worst Day" })
         {
             Assert.Equal("N/A", Card(vm.Selected, label).Value);
             Assert.Equal("", Card(vm.Selected, label).Date);

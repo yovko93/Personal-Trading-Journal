@@ -1,10 +1,14 @@
+using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
+using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Xml.Linq;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
@@ -14,6 +18,61 @@ namespace PersonalTradingJournal.Desktop.Tests.Dashboard;
 
 public sealed class DashboardRangeAndAverageTests
 {
+    [Fact]
+    public async Task RenderedAverageCardKeepsHeadingBarRatioAndAmountsInOrderAtNarrowWidth()
+    {
+        await OnSta(() =>
+        {
+            DirectoryInfo? repo = new(AppContext.BaseDirectory);
+            while (repo is not null && !File.Exists(System.IO.Path.Combine(repo.FullName, "PersonalTradingJournal.sln"))) repo = repo.Parent;
+            Assert.NotNull(repo);
+            XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+            XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+            var viewSource = XDocument.Load(System.IO.Path.Combine(repo.FullName,
+                "src/PersonalTradingJournal.Desktop/Views/Dashboard/DashboardView.xaml"));
+            var template = Assert.Single(viewSource.Descendants(p + "DataTemplate"), t =>
+                (string?)t.Attribute(x + "Key") == "AverageWinLossTemplate");
+            string gridXaml = Assert.Single(template.Elements(p + "Grid")).ToString(SaveOptions.DisableFormatting)
+                .Replace("clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard\"",
+                    "clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard;assembly=PersonalTradingJournal.Desktop\"", StringComparison.Ordinal);
+            var source = Assert.Single(DashboardMetricCalculator.Calculate([
+                DashboardViewModelTests.Fact(100m), DashboardViewModelTests.Fact(20m),
+                DashboardViewModelTests.Fact(-40m)]).Currencies);
+            DashboardCard averageCard = Assert.Single(new DashboardCurrencyPresentation(source).Cards,
+                c => c.Label == "Avg Win / Avg Loss");
+            foreach (var (theme, dpi) in new[] { ("Dark", 240), ("Light", 96) })
+            {
+                var card = new Border { Width = 280, Padding = new Thickness(16), Resources = Resources(theme) };
+                card.Resources.MergedDictionaries.Add((ResourceDictionary)System.Windows.Application.LoadComponent(
+                    new Uri("/PersonalTradingJournal.Desktop;component/Resources/Typography.xaml", UriKind.Relative)));
+                var heading = new TextBlock { Text = averageCard.Label,
+                    Style = (Style)card.Resources["PtjSecondaryTextStyle"] };
+                var content = (Grid)XamlReader.Parse(gridXaml);
+                content.DataContext = averageCard.Averages;
+                var stack = new StackPanel();
+                stack.Children.Add(heading);
+                stack.Children.Add(content);
+                card.Child = stack;
+                Draw(card, 280, 280, dpi);
+                var text = Descendants(card).OfType<TextBlock>().ToArray();
+                var ratio = Assert.Single(text, t => t.Text == "1.50" && t.ActualWidth > 0);
+                var win = Assert.Single(text, t => AutomationProperties.GetName(t).StartsWith("Average Win:", StringComparison.Ordinal));
+                var loss = Assert.Single(text, t => AutomationProperties.GetName(t).StartsWith("Average Loss:", StringComparison.Ordinal));
+                var bar = Assert.Single(Descendants(card).OfType<AverageComparisonBar>());
+                static Rect Bounds(FrameworkElement element, Border parent) =>
+                    element.TransformToAncestor(parent).TransformBounds(new Rect(element.RenderSize));
+                Rect headingBounds = Bounds(heading, card), barBounds = Bounds(bar, card), ratioBounds = Bounds(ratio, card);
+                Rect winBounds = Bounds(win, card), lossBounds = Bounds(loss, card);
+                Assert.True(headingBounds.Bottom < barBounds.Top);
+                Assert.True(barBounds.Bottom < ratioBounds.Top);
+                Assert.True(ratioBounds.Bottom < Math.Min(winBounds.Top, lossBounds.Top));
+                Assert.Equal(barBounds.Left + barBounds.Width / 2, ratioBounds.Left + ratioBounds.Width / 2, 1);
+                Assert.True(winBounds.Right <= lossBounds.Left);
+                Assert.True(lossBounds.Right <= card.ActualWidth);
+            }
+        });
+    }
+
     [Theory]
     [InlineData("2026-01-29", RangeDay.None)]
     [InlineData("2026-01-30", RangeDay.Start)]
@@ -81,7 +140,7 @@ public sealed class DashboardRangeAndAverageTests
             new[] { 100m, 20m, -40m, 0m }.Select(v => DashboardViewModelTests.Fact(v))).Currencies);
         var cards = new DashboardCurrencyPresentation(source).Cards;
         Assert.DoesNotContain(cards, c => c.Label is "Average Win" or "Average Loss");
-        var averages = Assert.Single(cards, c => c.Label == "Average Win / Average Loss").Averages!;
+        var averages = Assert.Single(cards, c => c.Label == "Avg Win / Avg Loss").Averages!;
         Assert.Equal(60m, averages.Win);
         Assert.Equal(40m, averages.LossMagnitude);
         Assert.Equal(1.5m, averages.Ratio);

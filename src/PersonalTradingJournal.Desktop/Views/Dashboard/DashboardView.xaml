@@ -62,27 +62,24 @@
             </Style.Triggers>
         </Style>
         <DataTemplate x:Key="AverageWinLossTemplate">
-            <Grid ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" MinHeight="64">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="86" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <StackPanel Margin="0,0,10,0">
-                    <TextBlock Text="Avg Win / Avg Loss" Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding RatioText}" FontSize="24" FontWeight="SemiBold" Margin="0,8,0,0"
-                               Foreground="{DynamicResource PtjTextPrimaryBrush}"
-                               AutomationProperties.Name="{Binding RatioText, StringFormat=Win / Loss ratio: {0}}" />
-                </StackPanel>
-                <Grid Grid.Column="1" Margin="0,4,0,0">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                    <dashboard:AverageComparisonBar Value="{Binding}" Height="10" Focusable="True"
+            <Grid ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" Margin="0,16,0,0">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="4*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <dashboard:AverageComparisonBar Grid.Column="1" Value="{Binding}" Height="10" Focusable="True"
                         WinBrush="{DynamicResource PtjSuccessBrush}" LossBrush="{DynamicResource PtjDangerBrush}"
                         NeutralBrush="{DynamicResource PtjTextMutedBrush}" AutomationProperties.Name="{Binding Description}" />
-                    <Grid Grid.Row="1" Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding WinText}" Foreground="{DynamicResource PtjSuccessBrush}" FontWeight="SemiBold"
-                                   TextWrapping="Wrap" AutomationProperties.Name="{Binding WinText, StringFormat=Average Win: {0}}" />
-                        <TextBlock Grid.Column="1" Text="{Binding LossText}" Foreground="{DynamicResource PtjDangerBrush}" FontWeight="SemiBold"
-                                   TextAlignment="Right" TextWrapping="Wrap"
-                                   AutomationProperties.Name="{Binding LossText, StringFormat=Average Loss: {0}}" />
-                    </Grid>
+                </Grid>
+                <TextBlock Grid.Row="1" Text="{Binding RatioText}" FontSize="24" FontWeight="SemiBold" Margin="0,10,0,0"
+                           TextAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                           AutomationProperties.Name="{Binding RatioText, StringFormat=Win / Loss ratio: {0}}" />
+                <Grid Grid.Row="2" Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding WinText}" Foreground="{DynamicResource PtjSuccessBrush}" FontWeight="SemiBold"
+                               TextWrapping="Wrap" AutomationProperties.Name="{Binding WinText, StringFormat=Average Win: {0}}" />
+                    <TextBlock Grid.Column="1" Text="{Binding LossText}" Foreground="{DynamicResource PtjDangerBrush}" FontWeight="SemiBold"
+                               TextAlignment="Right" TextWrapping="Wrap"
+                               AutomationProperties.Name="{Binding LossText, StringFormat=Average Loss: {0}}" />
                 </Grid>
             </Grid>
         </DataTemplate>
@@ -213,18 +210,12 @@
                                     AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Explanation}">
                                 <Border.Style><Style TargetType="Border" BasedOn="{StaticResource PtjCardStyle}">
                                     <Setter Property="Width" Value="230" />
-                                    <Style.Triggers><DataTrigger Binding="{Binding Label}" Value="Average Win / Average Loss">
+                                    <Style.Triggers><DataTrigger Binding="{Binding Label}" Value="Avg Win / Avg Loss">
                                         <Setter Property="Width" Value="280" />
                                     </DataTrigger></Style.Triggers>
                                 </Style></Border.Style>
                                 <StackPanel>
-                                    <TextBlock Text="{Binding Label}">
-                                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource PtjSecondaryTextStyle}">
-                                            <Style.Triggers><DataTrigger Binding="{Binding Label}" Value="Average Win / Average Loss">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger></Style.Triggers>
-                                        </Style></TextBlock.Style>
-                                    </TextBlock>
+                                    <TextBlock Text="{Binding Label}" Style="{StaticResource PtjSecondaryTextStyle}" />
                                     <TextBlock Text="{Binding Date}" Style="{StaticResource PtjCaptionTextStyle}" />
                                     <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold" TextWrapping="Wrap"
                                                Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,6" Focusable="True"

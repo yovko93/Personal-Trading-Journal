@@ -88,7 +88,7 @@ public sealed class DashboardCurrencyPresentation
             new("Net P&L", IsEmpty ? Money(0m, Currency) : Money(net!.Total, Currency), note, estimated),
             new("Win Rate", new WinRatePresentation(net).Value, note, estimated, Ring: new(net)),
             new("Profit Factor", new ProfitFactorPresentation(net, Currency).Value, $"{note} · {net?.ProfitFactor.Status}", estimated, Factor: new(net, Currency)),
-            new("Average Win / Average Loss", averages.RatioText, averages.Description, estimated, Averages: averages),
+            new("Avg Win / Avg Loss", averages.RatioText, averages.Description, estimated, Averages: averages),
             DayCard("Best Day", BestDay),
             DayCard("Worst Day", WorstDay),
             new("Total Trades", (source?.Metrics.ClosedTradeCount ?? 0).ToString(CultureInfo.CurrentCulture), "Fully closed Trades in this period and currency; excludes open and partially exited Trades."),
