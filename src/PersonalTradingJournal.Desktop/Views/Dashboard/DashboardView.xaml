@@ -51,17 +51,25 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
         <StackPanel>
-            <TextBlock Text="Closed-Trade performance · all Accounts and Instruments"
+            <TextBlock Text="Closed-Trade performance · all Instruments"
                        Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
             <WrapPanel Margin="0,12">
+                <StackPanel Margin="0,0,12,8">
+                    <TextBlock Text="Account" Style="{StaticResource PtjCaptionTextStyle}" />
+                    <ComboBox ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Name" Width="220"
+                              ToolTip="{Binding SelectedAccount.Name}" AutomationProperties.Name="Dashboard account"
+                              Style="{StaticResource PtjComboBoxStyle}" />
+                </StackPanel>
                 <StackPanel Margin="0,0,12,8">
                     <TextBlock Text="Period" Style="{StaticResource PtjCaptionTextStyle}" />
                     <ComboBox ItemsSource="{Binding Periods}" SelectedItem="{Binding Period}" Width="130"
                               AutomationProperties.Name="Dashboard period" Style="{StaticResource PtjComboBoxStyle}" />
                 </StackPanel>
                 <Button Content="Previous" Command="{Binding PreviousCommand}" Margin="0,16,8,8"
+                        ToolTip="Previous calendar period. Unavailable for All and Custom."
                         AutomationProperties.Name="Previous calendar period" Style="{StaticResource PtjButtonStyle}" />
                 <Button Content="Next" Command="{Binding NextCommand}" Margin="0,16,12,8"
+                        ToolTip="Next calendar period, up to the current period. Unavailable for All and Custom."
                         AutomationProperties.Name="Next calendar period" Style="{StaticResource PtjButtonStyle}" />
                 <StackPanel Margin="0,0,12,8">
                     <TextBlock Text="Currency" Style="{StaticResource PtjCaptionTextStyle}" />
@@ -71,14 +79,43 @@
                 <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,16,8,8" Style="{StaticResource PtjButtonStyle}" />
                 <Button Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,16,0,8" Style="{StaticResource PtjButtonStyle}" />
             </WrapPanel>
-            <TextBlock Text="{Binding PeriodLabel}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
+            <WrapPanel>
+                <StackPanel Margin="0,0,12,8">
+                    <Label Content="_Start date" Target="{Binding ElementName=RangeStart}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <DatePicker x:Name="RangeStart" SelectedDate="{Binding StartDate}" Width="160" SelectedDateFormat="Short"
+                                DateValidationError="OnDateValidationError" AutomationProperties.Name="Dashboard Start date"
+                                ToolTip="Inclusive New York closure date. Type a date or open the calendar with Alt+Down."
+                                Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
+                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,8">
+                    <Label Content="_End date" Target="{Binding ElementName=RangeEnd}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <DatePicker x:Name="RangeEnd" SelectedDate="{Binding EndDate}" Width="160" SelectedDateFormat="Short"
+                                DateValidationError="OnDateValidationError" AutomationProperties.Name="Dashboard End date"
+                                ToolTip="Inclusive New York closure date. Type a date or open the calendar with Alt+Down."
+                                Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
+                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
+                </StackPanel>
+                <Button Content="Apply range" Command="{Binding ApplyRangeCommand}" Margin="0,28,8,8" Style="{StaticResource PtjButtonStyle}" />
+            </WrapPanel>
+            <WrapPanel Margin="0,0,0,8">
+                <Button Content="Today" Command="{Binding TodayCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+                <Button Content="Last Week" Command="{Binding LastWeekCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
+                        ToolTip="The preceding complete Monday–Sunday week in New York." />
+                <Button Content="Last Month" Command="{Binding LastMonthCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
+                        ToolTip="The preceding complete calendar month in New York." />
+                <Button Content="All history" Command="{Binding AllHistoryCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+            </WrapPanel>
+            <TextBlock Text="{Binding RangeValidationMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="{Binding PeriodLabel, StringFormat=Applied range: {0}}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
             <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap"
                        AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
                        AutomationProperties.LiveSetting="Polite" />
             <ProgressBar IsIndeterminate="True" Height="4" Margin="0,8"
                          Visibility="{Binding IsLoading, Converter={StaticResource BoolVisibility}}" />
-            <TextBlock Text="No closed Trades in this period. Choose All or another period."
+            <TextBlock Text="No closed Trades in this account/date scope. Choose another account or range."
                        Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" Margin="0,16"
                        Visibility="{Binding IsEmpty, Converter={StaticResource BoolVisibility}}" />
             <StackPanel DataContext="{Binding Selected}">
@@ -176,7 +213,7 @@
             <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">
                 <StackPanel>
                     <TextBlock Text="Recent Trades" Style="{StaticResource PtjSectionTitleTextStyle}" />
-                    <TextBlock Text="Latest 10 · all periods and currencies · includes open Trades"
+                    <TextBlock Text="Latest 10 for selected account · all periods and currencies · includes open Trades"
                                Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" Margin="0,4,0,12" />
                     <TextBlock Text="No Trades yet." Style="{StaticResource PtjSecondaryTextStyle}"
                                Visibility="{Binding HasNoRecentTrades, Converter={StaticResource BoolVisibility}}" />

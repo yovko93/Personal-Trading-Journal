@@ -5,15 +5,24 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Application.Accounts;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
-public enum DashboardPeriod { All, Week, Month, Year }
+public enum DashboardPeriod { All, Week, Month, Year, Custom }
+public sealed record DashboardAccountOption(Guid? Id, string Name);
 
 public sealed class DashboardViewModel : ObservableObject
 {
     private readonly IDashboardAnalyticsReader _reader;
     private readonly ITradeListReader _tradeReader;
+    private readonly ITradingAccountReader _accountReader;
+    private static readonly DashboardAccountOption AllAccounts = new(null, "All accounts");
+    private DashboardAccountOption _selectedAccount = AllAccounts;
+    private IReadOnlyList<DashboardAccountOption> _accounts = [AllAccounts];
+    private bool _updatingAccounts, _rangeEdited;
+    private DateTime? _startDate, _endDate;
+    private DateOnly _customStart, _customEnd;
     private IReadOnlyList<TradeListItem> _recentTrades = [];
     private readonly TimeProvider _time;
     private readonly ILogger<DashboardViewModel> _logger;
@@ -27,18 +36,33 @@ public sealed class DashboardViewModel : ObservableObject
     private DashboardCurrencyPresentation? _selected;
     private IReadOnlyList<string> _currencies = [];
 
-    public DashboardViewModel(IDashboardAnalyticsReader reader, TimeProvider timeProvider, ITradeListReader tradeReader,
+    public DashboardViewModel(IDashboardAnalyticsReader reader, TimeProvider timeProvider, ITradeListReader tradeReader, ITradingAccountReader accountReader,
         ILogger<DashboardViewModel>? logger = null)
     {
         _reader = reader;
         _tradeReader = tradeReader;
+        _accountReader = accountReader;
         _time = timeProvider;
         _logger = logger ?? NullLogger<DashboardViewModel>.Instance;
         _anchor = Today;
+        _customStart = _customEnd = Today;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        PreviousCommand = new RelayCommand(() => Move(-1), () => Period != DashboardPeriod.All && _anchor.Year > 1);
-        NextCommand = new RelayCommand(() => Move(1), () => Period != DashboardPeriod.All && Start(_anchor) < Start(Today));
+        PreviousCommand = new RelayCommand(() => Move(-1), () => IsCalendarPeriod && _anchor.Year > 1);
+        NextCommand = new RelayCommand(() => Move(1), () => IsCalendarPeriod && Start(_anchor) < Start(Today));
         CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        ApplyRangeCommand = new RelayCommand(ApplyRange, () => ValidateRange() is null);
+        TodayCommand = new RelayCommand(() => ApplyDates(Today, Today));
+        LastWeekCommand = new RelayCommand(() =>
+        {
+            DateOnly first = DashboardMetricCalculator.GetWeekStartingMonday(Today).AddDays(-7);
+            ApplyDates(first, first.AddDays(6));
+        });
+        LastMonthCommand = new RelayCommand(() =>
+        {
+            DateOnly first = new DateOnly(Today.Year, Today.Month, 1).AddMonths(-1);
+            ApplyDates(first, first.AddMonths(1).AddDays(-1));
+        });
+        AllHistoryCommand = new RelayCommand(() => SelectPeriod(DashboardPeriod.All));
         ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(async item =>
         {
             if (item is null || OpenTradeAsync is null) return;
@@ -52,22 +76,44 @@ public sealed class DashboardViewModel : ObservableObject
     }
 
     public IReadOnlyList<DashboardPeriod> Periods { get; } = Enum.GetValues<DashboardPeriod>();
+    public IReadOnlyList<DashboardAccountOption> Accounts { get => _accounts; private set => SetProperty(ref _accounts, value); }
+    public DashboardAccountOption SelectedAccount
+    {
+        get => _selectedAccount;
+        set
+        {
+            // ItemsSource replacement can transiently clear a WPF selection. Only the explicit
+            // All accounts option clears the filter; null must never widen a selected scope.
+            if (_updatingAccounts || value is null || value.Id == _selectedAccount.Id) return;
+            SetProperty(ref _selectedAccount, value);
+            _ = RefreshAsync();
+        }
+    }
+    public DateTime? StartDate { get => _startDate; set { if (SetProperty(ref _startDate, value?.Date)) RangeEdited(); } }
+    public DateTime? EndDate { get => _endDate; set { if (SetProperty(ref _endDate, value?.Date)) RangeEdited(); } }
+    public string? RangeValidationMessage => _rangeEdited ? ValidateRange() : null;
+    public IRelayCommand ApplyRangeCommand { get; }
+    public IRelayCommand TodayCommand { get; }
+    public IRelayCommand LastWeekCommand { get; }
+    public IRelayCommand LastMonthCommand { get; }
+    public IRelayCommand AllHistoryCommand { get; }
+    private bool IsCalendarPeriod => Period is DashboardPeriod.Week or DashboardPeriod.Month or DashboardPeriod.Year;
     public DashboardPeriod Period
     {
         get => _period;
         set
         {
             if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
-            if (!SetProperty(ref _period, value)) return;
-            _anchor = Today;
-            UpdatePeriod();
-            _ = RefreshAsync();
+            if (_period != value) SelectPeriod(value);
         }
     }
     public string PeriodLabel => Period == DashboardPeriod.All ? "All history"
+        : Period == DashboardPeriod.Custom ? $"Custom: {_customStart:yyyy-MM-dd} – {_customEnd:yyyy-MM-dd}"
         : $"{Start(_anchor):yyyy-MM-dd} – {End(_anchor):yyyy-MM-dd}";
-    public DashboardAnalyticsQuery Query => Period == DashboardPeriod.All ? new()
-        : new(closedFromNewYork: Start(_anchor), closedThroughNewYork: End(_anchor));
+    public DashboardAnalyticsQuery Query => Period == DashboardPeriod.All ? new(tradingAccountId: SelectedAccount.Id)
+        : new(tradingAccountId: SelectedAccount.Id,
+            closedFromNewYork: Period == DashboardPeriod.Custom ? _customStart : Start(_anchor),
+            closedThroughNewYork: Period == DashboardPeriod.Custom ? _customEnd : End(_anchor));
     public IReadOnlyList<string> Currencies { get => _currencies; private set => SetProperty(ref _currencies, value); }
     public string? SelectedCurrency
     {
@@ -94,6 +140,12 @@ public sealed class DashboardViewModel : ObservableObject
     public void OnDataCommitted() { if (_active) _ = RefreshAsync(); }
     public Task RefreshAsync() => LoadTask = LoadAsync();
 
+    public void RejectInvalidDate(bool isStart)
+    {
+        if (isStart) StartDate = null; else EndDate = null;
+        RangeEdited();
+    }
+
     private async Task LoadAsync()
     {
         long generation = ++_generation;
@@ -112,19 +164,29 @@ public sealed class DashboardViewModel : ObservableObject
         try
         {
             DashboardAnalyticsQuery query = Query;
+            DashboardAccountOption requestedAccount = SelectedAccount;
             // SQLite's async provider and aggregation can do substantial synchronous work.
             // Keep it off the dispatcher; resume here to publish UI state on the captured context.
             var result = await Task.Run(async () =>
             {
+                IReadOnlyList<AccountListItem> accounts = await _accountReader.GetAllAsync(cancellation.Token);
+                if (query.TradingAccountId is { } id && !accounts.Any(a => a.Id == id))
+                    return (accounts, analytics: (DashboardAnalyticsSnapshot?)null, recent: (TradeListPage?)null);
                 DashboardAnalyticsSnapshot analytics = await _reader.GetAsync(query, cancellation.Token);
-                // Independent of analytics period/currency; includes open Trades. Paging/order is in SQL.
+                // Account-scoped but independent of period/currency; filtering precedes SQL paging.
                 TradeListPage recent = await _tradeReader.GetPageAsync(
-                    new(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending), cancellation.Token);
-                return (analytics, recent);
+                    new(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending, query.TradingAccountId), cancellation.Token);
+                return (accounts, analytics: (DashboardAnalyticsSnapshot?)analytics, recent: (TradeListPage?)recent);
             }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested) return;
-            DashboardAnalyticsSnapshot snapshot = result.analytics;
-            RecentTrades = result.recent.Items;
+            PublishAccounts(result.accounts, requestedAccount);
+            if (result.analytics is not { } snapshot)
+            {
+                ErrorMessage = "The selected account is no longer available. Choose another account or All accounts.";
+                StatusMessage = null;
+                return;
+            }
+            RecentTrades = result.recent!.Items;
             _snapshot = snapshot;
             Currencies = snapshot.Currencies.Select(c => c.Currency).ToArray();
             _selectedCurrency = preferredCurrency is not null && Currencies.Contains(preferredCurrency)
@@ -160,6 +222,66 @@ public sealed class DashboardViewModel : ObservableObject
         CurrencyTradeMetrics? currency = _snapshot?.Currencies.FirstOrDefault(c => c.Currency == SelectedCurrency);
         Selected = currency is null ? null : new(currency, Query.ClosedFromNewYork);
     }
+    private void PublishAccounts(IReadOnlyList<AccountListItem> accounts, DashboardAccountOption requested)
+    {
+        var options = accounts.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.Id)
+            .Select(a => new DashboardAccountOption(a.Id, a.Name + (a.IsActive ? "" : " (inactive)"))).Prepend(AllAccounts).ToList();
+        DashboardAccountOption? selected = options.FirstOrDefault(a => a.Id == requested.Id);
+        if (selected is null)
+        {
+            selected = new(requested.Id, requested.Name.Replace(" (unavailable)", "", StringComparison.Ordinal) + " (unavailable)");
+            options.Add(selected);
+        }
+        _updatingAccounts = true;
+        try
+        {
+            Accounts = options;
+            _selectedAccount = selected;
+            OnPropertyChanged(nameof(SelectedAccount));
+        }
+        finally { _updatingAccounts = false; }
+    }
+    private string? ValidateRange()
+    {
+        if (StartDate is not { } first || EndDate is not { } last) return "Choose both a Start date and an End date, then Apply range.";
+        if (first > last) return "Start date must be on or before End date.";
+        try { _ = new DashboardAnalyticsQuery(closedFromNewYork: DateOnly.FromDateTime(first), closedThroughNewYork: DateOnly.FromDateTime(last)); }
+        catch (ArgumentException) { return "Choose a supported date range ending before 9999-12-31."; }
+        return null;
+    }
+    private void RangeEdited()
+    {
+        _rangeEdited = true;
+        OnPropertyChanged(nameof(RangeValidationMessage));
+        ApplyRangeCommand.NotifyCanExecuteChanged();
+    }
+    private void ApplyRange()
+    {
+        RangeEdited();
+        if (ValidateRange() is null) ApplyDates(DateOnly.FromDateTime(StartDate!.Value), DateOnly.FromDateTime(EndDate!.Value));
+    }
+    private void ApplyDates(DateOnly first, DateOnly last)
+    {
+        _customStart = first; _customEnd = last;
+        SelectPeriod(DashboardPeriod.Custom);
+    }
+    private void SelectPeriod(DashboardPeriod period)
+    {
+        _period = period;
+        _anchor = Today;
+        OnPropertyChanged(nameof(Period));
+        SyncDateInputs();
+        UpdatePeriod();
+        _ = RefreshAsync();
+    }
+    private void SyncDateInputs()
+    {
+        _startDate = Period == DashboardPeriod.All ? null : (Period == DashboardPeriod.Custom ? _customStart : Start(_anchor)).ToDateTime(TimeOnly.MinValue);
+        _endDate = Period == DashboardPeriod.All ? null : (Period == DashboardPeriod.Custom ? _customEnd : End(_anchor)).ToDateTime(TimeOnly.MinValue);
+        _rangeEdited = false;
+        OnPropertyChanged(nameof(StartDate)); OnPropertyChanged(nameof(EndDate)); OnPropertyChanged(nameof(RangeValidationMessage));
+        ApplyRangeCommand.NotifyCanExecuteChanged();
+    }
     private void Cancel()
     {
         ++_generation;
@@ -194,6 +316,7 @@ public sealed class DashboardViewModel : ObservableObject
             DashboardPeriod.Year => Start(_anchor).AddYears(direction),
             _ => _anchor
         };
+        SyncDateInputs();
         UpdatePeriod();
         _ = RefreshAsync();
     }

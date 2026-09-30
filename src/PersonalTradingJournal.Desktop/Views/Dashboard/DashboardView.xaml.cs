@@ -20,4 +20,11 @@ public partial class DashboardView : UserControl
     {
         if (DataContext is DashboardViewModel viewModel) viewModel.Deactivate();
     }
+
+    private void OnDateValidationError(object? sender, DatePickerDateValidationErrorEventArgs e)
+    {
+        e.ThrowException = false;
+        if (DataContext is DashboardViewModel viewModel)
+            viewModel.RejectInvalidDate(ReferenceEquals(sender, RangeStart));
+    }
 }

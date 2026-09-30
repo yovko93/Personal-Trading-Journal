@@ -41,6 +41,9 @@ public sealed class TradeListReader : ITradeListReader
                 InstrumentSymbol = instrumentRecord.Symbol,
             };
 
+        if (query.TradingAccountId is { } accountId)
+            rows = rows.Where(row => row.Trade.TradingAccountId == accountId);
+
         int totalCount = await rows.CountAsync(cancellationToken);
 
         var orderedRows = (query.SortColumn, query.SortDirection) switch

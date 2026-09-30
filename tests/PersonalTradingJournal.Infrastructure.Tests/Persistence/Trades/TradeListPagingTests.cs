@@ -14,6 +14,32 @@ public sealed class TradeListPagingTests
         new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task AccountFilteringPrecedesCountAndPagingAndIncludesInactiveAccountsAndOpenTrades()
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        var (archive, instrument) = await PersistReferencesAsync(database, "Archive", "ARCH");
+        var (other, _) = await PersistReferencesAsync(database, "Other", "OTHER", "2");
+        archive.Deactivate(CreatedAtUtc.AddHours(1));
+        await database.ServiceProvider.GetRequiredService<ITradingAccountStore>().UpdateAsync(archive);
+        var expected = new List<Guid>();
+        for (int i = 0; i < 12; i++)
+        {
+            Guid id = Guid.NewGuid();
+            expected.Insert(0, id);
+            await PersistTradeAsync(database, OpenTrade(archive.Id, instrument.Id, id, CreatedAtUtc.AddMinutes(i), 1m, 100m));
+            await PersistTradeAsync(database, OpenTrade(other.Id, instrument.Id, Guid.NewGuid(), CreatedAtUtc.AddDays(1).AddMinutes(i), 1m, 100m));
+        }
+        ITradeListReader reader = GetReader(database);
+        var page = await reader.GetPageAsync(new(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending, archive.Id));
+        Assert.Equal(12, page.TotalCount);
+        Assert.Equal(expected.Take(10), page.Items.Select(t => t.Id));
+        Assert.All(page.Items, t => { Assert.Equal(archive.Id, t.TradingAccountId); Assert.Equal(TradeStatus.Open, t.Status); });
+        var missing = await reader.GetPageAsync(new(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending, Guid.NewGuid()));
+        Assert.Empty(missing.Items);
+        Assert.Equal(0, missing.TotalCount);
+    }
+
+    [Fact]
     public async Task GetPageAsyncPaginatesAllTradesWithoutDuplicates()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();

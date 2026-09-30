@@ -5,6 +5,15 @@ namespace PersonalTradingJournal.Application.Tests.Trades;
 
 public sealed class TradeListQueryTests
 {
+    [Fact]
+    public void AccountScopeIsOptionalExplicitAndRejectsEmptyIdentity()
+    {
+        Guid account = Guid.NewGuid();
+        Assert.Null(new TradeListQuery(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending).TradingAccountId);
+        Assert.Equal(account, new TradeListQuery(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending, account).TradingAccountId);
+        Assert.Equal("tradingAccountId", Assert.Throws<ArgumentException>(() =>
+            new TradeListQuery(1, 10, TradeListSortColumn.OpenedAtUtc, TradeListSortDirection.Descending, Guid.Empty)).ParamName);
+    }
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

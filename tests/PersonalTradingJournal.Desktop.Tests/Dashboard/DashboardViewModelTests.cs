@@ -52,7 +52,7 @@ public sealed class DashboardViewModelTests
             null, null, null, null, "EUR", 2m);
         recent.EnqueueResult([open]);
         recent.EnqueueResult([open]);
-        var vm = new DashboardViewModel(Reader(Fact(20m)), Clock("2026-09-29T12:00:00Z"), recent);
+        var vm = new DashboardViewModel(Reader(Fact(20m)), Clock("2026-09-29T12:00:00Z"), recent, new FakeTradingAccountReader());
         PersonalTradingJournal.Application.Trades.TradeListItem? viewed = null;
         vm.OpenTradeAsync = item => { viewed = item; return Task.CompletedTask; };
         await vm.RefreshAsync();
@@ -76,7 +76,7 @@ public sealed class DashboardViewModelTests
     public async Task AllIsDefaultAndUsesCompleteHistoryNotRecentTen()
     {
         var reader = Reader(Enumerable.Range(0, 121).Select(_ => Fact(1m)).ToArray());
-        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader());
+        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader());
         await vm.ActivateAsync();
         Assert.Equal(DashboardPeriod.All, vm.Period);
         Assert.Null(reader.Queries[0].ClosedFromUtc);
@@ -99,7 +99,7 @@ public sealed class DashboardViewModelTests
             Guid.NewGuid(), "NEW", TradeDirection.Long, TradeStatus.Open, DateTimeOffset.UtcNow, null, 1m, 10m,
             null, null, null, null, "USD", 1m);
         recent.EnqueueResult([row]);
-        var vm = new DashboardViewModel(Reader(), Clock("2026-09-29T12:00:00Z"), recent);
+        var vm = new DashboardViewModel(Reader(), Clock("2026-09-29T12:00:00Z"), recent, new FakeTradingAccountReader());
         Task before = vm.ActivateAsync();
         await started.Task;
         vm.OnDataCommitted();
@@ -117,7 +117,7 @@ public sealed class DashboardViewModelTests
     [InlineData(DashboardPeriod.Year, "2026-01-01T03:00:00Z", "2025-01-01", "2025-12-31", 8760)]
     public async Task CurrentPeriodsUseNewYorkCalendarAndDst(DashboardPeriod period, string now, string first, string last, int hours)
     {
-        var vm = new DashboardViewModel(Reader(), Clock(now), new FakeTradeListReader()) { Period = period };
+        var vm = new DashboardViewModel(Reader(), Clock(now), new FakeTradeListReader(), new FakeTradingAccountReader()) { Period = period };
         await vm.LoadTask;
         Assert.Equal(DateOnly.Parse(first), vm.Query.ClosedFromNewYork);
         Assert.Equal(DateOnly.Parse(last), vm.Query.ClosedThroughNewYork);
@@ -133,7 +133,7 @@ public sealed class DashboardViewModelTests
     [InlineData(DashboardPeriod.Year, "2026-01-01", "2025-01-01")]
     public async Task PreviousNextCrossYearsAndSelectingAnotherPeriodResetsToCurrent(DashboardPeriod period, string current, string previous)
     {
-        var vm = new DashboardViewModel(Reader(), Clock("2026-01-02T12:00:00Z"), new FakeTradeListReader()) { Period = period };
+        var vm = new DashboardViewModel(Reader(), Clock("2026-01-02T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader()) { Period = period };
         await vm.LoadTask;
         Assert.Equal(DateOnly.Parse(current), vm.Query.ClosedFromNewYork);
         vm.PreviousCommand.Execute(null);
@@ -155,7 +155,7 @@ public sealed class DashboardViewModelTests
     [Fact]
     public async Task CurrencySelectionAppliesToCardsChartsAndSetups()
     {
-        var vm = new DashboardViewModel(Reader(Fact(-285m, null), Fact(0m) with { Currency = "EUR" }), Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader());
+        var vm = new DashboardViewModel(Reader(Fact(-285m, null), Fact(0m) with { Currency = "EUR" }), Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader());
         await vm.ActivateAsync();
         Assert.Equal(new[] { "EUR", "USD" }, vm.Currencies);
         vm.SelectedCurrency = "USD";
@@ -190,7 +190,7 @@ public sealed class DashboardViewModelTests
     public async Task EmptyErrorCancellationAndRecoveryDoNotRetainOldResults()
     {
         var reader = Reader(Fact(10m));
-        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader());
+        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader());
         await vm.RefreshAsync();
         reader.Read = (_, _) => throw new InvalidOperationException("sensitive internal details");
         await vm.RefreshAsync();
@@ -218,7 +218,7 @@ public sealed class DashboardViewModelTests
         var old = new TaskCompletionSource<DashboardAnalyticsSnapshot>();
         var started = new TaskCompletionSource();
         var reader = new FakeDashboardAnalyticsReader { Read = (_, _) => { started.SetResult(); return old.Task; } };
-        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader());
+        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader());
         Task before = vm.ActivateAsync();
         await started.Task;
         reader.Read = (_, _) => Task.FromResult(DashboardMetricCalculator.Calculate([Fact(20m)]));
@@ -240,7 +240,7 @@ public sealed class DashboardViewModelTests
         var old = new TaskCompletionSource<DashboardAnalyticsSnapshot>();
         var started = new TaskCompletionSource();
         var reader = new FakeDashboardAnalyticsReader { Read = (_, _) => { started.SetResult(); return old.Task; } };
-        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader());
+        var vm = new DashboardViewModel(reader, Clock("2026-09-29T12:00:00Z"), new FakeTradeListReader(), new FakeTradingAccountReader());
         Task before = vm.ActivateAsync();
         await started.Task;
         reader.Read = (_, _) => Task.FromResult(DashboardMetricCalculator.Calculate([]));

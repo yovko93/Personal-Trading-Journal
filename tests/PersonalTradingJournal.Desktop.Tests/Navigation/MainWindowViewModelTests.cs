@@ -1004,7 +1004,7 @@ public sealed class MainWindowViewModelTests
         var tradeScreenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
         var dashboardReader = new FakeDashboardAnalyticsReader();
-        var dashboard = new DashboardViewModel(dashboardReader, TimeProvider.System, new FakeTradeListReader());
+        var dashboard = new DashboardViewModel(dashboardReader, TimeProvider.System, new FakeTradeListReader(), new FakeTradingAccountReader());
         var themeService = new FakeThemeService(preferredTheme, effectiveTheme);
         var settingsStore = new FakeDesktopSettingsStore();
         var settings = new SettingsViewModel(

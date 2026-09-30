@@ -23,6 +23,20 @@ public sealed class DashboardXamlTests
         Assert.Contains("{Binding NextCommand}", xaml);
         Assert.Contains("{Binding CancelCommand}", xaml);
         Assert.Contains("{Binding SelectedCurrency}", xaml);
+        XElement account = Assert.Single(view.Descendants(p + "ComboBox"), e => (string?)e.Attribute("ItemsSource") == "{Binding Accounts}");
+        Assert.Equal("{Binding SelectedAccount}", (string?)account.Attribute("SelectedItem"));
+        Assert.Equal("Name", (string?)account.Attribute("DisplayMemberPath"));
+        Assert.Equal("Dashboard account", (string?)account.Attribute("AutomationProperties.Name"));
+        Assert.Equal(new[] { "{Binding StartDate}", "{Binding EndDate}" }, view.Descendants(p + "DatePicker").Select(e => (string?)e.Attribute("SelectedDate")));
+        Assert.All(view.Descendants(p + "DatePicker"), e =>
+        {
+            Assert.NotNull(e.Attribute("AutomationProperties.Name"));
+            Assert.Equal("OnDateValidationError", (string?)e.Attribute("DateValidationError"));
+        });
+        foreach (string command in new[] { "ApplyRange", "Today", "LastWeek", "LastMonth", "AllHistory" })
+            Assert.Contains(view.Descendants(p + "Button"), e => (string?)e.Attribute("Command") == $"{{Binding {command}Command}}");
+        Assert.Contains("Applied range:", xaml);
+        Assert.Contains("{Binding RangeValidationMessage}", xaml);
         XElement selected = Assert.Single(view.Descendants(p + "StackPanel"), e => (string?)e.Attribute("DataContext") == "{Binding Selected}");
         Assert.Equal(2, selected.Descendants(chart + "PnlChart").Count());
         Assert.All(selected.Descendants(chart + "PnlChart"), c =>
