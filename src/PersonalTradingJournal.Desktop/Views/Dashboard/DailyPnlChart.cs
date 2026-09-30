@@ -177,6 +177,10 @@ public sealed class DailyPnlChart : UserControl
         tip.SetResourceReference(Control.BackgroundProperty, "PtjSurfaceElevatedBrush");
         tip.SetResourceReference(Control.ForegroundProperty, "PtjTextPrimaryBrush");
         target.ToolTip = tip;
+        // WPF's normal initial delay is noticeable on a dense chart. The tooltip is already
+        // built from this row, so hovering only needs to open the existing instance.
+        ToolTipService.SetInitialShowDelay(target, 100);
+        ToolTipService.SetBetweenShowDelay(target, 2000);
         target.GotKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(1); target.SetResourceReference(Border.BorderBrushProperty, "PtjAccentBrush"); tip.IsOpen = true; };
         target.LostKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(0); tip.IsOpen = false; };
         if (row.Value is { } value)
@@ -201,7 +205,7 @@ public sealed class DailyPnlChart : UserControl
         string amount = row.Value is { } value
             ? $"{(value > 0m ? "+" : "")}{value.ToString("0.00##########################", CultureInfo.CurrentCulture)} {row.Currency}".TrimEnd()
             : "Unavailable";
-        return $"Day Profit\nDate: {row.Date:yyyy-MM-dd}\nProfit: {amount}";
+        return $"Day Profit\nDate: {row.Date:yyyy-MM-dd}\nTrades Count: {row.TradeCount.ToString(CultureInfo.CurrentCulture)}\nProfit: {amount}";
     }
 
     private TextBlock AddText(Canvas canvas, string text, double x, double y, string tag)

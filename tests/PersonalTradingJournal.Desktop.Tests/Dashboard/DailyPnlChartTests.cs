@@ -25,7 +25,7 @@ public sealed class DailyPnlChartTests
         await OnSta(() =>
         {
             DailyPnlChart chart = Chart(theme, 520, 260,
-                Row(12.345m, 1), Row(-7m, 2), Row(0m, 3), Row(null, 4));
+                Row(12.345m, 1, 2), Row(-7m, 2, 3), Row(0m, 3, 4), Row(null, 4, 5));
             Draw(chart, 520, 260, dpi);
             var targets = Targets(chart);
             Assert.Equal(4, targets.Length);
@@ -39,11 +39,13 @@ public sealed class DailyPnlChartTests
                 Assert.NotNull(VisualTreeHelper.HitTest(target, new Point(target.ActualWidth / 2, target.ActualHeight / 2)));
                 Assert.Equal(((ToolTip)target.ToolTip).Content, AutomationProperties.GetName(target));
                 Assert.Contains("Trades", AutomationProperties.GetHelpText(target));
+                Assert.Equal(100, ToolTipService.GetInitialShowDelay(target));
+                Assert.Equal(2000, ToolTipService.GetBetweenShowDelay(target));
             });
-            Assert.Equal("Day Profit\nDate: 2026-09-01\nProfit: +12.345 USD", ((ToolTip)targets[0].ToolTip).Content);
-            Assert.Equal("Day Profit\nDate: 2026-09-02\nProfit: -7.00 USD", ((ToolTip)targets[1].ToolTip).Content);
-            Assert.Equal("Day Profit\nDate: 2026-09-03\nProfit: 0.00 USD", ((ToolTip)targets[2].ToolTip).Content);
-            Assert.Contains("Unavailable", (string)((ToolTip)targets[3].ToolTip).Content);
+            Assert.Equal("Day Profit\nDate: 2026-09-01\nTrades Count: 2\nProfit: +12.345 USD", ((ToolTip)targets[0].ToolTip).Content);
+            Assert.Equal("Day Profit\nDate: 2026-09-02\nTrades Count: 3\nProfit: -7.00 USD", ((ToolTip)targets[1].ToolTip).Content);
+            Assert.Equal("Day Profit\nDate: 2026-09-03\nTrades Count: 4\nProfit: 0.00 USD", ((ToolTip)targets[2].ToolTip).Content);
+            Assert.Equal("Day Profit\nDate: 2026-09-04\nTrades Count: 5\nProfit: Unavailable", ((ToolTip)targets[3].ToolTip).Content);
 
             var lines = Descendants(chart).OfType<Line>().ToArray();
             var zero = Assert.Single(lines, line => (string?)line.Tag == "ZeroBaseline");
@@ -130,6 +132,28 @@ public sealed class DailyPnlChartTests
         });
     }
 
+    [Fact]
+    public async Task TooltipUsesTheSameFilteredDailyCountAndAmountAsItsBar()
+    {
+        await OnSta(() =>
+        {
+            var metrics = DashboardMetricCalculator.Calculate([
+                DashboardViewModelTests.Fact(12m), DashboardViewModelTests.Fact(-12m),
+                DashboardViewModelTests.Fact(8m, day: 2)]);
+            var presentation = new DashboardCurrencyPresentation(Assert.Single(metrics.Currencies));
+            DailyPnlChart chart = Chart("Light", 400, 260, presentation.DailyPnl.ToArray());
+            Draw(chart, 400, 260, 96);
+            Border[] targets = Targets(chart);
+            Assert.Equal(2, targets.Length);
+            Assert.Equal(2, ((DashboardChartRow)targets[0].Tag).TradeCount);
+            Assert.Equal(0m, ((DashboardChartRow)targets[0].Tag).Value);
+            Assert.Equal("Day Profit\nDate: 2026-09-01\nTrades Count: 2\nProfit: 0.00 USD",
+                ((ToolTip)targets[0].ToolTip).Content);
+            Assert.Equal("Day Profit\nDate: 2026-09-02\nTrades Count: 1\nProfit: +8.00 USD",
+                ((ToolTip)targets[1].ToolTip).Content);
+        });
+    }
+
     private static DailyPnlChart Chart(string theme, int width, int height, params DashboardChartRow[] rows)
     {
         var resources = (ResourceDictionary)XamlReader.Parse(File.ReadAllText(System.IO.Path.Combine(Root(),
@@ -142,8 +166,8 @@ public sealed class DailyPnlChartTests
         return chart;
     }
 
-    private static DashboardChartRow Row(decimal? value, int day) =>
-        new(new DateOnly(2026, 9, day), value, false, "USD", "Complete", 1);
+    private static DashboardChartRow Row(decimal? value, int day, int tradeCount = 1) =>
+        new(new DateOnly(2026, 9, day), value, false, "USD", "Complete", tradeCount);
     private static Border[] Targets(DailyPnlChart chart) => Descendants(chart).OfType<Border>()
         .Where(border => border.Tag is DashboardChartRow).ToArray();
     private static Color Color(Brush? brush) => Assert.IsType<SolidColorBrush>(brush).Color;

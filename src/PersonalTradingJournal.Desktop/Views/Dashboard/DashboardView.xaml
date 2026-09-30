@@ -285,14 +285,23 @@
                 </Border>
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">
                     <StackPanel>
-                        <TextBlock Text="Daily P&amp;L" Style="{StaticResource PtjSectionTitleTextStyle}" />
-                        <TextBlock Text="Effective Net by New York closure date · empty dates omitted; unavailable values are gaps."
-                                   Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding CoverageNote}" Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Daily P&amp;L" Style="{StaticResource PtjSectionTitleTextStyle}" VerticalAlignment="Center" />
+                            <Button Content="?" Margin="8,0,0,0" Width="22" Height="22" MinHeight="22" Padding="0" Focusable="True"
+                                    FontSize="12" Style="{StaticResource PtjIconButtonStyle}"
+                                    AutomationProperties.Name="About Daily P&amp;L"
+                                    AutomationProperties.HelpText="The overall net profit and loss realized per each trading day."
+                                    GotKeyboardFocus="OnDailyHelpGotKeyboardFocus" LostKeyboardFocus="OnDailyHelpLostKeyboardFocus">
+                                <Button.ToolTip>
+                                    <ToolTip Content="The overall net profit and loss realized per each trading day." />
+                                </Button.ToolTip>
+                            </Button>
+                        </StackPanel>
                         <dashboard:DailyPnlChart Points="{Binding DailyPnl}" Height="260"
                                                  Foreground="{DynamicResource PtjTextSecondaryBrush}"
                                                  PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
-                                                 AutomationProperties.Name="Daily P&amp;L chart. Tab through days for exact New York dates, values and coverage." />
+                                                 AutomationProperties.Name="Daily P&amp;L chart. Effective Net by New York closure date; empty dates omitted and unavailable values shown as gaps. Tab through days for exact dates, Trade counts and values."
+                                                 AutomationProperties.HelpText="{Binding CoverageNote}" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">

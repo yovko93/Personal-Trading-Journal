@@ -30,4 +30,14 @@ public partial class DashboardView : UserControl
             DateRangeControl.Focus();
         }
     }
+
+    private void OnDailyHelpGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is Button { ToolTip: ToolTip tip }) tip.IsOpen = true;
+    }
+
+    private void OnDailyHelpLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        if (sender is Button { ToolTip: ToolTip tip }) tip.IsOpen = false;
+    }
 }

@@ -70,6 +70,19 @@ public sealed class DashboardXamlTests
         Assert.Equal("{Binding PeriodStart}", (string?)cumulativeChart.Attribute("StartDate"));
         XElement dailyChart = Assert.Single(selected.Descendants(chart + "DailyPnlChart"));
         Assert.Equal("{Binding DailyPnl}", (string?)dailyChart.Attribute("Points"));
+        XElement dailySection = Assert.IsType<XElement>(dailyChart.Parent);
+        Assert.Equal(new[] { p + "StackPanel", chart + "DailyPnlChart" }, dailySection.Elements().Select(e => e.Name));
+        XElement dailyHeader = Assert.Single(dailySection.Elements(p + "StackPanel"));
+        Assert.Equal("Daily P&L", (string?)Assert.Single(dailyHeader.Elements(p + "TextBlock")).Attribute("Text"));
+        XElement dailyHelp = Assert.Single(dailyHeader.Elements(p + "Button"));
+        Assert.Equal("?", (string?)dailyHelp.Attribute("Content"));
+        Assert.Equal("True", (string?)dailyHelp.Attribute("Focusable"));
+        const string dailyHelpText = "The overall net profit and loss realized per each trading day.";
+        Assert.Equal(dailyHelpText, (string?)dailyHelp.Element(p + "Button.ToolTip")?.Element(p + "ToolTip")?.Attribute("Content"));
+        Assert.Equal(dailyHelpText, (string?)dailyHelp.Attribute("AutomationProperties.HelpText"));
+        Assert.NotNull(dailyHelp.Attribute("GotKeyboardFocus"));
+        Assert.Equal("{Binding CoverageNote}", (string?)dailyChart.Attribute("AutomationProperties.HelpText"));
+        Assert.Empty(dailySection.Elements(p + "TextBlock"));
         Assert.DoesNotContain("Show daily values", xaml);
         foreach (XElement c in new[] { cumulativeChart, dailyChart })
         {
