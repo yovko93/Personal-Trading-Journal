@@ -35,7 +35,7 @@ public sealed class DashboardViewModelTests
                 : DashboardMetricCalculator.Calculate(facts).Currencies[0].Metrics.EffectiveNet;
             var unavailable = new WinRatePresentation(metrics);
             Assert.False(unavailable.IsAvailable);
-            Assert.Equal("—", unavailable.Value);
+            Assert.Equal(facts.Length == 0 ? "0%" : "N/A", unavailable.Value);
             Assert.Equal(0m, unavailable.WinsShare + unavailable.LossesShare + unavailable.BreakEvenShare);
         }
         var zero = new WinRatePresentation(DashboardMetricCalculator.Calculate([Fact(0m)]).Currencies[0].Metrics.EffectiveNet);
@@ -83,7 +83,7 @@ public sealed class DashboardViewModelTests
         Assert.Null(reader.Queries[0].ClosedBeforeUtc);
         Assert.False(vm.NextCommand.CanExecute(null));
         Assert.False(vm.PreviousCommand.CanExecute(null));
-        Assert.Equal(121m, vm.Selected!.Source.Metrics.Net.Total);
+        Assert.Equal(121m, vm.Selected!.Source!.Metrics.Net.Total);
         Assert.Equal("121", vm.Selected.Cards.Single(c => c.Label == "Total Trades").Value);
         Assert.Empty(vm.RecentTrades); // Never sourced from the analytics subset.
     }
@@ -159,14 +159,14 @@ public sealed class DashboardViewModelTests
         await vm.ActivateAsync();
         Assert.Equal(new[] { "EUR", "USD" }, vm.Currencies);
         vm.SelectedCurrency = "USD";
-        Assert.True(vm.Selected!.Source.Metrics.EffectiveNet.IsEstimated);
+        Assert.True(vm.Selected!.Source!.Metrics.EffectiveNet.IsEstimated);
         Assert.Contains("Estimated", vm.Selected.CoverageNote);
         Assert.Equal(-285m, Assert.Single(vm.Selected.DailyPnl).Value);
         Assert.True(vm.Selected.Cards.Single(c => c.Label == "Net P&L").IsEstimated);
         Assert.Contains("Estimated", Assert.Single(vm.Selected.Setups).Summary);
-        Assert.Null(vm.Selected.Source.Metrics.Net.Total);
+        Assert.Null(vm.Selected.Source!.Metrics.Net.Total);
         vm.SelectedCurrency = "EUR";
-        Assert.False(vm.Selected!.Source.Metrics.EffectiveNet.IsEstimated);
+        Assert.False(vm.Selected!.Source!.Metrics.EffectiveNet.IsEstimated);
         Assert.Equal(0m, Assert.Single(vm.Selected.CumulativePnl).Value);
         await vm.RefreshAsync();
         Assert.Equal("EUR", vm.SelectedCurrency);
@@ -226,7 +226,7 @@ public sealed class DashboardViewModelTests
         await vm.LoadTask;
         old.SetResult(DashboardMetricCalculator.Calculate([Fact(1m)]));
         await before;
-        Assert.Equal(20m, vm.Selected!.Source.Metrics.Net.Total);
+        Assert.Equal(20m, vm.Selected!.Source!.Metrics.Net.Total);
         vm.Deactivate();
         vm.OnDataCommitted();
         Assert.Equal(2, reader.Queries.Count);
@@ -249,7 +249,8 @@ public sealed class DashboardViewModelTests
         old.SetResult(DashboardMetricCalculator.Calculate([Fact(1m)]));
         await before;
         Assert.True(vm.IsEmpty);
-        Assert.Null(vm.Selected);
+        Assert.True(vm.Selected!.IsEmpty);
+        Assert.Null(vm.Selected.Source);
         Assert.Equal(DashboardPeriod.Month, vm.Period);
     }
 

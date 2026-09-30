@@ -62,15 +62,15 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             var vm = new DashboardViewModel(provider.GetRequiredService<IDashboardAnalyticsReader>(), new FixedTime(after),
                 provider.GetRequiredService<ITradeListReader>(), provider.GetRequiredService<ITradingAccountReader>());
             await vm.ActivateAsync();
-            Assert.Equal(8, vm.Selected!.Source.Metrics.ClosedTradeCount);
+            Assert.Equal(8, vm.Selected!.Source!.Metrics.ClosedTradeCount);
             vm.SelectedAccount = vm.Accounts.Single(a => a.Id == archive.Id);
             await vm.LoadTask;
             Assert.Contains("inactive", vm.SelectedAccount.Name);
             vm.StartDate = vm.EndDate = date.ToDateTime(TimeOnly.MinValue);
             vm.ApplyRangeCommand.Execute(null);
             await vm.LoadTask;
-            Assert.Equal(2, vm.Selected!.Source.Metrics.ClosedTradeCount);
-            Assert.Equal(20m, vm.Selected.Source.Metrics.Net.Total);
+            Assert.Equal(2, vm.Selected!.Source!.Metrics.ClosedTradeCount);
+            Assert.Equal(20m, vm.Selected.Source!.Metrics.Net.Total);
             Assert.Equal(date, Assert.Single(vm.Selected.DailyPnl).Date);
             Assert.Equal(5, vm.RecentTrades.Count);
             Assert.Equal(openId, vm.RecentTrades[0].Id);
@@ -83,10 +83,10 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             Assert.Equal(recent, vm.RecentTrades.Select(t => t.Id));
             vm.AllHistoryCommand.Execute(null);
             await vm.LoadTask;
-            Assert.Equal(4, vm.Selected!.Source.Metrics.ClosedTradeCount);
+            Assert.Equal(4, vm.Selected!.Source!.Metrics.ClosedTradeCount);
             vm.SelectedAccount = vm.Accounts.Single(a => a.Id == other.Id);
             await vm.LoadTask;
-            Assert.Equal(400m, vm.Selected!.Source.Metrics.Net.Total);
+            Assert.Equal(400m, vm.Selected!.Source!.Metrics.Net.Total);
             Assert.All(vm.RecentTrades, t => Assert.Equal(other.Id, t.TradingAccountId));
             await using var context = await provider.GetRequiredService<IDbContextFactory<JournalDbContext>>().CreateDbContextAsync();
             Assert.Equal(9, await context.Trades.CountAsync());
@@ -135,15 +135,15 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             var vm = new DashboardViewModel(provider.GetRequiredService<IDashboardAnalyticsReader>(), new FixedTime(now), provider.GetRequiredService<ITradeListReader>(), provider.GetRequiredService<ITradingAccountReader>());
             await vm.ActivateAsync();
             vm.SelectedCurrency = "USD";
-            Assert.Equal(6, vm.Selected!.Source.Metrics.ClosedTradeCount);
-            Assert.Equal(295m, vm.Selected.Source.Metrics.EffectiveNet.Total);
-            Assert.Null(vm.Selected.Source.Metrics.Net.Total);
+            Assert.Equal(6, vm.Selected!.Source!.Metrics.ClosedTradeCount);
+            Assert.Equal(295m, vm.Selected.Source!.Metrics.EffectiveNet.Total);
+            Assert.Null(vm.Selected.Source!.Metrics.Net.Total);
             Assert.Contains(vm.RecentTrades, t => t.InstrumentSymbol == "DASH");
 
             vm.Period = DashboardPeriod.Year;
             await vm.LoadTask;
-            Assert.Equal(5, vm.Selected!.Source.Metrics.ClosedTradeCount);
-            Assert.Equal(-205m, vm.Selected.Source.Metrics.EffectiveNet.Total);
+            Assert.Equal(5, vm.Selected!.Source!.Metrics.ClosedTradeCount);
+            Assert.Equal(-205m, vm.Selected.Source!.Metrics.EffectiveNet.Total);
             Assert.Equal(vm.Query.ClosedFromNewYork, vm.Selected.PeriodStart);
             TradeExecution[] corrected = estimated.Executions.Select(e => TradeExecution.Rehydrate(e.Id, estimated.Id,
                 e.Sequence, e.ExecutedAtUtc, e.Side, e.Quantity, e.Price, e.Sequence == 2 ? 1m : 0m, 0m, null, null, null)).ToArray();
@@ -151,16 +151,16 @@ public sealed class DashboardSqliteTests(ITestOutputHelper output)
             await provider.GetRequiredService<ITradeMutationStore>().SaveAsync(estimated);
             vm.OnDataCommitted();
             await vm.LoadTask;
-            Assert.Equal(-206m, vm.Selected!.Source.Metrics.Net.Total);
-            Assert.False(vm.Selected.Source.Metrics.EffectiveNet.IsEstimated);
+            Assert.Equal(-206m, vm.Selected!.Source!.Metrics.Net.Total);
+            Assert.False(vm.Selected.Source!.Metrics.EffectiveNet.IsEstimated);
             await provider.GetRequiredService<ITradeDeletionStore>().DeleteAsync(estimated.Id);
             vm.OnDataCommitted();
             await vm.LoadTask;
-            Assert.Equal(80m, vm.Selected!.Source.Metrics.Net.Total);
-            Assert.Equal(50m, vm.Selected.Source.Metrics.Net.WinRatePercent);
+            Assert.Equal(80m, vm.Selected!.Source!.Metrics.Net.Total);
+            Assert.Equal(50m, vm.Selected.Source!.Metrics.Net.WinRatePercent);
             vm.PreviousCommand.Execute(null);
             await vm.LoadTask;
-            Assert.Equal(500m, vm.Selected!.Source.Metrics.Net.Total);
+            Assert.Equal(500m, vm.Selected!.Source!.Metrics.Net.Total);
             vm.PreviousCommand.Execute(null);
             await vm.LoadTask;
             Assert.True(vm.IsEmpty);

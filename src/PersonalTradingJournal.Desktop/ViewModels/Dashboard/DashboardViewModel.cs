@@ -23,6 +23,8 @@ public sealed class DashboardViewModel : ObservableObject
     private bool _updatingAccounts, _rangeEdited;
     private DateTime? _startDate, _endDate;
     private DateOnly _customStart, _customEnd;
+    private bool _isDateRangeOpen;
+    private DateTime _startMonth, _endMonth;
     private IReadOnlyList<TradeListItem> _recentTrades = [];
     private readonly TimeProvider _time;
     private readonly ILogger<DashboardViewModel> _logger;
@@ -63,6 +65,7 @@ public sealed class DashboardViewModel : ObservableObject
             ApplyDates(first, first.AddMonths(1).AddDays(-1));
         });
         AllHistoryCommand = new RelayCommand(() => SelectPeriod(DashboardPeriod.All));
+        CancelRangeCommand = new RelayCommand(() => { SyncDateInputs(); IsDateRangeOpen = false; });
         ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(async item =>
         {
             if (item is null || OpenTradeAsync is null) return;
@@ -92,6 +95,23 @@ public sealed class DashboardViewModel : ObservableObject
     public DateTime? StartDate { get => _startDate; set { if (SetProperty(ref _startDate, value?.Date)) RangeEdited(); } }
     public DateTime? EndDate { get => _endDate; set { if (SetProperty(ref _endDate, value?.Date)) RangeEdited(); } }
     public string? RangeValidationMessage => _rangeEdited ? ValidateRange() : null;
+    public bool IsDateRangeOpen
+    {
+        get => _isDateRangeOpen;
+        set
+        {
+            if (!SetProperty(ref _isDateRangeOpen, value) || !value) return;
+            SyncDateInputs();
+            DateTime first = StartDate ?? Today.ToDateTime(TimeOnly.MinValue);
+            StartMonth = new(first.Year, first.Month, 1);
+            EndMonth = EndDate is { } last && last.Year * 12 + last.Month > first.Year * 12 + first.Month
+                ? new(last.Year, last.Month, 1) : StartMonth.AddMonths(StartMonth.Year == 9999 && StartMonth.Month == 12 ? 0 : 1);
+        }
+    }
+    public DateTime StartMonth { get => _startMonth; set => SetProperty(ref _startMonth, value); }
+    public DateTime EndMonth { get => _endMonth; set => SetProperty(ref _endMonth, value); }
+    public string DraftRangeLabel => $"Start: {StartDate?.ToString("yyyy-MM-dd") ?? "choose date"}  ·  End: {EndDate?.ToString("yyyy-MM-dd") ?? "choose date"}";
+    public IRelayCommand CancelRangeCommand { get; }
     public IRelayCommand ApplyRangeCommand { get; }
     public IRelayCommand TodayCommand { get; }
     public IRelayCommand LastWeekCommand { get; }
@@ -139,12 +159,6 @@ public sealed class DashboardViewModel : ObservableObject
     public void Deactivate() { _active = false; Cancel(); }
     public void OnDataCommitted() { if (_active) _ = RefreshAsync(); }
     public Task RefreshAsync() => LoadTask = LoadAsync();
-
-    public void RejectInvalidDate(bool isStart)
-    {
-        if (isStart) StartDate = null; else EndDate = null;
-        RangeEdited();
-    }
 
     private async Task LoadAsync()
     {
@@ -220,7 +234,9 @@ public sealed class DashboardViewModel : ObservableObject
     private void Present()
     {
         CurrencyTradeMetrics? currency = _snapshot?.Currencies.FirstOrDefault(c => c.Currency == SelectedCurrency);
-        Selected = currency is null ? null : new(currency, Query.ClosedFromNewYork);
+        // A successful empty read gets display-only zeroes, not a fabricated currency/metric bucket.
+        Selected = currency is not null || _snapshot is { Currencies.Count: 0 }
+            ? new(currency, Query.ClosedFromNewYork) : null;
     }
     private void PublishAccounts(IReadOnlyList<AccountListItem> accounts, DashboardAccountOption requested)
     {
@@ -253,6 +269,7 @@ public sealed class DashboardViewModel : ObservableObject
     {
         _rangeEdited = true;
         OnPropertyChanged(nameof(RangeValidationMessage));
+        OnPropertyChanged(nameof(DraftRangeLabel));
         ApplyRangeCommand.NotifyCanExecuteChanged();
     }
     private void ApplyRange()
@@ -271,6 +288,7 @@ public sealed class DashboardViewModel : ObservableObject
         _anchor = Today;
         OnPropertyChanged(nameof(Period));
         SyncDateInputs();
+        IsDateRangeOpen = false;
         UpdatePeriod();
         _ = RefreshAsync();
     }
@@ -280,6 +298,7 @@ public sealed class DashboardViewModel : ObservableObject
         _endDate = Period == DashboardPeriod.All ? null : (Period == DashboardPeriod.Custom ? _customEnd : End(_anchor)).ToDateTime(TimeOnly.MinValue);
         _rangeEdited = false;
         OnPropertyChanged(nameof(StartDate)); OnPropertyChanged(nameof(EndDate)); OnPropertyChanged(nameof(RangeValidationMessage));
+        OnPropertyChanged(nameof(DraftRangeLabel));
         ApplyRangeCommand.NotifyCanExecuteChanged();
     }
     private void Cancel()

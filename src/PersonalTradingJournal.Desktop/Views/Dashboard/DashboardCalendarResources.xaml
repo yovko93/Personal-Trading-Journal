@@ -1,0 +1,98 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Native Calendar behavior/automation, with theme-aware templates instead of OS light-only fills. -->
+    <Style x:Key="RangeCalendarNavigation" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="Button">
+                <Border x:Name="Surface" Background="{TemplateBinding Background}" BorderThickness="1" BorderBrush="Transparent" CornerRadius="4" Padding="4">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="RangeCalendarDay" TargetType="CalendarDayButton">
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="CalendarDayButton">
+                <Border x:Name="Day" Background="{DynamicResource PtjSurfaceBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4" MinWidth="30" MinHeight="30" Margin="1">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsInactive" Value="True"><Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" /></Trigger>
+                    <Trigger Property="IsToday" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Day" Property="Background" Value="{DynamicResource PtjAccentBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
+                    </Trigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+                    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="RangeCalendarMonth" TargetType="CalendarButton" BasedOn="{StaticResource RangeCalendarNavigation}" />
+    <Style x:Key="RangeCalendarItem" TargetType="CalendarItem">
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="CalendarItem">
+                <Grid x:Name="PART_Root" Background="{DynamicResource PtjSurfaceBrush}">
+                    <Grid.Resources>
+                        <DataTemplate x:Key="{x:Static CalendarItem.DayTitleTemplateResourceKey}">
+                            <TextBlock Text="{Binding}" Foreground="{DynamicResource PtjTextSecondaryBrush}" HorizontalAlignment="Center" Margin="0,5" />
+                        </DataTemplate>
+                    </Grid.Resources>
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
+                        <Button x:Name="PART_PreviousButton" Content="‹" Style="{StaticResource RangeCalendarNavigation}" AutomationProperties.Name="Previous calendar page" />
+                        <Button x:Name="PART_HeaderButton" Grid.Column="1" Style="{StaticResource RangeCalendarNavigation}" />
+                        <Button x:Name="PART_NextButton" Grid.Column="2" Content="›" Style="{StaticResource RangeCalendarNavigation}" AutomationProperties.Name="Next calendar page" />
+                    </Grid>
+                    <Grid x:Name="PART_MonthView" Grid.Row="1">
+                        <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    </Grid>
+                    <Grid x:Name="PART_YearView" Grid.Row="1" Visibility="Hidden">
+                        <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+                    </Grid>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource AncestorType=Calendar}}" Value="Year">
+                        <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden" />
+                        <Setter TargetName="PART_YearView" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding DisplayMode, RelativeSource={RelativeSource AncestorType=Calendar}}" Value="Decade">
+                        <Setter TargetName="PART_MonthView" Property="Visibility" Value="Hidden" />
+                        <Setter TargetName="PART_YearView" Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate></Setter.Value>
+        </Setter>
+    </Style>
+    <Style x:Key="RangeCalendar" TargetType="Calendar">
+        <Setter Property="Template">
+            <Setter.Value><ControlTemplate TargetType="Calendar">
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="3">
+                    <CalendarItem x:Name="PART_CalendarItem" Style="{TemplateBinding CalendarItemStyle}" />
+                </Border>
+            </ControlTemplate></Setter.Value>
+        </Setter>
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+        <Setter Property="CalendarItemStyle" Value="{StaticResource RangeCalendarItem}" />
+        <Setter Property="CalendarDayButtonStyle" Value="{StaticResource RangeCalendarDay}" />
+        <Setter Property="CalendarButtonStyle" Value="{StaticResource RangeCalendarMonth}" />
+        <Setter Property="FirstDayOfWeek" Value="Monday" />
+        <Setter Property="SelectionMode" Value="SingleDate" />
+    </Style>
+</ResourceDictionary>

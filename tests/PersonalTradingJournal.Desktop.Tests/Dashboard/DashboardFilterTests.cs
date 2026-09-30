@@ -117,7 +117,7 @@ public sealed class DashboardFilterTests
         Assert.Null(vm.RangeValidationMessage);
         Assert.True(vm.ApplyRangeCommand.CanExecute(null));
         Assert.Null(vm.Query.ClosedFromUtc); // Explicit Apply prevents partial draft reads.
-        vm.RejectInvalidDate(isStart: true);
+        vm.StartDate = null;
         Assert.Null(vm.StartDate);
         Assert.False(vm.ApplyRangeCommand.CanExecute(null));
         Assert.NotNull(vm.RangeValidationMessage);
@@ -165,7 +165,7 @@ public sealed class DashboardFilterTests
         await old;
         Assert.Equal(accounts.Items[1].Id, vm.SelectedAccount.Id);
         Assert.Equal(DashboardPeriod.Custom, vm.Period);
-        Assert.Equal(25m, vm.Selected!.Source.Metrics.EffectiveNet.Total);
+        Assert.Equal(25m, vm.Selected!.Source!.Metrics.EffectiveNet.Total);
         Assert.Null(vm.ErrorMessage);
     }
 

@@ -21,10 +21,13 @@ public partial class DashboardView : UserControl
         if (DataContext is DashboardViewModel viewModel) viewModel.Deactivate();
     }
 
-    private void OnDateValidationError(object? sender, DatePickerDateValidationErrorEventArgs e)
+    private void OnRangeKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        e.ThrowException = false;
-        if (DataContext is DashboardViewModel viewModel)
-            viewModel.RejectInvalidDate(ReferenceEquals(sender, RangeStart));
+        if (e.Key == System.Windows.Input.Key.Escape && DataContext is DashboardViewModel viewModel)
+        {
+            viewModel.CancelRangeCommand.Execute(null);
+            e.Handled = true;
+            DateRangeControl.Focus();
+        }
     }
 }

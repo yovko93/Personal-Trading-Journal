@@ -27,15 +27,18 @@ public sealed class DashboardXamlTests
         Assert.Equal("{Binding SelectedAccount}", (string?)account.Attribute("SelectedItem"));
         Assert.Equal("Name", (string?)account.Attribute("DisplayMemberPath"));
         Assert.Equal("Dashboard account", (string?)account.Attribute("AutomationProperties.Name"));
-        Assert.Equal(new[] { "{Binding StartDate}", "{Binding EndDate}" }, view.Descendants(p + "DatePicker").Select(e => (string?)e.Attribute("SelectedDate")));
-        Assert.All(view.Descendants(p + "DatePicker"), e =>
+        Assert.Empty(view.Descendants(p + "DatePicker"));
+        Assert.Equal(new[] { "{Binding StartDate}", "{Binding EndDate}" }, view.Descendants(p + "Calendar").Select(e => (string?)e.Attribute("SelectedDate")));
+        Assert.All(view.Descendants(p + "Calendar"), e =>
         {
             Assert.NotNull(e.Attribute("AutomationProperties.Name"));
-            Assert.Equal("OnDateValidationError", (string?)e.Attribute("DateValidationError"));
+            Assert.Equal("{StaticResource RangeCalendar}", (string?)e.Attribute("Style"));
         });
         foreach (string command in new[] { "ApplyRange", "Today", "LastWeek", "LastMonth", "AllHistory" })
             Assert.Contains(view.Descendants(p + "Button"), e => (string?)e.Attribute("Command") == $"{{Binding {command}Command}}");
-        Assert.Contains("Applied range:", xaml);
+        Assert.Contains("Date Range:", xaml);
+        Assert.Contains("{Binding IsDateRangeOpen}", xaml);
+        Assert.Contains("{Binding CancelRangeCommand}", xaml);
         Assert.Contains("{Binding RangeValidationMessage}", xaml);
         XElement selected = Assert.Single(view.Descendants(p + "StackPanel"), e => (string?)e.Attribute("DataContext") == "{Binding Selected}");
         Assert.Equal(2, selected.Descendants(chart + "PnlChart").Count());
@@ -73,12 +76,18 @@ public sealed class DashboardXamlTests
         Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjSuccessBrush}");
         Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjDangerBrush}");
         Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjTextMutedBrush}");
-        XElement ring = Assert.Single(view.Descendants(chart + "WinRateRing"));
+        Assert.Equal(2, view.Descendants(chart + "OutcomeRing").Count());
+        foreach (XElement ring in view.Descendants(chart + "OutcomeRing"))
+        {
         Assert.Equal("True", (string?)ring.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)ring.Attribute("AutomationProperties.Name"));
         Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)ring.Attribute("WinBrush"));
         Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)ring.Attribute("LossBrush"));
         Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)ring.Attribute("NeutralBrush"));
+        }
+        foreach (string binding in new[] { "WinsText", "LossesText", "BreakEvensText", "HasBreakEvens", "ProfitText", "LossText" })
+            Assert.Contains("{Binding " + binding, xaml);
+        Assert.Contains("{Binding HasNoSetups", xaml);
         XElement recent = Assert.Single(view.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == "{Binding RecentTrades}");
         XElement action = Assert.Single(recent.Descendants(p + "Button"));
         Assert.Contains("ViewTradeCommand", (string?)action.Attribute("Command"));

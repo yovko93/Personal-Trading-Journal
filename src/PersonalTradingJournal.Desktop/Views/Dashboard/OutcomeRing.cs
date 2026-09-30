@@ -5,22 +5,22 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
 namespace PersonalTradingJournal.Desktop.Views.Dashboard;
 
-/// <summary>Drawing-only proportions; unavailable coverage never becomes a zero win rate.</summary>
-public sealed class WinRateRing : FrameworkElement
+/// <summary>Drawing-only count or monetary proportions; missing economics always leave a neutral track.</summary>
+public sealed class OutcomeRing : FrameworkElement
 {
-    public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(nameof(Value), typeof(WinRatePresentation), typeof(WinRateRing), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ValueProperty = DependencyProperty.Register(nameof(Value), typeof(IOutcomeRingPresentation), typeof(OutcomeRing), new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
     public static readonly DependencyProperty WinBrushProperty = BrushProperty(nameof(WinBrush));
     public static readonly DependencyProperty LossBrushProperty = BrushProperty(nameof(LossBrush));
     public static readonly DependencyProperty NeutralBrushProperty = BrushProperty(nameof(NeutralBrush));
-    public WinRatePresentation? Value { get => (WinRatePresentation?)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
+    public IOutcomeRingPresentation? Value { get => (IOutcomeRingPresentation?)GetValue(ValueProperty); set => SetValue(ValueProperty, value); }
     public Brush WinBrush { get => (Brush)GetValue(WinBrushProperty); set => SetValue(WinBrushProperty, value); }
     public Brush LossBrush { get => (Brush)GetValue(LossBrushProperty); set => SetValue(LossBrushProperty, value); }
     public Brush NeutralBrush { get => (Brush)GetValue(NeutralBrushProperty); set => SetValue(NeutralBrushProperty, value); }
-    private static DependencyProperty BrushProperty(string name) => DependencyProperty.Register(name, typeof(Brush), typeof(WinRateRing), new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
+    private static DependencyProperty BrushProperty(string name) => DependencyProperty.Register(name, typeof(Brush), typeof(OutcomeRing), new FrameworkPropertyMetadata(Brushes.Gray, FrameworkPropertyMetadataOptions.AffectsRender));
     protected override AutomationPeer OnCreateAutomationPeer() => new RingPeer(this);
-    private sealed class RingPeer(WinRateRing owner) : FrameworkElementAutomationPeer(owner)
+    private sealed class RingPeer(OutcomeRing owner) : FrameworkElementAutomationPeer(owner)
     {
-        protected override string GetNameCore() => owner.Value?.Description ?? "Win rate unavailable";
+        protected override string GetNameCore() => owner.Value?.Description ?? "Outcome proportions unavailable";
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
     }
     protected override void OnRender(DrawingContext dc)

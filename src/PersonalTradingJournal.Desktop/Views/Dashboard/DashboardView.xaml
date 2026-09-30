@@ -5,18 +5,49 @@
              xmlns:dashboard="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
              Loaded="OnLoaded" Unloaded="OnUnloaded">
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="DashboardCalendarResources.xaml" /></ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
         <converters:PnLOutcomeConverter x:Key="PnlOutcome" />
         <converters:UtcToTradingTimeConverter x:Key="TradingTime" />
         <DataTemplate x:Key="WinRateTemplate">
+            <StackPanel>
             <Grid Width="142" Height="142">
-                <dashboard:WinRateRing Value="{Binding}" WinBrush="{DynamicResource PtjSuccessBrush}"
+                <dashboard:OutcomeRing Value="{Binding}" WinBrush="{DynamicResource PtjSuccessBrush}"
                     LossBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
                     Focusable="True" ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Description}" />
                 <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold"
                     HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                     Foreground="{DynamicResource PtjTextPrimaryBrush}" />
             </Grid>
+            <StackPanel MinHeight="64" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
+                <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{DynamicResource PtjSuccessBrush}" Margin="0,0,8,0" /><TextBlock Text="{Binding WinsText}" Style="{StaticResource PtjBodyTextStyle}" /></StackPanel>
+                <StackPanel Orientation="Horizontal"><Ellipse Width="8" Height="8" Fill="{DynamicResource PtjDangerBrush}" Margin="0,0,8,0" /><TextBlock Text="{Binding LossesText}" Style="{StaticResource PtjBodyTextStyle}" /></StackPanel>
+                <StackPanel Orientation="Horizontal" Visibility="{Binding HasBreakEvens, Converter={StaticResource BoolVisibility}}"><Ellipse Width="8" Height="8" Fill="{DynamicResource PtjTextMutedBrush}" Margin="0,0,8,0" /><TextBlock Text="{Binding BreakEvensText}" Style="{StaticResource PtjBodyTextStyle}" /></StackPanel>
+            </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="ProfitFactorTemplate">
+            <StackPanel>
+                <Grid Width="142" Height="142">
+                    <dashboard:OutcomeRing Value="{Binding}" WinBrush="{DynamicResource PtjSuccessBrush}"
+                        LossBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
+                        Focusable="True" ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Description}" />
+                    <TextBlock Text="{Binding Value}" FontSize="26" FontWeight="SemiBold"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                        Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                </Grid>
+                <StackPanel MinHeight="64" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="16" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource PtjSuccessBrush}" HorizontalAlignment="Left" />
+                        <TextBlock Grid.Column="1" Text="{Binding ProfitText, StringFormat=Profit: {0}}" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}" />
+                    </Grid>
+                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="16" /><ColumnDefinition /></Grid.ColumnDefinitions>
+                        <Ellipse Width="8" Height="8" Fill="{DynamicResource PtjDangerBrush}" HorizontalAlignment="Left" />
+                        <TextBlock Grid.Column="1" Text="{Binding LossText, StringFormat=Loss: {0}}" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}" />
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
         </DataTemplate>
         <Style x:Key="ChartAmountStyle" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
             <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
@@ -47,6 +78,7 @@
                            Focusable="True" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" />
             </Grid>
         </DataTemplate>
+            </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch">
@@ -79,36 +111,43 @@
                 <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,16,8,8" Style="{StaticResource PtjButtonStyle}" />
                 <Button Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,16,0,8" Style="{StaticResource PtjButtonStyle}" />
             </WrapPanel>
-            <WrapPanel>
-                <StackPanel Margin="0,0,12,8">
-                    <Label Content="_Start date" Target="{Binding ElementName=RangeStart}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <DatePicker x:Name="RangeStart" SelectedDate="{Binding StartDate}" Width="160" SelectedDateFormat="Short"
-                                DateValidationError="OnDateValidationError" AutomationProperties.Name="Dashboard Start date"
-                                ToolTip="Inclusive New York closure date. Type a date or open the calendar with Alt+Down."
-                                Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
-                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
-                </StackPanel>
-                <StackPanel Margin="0,0,12,8">
-                    <Label Content="_End date" Target="{Binding ElementName=RangeEnd}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <DatePicker x:Name="RangeEnd" SelectedDate="{Binding EndDate}" Width="160" SelectedDateFormat="Short"
-                                DateValidationError="OnDateValidationError" AutomationProperties.Name="Dashboard End date"
-                                ToolTip="Inclusive New York closure date. Type a date or open the calendar with Alt+Down."
-                                Foreground="{DynamicResource {x:Static SystemColors.WindowTextBrushKey}}"
-                                Background="{DynamicResource {x:Static SystemColors.WindowBrushKey}}" />
-                </StackPanel>
-                <Button Content="Apply range" Command="{Binding ApplyRangeCommand}" Margin="0,28,8,8" Style="{StaticResource PtjButtonStyle}" />
-            </WrapPanel>
-            <WrapPanel Margin="0,0,0,8">
-                <Button Content="Today" Command="{Binding TodayCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
-                <Button Content="Last Week" Command="{Binding LastWeekCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
-                        ToolTip="The preceding complete Monday–Sunday week in New York." />
-                <Button Content="Last Month" Command="{Binding LastMonthCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
-                        ToolTip="The preceding complete calendar month in New York." />
-                <Button Content="All history" Command="{Binding AllHistoryCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
-            </WrapPanel>
-            <TextBlock Text="{Binding RangeValidationMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
-                       AutomationProperties.LiveSetting="Polite" />
-            <TextBlock Text="{Binding PeriodLabel, StringFormat=Applied range: {0}}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
+            <Expander x:Name="DateRangeControl" IsExpanded="{Binding IsDateRangeOpen}" Margin="0,0,0,12"
+                      Foreground="{DynamicResource PtjTextPrimaryBrush}" PreviewKeyDown="OnRangeKeyDown"
+                      AutomationProperties.Name="Date Range" AutomationProperties.HelpText="Expand to choose inclusive start and end dates, then Apply range. Escape cancels the draft.">
+                <Expander.Header>
+                    <TextBlock Text="{Binding PeriodLabel, StringFormat=Date Range: {0}}" TextWrapping="Wrap" />
+                </Expander.Header>
+                <Border Style="{StaticResource PtjCardStyle}" Margin="0,8,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding DraftRangeLabel}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <WrapPanel>
+                            <StackPanel Margin="0,8,16,8">
+                                <TextBlock Text="Start date" Style="{StaticResource PtjCaptionTextStyle}" />
+                                <Calendar SelectedDate="{Binding StartDate}" DisplayDate="{Binding StartMonth}" Width="240"
+                                          Style="{StaticResource RangeCalendar}" AutomationProperties.Name="Range start calendar" />
+                            </StackPanel>
+                            <StackPanel Margin="0,8,0,8">
+                                <TextBlock Text="End date (inclusive)" Style="{StaticResource PtjCaptionTextStyle}" />
+                                <Calendar SelectedDate="{Binding EndDate}" DisplayDate="{Binding EndMonth}" Width="240"
+                                          Style="{StaticResource RangeCalendar}" AutomationProperties.Name="Range end calendar" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <TextBlock Text="{Binding RangeValidationMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" />
+                        <WrapPanel>
+                            <Button Content="Apply range" Command="{Binding ApplyRangeCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+                            <Button Content="Cancel" Command="{Binding CancelRangeCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+                            <Button Content="Today" Command="{Binding TodayCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+                            <Button Content="Last Week" Command="{Binding LastWeekCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
+                                    ToolTip="The preceding complete Monday–Sunday week in New York." />
+                            <Button Content="Last Month" Command="{Binding LastMonthCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}"
+                                    ToolTip="The preceding complete calendar month in New York." />
+                            <Button Content="All history" Command="{Binding AllHistoryCommand}" Margin="0,0,8,8" Style="{StaticResource PtjButtonStyle}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+            </Expander>
             <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap"
                        AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
@@ -135,7 +174,7 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Width="230" Margin="0,10,10,0" Style="{StaticResource PtjCardStyle}"
+                            <Border Width="230" MinHeight="280" Margin="0,10,10,0" Style="{StaticResource PtjCardStyle}"
                                     ToolTip="{Binding Explanation}" Focusable="True"
                                     AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Explanation}">
                                 <StackPanel>
@@ -146,14 +185,24 @@
                                                ToolTip="{Binding Explanation}" AutomationProperties.HelpText="{Binding Explanation}">
                                         <TextBlock.Style><Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers><DataTrigger Binding="{Binding Ring}" Value="{x:Null}">
+                                            <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding Ring}" Value="{x:Null}" />
+                                                <Condition Binding="{Binding Factor}" Value="{x:Null}" />
+                                            </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger></Style.Triggers>
+                                            </MultiDataTrigger></Style.Triggers>
                                         </Style></TextBlock.Style>
                                     </TextBlock>
                                     <ContentControl Content="{Binding Ring}" ContentTemplate="{StaticResource WinRateTemplate}">
                                         <ContentControl.Style><Style TargetType="ContentControl">
                                             <Style.Triggers><DataTrigger Binding="{Binding Ring}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger></Style.Triggers>
+                                        </Style></ContentControl.Style>
+                                    </ContentControl>
+                                    <ContentControl Content="{Binding Factor}" ContentTemplate="{StaticResource ProfitFactorTemplate}">
+                                        <ContentControl.Style><Style TargetType="ContentControl">
+                                            <Style.Triggers><DataTrigger Binding="{Binding Factor}" Value="{x:Null}">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger></Style.Triggers>
                                         </Style></ContentControl.Style>
@@ -196,6 +245,8 @@
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">
                     <StackPanel>
                         <TextBlock Text="Trading Setups" Style="{StaticResource PtjSectionTitleTextStyle}" />
+                        <TextBlock Text="No closed Trades to summarize in this scope." Style="{StaticResource PtjSecondaryTextStyle}"
+                                   Visibility="{Binding HasNoSetups, Converter={StaticResource BoolVisibility}}" TextWrapping="Wrap" />
                         <ItemsControl ItemsSource="{Binding Setups}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
