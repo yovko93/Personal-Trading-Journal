@@ -39,7 +39,7 @@ public sealed class DashboardRefinementTests
         Assert.Equal("0 wins", win.WinsText);
         Assert.Equal("0 losses", win.LossesText);
         Assert.Equal(0m, win.WinsShare + win.LossesShare + win.BreakEvenShare);
-        foreach (string label in new[] { "Profit Factor", "Average Win", "Average Loss", "Best Day", "Worst Day" })
+        foreach (string label in new[] { "Profit Factor", "Average Win / Average Loss", "Best Day", "Worst Day" })
         {
             Assert.Equal("N/A", Card(vm.Selected, label).Value);
             Assert.Equal("", Card(vm.Selected, label).Date);
@@ -182,6 +182,8 @@ public sealed class DashboardRefinementTests
             resources.MergedDictionaries.Add(Load("Views/Dashboard/DashboardCalendarResources.xaml"));
             var calendar = new Calendar { Resources = resources, Style = (Style)resources["RangeCalendar"],
                 DisplayDate = new(2026, 3, 1), SelectedDate = new(2026, 3, 8), Width = 240 };
+            CalendarRange.SetStart(calendar, new(2026, 3, 8));
+            CalendarRange.SetEnd(calendar, new(2026, 3, 8));
             Draw(calendar, 240, 280, dpi);
             var days = Descendants(calendar).OfType<CalendarDayButton>().ToArray();
             Assert.Equal(42, days.Length);
@@ -262,9 +264,8 @@ public sealed class DashboardRefinementTests
     }
     private static ResourceDictionary Load(string relative)
     {
-        DirectoryInfo? root = new(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "PersonalTradingJournal.sln"))) root = root.Parent;
-        return (ResourceDictionary)XamlReader.Parse(File.ReadAllText(Path.Combine(root!.FullName, "src/PersonalTradingJournal.Desktop", relative)));
+        return (ResourceDictionary)System.Windows.Application.LoadComponent(
+            new Uri($"/PersonalTradingJournal.Desktop;component/{relative}", UriKind.Relative));
     }
     private static Task OnSta(Action action)
     {

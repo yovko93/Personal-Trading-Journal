@@ -66,6 +66,11 @@ public sealed class DashboardViewModel : ObservableObject
         });
         AllHistoryCommand = new RelayCommand(() => SelectPeriod(DashboardPeriod.All));
         CancelRangeCommand = new RelayCommand(() => { SyncDateInputs(); IsDateRangeOpen = false; });
+        ToggleRangeCommand = new RelayCommand(() =>
+        {
+            if (IsDateRangeOpen) CancelRangeCommand.Execute(null);
+            else IsDateRangeOpen = true;
+        });
         ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(async item =>
         {
             if (item is null || OpenTradeAsync is null) return;
@@ -112,6 +117,12 @@ public sealed class DashboardViewModel : ObservableObject
     public DateTime EndMonth { get => _endMonth; set => SetProperty(ref _endMonth, value); }
     public string DraftRangeLabel => $"Start: {StartDate?.ToString("yyyy-MM-dd") ?? "choose date"}  ·  End: {EndDate?.ToString("yyyy-MM-dd") ?? "choose date"}";
     public IRelayCommand CancelRangeCommand { get; }
+    public IRelayCommand ToggleRangeCommand { get; }
+    public string AppliedRangeLabel => Period == DashboardPeriod.Custom
+        ? $"{_customStart:yyyy-MM-dd} – {_customEnd:yyyy-MM-dd}" : PeriodLabel;
+    public bool IsRangeDraft => StartDate != Query.ClosedFromNewYork?.ToDateTime(TimeOnly.MinValue)
+        || EndDate != Query.ClosedThroughNewYork?.ToDateTime(TimeOnly.MinValue);
+    public string RangeSelectionStatus => IsRangeDraft ? "Draft selection — Apply range to update Dashboard." : "Applied range";
     public IRelayCommand ApplyRangeCommand { get; }
     public IRelayCommand TodayCommand { get; }
     public IRelayCommand LastWeekCommand { get; }
@@ -270,6 +281,7 @@ public sealed class DashboardViewModel : ObservableObject
         _rangeEdited = true;
         OnPropertyChanged(nameof(RangeValidationMessage));
         OnPropertyChanged(nameof(DraftRangeLabel));
+        OnPropertyChanged(nameof(IsRangeDraft)); OnPropertyChanged(nameof(RangeSelectionStatus));
         ApplyRangeCommand.NotifyCanExecuteChanged();
     }
     private void ApplyRange()
@@ -299,6 +311,7 @@ public sealed class DashboardViewModel : ObservableObject
         _rangeEdited = false;
         OnPropertyChanged(nameof(StartDate)); OnPropertyChanged(nameof(EndDate)); OnPropertyChanged(nameof(RangeValidationMessage));
         OnPropertyChanged(nameof(DraftRangeLabel));
+        OnPropertyChanged(nameof(IsRangeDraft)); OnPropertyChanged(nameof(RangeSelectionStatus));
         ApplyRangeCommand.NotifyCanExecuteChanged();
     }
     private void Cancel()
@@ -342,6 +355,7 @@ public sealed class DashboardViewModel : ObservableObject
     private void UpdatePeriod()
     {
         OnPropertyChanged(nameof(PeriodLabel));
+        OnPropertyChanged(nameof(AppliedRangeLabel));
         PreviousCommand.NotifyCanExecuteChanged();
         NextCommand.NotifyCanExecuteChanged();
     }

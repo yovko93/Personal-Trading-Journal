@@ -1,5 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:dashboard="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard">
+    <dashboard:CalendarRangeDayConverter x:Key="RangeDayKind" />
     <!-- Native Calendar behavior/automation, with theme-aware templates instead of OS light-only fills. -->
     <Style x:Key="RangeCalendarNavigation" TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
@@ -20,20 +22,52 @@
     </Style>
     <Style x:Key="RangeCalendarDay" TargetType="CalendarDayButton">
         <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+        <Setter Property="Tag"><Setter.Value>
+            <MultiBinding Converter="{StaticResource RangeDayKind}">
+                <Binding />
+                <Binding Path="(dashboard:CalendarRange.Start)" RelativeSource="{RelativeSource Self}" />
+                <Binding Path="(dashboard:CalendarRange.End)" RelativeSource="{RelativeSource Self}" />
+            </MultiBinding>
+        </Setter.Value></Setter>
         <Setter Property="Template">
             <Setter.Value><ControlTemplate TargetType="CalendarDayButton">
-                <Border x:Name="Day" Background="{DynamicResource PtjSurfaceBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4" MinWidth="30" MinHeight="30" Margin="1">
-                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Border>
+                <Grid MinWidth="30" MinHeight="30" Margin="0,1">
+                    <Border x:Name="RangeBand" Background="{DynamicResource PtjAccentBrush}" Opacity="0.26" Visibility="Collapsed" />
+                    <Border x:Name="Day" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="6">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <Rectangle x:Name="KeyboardFocus" Stroke="{DynamicResource PtjTextPrimaryBrush}" StrokeThickness="2"
+                               StrokeDashArray="2,1" RadiusX="4" RadiusY="4" Margin="2" Visibility="Collapsed" IsHitTestVisible="False" />
+                </Grid>
                 <ControlTemplate.Triggers>
                     <Trigger Property="IsInactive" Value="True"><Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" /></Trigger>
                     <Trigger Property="IsToday" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
-                    <Trigger Property="IsSelected" Value="True">
+                    <Trigger Property="Tag" Value="{x:Static dashboard:RangeDay.Interior}">
+                        <Setter TargetName="RangeBand" Property="Visibility" Value="Visible" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                    </Trigger>
+                    <Trigger Property="Tag" Value="{x:Static dashboard:RangeDay.Start}">
+                        <Setter TargetName="Day" Property="Background" Value="{DynamicResource PtjAccentBrush}" />
+                        <Setter TargetName="Day" Property="CornerRadius" Value="6,0,0,6" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
+                    </Trigger>
+                    <Trigger Property="Tag" Value="{x:Static dashboard:RangeDay.End}">
+                        <Setter TargetName="Day" Property="Background" Value="{DynamicResource PtjAccentBrush}" />
+                        <Setter TargetName="Day" Property="CornerRadius" Value="0,6,6,0" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
+                    </Trigger>
+                    <Trigger Property="Tag" Value="{x:Static dashboard:RangeDay.Single}">
                         <Setter TargetName="Day" Property="Background" Value="{DynamicResource PtjAccentBrush}" />
                         <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
                     </Trigger>
+                    <Trigger Property="Tag" Value="{x:Static dashboard:RangeDay.Partial}">
+                        <Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+                        <Setter TargetName="Day" Property="BorderThickness" Value="2" />
+                        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                    </Trigger>
+                    <Trigger Property="dashboard:CalendarRange.IsDraft" Value="True"><Setter TargetName="RangeBand" Property="Opacity" Value="0.12" /></Trigger>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
-                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Day" Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="KeyboardFocus" Property="Visibility" Value="Visible" /></Trigger>
                     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4" /></Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value>

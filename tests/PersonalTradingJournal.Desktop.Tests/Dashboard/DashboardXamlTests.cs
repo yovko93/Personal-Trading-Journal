@@ -37,7 +37,18 @@ public sealed class DashboardXamlTests
         foreach (string command in new[] { "ApplyRange", "Today", "LastWeek", "LastMonth", "AllHistory" })
             Assert.Contains(view.Descendants(p + "Button"), e => (string?)e.Attribute("Command") == $"{{Binding {command}Command}}");
         Assert.Contains("Date Range:", xaml);
-        Assert.Contains("{Binding IsDateRangeOpen}", xaml);
+        Assert.Contains("{Binding IsDateRangeOpen,", xaml);
+        XElement rangeBox = Assert.Single(view.Descendants(p + "Button"), e => (string?)e.Attribute("Command") == "{Binding ToggleRangeCommand}");
+        Assert.Null(rangeBox.Attribute("Visibility"));
+        Assert.Equal("1", (string?)rangeBox.Attribute("BorderThickness"));
+        Assert.Contains("{Binding AppliedRangeLabel}", rangeBox.ToString());
+        Assert.DoesNotContain(view.Descendants(p + "Expander"), e => (string?)e.Attribute("IsExpanded") == "{Binding IsDateRangeOpen}");
+        Assert.All(view.Descendants(p + "Calendar"), c =>
+        {
+            Assert.Equal("{Binding StartDate}", (string?)c.Attribute(chart + "CalendarRange.Start"));
+            Assert.Equal("{Binding EndDate}", (string?)c.Attribute(chart + "CalendarRange.End"));
+            Assert.Equal("{Binding IsRangeDraft}", (string?)c.Attribute(chart + "CalendarRange.IsDraft"));
+        });
         Assert.Contains("{Binding CancelRangeCommand}", xaml);
         Assert.Contains("{Binding RangeValidationMessage}", xaml);
         XElement selected = Assert.Single(view.Descendants(p + "StackPanel"), e => (string?)e.Attribute("DataContext") == "{Binding Selected}");
@@ -65,6 +76,19 @@ public sealed class DashboardXamlTests
         Assert.DoesNotContain(cards.Descendants(p + "TextBlock"), t =>
             ((string?)t.Attribute("Text")) is "Estimated" or "{Binding Badge}" or "{Binding IsEstimated}");
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement averages = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "AverageWinLossTemplate");
+        Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding WinText}" &&
+            (string?)t.Attribute("Foreground") == "{DynamicResource PtjSuccessBrush}");
+        Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding LossText}" &&
+            (string?)t.Attribute("Foreground") == "{DynamicResource PtjDangerBrush}");
+        Assert.Contains("{Binding RatioText", averages.ToString());
+        XElement comparison = Assert.Single(averages.Descendants(chart + "AverageComparisonBar"));
+        Assert.Equal("{Binding}", (string?)comparison.Attribute("Value"));
+        Assert.Equal("True", (string?)comparison.Attribute("Focusable"));
+        Assert.Equal("{Binding Description}", (string?)comparison.Attribute("AutomationProperties.Name"));
+        Assert.Equal("{DynamicResource PtjSuccessBrush}", (string?)comparison.Attribute("WinBrush"));
+        Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)comparison.Attribute("LossBrush"));
+        Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)comparison.Attribute("NeutralBrush"));
         XElement daily = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "DailyValues");
         Assert.Equal(new[] { "{Binding Date, StringFormat={}{0:yyyy-MM-dd}}", "{Binding AmountText}", "{Binding TradeCountText}" },
             daily.Descendants(p + "TextBlock").Select(t => (string?)t.Attribute("Text")));

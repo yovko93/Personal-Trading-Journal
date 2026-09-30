@@ -61,6 +61,20 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <DataTemplate x:Key="AverageWinLossTemplate">
+            <StackPanel ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
+                <TextBlock Text="Average Win" Style="{StaticResource PtjCaptionTextStyle}" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding WinText}" Foreground="{DynamicResource PtjSuccessBrush}" FontSize="23" FontWeight="SemiBold"
+                           TextWrapping="Wrap" AutomationProperties.Name="{Binding WinText, StringFormat=Average Win: {0}}" />
+                <TextBlock Text="Average Loss" Style="{StaticResource PtjCaptionTextStyle}" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding LossText}" Foreground="{DynamicResource PtjDangerBrush}" FontSize="23" FontWeight="SemiBold"
+                           TextWrapping="Wrap" AutomationProperties.Name="{Binding LossText, StringFormat=Average Loss: {0}}" />
+                <dashboard:AverageComparisonBar Value="{Binding}" Height="10" Margin="0,12" Focusable="True"
+                    WinBrush="{DynamicResource PtjSuccessBrush}" LossBrush="{DynamicResource PtjDangerBrush}"
+                    NeutralBrush="{DynamicResource PtjTextMutedBrush}" AutomationProperties.Name="{Binding Description}" />
+                <TextBlock Text="{Binding RatioText, StringFormat=Win / Loss ratio: {0}}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" />
+            </StackPanel>
+        </DataTemplate>
         <DataTemplate x:Key="DailyValues">
             <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /><ColumnDefinition Width="90" /></Grid.ColumnDefinitions>
@@ -111,25 +125,35 @@
                 <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,16,8,8" Style="{StaticResource PtjButtonStyle}" />
                 <Button Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,16,0,8" Style="{StaticResource PtjButtonStyle}" />
             </WrapPanel>
-            <Expander x:Name="DateRangeControl" IsExpanded="{Binding IsDateRangeOpen}" Margin="0,0,0,12"
-                      Foreground="{DynamicResource PtjTextPrimaryBrush}" PreviewKeyDown="OnRangeKeyDown"
-                      AutomationProperties.Name="Date Range" AutomationProperties.HelpText="Expand to choose inclusive start and end dates, then Apply range. Escape cancels the draft.">
-                <Expander.Header>
-                    <TextBlock Text="{Binding PeriodLabel, StringFormat=Date Range: {0}}" TextWrapping="Wrap" />
-                </Expander.Header>
-                <Border Style="{StaticResource PtjCardStyle}" Margin="0,8,0,0">
+            <Button x:Name="DateRangeControl" Command="{Binding ToggleRangeCommand}" MaxWidth="360" HorizontalAlignment="Left"
+                    HorizontalContentAlignment="Stretch" Margin="0,0,0,12" Style="{StaticResource PtjButtonStyle}" BorderThickness="1"
+                    BorderBrush="{DynamicResource PtjBorderBrush}" PreviewKeyDown="OnRangeKeyDown"
+                    AutomationProperties.Name="{Binding AppliedRangeLabel, StringFormat=Date Range: {0}}"
+                    AutomationProperties.HelpText="Open or close the date selector. Choose both dates and Apply range; Cancel or Escape discards the draft.">
+                <StackPanel>
+                    <TextBlock Text="Date Range" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding AppliedRangeLabel}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Button>
+                <Border Style="{StaticResource PtjCardStyle}" Margin="0,0,0,12" PreviewKeyDown="OnRangeKeyDown"
+                        Visibility="{Binding IsDateRangeOpen, Converter={StaticResource BoolVisibility}}">
                     <StackPanel>
+                        <TextBlock Text="{Binding RangeSelectionStatus}" Style="{StaticResource PtjCaptionTextStyle}" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock Text="{Binding DraftRangeLabel}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap"
                                    AutomationProperties.LiveSetting="Polite" />
                         <WrapPanel>
                             <StackPanel Margin="0,8,16,8">
                                 <TextBlock Text="Start date" Style="{StaticResource PtjCaptionTextStyle}" />
                                 <Calendar SelectedDate="{Binding StartDate}" DisplayDate="{Binding StartMonth}" Width="240"
+                                          dashboard:CalendarRange.Start="{Binding StartDate}" dashboard:CalendarRange.End="{Binding EndDate}"
+                                          dashboard:CalendarRange.IsDraft="{Binding IsRangeDraft}"
                                           Style="{StaticResource RangeCalendar}" AutomationProperties.Name="Range start calendar" />
                             </StackPanel>
                             <StackPanel Margin="0,8,0,8">
                                 <TextBlock Text="End date (inclusive)" Style="{StaticResource PtjCaptionTextStyle}" />
                                 <Calendar SelectedDate="{Binding EndDate}" DisplayDate="{Binding EndMonth}" Width="240"
+                                          dashboard:CalendarRange.Start="{Binding StartDate}" dashboard:CalendarRange.End="{Binding EndDate}"
+                                          dashboard:CalendarRange.IsDraft="{Binding IsRangeDraft}"
                                           Style="{StaticResource RangeCalendar}" AutomationProperties.Name="Range end calendar" />
                             </StackPanel>
                         </WrapPanel>
@@ -147,7 +171,6 @@
                         </WrapPanel>
                     </StackPanel>
                 </Border>
-            </Expander>
             <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap"
                        AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjWarningBrush}" TextWrapping="Wrap"
@@ -188,6 +211,7 @@
                                             <Style.Triggers><MultiDataTrigger><MultiDataTrigger.Conditions>
                                                 <Condition Binding="{Binding Ring}" Value="{x:Null}" />
                                                 <Condition Binding="{Binding Factor}" Value="{x:Null}" />
+                                                <Condition Binding="{Binding Averages}" Value="{x:Null}" />
                                             </MultiDataTrigger.Conditions>
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </MultiDataTrigger></Style.Triggers>
@@ -196,6 +220,13 @@
                                     <ContentControl Content="{Binding Ring}" ContentTemplate="{StaticResource WinRateTemplate}">
                                         <ContentControl.Style><Style TargetType="ContentControl">
                                             <Style.Triggers><DataTrigger Binding="{Binding Ring}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger></Style.Triggers>
+                                        </Style></ContentControl.Style>
+                                    </ContentControl>
+                                    <ContentControl Content="{Binding Averages}" ContentTemplate="{StaticResource AverageWinLossTemplate}">
+                                        <ContentControl.Style><Style TargetType="ContentControl">
+                                            <Style.Triggers><DataTrigger Binding="{Binding Averages}" Value="{x:Null}">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger></Style.Triggers>
                                         </Style></ContentControl.Style>

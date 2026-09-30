@@ -4,7 +4,8 @@ using PersonalTradingJournal.Application.Analytics;
 namespace PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 
 public sealed record DashboardCard(string Label, string Value, string Explanation,
-    bool IsEstimated = false, string Date = "", WinRatePresentation? Ring = null, ProfitFactorPresentation? Factor = null);
+    bool IsEstimated = false, string Date = "", WinRatePresentation? Ring = null, ProfitFactorPresentation? Factor = null,
+    AverageWinLossPresentation? Averages = null);
 
 public interface IOutcomeRingPresentation
 {
@@ -82,12 +83,12 @@ public sealed class DashboardCurrencyPresentation
         bool rankable = DailyPnl.Count > 0 && DailyPnl.All(p => p.Value.HasValue);
         BestDay = rankable ? DailyPnl.OrderByDescending(p => p.Value).ThenBy(p => p.Date).First() : null;
         WorstDay = rankable ? DailyPnl.OrderBy(p => p.Value).ThenBy(p => p.Date).First() : null;
+        var averages = new AverageWinLossPresentation(net, Currency);
         Cards = [
             new("Net P&L", IsEmpty ? Money(0m, Currency) : Money(net!.Total, Currency), note, estimated),
             new("Win Rate", new WinRatePresentation(net).Value, note, estimated, Ring: new(net)),
             new("Profit Factor", new ProfitFactorPresentation(net, Currency).Value, $"{note} · {net?.ProfitFactor.Status}", estimated, Factor: new(net, Currency)),
-            new("Average Win", CardMoney(net?.AverageWin.Value), $"{note} · {net?.AverageWin.Status}", estimated),
-            new("Average Loss", CardMoney(net?.AverageLoss.Value), $"Positive loss magnitude · {note} · {net?.AverageLoss.Status}", estimated),
+            new("Average Win / Average Loss", averages.RatioText, averages.Description, estimated, Averages: averages),
             DayCard("Best Day", BestDay),
             DayCard("Worst Day", WorstDay),
             new("Total Trades", (source?.Metrics.ClosedTradeCount ?? 0).ToString(CultureInfo.CurrentCulture), "Fully closed Trades in this period and currency; excludes open and partially exited Trades."),
