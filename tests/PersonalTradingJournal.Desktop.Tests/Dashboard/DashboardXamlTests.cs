@@ -78,8 +78,11 @@ public sealed class DashboardXamlTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement averages = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "AverageWinLossTemplate");
         XElement averageLayout = Assert.Single(averages.Elements(p + "Grid"));
-        Assert.Equal(new[] { "Auto", "Auto", "Auto" }, averageLayout.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").Select(c => (string?)c.Attribute("Height")));
-        XElement barRow = Assert.Single(averageLayout.Elements(p + "Grid"), g => g.Attribute("Grid.Row") is null);
+        Assert.Equal(new[] { "*", "Auto" }, averageLayout.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").Select(c => (string?)c.Attribute("Height")));
+        XElement comparisonGroup = Assert.Single(averageLayout.Elements(p + "Grid"));
+        Assert.Equal("Center", (string?)comparisonGroup.Attribute("VerticalAlignment"));
+        Assert.Equal(new[] { "Auto", "Auto" }, comparisonGroup.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").Select(c => (string?)c.Attribute("Height")));
+        XElement barRow = Assert.Single(comparisonGroup.Elements(p + "Grid"), g => g.Attribute("Grid.Row") is null);
         Assert.Equal(new[] { "*", "4*", "*" }, barRow.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
         XElement comparison = Assert.Single(barRow.Elements(chart + "AverageComparisonBar"));
         Assert.Equal("1", (string?)comparison.Attribute("Grid.Column"));
@@ -87,7 +90,7 @@ public sealed class DashboardXamlTests
         Assert.Equal("1", (string?)ratio.Attribute("Grid.Row"));
         Assert.Equal("Center", (string?)ratio.Attribute("TextAlignment"));
         Assert.Contains("Win / Loss ratio", (string?)ratio.Attribute("AutomationProperties.Name"));
-        XElement amountRow = Assert.Single(averageLayout.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Row") == "2");
+        XElement amountRow = Assert.Single(comparisonGroup.Elements(p + "Grid"), g => (string?)g.Attribute("Grid.Row") == "1");
         Assert.Equal(new[] { "*", "*" }, amountRow.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").Select(c => (string?)c.Attribute("Width")));
         Assert.Equal("Right", (string?)Assert.Single(amountRow.Elements(p + "TextBlock"), t => (string?)t.Attribute("Grid.Column") == "1").Attribute("TextAlignment"));
         Assert.Contains(averages.Descendants(p + "TextBlock"), t => (string?)t.Attribute("Text") == "{Binding WinText}" &&
@@ -99,8 +102,12 @@ public sealed class DashboardXamlTests
             (string?)t.Attribute("Binding") == "{Binding Label}" && (string?)t.Attribute("Value") == "Avg Win / Avg Loss" &&
             t.Elements(p + "Setter").Any(s => (string?)s.Attribute("Property") == "Width"));
         Assert.Equal("280", (string?)Assert.Single(cardWidthTrigger.Elements(p + "Setter")).Attribute("Value"));
-        Assert.Contains(cards.Descendants(p + "TextBlock"), t =>
+        XElement cardLayout = Assert.Single(cards.Descendants(p + "DataTemplate").First().Elements(p + "Border")).Element(p + "Grid")!;
+        Assert.Equal(new[] { "Auto", "*" }, cardLayout.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").Select(c => (string?)c.Attribute("Height")));
+        Assert.Contains(cardLayout.Elements(p + "TextBlock"), t =>
             (string?)t.Attribute("Text") == "{Binding Label}" && (string?)t.Attribute("Style") == "{StaticResource PtjSecondaryTextStyle}");
+        Assert.Contains(cardLayout.Elements(p + "ContentControl"), c =>
+            (string?)c.Attribute("Grid.Row") == "1" && (string?)c.Attribute("ContentTemplate") == "{StaticResource AverageWinLossTemplate}");
         Assert.Equal("{Binding}", (string?)comparison.Attribute("Value"));
         Assert.Equal("True", (string?)comparison.Attribute("Focusable"));
         Assert.Equal("{Binding Description}", (string?)comparison.Attribute("AutomationProperties.Name"));

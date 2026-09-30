@@ -19,7 +19,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Dashboard;
 public sealed class DashboardRangeAndAverageTests
 {
     [Fact]
-    public async Task RenderedAverageCardKeepsHeadingBarRatioAndAmountsInOrderAtNarrowWidth()
+    public async Task RenderedAverageCardCentersBarAndAmountsAboveBottomRatioAtNormalAndNarrowHighDpiSizes()
     {
         await OnSta(() =>
         {
@@ -40,20 +40,24 @@ public sealed class DashboardRangeAndAverageTests
                 DashboardViewModelTests.Fact(-40m)]).Currencies);
             DashboardCard averageCard = Assert.Single(new DashboardCurrencyPresentation(source).Cards,
                 c => c.Label == "Avg Win / Avg Loss");
-            foreach (var (theme, dpi) in new[] { ("Dark", 240), ("Light", 96) })
+            foreach (var (theme, width, height, dpi) in new[]
+                     { ("Light", 280, 280, 96), ("Dark", 240, 360, 240) })
             {
-                var card = new Border { Width = 280, Padding = new Thickness(16), Resources = Resources(theme) };
+                var card = new Border { Width = width, Height = height, Padding = new Thickness(16), Resources = Resources(theme) };
                 card.Resources.MergedDictionaries.Add((ResourceDictionary)System.Windows.Application.LoadComponent(
                     new Uri("/PersonalTradingJournal.Desktop;component/Resources/Typography.xaml", UriKind.Relative)));
                 var heading = new TextBlock { Text = averageCard.Label,
                     Style = (Style)card.Resources["PtjSecondaryTextStyle"] };
                 var content = (Grid)XamlReader.Parse(gridXaml);
                 content.DataContext = averageCard.Averages;
-                var stack = new StackPanel();
-                stack.Children.Add(heading);
-                stack.Children.Add(content);
-                card.Child = stack;
-                Draw(card, 280, 280, dpi);
+                var layout = new Grid();
+                layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                Grid.SetRow(content, 1);
+                layout.Children.Add(heading);
+                layout.Children.Add(content);
+                card.Child = layout;
+                Draw(card, width, height, dpi);
                 var text = Descendants(card).OfType<TextBlock>().ToArray();
                 var ratio = Assert.Single(text, t => t.Text == "1.50" && t.ActualWidth > 0);
                 var win = Assert.Single(text, t => AutomationProperties.GetName(t).StartsWith("Average Win:", StringComparison.Ordinal));
@@ -64,9 +68,13 @@ public sealed class DashboardRangeAndAverageTests
                 Rect headingBounds = Bounds(heading, card), barBounds = Bounds(bar, card), ratioBounds = Bounds(ratio, card);
                 Rect winBounds = Bounds(win, card), lossBounds = Bounds(loss, card);
                 Assert.True(headingBounds.Bottom < barBounds.Top);
-                Assert.True(barBounds.Bottom < ratioBounds.Top);
-                Assert.True(ratioBounds.Bottom < Math.Min(winBounds.Top, lossBounds.Top));
+                Assert.True(barBounds.Bottom < Math.Min(winBounds.Top, lossBounds.Top));
+                Assert.True(Math.Max(winBounds.Bottom, lossBounds.Bottom) < ratioBounds.Top);
                 Assert.Equal(barBounds.Left + barBounds.Width / 2, ratioBounds.Left + ratioBounds.Width / 2, 1);
+                double groupCenter = (barBounds.Top + Math.Max(winBounds.Bottom, lossBounds.Bottom)) / 2;
+                double availableCenter = (headingBounds.Bottom + ratioBounds.Top) / 2;
+                Assert.InRange(Math.Abs(groupCenter - availableCenter), 0, 2);
+                Assert.InRange(card.ActualHeight - ratioBounds.Bottom, 15, 18);
                 Assert.True(winBounds.Right <= lossBounds.Left);
                 Assert.True(lossBounds.Right <= card.ActualWidth);
             }
