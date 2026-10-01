@@ -6,6 +6,7 @@ using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
@@ -19,6 +20,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
+    private readonly CalendarViewModel _calendarViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
@@ -38,6 +40,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public MainWindowViewModel(
         DashboardViewModel dashboardViewModel,
+        CalendarViewModel calendarViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
         ImportViewModel importViewModel,
@@ -49,6 +52,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         TopstepImportChangeTracker? topstepChanges = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
+        ArgumentNullException.ThrowIfNull(calendarViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
         ArgumentNullException.ThrowIfNull(importViewModel);
@@ -59,6 +63,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(themeService);
 
         _dashboardViewModel = dashboardViewModel;
+        _calendarViewModel = calendarViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
         _importViewModel = importViewModel;
@@ -204,6 +209,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted -= OnDashboardDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
         _dashboardViewModel.Deactivate();
+        _calendarViewModel.Deactivate();
     }
 
     private (bool Trades, bool Instruments) InvalidateTopstepChanges()
@@ -279,11 +285,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
+            NavigationDestination.Calendar => _calendarViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
             NavigationDestination.Import => _importViewModel,
@@ -293,6 +301,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Settings => _settingsViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
         };
+
+        if (destination == NavigationDestination.Calendar)
+            _ = _calendarViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Accounts)
         {

@@ -7,6 +7,8 @@
              xmlns:commonViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Common"
              xmlns:dashboardViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Dashboard"
              xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
+             xmlns:calendarViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Calendar"
+             xmlns:calendarViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
@@ -38,6 +40,10 @@
 
             <DataTemplate DataType="{x:Type dashboardViewModels:DashboardViewModel}">
                 <dashboardViews:DashboardView />
+            </DataTemplate>
+
+            <DataTemplate DataType="{x:Type calendarViewModels:CalendarViewModel}">
+                <calendarViews:CalendarView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">

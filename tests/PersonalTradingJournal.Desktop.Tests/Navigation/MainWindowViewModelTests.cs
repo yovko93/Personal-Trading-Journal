@@ -1,4 +1,5 @@
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Imports.Topstep;
@@ -18,6 +19,7 @@ using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Common;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
@@ -527,6 +529,24 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task CalendarNavigationUsesConcreteViewModelAndLoadsCurrentNewYorkMonth()
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        var calendar = Assert.IsType<CalendarViewModel>(fixture.Main.CurrentContentViewModel);
+        await calendar.LoadTask;
+        Assert.Equal(NavigationDestination.Calendar, fixture.Main.CurrentDestination);
+        Assert.Equal("Calendar", fixture.Main.PageTitle);
+        Assert.NotNull(calendar.MonthData);
+        Assert.InRange(calendar.Weeks.Count, 4, 6);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Notebook);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        Assert.Same(calendar, fixture.Main.CurrentContentViewModel);
+        await calendar.LoadTask;
+        Assert.NotNull(calendar.MonthData);
+    }
+
+    [Fact]
     public void NavigateToSettingsUsesRetainedConcreteSettingsViewModel()
     {
         ViewModelFixture fixture = CreateFixture();
@@ -948,6 +968,19 @@ public sealed class MainWindowViewModelTests
         public Task<TopstepImportResult> ImportAsync(TopstepImportRequest request, CancellationToken cancellationToken = default) => Task.FromResult(result);
     }
 
+    private sealed class EmptyCalendarReader : ITradingCalendarReader
+    {
+        public Task<TradingCalendarMonth> GetAsync(TradingCalendarQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            DateOnly[] dates = Enumerable.Range(0, query.GridEnd.DayNumber - query.GridStart.DayNumber + 1)
+                .Select(offset => query.GridStart.AddDays(offset)).ToArray();
+            return Task.FromResult(new TradingCalendarMonth(query.MonthStart, query.GridStart,
+                query.GridEnd, dates, []));
+        }
+    }
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
         AppTheme? effectiveTheme = null,
@@ -1107,6 +1140,7 @@ public sealed class MainWindowViewModelTests
             new FakeTradeScreenshotDeleteConfirmation());
         var main = new MainWindowViewModel(
             dashboard,
+            new CalendarViewModel(new EmptyCalendarReader(), timeProvider),
             accounts,
             instruments,
             import,

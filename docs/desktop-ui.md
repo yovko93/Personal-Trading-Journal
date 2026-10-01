@@ -68,7 +68,7 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and its current transient state, and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances and their successfully loaded lists/reference caches without repeating successful reads. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Dashboard, Settings, placeholders, and same-destination clicks keep their existing behavior.
+`MainWindowViewModel` retains the injected Dashboard, Calendar, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances; Calendar rereads its selected month on re-entry, while the existing retained feature lists/reference caches keep their established loading behavior. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Dashboard, Calendar, Settings, placeholders, and same-destination clicks keep their existing behavior.
 
 ## ViewModel-to-View Mapping
 
@@ -90,7 +90,7 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Policy
 
-Eight destinations—Dashboard, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 11 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Nine destinations—Dashboard, Calendar, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 10 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
