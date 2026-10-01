@@ -15,6 +15,7 @@ namespace PersonalTradingJournal.Desktop.Views.Dashboard;
 public sealed class PnlChart : UserControl
 {
     private const double SlotWidth = 88;
+    private const double MaxHoverHalfWidth = 48;
     private const double PlotTop = 16;
     // Space for the origin's second-line "Start" label plus the horizontal scrollbar.
     private const double DateAxisHeight = 52;
@@ -160,6 +161,7 @@ public sealed class PnlChart : UserControl
             }
             if (points.All(row => row.Value is null))
                 AddText(_plot, "Cumulative P&L values unavailable.", 8, PlotTop, "Unavailable cumulative chart");
+            AddHoverRegions(plotWidth, plotBottom);
             _activeGuide = new Line { Y1 = PlotTop, Y2 = plotBottom, Stroke = NeutralBrush,
                 StrokeThickness = 1, Opacity = .7, StrokeDashArray = new DoubleCollection { 3, 3 },
                 Tag = "ActivePointGuide", IsHitTestVisible = false, Visibility = Visibility.Collapsed };
@@ -219,6 +221,46 @@ public sealed class PnlChart : UserControl
         else marker.ClearValue(Shape.StrokeProperty);
     }
 
+    private void AddHoverRegions(double plotWidth, double plotBottom)
+    {
+        Border[] plotted = _pointTargets.Where(target => target.Child is Canvas canvas &&
+            canvas.Children.OfType<Ellipse>().Any()).ToArray();
+        double[] centers = plotted.Select(target => Canvas.GetLeft(target) + target.Width / 2).ToArray();
+        for (int index = 0; index < plotted.Length; index++)
+        {
+            Border target = plotted[index];
+            HoverRange range = GetHoverRange(centers, index, plotWidth);
+            var region = new Border { Width = range.Right - range.Left, Height = plotBottom - PlotTop,
+                Background = Brushes.Transparent, Focusable = false, Tag = "CumulativeHoverRegion", DataContext = target };
+            KeyboardNavigation.SetIsTabStop(region, false);
+            Canvas.SetLeft(region, range.Left);
+            Canvas.SetTop(region, PlotTop);
+            Panel.SetZIndex(region, 3);
+            string details = TooltipText((DashboardChartRow)target.Tag, target.Name == "PeriodOrigin");
+            region.ToolTip = CreateTooltip(details, region);
+            ToolTipService.SetInitialShowDelay(region, 100);
+            ToolTipService.SetBetweenShowDelay(region, 2000);
+            region.MouseEnter += (_, _) => { _hoveredTarget = target; UpdateActivePoint(); };
+            region.MouseLeave += (_, _) =>
+            {
+                if (ReferenceEquals(_hoveredTarget, target)) _hoveredTarget = null;
+                UpdateActivePoint();
+            };
+            region.MouseLeftButtonDown += (_, _) => target.Focus();
+            _plot.Children.Add(region);
+        }
+    }
+
+    internal readonly record struct HoverRange(double Left, double Right);
+
+    internal static HoverRange GetHoverRange(IReadOnlyList<double> centers, int index, double plotWidth)
+    {
+        double x = centers[index];
+        double left = index == 0 ? 0 : (centers[index - 1] + x) / 2;
+        double right = index == centers.Count - 1 ? plotWidth : (x + centers[index + 1]) / 2;
+        return new(Math.Max(left, x - MaxHoverHalfWidth), Math.Min(right, x + MaxHoverHalfWidth));
+    }
+
     private void AddDateLabel(DateOnly date, double center, double plotBottom, bool origin)
     {
         string text = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -240,9 +282,7 @@ public sealed class PnlChart : UserControl
         string details = TooltipText(row, origin);
         AutomationProperties.SetName(target, details);
         AutomationProperties.SetHelpText(target, origin ? "Period start before selected closed Trades; not an account balance." : row.Description);
-        var tip = new ToolTip { Content = details, PlacementTarget = target, Padding = new Thickness(10, 6, 10, 6) };
-        tip.SetResourceReference(Control.BackgroundProperty, "PtjSurfaceElevatedBrush");
-        tip.SetResourceReference(Control.ForegroundProperty, "PtjTextPrimaryBrush");
+        ToolTip tip = CreateTooltip(details, target);
         target.ToolTip = tip;
         ToolTipService.SetInitialShowDelay(target, 100);
         ToolTipService.SetBetweenShowDelay(target, 2000);
@@ -278,6 +318,14 @@ public sealed class PnlChart : UserControl
         Panel.SetZIndex(target, 2);
         _plot.Children.Add(target);
         _pointTargets.Add(target);
+    }
+
+    private static ToolTip CreateTooltip(string details, UIElement target)
+    {
+        var tip = new ToolTip { Content = details, PlacementTarget = target, Padding = new Thickness(10, 6, 10, 6) };
+        tip.SetResourceReference(Control.BackgroundProperty, "PtjSurfaceElevatedBrush");
+        tip.SetResourceReference(Control.ForegroundProperty, "PtjTextPrimaryBrush");
+        return tip;
     }
 
     internal static string TooltipText(DashboardChartRow row, bool origin = false)

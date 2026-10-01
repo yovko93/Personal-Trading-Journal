@@ -52,6 +52,19 @@ public sealed class PnlChartTests
         Assert.Equal(new Point(50, 50), segments[0].End);
     }
 
+    [Fact]
+    public void HoverRangesDivideDenseNeighborsAndCapSparseGaps()
+    {
+        double[] dense = [20, 50, 80];
+        Assert.Equal(new PnlChart.HoverRange(0, 35), PnlChart.GetHoverRange(dense, 0, 100));
+        Assert.Equal(new PnlChart.HoverRange(35, 65), PnlChart.GetHoverRange(dense, 1, 100));
+        Assert.Equal(new PnlChart.HoverRange(65, 100), PnlChart.GetHoverRange(dense, 2, 100));
+
+        double[] sparse = [20, 220];
+        Assert.Equal(new PnlChart.HoverRange(0, 68), PnlChart.GetHoverRange(sparse, 0, 260));
+        Assert.Equal(new PnlChart.HoverRange(172, 260), PnlChart.GetHoverRange(sparse, 1, 260));
+    }
+
     [Theory]
     [InlineData("Light", 96)]
     [InlineData("Light", 240)]
@@ -220,6 +233,64 @@ public sealed class PnlChartTests
         });
     }
 
+    [Theory]
+    [InlineData("Light", 96)]
+    [InlineData("Light", 240)]
+    [InlineData("Dark", 96)]
+    [InlineData("Dark", 240)]
+    public async Task FullHeightHoverRegionsSelectTheNearestPlottedPointAndSwitchAtMidpoints(string theme, int dpi)
+    {
+        await OnSta(() =>
+        {
+            PnlChart chart = Chart(theme, [Row(10), Row(0, 2), Row(-5, 3), Row(null, 4)]);
+            chart.Width = 360;
+            Draw(chart, dpi);
+            Border[] targets = Targets(chart);
+            Border[] regions = HoverRegions(chart);
+            Assert.Equal(4, regions.Length); // Origin and three plotted dates; no unavailable-value region.
+            Canvas plot = (Canvas)VisualTreeHelper.GetParent(regions[0]);
+            double bottom = Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "DateAxis").Y1;
+            Assert.All(regions, region =>
+            {
+                Assert.Equal(16, Canvas.GetTop(region));
+                Assert.Equal(bottom - 16, region.Height);
+                Assert.False(region.Focusable || KeyboardNavigation.GetIsTabStop(region));
+                Assert.Equal(100, ToolTipService.GetInitialShowDelay(region));
+            });
+
+            Border zero = RegionFor(chart, targets[2]);
+            double zeroX = Canvas.GetLeft(targets[2]) + targets[2].Width / 2;
+            foreach (double x in new[] { zeroX - 20, zeroX + 20 })
+                foreach (double y in new[] { 17d, bottom - 1 })
+                    Assert.Same(zero, HitRegion(plot, x, y));
+            zero.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            AssertGuideAt(Guide(chart), targets[2], chart);
+            Assert.Contains("2026-09-02", (string)((ToolTip)zero.ToolTip).Content);
+            Assert.Contains("0.00 USD", (string)((ToolTip)zero.ToolTip).Content);
+
+            Border next = RegionFor(chart, targets[3]);
+            double midpoint = (zeroX + Canvas.GetLeft(targets[3]) + targets[3].Width / 2) / 2;
+            Assert.Same(zero, HitRegion(plot, midpoint - .5, bottom / 2));
+            Assert.Same(next, HitRegion(plot, midpoint + .5, bottom / 2));
+            next.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            AssertGuideAt(Guide(chart), targets[3], chart);
+            Assert.Contains("-5.00 USD", (string)((ToolTip)next.ToolTip).Content);
+            next.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseLeaveEvent });
+            Assert.Equal(Visibility.Collapsed, Guide(chart).Visibility);
+
+            Border origin = RegionFor(chart, targets[0]);
+            origin.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            AssertGuideAt(Guide(chart), targets[0], chart);
+            origin.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseLeaveEvent });
+            Assert.Equal(Visibility.Collapsed, Guide(chart).Visibility);
+        });
+    }
+
     [Fact]
     public async Task GuideUsesScrollablePlotCoordinatesAndRealignsAfterResizeButClearsForNewScope()
     {
@@ -232,6 +303,9 @@ public sealed class PnlChartTests
             scroll.ScrollToHorizontalOffset(300);
             scroll.UpdateLayout();
             Border point = Targets(chart)[5];
+            Border region = RegionFor(chart, point);
+            Assert.Same(region, HitRegion((Canvas)VisualTreeHelper.GetParent(region),
+                Canvas.GetLeft(point) + point.Width / 2, 17));
             point.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
                 { RoutedEvent = UIElement.MouseEnterEvent });
             Line guide = Guide(chart);
@@ -240,13 +314,19 @@ public sealed class PnlChartTests
             Assert.Equal(point.TranslatePoint(new Point(point.Width / 2, 0), scroll).X,
                 guide.TranslatePoint(new Point(guide.X1, 0), scroll).X, 6);
             Assert.True(scroll.HorizontalOffset > 0);
+            Point visibleRegionCenter = region.TranslatePoint(new Point(region.Width / 2, region.Height / 2), scroll);
+            Assert.True(visibleRegionCenter.X > 0 && visibleRegionCenter.X < scroll.ViewportWidth);
+            Assert.Same(region, FindRegion(VisualTreeHelper.HitTest(scroll, visibleRegionCenter)?.VisualHit));
 
             chart.Width = 950;
             Draw(chart, 240);
             Border resizedPoint = Targets(chart)[5];
+            Border resizedRegion = RegionFor(chart, resizedPoint);
             Line resizedGuide = Guide(chart);
             AssertGuideAt(resizedGuide, resizedPoint, chart);
             Assert.NotEqual(firstX, resizedGuide.X1);
+            Assert.Same(resizedRegion, HitRegion((Canvas)VisualTreeHelper.GetParent(resizedRegion),
+                Canvas.GetLeft(resizedPoint) + resizedPoint.Width / 2, 17));
             Assert.Equal(resizedPoint.TranslatePoint(new Point(resizedPoint.Width / 2, 0), scroll).X,
                 resizedGuide.TranslatePoint(new Point(resizedGuide.X1, 0), scroll).X, 6);
 
@@ -254,6 +334,12 @@ public sealed class PnlChartTests
             Draw(chart, 240);
             Assert.Equal(Visibility.Collapsed, Guide(chart).Visibility);
             Assert.Single(Segments(chart));
+            Assert.Equal(2, HoverRegions(chart).Length);
+            Assert.Contains("USD", (string)((ToolTip)HoverRegions(chart)[1].ToolTip).Content);
+            chart.Points = [Row(-4) with { Currency = "EUR" }];
+            Draw(chart, 240);
+            Assert.Contains("EUR", (string)((ToolTip)HoverRegions(chart)[1].ToolTip).Content);
+            Assert.DoesNotContain("USD", (string)((ToolTip)HoverRegions(chart)[1].ToolTip).Content);
         });
     }
 
@@ -293,7 +379,7 @@ public sealed class PnlChartTests
             var axis = (UIElement)VisualTreeHelper.GetParent(Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "ValueAxis"));
             var plot = (UIElement)VisualTreeHelper.GetParent(Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "DateAxis"));
             var scrollbar = Assert.Single(Descendants(chart).OfType<ScrollBar>(), bar => bar.Orientation == Orientation.Horizontal);
-            foreach (UIElement surface in new UIElement[] { Targets(chart)[1], axis, plot, scrollbar })
+            foreach (UIElement surface in new UIElement[] { Targets(chart)[1], HoverRegions(chart)[1], axis, plot, scrollbar })
             {
                 outer.ScrollToVerticalOffset(200);
                 outer.UpdateLayout();
@@ -346,6 +432,21 @@ public sealed class PnlChartTests
         return chart;
     }
     private static Border[] Targets(PnlChart chart) => Descendants(chart).OfType<Border>().Where(t => t.Tag is DashboardChartRow).ToArray();
+    private static Border[] HoverRegions(PnlChart chart) => Descendants(chart).OfType<Border>()
+        .Where(region => region.Tag as string == "CumulativeHoverRegion").ToArray();
+    private static Border RegionFor(PnlChart chart, Border target) =>
+        Assert.Single(HoverRegions(chart), region => ReferenceEquals(region.DataContext, target));
+    private static Border? HitRegion(Canvas plot, double x, double y) =>
+        FindRegion(VisualTreeHelper.HitTest(plot, new Point(x, y))?.VisualHit);
+    private static Border? FindRegion(DependencyObject? hit)
+    {
+        while (hit is not null)
+        {
+            if (hit is Border region && region.Tag as string == "CumulativeHoverRegion") return region;
+            hit = VisualTreeHelper.GetParent(hit);
+        }
+        return null;
+    }
     private static Line Guide(PnlChart chart) => Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "ActivePointGuide");
     private static Line[] Segments(PnlChart chart) => Descendants(chart).OfType<Line>().Where(t => (string?)t.Tag == "CumulativeSegment").ToArray();
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
