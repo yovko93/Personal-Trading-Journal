@@ -65,9 +65,20 @@ public sealed class DashboardXamlTests
         Assert.Contains("{Binding RangeValidationMessage}", xaml);
         XElement selected = Assert.Single(view.Descendants(p + "StackPanel"), e => (string?)e.Attribute("DataContext") == "{Binding Selected}");
         XElement cumulativeChart = Assert.Single(selected.Descendants(chart + "PnlChart"));
-        Assert.Equal("True", (string?)cumulativeChart.Attribute("Focusable"));
         Assert.Equal("{Binding CumulativePnl}", (string?)cumulativeChart.Attribute("Points"));
         Assert.Equal("{Binding PeriodStart}", (string?)cumulativeChart.Attribute("StartDate"));
+        XElement cumulativeSection = Assert.IsType<XElement>(cumulativeChart.Parent);
+        Assert.Equal(new[] { p + "StackPanel", chart + "PnlChart" }, cumulativeSection.Elements().Select(e => e.Name));
+        XElement cumulativeHeader = Assert.Single(cumulativeSection.Elements(p + "StackPanel"));
+        Assert.Equal("Cumulative Realized P&L", (string?)Assert.Single(cumulativeHeader.Elements(p + "TextBlock")).Attribute("Text"));
+        XElement cumulativeHelp = Assert.Single(cumulativeHeader.Elements(p + "Button"));
+        Assert.Equal("?", (string?)cumulativeHelp.Attribute("Content"));
+        Assert.Equal("True", (string?)cumulativeHelp.Attribute("Focusable"));
+        const string cumulativeHelpText = "Accumulates realized P&L from closed Trades in the selected period, starting at zero. This is not an account balance.";
+        Assert.Equal(cumulativeHelpText, (string?)cumulativeHelp.Element(p + "Button.ToolTip")?.Element(p + "ToolTip")?.Attribute("Content"));
+        Assert.Equal(cumulativeHelpText, (string?)cumulativeHelp.Attribute("AutomationProperties.HelpText"));
+        Assert.NotNull(cumulativeHelp.Attribute("GotKeyboardFocus"));
+        Assert.Equal("{Binding CoverageNote}", (string?)cumulativeChart.Attribute("AutomationProperties.HelpText"));
         XElement dailyChart = Assert.Single(selected.Descendants(chart + "DailyPnlChart"));
         Assert.Equal("{Binding DailyPnl}", (string?)dailyChart.Attribute("Points"));
         XElement dailySection = Assert.IsType<XElement>(dailyChart.Parent);
@@ -91,9 +102,10 @@ public sealed class DashboardXamlTests
             Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)c.Attribute("NegativeBrush"));
             Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)c.Attribute("NeutralBrush"));
         }
-        Assert.Equal("Show cumulative values", (string?)Assert.Single(selected.Descendants(p + "Expander")).Attribute("Header"));
+        Assert.Empty(selected.Descendants(p + "Expander"));
+        Assert.DoesNotContain("Show cumulative values", xaml);
         Assert.Contains(selected.Descendants(p + "WrapPanel"), _ => true);
-        foreach (string binding in new[] { "Cards", "CumulativePnl", "Setups" })
+        foreach (string binding in new[] { "Cards", "Setups" })
             Assert.Contains(selected.Descendants(p + "ItemsControl"), c => (string?)c.Attribute("ItemsSource") == $"{{Binding {binding}}}");
         Assert.Contains(view.Descendants(p + "ItemsControl").Except(selected.Descendants(p + "ItemsControl")),
             c => (string?)c.Attribute("ItemsSource") == "{Binding RecentTrades}");
@@ -158,13 +170,7 @@ public sealed class DashboardXamlTests
         Assert.Equal("{DynamicResource PtjDangerBrush}", (string?)comparison.Attribute("LossBrush"));
         Assert.Equal("{DynamicResource PtjTextMutedBrush}", (string?)comparison.Attribute("NeutralBrush"));
         Assert.DoesNotContain(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "DailyValues");
-        XElement cumulative = Assert.Single(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "CumulativeValues");
-        Assert.Contains(cumulative.Descendants(p + "TextBlock"),
-            t => (string?)t.Attribute("Text") == "{Binding AmountText}" && (string?)t.Attribute("Style") == "{StaticResource ChartAmountStyle}");
-        XElement amountStyle = Assert.Single(view.Descendants(p + "Style"), s => (string?)s.Attribute(x + "Key") == "ChartAmountStyle");
-        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjSuccessBrush}");
-        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjDangerBrush}");
-        Assert.Contains(amountStyle.Descendants(p + "Setter"), s => (string?)s.Attribute("Value") == "{DynamicResource PtjTextMutedBrush}");
+        Assert.DoesNotContain(view.Descendants(p + "DataTemplate"), t => (string?)t.Attribute(x + "Key") == "CumulativeValues");
         Assert.Equal(2, view.Descendants(chart + "OutcomeRing").Count());
         foreach (XElement ring in view.Descendants(chart + "OutcomeRing"))
         {

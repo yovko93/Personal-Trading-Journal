@@ -109,13 +109,13 @@ public sealed class DailyPnlChart : UserControl
             }
 
             double[] values = points.Where(row => row.Value.HasValue).Select(row => (double)row.Value!.Value).ToArray();
-            AxisScale? scale = values.Length == 0 ? null : AxisScale.For(values);
+            ChartValueScale? scale = values.Length == 0 ? null : ChartValueScale.For(values);
             string currency = points[0].Currency;
             int decimals = scale is { } available ? Math.Clamp((int)Math.Ceiling(-Math.Log10(available.Step)), 0, 8) : 2;
             var ticks = scale is { } s
                 ? Enumerable.Range(0, s.TickCount).Select(i => s.Minimum + i * s.Step).ToArray()
                 : [];
-            string[] tickLabels = ticks.Select(value => TickText(value, currency, decimals)).ToArray();
+            string[] tickLabels = ticks.Select(value => ChartValueScale.TickText(value, currency, decimals)).ToArray();
             double axisWidth = Math.Max(72, tickLabels.Select(TextWidth).DefaultIfEmpty(0).Max() + 14);
             _axisColumn.Width = new GridLength(axisWidth);
             _valueAxis.Width = axisWidth;
@@ -259,24 +259,4 @@ public sealed class DailyPnlChart : UserControl
         return label.DesiredSize.Width;
     }
 
-    private static string TickText(double value, string currency, int decimals) =>
-        $"{value.ToString($"N{decimals}", CultureInfo.CurrentCulture)} {currency}".TrimEnd();
-
-    private readonly record struct AxisScale(double Minimum, double Maximum, double Step)
-    {
-        public int TickCount => Math.Min(12, (int)Math.Round((Maximum - Minimum) / Step) + 1);
-
-        public static AxisScale For(double[] values)
-        {
-            double min = Math.Min(0, values.Min()), max = Math.Max(0, values.Max());
-            if (min == max) return new(-1, 1, 1);
-            double raw = (max - min) / 4;
-            double power = Math.Pow(10, Math.Floor(Math.Log10(raw)));
-            double fraction = raw / power;
-            double step = (fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10) * power;
-            double floor = Math.Floor(min / step) * step, ceiling = Math.Ceiling(max / step) * step;
-            if (floor == ceiling) ceiling = floor + step;
-            return new(floor, ceiling, step);
-        }
-    }
 }

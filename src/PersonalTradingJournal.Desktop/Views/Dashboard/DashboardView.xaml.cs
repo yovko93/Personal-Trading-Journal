@@ -31,12 +31,12 @@ public partial class DashboardView : UserControl
         }
     }
 
-    private void OnDailyHelpGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    private void OnChartHelpGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     {
         if (sender is Button { ToolTip: ToolTip tip }) tip.IsOpen = true;
     }
 
-    private void OnDailyHelpLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    private void OnChartHelpLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
     {
         if (sender is Button { ToolTip: ToolTip tip }) tip.IsOpen = false;
     }

@@ -50,18 +50,6 @@
                 </StackPanel>
             </StackPanel>
         </DataTemplate>
-        <Style x:Key="ChartAmountStyle" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
-            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Value, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Positive}">
-                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Value, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Negative}">
-                    <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
         <Style x:Key="DashboardCardValueStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
             <Style.Triggers>
@@ -96,14 +84,6 @@
                 <TextBlock Grid.Row="1" Text="{Binding RatioText}" FontSize="24" FontWeight="SemiBold"
                            TextAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}"
                            AutomationProperties.Name="{Binding RatioText, StringFormat=Win / Loss ratio: {0}}" />
-            </Grid>
-        </DataTemplate>
-        <DataTemplate x:Key="CumulativeValues">
-            <Grid Margin="0,4" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}">
-                <Grid.ColumnDefinitions><ColumnDefinition Width="110" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Date, StringFormat={}{0:yyyy-MM-dd}}" Style="{StaticResource PtjBodyTextStyle}" />
-                <TextBlock Grid.Column="1" Text="{Binding AmountText}" Style="{StaticResource ChartAmountStyle}" Margin="8,0"
-                           Focusable="True" ToolTip="{Binding Description}" AutomationProperties.HelpText="{Binding Description}" />
             </Grid>
         </DataTemplate>
             </ResourceDictionary>
@@ -271,17 +251,23 @@
                 </ItemsControl>
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">
                     <StackPanel>
-                        <TextBlock Text="Cumulative Realized P&amp;L" Style="{StaticResource PtjSectionTitleTextStyle}" />
-                        <TextBlock Text="Effective Net · starts at zero at the selected period's beginning. Not account equity or balance."
-                                   Style="{StaticResource PtjSecondaryTextStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding CoverageNote}" Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" />
-                        <dashboard:PnlChart Points="{Binding CumulativePnl}" StartDate="{Binding PeriodStart}" IsCumulative="True" Height="240"
-                                            Foreground="{DynamicResource PtjTextSecondaryBrush}" Focusable="True"
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Cumulative Realized P&amp;L" Style="{StaticResource PtjSectionTitleTextStyle}" VerticalAlignment="Center" />
+                            <Button Content="?" Margin="8,0,0,0" Width="22" Height="22" MinHeight="22" Padding="0" Focusable="True"
+                                    FontSize="12" Style="{StaticResource PtjIconButtonStyle}"
+                                    AutomationProperties.Name="About Cumulative Realized P&amp;L"
+                                    AutomationProperties.HelpText="Accumulates realized P&amp;L from closed Trades in the selected period, starting at zero. This is not an account balance."
+                                    GotKeyboardFocus="OnChartHelpGotKeyboardFocus" LostKeyboardFocus="OnChartHelpLostKeyboardFocus">
+                                <Button.ToolTip>
+                                    <ToolTip Content="Accumulates realized P&amp;L from closed Trades in the selected period, starting at zero. This is not an account balance." />
+                                </Button.ToolTip>
+                            </Button>
+                        </StackPanel>
+                        <dashboard:PnlChart Points="{Binding CumulativePnl}" StartDate="{Binding PeriodStart}" Height="260"
+                                            Foreground="{DynamicResource PtjTextSecondaryBrush}"
                                             PositiveBrush="{DynamicResource PtjSuccessBrush}" NegativeBrush="{DynamicResource PtjDangerBrush}" NeutralBrush="{DynamicResource PtjTextMutedBrush}"
-                                            AutomationProperties.Name="Cumulative realized P&amp;L chart. Exact dates, values and estimate coverage are in Show cumulative values below." />
-                        <Expander Header="Show cumulative values" Foreground="{DynamicResource PtjTextPrimaryBrush}">
-                            <ItemsControl ItemsSource="{Binding CumulativePnl}" ItemTemplate="{StaticResource CumulativeValues}" />
-                        </Expander>
+                                            AutomationProperties.Name="Cumulative realized P&amp;L chart. Tab through the period start and New York closure dates for exact amounts. Unavailable values are gaps."
+                                            AutomationProperties.HelpText="{Binding CoverageNote}" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource PtjCardStyle}" Margin="0,8">
@@ -292,7 +278,7 @@
                                     FontSize="12" Style="{StaticResource PtjIconButtonStyle}"
                                     AutomationProperties.Name="About Daily P&amp;L"
                                     AutomationProperties.HelpText="The overall net profit and loss realized per each trading day."
-                                    GotKeyboardFocus="OnDailyHelpGotKeyboardFocus" LostKeyboardFocus="OnDailyHelpLostKeyboardFocus">
+                                    GotKeyboardFocus="OnChartHelpGotKeyboardFocus" LostKeyboardFocus="OnChartHelpLostKeyboardFocus">
                                 <Button.ToolTip>
                                     <ToolTip Content="The overall net profit and loss realized per each trading day." />
                                 </Button.ToolTip>
