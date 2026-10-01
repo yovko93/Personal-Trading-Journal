@@ -421,6 +421,10 @@ On both P&L charts, hover tooltips follow the pointer within the active day or p
 
 The user has visually verified the estimated-Net presentation in Trades and Details. This is separate from automated analytics coverage and is **not Dashboard visual verification**.
 
+## Trading Calendar Data Foundation
+
+`ITradingCalendarReader.GetAsync(TradingCalendarQuery)` now provides a read-only monthly Calendar data path. A request specifies a year, month, and optional Account ID; omitting the Account means all accounts. The result includes every date of the complete Monday–Sunday grid, including adjacent-month dates, and separate historical-currency buckets. It reuses the Dashboard's DST-safe New York closure-date query and authoritative daily/weekly Effective Net metrics; it does not reconstruct P&L from displayed prices. A day or week with no closed Trades has no metrics, distinct from a real zero result. Estimated Net retains its provenance and unavailable economics remain unavailable. Weekly summaries include all seven days, including Sunday, even though the future UI will display each row's summary in the Saturday cell. See [Trading Calendar](docs/trading-calendar.md) for contracts and the later UI requirements. No Calendar WPF screen is implemented in this stage.
+
 ## Architectural Principles
 
 The repository follows a domain-first design with dependencies directed toward the Domain. Infrastructure implements meaningful Application abstractions, while Desktop remains the composition and presentation layer. The system is local-first today, but the core should remain independent of WPF so a future web or SaaS presentation can evolve without replacing domain and application logic.

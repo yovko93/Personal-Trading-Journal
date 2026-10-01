@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Imports.Tradovate;
@@ -71,6 +72,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();
         services.AddTransient<IDashboardAnalyticsReader, DashboardAnalyticsReader>();
+        services.AddTransient<ITradingCalendarReader, TradingCalendarReader>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();
         services.AddTransient<ITradovateImportStore, TradovateImportStore>();
