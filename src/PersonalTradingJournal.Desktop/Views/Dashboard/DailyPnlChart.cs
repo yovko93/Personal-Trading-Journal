@@ -61,6 +61,30 @@ public sealed class DailyPnlChart : UserControl
         _scroll.SizeChanged += (_, _) => Rebuild();
     }
 
+    protected override void OnPreviewMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnPreviewMouseWheel(e);
+        if (e.Handled || e.Delta == 0 || (Keyboard.Modifiers & ModifierKeys.Shift) != 0) return;
+
+        // The plot's horizontal ScrollViewer otherwise consumes an ordinary vertical wheel.
+        // Let the parent ScrollViewer apply its native wheel distance and direction once.
+        for (DependencyObject? parent = VisualTreeHelper.GetParent(this); parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is not ScrollViewer outer || outer.VerticalScrollBarVisibility == ScrollBarVisibility.Disabled)
+                continue;
+            bool canMove = e.Delta > 0 ? outer.VerticalOffset > 0 : outer.VerticalOffset < outer.ScrollableHeight;
+            if (!canMove) return;
+
+            e.Handled = true;
+            outer.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            {
+                RoutedEvent = MouseWheelEvent,
+                Source = outer,
+            });
+            return;
+        }
+    }
+
     private void Rebuild()
     {
         if (_rebuilding || ActualHeight < 80 || ActualWidth < 120) return;

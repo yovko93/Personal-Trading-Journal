@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
@@ -153,6 +154,79 @@ public sealed class DailyPnlChartTests
                 ((ToolTip)targets[1].ToolTip).Content);
         });
     }
+
+    [Fact]
+    public async Task VerticalWheelOverEveryChartSurfaceScrollsOuterViewerOnceAndKeepsHorizontalNavigation()
+    {
+        await OnSta(() =>
+        {
+            var rows = Enumerable.Range(0, 40).Select(i => new DashboardChartRow(
+                new DateOnly(2026, 1, 1).AddDays(i), i - 20, false, "USD", "Complete", 1)).ToArray();
+            DailyPnlChart chart = Chart("Light", 360, 260, rows);
+            var content = new StackPanel();
+            content.Children.Add(new Border { Height = 250 });
+            content.Children.Add(chart);
+            content.Children.Add(new Border { Height = 250 });
+            var outer = new ScrollViewer
+            {
+                Width = 400, Height = 300, Content = content,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            };
+            Draw(outer, 400, 300, 96);
+            ScrollViewer inner = Assert.Single(Descendants(chart).OfType<ScrollViewer>());
+            Assert.True(outer.ScrollableHeight > 300);
+            Assert.True(inner.ScrollableWidth > 0);
+
+            outer.ScrollToVerticalOffset(200);
+            outer.UpdateLayout();
+            double start = outer.VerticalOffset;
+            RaiseWheel(outer, UIElement.MouseWheelEvent, -120);
+            outer.UpdateLayout();
+            double nativeDistance = outer.VerticalOffset - start;
+            Assert.True(nativeDistance > 0);
+
+            UIElement axis = Assert.IsAssignableFrom<UIElement>(VisualTreeHelper.GetParent(
+                Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "ValueAxis")));
+            UIElement plot = Assert.IsAssignableFrom<UIElement>(VisualTreeHelper.GetParent(
+                Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "DateAxis")));
+            var horizontalBar = Assert.Single(Descendants(chart).OfType<ScrollBar>(), bar => bar.Orientation == Orientation.Horizontal);
+            foreach (UIElement surface in new UIElement[] { Targets(chart)[0], axis, plot, horizontalBar })
+            {
+                outer.ScrollToVerticalOffset(start);
+                outer.UpdateLayout();
+                RaiseWheel(surface, UIElement.PreviewMouseWheelEvent, -120);
+                outer.UpdateLayout();
+                Assert.Equal(start + nativeDistance, outer.VerticalOffset);
+                Assert.Equal(0, inner.HorizontalOffset);
+            }
+
+            outer.ScrollToVerticalOffset(start);
+            outer.UpdateLayout();
+            RaiseWheel(Targets(chart)[0], UIElement.PreviewMouseWheelEvent, 120);
+            outer.UpdateLayout();
+            Assert.True(outer.VerticalOffset < start);
+
+            outer.ScrollToVerticalOffset(0);
+            outer.UpdateLayout();
+            RaiseWheel(Targets(chart)[0], UIElement.PreviewMouseWheelEvent, 120);
+            outer.UpdateLayout();
+            Assert.Equal(0, outer.VerticalOffset);
+            Assert.Equal(0, inner.HorizontalOffset);
+
+            Assert.True(horizontalBar.Maximum > 0);
+            inner.ScrollToHorizontalOffset(Math.Min(180, horizontalBar.Maximum));
+            inner.UpdateLayout();
+            Assert.True(inner.HorizontalOffset > 0);
+        });
+    }
+
+    private static void RaiseWheel(UIElement source, RoutedEvent routedEvent, int delta) =>
+        source.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, delta)
+        {
+            RoutedEvent = routedEvent,
+            Source = source,
+        });
 
     private static DailyPnlChart Chart(string theme, int width, int height, params DashboardChartRow[] rows)
     {
