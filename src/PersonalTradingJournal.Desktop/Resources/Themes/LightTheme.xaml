@@ -1,18 +1,18 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Color x:Key="PtjColorBackground">#F6F8FA</Color>
+    <Color x:Key="PtjColorBackground">#F4F6F8</Color>
     <Color x:Key="PtjColorSurface">#FFFFFF</Color>
-    <Color x:Key="PtjColorSurfaceElevated">#EAEEF2</Color>
-    <Color x:Key="PtjColorBorder">#D0D7DE</Color>
-    <Color x:Key="PtjColorTextPrimary">#1F2328</Color>
-    <Color x:Key="PtjColorTextSecondary">#424A53</Color>
-    <Color x:Key="PtjColorTextMuted">#656D76</Color>
-    <Color x:Key="PtjColorAccent">#0969DA</Color>
-    <Color x:Key="PtjColorSuccess">#1A7F37</Color>
-    <Color x:Key="PtjColorDanger">#CF222E</Color>
-    <Color x:Key="PtjColorWarning">#9A6700</Color>
-    <Color x:Key="PtjColorSuccessSurface">#EAF7ED</Color>
-    <Color x:Key="PtjColorDangerSurface">#FDECEE</Color>
+    <Color x:Key="PtjColorSurfaceElevated">#EAF3F2</Color>
+    <Color x:Key="PtjColorBorder">#CBD7D8</Color>
+    <Color x:Key="PtjColorTextPrimary">#24242B</Color>
+    <Color x:Key="PtjColorTextSecondary">#4E5762</Color>
+    <Color x:Key="PtjColorTextMuted">#616C77</Color>
+    <Color x:Key="PtjColorAccent">#28655F</Color>
+    <Color x:Key="PtjColorSuccess">#27724D</Color>
+    <Color x:Key="PtjColorDanger">#B53F56</Color>
+    <Color x:Key="PtjColorWarning">#8B600D</Color>
+    <Color x:Key="PtjColorSuccessSurface">#E6F3EC</Color>
+    <Color x:Key="PtjColorDangerSurface">#F9E9ED</Color>
 
     <SolidColorBrush x:Key="PtjBackgroundBrush" Color="{StaticResource PtjColorBackground}" />
     <SolidColorBrush x:Key="PtjSurfaceBrush" Color="{StaticResource PtjColorSurface}" />
@@ -22,9 +22,16 @@
     <SolidColorBrush x:Key="PtjTextSecondaryBrush" Color="{StaticResource PtjColorTextSecondary}" />
     <SolidColorBrush x:Key="PtjTextMutedBrush" Color="{StaticResource PtjColorTextMuted}" />
     <SolidColorBrush x:Key="PtjAccentBrush" Color="{StaticResource PtjColorAccent}" />
+    <SolidColorBrush x:Key="PtjOnAccentBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
     <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />
     <SolidColorBrush x:Key="PtjSuccessSurfaceBrush" Color="{StaticResource PtjColorSuccessSurface}" />
     <SolidColorBrush x:Key="PtjDangerSurfaceBrush" Color="{StaticResource PtjColorDangerSurface}" />
+    <!-- Sidebar has a distinct dark palette in both modes; content accents retain text contrast. -->
+    <SolidColorBrush x:Key="PtjSidebarBrush" Color="#141316" />
+    <SolidColorBrush x:Key="PtjSidebarTextBrush" Color="#E9EDF4" />
+    <SolidColorBrush x:Key="PtjSidebarMutedBrush" Color="#B4BCCB" />
+    <SolidColorBrush x:Key="PtjSidebarSelectionBrush" Color="#CCE5E3" />
+    <SolidColorBrush x:Key="PtjSidebarSelectedTextBrush" Color="#173E3A" />
 </ResourceDictionary>

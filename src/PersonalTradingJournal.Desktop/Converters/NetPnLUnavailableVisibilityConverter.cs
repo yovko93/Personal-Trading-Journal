@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Converters;
 
 /// <summary>
-/// Shows the unknown-cost explanation only for trades with a calculated gross
-/// result but no calculated net result.
+/// Shows the estimate explanation when authoritative Net is unavailable but a closed
+/// Trade has Gross. Uses the same effective-Net policy as the displayed number.
 /// </summary>
 public sealed class NetPnLUnavailableVisibilityConverter : IMultiValueConverter
 {
@@ -15,7 +17,8 @@ public sealed class NetPnLUnavailableVisibilityConverter : IMultiValueConverter
         Type targetType,
         object parameter,
         CultureInfo culture) =>
-        values.Length == 2 && values[0] is decimal && values[1] is null
+        values.Length == 3 && values[0] is decimal && values[1] is null && values[2] is TradeStatus status &&
+        EffectiveNetPnL.Resolve(status, values[0] as decimal?, values[1] as decimal?).IsEstimated
             ? Visibility.Visible
             : Visibility.Collapsed;
 

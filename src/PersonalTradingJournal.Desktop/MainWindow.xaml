@@ -71,7 +71,7 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
-                Background="{DynamicResource PtjSurfaceBrush}"
+                Background="{DynamicResource PtjSidebarBrush}"
                 BorderBrush="{DynamicResource PtjBorderBrush}"
                 BorderThickness="0,0,1,0">
             <Grid>
@@ -84,6 +84,7 @@
                         BorderBrush="{DynamicResource PtjBorderBrush}"
                         BorderThickness="0,0,0,1">
                     <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
+                               Foreground="{DynamicResource PtjSidebarTextBrush}"
                                Text="{Binding ApplicationTitle}"
                                TextWrapping="Wrap" />
                 </Border>

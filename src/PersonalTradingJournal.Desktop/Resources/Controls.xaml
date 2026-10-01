@@ -2,6 +2,24 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
                     xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
+    <converters:TradeRowOutcomeConverter x:Key="PtjTradeRowOutcomeConverter" />
+    <Style x:Key="PtjTradeOutcomeRowStyle" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+        <Style.Triggers>
+            <DataTrigger Value="{x:Static converters:PnLOutcome.Positive}">
+                <DataTrigger.Binding><MultiBinding Converter="{StaticResource PtjTradeRowOutcomeConverter}">
+                    <Binding Path="NetPnL" /><Binding Path="GrossPnL" />
+                </MultiBinding></DataTrigger.Binding>
+                <Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" />
+            </DataTrigger>
+            <DataTrigger Value="{x:Static converters:PnLOutcome.Negative}">
+                <DataTrigger.Binding><MultiBinding Converter="{StaticResource PtjTradeRowOutcomeConverter}">
+                    <Binding Path="NetPnL" /><Binding Path="GrossPnL" />
+                </MultiBinding></DataTrigger.Binding>
+                <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
     <converters:NavigationIconConverter x:Key="PtjNavigationIconConverter" />
 
     <Style x:Key="PtjWindowStyle" TargetType="{x:Type Window}">
@@ -69,6 +87,7 @@
     <Style x:Key="PtjPrimaryButtonStyle"
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource PtjButtonStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
         <Setter Property="Background" Value="{DynamicResource PtjAccentBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
     </Style>
@@ -491,7 +510,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjSidebarTextBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="14" />
         <Setter Property="FontWeight" Value="Normal" />
@@ -525,8 +544,8 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="NavigationChrome"
                                     Property="Background"
-                                    Value="{DynamicResource PtjSurfaceElevatedBrush}" />
-                            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                                    Value="{DynamicResource PtjSidebarSelectionBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjSidebarSelectedTextBrush}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Setter TargetName="NavigationChrome"
@@ -547,10 +566,10 @@
         </Setter>
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                <Setter Property="Background" Value="{DynamicResource PtjSidebarSelectionBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
                 <Setter Property="BorderThickness" Value="3,0,0,0" />
-                <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource PtjSidebarSelectedTextBrush}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </DataTrigger>
         </Style.Triggers>
@@ -560,7 +579,7 @@
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjSidebarMutedBrush}" />
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="11" />
         <Setter Property="FontWeight" Value="SemiBold" />
@@ -619,8 +638,8 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="SectionChrome"
                                     Property="Background"
-                                    Value="{DynamicResource PtjSurfaceElevatedBrush}" />
-                            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                                    Value="{DynamicResource PtjSidebarSelectionBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource PtjSidebarSelectedTextBrush}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="SectionChrome"

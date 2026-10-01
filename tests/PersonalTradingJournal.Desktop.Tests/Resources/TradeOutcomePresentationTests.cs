@@ -28,12 +28,12 @@ public sealed class TradeOutcomePresentationTests
         string view = ReadTradesView();
 
         Assert.Contains("SelectedTradeDetail.GrossPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
-        Assert.Contains("SelectedTradeDetail.NetPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
-        Assert.Contains("NetPnL, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
+        Assert.Contains("SelectedTradeDetail.EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
+        Assert.Contains("EffectiveNet.Value, Converter={StaticResource PnLOutcomeConverter}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjSuccessBrush}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjDangerBrush}", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjTextMutedBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("Binding=\"{Binding NetPnL}\" Value=\"{x:Null}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Binding=\"{Binding EffectiveNet.Value}\" Value=\"{x:Null}\"", view, StringComparison.Ordinal);
         Assert.Contains("Text=\"—\"", view, StringComparison.Ordinal);
     }
 
@@ -45,8 +45,10 @@ public sealed class TradeOutcomePresentationTests
         Assert.Contains("Margin=\"0,0,0,8\"", view, StringComparison.Ordinal);
         Assert.Contains("CornerRadius=\"{StaticResource PtjCornerRadiusMd}\"", view, StringComparison.Ordinal);
         Assert.Contains("{DynamicResource PtjSurfaceElevatedBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", view, StringComparison.Ordinal);
-        Assert.Contains("{DynamicResource PtjDangerSurfaceBrush}", view, StringComparison.Ordinal);
+        Assert.Contains("PtjTradeOutcomeRowStyle", view, StringComparison.Ordinal);
+        string controls = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src/PersonalTradingJournal.Desktop/Resources/Controls.xaml"));
+        Assert.Contains("{DynamicResource PtjSuccessSurfaceBrush}", controls, StringComparison.Ordinal);
+        Assert.Contains("{DynamicResource PtjDangerSurfaceBrush}", controls, StringComparison.Ordinal);
     }
 
     [Fact]

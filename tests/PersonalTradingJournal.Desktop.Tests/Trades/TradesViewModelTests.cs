@@ -736,8 +736,11 @@ public sealed partial class TradesViewModelTests
     public async Task SaveManualTradeCommandPersistsOpenLongTradeAndResetsForm()
     {
         ManualTradeSaveFixture fixture = CreateSaveFixture();
+        int commits = 0;
+        fixture.ViewModel.TradeDataCommitted += (_, _) => commits++;
 
         await fixture.ViewModel.SaveManualTradeCommand.ExecuteAsync(null);
+        Assert.Equal(1, commits);
 
         Assert.Equal(1, fixture.TradeStore.AddCallCount);
         Trade trade = Assert.IsType<Trade>(fixture.TradeStore.AddedTrade);

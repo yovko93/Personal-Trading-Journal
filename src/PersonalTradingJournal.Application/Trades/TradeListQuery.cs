@@ -6,7 +6,8 @@ public sealed record TradeListQuery
         int pageNumber,
         int pageSize,
         TradeListSortColumn sortColumn,
-        TradeListSortDirection sortDirection)
+        TradeListSortDirection sortDirection,
+        Guid? tradingAccountId = null)
     {
         if (pageNumber < 1)
         {
@@ -40,6 +41,10 @@ public sealed record TradeListQuery
                 "The Trade sort direction is invalid.");
         }
 
+        if (tradingAccountId == Guid.Empty)
+            throw new ArgumentException("Select a valid Account ID or omit the Account filter.", nameof(tradingAccountId));
+
+        TradingAccountId = tradingAccountId;
         PageNumber = pageNumber;
         PageSize = pageSize;
         SortColumn = sortColumn;
@@ -47,6 +52,7 @@ public sealed record TradeListQuery
     }
 
     public int PageNumber { get; }
+    public Guid? TradingAccountId { get; }
 
     public int PageSize { get; }
 

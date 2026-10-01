@@ -311,6 +311,35 @@ public sealed class MainWindowViewModelTests
         Assert.True(fixture.Trades.HasTrades);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DashboardViewWaitsForTradeListAndOpensExactRowOutsideCurrentPage(bool navigateAway)
+    {
+        ViewModelFixture fixture = CreateFixture();
+        fixture.TradeListReader.HoldRead = true;
+        var row = new TradeListItem(Guid.NewGuid(), Guid.NewGuid(), "Recent", Guid.NewGuid(), "RECENT",
+            TradeDirection.Long, TradeStatus.Open, DateTimeOffset.UtcNow, null, 1m, 100m, null, null, null, null, "EUR", 1m);
+        fixture.TradeDetailReader.EnqueueResult(CreateTradeDetail(row));
+        var dashboard = Assert.IsType<DashboardViewModel>(fixture.Main.CurrentContentViewModel);
+        Task action = dashboard.ViewTradeCommand.ExecuteAsync(row);
+        await fixture.TradeListReader.ReadStarted;
+        Assert.False(action.IsCompleted);
+        if (navigateAway) fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.TradeListReader.ReleaseRead();
+        await action;
+        if (navigateAway)
+        {
+            Assert.Equal(NavigationDestination.Accounts, fixture.Main.CurrentDestination);
+            Assert.Empty(fixture.TradeDetailReader.RequestedTradeIds);
+            return;
+        }
+        Assert.Equal(NavigationDestination.Trades, fixture.Main.CurrentDestination);
+        Assert.Equal(row.Id, fixture.Trades.SelectedTradeDetail!.Id);
+        Assert.Equal(row.Id, Assert.Single(fixture.TradeDetailReader.RequestedTradeIds));
+        Assert.DoesNotContain(fixture.Trades.RecentTrades, item => item.Id == row.Id);
+    }
+
     [Fact]
     public async Task NavigateAwayAndBackToTrades_ClosesDetailWithoutReloadingList()
     {
@@ -831,6 +860,32 @@ public sealed class MainWindowViewModelTests
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
+    [Theory]
+    [InlineData(TopstepImportStatus.Imported, 2)]
+    [InlineData(TopstepImportStatus.NoChanges, 1)]
+    [InlineData(TopstepImportStatus.Blocked, 1)]
+    public async Task DashboardActiveDuringTopstepConfirmationRefreshesOnlyAfterCommit(TopstepImportStatus status, int reads)
+    {
+        var (fixture, store) = await CreateDelayedTopstepFixture();
+        Task confirmation = fixture.Import.ConfirmImportCommand.ExecuteAsync(null);
+        await store.Started.Task;
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        var old = new TaskCompletionSource<PersonalTradingJournal.Application.Analytics.DashboardAnalyticsSnapshot>();
+        var dashboardReadStarted = new TaskCompletionSource();
+        fixture.DashboardReader.Read = (_, _) => { dashboardReadStarted.SetResult(); return old.Task; };
+        Task loading = fixture.Dashboard.ActivateAsync(); // DashboardView.Loaded in production.
+        await dashboardReadStarted.Task;
+        fixture.DashboardReader.Read = (_, _) => Task.FromResult(PersonalTradingJournal.Application.Analytics.DashboardMetricCalculator.Calculate([]));
+        store.Commit(new(status, status == TopstepImportStatus.Imported ? 1 : 0, 0, 0, [], [], []));
+        store.ReturnResult.SetResult();
+        await confirmation;
+        old.SetResult(PersonalTradingJournal.Application.Analytics.DashboardMetricCalculator.Calculate([]));
+        await loading;
+        await fixture.Dashboard.LoadTask;
+        Assert.Equal(reads, fixture.DashboardReader.Queries.Count);
+        Assert.False(fixture.Dashboard.IsLoading);
+    }
+
     private static async Task<(ViewModelFixture Fixture, DelayedTopstepStore Store)> CreateDelayedTopstepFixture()
     {
         var changes = new TopstepImportChangeTracker();
@@ -948,7 +1003,8 @@ public sealed class MainWindowViewModelTests
         var tradeScreenshotContentReader = new FakeTradeScreenshotContentReader();
         var tradeScreenshotImageDecoder = new FakeTradeScreenshotImageDecoder();
         var timeProvider = new FixedTimeProvider();
-        var dashboard = new DashboardViewModel();
+        var dashboardReader = new FakeDashboardAnalyticsReader();
+        var dashboard = new DashboardViewModel(dashboardReader, TimeProvider.System, new FakeTradeListReader(), new FakeTradingAccountReader());
         var themeService = new FakeThemeService(preferredTheme, effectiveTheme);
         var settingsStore = new FakeDesktopSettingsStore();
         var settings = new SettingsViewModel(
@@ -1080,7 +1136,8 @@ public sealed class MainWindowViewModelTests
             tradeDetailReader,
             tradeScreenshotReader,
             themeService,
-            settingsStore);
+            settingsStore,
+            dashboardReader);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem listItem)
@@ -1129,7 +1186,8 @@ public sealed class MainWindowViewModelTests
         FakeTradeDetailReader TradeDetailReader,
         FakeTradeScreenshotReader TradeScreenshotReader,
         FakeThemeService ThemeService,
-        FakeDesktopSettingsStore SettingsStore);
+        FakeDesktopSettingsStore SettingsStore,
+        FakeDashboardAnalyticsReader DashboardReader);
 
     private sealed class NeverCalledTradovateCsvParser : ITradovateCsvParser
     {

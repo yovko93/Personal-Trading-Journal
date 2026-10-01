@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Imports;
+using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Instruments;
@@ -22,6 +23,28 @@ public sealed class TopstepImportStoreTests
     private static readonly DateTimeOffset ImportedAt = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
     private static string Csv(params string[] rows) => TopstepCsvFixtures.WithRows(rows.Length == 0 ? [TopstepCsvFixtures.Row] : rows);
     private static TopstepImportConfirmation Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray());
+
+    [Fact]
+    public async Task AnalyticsRefreshesAfterCommittedTopstepImportAndReplayKeepsTotals()
+    {
+        await using Fixture f = await Fixture.Create(proposal: true);
+        IDashboardAnalyticsReader reader = f.Database.ServiceProvider.GetRequiredService<IDashboardAnalyticsReader>();
+        var query = new DashboardAnalyticsQuery(f.AccountId);
+        Assert.Empty((await reader.GetAsync(query)).Currencies);
+        TopstepImportPreview preview = await f.Preview(Csv());
+        Assert.Empty((await reader.GetAsync(query)).Currencies);
+        Assert.Equal(TopstepImportStatus.Imported, (await f.Import(preview, Csv())).Status);
+        ClosedTradeMetrics metrics = Assert.Single((await reader.GetAsync(query)).Currencies).Metrics;
+        Assert.Equal(1, metrics.ClosedTradeCount);
+        Assert.Equal(5m, metrics.Gross.Total);
+        Assert.Equal(2.56m, metrics.Net.Total);
+        Assert.Equal(2.56m, metrics.EffectiveNet.Total);
+        Assert.False(metrics.EffectiveNet.IsEstimated);
+        Assert.Equal(1, metrics.EffectiveNet.VerifiedTradeCount);
+        Assert.Equal(0, metrics.UnknownCostTradeCount);
+        Assert.Equal(TopstepImportStatus.NoChanges, (await f.Import(await f.Preview(Csv()), Csv())).Status);
+        Assert.Equal(metrics, Assert.Single((await reader.GetAsync(query)).Currencies).Metrics);
+    }
 
     [Theory]
     [InlineData(true)]
