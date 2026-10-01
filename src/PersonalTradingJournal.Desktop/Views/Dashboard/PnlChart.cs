@@ -28,6 +28,10 @@ public sealed class PnlChart : UserControl
         CanContentScroll = false,
     };
     private readonly List<Border> _pointTargets = [];
+    private Border? _hoveredTarget;
+    private Border? _focusedTarget;
+    private Border? _displayedTarget;
+    private Line? _activeGuide;
     private bool _rebuilding;
 
     public static readonly DependencyProperty PointsProperty = DependencyProperty.Register(nameof(Points),
@@ -50,6 +54,7 @@ public sealed class PnlChart : UserControl
     private static void OnScopeChanged(DependencyObject owner, DependencyPropertyChangedEventArgs e)
     {
         var chart = (PnlChart)owner;
+        chart.ClearActivePoint();
         chart._scroll.ScrollToHorizontalOffset(0);
         chart.Rebuild();
     }
@@ -65,6 +70,7 @@ public sealed class PnlChart : UserControl
         layout.Children.Add(_valueAxis);
         layout.Children.Add(_scroll);
         Content = layout;
+        MouseLeave += (_, _) => { _hoveredTarget = null; UpdateActivePoint(); };
         SizeChanged += (_, _) => Rebuild();
         _scroll.SizeChanged += (_, _) => Rebuild();
     }
@@ -75,8 +81,17 @@ public sealed class PnlChart : UserControl
         _rebuilding = true;
         try
         {
+            // A resize or theme change recreates targets; retain the active source point so
+            // its guide can be placed at the new plotted coordinate. Scope changes clear it.
+            DashboardChartRow? hoveredRow = _hoveredTarget?.Tag as DashboardChartRow;
+            bool hadKeyboardFocus = _focusedTarget is not null && ReferenceEquals(Keyboard.FocusedElement, _focusedTarget);
+            DashboardChartRow? focusedRow = hadKeyboardFocus ? _focusedTarget?.Tag as DashboardChartRow : null;
+            bool hoveredOrigin = _hoveredTarget?.Name == "PeriodOrigin";
+            bool focusedOrigin = _focusedTarget?.Name == "PeriodOrigin";
             foreach (Border target in _pointTargets)
                 if (target.ToolTip is ToolTip tip) tip.IsOpen = false;
+            _hoveredTarget = _focusedTarget = _displayedTarget = null;
+            _activeGuide = null;
             _pointTargets.Clear();
             _valueAxis.Children.Clear();
             _plot.Children.Clear();
@@ -145,8 +160,63 @@ public sealed class PnlChart : UserControl
             }
             if (points.All(row => row.Value is null))
                 AddText(_plot, "Cumulative P&L values unavailable.", 8, PlotTop, "Unavailable cumulative chart");
+            _activeGuide = new Line { Y1 = PlotTop, Y2 = plotBottom, Stroke = NeutralBrush,
+                StrokeThickness = 1, Opacity = .7, StrokeDashArray = new DoubleCollection { 3, 3 },
+                Tag = "ActivePointGuide", IsHitTestVisible = false, Visibility = Visibility.Collapsed };
+            Panel.SetZIndex(_activeGuide, 1);
+            _plot.Children.Add(_activeGuide);
+            _hoveredTarget = FindRebuiltTarget(hoveredRow, hoveredOrigin);
+            // A removed target cannot retain keyboard focus. Transfer it to the matching
+            // replacement, or leave no focus-owned guide if focus transfer fails.
+            Border? replacementFocus = FindRebuiltTarget(focusedRow, focusedOrigin);
+            _focusedTarget = replacementFocus;
+            if (replacementFocus is not null && !replacementFocus.Focus()) _focusedTarget = null;
+            UpdateActivePoint();
         }
         finally { _rebuilding = false; }
+    }
+
+    private Border? FindRebuiltTarget(DashboardChartRow? row, bool origin) => row is null ? null
+        : _pointTargets.FirstOrDefault(target => target.Name == (origin ? "PeriodOrigin" : "CumulativePoint")
+            && Equals(target.Tag, row));
+
+    private void ClearActivePoint()
+    {
+        _hoveredTarget = _focusedTarget = null;
+        UpdateActivePoint();
+    }
+
+    private void UpdateActivePoint()
+    {
+        if (_rebuilding && _activeGuide is null) return;
+        Border? target = _hoveredTarget ?? _focusedTarget;
+        if (target?.Child is not Canvas canvas || !canvas.Children.OfType<Ellipse>().Any()) target = null;
+        if (!ReferenceEquals(_displayedTarget, target))
+        {
+            SetMarkerActive(_displayedTarget, false);
+            SetMarkerActive(target, true);
+            _displayedTarget = target;
+        }
+        if (_activeGuide is null) return;
+        _activeGuide.Visibility = target is null ? Visibility.Collapsed : Visibility.Visible;
+        if (target is null) return;
+        // The target and guide share the scrollable plot canvas. This is the actual
+        // plotted X, including after resize, horizontal scroll and DPI scaling.
+        _activeGuide.X1 = _activeGuide.X2 = Canvas.GetLeft(target) + target.Width / 2;
+    }
+
+    private static void SetMarkerActive(Border? target, bool active)
+    {
+        if (target?.Child is not Canvas canvas || canvas.Children.OfType<Ellipse>().FirstOrDefault() is not { } marker)
+            return;
+        double centerX = Canvas.GetLeft(marker) + marker.Width / 2;
+        double centerY = Canvas.GetTop(marker) + marker.Height / 2;
+        marker.Width = marker.Height = active ? 10 : 6;
+        Canvas.SetLeft(marker, centerX - marker.Width / 2);
+        Canvas.SetTop(marker, centerY - marker.Height / 2);
+        marker.StrokeThickness = active ? 1 : 0;
+        if (active) marker.SetResourceReference(Shape.StrokeProperty, "PtjAccentBrush");
+        else marker.ClearValue(Shape.StrokeProperty);
     }
 
     private void AddDateLabel(DateOnly date, double center, double plotBottom, bool origin)
@@ -176,14 +246,28 @@ public sealed class PnlChart : UserControl
         target.ToolTip = tip;
         ToolTipService.SetInitialShowDelay(target, 100);
         ToolTipService.SetBetweenShowDelay(target, 2000);
+        target.MouseEnter += (_, _) => { _hoveredTarget = target; UpdateActivePoint(); };
+        target.MouseLeave += (_, _) =>
+        {
+            if (ReferenceEquals(_hoveredTarget, target)) _hoveredTarget = null;
+            UpdateActivePoint();
+        };
         target.GotKeyboardFocus += (_, _) =>
         {
             target.BringIntoView();
             target.BorderThickness = new Thickness(1);
             target.SetResourceReference(Border.BorderBrushProperty, "PtjAccentBrush");
             tip.IsOpen = true;
+            _focusedTarget = target;
+            UpdateActivePoint();
         };
-        target.LostKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(0); tip.IsOpen = false; };
+        target.LostKeyboardFocus += (_, _) =>
+        {
+            target.BorderThickness = new Thickness(0);
+            tip.IsOpen = false;
+            if (ReferenceEquals(_focusedTarget, target)) _focusedTarget = null;
+            UpdateActivePoint();
+        };
         if (row.Value is { } value)
         {
             var marker = new Ellipse { Width = 6, Height = 6, Fill = OutcomeBrush(Math.Sign(value)), IsHitTestVisible = false };
@@ -191,6 +275,7 @@ public sealed class PnlChart : UserControl
             Canvas.SetTop(marker, y - top - 3);
             ((Canvas)target.Child).Children.Add(marker);
         }
+        Panel.SetZIndex(target, 2);
         _plot.Children.Add(target);
         _pointTargets.Add(target);
     }

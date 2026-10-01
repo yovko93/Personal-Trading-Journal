@@ -158,6 +158,116 @@ public sealed class PnlChartTests
         });
     }
 
+    [Theory]
+    [InlineData("Light", 96)]
+    [InlineData("Light", 240)]
+    [InlineData("Dark", 96)]
+    [InlineData("Dark", 240)]
+    public async Task OnlyHoveredOrFocusedCumulativePointHasAlignedGuide(string theme, int dpi)
+    {
+        await OnSta(() =>
+        {
+            PnlChart chart = Chart(theme, [Row(10), Row(-30, 2), Row(-20, 3), Row(5, 4)]);
+            chart.Width = 360;
+            Draw(chart, dpi);
+            Line guide = Guide(chart);
+            Assert.Equal(Visibility.Collapsed, guide.Visibility);
+            Assert.Equal(Color(chart.NeutralBrush), Color(guide.Stroke));
+            Border[] targets = Targets(chart);
+
+            // The second dated point lies beyond a positive-to-negative zero crossing.
+            Border loss = targets[2];
+            loss.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            AssertGuideAt(guide, loss, chart);
+            Assert.Equal(10, Assert.Single(Descendants(loss).OfType<Ellipse>()).Width);
+            Assert.Equal(6, Assert.Single(Descendants(targets[1]).OfType<Ellipse>()).Width);
+            Assert.Contains("-30.00 USD", (string)((ToolTip)loss.ToolTip).Content);
+            Assert.Equal(6, Segments(chart).Length); // Highlighting does not redraw the signed line.
+
+            Border next = targets[3];
+            next.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            AssertGuideAt(guide, next, chart);
+            Assert.Equal(6, Assert.Single(Descendants(loss).OfType<Ellipse>()).Width);
+            Assert.Equal(10, Assert.Single(Descendants(next).OfType<Ellipse>()).Width);
+            next.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseLeaveEvent });
+            Assert.Equal(Visibility.Collapsed, guide.Visibility);
+
+            loss.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, null, loss)
+                { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
+            AssertGuideAt(guide, loss, chart);
+            Assert.True(((ToolTip)loss.ToolTip).IsOpen);
+            loss.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, loss, null)
+                { RoutedEvent = Keyboard.LostKeyboardFocusEvent });
+            Assert.Equal(Visibility.Collapsed, guide.Visibility);
+            Assert.False(((ToolTip)loss.ToolTip).IsOpen);
+
+            loss.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            chart.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseLeaveEvent });
+            Assert.Equal(Visibility.Collapsed, guide.Visibility);
+
+            chart.Points = [Row(null)];
+            Draw(chart, dpi);
+            Border unavailable = Targets(chart)[1];
+            unavailable.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            Assert.Equal(Visibility.Collapsed, Guide(chart).Visibility);
+            Assert.Contains("Unavailable", (string)((ToolTip)unavailable.ToolTip).Content);
+        });
+    }
+
+    [Fact]
+    public async Task GuideUsesScrollablePlotCoordinatesAndRealignsAfterResizeButClearsForNewScope()
+    {
+        await OnSta(() =>
+        {
+            PnlChart chart = Chart("Dark", Enumerable.Range(1, 8).Select(i => Row(i % 2 == 0 ? -i : i, i)).ToArray());
+            chart.Width = 360;
+            Draw(chart, 240);
+            ScrollViewer scroll = Assert.Single(Descendants(chart).OfType<ScrollViewer>());
+            scroll.ScrollToHorizontalOffset(300);
+            scroll.UpdateLayout();
+            Border point = Targets(chart)[5];
+            point.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseEnterEvent });
+            Line guide = Guide(chart);
+            AssertGuideAt(guide, point, chart);
+            double firstX = guide.X1;
+            Assert.Equal(point.TranslatePoint(new Point(point.Width / 2, 0), scroll).X,
+                guide.TranslatePoint(new Point(guide.X1, 0), scroll).X, 6);
+            Assert.True(scroll.HorizontalOffset > 0);
+
+            chart.Width = 950;
+            Draw(chart, 240);
+            Border resizedPoint = Targets(chart)[5];
+            Line resizedGuide = Guide(chart);
+            AssertGuideAt(resizedGuide, resizedPoint, chart);
+            Assert.NotEqual(firstX, resizedGuide.X1);
+            Assert.Equal(resizedPoint.TranslatePoint(new Point(resizedPoint.Width / 2, 0), scroll).X,
+                resizedGuide.TranslatePoint(new Point(resizedGuide.X1, 0), scroll).X, 6);
+
+            chart.Points = [Row(3)];
+            Draw(chart, 240);
+            Assert.Equal(Visibility.Collapsed, Guide(chart).Visibility);
+            Assert.Single(Segments(chart));
+        });
+    }
+
+    private static void AssertGuideAt(Line guide, Border target, PnlChart chart)
+    {
+        Assert.Equal(Visibility.Visible, guide.Visibility);
+        Assert.Equal(Canvas.GetLeft(target) + target.Width / 2, guide.X1, 6);
+        Assert.Equal(guide.X1, guide.X2);
+        Assert.Equal(16, guide.Y1);
+        Assert.Equal(Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "DateAxis").Y1, guide.Y2);
+        Assert.False(guide.IsHitTestVisible);
+        Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "ActivePointGuide");
+    }
+
     [Fact]
     public async Task VerticalWheelOverCumulativePlotAxisAndScrollbarMovesDashboardOnce()
     {
@@ -236,6 +346,7 @@ public sealed class PnlChartTests
         return chart;
     }
     private static Border[] Targets(PnlChart chart) => Descendants(chart).OfType<Border>().Where(t => t.Tag is DashboardChartRow).ToArray();
+    private static Line Guide(PnlChart chart) => Assert.Single(Descendants(chart).OfType<Line>(), line => (string?)line.Tag == "ActivePointGuide");
     private static Line[] Segments(PnlChart chart) => Descendants(chart).OfType<Line>().Where(t => (string?)t.Tag == "CumulativeSegment").ToArray();
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
     {
