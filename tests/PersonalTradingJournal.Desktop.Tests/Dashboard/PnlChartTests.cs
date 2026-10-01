@@ -270,7 +270,7 @@ public sealed class PnlChartTests
             zero.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
                 { RoutedEvent = UIElement.MouseMoveEvent });
             AssertGuideAt(Guide(chart), targets[2], chart);
-            Assert.Equal(PlacementMode.RelativePoint, ((ToolTip)zero.ToolTip).Placement);
+            Assert.Equal(PlacementMode.Relative, ((ToolTip)zero.ToolTip).Placement);
             Assert.Same(chart, ((ToolTip)zero.ToolTip).PlacementTarget);
             Assert.Contains("2026-09-02", (string)((ToolTip)zero.ToolTip).Content);
             Assert.Contains("0.00 USD", (string)((ToolTip)zero.ToolTip).Content);

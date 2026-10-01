@@ -51,7 +51,7 @@ public sealed class DailyPnlChartTests
             var firstTip = (ToolTip)first.ToolTip;
             first.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
                 { RoutedEvent = UIElement.MouseMoveEvent });
-            Assert.Equal(PlacementMode.RelativePoint, firstTip.Placement);
+            Assert.Equal(PlacementMode.Relative, firstTip.Placement);
             Assert.Same(chart, firstTip.PlacementTarget);
             first.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, null, first)
                 { RoutedEvent = Keyboard.GotKeyboardFocusEvent });

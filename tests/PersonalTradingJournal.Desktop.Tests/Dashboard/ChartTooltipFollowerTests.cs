@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using PersonalTradingJournal.Desktop.Views.Dashboard;
 
 namespace PersonalTradingJournal.Desktop.Tests.Dashboard;
@@ -22,7 +23,7 @@ public sealed class ChartTooltipFollowerTests
             var follower = new ChartTooltipFollower(owner, tip);
             Draw(root);
             follower.Follow(new Point(10, 10));
-            Assert.Equal(PlacementMode.RelativePoint, tip.Placement);
+            Assert.Equal(PlacementMode.Relative, tip.Placement);
             Assert.Same(root, tip.PlacementTarget);
             Point first = new(tip.HorizontalOffset, tip.VerticalOffset);
             tip.IsOpen = true;
@@ -30,9 +31,10 @@ public sealed class ChartTooltipFollowerTests
             Point second = new(tip.HorizontalOffset, tip.VerticalOffset);
             follower.Follow(new Point(60, 65));
             Point third = new(tip.HorizontalOffset, tip.VerticalOffset);
-            Assert.Equal(new Point(26, 26), first);
-            Assert.Equal(new Point(46, 51), second);
-            Assert.Equal(new Point(76, 81), third);
+            double alignment = SystemParameters.MenuDropAlignment ? tip.DesiredSize.Width : 0;
+            Assert.Equal(new Point(26 + alignment, 26), first);
+            Assert.Equal(new Point(46 + alignment, 51), second);
+            Assert.Equal(new Point(76 + alignment, 81), third);
             Assert.True(tip.IsOpen);
             Assert.Equal("Exact chart value", tip.Content);
             Assert.False(tip.IsHitTestVisible || tip.Focusable);
@@ -65,11 +67,14 @@ public sealed class ChartTooltipFollowerTests
             scroll.UpdateLayout();
             firstFollower.Follow(new Point(20, 30));
             Assert.Same(scroll, firstTip.PlacementTarget);
-            Assert.Equal(first.TranslatePoint(new Point(20, 30), scroll).X + 16, firstTip.HorizontalOffset, 6);
+            Assert.Equal(first.TranslatePoint(new Point(20, 30), scroll).X + 16 +
+                (SystemParameters.MenuDropAlignment ? firstTip.DesiredSize.Width : 0), firstTip.HorizontalOffset, 6);
             secondFollower.Follow(new Point(20, 30));
             Assert.Same(scroll, secondTip.PlacementTarget);
-            Assert.Equal(second.TranslatePoint(new Point(20, 30), scroll).X + 16, secondTip.HorizontalOffset, 6);
-            Assert.NotEqual(firstTip.HorizontalOffset, secondTip.HorizontalOffset);
+            Assert.Equal(second.TranslatePoint(new Point(20, 30), scroll).X + 16 +
+                (SystemParameters.MenuDropAlignment ? secondTip.DesiredSize.Width : 0), secondTip.HorizontalOffset, 6);
+            Assert.Equal(first.TranslatePoint(new Point(20, 30), scroll).Y + 16, firstTip.VerticalOffset, 6);
+            Assert.Equal(second.TranslatePoint(new Point(20, 30), scroll).Y + 16, secondTip.VerticalOffset, 6);
             Assert.Equal("First day", firstTip.Content);
             Assert.Equal("Second day", secondTip.Content);
             Assert.Equal(100, ToolTipService.GetInitialShowDelay(first));
@@ -111,17 +116,195 @@ public sealed class ChartTooltipFollowerTests
             follower.ReleaseKeyboard();
             Assert.False(tip.IsOpen);
             follower.Follow(new Point(20, 20));
-            Assert.Equal(PlacementMode.RelativePoint, tip.Placement);
+            Assert.Equal(PlacementMode.Relative, tip.Placement);
             Assert.Same(root, tip.PlacementTarget);
         });
     }
 
-    private static void Draw(FrameworkElement element)
+    [Theory]
+    [InlineData(96, 0)]
+    [InlineData(240, 0)]
+    [InlineData(96, 350)]
+    [InlineData(240, 350)]
+    public async Task HoverPlacementUsesWindowCoordinatesAfterScrollingAtEitherRenderDpi(int dpi, double scrollOffset)
+    {
+        await OnSta(() =>
+        {
+            var root = new Canvas { Width = 500, Height = 300 };
+            var plot = new Canvas { Width = 1200, Height = 200 };
+            var owner = new Border { Width = 80, Height = 100, Background = Brushes.Transparent };
+            Canvas.SetLeft(owner, 400);
+            Canvas.SetTop(owner, 30);
+            plot.Children.Add(owner);
+            var scroll = new ScrollViewer { Width = 360, Height = 200, Content = plot,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            Canvas.SetLeft(scroll, 60);
+            Canvas.SetTop(scroll, 40);
+            root.Children.Add(scroll);
+            Draw(root, dpi);
+            scroll.ScrollToHorizontalOffset(scrollOffset);
+            scroll.UpdateLayout();
+
+            var tip = new ToolTip { Width = 100, Height = 80, Content = "Exact chart value" };
+            var follower = new ChartTooltipFollower(owner, tip);
+            var pointerInOwner = new Point(20, 30);
+            follower.Follow(pointerInOwner);
+
+            Point pointerInRoot = owner.TranslatePoint(pointerInOwner, root);
+            Point intendedInRoot = ChartTooltipFollower.PositionInside(pointerInRoot,
+                new Size(100, 80), root.RenderSize);
+            Point actualInRoot = new(
+                tip.HorizontalOffset - (SystemParameters.MenuDropAlignment ? tip.DesiredSize.Width : 0),
+                tip.VerticalOffset);
+            Assert.Same(root, tip.PlacementTarget);
+            Assert.Equal(intendedInRoot.X, actualInRoot.X, 6);
+            Assert.Equal(intendedInRoot.Y, actualInRoot.Y, 6);
+            // WPF offsets and TranslatePoint use DIPs; the same placement survives
+            // physical rendering at 96 and 240 DPI without scaling the offsets twice.
+            Assert.Equal(intendedInRoot.X * dpi / 96, actualInRoot.X * dpi / 96, 6);
+            Assert.Equal(intendedInRoot.Y * dpi / 96, actualInRoot.Y * dpi / 96, 6);
+        });
+    }
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(240)]
+    public async Task HoverPlacementFlipsInsideViewportEdgesAtEitherRenderDpi(int dpi)
+    {
+        await OnSta(() =>
+        {
+            var root = new Canvas { Width = 500, Height = 300 };
+            var owner = new Border { Width = 30, Height = 30, Background = Brushes.Transparent };
+            Canvas.SetLeft(owner, 460);
+            Canvas.SetTop(owner, 260);
+            root.Children.Add(owner);
+            Draw(root, dpi);
+            var tip = new ToolTip { Width = 100, Height = 80, Content = "Edge value" };
+            var follower = new ChartTooltipFollower(owner, tip);
+            follower.Follow(new Point(20, 20));
+
+            Point popupInRoot = new(
+                tip.HorizontalOffset - (SystemParameters.MenuDropAlignment ? tip.DesiredSize.Width : 0),
+                tip.VerticalOffset);
+            Assert.Equal(new Point(364, 184), popupInRoot);
+            Assert.InRange(popupInRoot.X + tip.Width, 0, root.ActualWidth);
+            Assert.InRange(popupInRoot.Y + tip.Height, 0, root.ActualHeight);
+        });
+    }
+
+    [Fact]
+    public async Task OpenPopupAppearsBesidePointerAndMovesAfterHorizontalScroll()
+    {
+        await OnSta(() =>
+        {
+            var plot = new Canvas { Width = 1200, Height = 200 };
+            var owner = new Border { Width = 80, Height = 100, Background = Brushes.Transparent };
+            Canvas.SetLeft(owner, 400);
+            Canvas.SetTop(owner, 30);
+            plot.Children.Add(owner);
+            var scroll = new ScrollViewer { Width = 360, Height = 200, Content = plot,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var root = new Grid();
+            root.Children.Add(scroll);
+            var window = new Window { Width = 500, Height = 300, Left = 100, Top = 100,
+                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false };
+            var tip = new ToolTip { Width = 100, Height = 80, Content = "Exact chart value" };
+            owner.ToolTip = tip;
+            var follower = new ChartTooltipFollower(owner, tip);
+            try
+            {
+                window.Show();
+                PumpDispatcher();
+                scroll.ScrollToHorizontalOffset(350);
+                scroll.UpdateLayout();
+                var pointerInOwner = new Point(20, 30);
+                follower.Follow(pointerInOwner);
+                tip.IsOpen = true;
+                PumpDispatcher();
+                Assert.NotNull(PresentationSource.FromVisual(tip));
+                AssertPopupNearExpected(tip, owner, pointerInOwner, root);
+
+                follower.Follow(new Point(30, 40));
+                PumpDispatcher();
+                AssertPopupNearExpected(tip, owner, new Point(30, 40), root);
+
+                scroll.ScrollToHorizontalOffset(320);
+                scroll.UpdateLayout();
+                follower.Follow(pointerInOwner);
+                PumpDispatcher();
+                AssertPopupNearExpected(tip, owner, pointerInOwner, root);
+            }
+            finally
+            {
+                tip.IsOpen = false;
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public async Task OpenPopupFlipsBesidePointerNearWindowRightAndBottomEdges()
+    {
+        await OnSta(() =>
+        {
+            var root = new Canvas();
+            var owner = new Border { Width = 30, Height = 30, Background = Brushes.Transparent };
+            Canvas.SetLeft(owner, 460);
+            Canvas.SetTop(owner, 260);
+            root.Children.Add(owner);
+            var window = new Window { Width = 500, Height = 300, Left = 100, Top = 100,
+                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false };
+            var tip = new ToolTip { Width = 100, Height = 80, Content = "Edge value" };
+            owner.ToolTip = tip;
+            var follower = new ChartTooltipFollower(owner, tip);
+            try
+            {
+                window.Show();
+                PumpDispatcher();
+                follower.Follow(new Point(20, 20));
+                tip.IsOpen = true;
+                PumpDispatcher();
+                AssertPopupNearExpected(tip, owner, new Point(20, 20), root);
+            }
+            finally
+            {
+                tip.IsOpen = false;
+                window.Close();
+            }
+        });
+    }
+
+    private static void AssertPopupNearExpected(ToolTip tip, UIElement owner, Point pointerInOwner, UIElement root)
+    {
+        Point pointer = owner.TranslatePoint(pointerInOwner, root);
+        Point intended = ChartTooltipFollower.PositionInside(pointer,
+            new Size(tip.ActualWidth, tip.ActualHeight), root.RenderSize);
+        Point intendedScreen = root.PointToScreen(intended);
+        Point actualScreen = tip.PointToScreen(new Point());
+        // PointToScreen reports physical pixels; WPF performs the DIP-to-device conversion.
+        Assert.True(Math.Abs(intendedScreen.X - actualScreen.X) <= 5,
+            $"X: intended={intendedScreen}, actual={actualScreen}, pointer={root.PointToScreen(pointer)}, owner={owner.PointToScreen(new Point())}, offsets={tip.HorizontalOffset},{tip.VerticalOffset}, placement={tip.Placement}, size={tip.ActualWidth}x{tip.ActualHeight}, flow={tip.FlowDirection}, menuDrop={SystemParameters.MenuDropAlignment}, target={tip.PlacementTarget?.GetType().Name}, dpi={PresentationSource.FromVisual(root)?.CompositionTarget?.TransformToDevice}, workarea={SystemParameters.WorkArea}, screen={SystemParameters.VirtualScreenWidth}x{SystemParameters.VirtualScreenHeight}");
+        Assert.True(Math.Abs(intendedScreen.Y - actualScreen.Y) <= 5,
+            $"Y: intended={intendedScreen}, actual={actualScreen}, pointer={root.PointToScreen(pointer)}, owner={owner.PointToScreen(new Point())}, offsets={tip.HorizontalOffset},{tip.VerticalOffset}, target={tip.PlacementTarget?.GetType().Name}");
+    }
+
+    private static void PumpDispatcher()
+    {
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle,
+            new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+    }
+
+    private static void Draw(FrameworkElement element, int dpi = 96)
     {
         element.Measure(new Size(element.Width, element.Height));
         element.Arrange(new Rect(0, 0, element.Width, element.Height));
         element.UpdateLayout();
-        new RenderTargetBitmap((int)element.Width, (int)element.Height, 96, 96, PixelFormats.Pbgra32).Render(element);
+        new RenderTargetBitmap((int)(element.Width * dpi / 96), (int)(element.Height * dpi / 96),
+            dpi, dpi, PixelFormats.Pbgra32).Render(element);
     }
 
     private static Task OnSta(Action action)

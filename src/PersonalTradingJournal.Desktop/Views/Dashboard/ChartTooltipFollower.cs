@@ -44,15 +44,24 @@ internal sealed class ChartTooltipFollower
             _tip.ActualWidth > 0 ? _tip.ActualWidth : _tip.DesiredSize.Width,
             _tip.ActualHeight > 0 ? _tip.ActualHeight : _tip.DesiredSize.Height);
         Point position = PositionInside(pointer, tooltipSize, placementRoot.RenderSize);
+        // The service otherwise coerces PlacementTarget back to the hovered element,
+        // even if ToolTip.PlacementTarget names the window. Keep both the service's
+        // effective target and the offsets in the same, scroll-independent space.
+        ToolTipService.SetPlacementTarget(_owner, placementRoot);
         _tip.PlacementTarget = placementRoot;
-        _tip.Placement = PlacementMode.RelativePoint;
-        _tip.HorizontalOffset = position.X;
+        // Relative avoids RelativePoint's separate screen-edge flip. PositionInside
+        // already chooses the side of the cursor within the visible chart window.
+        _tip.Placement = PlacementMode.Relative;
+        // Right-aligned menu systems use the popup's right edge as their X alignment
+        // point. Compensate with the measured popup width, not a device-pixel constant.
+        _tip.HorizontalOffset = position.X + (SystemParameters.MenuDropAlignment ? tooltipSize.Width : 0);
         _tip.VerticalOffset = position.Y;
     }
 
     internal void AnchorToKeyboard()
     {
         _keyboardAnchored = true;
+        ToolTipService.SetPlacementTarget(_owner, _owner);
         _tip.PlacementTarget = _owner;
         _tip.Placement = PlacementMode.Bottom;
         _tip.HorizontalOffset = 0;
