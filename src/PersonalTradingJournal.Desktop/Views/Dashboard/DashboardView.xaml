@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:dashboard="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              Loaded="OnLoaded" Unloaded="OnUnloaded">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -330,7 +331,8 @@
                                Style="{StaticResource PtjCaptionTextStyle}" TextWrapping="Wrap" Margin="0,4,0,12" />
                     <TextBlock Text="No Trades yet." Style="{StaticResource PtjSecondaryTextStyle}"
                                Visibility="{Binding HasNoRecentTrades, Converter={StaticResource BoolVisibility}}" />
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">
                         <StackPanel MinWidth="820">
                             <Grid Margin="12,0,12,8">
                                 <Grid.ColumnDefinitions>

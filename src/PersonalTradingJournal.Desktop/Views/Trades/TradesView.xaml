@@ -2221,6 +2221,7 @@
                         <ScrollViewer x:Name="TradeListScrollViewer"
                                       HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Disabled"
+                                       interactions:NestedTableWheelRouting.ForwardVerticalWheel="True"
                                       PanningMode="HorizontalOnly">
                             <StackPanel MinWidth="884"
                                         Width="{Binding ViewportWidth, ElementName=TradeListScrollViewer}">
