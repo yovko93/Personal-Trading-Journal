@@ -201,12 +201,11 @@ public sealed class DailyPnlChart : UserControl
         tip.SetResourceReference(Control.BackgroundProperty, "PtjSurfaceElevatedBrush");
         tip.SetResourceReference(Control.ForegroundProperty, "PtjTextPrimaryBrush");
         target.ToolTip = tip;
+        var tooltipFollower = new ChartTooltipFollower(target, tip);
         // WPF's normal initial delay is noticeable on a dense chart. The tooltip is already
         // built from this row, so hovering only needs to open the existing instance.
-        ToolTipService.SetInitialShowDelay(target, 100);
-        ToolTipService.SetBetweenShowDelay(target, 2000);
-        target.GotKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(1); target.SetResourceReference(Border.BorderBrushProperty, "PtjAccentBrush"); tip.IsOpen = true; };
-        target.LostKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(0); tip.IsOpen = false; };
+        target.GotKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(1); target.SetResourceReference(Border.BorderBrushProperty, "PtjAccentBrush"); tooltipFollower.AnchorToKeyboard(); };
+        target.LostKeyboardFocus += (_, _) => { target.BorderThickness = new Thickness(0); tooltipFollower.ReleaseKeyboard(); };
         if (row.Value is { } value)
         {
             var bar = new Rectangle

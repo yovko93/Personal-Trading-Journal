@@ -212,6 +212,8 @@ public sealed class PnlChartTests
                 { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
             AssertGuideAt(guide, loss, chart);
             Assert.True(((ToolTip)loss.ToolTip).IsOpen);
+            Assert.Equal(PlacementMode.Bottom, ((ToolTip)loss.ToolTip).Placement);
+            Assert.Same(loss, ((ToolTip)loss.ToolTip).PlacementTarget);
             loss.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, loss, null)
                 { RoutedEvent = Keyboard.LostKeyboardFocusEvent });
             Assert.Equal(Visibility.Collapsed, guide.Visibility);
@@ -265,7 +267,11 @@ public sealed class PnlChartTests
                     Assert.Same(zero, HitRegion(plot, x, y));
             zero.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
                 { RoutedEvent = UIElement.MouseEnterEvent });
+            zero.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseMoveEvent });
             AssertGuideAt(Guide(chart), targets[2], chart);
+            Assert.Equal(PlacementMode.RelativePoint, ((ToolTip)zero.ToolTip).Placement);
+            Assert.Same(chart, ((ToolTip)zero.ToolTip).PlacementTarget);
             Assert.Contains("2026-09-02", (string)((ToolTip)zero.ToolTip).Content);
             Assert.Contains("0.00 USD", (string)((ToolTip)zero.ToolTip).Content);
 

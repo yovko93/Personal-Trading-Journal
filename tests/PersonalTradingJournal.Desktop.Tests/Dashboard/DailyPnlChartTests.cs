@@ -47,6 +47,20 @@ public sealed class DailyPnlChartTests
             Assert.Equal("Day Profit\nDate: 2026-09-02\nTrades Count: 3\nProfit: -7.00 USD", ((ToolTip)targets[1].ToolTip).Content);
             Assert.Equal("Day Profit\nDate: 2026-09-03\nTrades Count: 4\nProfit: 0.00 USD", ((ToolTip)targets[2].ToolTip).Content);
             Assert.Equal("Day Profit\nDate: 2026-09-04\nTrades Count: 5\nProfit: Unavailable", ((ToolTip)targets[3].ToolTip).Content);
+            Border first = targets[0];
+            var firstTip = (ToolTip)first.ToolTip;
+            first.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                { RoutedEvent = UIElement.MouseMoveEvent });
+            Assert.Equal(PlacementMode.RelativePoint, firstTip.Placement);
+            Assert.Same(chart, firstTip.PlacementTarget);
+            first.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, null, first)
+                { RoutedEvent = Keyboard.GotKeyboardFocusEvent });
+            Assert.True(firstTip.IsOpen);
+            Assert.Equal(PlacementMode.Bottom, firstTip.Placement);
+            Assert.Same(first, firstTip.PlacementTarget);
+            first.RaiseEvent(new KeyboardFocusChangedEventArgs(Keyboard.PrimaryDevice, Environment.TickCount, first, null)
+                { RoutedEvent = Keyboard.LostKeyboardFocusEvent });
+            Assert.False(firstTip.IsOpen);
 
             var lines = Descendants(chart).OfType<Line>().ToArray();
             var zero = Assert.Single(lines, line => (string?)line.Tag == "ZeroBaseline");

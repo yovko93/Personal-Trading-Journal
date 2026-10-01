@@ -237,9 +237,9 @@ public sealed class PnlChart : UserControl
             Canvas.SetTop(region, PlotTop);
             Panel.SetZIndex(region, 3);
             string details = TooltipText((DashboardChartRow)target.Tag, target.Name == "PeriodOrigin");
-            region.ToolTip = CreateTooltip(details, region);
-            ToolTipService.SetInitialShowDelay(region, 100);
-            ToolTipService.SetBetweenShowDelay(region, 2000);
+            ToolTip hoverTip = CreateTooltip(details, region);
+            region.ToolTip = hoverTip;
+            _ = new ChartTooltipFollower(region, hoverTip);
             region.MouseEnter += (_, _) => { _hoveredTarget = target; UpdateActivePoint(); };
             region.MouseLeave += (_, _) =>
             {
@@ -284,8 +284,7 @@ public sealed class PnlChart : UserControl
         AutomationProperties.SetHelpText(target, origin ? "Period start before selected closed Trades; not an account balance." : row.Description);
         ToolTip tip = CreateTooltip(details, target);
         target.ToolTip = tip;
-        ToolTipService.SetInitialShowDelay(target, 100);
-        ToolTipService.SetBetweenShowDelay(target, 2000);
+        var tooltipFollower = new ChartTooltipFollower(target, tip);
         target.MouseEnter += (_, _) => { _hoveredTarget = target; UpdateActivePoint(); };
         target.MouseLeave += (_, _) =>
         {
@@ -297,14 +296,14 @@ public sealed class PnlChart : UserControl
             target.BringIntoView();
             target.BorderThickness = new Thickness(1);
             target.SetResourceReference(Border.BorderBrushProperty, "PtjAccentBrush");
-            tip.IsOpen = true;
+            tooltipFollower.AnchorToKeyboard();
             _focusedTarget = target;
             UpdateActivePoint();
         };
         target.LostKeyboardFocus += (_, _) =>
         {
             target.BorderThickness = new Thickness(0);
-            tip.IsOpen = false;
+            tooltipFollower.ReleaseKeyboard();
             if (ReferenceEquals(_focusedTarget, target)) _focusedTarget = null;
             UpdateActivePoint();
         };

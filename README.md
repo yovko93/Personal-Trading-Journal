@@ -417,6 +417,8 @@ Daily P&L has a New York closure-date axis, a currency-labeled value axis and a 
 
 Cumulative Realized P&L now matches Daily P&L with a compact question-mark help icon, New York date labels, currency-labeled amount ticks and a zero baseline. Hover within a plotted point's full-height date region, or tab to the point, for its exact signed cumulative amount and date; a single vertical guide and subtle point highlight track the active point. Estimate/coverage details remain in accessible descriptions. The visible explanation, coverage lines and cumulative-values expander are removed. A labeled Start point represents zero before the selected period's closed Trades (All history uses the first occupied date), never an account balance. Occupied dates and the Start point have readable horizontal slots; many dates scroll horizontally, while an ordinary mouse wheel scrolls the Dashboard vertically. Unavailable values remain gaps. Refresh reloads the complete selected population, independent of the ten Recent Trades. Navigation back to Dashboard rereads committed data; active Dashboard loads refresh after manual Trade writes and both import providers. Cancel loading and safe retry messages are available, and superseded reads cannot replace newer results. See [Dashboard Analytics](docs/dashboard-analytics.md) for exact scope, metric and interaction rules.
 
+On both P&L charts, hover tooltips follow the pointer within the active day or point region and flip away from window edges; keyboard-focus tooltips stay anchored to their focused target.
+
 The user has visually verified the estimated-Net presentation in Trades and Details. This is separate from automated analytics coverage and is **not Dashboard visual verification**.
 
 ## Architectural Principles
