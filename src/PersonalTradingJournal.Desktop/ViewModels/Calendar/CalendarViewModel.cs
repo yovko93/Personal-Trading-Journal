@@ -5,20 +5,35 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Desktop.Converters;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
 public sealed record CalendarDayCell(DateOnly Date, bool IsInDisplayedMonth, bool IsToday, bool IsSaturday)
 {
+    public IReadOnlyList<CalendarPnlSummary> DailySummaries { get; init; } = [];
+    public IReadOnlyList<CalendarPnlSummary> WeeklySummaries { get; init; } = [];
+    public bool IsDataLoaded { get; init; }
+    public string WeekLabel { get; init; } = "";
+    public bool HasDailyTrades => DailySummaries.Count > 0;
+    public bool HasEmptyWeek => IsDataLoaded && IsSaturday && WeeklySummaries.Count == 0;
+    // Saturday contains an independent weekly outcome; tint its daily band, not the entire cell.
+    public PnLOutcome DailyOutcome => IsInDisplayedMonth && !IsSaturday && DailySummaries.Count == 1
+        ? DailySummaries[0].Outcome : PnLOutcome.None;
+    public string WeeklyDescription => !IsSaturday ? "" : $"{WeekLabel}, Monday {Date.AddDays(-5):yyyy-MM-dd} through Sunday {Date.AddDays(1):yyyy-MM-dd}. " +
+        (WeeklySummaries.Count > 0 ? string.Join(" ", WeeklySummaries.Select(s => s.Description))
+            : IsDataLoaded ? "No closed Trades." : "Summary not loaded.");
     public string DayNumber => Date.Day.ToString(CultureInfo.CurrentCulture);
     public string AccessibleName => $"{Date.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture)}" +
         (IsToday ? ", today" : "") + (IsInDisplayedMonth ? "" : ", adjacent month") +
-        (IsSaturday ? ", weekly summary area" : "");
+        ". " + (HasDailyTrades ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
+            : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.") +
+        (IsSaturday ? " " + WeeklyDescription : "");
 }
 
 public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);
 
-/// <summary>Month navigation and stable grid state only; monetary presentation belongs to M13.3.</summary>
+/// <summary>Month navigation and presentation of the reader's currency-specific daily and weekly metrics.</summary>
 public sealed class CalendarViewModel : ObservableObject
 {
     private readonly ITradingCalendarReader _reader;
@@ -102,15 +117,30 @@ public sealed class CalendarViewModel : ObservableObject
         if (_isActive) _ = RefreshAsync();
     }
 
-    private void SetGrid(TradingCalendarQuery query)
+    private void SetGrid(TradingCalendarQuery query, TradingCalendarMonth? data = null)
     {
         DateOnly today = Today;
+        var daily = data?.Currencies.SelectMany(c => c.Weeks.SelectMany(w => w.Days)
+            .Where(d => d.Metrics is not null)
+            .Select(d => (d.Date, Summary: new CalendarPnlSummary(c.Currency, d.Metrics!,
+                d.IsInDisplayedMonth))))
+            .ToLookup(d => d.Date);
+        var weekly = data?.Currencies.SelectMany(c => c.Weeks.Where(w => w.Metrics is not null)
+            .Select(w => (w.Monday, Summary: new CalendarPnlSummary(c.Currency, w.Metrics!))))
+            .ToLookup(w => w.Monday);
         CalendarDayCell[] cells = Enumerable.Range(0, query.GridEnd.DayNumber - query.GridStart.DayNumber + 1)
             .Select(offset =>
             {
                 DateOnly date = query.GridStart.AddDays(offset);
                 return new CalendarDayCell(date, date.Year == query.MonthStart.Year && date.Month == query.MonthStart.Month,
-                    date == today, date.DayOfWeek == DayOfWeek.Saturday);
+                    date == today, date.DayOfWeek == DayOfWeek.Saturday)
+                {
+                    IsDataLoaded = data is not null,
+                    DailySummaries = daily?[date].Select(d => d.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [],
+                    WeeklySummaries = date.DayOfWeek == DayOfWeek.Saturday
+                        ? weekly?[date.AddDays(-5)].Select(w => w.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [] : [],
+                    WeekLabel = $"Week {offset / 7 + 1}",
+                };
             }).ToArray();
         Weeks = Enumerable.Range(0, cells.Length / 7)
             .Select(row => new CalendarWeekRow(Array.AsReadOnly(cells.Skip(row * 7).Take(7).ToArray())))
@@ -125,6 +155,7 @@ public sealed class CalendarViewModel : ObservableObject
         _loadCancellation = cancellation;
         DateOnly requestedMonth = _month;
         MonthData = null;
+        SetGrid(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month));
         ErrorMessage = null;
         IsLoading = true;
         OnPropertyChanged(nameof(StatusMessage));
@@ -135,6 +166,7 @@ public sealed class CalendarViewModel : ObservableObject
                 new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month), cancellation.Token), cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested || !_isActive) return;
             MonthData = result;
+            SetGrid(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month), result);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception)

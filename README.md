@@ -421,11 +421,11 @@ On both P&L charts, hover tooltips follow the pointer within the active day or p
 
 The user has visually verified the estimated-Net presentation in Trades and Details. This is separate from automated analytics coverage and is **not Dashboard visual verification**.
 
-## Trading Calendar Data Foundation
+## Trading Calendar
 
 `ITradingCalendarReader.GetAsync(TradingCalendarQuery)` provides a read-only monthly Calendar data path. A request specifies a year, month, and optional Account ID; omitting the Account means all accounts. The result includes every date of the complete Monday–Sunday grid, including adjacent-month dates, and separate historical-currency buckets. It reuses the Dashboard's DST-safe New York closure-date query and authoritative daily/weekly Effective Net metrics; it does not reconstruct P&L from displayed prices. A day or week with no closed Trades has no metrics, distinct from a real zero result. Estimated Net retains its provenance and unavailable economics remain unavailable. Weekly summaries include all seven days, including Sunday.
 
-The Calendar destination now opens a themed, keyboard-accessible month grid. It starts at the current New York month; Previous, Next, and Today navigate months. Adjacent dates are dimmed, today is highlighted, and Saturday cells reserve space for the eventual weekly summary. The date grid remains visible during cancellable loading and after an empty or failed read. M13.3 will add daily/weekly P&L, Trade counts, outcome colors, and currency presentation; this stage does **not** display monetary totals. See [Trading Calendar](docs/trading-calendar.md).
+The Calendar destination opens a themed, keyboard-accessible month grid across all accounts. It starts at the current New York month; Previous, Next, and Today navigate months. Dates with closed Trades show currency-labelled Effective Net and Trade counts, with green positive, red negative, and neutral zero/unavailable amounts. Active-month daily results have subtle outcome backgrounds; adjacent dates are subdued and today retains its highlight. Each Saturday also shows its row's Monday–Sunday summary as Week 1, Week 2, etc., without hiding Saturday's own daily activity. Multiple currencies occupy separate lines rather than a combined total. Empty dates stay quiet; unavailable P&L uses a dash, while actual zero remains numeric. Tooltips and accessible descriptions identify estimated Net and incomplete coverage. The date grid remains visible during cancellable loading and after an empty or failed read, with horizontal scrolling at narrow widths. See [Trading Calendar](docs/trading-calendar.md).
 
 ## Architectural Principles
 
