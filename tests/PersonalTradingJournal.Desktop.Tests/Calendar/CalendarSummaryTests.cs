@@ -9,6 +9,37 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarSummaryTests
 {
+    [Theory]
+    [InlineData(25, PnLOutcome.Positive)]
+    [InlineData(-25, PnLOutcome.Negative)]
+    [InlineData(0, PnLOutcome.Zero)]
+    [InlineData(null, PnLOutcome.None)]
+    public void MonthlyAmountsUseSignNotFormattedTextAndKeepUnavailableDistinct(int? source, PnLOutcome outcome)
+    {
+        decimal? value = source;
+        var summary = new CalendarMonthlyPnlSummary(new("USD", new(1, value is null ? 0 : 1), value, value, 0));
+        Assert.Equal(outcome, summary.Outcome);
+        Assert.Equal(value, summary.Amount);
+        Assert.EndsWith(" USD", summary.AmountText);
+        Assert.Equal(value is null, summary.AmountText.StartsWith("—"));
+        Assert.Contains(value is null ? "unavailable" : "Verified", summary.Description);
+    }
+
+    [Fact]
+    public async Task MonthlyPresentationPreservesPartialCoverageAndExcludesAdjacentDates()
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        var usd = Assert.Single(vm.MonthlySummaries, s => s.Summary.Currency == "USD");
+        Assert.Null(usd.Amount);
+        Assert.Equal(-198m, usd.Summary.KnownSubtotal);
+        Assert.Equal(10, usd.Summary.Coverage.ClosedTradeCount);
+        Assert.Equal(9, usd.Summary.Coverage.KnownTradeCount);
+        Assert.Equal(1, usd.Summary.EstimatedTradeCount);
+        Assert.Contains("Estimated", usd.Description);
+        Assert.Contains("9 of 10", usd.Description);
+        Assert.Equal(-20m, Assert.Single(vm.MonthlySummaries, s => s.Summary.Currency == "EUR").Amount);
+    }
+
     [Fact]
     public async Task DailyPresentationPreservesKnownEstimatedUnavailableAndEmptyEconomics()
     {

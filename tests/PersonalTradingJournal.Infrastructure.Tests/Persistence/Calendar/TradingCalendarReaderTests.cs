@@ -50,6 +50,10 @@ public sealed class TradingCalendarReaderTests
         }
         Assert.Empty((await monthReader.GetAsync(new(2026, 10, account))).Currencies);
         Assert.Empty((await dayReader.GetAsync(new(new(2026, 10, 5), account))).Trades);
+        var monthly = TradingCalendarMonthlyPnl.From(month);
+        Assert.Equal(-265m, Assert.Single(monthly, m => m.Currency == "USD").Total);
+        Assert.Equal(10m, Assert.Single(monthly, m => m.Currency == "EUR").Total);
+        Assert.True(monthly.Single(m => m.Currency == "USD").IsEstimated);
         await using JournalDbContext check = await db.ContextFactory.CreateDbContextAsync();
         Assert.Equal(5, await check.Trades.CountAsync());
         Assert.Equal(10, await check.TradeExecutions.CountAsync());
@@ -129,6 +133,7 @@ public sealed class TradingCalendarReaderTests
         Assert.Equal(3, first.ClosedTradeCount);
         Assert.Equal(6m, first.EffectiveNetTotal);
         Assert.Equal(4m, usd.Weeks[1].Days[0].EffectiveNetTotal);
+        Assert.Equal(9m, Assert.Single(TradingCalendarMonthlyPnl.From(november)).Total); // Oct 31 is excluded, including at the DST edge.
     }
 
     private static async Task<Guid> AddAccount(ReaderTestDatabase db, string name)

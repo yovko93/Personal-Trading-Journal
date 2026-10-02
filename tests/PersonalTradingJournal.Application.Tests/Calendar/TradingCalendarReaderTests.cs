@@ -37,6 +37,9 @@ public sealed class TradingCalendarReaderTests
         TradingCalendarWeek last = result.Currencies[0].Weeks[^1];
         Assert.Equal(5m, last.EffectiveNetTotal);
         Assert.False(last.Days[^1].IsInDisplayedMonth);
+        TradingCalendarMonthlyPnl monthly = Assert.Single(TradingCalendarMonthlyPnl.From(result));
+        Assert.Equal(7m, monthly.Total); // Saturday + Sunday once; neither adjacent month nor weekly totals.
+        Assert.Equal(new MetricCoverage(2, 2), monthly.Coverage);
     }
 
     [Fact]
@@ -68,6 +71,14 @@ public sealed class TradingCalendarReaderTests
         Assert.Equal(-285m, usdWeek.Metrics!.EffectiveNet.KnownSubtotal);
         Assert.Equal(20m, eur.Weeks[1].EffectiveNetTotal);
         Assert.Equal(1, eur.Weeks[1].ClosedTradeCount);
+        var monthly = TradingCalendarMonthlyPnl.From(result);
+        var monthlyUsd = Assert.Single(monthly, m => m.Currency == "USD");
+        Assert.Null(monthlyUsd.Total);
+        Assert.Equal(-285m, monthlyUsd.KnownSubtotal);
+        Assert.Equal(new MetricCoverage(3, 2), monthlyUsd.Coverage);
+        Assert.Equal(1, monthlyUsd.EstimatedTradeCount);
+        Assert.True(monthlyUsd.IsEstimated);
+        Assert.Equal(20m, Assert.Single(monthly, m => m.Currency == "EUR").Total);
     }
 
     [Fact]
@@ -78,6 +89,7 @@ public sealed class TradingCalendarReaderTests
         TradingCalendarMonth empty = await reader.GetAsync(new(2021, 2));
         Assert.Equal(28, empty.GridDates.Count);
         Assert.Empty(empty.Currencies);
+        Assert.Empty(TradingCalendarMonthlyPnl.From(empty));
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.GetAsync(new(2026, 9), cancellation.Token));
@@ -85,6 +97,43 @@ public sealed class TradingCalendarReaderTests
         using var forward = new CancellationTokenSource();
         await reader.GetAsync(new(2026, 9), forward.Token);
         Assert.Equal(forward.Token, source.LastToken);
+    }
+
+    [Fact]
+    public async Task AdjacentMonthActivityDoesNotInventAnEmptyMonthsCurrencyOrZero()
+    {
+        var reader = new TradingCalendarReader(new StubReader(
+            Fact(new(2026, 8, 31, 16, 0, 0, TimeSpan.Zero), 10m),
+            Fact(new(2026, 10, 4, 16, 0, 0, TimeSpan.Zero), -5m)));
+        TradingCalendarMonth month = await reader.GetAsync(new(2026, 9));
+        Assert.NotEmpty(month.Currencies);
+        Assert.Empty(TradingCalendarMonthlyPnl.From(month));
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(-285, true)]
+    public async Task CompleteZeroAndEstimatedMonthsRetainTheirProvenance(int amount, bool estimated)
+    {
+        var reader = new TradingCalendarReader(new StubReader(
+            Fact(new(2026, 9, 12, 16, 0, 0, TimeSpan.Zero), amount, estimated ? null : 0m)));
+        var result = Assert.Single(TradingCalendarMonthlyPnl.From(await reader.GetAsync(new(2026, 9))));
+        Assert.Equal(amount, result.Total);
+        Assert.Equal(amount, result.KnownSubtotal);
+        Assert.Equal(new MetricCoverage(1, 1), result.Coverage);
+        Assert.Equal(estimated, result.IsEstimated);
+    }
+
+    [Fact]
+    public void MonthlySubtotalOverflowIsNotReplacedByZeroOrATruncatedTotal()
+    {
+        var date = new DateOnly(2026, 9, 1);
+        var metrics = DashboardMetricCalculator.Calculate([
+            Fact(new(2026, 9, 1, 16, 0, 0, TimeSpan.Zero), decimal.MaxValue)]).Currencies[0].Metrics;
+        var days = new[] { new TradingCalendarDay(date, true, metrics), new TradingCalendarDay(date.AddDays(1), true, metrics) };
+        var month = new TradingCalendarMonth(date, date, date.AddDays(6), [],
+            [new("USD", [new(date, date.AddDays(6), days, null)])]);
+        Assert.Throws<OverflowException>(() => TradingCalendarMonthlyPnl.From(month));
     }
 
     [Fact]

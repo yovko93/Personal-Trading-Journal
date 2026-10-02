@@ -105,6 +105,8 @@ public sealed class CalendarFilterTests
         data.Rows = [CalendarDayDetailsTests.Row(new(2026, 8, 31), 5m, 5m)];
         await vm.RefreshCommand.ExecuteAsync(null);
         Assert.True(vm.IsMonthEmpty); // Visible adjacent-month activity is not activity in September.
+        Assert.Empty(vm.MonthlySummaries);
+        Assert.Equal("No closed Trades", vm.MonthlyStatusText);
         Assert.True(CalendarDayDetailsTests.Cell(vm, new(2026, 8, 31)).HasDailyTrades);
         foreach (decimal? amount in new decimal?[] { 0m, null })
         {
@@ -114,6 +116,8 @@ public sealed class CalendarFilterTests
             Assert.False(vm.IsMonthEmpty);
             Assert.False(vm.IsSelectedDayEmpty);
             Assert.Equal(amount, Assert.Single(vm.DaySummaries).Amount);
+            Assert.Equal(amount, Assert.Single(vm.MonthlySummaries).Amount);
+            Assert.Equal(amount is null ? "— USD" : "0.00 USD", vm.MonthlySummaries[0].AmountText);
         }
         data.MonthDelay = (_, _) => throw new IOException("Synthetic failure");
         data.DayDelay = (_, _) => throw new IOException("Synthetic failure");
@@ -123,6 +127,8 @@ public sealed class CalendarFilterTests
         Assert.False(vm.IsMonthEmpty);
         Assert.False(vm.IsSelectedDayEmpty);
         Assert.NotEmpty(vm.Weeks);
+        Assert.Empty(vm.MonthlySummaries);
+        Assert.Equal("—", vm.MonthlyStatusText);
         Assert.Equal(Data.Saturday, vm.SelectedDate);
         data.MonthDelay = null;
         data.DayDelay = null;
@@ -148,6 +154,8 @@ public sealed class CalendarFilterTests
         Assert.False(saturday.ShowsDailySummary);
         Assert.Equal(2, saturday.WeeklySummaries.Count);
         Assert.Equal(119m, saturday.WeeklySummaries.Single(s => s.Currency == "USD").Amount);
+        Assert.Equal(new[] { "EUR", "USD" }, vm.MonthlySummaries.Select(s => s.Summary.Currency));
+        Assert.Equal(new decimal?[] { -2m, 119m }, vm.MonthlySummaries.Select(s => s.Amount));
         await vm.SelectDayCommand.ExecuteAsync(saturday);
         Assert.Equal(3, vm.DayDetails!.ClosedTradeCount);
         Assert.Equal(2, vm.DaySummaries.Count);
@@ -171,6 +179,10 @@ public sealed class CalendarFilterTests
         Assert.Equal("USD", week.Currency);
         Assert.Equal(19m, week.Amount); // Saturday 9 + Sunday 10, not the other Account's 100.
         Assert.Equal(2, week.Metrics.ClosedTradeCount);
+        Assert.Equal(19m, Assert.Single(vm.MonthlySummaries).Amount);
+        Assert.Equal(2, vm.MonthlySummaries[0].Summary.Coverage.ClosedTradeCount);
+        Assert.True(vm.MonthlySummaries[0].Summary.IsEstimated);
+        Assert.Contains("commission/fees unknown", vm.MonthlySummaries[0].Description);
         Assert.Equal(9m, Assert.Single(Cell(vm).DailySummaries).Amount);
         var row = Assert.Single(vm.DayTrades).Trade;
         Assert.Equal(data.Historical.Id, row.TradingAccountId);
@@ -183,6 +195,7 @@ public sealed class CalendarFilterTests
         await vm.LoadTask;
         Assert.Equal(-2m, Assert.Single(vm.DaySummaries).Amount);
         Assert.Equal(-2m, Assert.Single(Cell(vm).WeeklySummaries).Amount);
+        Assert.Equal(-2m, Assert.Single(vm.MonthlySummaries).Amount);
         Assert.Equal(1, vm.DayDetails!.ClosedTradeCount);
         vm.SelectedCurrency = "All currencies";
         await vm.LoadTask;
@@ -202,6 +215,8 @@ public sealed class CalendarFilterTests
         vm.NextCommand.Execute(null);
         await vm.LoadTask;
         Assert.Empty(vm.MonthData!.Currencies);
+        Assert.Empty(vm.MonthlySummaries);
+        Assert.Equal("No closed Trades", vm.MonthlyStatusText);
         Assert.Equal("EUR", vm.SelectedCurrency);
         Assert.Contains("EUR", vm.Currencies);
         Assert.Equal(data.Historical.Id, vm.SelectedAccount.Id);
@@ -238,6 +253,8 @@ public sealed class CalendarFilterTests
         Assert.Contains("no longer available", vm.ErrorMessage);
         Assert.Contains("no longer available", vm.DayErrorMessage);
         Assert.Null(vm.MonthData);
+        Assert.Empty(vm.MonthlySummaries);
+        Assert.Equal("—", vm.MonthlyStatusText);
         Assert.Empty(vm.DayTrades);
         Assert.Equal(monthCalls, data.MonthQueries.Count);
         Assert.Equal(dayCalls, data.DayQueries.Count);

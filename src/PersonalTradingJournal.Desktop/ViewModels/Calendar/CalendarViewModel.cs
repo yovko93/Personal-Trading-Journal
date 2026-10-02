@@ -88,6 +88,7 @@ public sealed class CalendarViewModel : ObservableObject
     private DateOnly _month;
     private IReadOnlyList<CalendarWeekRow> _weeks = [];
     private TradingCalendarMonth? _monthData;
+    private IReadOnlyList<CalendarMonthlyPnlSummary> _monthlySummaries = [];
     private string? _errorMessage;
     private CancellationTokenSource? _dayCancellation;
     private long _dayGeneration;
@@ -153,8 +154,22 @@ public sealed class CalendarViewModel : ObservableObject
     public TradingCalendarMonth? MonthData
     {
         get => _monthData;
-        private set { if (SetProperty(ref _monthData, value)) OnPropertyChanged(nameof(IsMonthEmpty)); }
+        private set
+        {
+            IReadOnlyList<CalendarMonthlyPnlSummary> summaries = value is null ? [] : TradingCalendarMonthlyPnl.From(value)
+                .Select(s => new CalendarMonthlyPnlSummary(s)).ToArray();
+            if (!SetProperty(ref _monthData, value)) return;
+            MonthlySummaries = summaries;
+            OnPropertyChanged(nameof(MonthlyStatusText));
+            OnPropertyChanged(nameof(IsMonthEmpty));
+        }
     }
+    public IReadOnlyList<CalendarMonthlyPnlSummary> MonthlySummaries
+    {
+        get => _monthlySummaries;
+        private set => SetProperty(ref _monthlySummaries, value);
+    }
+    public string MonthlyStatusText => MonthData is null ? "—" : MonthlySummaries.Count == 0 ? "No closed Trades" : "";
     public bool IsLoading
     {
         get => _isLoading;

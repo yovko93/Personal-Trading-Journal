@@ -21,18 +21,32 @@
                 <DataTrigger Binding="{Binding DailyOutcome}" Value="{x:Static converters:PnLOutcome.Negative}">
                     <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
                 </DataTrigger>
-                <DataTrigger Binding="{Binding IsToday}" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CalendarDateFocusStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource AncestorType={x:Type calendar:CalendarDayHost}}}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" />
                 </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CalendarDateMarkerStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                     <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
                 </DataTrigger>
-                <Trigger Property="IsKeyboardFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" />
-                    <Setter Property="BorderThickness" Value="2" />
-                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CalendarTodayMarkerStyle" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsToday}" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource PtjCalendarTodayBrush}" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="CalendarTradeAmountStyle" TargetType="TextBlock">
@@ -104,10 +118,29 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid Margin="0,0,0,12">
+        <StackPanel x:Name="MonthlyPnlHeader" Margin="0,0,0,12" HorizontalAlignment="Stretch">
+            <TextBlock Text="Monthly P/L" TextAlignment="Center" FontWeight="SemiBold"
+                       Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+            <ItemsControl ItemsSource="{Binding MonthlySummaries}" HorizontalAlignment="Stretch">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel HorizontalAlignment="Center" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding AmountText}" Margin="8,2,8,0"
+                                   Style="{StaticResource CalendarAmountStyle}" ToolTip="{Binding Description}"
+                                   AutomationProperties.Name="{Binding Description}" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding MonthlyStatusText}" TextAlignment="Center"
+                       Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+        </StackPanel>
+        <Grid Grid.Row="1" Margin="0,0,0,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -129,7 +162,7 @@
                     ToolTip="Current New York month" Style="{DynamicResource PtjButtonStyle}" />
         </Grid>
 
-        <WrapPanel Grid.Row="1" Margin="0,0,0,4">
+        <WrapPanel Grid.Row="2" Margin="0,0,0,4">
             <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
                 <Label Content="Account" Target="{Binding ElementName=CalendarAccountSelector}"
                        VerticalAlignment="Center" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
@@ -148,7 +181,7 @@
             </StackPanel>
         </WrapPanel>
 
-        <WrapPanel Grid.Row="2" MinHeight="24" Margin="0,0,0,8">
+        <WrapPanel Grid.Row="3" MinHeight="24" Margin="0,0,0,8">
             <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource PtjCaptionTextStyle}"
                        VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
             <Button Content="Cancel" Margin="12,0,0,0" Command="{Binding CancelCommand}"
@@ -167,7 +200,7 @@
                        VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
         </WrapPanel>
 
-        <ScrollViewer x:Name="CalendarPageScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="CalendarPageScroller" Grid.Row="4" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
         <ScrollViewer x:Name="CalendarScroller"
                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
@@ -214,7 +247,13 @@
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
                                                 </Grid.RowDefinitions>
-                                                <TextBlock Text="{Binding DayNumber}" HorizontalAlignment="Right" FontSize="14">
+                                                <Border x:Name="DateFocusMarker" Width="36" Height="36" CornerRadius="18"
+                                                        HorizontalAlignment="Center" Style="{StaticResource CalendarDateFocusStyle}">
+                                                <Border x:Name="DateSelectionMarker" Width="30" Height="30" CornerRadius="15"
+                                                        HorizontalAlignment="Center" Style="{StaticResource CalendarDateMarkerStyle}">
+                                                <Border x:Name="TodayMarker" Width="24" Height="24" CornerRadius="12"
+                                                        Style="{StaticResource CalendarTodayMarkerStyle}">
+                                                <TextBlock Text="{Binding DayNumber}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
@@ -222,10 +261,16 @@
                                                                 <DataTrigger Binding="{Binding IsInDisplayedMonth}" Value="False">
                                                                     <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
                                                                 </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsToday}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource PtjOnCalendarTodayBrush}" />
+                                                                </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
+                                                </Border>
+                                                </Border>
+                                                </Border>
                                                 <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,8,0,0"
                                                             Visibility="{Binding ShowsDailySummary, Converter={StaticResource BoolVisibility}}">
                                                     <ItemsControl ItemsSource="{Binding DailySummaries}" ItemTemplate="{StaticResource CalendarPnlTemplate}" />

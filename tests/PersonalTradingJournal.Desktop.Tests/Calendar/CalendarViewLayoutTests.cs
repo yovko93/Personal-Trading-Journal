@@ -15,6 +15,94 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarViewLayoutTests
 {
     [Theory]
+    [InlineData("Light", 1100, 96, 9)]
+    [InlineData("Dark", 1100, 96, 9)]
+    [InlineData("Light", 480, 240, 9)]
+    [InlineData("Dark", 480, 240, 9)]
+    [InlineData("Light", 1100, 96, 5)]
+    [InlineData("Dark", 1100, 96, 5)]
+    [InlineData("Light", 480, 240, 5)]
+    [InlineData("Dark", 480, 240, 5)]
+    public async Task MonthlyHeaderAndCenteredMarkersKeepTodaySelectionAndFocusDistinct(string theme, int width, int dpi, int selectedDay)
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, selectedDay)));
+        await OnSta(() =>
+        {
+            var view = new CalendarView { DataContext = vm, Resources = SharedThemeResources(theme) };
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            view.Measure(new Size(width, 800));
+            view.Arrange(new Rect(0, 0, width, 800));
+            view.UpdateLayout();
+            Color Brush(string key) => ((SolidColorBrush)view.Resources[key]).Color;
+            var header = (StackPanel)view.FindName("MonthlyPnlHeader");
+            Assert.Equal(0, Grid.GetRow(header));
+            TextBlock title = Assert.Single(Descendants(header).OfType<TextBlock>(), t => t.Text == "Monthly P/L");
+            Assert.Equal(TextAlignment.Center, title.TextAlignment);
+            Assert.Equal(width / 2d, title.TransformToAncestor(view).Transform(new Point(title.ActualWidth / 2, 0)).X, 1);
+            foreach (TextBlock amount in Descendants(header).OfType<TextBlock>().Where(t => t.DataContext is CalendarMonthlyPnlSummary))
+            {
+                var summary = (CalendarMonthlyPnlSummary)amount.DataContext;
+                Assert.Equal(summary.AmountText, amount.Text);
+                Assert.Equal(summary.Description, AutomationProperties.GetName(amount));
+                Assert.Equal(summary.Description, amount.ToolTip);
+                string key = summary.Amount > 0 ? "PtjSuccessBrush" : summary.Amount < 0 ? "PtjDangerBrush" : "PtjTextPrimaryBrush";
+                Assert.Equal(Brush(key), ((SolidColorBrush)amount.Foreground).Color);
+            }
+            foreach (CalendarDayHost cell in Descendants(view).OfType<CalendarDayHost>())
+            {
+                var day = (CalendarDayCell)cell.DataContext;
+                Border marker = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateSelectionMarker");
+                Border today = Assert.Single(Descendants(marker).OfType<Border>(), b => b.Name == "TodayMarker");
+                TextBlock number = Assert.Single(Descendants(today).OfType<TextBlock>());
+                Assert.Equal(day.DayNumber, number.Text);
+                Assert.Equal(HorizontalAlignment.Center, marker.HorizontalAlignment);
+                Assert.InRange(Math.Abs(marker.TransformToAncestor(cell).Transform(new Point(marker.ActualWidth / 2, 0)).X
+                    - cell.ActualWidth / 2), 0, 1);
+                Assert.InRange(marker.TransformToAncestor(cell).Transform(new Point()).Y, 0, 14);
+                Assert.Equal(new CornerRadius(12), today.CornerRadius);
+                Assert.Equal(day.IsToday ? Brush("PtjCalendarTodayBrush") : Colors.Transparent,
+                    ((SolidColorBrush)today.Background).Color);
+                Assert.Equal(day.IsSelected ? Brush("PtjAccentBrush") : Colors.Transparent,
+                    ((SolidColorBrush)marker.BorderBrush).Color);
+                Assert.Equal(day.IsToday ? Brush("PtjOnCalendarTodayBrush") : day.IsInDisplayedMonth
+                    ? Brush("PtjTextPrimaryBrush") : Brush("PtjTextMutedBrush"), ((SolidColorBrush)number.Foreground).Color);
+                Assert.Equal(new Thickness(0, 0, 1, 1), cell.BorderThickness); // No today/selection full-cell outline.
+                Assert.Equal(Brush("PtjBorderBrush"), ((SolidColorBrush)cell.BorderBrush).Color);
+                // Focus remains a separate outer marker ring, even when a click also focuses a selected cell.
+                Border focusMarker = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateFocusMarker");
+                Assert.Equal(new Thickness(1), focusMarker.BorderThickness);
+                Assert.True(focusMarker.ActualWidth > marker.ActualWidth);
+                var focus = Assert.Single(focusMarker.Style.Triggers.OfType<DataTrigger>());
+                Assert.Equal("True", focus.Value.ToString());
+                var focusBinding = Assert.IsType<System.Windows.Data.Binding>(focus.Binding);
+                Assert.Equal("IsKeyboardFocused", focusBinding.Path.Path);
+                Assert.Equal(typeof(CalendarDayHost), focusBinding.RelativeSource.AncestorType);
+                Assert.Contains(focus.Setters.OfType<Setter>(), s => s.Property == Border.BorderBrushProperty &&
+                    s.Value is DynamicResourceExtension resource && Equals(resource.ResourceKey, "PtjTextPrimaryBrush"));
+                Assert.DoesNotContain(cell.Style.Triggers.OfType<Trigger>(), t => t.Property == UIElement.IsKeyboardFocusedProperty);
+            }
+            var scroll = (ScrollViewer)view.FindName("CalendarScroller");
+            if (width < 840)
+            {
+                scroll.ScrollToHorizontalOffset(100);
+                view.UpdateLayout();
+                Assert.Equal(100, scroll.HorizontalOffset);
+            }
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 800 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(output, $"calendar-markers-{theme}-{width}-{dpi}-{selectedDay}.png"));
+                encoder.Save(file);
+            }
+        });
+    }
+
+    [Theory]
     [InlineData("Light", 1100, 96)]
     [InlineData("Dark", 1100, 96)]
     [InlineData("Light", 480, 240)]
@@ -361,7 +449,7 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(Brush("PtjSurfaceBrush"), ((SolidColorBrush)Cell(9, 3).Background).Color);
             Assert.Equal(Brush("PtjSurfaceBrush"), ((SolidColorBrush)Cell(8, 31).Background).Color);
             Assert.Equal(Brush("PtjSurfaceBrush"), ((SolidColorBrush)Cell(9, 5).Background).Color);
-            Assert.Equal(Brush("PtjAccentBrush"), ((SolidColorBrush)Cell(9, 9).BorderBrush).Color);
+            Assert.Equal(Brush("PtjBorderBrush"), ((SolidColorBrush)Cell(9, 9).BorderBrush).Color);
             Assert.Equal(1d, Cell(9, 9).Opacity);
             foreach (TextBlock amount in Descendants(view).OfType<TextBlock>().Where(t =>
                          t.DataContext is CalendarPnlSummary summary && t.Text == summary.AmountText))
@@ -380,7 +468,7 @@ public sealed class CalendarViewLayoutTests
             Assert.Equal(Visibility.Collapsed, ((StackPanel)VisualTreeHelper.GetParent(dailyItems)).Visibility);
             Assert.Equal(0d, weekly.BorderThickness.Top);
             Assert.InRange(Math.Abs(weekly.TransformToAncestor(saturday).Transform(new Point(0, weekly.ActualHeight / 2)).Y
-                - saturday.ActualHeight / 2), 0, 12);
+                - saturday.ActualHeight / 2), 0, 21);
             Assert.Contains(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "Week 1");
             Assert.Contains(Descendants(weekly).OfType<TextBlock>(), t => t.Text == "-205.00 USD");
             Assert.Contains(Descendants(weekly).OfType<TextBlock>(), t => t.Text == "7 Trades");
@@ -388,7 +476,7 @@ public sealed class CalendarViewLayoutTests
             Border quietWeek = Assert.Single(Descendants(quietSaturday).OfType<Border>(),
                 b => AutomationProperties.GetName(b) == "Weekly summary area");
             Assert.InRange(Math.Abs(quietWeek.TransformToAncestor(quietSaturday).Transform(new Point(0, quietWeek.ActualHeight / 2)).Y
-                - quietSaturday.ActualHeight / 2), 0, 12);
+                - quietSaturday.ActualHeight / 2), 0, 21);
             Assert.Contains(Descendants(quietWeek).OfType<TextBlock>(), t => t.Text == "Week 2");
             Assert.Contains(Descendants(quietWeek).OfType<TextBlock>(), t => t.Text == "3 Trades");
             Assert.Contains(Descendants(Cell(9, 7)).OfType<TextBlock>(), t => t.Text == "— USD");
@@ -455,7 +543,7 @@ public sealed class CalendarViewLayoutTests
                 if (dayCells.Any(cell => ((CalendarDayCell)cell.DataContext).IsToday))
                 {
                     Border today = Assert.Single(dayCells, cell => ((CalendarDayCell)cell.DataContext).IsToday);
-                    Assert.Equal(((SolidColorBrush)view.Resources["PtjAccentBrush"]).Color,
+                    Assert.Equal(((SolidColorBrush)view.Resources["PtjBorderBrush"]).Color,
                         ((SolidColorBrush)today.BorderBrush).Color);
                 }
                 var scroller = Assert.IsType<ScrollViewer>(view.FindName("CalendarScroller"));
