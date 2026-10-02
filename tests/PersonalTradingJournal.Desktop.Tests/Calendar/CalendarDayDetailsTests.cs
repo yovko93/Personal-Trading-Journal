@@ -62,6 +62,7 @@ public sealed class CalendarDayDetailsTests
         await a;
         Assert.Equal(second, vm.DayDetails!.Date);
         Assert.Equal(11m, Assert.Single(vm.DaySummaries).Amount);
+        Assert.Equal(11m, Assert.Single(Assert.Single(vm.DayPerformance).Points).Value);
         Task c = vm.SelectDayCommand.ExecuteAsync(Cell(vm, third));
         await WaitStarted(third);
         vm.NextCommand.Execute(null);
@@ -70,6 +71,7 @@ public sealed class CalendarDayDetailsTests
         await c;
         Assert.Null(vm.DayDetails);
         Assert.Empty(vm.DayTrades);
+        Assert.Empty(vm.DayPerformance);
         Assert.False(vm.HasSelectedDate);
         await vm.LoadTask;
 

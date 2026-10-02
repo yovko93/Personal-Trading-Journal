@@ -106,6 +106,7 @@ public sealed class CalendarViewModel : ObservableObject
     private string? _dayErrorMessage;
     private string? _loadNotice, _dayNotice;
     private TradingCalendarDayDetails? _dayDetails;
+    private IReadOnlyList<CalendarDayPerformance> _dayPerformance = [];
     private IReadOnlyList<CalendarTradePresentation> _dayTrades = [];
     private IReadOnlyList<CalendarPnlSummary> _daySummaries = [];
 
@@ -211,6 +212,7 @@ public sealed class CalendarViewModel : ObservableObject
     public bool HasSelectedDate => SelectedDate.HasValue;
     public string SelectedDateLabel => SelectedDate?.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture) ?? "";
     public TradingCalendarDayDetails? DayDetails { get => _dayDetails; private set => SetProperty(ref _dayDetails, value); }
+    public IReadOnlyList<CalendarDayPerformance> DayPerformance { get => _dayPerformance; private set => SetProperty(ref _dayPerformance, value); }
     public IReadOnlyList<CalendarTradePresentation> DayTrades { get => _dayTrades; private set => SetProperty(ref _dayTrades, value); }
     public IReadOnlyList<CalendarPnlSummary> DaySummaries { get => _daySummaries; private set => SetProperty(ref _daySummaries, value); }
     public string? DayErrorMessage { get => _dayErrorMessage; private set => SetProperty(ref _dayErrorMessage, value); }
@@ -459,7 +461,9 @@ public sealed class CalendarViewModel : ObservableObject
                 Trades = source.Trades.Where(t => t.Currency == requestedCurrency).ToArray(),
                 Currencies = source.Currencies.Where(c => c.Currency == requestedCurrency).ToArray(),
             };
+            IReadOnlyList<CalendarDayPerformance> performance = CalendarDayPerformance.From(result.Trades);
             DayDetails = result;
+            DayPerformance = performance;
             DayTrades = result.Trades.Select(t => new CalendarTradePresentation(t)).ToArray();
             DaySummaries = result.Currencies.Select(c => new CalendarPnlSummary(c.Currency, c.Metrics)).ToArray();
             ViewTradeCommand.NotifyCanExecuteChanged();
@@ -509,6 +513,7 @@ public sealed class CalendarViewModel : ObservableObject
     {
         _dayNotice = null;
         DayDetails = null;
+        DayPerformance = [];
         DayTrades = [];
         DaySummaries = [];
         DayErrorMessage = null;

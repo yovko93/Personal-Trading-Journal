@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Input;
 using PersonalTradingJournal.Application.Calendar;
+using PersonalTradingJournal.Desktop.Interactions;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.Views.Calendar;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -301,7 +302,7 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 1100, 96)]
     [InlineData("Light", 480, 240)]
     [InlineData("Dark", 480, 240)]
-    public async Task RefreshPreservesDateContainersAndAutomationAndWheelReachBothCalendarSections(string theme, int width, int dpi)
+    public async Task RefreshPreservesDateContainersAndAutomationAndMonthWheelRouting(string theme, int width, int dpi)
     {
         var reader = new FakeTradingCalendarDayReader
         {
@@ -357,15 +358,6 @@ public sealed class CalendarViewLayoutTests
             Assert.Same(cell, Assert.Single(Descendants(view).OfType<CalendarDayHost>(), b => ReferenceEquals(b.DataContext, cell.DataContext)));
             Assert.Contains("selected", peer.GetName());
             Assert.All(Descendants(view).OfType<ComboBox>(), c => Assert.True(c.Focusable));
-            Button open = Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.ViewTradeCommand));
-            Guid? opened = null;
-            vm.OpenTradeAsync = row => { opened = row.Id; return Task.CompletedTask; };
-            Assert.True(open.Focusable);
-            Assert.Contains("View Trade", AutomationProperties.GetName(open));
-            System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(open)!.GetPattern(
-                System.Windows.Automation.Peers.PatternInterface.Invoke);
-            Finish(vm.ViewTradeCommand.ExecuteAsync((PersonalTradingJournal.Application.Trades.TradeListItem)open.CommandParameter));
-            Assert.Equal(vm.DayTrades.Single().Trade.Id, opened);
             var page = (ScrollViewer)view.FindName("CalendarPageScroller");
             var horizontal = (ScrollViewer)view.FindName("CalendarScroller");
             double start = Math.Min(120, page.ScrollableHeight / 2);
@@ -375,9 +367,7 @@ public sealed class CalendarViewLayoutTests
             Layout();
             double step = page.VerticalOffset - start;
             Assert.True(step > 0);
-            var panel = (Border)view.FindName("DayDetailsPanel");
-            var table = Assert.Single(Descendants(panel).OfType<ScrollViewer>());
-            foreach (UIElement surface in new UIElement[] { cell, cell.Child, horizontal, open, (UIElement)table.Content })
+            foreach (UIElement surface in new UIElement[] { cell, cell.Child, horizontal })
             {
                 page.ScrollToVerticalOffset(start);
                 Layout();
@@ -397,7 +387,7 @@ public sealed class CalendarViewLayoutTests
             Assert.False(Wheel(cell, UIElement.PreviewMouseWheelEvent, 120).Handled);
             page.ScrollToBottom();
             Layout();
-            Assert.False(Wheel(open, UIElement.PreviewMouseWheelEvent, -120).Handled);
+            Assert.False(Wheel(cell, UIElement.PreviewMouseWheelEvent, -120).Handled);
             if (width < 840)
             {
                 horizontal.ScrollToHorizontalOffset(100);
@@ -559,7 +549,11 @@ public sealed class CalendarViewLayoutTests
             Layout();
             Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
             Assert.True(((CalendarDayCell)saturday.DataContext).IsSelected);
-            Border panel = (Border)view.FindName("DayDetailsPanel");
+            Assert.Null(view.FindName("DayDetailsPanel"));
+            var panel = new CalendarDayDetailsView { DataContext = vm, Resources = SharedThemeResources(theme) };
+            panel.Measure(new Size(width, 650));
+            panel.Arrange(new Rect(0, 0, width, 650));
+            panel.UpdateLayout();
             Assert.Equal(Visibility.Visible, panel.Visibility);
             Assert.True(panel.ActualWidth <= width);
             Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "2 closed Trades");
@@ -573,12 +567,33 @@ public sealed class CalendarViewLayoutTests
                 Assert.True(KeyboardNavigation.GetIsTabStop(b));
                 Assert.True(b.ActualWidth >= 48);
             });
-            var scroller = (ScrollViewer)view.FindName("CalendarPageScroller");
+            var scroller = (ScrollViewer)panel.FindName("DayContentScroller");
+            ScrollViewer table = Assert.Single(Descendants(panel).OfType<ScrollViewer>(), s =>
+                NestedTableWheelRouting.GetForwardVerticalWheel(s) && s.Content is StackPanel);
+            foreach (UIElement surface in new UIElement[] { views[0], table,
+                Descendants(panel).OfType<Border>().First(b => b.Tag is CalendarDayPerformancePoint) })
+            {
+                scroller.ScrollToTop();
+                panel.UpdateLayout();
+                var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120)
+                    { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                surface.RaiseEvent(wheel);
+                Assert.True(wheel.Handled);
+                panel.UpdateLayout();
+                Assert.True(scroller.VerticalOffset > 0);
+                Assert.Equal(0, table.VerticalOffset);
+            }
+            if (table.ScrollableWidth > 0)
+            {
+                table.ScrollToHorizontalOffset(100);
+                panel.UpdateLayout();
+                Assert.True(table.HorizontalOffset > 0);
+            }
             scroller.ScrollToBottom();
-            Layout();
+            panel.UpdateLayout();
             Assert.True(scroller.VerticalOffset > 0);
-            var bitmap = new RenderTargetBitmap(width * dpi / 96, 980 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
-            bitmap.Render(view);
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 650 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(panel);
             if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
             {
                 Directory.CreateDirectory(output);
@@ -766,7 +781,7 @@ public sealed class CalendarViewLayoutTests
         });
     }
 
-    private static ResourceDictionary SharedThemeResources(string theme)
+    internal static ResourceDictionary SharedThemeResources(string theme)
     {
         // Detached component hosts have no Application.Resources: flatten the unchanged shared
         // declarations so Popup templates resolve them without cross-thread global resources.
