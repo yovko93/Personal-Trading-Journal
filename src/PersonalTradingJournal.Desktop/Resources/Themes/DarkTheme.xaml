@@ -30,6 +30,9 @@
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />
     <SolidColorBrush x:Key="PtjSuccessSurfaceBrush" Color="{StaticResource PtjColorSuccessSurface}" />
     <SolidColorBrush x:Key="PtjDangerSurfaceBrush" Color="{StaticResource PtjColorDangerSurface}" />
+    <SolidColorBrush x:Key="PtjCalendarHoverBrush" Color="#3B3146" />
+    <SolidColorBrush x:Key="PtjCalendarSuccessHoverBrush" Color="#29493F" />
+    <SolidColorBrush x:Key="PtjCalendarDangerHoverBrush" Color="#553441" />
     <!-- Sidebar has a distinct dark palette in both modes; content accents retain text contrast. -->
     <SolidColorBrush x:Key="PtjSidebarBrush" Color="#0E1444" />
     <SolidColorBrush x:Key="PtjSidebarTextBrush" Color="#E9EDF4" />

@@ -15,6 +15,129 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarViewLayoutTests
 {
     [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task OutcomeHoverRestoresBackgroundWithoutChangingSelectionMarkersOrTooltipTargets(string theme, int width, int dpi)
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 9)));
+        await OnSta(() =>
+        {
+            var view = new CalendarView { DataContext = vm, Resources = SharedThemeResources(theme) };
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            view.Measure(new Size(width, 800));
+            view.Arrange(new Rect(0, 0, width, 800));
+            view.UpdateLayout();
+            // Drive WPF's read-only hover state deterministically in the detached component.
+            // Raising MouseEnter alone does not update IsMouseOver; this is not live pointer evidence.
+            var key = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+            var focusKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsKeyboardFocusedPropertyKey",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+            Color Brush(string name) => ((SolidColorBrush)view.Resources[name]).Color;
+            foreach (CalendarDayHost cell in Descendants(view).OfType<CalendarDayHost>())
+            {
+                var day = (CalendarDayCell)cell.DataContext;
+                Color original = ((SolidColorBrush)cell.Background).Color;
+                Brush outline = cell.BorderBrush;
+                Thickness thickness = cell.BorderThickness;
+                Border marker = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateFocusMarker");
+                Border selection = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateSelectionMarker");
+                Border today = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "TodayMarker");
+                Brush markerOutline = selection.BorderBrush, todayBackground = today.Background;
+                string hoverKey = day.DailyOutcome == Desktop.Converters.PnLOutcome.Positive ? "PtjCalendarSuccessHoverBrush"
+                    : day.DailyOutcome == Desktop.Converters.PnLOutcome.Negative ? "PtjCalendarDangerHoverBrush" : "PtjCalendarHoverBrush";
+                cell.SetValue(key, true);
+                view.UpdateLayout();
+                Assert.Equal(Brush(hoverKey), ((SolidColorBrush)cell.Background).Color);
+                Assert.NotEqual(original, ((SolidColorBrush)cell.Background).Color);
+                Assert.Same(outline, cell.BorderBrush);
+                Assert.Equal(thickness, cell.BorderThickness);
+                Assert.Same(markerOutline, selection.BorderBrush);
+                Assert.Same(todayBackground, today.Background);
+                if (day.IsToday)
+                {
+                    cell.SetValue(focusKey, true);
+                    view.UpdateLayout();
+                    Assert.Equal(Brush("PtjTextPrimaryBrush"), ((SolidColorBrush)marker.BorderBrush).Color);
+                    Assert.Equal(Brush("PtjAccentBrush"), ((SolidColorBrush)selection.BorderBrush).Color);
+                    Assert.Equal(Brush("PtjCalendarTodayBrush"), ((SolidColorBrush)today.Background).Color);
+                }
+                Assert.Equal(day.IsSelected ? new Thickness(2) : new Thickness(0, 0, 1, 1), thickness);
+                Assert.Equal(day.DateTooltip, marker.ToolTip);
+                Assert.Null(cell.ToolTip);
+                Assert.All(Descendants(cell).OfType<FrameworkElement>().Where(e => e.ToolTip is not null), e => Assert.Same(marker, e));
+                // Actual hit targets in the compiled tree: amount, count, weekly text and empty space
+                // still resolve to the hovered host, but none can find a tooltip on its ancestors.
+                var points = Descendants(cell).OfType<TextBlock>().Where(t => t.IsVisible && t.ActualWidth > 0 &&
+                        (t.DataContext is CalendarPnlSummary || t.Text.StartsWith("Week", StringComparison.Ordinal)))
+                    .Select(t => t.TransformToAncestor(cell).Transform(new Point(t.ActualWidth / 2, t.ActualHeight / 2)))
+                    .Append(new Point(12, cell.ActualHeight - 12));
+                foreach (Point point in points)
+                {
+                    DependencyObject? hit = VisualTreeHelper.HitTest(cell, point)?.VisualHit;
+                    Assert.NotNull(hit);
+                    bool foundCell = false;
+                    for (DependencyObject? target = hit; target is not null; target = VisualTreeHelper.GetParent(target))
+                    {
+                        if (target is FrameworkElement element) Assert.Null(element.ToolTip);
+                        if (ReferenceEquals(target, cell)) foundCell = true;
+                    }
+                    Assert.True(foundCell);
+                }
+                TextBlock number = Assert.Single(Descendants(today).OfType<TextBlock>());
+                if (!day.IsInDisplayedMonth)
+                    Assert.Equal(Brush("PtjTextMutedBrush"), ((SolidColorBrush)number.Foreground).Color);
+                if (day.IsSaturday) Assert.Equal(Brush("PtjCalendarHoverBrush"), ((SolidColorBrush)cell.Background).Color);
+                if (day.IsToday || day.Date == new DateOnly(2026, 9, 1) || day.Date == new DateOnly(2026, 9, 5))
+                {
+                    var bitmap = new RenderTargetBitmap(width * dpi / 96, 800 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+                    bitmap.Render(view);
+                    if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+                    {
+                        Directory.CreateDirectory(output);
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        using var file = File.Create(Path.Combine(output, $"calendar-hover-{theme}-{width}-{dpi}-{day.Date.Day}.png"));
+                        encoder.Save(file);
+                    }
+                }
+                cell.SetValue(key, false);
+                if (day.IsToday) cell.SetValue(focusKey, false);
+                view.UpdateLayout();
+                Assert.Equal(original, ((SolidColorBrush)cell.Background).Color);
+            }
+            var scroller = (ScrollViewer)view.FindName("CalendarScroller");
+            if (width < 840)
+            {
+                scroller.ScrollToHorizontalOffset(100);
+                view.UpdateLayout();
+                Assert.Equal(100, scroller.HorizontalOffset);
+                CalendarDayHost selected = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).IsSelected);
+                selected.SetValue(key, true);
+                view.UpdateLayout();
+                Assert.Equal(Brush("PtjCalendarDangerHoverBrush"), ((SolidColorBrush)selected.Background).Color);
+                selected.SetValue(key, false);
+            }
+            // Hover shades retain normal-text contrast in both palettes, including neutral dates.
+            foreach (var (text, background) in new[] { ("PtjSuccessBrush", "PtjCalendarSuccessHoverBrush"),
+                ("PtjDangerBrush", "PtjCalendarDangerHoverBrush"), ("PtjTextSecondaryBrush", "PtjCalendarHoverBrush"),
+                ("PtjTextMutedBrush", "PtjCalendarHoverBrush") })
+            {
+                double a = Luminance(Brush(text)), b = Luminance(Brush(background));
+                Assert.True((Math.Max(a, b) + .05) / (Math.Min(a, b) + .05) >= 4.5, $"{theme}: {text}/{background}");
+            }
+        });
+        static double Luminance(Color color)
+        {
+            static double Channel(byte value) => value / 255d <= .04045 ? value / 255d / 12.92 : Math.Pow((value / 255d + .055) / 1.055, 2.4);
+            return .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
+        }
+    }
+
+    [Theory]
     [InlineData("Light", 1100, 96, 9)]
     [InlineData("Dark", 1100, 96, 9)]
     [InlineData("Light", 480, 240, 9)]

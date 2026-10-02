@@ -25,6 +25,23 @@
                     <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
                     <Setter Property="BorderThickness" Value="2" />
                 </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource PtjCalendarHoverBrush}" />
+                </Trigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                        <Condition Binding="{Binding DailyOutcome}" Value="{x:Static converters:PnLOutcome.Positive}" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource PtjCalendarSuccessHoverBrush}" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                        <Condition Binding="{Binding DailyOutcome}" Value="{x:Static converters:PnLOutcome.Negative}" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Background" Value="{DynamicResource PtjCalendarDangerHoverBrush}" />
+                </MultiDataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="CalendarDateFocusStyle" TargetType="Border">
@@ -97,6 +114,22 @@
                                     <Condition Binding="{Binding Outcome}" Value="{x:Static converters:PnLOutcome.Negative}" />
                                 </MultiDataTrigger.Conditions>
                                 <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding TintBackground}" Value="True" />
+                                    <Condition Binding="{Binding Outcome}" Value="{x:Static converters:PnLOutcome.Positive}" />
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type calendar:CalendarDayHost}}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="{DynamicResource PtjCalendarSuccessHoverBrush}" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding TintBackground}" Value="True" />
+                                    <Condition Binding="{Binding Outcome}" Value="{x:Static converters:PnLOutcome.Negative}" />
+                                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type calendar:CalendarDayHost}}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="{DynamicResource PtjCalendarDangerHoverBrush}" />
                             </MultiDataTrigger>
                         </Style.Triggers>
                     </Style>
