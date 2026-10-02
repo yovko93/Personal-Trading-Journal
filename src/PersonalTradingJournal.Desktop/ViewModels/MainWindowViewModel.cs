@@ -131,7 +131,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.ImportCommitted += OnImportCommitted;
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted += OnDashboardDataCommitted;
-        _dashboardViewModel.OpenTradeAsync = OpenDashboardTradeAsync;
+        _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
+        _calendarViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -208,6 +209,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted -= OnDashboardDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
+        _calendarViewModel.OpenTradeAsync = null;
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
     }
@@ -261,7 +263,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private Task _tradeNavigationLoad = Task.CompletedTask;
 
-    private async Task OpenDashboardTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)
+    private async Task OpenReadOnlyTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)
     {
         Navigate(NavigationDestination.Trades);
         await _tradeNavigationLoad;

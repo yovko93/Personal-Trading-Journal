@@ -5,12 +5,23 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Converters;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
-public sealed record CalendarDayCell(DateOnly Date, bool IsInDisplayedMonth, bool IsToday, bool IsSaturday)
+public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool isToday, bool isSaturday) : ObservableObject
 {
+    public DateOnly Date { get; } = date;
+    public bool IsInDisplayedMonth { get; } = isInDisplayedMonth;
+    public bool IsToday { get; } = isToday;
+    public bool IsSaturday { get; } = isSaturday;
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        internal set { if (SetProperty(ref _isSelected, value)) OnPropertyChanged(nameof(AccessibleName)); }
+    }
     public IReadOnlyList<CalendarPnlSummary> DailySummaries { get; init; } = [];
     public IReadOnlyList<CalendarPnlSummary> WeeklySummaries { get; init; } = [];
     public bool IsDataLoaded { get; init; }
@@ -27,6 +38,7 @@ public sealed record CalendarDayCell(DateOnly Date, bool IsInDisplayedMonth, boo
     public string DayNumber => Date.Day.ToString(CultureInfo.CurrentCulture);
     public string AccessibleName => $"{Date.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture)}" +
         (IsToday ? ", today" : "") + (IsInDisplayedMonth ? "" : ", adjacent month") +
+        (IsSelected ? ", selected" : "") +
         ". " + (IsSaturday ? WeeklyDescription
             : HasDailyTrades ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
             : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.");
@@ -38,6 +50,7 @@ public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);
 public sealed class CalendarViewModel : ObservableObject
 {
     private readonly ITradingCalendarReader _reader;
+    private readonly ITradingCalendarDayReader _dayReader;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CalendarViewModel> _logger;
     private CancellationTokenSource? _loadCancellation;
@@ -47,11 +60,21 @@ public sealed class CalendarViewModel : ObservableObject
     private IReadOnlyList<CalendarWeekRow> _weeks = [];
     private TradingCalendarMonth? _monthData;
     private string? _errorMessage;
+    private CancellationTokenSource? _dayCancellation;
+    private long _dayGeneration;
+    private DateOnly? _selectedDate;
+    private bool _isDayLoading;
+    private string? _dayErrorMessage;
+    private TradingCalendarDayDetails? _dayDetails;
+    private IReadOnlyList<CalendarTradePresentation> _dayTrades = [];
+    private IReadOnlyList<CalendarPnlSummary> _daySummaries = [];
 
     public CalendarViewModel(ITradingCalendarReader reader, TimeProvider timeProvider,
+        ITradingCalendarDayReader dayReader,
         ILogger<CalendarViewModel>? logger = null)
     {
         _reader = reader;
+        _dayReader = dayReader;
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<CalendarViewModel>.Instance;
         DateOnly today = Today;
@@ -62,6 +85,14 @@ public sealed class CalendarViewModel : ObservableObject
         TodayCommand = new RelayCommand(() => SelectMonth(Today));
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        SelectDayCommand = new AsyncRelayCommand<CalendarDayCell>(SelectDayAsync,
+            day => day is not null && _isActive && Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date),
+            AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        RetryDayCommand = new AsyncRelayCommand(RefreshDayAsync, () => SelectedDate.HasValue,
+            AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        CancelDayCommand = new RelayCommand(CancelDay, () => IsDayLoading);
+        ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(ViewTradeAsync,
+            item => item is not null && _isActive && !IsDayLoading && DayTrades.Any(row => row.Trade.Id == item.Id));
     }
 
     public DateOnly SelectedMonth => _month;
@@ -81,10 +112,41 @@ public sealed class CalendarViewModel : ObservableObject
     public IRelayCommand TodayCommand { get; }
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand CancelCommand { get; }
+    public IAsyncRelayCommand<CalendarDayCell> SelectDayCommand { get; }
+    public IAsyncRelayCommand RetryDayCommand { get; }
+    public IRelayCommand CancelDayCommand { get; }
+    public IAsyncRelayCommand<TradeListItem> ViewTradeCommand { get; }
+    public Func<TradeListItem, Task>? OpenTradeAsync { get; set; }
+    public Task DayLoadTask { get; private set; } = Task.CompletedTask;
+    public DateOnly? SelectedDate => _selectedDate;
+    public bool HasSelectedDate => SelectedDate.HasValue;
+    public string SelectedDateLabel => SelectedDate?.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture) ?? "";
+    public TradingCalendarDayDetails? DayDetails { get => _dayDetails; private set => SetProperty(ref _dayDetails, value); }
+    public IReadOnlyList<CalendarTradePresentation> DayTrades { get => _dayTrades; private set => SetProperty(ref _dayTrades, value); }
+    public IReadOnlyList<CalendarPnlSummary> DaySummaries { get => _daySummaries; private set => SetProperty(ref _daySummaries, value); }
+    public string? DayErrorMessage { get => _dayErrorMessage; private set => SetProperty(ref _dayErrorMessage, value); }
+    public bool IsDayLoading
+    {
+        get => _isDayLoading;
+        private set
+        {
+            if (!SetProperty(ref _isDayLoading, value)) return;
+            CancelDayCommand.NotifyCanExecuteChanged();
+            ViewTradeCommand.NotifyCanExecuteChanged();
+            NotifyDayStatus();
+        }
+    }
+    public string? DayStatusMessage => IsDayLoading ? "Loading day Trades…" : null;
+    public string DayTradeCountText => DayDetails is { } details ? $"{details.ClosedTradeCount} closed {(details.ClosedTradeCount == 1 ? "Trade" : "Trades")}" : "";
+    public bool IsSelectedDayEmpty => !IsDayLoading && DayDetails?.ClosedTradeCount == 0;
 
     public Task ActivateAsync() { _isActive = true; return RefreshAsync(); }
-    public void Deactivate() { _isActive = false; Cancel(); }
-    public Task RefreshAsync() => LoadTask = LoadAsync();
+    public void Deactivate() { _isActive = false; Cancel(); CancelDay(); }
+    public Task RefreshAsync()
+    {
+        LoadTask = LoadAsync();
+        return SelectedDate.HasValue ? Task.WhenAll(LoadTask, RefreshDayAsync()) : LoadTask;
+    }
 
     private DateOnly Today => DateOnly.FromDateTime(
         TradingTimePolicy.ConvertUtcToTradingTime(_timeProvider.GetUtcNow()).DateTime);
@@ -98,6 +160,7 @@ public sealed class CalendarViewModel : ObservableObject
 
     private void SelectMonth(DateOnly date)
     {
+        ClearDaySelection();
         DateOnly first = new(date.Year, date.Month, 1);
         if (first == _month)
         {
@@ -137,6 +200,7 @@ public sealed class CalendarViewModel : ObservableObject
                     date == today, date.DayOfWeek == DayOfWeek.Saturday)
                 {
                     IsDataLoaded = data is not null,
+                    IsSelected = date == SelectedDate,
                     DailySummaries = daily?[date].Select(d => d.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [],
                     WeeklySummaries = date.DayOfWeek == DayOfWeek.Saturday
                         ? weekly?[date.AddDays(-5)].Select(w => w.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [] : [],
@@ -194,5 +258,106 @@ public sealed class CalendarViewModel : ObservableObject
         _loadCancellation = null;
         IsLoading = false;
         OnPropertyChanged(nameof(StatusMessage));
+    }
+
+    private Task SelectDayAsync(CalendarDayCell? day)
+    {
+        if (day is null || !_isActive || !Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date)) return Task.CompletedTask;
+        _selectedDate = day.Date;
+        NotifySelection();
+        return RefreshDayAsync();
+    }
+
+    private Task RefreshDayAsync() => DayLoadTask = SelectedDate is { } date ? LoadDayAsync(date) : Task.CompletedTask;
+
+    private async Task LoadDayAsync(DateOnly date)
+    {
+        long generation = ++_dayGeneration;
+        _dayCancellation?.Cancel();
+        using var cancellation = new CancellationTokenSource();
+        _dayCancellation = cancellation;
+        ClearDayResults();
+        IsDayLoading = true;
+        try
+        {
+            TradingCalendarDayDetails result = await Task.Run(() => _dayReader.GetAsync(new(date), cancellation.Token), cancellation.Token);
+            if (generation != _dayGeneration || cancellation.IsCancellationRequested || !_isActive || SelectedDate != date) return;
+            DayDetails = result;
+            DayTrades = result.Trades.Select(t => new CalendarTradePresentation(t)).ToArray();
+            DaySummaries = result.Currencies.Select(c => new CalendarPnlSummary(c.Currency, c.Metrics)).ToArray();
+            ViewTradeCommand.NotifyCanExecuteChanged();
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            if (generation != _dayGeneration || !_isActive) return;
+            _logger.LogError(exception, "Calendar day load failed");
+            DayErrorMessage = "Day Trades could not be loaded. Select Retry to try again.";
+        }
+        finally
+        {
+            if (generation == _dayGeneration)
+            {
+                _dayCancellation = null;
+                IsDayLoading = false;
+                NotifyDayStatus();
+            }
+        }
+    }
+
+    private async Task ViewTradeAsync(TradeListItem? item)
+    {
+        if (item is null || OpenTradeAsync is null || !_isActive || IsDayLoading || !DayTrades.Any(row => row.Trade.Id == item.Id)) return;
+        long generation = _dayGeneration;
+        try { await OpenTradeAsync(item); }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Calendar Trade navigation failed");
+            if (generation == _dayGeneration && _isActive)
+                DayErrorMessage = "Trade could not be opened. Select Retry and try again.";
+        }
+    }
+
+    private void CancelDay()
+    {
+        _dayGeneration++;
+        _dayCancellation?.Cancel();
+        _dayCancellation = null;
+        IsDayLoading = false;
+        NotifyDayStatus();
+    }
+
+    private void ClearDayResults()
+    {
+        DayDetails = null;
+        DayTrades = [];
+        DaySummaries = [];
+        DayErrorMessage = null;
+        ViewTradeCommand.NotifyCanExecuteChanged();
+        NotifyDayStatus();
+    }
+
+    private void ClearDaySelection()
+    {
+        CancelDay();
+        _selectedDate = null;
+        ClearDayResults();
+        NotifySelection();
+    }
+
+    private void NotifySelection()
+    {
+        foreach (CalendarDayCell cell in Weeks.SelectMany(w => w.Days)) cell.IsSelected = cell.Date == SelectedDate;
+        OnPropertyChanged(nameof(SelectedDate));
+        OnPropertyChanged(nameof(HasSelectedDate));
+        OnPropertyChanged(nameof(SelectedDateLabel));
+        RetryDayCommand.NotifyCanExecuteChanged();
+    }
+
+    private void NotifyDayStatus()
+    {
+        OnPropertyChanged(nameof(DayStatusMessage));
+        OnPropertyChanged(nameof(DayTradeCountText));
+        OnPropertyChanged(nameof(IsSelectedDayEmpty));
     }
 }

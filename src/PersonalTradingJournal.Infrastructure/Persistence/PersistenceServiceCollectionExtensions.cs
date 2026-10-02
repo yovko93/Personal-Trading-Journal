@@ -14,6 +14,7 @@ using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Analytics;
+using PersonalTradingJournal.Infrastructure.Calendar;
 using PersonalTradingJournal.Infrastructure.Instruments;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Imports.Topstep;
@@ -73,6 +74,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeListReader, TradeListReader>();
         services.AddTransient<IDashboardAnalyticsReader, DashboardAnalyticsReader>();
         services.AddTransient<ITradingCalendarReader, TradingCalendarReader>();
+        services.AddTransient<ITradingCalendarDayReader, TradingCalendarDayReader>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();
         services.AddTransient<ITradovateImportStore, TradovateImportStore>();

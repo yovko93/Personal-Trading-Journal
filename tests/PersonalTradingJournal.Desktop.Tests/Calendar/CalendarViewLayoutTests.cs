@@ -8,11 +8,112 @@ using System.Windows.Input;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.Views.Calendar;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarViewLayoutTests
 {
+    [Theory]
+    [InlineData("Light", 1100, 96, Key.Enter)]
+    [InlineData("Dark", 1100, 96, Key.Space)]
+    [InlineData("Light", 640, 240, Key.Space)]
+    [InlineData("Dark", 640, 240, Key.Enter)]
+    public async Task DaySelectionByKeyboardAndMouseRendersResponsiveDetailsAndExactViewTargets(string theme, int width, int dpi, Key key)
+    {
+        var reader = new FakeTradingCalendarDayReader
+        {
+            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+                [CalendarDayDetailsTests.Row(q.Date, -285m, null), CalendarDayDetailsTests.Row(q.Date, 10m, 9m) with { Currency = "EUR" }], ct))
+        };
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
+        await OnSta(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
+            var view = new CalendarView { DataContext = vm };
+            view.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri($"/PersonalTradingJournal.Desktop;component/Resources/Themes/{theme}Theme.xaml", UriKind.Relative),
+            });
+            foreach (string name in new[] { "PtjButtonStyle", "PtjIconButtonStyle", "PtjSecondaryButtonStyle" })
+                view.Resources[name] = new Style(typeof(Button));
+            foreach (string name in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
+                view.Resources[name] = new Style(typeof(TextBlock));
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            void Layout()
+            {
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
+                    new Action(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                view.Measure(new Size(width, 980));
+                view.Arrange(new Rect(0, 0, width, 980));
+                view.UpdateLayout();
+            }
+            void FinishLoad()
+            {
+                var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                _ = vm.DayLoadTask.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)),
+                    CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                vm.DayLoadTask.GetAwaiter().GetResult();
+            }
+            Layout();
+            Border Cell(int month, int day) => Assert.Single(Descendants(view).OfType<Border>(), b => b.Focusable &&
+                b.DataContext is CalendarDayCell cell && cell.Date == new DateOnly(2026, month, day));
+            Border saturday = Cell(9, 5);
+            Assert.True(KeyboardNavigation.GetIsTabStop(saturday));
+            Assert.Contains("Enter or Space", AutomationProperties.GetHelpText(saturday));
+            var keyEvent = new KeyEventArgs(Keyboard.PrimaryDevice, new TestPresentationSource(view), 0, key)
+                { RoutedEvent = Keyboard.KeyDownEvent };
+            saturday.RaiseEvent(keyEvent);
+            Assert.True(keyEvent.Handled);
+            FinishLoad();
+            Layout();
+            Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+            Assert.True(((CalendarDayCell)saturday.DataContext).IsSelected);
+            Border panel = (Border)view.FindName("DayDetailsPanel");
+            Assert.Equal(Visibility.Visible, panel.Visibility);
+            Assert.True(panel.ActualWidth <= width);
+            Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "2 closed Trades");
+            Assert.Contains(Descendants(panel).OfType<TextBlock>(), t => t.Text == "Estimated");
+            Button[] views = Descendants(panel).OfType<Button>().Where(b => b.Content?.ToString() == "View").ToArray();
+            Assert.Equal(2, views.Length);
+            Assert.All(views, b =>
+            {
+                Assert.Same(vm.ViewTradeCommand, b.Command);
+                Assert.Contains(vm.DayTrades, row => ReferenceEquals(row.Trade, b.CommandParameter));
+                Assert.True(KeyboardNavigation.GetIsTabStop(b));
+                Assert.True(b.ActualWidth >= 48);
+            });
+            var scroller = (ScrollViewer)view.FindName("CalendarPageScroller");
+            scroller.ScrollToBottom();
+            Layout();
+            Assert.True(scroller.VerticalOffset > 0);
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 980 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(output, $"calendar-details-{theme}-{width}-{dpi}.png"));
+                encoder.Save(file);
+            }
+            Border adjacent = Cell(8, 31);
+            var mouse = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = UIElement.MouseLeftButtonUpEvent };
+            adjacent.RaiseEvent(mouse);
+            Assert.True(mouse.Handled);
+            FinishLoad();
+            Layout();
+            Assert.Equal(new DateOnly(2026, 8, 31), vm.SelectedDate);
+            Assert.False(((CalendarDayCell)saturday.DataContext).IsSelected);
+            Assert.Equal(2, reader.Calls.Count);
+        });
+    }
+
     [Theory]
     [InlineData("Light", 1100, 96)]
     [InlineData("Dark", 1100, 96)]
@@ -105,7 +206,7 @@ public sealed class CalendarViewLayoutTests
     {
         await OnSta(() =>
         {
-                var vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)));
+                var vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
                 while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month < year * 12 + month)
                     vm.NextCommand.Execute(null);
                 while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month > year * 12 + month)
@@ -187,5 +288,12 @@ public sealed class CalendarViewLayoutTests
     private sealed class FixedClock(DateTimeOffset instant) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => instant;
+    }
+
+    private sealed class TestPresentationSource(Visual visual) : PresentationSource
+    {
+        public override Visual RootVisual { get; set; } = visual;
+        public override bool IsDisposed => false;
+        protected override CompositionTarget GetCompositionTargetCore() => null!;
     }
 }

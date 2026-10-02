@@ -364,6 +364,40 @@ public sealed class MainWindowViewModelTests
         Assert.True(fixture.Trades.HasTrades);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CalendarViewTargetsSelectedRowOutsideBrowsePageAndHonorsNavigationAway(bool navigateAway)
+    {
+        var reader = new FakeTradingCalendarDayReader
+        {
+            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+                [CalendarPage.CalendarDayDetailsTests.Row(q.Date, 10m, 9m)], ct))
+        };
+        ViewModelFixture fixture = CreateFixture(calendarDayReader: reader);
+        fixture.Main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        var calendar = Assert.IsType<CalendarViewModel>(fixture.Main.CurrentContentViewModel);
+        await calendar.LoadTask;
+        await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks[0].Days[5]);
+        TradeListItem row = Assert.Single(calendar.DayTrades).Trade;
+        fixture.TradeDetailReader.EnqueueResult(CreateTradeDetail(row));
+        fixture.TradeListReader.HoldRead = true;
+        Task view = calendar.ViewTradeCommand.ExecuteAsync(row);
+        await fixture.TradeListReader.ReadStarted;
+        if (navigateAway) fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        fixture.TradeListReader.ReleaseRead();
+        await view;
+        if (navigateAway)
+        {
+            Assert.Empty(fixture.TradeDetailReader.RequestedTradeIds);
+            return;
+        }
+        Assert.Equal(NavigationDestination.Trades, fixture.Main.CurrentDestination);
+        Assert.Equal(row.Id, fixture.Trades.SelectedTradeDetail!.Id);
+        Assert.Equal(row.Id, Assert.Single(fixture.TradeDetailReader.RequestedTradeIds));
+        Assert.DoesNotContain(fixture.Trades.RecentTrades, t => t.Id == row.Id);
+    }
+
     [Fact]
     public async Task NavigateAwayAndBackToAccounts_ResetsDetailEditAndCreateStateWithoutReloading()
     {
@@ -985,7 +1019,8 @@ public sealed class MainWindowViewModelTests
         AppTheme preferredTheme = AppTheme.System,
         AppTheme? effectiveTheme = null,
         TopstepImportChangeTracker? topstepChanges = null,
-        ImportViewModel? importViewModel = null)
+        ImportViewModel? importViewModel = null,
+        ITradingCalendarDayReader? calendarDayReader = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1140,7 +1175,7 @@ public sealed class MainWindowViewModelTests
             new FakeTradeScreenshotDeleteConfirmation());
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(new EmptyCalendarReader(), timeProvider),
+            new CalendarViewModel(new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader()),
             accounts,
             instruments,
             import,

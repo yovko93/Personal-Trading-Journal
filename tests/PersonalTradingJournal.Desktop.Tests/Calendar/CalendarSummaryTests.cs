@@ -2,6 +2,7 @@ using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Desktop.Converters;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
@@ -84,10 +85,10 @@ public sealed class CalendarSummaryTests
 
 internal static class CalendarSummaryFixture
 {
-    public static async Task<CalendarViewModel> CreateAsync()
+    public static async Task<CalendarViewModel> CreateAsync(ITradingCalendarDayReader? dayReader = null)
     {
         var reader = new TradingCalendarReader(new FactsReader());
-        var vm = new CalendarViewModel(reader, new Clock());
+        var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader());
         await vm.ActivateAsync();
         return vm;
     }
