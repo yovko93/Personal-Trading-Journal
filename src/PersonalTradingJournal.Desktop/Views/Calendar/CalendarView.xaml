@@ -3,6 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+             xmlns:calendar="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
+             AutomationProperties.Name="Trading Calendar"
+             AutomationProperties.ItemStatus="{Binding AccessibleStatus}"
              xmlns:controls="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
@@ -149,13 +152,19 @@
             <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource PtjCaptionTextStyle}"
                        VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
             <Button Content="Cancel" Margin="12,0,0,0" Command="{Binding CancelCommand}"
-                    Visibility="{Binding IsLoading, Converter={StaticResource BoolVisibility}}"
+                    Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
+                    AutomationProperties.Name="Cancel Calendar refresh"
                     Style="{DynamicResource PtjSecondaryButtonStyle}" />
             <TextBlock Text="{Binding ErrorMessage}" Margin="12,0,0,0" MaxWidth="400"
                        VerticalAlignment="Center" Foreground="{DynamicResource PtjWarningBrush}"
                        TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="12,0,0,0"
+                    AutomationProperties.Name="Refresh Calendar month and selected day"
                     Style="{DynamicResource PtjSecondaryButtonStyle}" />
+            <TextBlock Text="No closed Trades in this month for the selected filters." Margin="12,0,0,0"
+                       Visibility="{Binding IsMonthEmpty, Converter={StaticResource BoolVisibility}}"
+                       Foreground="{DynamicResource PtjTextSecondaryBrush}" TextWrapping="Wrap" MaxWidth="400"
+                       VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
         </WrapPanel>
 
         <ScrollViewer x:Name="CalendarPageScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -191,11 +200,13 @@
                                 </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border MinHeight="152" Padding="8" Focusable="True"
+                                        <calendar:CalendarDayHost MinHeight="152" Padding="8" Focusable="True"
                                                 Cursor="Hand" MouseLeftButtonUp="OnDayClick" KeyDown="OnDayKeyDown"
+                                                Invoked="OnDayInvoked"
                                                 KeyboardNavigation.IsTabStop="True"
                                                 Style="{StaticResource CalendarDayStyle}"
                                                 AutomationProperties.Name="{Binding AccessibleName}"
+                                                AutomationProperties.ItemStatus="{Binding AccessibleStatus}"
                                                 AutomationProperties.HelpText="Select this date with Enter or Space to show its closed Trades."
                                                 ToolTip="{Binding AccessibleName}">
                                             <Grid>
@@ -235,7 +246,7 @@
                                                     </StackPanel>
                                                 </Border>
                                             </Grid>
-                                        </Border>
+                                        </calendar:CalendarDayHost>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -245,6 +256,8 @@
             </Grid>
         </ScrollViewer>
         <Border x:Name="DayDetailsPanel" Margin="0,16,0,0" Padding="12" CornerRadius="6"
+                AutomationProperties.Name="Selected date daily Trades"
+                AutomationProperties.ItemStatus="{Binding DayStatusMessage}"
                 Background="{DynamicResource PtjSurfaceBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1"
                 Visibility="{Binding HasSelectedDate, Converter={StaticResource BoolVisibility}}">
             <StackPanel>

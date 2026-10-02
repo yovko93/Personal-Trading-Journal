@@ -130,7 +130,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _themeService.ThemeChanged += OnThemeChanged;
         _importViewModel.ImportCommitted += OnImportCommitted;
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
-        _tradesViewModel.TradeDataCommitted += OnDashboardDataCommitted;
+        _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
         _calendarViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
     }
@@ -207,7 +207,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _themeService.ThemeChanged -= OnThemeChanged;
         _importViewModel.ImportCommitted -= OnImportCommitted;
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
-        _tradesViewModel.TradeDataCommitted -= OnDashboardDataCommitted;
+        _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
         _calendarViewModel.OpenTradeAsync = null;
         _dashboardViewModel.Deactivate();
@@ -253,7 +253,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         var changed = InvalidateTopstepChanges();
         // Consume each generation once, including when navigation already observed the commit.
-        if (changed.Trades) OnDashboardDataCommitted(this, EventArgs.Empty);
+        if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         // Load methods handle errors and reread an invalidated in-flight result under their gates.
         if (changed.Trades && CurrentDestination == NavigationDestination.Trades)
             _ = _tradesViewModel.EnsureLoadedAsync();
@@ -274,7 +274,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void Navigate(NavigationDestination destination)
     {
         var changed = InvalidateTopstepChanges();
-        if (changed.Trades) OnDashboardDataCommitted(this, EventArgs.Empty);
+        if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
 
         if (destination == CurrentDestination)
@@ -381,7 +381,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void OnImportCommitted(object? sender, ImportCommittedEventArgs e)
     {
-        OnDashboardDataCommitted(sender, EventArgs.Empty);
+        OnTradeDataCommitted(sender, EventArgs.Empty);
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         if (e.CreatedInstrumentCount > 0)
         {
@@ -389,14 +389,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void OnDashboardDataCommitted(object? sender, EventArgs e)
+    private void OnTradeDataCommitted(object? sender, EventArgs e)
     {
         if (_disposed) return;
         if (_dispatcher is not null && !_dispatcher.CheckAccess())
         {
-            _ = _dispatcher.BeginInvoke(() => OnDashboardDataCommitted(sender, e));
+            _ = _dispatcher.BeginInvoke(() => OnTradeDataCommitted(sender, e));
             return;
         }
         _dashboardViewModel.OnDataCommitted();
+        _calendarViewModel.OnDataCommitted();
     }
 }

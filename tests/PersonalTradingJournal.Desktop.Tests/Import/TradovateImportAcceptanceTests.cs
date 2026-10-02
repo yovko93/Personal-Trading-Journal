@@ -2,10 +2,12 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Desktop.Imports;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Persistence;
@@ -84,8 +86,17 @@ public sealed class TradovateImportAcceptanceTests
 
             IDbContextFactory<JournalDbContext> contextFactory =
                 provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
+            var calendar = new CalendarViewModel(provider.GetRequiredService<ITradingCalendarReader>(),
+                new AcceptanceTimeProvider(now), provider.GetRequiredService<ITradingCalendarDayReader>(), accountReader);
+            await calendar.ActivateAsync();
+            await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks.SelectMany(w => w.Days)
+                .Single(d => d.Date == new DateOnly(2026, 9, 10)));
+            viewModel.ImportCommitted += (_, _) => calendar.OnDataCommitted();
+            Task originalCalendarRead = calendar.LoadTask;
             dialog.ConfirmationResult = false;
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+            Assert.Same(originalCalendarRead, calendar.LoadTask);
+            Assert.True(calendar.IsSelectedDayEmpty);
             await using (JournalDbContext context = await contextFactory.CreateDbContextAsync())
             {
                 Assert.Empty(await context.Trades.ToListAsync());
@@ -97,6 +108,11 @@ public sealed class TradovateImportAcceptanceTests
 
             dialog.ConfirmationResult = true;
             await viewModel.ConfirmImportCommand.ExecuteAsync(null);
+            await calendar.LoadTask;
+            Assert.False(calendar.IsMonthEmpty);
+            Assert.Equal(1, calendar.DayDetails!.ClosedTradeCount);
+            Assert.Equal(5m, Assert.Single(calendar.DaySummaries).Amount);
+            Task committedCalendarRead = calendar.LoadTask;
 
             Assert.Equal(ImportWorkflowPhase.Completed, viewModel.Phase);
             Assert.Equal("Imported", viewModel.ImportResultStatus);
@@ -128,6 +144,7 @@ public sealed class TradovateImportAcceptanceTests
 
             Assert.Equal(ImportWorkflowPhase.Completed, viewModel.Phase);
             Assert.Equal("No changes", viewModel.ImportResultStatus);
+            Assert.Same(committedCalendarRead, calendar.LoadTask);
             Assert.Equal(0, viewModel.ImportedTradeCount);
             Assert.Equal(1, viewModel.SkippedDuplicateTradeCount);
             Assert.Equal(2, picker.CallCount);
@@ -144,6 +161,7 @@ public sealed class TradovateImportAcceptanceTests
             Assert.False(viewModel.HasImportResult);
             Assert.Contains(TradovateImportConflictCodes.DeduplicationConflict,
                 viewModel.ImportErrorMessage, StringComparison.Ordinal);
+            Assert.Same(committedCalendarRead, calendar.LoadTask);
             Assert.False(viewModel.ConfirmImportCommand.CanExecute(null));
             Assert.True(viewModel.SelectCsvCommand.CanExecute(null));
             await using (JournalDbContext context = await contextFactory.CreateDbContextAsync())

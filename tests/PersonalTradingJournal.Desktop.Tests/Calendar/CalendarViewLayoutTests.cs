@@ -19,33 +19,148 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 1100, 96)]
     [InlineData("Light", 480, 240)]
     [InlineData("Dark", 480, 240)]
+    public async Task RefreshPreservesDateContainersAndAutomationAndWheelReachBothCalendarSections(string theme, int width, int dpi)
+    {
+        var reader = new FakeTradingCalendarDayReader
+        {
+            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
+                [CalendarDayDetailsTests.Row(q.Date, -285m, null)], ct)),
+        };
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(reader);
+        await OnSta(() =>
+        {
+            var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = SharedThemeResources(theme) };
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            void Layout()
+            {
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() => frame.Continue = false));
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                view.Measure(new Size(width, 600));
+                view.Arrange(new Rect(0, 0, width, 600));
+                view.UpdateLayout();
+            }
+            void Finish(Task task)
+            {
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                _ = task.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)),
+                    CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                task.GetAwaiter().GetResult();
+            }
+            Layout();
+            CalendarDayHost cell = Assert.Single(Descendants(view).OfType<CalendarDayHost>(),
+                b => ((CalendarDayCell)b.DataContext).Date == new DateOnly(2026, 9, 5));
+            var peer = System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(cell)!;
+            Assert.Equal(System.Windows.Automation.Peers.AutomationControlType.Button, peer.GetAutomationControlType());
+            Assert.Contains("Monday", peer.GetName());
+            Assert.Contains("Sunday", peer.GetName());
+            Assert.Contains("Enter or Space", peer.GetHelpText());
+            var invoke = Assert.IsAssignableFrom<System.Windows.Automation.Provider.IInvokeProvider>(
+                peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.Invoke));
+            invoke.Invoke();
+            Layout();
+            Finish(vm.DayLoadTask);
+            Layout();
+            Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+            Assert.Contains("Selected", peer.GetItemStatus());
+            Assert.Contains("Summary loaded", peer.GetItemStatus());
+            Button refresh = Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.RefreshCommand));
+            Assert.True(refresh.Focusable);
+            Assert.Contains("selected day", AutomationProperties.GetName(refresh));
+            Finish(vm.RefreshCommand.ExecuteAsync(null));
+            Layout();
+            Assert.Same(cell, Assert.Single(Descendants(view).OfType<CalendarDayHost>(), b => ReferenceEquals(b.DataContext, cell.DataContext)));
+            Assert.Contains("selected", peer.GetName());
+            Assert.All(Descendants(view).OfType<ComboBox>(), c => Assert.True(c.Focusable));
+            Button open = Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.ViewTradeCommand));
+            Guid? opened = null;
+            vm.OpenTradeAsync = row => { opened = row.Id; return Task.CompletedTask; };
+            Assert.True(open.Focusable);
+            Assert.Contains("View Trade", AutomationProperties.GetName(open));
+            System.Windows.Automation.Peers.UIElementAutomationPeer.CreatePeerForElement(open)!.GetPattern(
+                System.Windows.Automation.Peers.PatternInterface.Invoke);
+            Finish(vm.ViewTradeCommand.ExecuteAsync((PersonalTradingJournal.Application.Trades.TradeListItem)open.CommandParameter));
+            Assert.Equal(vm.DayTrades.Single().Trade.Id, opened);
+            var page = (ScrollViewer)view.FindName("CalendarPageScroller");
+            var horizontal = (ScrollViewer)view.FindName("CalendarScroller");
+            double start = Math.Min(120, page.ScrollableHeight / 2);
+            page.ScrollToVerticalOffset(start);
+            Layout();
+            Wheel(page, UIElement.MouseWheelEvent, -120);
+            Layout();
+            double step = page.VerticalOffset - start;
+            Assert.True(step > 0);
+            var panel = (Border)view.FindName("DayDetailsPanel");
+            var table = Assert.Single(Descendants(panel).OfType<ScrollViewer>());
+            foreach (UIElement surface in new UIElement[] { cell, cell.Child, horizontal, open, (UIElement)table.Content })
+            {
+                page.ScrollToVerticalOffset(start);
+                Layout();
+                MouseWheelEventArgs args = Wheel(surface, UIElement.PreviewMouseWheelEvent, -120);
+                Layout();
+                Assert.True(args.Handled);
+                Assert.Equal(start + step, page.VerticalOffset);
+                Assert.Equal(0, horizontal.HorizontalOffset);
+                page.ScrollToVerticalOffset(start);
+                Layout();
+                Wheel(surface, UIElement.PreviewMouseWheelEvent, 120);
+                Layout();
+                Assert.Equal(Math.Max(0, start - step), page.VerticalOffset);
+            }
+            page.ScrollToTop();
+            Layout();
+            Assert.False(Wheel(cell, UIElement.PreviewMouseWheelEvent, 120).Handled);
+            page.ScrollToBottom();
+            Layout();
+            Assert.False(Wheel(open, UIElement.PreviewMouseWheelEvent, -120).Handled);
+            if (width < 840)
+            {
+                horizontal.ScrollToHorizontalOffset(100);
+                Layout();
+                Assert.Equal(100, horizontal.HorizontalOffset);
+                page.ScrollToVerticalOffset(start);
+                Layout();
+                Wheel(cell, UIElement.PreviewMouseWheelEvent, -120);
+                Layout();
+                Assert.Equal(100, horizontal.HorizontalOffset);
+            }
+            page.ScrollToBottom();
+            Layout();
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 600 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(output, $"calendar-refresh-{theme}-{width}-{dpi}.png"));
+                encoder.Save(file);
+            }
+        });
+
+        static MouseWheelEventArgs Wheel(UIElement target, RoutedEvent routedEvent, int delta)
+        {
+            var args = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, delta) { RoutedEvent = routedEvent };
+            target.RaiseEvent(args);
+            return args;
+        }
+    }
+
+    [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
     public async Task FilterControlsUseSharedThemeKeyboardNamesBindingAndWrapAboveGrid(string theme, int width, int dpi)
     {
         CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
         await OnSta(() =>
         {
             SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
-            // This component host has no Application.Resources. Flatten the unchanged production
-            // resource declarations so detached Popup templates have their shared resources.
-            DirectoryInfo? repository = new(AppContext.BaseDirectory);
-            while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "PersonalTradingJournal.sln"))) repository = repository.Parent;
-            string resourcePath = Path.Combine(repository!.FullName, "src/PersonalTradingJournal.Desktop/Resources");
-            var declarations = new[] { $"Themes/{theme}Theme", "Typography", "Spacing", "Icons", "Controls" }
-                .Select(file => System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, file + ".xaml")).Root!).ToArray();
-            var combined = new System.Xml.Linq.XElement(declarations[^1]);
-            combined.RemoveNodes();
-            foreach (var declaration in declarations) combined.Add(declaration.Elements());
-            combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
-            foreach (string prefix in new[] { "converters", "validation" })
-            {
-                var attribute = combined.Attribute(System.Xml.Linq.XNamespace.Xmlns + prefix)!;
-                string oldNamespace = attribute.Value;
-                attribute.Value += ";assembly=PersonalTradingJournal.Desktop";
-                foreach (var element in combined.Descendants().Where(e => e.Name.NamespaceName == oldNamespace))
-                    element.Name = System.Xml.Linq.XNamespace.Get(attribute.Value) + element.Name.LocalName;
-            }
-            var resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(combined.ToString());
-            var view = new CalendarView { DataContext = vm, Resources = resources };
+            var view = new CalendarView { DataContext = vm, Resources = SharedThemeResources(theme) };
             view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
             void Layout()
             {
@@ -349,6 +464,30 @@ public sealed class CalendarViewLayoutTests
                     Assert.Single(Descendants(view).OfType<Button>(), b => AutomationProperties.GetName(b) == "Previous calendar month")));
                 Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text == "Saturday");
         });
+    }
+
+    private static ResourceDictionary SharedThemeResources(string theme)
+    {
+        // Detached component hosts have no Application.Resources: flatten the unchanged shared
+        // declarations so Popup templates resolve them without cross-thread global resources.
+        DirectoryInfo? repository = new(AppContext.BaseDirectory);
+        while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "PersonalTradingJournal.sln"))) repository = repository.Parent;
+        string resourcePath = Path.Combine(repository!.FullName, "src/PersonalTradingJournal.Desktop/Resources");
+        var declarations = new[] { $"Themes/{theme}Theme", "Typography", "Spacing", "Icons", "Controls" }
+            .Select(file => System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, file + ".xaml")).Root!).ToArray();
+        var combined = new System.Xml.Linq.XElement(declarations[^1]);
+        combined.RemoveNodes();
+        foreach (var declaration in declarations) combined.Add(declaration.Elements());
+        combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
+        foreach (string prefix in new[] { "converters", "validation" })
+        {
+            var attribute = combined.Attribute(System.Xml.Linq.XNamespace.Xmlns + prefix)!;
+            string oldNamespace = attribute.Value;
+            attribute.Value += ";assembly=PersonalTradingJournal.Desktop";
+            foreach (var element in combined.Descendants().Where(e => e.Name.NamespaceName == oldNamespace))
+                element.Name = System.Xml.Linq.XNamespace.Get(attribute.Value) + element.Name.LocalName;
+        }
+        return (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(combined.ToString());
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)

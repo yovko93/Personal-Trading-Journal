@@ -15,18 +15,38 @@ public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool
 {
     public DateOnly Date { get; } = date;
     public bool IsInDisplayedMonth { get; } = isInDisplayedMonth;
-    public bool IsToday { get; } = isToday;
+    public bool IsToday { get; private set; } = isToday;
     public bool IsSaturday { get; } = isSaturday;
     private bool _isSelected;
     public bool IsSelected
     {
         get => _isSelected;
-        internal set { if (SetProperty(ref _isSelected, value)) OnPropertyChanged(nameof(AccessibleName)); }
+        internal set
+        {
+            if (!SetProperty(ref _isSelected, value)) return;
+            OnPropertyChanged(nameof(AccessibleName));
+            OnPropertyChanged(nameof(AccessibleStatus));
+        }
     }
-    public IReadOnlyList<CalendarPnlSummary> DailySummaries { get; init; } = [];
-    public IReadOnlyList<CalendarPnlSummary> WeeklySummaries { get; init; } = [];
-    public bool IsDataLoaded { get; init; }
-    public string WeekLabel { get; init; } = "";
+    public IReadOnlyList<CalendarPnlSummary> DailySummaries { get; private set; } = [];
+    public IReadOnlyList<CalendarPnlSummary> WeeklySummaries { get; private set; } = [];
+    public bool IsDataLoaded { get; private set; }
+    public bool IsBusy { get; private set; }
+    public string AccessibleStatus => (IsSelected ? "Selected. " : "") + (IsBusy ? "Loading summary." : IsDataLoaded ? "Summary loaded." : "Summary not loaded.");
+    public string WeekLabel { get; private set; } = "";
+
+    internal void Update(bool today, bool loaded, bool busy, string weekLabel,
+        IReadOnlyList<CalendarPnlSummary> daily, IReadOnlyList<CalendarPnlSummary> weekly)
+    {
+        IsToday = today;
+        IsDataLoaded = loaded;
+        IsBusy = busy;
+        WeekLabel = weekLabel;
+        DailySummaries = daily;
+        WeeklySummaries = weekly;
+        // Keep cell/container identity (and keyboard focus) when refreshing the same grid.
+        OnPropertyChanged(string.Empty);
+    }
     public bool HasDailyTrades => DailySummaries.Count > 0;
     public bool ShowsDailySummary => !IsSaturday && HasDailyTrades;
     public bool HasEmptyWeek => IsDataLoaded && IsSaturday && WeeklySummaries.Count == 0;
@@ -74,6 +94,7 @@ public sealed class CalendarViewModel : ObservableObject
     private DateOnly? _selectedDate;
     private bool _isDayLoading;
     private string? _dayErrorMessage;
+    private string? _loadNotice, _dayNotice;
     private TradingCalendarDayDetails? _dayDetails;
     private IReadOnlyList<CalendarTradePresentation> _dayTrades = [];
     private IReadOnlyList<CalendarPnlSummary> _daySummaries = [];
@@ -94,7 +115,7 @@ public sealed class CalendarViewModel : ObservableObject
         NextCommand = new RelayCommand(() => Move(1), () => _month.Year != 9999 || _month.Month < 11);
         TodayCommand = new RelayCommand(() => SelectMonth(Today));
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        CancelCommand = new RelayCommand(CancelRefresh, () => IsBusy);
         SelectDayCommand = new AsyncRelayCommand<CalendarDayCell>(SelectDayAsync,
             day => day is not null && _isActive && Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date),
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -129,14 +150,27 @@ public sealed class CalendarViewModel : ObservableObject
     }
     public string MonthLabel => _month.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
     public IReadOnlyList<CalendarWeekRow> Weeks { get => _weeks; private set => SetProperty(ref _weeks, value); }
-    public TradingCalendarMonth? MonthData { get => _monthData; private set => SetProperty(ref _monthData, value); }
+    public TradingCalendarMonth? MonthData
+    {
+        get => _monthData;
+        private set { if (SetProperty(ref _monthData, value)) OnPropertyChanged(nameof(IsMonthEmpty)); }
+    }
     public bool IsLoading
     {
         get => _isLoading;
-        private set { if (SetProperty(ref _isLoading, value)) CancelCommand.NotifyCanExecuteChanged(); }
+        private set
+        {
+            if (!SetProperty(ref _isLoading, value)) return;
+            NotifyBusy();
+            OnPropertyChanged(nameof(IsMonthEmpty));
+        }
     }
     public string? ErrorMessage { get => _errorMessage; private set => SetProperty(ref _errorMessage, value); }
-    public string? StatusMessage => IsLoading ? "Loading Calendar…" : null;
+    public bool IsBusy => IsLoading || IsDayLoading;
+    public string AccessibleStatus => IsBusy ? "Loading Calendar data." : "Calendar ready.";
+    public bool IsMonthEmpty => !IsLoading && MonthData is { } month && !month.Currencies
+        .SelectMany(c => c.Weeks).SelectMany(w => w.Days).Any(d => d.IsInDisplayedMonth && d.ClosedTradeCount > 0);
+    public string? StatusMessage => IsLoading ? "Loading Calendar…" : _loadNotice;
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public IRelayCommand PreviousCommand { get; }
     public IRelayCommand NextCommand { get; }
@@ -164,16 +198,21 @@ public sealed class CalendarViewModel : ObservableObject
             if (!SetProperty(ref _isDayLoading, value)) return;
             CancelDayCommand.NotifyCanExecuteChanged();
             ViewTradeCommand.NotifyCanExecuteChanged();
+            NotifyBusy();
             NotifyDayStatus();
         }
     }
-    public string? DayStatusMessage => IsDayLoading ? "Loading day Trades…" : null;
+    public string? DayStatusMessage => IsDayLoading ? "Loading day Trades…" : _dayNotice;
     public string DayTradeCountText => DayDetails is { } details ? $"{details.ClosedTradeCount} closed {(details.ClosedTradeCount == 1 ? "Trade" : "Trades")}" : "";
     public bool IsSelectedDayEmpty => !IsDayLoading && DayDetails?.ClosedTradeCount == 0;
 
     public Task ActivateAsync() { _isActive = true; return RefreshAsync(); }
     public void Deactivate() { _isActive = false; Cancel(); CancelDay(); }
     public Task RefreshAsync() => LoadTask = RefreshAllAsync();
+    public void OnDataCommitted()
+    {
+        if (_isActive) _ = RefreshAsync();
+    }
 
     private Task RefreshAllAsync()
     {
@@ -244,6 +283,7 @@ public sealed class CalendarViewModel : ObservableObject
     private void SetGrid(TradingCalendarQuery query, TradingCalendarMonth? data = null)
     {
         DateOnly today = Today;
+        var existing = Weeks.SelectMany(w => w.Days).ToDictionary(d => d.Date);
         var daily = data?.Currencies.SelectMany(c => c.Weeks.SelectMany(w => w.Days)
             .Where(d => d.Metrics is not null)
             .Select(d => (d.Date, Summary: new CalendarPnlSummary(c.Currency, d.Metrics!,
@@ -256,17 +296,17 @@ public sealed class CalendarViewModel : ObservableObject
             .Select(offset =>
             {
                 DateOnly date = query.GridStart.AddDays(offset);
-                return new CalendarDayCell(date, date.Year == query.MonthStart.Year && date.Month == query.MonthStart.Month,
-                    date == today, date.DayOfWeek == DayOfWeek.Saturday)
-                {
-                    IsDataLoaded = data is not null,
-                    IsSelected = date == SelectedDate,
-                    DailySummaries = daily?[date].Select(d => d.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [],
-                    WeeklySummaries = date.DayOfWeek == DayOfWeek.Saturday
-                        ? weekly?[date.AddDays(-5)].Select(w => w.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [] : [],
-                    WeekLabel = $"Week {offset / 7 + 1}",
-                };
+                bool inMonth = date.Year == query.MonthStart.Year && date.Month == query.MonthStart.Month;
+                CalendarDayCell cell = existing.TryGetValue(date, out var previous) && previous.IsInDisplayedMonth == inMonth
+                    ? previous : new(date, inMonth, date == today, date.DayOfWeek == DayOfWeek.Saturday);
+                cell.IsSelected = date == SelectedDate;
+                cell.Update(date == today, data is not null, IsLoading, $"Week {offset / 7 + 1}",
+                    daily?[date].Select(d => d.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [],
+                    cell.IsSaturday ? weekly?[date.AddDays(-5)].Select(w => w.Summary)
+                        .OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [] : []);
+                return cell;
             }).ToArray();
+        if (Weeks.SelectMany(w => w.Days).SequenceEqual(cells)) return;
         Weeks = Enumerable.Range(0, cells.Length / 7)
             .Select(row => new CalendarWeekRow(Array.AsReadOnly(cells.Skip(row * 7).Take(7).ToArray())))
             .ToArray();
@@ -281,10 +321,11 @@ public sealed class CalendarViewModel : ObservableObject
         DateOnly requestedMonth = _month;
         CalendarAccountOption requestedAccount = SelectedAccount;
         string requestedCurrency = SelectedCurrency;
+        _loadNotice = null;
+        IsLoading = true;
         MonthData = null;
         SetGrid(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month));
         ErrorMessage = null;
-        IsLoading = true;
         OnPropertyChanged(nameof(StatusMessage));
         try
         {
@@ -325,6 +366,7 @@ public sealed class CalendarViewModel : ObservableObject
             {
                 _loadCancellation = null;
                 IsLoading = false;
+                SetGrid(new TradingCalendarQuery(_month.Year, _month.Month), MonthData);
                 OnPropertyChanged(nameof(StatusMessage));
             }
         }
@@ -336,7 +378,23 @@ public sealed class CalendarViewModel : ObservableObject
         _loadCancellation?.Cancel();
         _loadCancellation = null;
         IsLoading = false;
+        SetGrid(new TradingCalendarQuery(_month.Year, _month.Month), MonthData);
         OnPropertyChanged(nameof(StatusMessage));
+    }
+
+    private void CancelRefresh()
+    {
+        Cancel();
+        CancelDay();
+        _loadNotice = "Calendar refresh cancelled. Select Refresh to retry.";
+        OnPropertyChanged(nameof(StatusMessage));
+    }
+
+    private void NotifyBusy()
+    {
+        CancelCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(IsBusy));
+        OnPropertyChanged(nameof(AccessibleStatus));
     }
 
     private Task SelectDayAsync(CalendarDayCell? day)
@@ -415,6 +473,7 @@ public sealed class CalendarViewModel : ObservableObject
 
     private void CancelDay()
     {
+        if (IsDayLoading) _dayNotice = "Day read cancelled. Select Retry to try again.";
         _dayGeneration++;
         _dayCancellation?.Cancel();
         _dayCancellation = null;
@@ -424,6 +483,7 @@ public sealed class CalendarViewModel : ObservableObject
 
     private void ClearDayResults()
     {
+        _dayNotice = null;
         DayDetails = null;
         DayTrades = [];
         DaySummaries = [];

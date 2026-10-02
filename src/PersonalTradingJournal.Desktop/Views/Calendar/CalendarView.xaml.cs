@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using System.Windows;
 using System.Windows.Input;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
@@ -7,6 +8,11 @@ namespace PersonalTradingJournal.Desktop.Views.Calendar;
 public partial class CalendarView : UserControl
 {
     public CalendarView() => InitializeComponent();
+
+    private void OnDayInvoked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Border cell) { cell.Focus(); SelectDay(cell); e.Handled = true; }
+    }
 
     private void OnDayClick(object sender, MouseButtonEventArgs e)
     {

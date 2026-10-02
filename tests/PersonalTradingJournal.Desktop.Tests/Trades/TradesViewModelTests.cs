@@ -2977,8 +2977,11 @@ public sealed partial class TradesViewModelTests
         await viewModel.NextTradePageCommand.ExecuteAsync(null);
         await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
         viewModel.EntryPriceText = "101";
+        int commits = 0;
+        viewModel.TradeDataCommitted += (_, _) => commits++;
         await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
 
+        Assert.Equal(1, commits);
         Assert.Equal(1, mutationStore.SaveCallCount);
         Assert.Equal(101m, mutationStore.SavedTrade?.AverageEntryPrice);
         Assert.Equal(
@@ -3088,8 +3091,11 @@ public sealed partial class TradesViewModelTests
             tradeDeletionStore: deletionStore,
             dialogService: dialog);
 
+        int commits = 0;
+        viewModel.TradeDataCommitted += (_, _) => commits++;
         await viewModel.DeleteTradeCommand.ExecuteAsync(item);
 
+        Assert.Equal(1, commits);
         Assert.Equal(1, deletionStore.CallCount);
         Assert.Equal(item.Id, deletionStore.RequestedTradeId);
         Assert.NotNull(dialog.ConfirmationRequest);
