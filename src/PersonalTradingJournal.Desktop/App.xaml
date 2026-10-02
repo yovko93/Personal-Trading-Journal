@@ -30,6 +30,7 @@
                 <ResourceDictionary Source="Resources/Spacing.xaml" />
                 <ResourceDictionary Source="Resources/Icons.xaml" />
                 <ResourceDictionary Source="Resources/Controls.xaml" />
+                <ResourceDictionary Source="Views/Trades/TradeEntryForm.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <converters:UtcToTradingTimeConverter x:Key="UtcToTradingTimeConverter" />

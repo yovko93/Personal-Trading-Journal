@@ -9,7 +9,8 @@ public sealed record CalendarDayPerformance(string Currency, IReadOnlyList<Calen
 {
     public static IReadOnlyList<CalendarDayPerformance> From(IEnumerable<TradeListItem> trades)
     {
-        return trades.GroupBy(t => t.Currency, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal)
+        // The date reader rejects unattributable rows; defensive presentation never invents a time.
+        return trades.Where(t => t.ClosedAtUtc.HasValue).GroupBy(t => t.Currency, StringComparer.Ordinal).OrderBy(g => g.Key, StringComparer.Ordinal)
             .Select(currency =>
             {
                 decimal? cumulative = 0m;

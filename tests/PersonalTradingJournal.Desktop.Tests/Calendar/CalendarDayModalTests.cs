@@ -15,11 +15,73 @@ using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.Views.Calendar;
+using PersonalTradingJournal.Desktop.Tests.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarDayModalTests
 {
+    [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task ExpandedTradeUsesSharedEditorAndPreservesModalAtNarrowWidths(string theme, int width, int dpi)
+    {
+        var row = CalendarDayDetailsTests.Row(new(2026, 9, 5), 200, 197);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
+            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row])) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(row);
+        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+        await OnSta(() =>
+        {
+            var content = new CalendarDayDetailsView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var window = new CalendarDayDialogWindow { DataContext = vm, Content = content, Width = width, Height = 760, ShowInTaskbar = false };
+            try
+            {
+                window.Show(); Pump(); window.UpdateLayout();
+                var inline = Assert.Single(Descendants(content).OfType<CalendarInlineTradeView>());
+                Assert.Same(editor, inline.DataContext);
+                Assert.True(inline.IsVisible);
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Time (New York)");
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Profit");
+                Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Time");
+                Button save = Assert.Single(Descendants(inline).OfType<Button>(), b => Equals(b.Content, "Save Changes"));
+                Assert.Same(editor.SaveTradeEditCommand, save.Command);
+                Assert.True(save.IsVisible);
+                Button cancel = Assert.Single(Descendants(inline).OfType<Button>(), b => Equals(b.Content, "Cancel") && b.IsVisible);
+                Assert.Same(editor.CancelTradeEditCommand, cancel.Command);
+                Assert.False(vm.TryCloseDayDialog());
+                Assert.True(window.IsVisible);
+                inline.BringIntoView(); Pump(); window.UpdateLayout();
+                Assert.True(inline.ActualWidth >= 700);
+                var tableScroller = Descendants(content).OfType<ScrollViewer>().First(s => s.HorizontalScrollBarVisibility == ScrollBarVisibility.Auto && s.ExtentWidth >= 1040);
+                if (width < 700)
+                {
+                    Assert.True(tableScroller.ScrollableWidth > 0);
+                    tableScroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    Assert.Equal(tableScroller.ScrollableWidth, tableScroller.HorizontalOffset, 1);
+                    tableScroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                    Assert.Equal(0, tableScroller.HorizontalOffset);
+                }
+                Render(content, "inline-" + theme, width, dpi);
+                cancel.Command.Execute(null);
+                Assert.False(editor.IsTradeEditVisible);
+                Assert.True(vm.TryCloseDayDialog());
+            }
+            finally
+            {
+                if (editor.CancelTradeEditCommand.CanExecute(null)) editor.CancelTradeEditCommand.Execute(null);
+                window.Close();
+            }
+        });
+    }
+
     private static readonly Lazy<Task> NativeHost = new(RunNativeHostAsync);
     [Fact]
     public void PerformanceUsesActualClosuresCurrencyPartitionsAndExactAuthoritativeNet()
@@ -176,7 +238,7 @@ public sealed class CalendarDayModalTests
     [Theory]
     [InlineData("Light")]
     [InlineData("Dark")]
-    public async Task ViewReleasesModalBeforeOpeningExactTrade(string theme)
+    public async Task ViewExpandsExactTradeWhileKeepingModalOpen(string theme)
     {
         var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [CalendarDayDetailsTests.Row(q.Date, 7m, 7m)], ct)) };
         var vm = await CalendarSummaryFixture.CreateAsync(reader);
@@ -186,9 +248,7 @@ public sealed class CalendarDayModalTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
             var owner = new Window { Content = view, Width = 900, Height = 700, ShowInTaskbar = false };
-            Guid? opened = null;
             Exception? failure = null;
-            vm.OpenTradeAsync = row => { Assert.Null(view.DayDialog); opened = row.Id; return Task.CompletedTask; };
             try
             {
                 owner.Show(); Pump(); owner.UpdateLayout();
@@ -201,6 +261,10 @@ public sealed class CalendarDayModalTests
                         dialog.UpdateLayout();
                         Button viewButton = Assert.Single(Descendants(dialog).OfType<Button>(), b => Equals(b.Content, "View"));
                         ((IInvokeProvider)new ButtonAutomationPeer(viewButton).GetPattern(PatternInterface.Invoke)).Invoke();
+                        Pump();
+                        Assert.Same(dialog, view.DayDialog);
+                        Assert.True(vm.DayTrades.Single().IsExpanded);
+                        dialog.Close();
                     }
                     catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
                 }));
@@ -208,7 +272,7 @@ public sealed class CalendarDayModalTests
                 cell.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseUpEvent });
                 Pump();
                 if (failure is not null) throw failure;
-                Assert.Equal(vm.DayTrades.Single().Trade.Id, opened);
+                Assert.Null(view.DayDialog);
             }
             finally { owner.Close(); }
         });

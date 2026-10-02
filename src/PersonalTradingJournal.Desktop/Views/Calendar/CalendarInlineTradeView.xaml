@@ -1,0 +1,42 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Calendar.CalendarInlineTradeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
+    AutomationProperties.Name="Inline Trade details and editor">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <converters:UtcToTradingTimeConverter x:Key="TradingTime" />
+    </UserControl.Resources>
+    <StackPanel>
+        <TextBlock Text="Trade Details" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+        <TextBlock Text="Loading Trade details…" Visibility="{Binding IsTradeDetailLoading, Converter={StaticResource BoolVisibility}}"
+                   Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+        <TextBlock Text="Trade no longer available." Visibility="{Binding IsTradeDetailNotFound, Converter={StaticResource BoolVisibility}}"
+                   Foreground="{DynamicResource PtjWarningBrush}" />
+        <TextBlock Text="{Binding TradeDetailErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjWarningBrush}" />
+        <TextBlock Text="{Binding TradeUpdateErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjWarningBrush}" AutomationProperties.LiveSetting="Assertive" />
+        <TextBlock Text="{Binding TradeUpdateSuccessMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjSuccessBrush}" AutomationProperties.LiveSetting="Polite" />
+        <WrapPanel Margin="0,8">
+            <TextBlock Text="{Binding SelectedTradeDetail.InstrumentSymbol}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SelectedTradeDetail.TradingAccountName}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SelectedTradeDetail.Direction}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+            <TextBlock Text="{Binding SelectedTradeDetail.Status}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+        </WrapPanel>
+        <TextBlock Text="Executions (New York)" FontWeight="SemiBold" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+        <ItemsControl ItemsSource="{Binding SelectedTradeDetail.Executions}">
+            <ItemsControl.ItemTemplate><DataTemplate>
+                <WrapPanel Margin="0,4">
+                    <TextBlock Text="{Binding ExecutedAtUtc, Converter={StaticResource TradingTime}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.FFFFFFF zzz}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Side}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Quantity, StringFormat=Quantity: {0:0.############################}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Price, StringFormat=Price: {0:F2}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Commission, StringFormat=Commission: {0}, TargetNullValue=Commission: —}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding Fees, StringFormat=Fees: {0}, TargetNullValue=Fees: —}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                </WrapPanel>
+            </DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="Edit" Command="{Binding ShowSelectedTradeEditCommand}" HorizontalAlignment="Left" Margin="0,8"
+                Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Edit expanded Trade" />
+        <ContentControl Content="{Binding}" ContentTemplate="{DynamicResource TradeEntryFormTemplate}" />
+    </StackPanel>
+</UserControl>

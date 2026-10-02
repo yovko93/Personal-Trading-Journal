@@ -94,7 +94,7 @@ public sealed class DayPerformanceChart : UserControl
             var scale = ChartValueScale.For(points.Where(p => p.Value.HasValue).Select(p => (double)p.Value!.Value).Append(0).ToArray());
             int decimals = Math.Clamp((int)Math.Ceiling(-Math.Log10(scale.Step)), 0, 8);
             string[] labels = Enumerable.Range(0, scale.TickCount).Select(i => ChartValueScale.TickText(scale.Minimum + i * scale.Step, currency, decimals)).ToArray();
-            double axisWidth = Math.Max(72, labels.Select(label => { var text = new TextBlock { Text = label, FontSize = 11 }; text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); return text.DesiredSize.Width + 12; }).Max());
+            double axisWidth = Math.Max(96, labels.Select(label => { var text = new TextBlock { Text = label, FontSize = 11 }; text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); return text.DesiredSize.Width + 36; }).Max());
             _axis.Width = axisWidth;
             double width = Math.Max(Math.Max(360, points.Count * 40), ActualWidth - axisWidth - 20);
             _plot.Width = width + 20;
@@ -106,10 +106,17 @@ public sealed class DayPerformanceChart : UserControl
             {
                 double tick = scale.Minimum + i * scale.Step;
                 double y = 16 + (scale.Maximum - tick) / (scale.Maximum - scale.Minimum) * (bottom - 16);
-                Text(_axis, labels[i], 0, y - 6);
+                Text(_axis, labels[i], 24, y - 6);
                 Line(_plot, new(0, y), new(width, y), NeutralBrush, Math.Abs(tick) < scale.Step / 1000 ? "ZeroBaseline" : "Gridline");
             }
             Line(_plot, new(0, bottom), new(width, bottom), NeutralBrush, "TimeAxis");
+            var profitLabel = new TextBlock { Text = "Profit", FontSize = 11, LayoutTransform = new RotateTransform(-90) };
+            profitLabel.SetResourceReference(TextBlock.ForegroundProperty, "PtjTextSecondaryBrush");
+            AutomationProperties.SetName(profitLabel, $"Profit in {currency}");
+            Canvas.SetLeft(profitLabel, 0);
+            Canvas.SetTop(profitLabel, (PlotTop + bottom) / 2 - 16);
+            _axis.Children.Add(profitLabel);
+            Text(_plot, "Time", width / 2 - 12, bottom + 28);
             CalendarDayPerformancePoint? previous = null;
             double lastLabelEnd = double.NegativeInfinity;
             foreach (var point in points)

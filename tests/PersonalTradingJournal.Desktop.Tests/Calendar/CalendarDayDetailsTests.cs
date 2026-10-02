@@ -116,21 +116,18 @@ public sealed class CalendarDayDetailsTests
             Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [Row(q.Date, -285m, null)], ct))
         };
         var vm = await CalendarSummaryFixture.CreateAsync(reader);
-        Guid? opened = null;
-        vm.OpenTradeAsync = row => { opened = row.Id; return Task.CompletedTask; };
         await vm.SelectDayCommand.ExecuteAsync(Cell(vm, new(2026, 9, 5)));
         TradeListItem row = Assert.Single(vm.DayTrades).Trade;
         Assert.True(vm.ViewTradeCommand.CanExecute(row));
         await vm.ViewTradeCommand.ExecuteAsync(row);
-        Assert.Equal(row.Id, opened);
+        Assert.Equal(row.Id, Assert.Single(vm.DayTrades, t => t.IsExpanded).Trade.Id);
         await vm.SelectDayCommand.ExecuteAsync(Cell(vm, new(2026, 9, 6)));
         Assert.False(vm.ViewTradeCommand.CanExecute(row));
-        opened = null;
         await vm.ViewTradeCommand.ExecuteAsync(row);
-        Assert.Null(opened);
+        Assert.DoesNotContain(vm.DayTrades, t => t.IsExpanded);
         TradeListItem current = Assert.Single(vm.DayTrades).Trade;
         await vm.ViewTradeCommand.ExecuteAsync(current);
-        Assert.Equal(current.Id, opened);
+        Assert.Equal(current.Id, Assert.Single(vm.DayTrades, t => t.IsExpanded).Trade.Id);
         vm.NextCommand.Execute(null);
         Assert.False(vm.ViewTradeCommand.CanExecute(current));
         await vm.LoadTask;
@@ -142,8 +139,10 @@ public sealed class CalendarDayDetailsTests
         DateOnly date = new(2026, 11, 1);
         var first = new CalendarTradePresentation(Row(date, -285m, null) with { ClosedAtUtc = new(2026, 11, 1, 5, 30, 0, TimeSpan.Zero) });
         var second = new CalendarTradePresentation(first.Trade with { ClosedAtUtc = new(2026, 11, 1, 6, 30, 0, TimeSpan.Zero) });
-        Assert.Equal("01:30:00 -04:00", first.ClosingTime);
-        Assert.Equal("01:30:00 -05:00", second.ClosingTime);
+        Assert.Equal("01:30:00", first.ClosingTime);
+        Assert.Equal("01:30:00", second.ClosingTime);
+        Assert.Contains("UTC-04:00", first.ClosingTimeDescription);
+        Assert.Contains("UTC-05:00", second.ClosingTimeDescription);
         Assert.Equal(-285m, first.Amount);
         Assert.True(first.IsEstimated);
         Assert.Contains("commission/fees unknown", first.NetDescription);

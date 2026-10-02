@@ -132,7 +132,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
-        _calendarViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
+        _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -209,7 +209,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
-        _calendarViewModel.OpenTradeAsync = null;
+        _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
     }
@@ -387,6 +387,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _instrumentsViewModel.InvalidateLoadedDataAfterExternalImport();
         }
+    }
+
+    private void OnCalendarTradeCommitted(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+        _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+        _dashboardViewModel.OnDataCommitted();
+        // Calendar's dedicated editor refreshes the modal after its save/reload completes.
     }
 
     private void OnTradeDataCommitted(object? sender, EventArgs e)

@@ -793,6 +793,7 @@ public sealed class CalendarViewLayoutTests
         var combined = new System.Xml.Linq.XElement(declarations[^1]);
         combined.RemoveNodes();
         foreach (var declaration in declarations) combined.Add(declaration.Elements());
+        combined.Add(System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, "../Views/Trades/TradeEntryForm.xaml")).Root!.Elements());
         combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
         foreach (string prefix in new[] { "converters", "validation" })
         {
@@ -801,6 +802,11 @@ public sealed class CalendarViewLayoutTests
             attribute.Value += ";assembly=PersonalTradingJournal.Desktop";
             foreach (var element in combined.Descendants().Where(e => e.Name.NamespaceName == oldNamespace))
                 element.Name = System.Xml.Linq.XNamespace.Get(attribute.Value) + element.Name.LocalName;
+            foreach (var attached in combined.Descendants().SelectMany(e => e.Attributes()).Where(a => a.Name.NamespaceName == oldNamespace).ToArray())
+            {
+                attached.Parent!.SetAttributeValue(System.Xml.Linq.XNamespace.Get(attribute.Value) + attached.Name.LocalName, attached.Value);
+                attached.Remove();
+            }
         }
         return (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(combined.ToString());
     }

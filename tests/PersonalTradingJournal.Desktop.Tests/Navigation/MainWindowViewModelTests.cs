@@ -367,34 +367,37 @@ public sealed class MainWindowViewModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CalendarViewTargetsSelectedRowOutsideBrowsePageAndHonorsNavigationAway(bool navigateAway)
+    public async Task CalendarViewStaysInlineAndDiscardsDetailsAfterNavigationAway(bool navigateAway)
     {
         var reader = new FakeTradingCalendarDayReader
         {
             Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
                 [CalendarPage.CalendarDayDetailsTests.Row(q.Date, 10m, 9m)], ct))
         };
-        ViewModelFixture fixture = CreateFixture(calendarDayReader: reader);
+        var inlineReader = new FakeTradeDetailReader { HoldRead = true };
+        var inlineEditor = Trades.TradesViewModelTests.CreateViewModel(tradeDetailReader: inlineReader);
+        ViewModelFixture fixture = CreateFixture(calendarDayReader: reader, calendarEditor: inlineEditor);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Calendar);
         var calendar = Assert.IsType<CalendarViewModel>(fixture.Main.CurrentContentViewModel);
         await calendar.LoadTask;
         await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks[0].Days[5]);
         TradeListItem row = Assert.Single(calendar.DayTrades).Trade;
-        fixture.TradeDetailReader.EnqueueResult(CreateTradeDetail(row));
-        fixture.TradeListReader.HoldRead = true;
+        inlineReader.EnqueueResult(CreateTradeDetail(row));
         Task view = calendar.ViewTradeCommand.ExecuteAsync(row);
-        await fixture.TradeListReader.ReadStarted;
+        await inlineReader.ReadStarted.WaitAsync(TimeSpan.FromSeconds(10));
         if (navigateAway) fixture.Main.NavigateCommand.Execute(NavigationDestination.Accounts);
-        fixture.TradeListReader.ReleaseRead();
+        inlineReader.ReleaseRead();
         await view;
         if (navigateAway)
         {
-            Assert.Empty(fixture.TradeDetailReader.RequestedTradeIds);
+            Assert.Null(inlineEditor.SelectedTradeDetail);
+            Assert.Equal(NavigationDestination.Accounts, fixture.Main.CurrentDestination);
             return;
         }
-        Assert.Equal(NavigationDestination.Trades, fixture.Main.CurrentDestination);
-        Assert.Equal(row.Id, fixture.Trades.SelectedTradeDetail!.Id);
-        Assert.Equal(row.Id, Assert.Single(fixture.TradeDetailReader.RequestedTradeIds));
+        Assert.Equal(NavigationDestination.Calendar, fixture.Main.CurrentDestination);
+        Assert.Equal(row.Id, inlineEditor.SelectedTradeDetail!.Id);
+        Assert.Equal(row.Id, Assert.Single(inlineReader.RequestedTradeIds));
+        Assert.Empty(fixture.TradeDetailReader.RequestedTradeIds);
         Assert.DoesNotContain(fixture.Trades.RecentTrades, t => t.Id == row.Id);
     }
 
@@ -1154,7 +1157,8 @@ public sealed class MainWindowViewModelTests
         ImportViewModel? importViewModel = null,
         ITradingCalendarDayReader? calendarDayReader = null,
         ITradingCalendarReader? calendarReader = null,
-        FakeTradeDeletionStore? tradeDeletionStore = null)
+        FakeTradeDeletionStore? tradeDeletionStore = null,
+        TradesViewModel? calendarEditor = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1311,7 +1315,7 @@ public sealed class MainWindowViewModelTests
             dialogService: new FakeDialogService { ConfirmationResult = true });
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()),
+            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor),
             accounts,
             instruments,
             import,

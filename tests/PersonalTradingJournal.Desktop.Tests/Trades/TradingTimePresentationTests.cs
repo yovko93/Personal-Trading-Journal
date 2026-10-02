@@ -41,8 +41,9 @@ public sealed class TradingTimePresentationTests
             "Trades",
             "TradesView.xaml"));
 
-        Assert.Contains("Entry time (New York)", view, StringComparison.Ordinal);
-        Assert.Contains("Exit time (New York)", view, StringComparison.Ordinal);
+        string form = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "src/PersonalTradingJournal.Desktop/Views/Trades/TradeEntryForm.xaml"));
+        Assert.Contains("Entry time (New York)", form, StringComparison.Ordinal);
+        Assert.Contains("Exit time (New York)", form, StringComparison.Ordinal);
         Assert.Contains("Opened (New York)", view, StringComparison.Ordinal);
         Assert.Contains("Closed (New York)", view, StringComparison.Ordinal);
         Assert.Contains("Executed (New York)", view, StringComparison.Ordinal);

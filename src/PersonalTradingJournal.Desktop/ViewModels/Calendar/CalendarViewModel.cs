@@ -78,7 +78,7 @@ public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);
 public sealed record CalendarAccountOption(Guid? Id, string Name);
 
 /// <summary>Month navigation and presentation of the reader's currency-specific daily and weekly metrics.</summary>
-public sealed class CalendarViewModel : ObservableObject
+public sealed partial class CalendarViewModel : ObservableObject
 {
     private readonly ITradingCalendarReader _reader;
     private readonly ITradingCalendarDayReader _dayReader;
@@ -112,7 +112,8 @@ public sealed class CalendarViewModel : ObservableObject
 
     public CalendarViewModel(ITradingCalendarReader reader, TimeProvider timeProvider,
         ITradingCalendarDayReader dayReader, ITradingAccountReader accountReader,
-        ILogger<CalendarViewModel>? logger = null)
+        ILogger<CalendarViewModel>? logger = null,
+        PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? tradeEditor = null)
     {
         _reader = reader;
         _dayReader = dayReader;
@@ -134,7 +135,8 @@ public sealed class CalendarViewModel : ObservableObject
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelDayCommand = new RelayCommand(CancelDay, () => IsDayLoading);
         ViewTradeCommand = new AsyncRelayCommand<TradeListItem>(ViewTradeAsync,
-            item => item is not null && _isActive && !IsDayLoading && DayTrades.Any(row => row.Trade.Id == item.Id));
+            item => item is not null && _isActive && !IsDayLoading && !HasInlineWork && DayTrades.Any(row => row.Trade.Id == item.Id));
+        InitializeInlineEditor(tradeEditor);
     }
 
     public DateOnly SelectedMonth => _month;
@@ -144,7 +146,7 @@ public sealed class CalendarViewModel : ObservableObject
         get => _selectedAccount;
         set
         {
-            if (value is null || value.Id == _selectedAccount.Id) return;
+            if (HasInlineWork || value is null || value.Id == _selectedAccount.Id) return;
             SetProperty(ref _selectedAccount, value);
             FiltersChanged();
         }
@@ -155,7 +157,7 @@ public sealed class CalendarViewModel : ObservableObject
         get => _selectedCurrency;
         set
         {
-            if (string.IsNullOrWhiteSpace(value) || !SetProperty(ref _selectedCurrency, value)) return;
+            if (HasInlineWork || string.IsNullOrWhiteSpace(value) || !SetProperty(ref _selectedCurrency, value)) return;
             FiltersChanged();
         }
     }
@@ -206,7 +208,6 @@ public sealed class CalendarViewModel : ObservableObject
     public IAsyncRelayCommand RetryDayCommand { get; }
     public IRelayCommand CancelDayCommand { get; }
     public IAsyncRelayCommand<TradeListItem> ViewTradeCommand { get; }
-    public Func<TradeListItem, Task>? OpenTradeAsync { get; set; }
     public Task DayLoadTask { get; private set; } = Task.CompletedTask;
     public DateOnly? SelectedDate => _selectedDate;
     public bool HasSelectedDate => SelectedDate.HasValue;
@@ -242,6 +243,7 @@ public sealed class CalendarViewModel : ObservableObject
 
     private Task RefreshAllAsync()
     {
+        if (HasInlineWork) { _inlineRefreshPending = true; return Task.CompletedTask; }
         Task month = LoadAsync();
         return SelectedDate.HasValue ? Task.WhenAll(month, RefreshDayAsync()) : month;
     }
@@ -285,6 +287,8 @@ public sealed class CalendarViewModel : ObservableObject
 
     private void SelectMonth(DateOnly date)
     {
+        if (HasInlineWork) return;
+        CloseInlineDetails();
         ClearDaySelection();
         DateOnly first = new(date.Year, date.Month, 1);
         if (first == _month)
@@ -425,13 +429,18 @@ public sealed class CalendarViewModel : ObservableObject
 
     private Task SelectDayAsync(CalendarDayCell? day)
     {
-        if (day is null || !_isActive || !Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date)) return Task.CompletedTask;
+        if (HasInlineWork || day is null || !_isActive || !Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date)) return Task.CompletedTask;
+        CloseInlineDetails();
         _selectedDate = day.Date;
         NotifySelection();
         return RefreshDayAsync();
     }
 
-    private Task RefreshDayAsync() => DayLoadTask = SelectedDate is { } date ? LoadDayAsync(date) : Task.CompletedTask;
+    private Task RefreshDayAsync()
+    {
+        if (HasInlineWork) { _inlineRefreshPending = true; return Task.CompletedTask; }
+        return DayLoadTask = SelectedDate is { } date ? LoadDayAsync(date) : Task.CompletedTask;
+    }
 
     private async Task LoadDayAsync(DateOnly date)
     {
@@ -464,9 +473,16 @@ public sealed class CalendarViewModel : ObservableObject
             IReadOnlyList<CalendarDayPerformance> performance = CalendarDayPerformance.From(result.Trades);
             DayDetails = result;
             DayPerformance = performance;
-            DayTrades = result.Trades.Select(t => new CalendarTradePresentation(t)).ToArray();
+            DayTrades = result.Trades.Select(t => new CalendarTradePresentation(t,
+                result.Classifications.GetValueOrDefault(t.Id)) { Editor = TradeEditor, IsExpanded = t.Id == _inlineTradeId }).ToArray();
+            if (_inlineTradeId.HasValue && !DayTrades.Any(t => t.Trade.Id == _inlineTradeId))
+            {
+                CloseInlineDetails();
+                _dayNotice = "The edited Trade is no longer in this date or filter selection.";
+            }
             DaySummaries = result.Currencies.Select(c => new CalendarPnlSummary(c.Currency, c.Metrics)).ToArray();
             ViewTradeCommand.NotifyCanExecuteChanged();
+            await ReloadExpandedTradeAsync(generation);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception exception)
@@ -483,19 +499,6 @@ public sealed class CalendarViewModel : ObservableObject
                 IsDayLoading = false;
                 NotifyDayStatus();
             }
-        }
-    }
-
-    private async Task ViewTradeAsync(TradeListItem? item)
-    {
-        if (item is null || OpenTradeAsync is null || !_isActive || IsDayLoading || !DayTrades.Any(row => row.Trade.Id == item.Id)) return;
-        long generation = _dayGeneration;
-        try { await OpenTradeAsync(item); }
-        catch (Exception exception)
-        {
-            _logger.LogError(exception, "Calendar Trade navigation failed");
-            if (generation == _dayGeneration && _isActive)
-                DayErrorMessage = "Trade could not be opened. Select Retry and try again.";
         }
     }
 

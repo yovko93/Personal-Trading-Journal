@@ -13,11 +13,71 @@ using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Application.Setups;
+using PersonalTradingJournal.Desktop.Tests.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarSqliteRefreshTests
 {
+    [Fact]
+    public async Task InlineSaveRefreshesPersistedRowDayChartAndMonthWithoutLeavingSelection()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"PTJ-Calendar-Inline-{Guid.NewGuid():N}");
+        var paths = new LocalApplicationPaths(root);
+        paths.EnsureDirectoriesExist();
+        await using ServiceProvider provider = new ServiceCollection().AddPersistence(paths).BuildServiceProvider();
+        try
+        {
+            await provider.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
+            var audit = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+            var account = new TradingAccount("Inline synthetic account", TradingAccountType.Personal, null, null, "USD", 0, audit);
+            var instrument = new Instrument("CAL", "Calendar", AssetClass.Futures, "CME", "USD", 1, 1, audit);
+            await provider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
+            await provider.GetRequiredService<IInstrumentStore>().AddAsync(instrument);
+            Guid id = Guid.NewGuid();
+            var close = new DateTimeOffset(2026, 9, 5, 16, 35, 0, TimeSpan.Zero);
+            var trade = Trade.Rehydrate(id, account.Id, instrument.Id, new(1, "USD"), null,
+                [new TradeExecution(id, 1, close.AddHours(-1), ExecutionSide.Buy, 2, 100, 0, 0, null, null, null),
+                 new TradeExecution(id, 2, close, ExecutionSide.Sell, 2, 104, 0, 0, null, null, null)], audit, audit);
+            await provider.GetRequiredService<ITradeStore>().AddAsync(trade);
+            var detailReader = provider.GetRequiredService<ITradeDetailReader>();
+            var details = new FakeTradeDetailReader();
+            for (int i = 0; i < 8; i++) details.EnqueueBehavior(ct => detailReader.GetByIdAsync(id, ct));
+            var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
+                reader: TradesViewModelTests.CreateEditReferenceReader((await detailReader.GetByIdAsync(id))!),
+                updateTradeUseCase: new UpdateTradeUseCase(provider.GetRequiredService<ITradeMutationStore>(),
+                    provider.GetRequiredService<ITradingAccountStore>(), provider.GetRequiredService<IInstrumentStore>(),
+                    provider.GetRequiredService<ITradingSetupStore>(), new FixedTimeProvider()));
+            var vm = new CalendarViewModel(provider.GetRequiredService<ITradingCalendarReader>(), new FixedTimeProvider(),
+                provider.GetRequiredService<ITradingCalendarDayReader>(), provider.GetRequiredService<ITradingAccountReader>(), tradeEditor: editor);
+            await vm.ActivateAsync();
+            await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+            await vm.ViewTradeCommand.ExecuteAsync(vm.DayTrades[0].Trade);
+            Assert.Equal("12:35:00", vm.DayTrades[0].ClosingTime);
+            await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+            editor.ExitPriceText = "110";
+            await editor.SaveTradeEditCommand.ExecuteAsync(null);
+            await vm.LoadTask;
+            Assert.Null(editor.TradeUpdateErrorMessage);
+            Assert.Equal(20m, Assert.Single(vm.DayTrades).Amount);
+            Assert.True(vm.DayTrades[0].IsExpanded);
+            Assert.Equal(20m, Assert.Single(vm.DaySummaries).Amount);
+            Assert.Equal(20m, Assert.Single(Assert.Single(vm.DayPerformance).Points).Value);
+            Assert.Equal(20m, Assert.Single(vm.MonthlySummaries).Amount);
+            Assert.Equal(20m, (await detailReader.GetByIdAsync(id))!.NetPnL);
+            Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+            Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
+        }
+        finally
+        {
+            await provider.DisposeAsync();
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.DatabasePath, ForeignKeys = true }.ToString());
+            SqliteConnection.ClearPool(connection);
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     [Fact]
     public async Task ActiveSelectedDayAndMonthRereadCommittedCreateCorrectionAndDeletionFromIsolatedMigratedDatabase()
     {

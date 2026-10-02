@@ -3189,7 +3189,7 @@ public sealed partial class TradesViewModelTests
         Assert.False(viewModel.IsDeletingTrade);
     }
 
-    private static TradesViewModel CreateViewModel(
+    internal static TradesViewModel CreateViewModel(
         FakeManualTradeReferenceDataReader? reader = null,
         FakeTradeListReader? tradeListReader = null,
         FakeTradeDetailReader? tradeDetailReader = null,
@@ -3214,7 +3214,8 @@ public sealed partial class TradesViewModelTests
         FakeTradingMistakeStore? tradingMistakeStore = null,
         FakeTradeMistakeStore? tradeMistakeStore = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
-        FakeDialogService? dialogService = null)
+        FakeDialogService? dialogService = null,
+        UpdateTradeUseCase? updateTradeUseCase = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -3282,7 +3283,7 @@ public sealed partial class TradesViewModelTests
                 tradeScreenshotDeletionStore,
                 tradeScreenshotFileStorage),
             tradeScreenshotDeleteConfirmation,
-            new UpdateTradeUseCase(
+            updateTradeUseCase ?? new UpdateTradeUseCase(
                 tradeMutationStore,
                 accountStore,
                 instrumentStore,
@@ -3403,7 +3404,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static FakeManualTradeReferenceDataReader CreateEditReferenceReader(
+    internal static FakeManualTradeReferenceDataReader CreateEditReferenceReader(
         TradeDetail detail)
     {
         var reader = new FakeManualTradeReferenceDataReader();
@@ -3434,7 +3435,7 @@ public sealed partial class TradesViewModelTests
         return reader;
     }
 
-    private static TradeDetail CreateEditableTradeDetail(
+    internal static TradeDetail CreateEditableTradeDetail(
         TradeListItem item,
         Guid? setupId)
     {
@@ -3474,7 +3475,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static Trade CreateEditableDomainTrade(TradeDetail detail)
+    internal static Trade CreateEditableDomainTrade(TradeDetail detail)
     {
         IReadOnlyList<TradeExecution> executions = detail.Executions
             .Select(item => TradeExecution.Rehydrate(
@@ -3570,7 +3571,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static TradingAccount CreateTradingAccount(Guid id)
+    internal static TradingAccount CreateTradingAccount(Guid id)
     {
         DateTimeOffset createdAtUtc =
             new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
@@ -3588,7 +3589,7 @@ public sealed partial class TradesViewModelTests
             createdAtUtc);
     }
 
-    private static Instrument CreateInstrument(Guid id)
+    internal static Instrument CreateInstrument(Guid id)
     {
         DateTimeOffset createdAtUtc =
             new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);

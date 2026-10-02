@@ -103,20 +103,22 @@
                 </StackPanel>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                               interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">
-                    <StackPanel MinWidth="720">
+                    <StackPanel MinWidth="1040">
                         <Grid Margin="8,0,8,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="112" /><ColumnDefinition Width="*" MinWidth="100" />
                                 <ColumnDefinition Width="*" MinWidth="120" /><ColumnDefinition Width="70" />
-                                <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="140" /><ColumnDefinition Width="180" /><ColumnDefinition Width="64" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Closed (New York)" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextMutedBrush}" />
+                            <TextBlock Text="Time (New York)" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="1" Text="Instrument" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="2" Text="Account" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="3" Text="Direction" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="4" Text="Size" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="5" Text="Net P&amp;L" Foreground="{DynamicResource PtjTextMutedBrush}" />
-                            <TextBlock Grid.Column="6" Text="Action" Foreground="{DynamicResource PtjTextMutedBrush}" />
+                            <TextBlock Grid.Column="6" Text="Setup" Foreground="{DynamicResource PtjTextMutedBrush}" />
+                            <TextBlock Grid.Column="7" Text="Trading Mistakes" Foreground="{DynamicResource PtjTextMutedBrush}" />
+                            <TextBlock Grid.Column="8" Text="Action" Foreground="{DynamicResource PtjTextMutedBrush}" />
                         </Grid>
                         <ItemsControl ItemsSource="{Binding DayTrades}">
                             <ItemsControl.ItemTemplate><DataTemplate>
@@ -135,13 +137,15 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Border.Style>
+                                    <StackPanel>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="112" /><ColumnDefinition Width="*" MinWidth="100" />
                                             <ColumnDefinition Width="*" MinWidth="120" /><ColumnDefinition Width="70" />
-                                            <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="140" /><ColumnDefinition Width="180" /><ColumnDefinition Width="64" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding ClosingTime}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding ClosingTime}" TextWrapping="Wrap" ToolTip="{Binding ClosingTimeDescription}"
+                                                   AutomationProperties.Name="{Binding ClosingTimeDescription}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Trade.InstrumentSymbol}" Margin="0,0,8,0" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                         <TextBlock Grid.Column="2" Text="{Binding Trade.TradingAccountName}" Margin="0,0,8,0" TextWrapping="Wrap"
@@ -153,11 +157,23 @@
                                             <TextBlock Text="Estimated" FontSize="12" Foreground="{DynamicResource PtjTextSecondaryBrush}"
                                                        Visibility="{Binding IsEstimated, Converter={StaticResource BoolVisibility}}" />
                                         </StackPanel>
-                                        <Button Grid.Column="6" Content="View" Padding="8,4" VerticalAlignment="Center" Style="{DynamicResource PtjButtonStyle}"
+                                        <TextBlock Grid.Column="6" Text="{Binding SetupText}" Margin="0,0,8,0" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                        <TextBlock Grid.Column="7" Text="{Binding MistakesText}" Margin="0,0,8,0" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                        <Button Grid.Column="8" Content="View" Padding="8,4" VerticalAlignment="Center" Style="{DynamicResource PtjButtonStyle}"
                                                 AutomationProperties.Name="{Binding AccessibleName, StringFormat=View Trade: {0}}"
                                                 Command="{Binding DataContext.ViewTradeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding Trade}" Click="OnViewTrade" />
+                                                CommandParameter="{Binding Trade}" />
                                     </Grid>
+                                    <Border Padding="12" Margin="0,8,0,0" Background="{DynamicResource PtjSurfaceBrush}"
+                                            Visibility="{Binding IsExpanded, Converter={StaticResource BoolVisibility}}"
+                                            AutomationProperties.Name="Expanded Trade details">
+                                        <StackPanel>
+                                            <Button Content="Collapse details" HorizontalAlignment="Right" Style="{DynamicResource PtjSecondaryButtonStyle}"
+                                                    Command="{Binding DataContext.CloseInlineTradeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                            <calendar:CalendarInlineTradeView DataContext="{Binding Editor}" />
+                                        </StackPanel>
+                                    </Border>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate></ItemsControl.ItemTemplate>
                         </ItemsControl>

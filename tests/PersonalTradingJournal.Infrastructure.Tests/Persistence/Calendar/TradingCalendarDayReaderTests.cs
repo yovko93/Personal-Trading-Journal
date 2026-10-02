@@ -10,11 +10,58 @@ using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Mapping;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Calendar;
 
 public sealed class TradingCalendarDayReaderTests
 {
+    [Fact]
+    public async Task DayRowsBatchHistoricalClassificationAndPreserveActualExitInstants()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        DateTimeOffset close = new(2026, 9, 5, 8, 0, 0, TimeSpan.Zero); // A genuine 04:00 New York close.
+        Trade first = Closed(account, instrument, close, 5);
+        Trade later = Closed(account, instrument, close.AddHours(6).AddTicks(1234567), 7);
+        await Add(db, first, later);
+        Guid setupId = Guid.NewGuid(), mistakeId = Guid.NewGuid();
+        await using (var context = await db.ContextFactory.CreateDbContextAsync())
+        {
+            context.TradingSetups.Add(new TradingSetupRecord { Id = setupId, Name = "Historical Setup", IsActive = false, CreatedAtUtc = Audit, UpdatedAtUtc = Audit });
+            context.TradingMistakes.Add(new TradingMistakeRecord { Id = mistakeId, Name = "Historical Mistake", IsActive = false, CreatedAtUtc = Audit, UpdatedAtUtc = Audit });
+            (await context.Trades.SingleAsync(t => t.Id == first.Id)).TradingSetupId = setupId;
+            context.TradeMistakes.Add(new TradeMistakeRecord { Id = Guid.NewGuid(), TradeId = first.Id, TradingMistakeId = mistakeId, CreatedAtUtc = Audit, UpdatedAtUtc = Audit });
+            await context.SaveChangesAsync();
+        }
+        var result = await db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>().GetAsync(new(new(2026, 9, 5)));
+        Assert.Equal(new[] { later.Id, first.Id }, result.Trades.Select(t => t.Id));
+        Assert.Equal(first.ClosedAtUtc, result.Trades[1].ClosedAtUtc);
+        Assert.Equal(later.Executions[^1].ExecutedAtUtc, result.Trades[0].ClosedAtUtc);
+        var assigned = result.Classifications[first.Id];
+        Assert.Equal("Historical Setup", assigned.SetupName);
+        Assert.False(assigned.IsSetupActive);
+        Assert.Equal("Historical Mistake", Assert.Single(assigned.Mistakes).Name);
+        Assert.False(assigned.Mistakes[0].IsActive);
+        Assert.Null(result.Classifications[later.Id].SetupId);
+        Assert.Empty(result.Classifications[later.Id].Mistakes);
+        // Simulate dangling historical references in this isolated database only.
+        await using (var context = await db.ContextFactory.CreateDbContextAsync())
+        {
+            await context.Database.OpenConnectionAsync();
+            await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
+            await context.TradingSetups.Where(s => s.Id == setupId).ExecuteDeleteAsync();
+            await context.TradingMistakes.Where(m => m.Id == mistakeId).ExecuteDeleteAsync();
+            await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
+        }
+        result = await db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>().GetAsync(new(new(2026, 9, 5)));
+        Assert.Equal(2, result.Trades.Count);
+        Assert.Equal(setupId, result.Classifications[first.Id].SetupId);
+        Assert.Null(result.Classifications[first.Id].SetupName);
+        Assert.Equal(mistakeId, Assert.Single(result.Classifications[first.Id].Mistakes).Id);
+        Assert.Null(result.Classifications[first.Id].Mistakes[0].Name);
+    }
+
     private static readonly DateTimeOffset Audit = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Theory]
