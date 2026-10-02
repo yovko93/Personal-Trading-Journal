@@ -16,6 +16,49 @@ public sealed class TradingCalendarReaderTests
     private static readonly DateTimeOffset Audit = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task InactiveAccountScopedMonthAndDayResultsShareHistoricalCurrenciesAndWeekendTotals()
+    {
+        await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();
+        Guid account = await AddAccount(db, "Calendar historical");
+        Guid other = await AddAccount(db, "Calendar other");
+        Guid instrument = await AddInstrument(db);
+        var store = db.ServiceProvider.GetRequiredService<ITradingAccountStore>();
+        TradingAccount historical = (await store.GetByIdAsync(account))!;
+        historical.Deactivate(Audit.AddDays(1));
+        await store.UpdateAsync(historical);
+        DateTimeOffset saturday = new(2026, 9, 5, 16, 0, 0, TimeSpan.Zero);
+        await Add(db, Closed(account, instrument, saturday, -285m, null),
+            Closed(account, instrument, saturday, 0m),
+            Closed(account, instrument, saturday, 10m, currency: "EUR"),
+            Closed(account, instrument, saturday.AddDays(1), 20m),
+            Closed(other, instrument, saturday, 999m));
+        var monthReader = db.ServiceProvider.GetRequiredService<ITradingCalendarReader>();
+        var dayReader = db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>();
+        var month = await monthReader.GetAsync(new(2026, 9, account));
+        var day = await dayReader.GetAsync(new(new(2026, 9, 5), account));
+        Assert.Equal(3, day.ClosedTradeCount);
+        Assert.All(day.Trades, t => Assert.Equal(account, t.TradingAccountId));
+        foreach (string currency in new[] { "USD", "EUR" })
+        {
+            var bucket = month.Currencies.Single(c => c.Currency == currency);
+            var week = bucket.Weeks[0];
+            var daily = day.Currencies.Single(c => c.Currency == currency).Metrics;
+            Assert.Equal(daily, week.Days[5].Metrics);
+            Assert.Equal(currency == "USD" ? -265m : 10m, week.EffectiveNetTotal);
+            Assert.Equal(currency == "USD" ? 3 : 1, week.ClosedTradeCount);
+            Assert.Equal(currency == "USD" ? 2 : 1, day.Trades.Count(t => t.Currency == currency));
+        }
+        Assert.Empty((await monthReader.GetAsync(new(2026, 10, account))).Currencies);
+        Assert.Empty((await dayReader.GetAsync(new(new(2026, 10, 5), account))).Trades);
+        await using JournalDbContext check = await db.ContextFactory.CreateDbContextAsync();
+        Assert.Equal(5, await check.Trades.CountAsync());
+        Assert.Equal(10, await check.TradeExecutions.CountAsync());
+        Assert.Empty(check.ChangeTracker.Entries());
+        Assert.Contains(await db.ServiceProvider.GetRequiredService<ITradingAccountReader>().GetAllAsync(),
+            a => a.Id == account && !a.IsActive);
+    }
+
+    [Fact]
     public async Task MigratedSqliteUsesNewYorkClosuresFullGridAccountFilterAndNoWrites()
     {
         await using ReaderTestDatabase db = await ReaderTestDatabase.CreateAsync();

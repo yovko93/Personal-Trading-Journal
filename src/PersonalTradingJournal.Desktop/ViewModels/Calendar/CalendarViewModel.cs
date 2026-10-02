@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Trades;
@@ -45,12 +46,20 @@ public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool
 }
 
 public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);
+public sealed record CalendarAccountOption(Guid? Id, string Name);
 
 /// <summary>Month navigation and presentation of the reader's currency-specific daily and weekly metrics.</summary>
 public sealed class CalendarViewModel : ObservableObject
 {
     private readonly ITradingCalendarReader _reader;
     private readonly ITradingCalendarDayReader _dayReader;
+    private readonly ITradingAccountReader _accountReader;
+    private static readonly CalendarAccountOption AllAccounts = new(null, "All accounts");
+    private const string AllCurrencies = "All currencies";
+    private CalendarAccountOption _selectedAccount = AllAccounts;
+    private IReadOnlyList<CalendarAccountOption> _accounts = [AllAccounts];
+    private string _selectedCurrency = AllCurrencies;
+    private IReadOnlyList<string> _currencies = [AllCurrencies];
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CalendarViewModel> _logger;
     private CancellationTokenSource? _loadCancellation;
@@ -70,11 +79,12 @@ public sealed class CalendarViewModel : ObservableObject
     private IReadOnlyList<CalendarPnlSummary> _daySummaries = [];
 
     public CalendarViewModel(ITradingCalendarReader reader, TimeProvider timeProvider,
-        ITradingCalendarDayReader dayReader,
+        ITradingCalendarDayReader dayReader, ITradingAccountReader accountReader,
         ILogger<CalendarViewModel>? logger = null)
     {
         _reader = reader;
         _dayReader = dayReader;
+        _accountReader = accountReader;
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<CalendarViewModel>.Instance;
         DateOnly today = Today;
@@ -96,6 +106,27 @@ public sealed class CalendarViewModel : ObservableObject
     }
 
     public DateOnly SelectedMonth => _month;
+    public IReadOnlyList<CalendarAccountOption> Accounts { get => _accounts; private set => SetProperty(ref _accounts, value); }
+    public CalendarAccountOption SelectedAccount
+    {
+        get => _selectedAccount;
+        set
+        {
+            if (value is null || value.Id == _selectedAccount.Id) return;
+            SetProperty(ref _selectedAccount, value);
+            FiltersChanged();
+        }
+    }
+    public IReadOnlyList<string> Currencies { get => _currencies; private set => SetProperty(ref _currencies, value); }
+    public string SelectedCurrency
+    {
+        get => _selectedCurrency;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value) || !SetProperty(ref _selectedCurrency, value)) return;
+            FiltersChanged();
+        }
+    }
     public string MonthLabel => _month.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
     public IReadOnlyList<CalendarWeekRow> Weeks { get => _weeks; private set => SetProperty(ref _weeks, value); }
     public TradingCalendarMonth? MonthData { get => _monthData; private set => SetProperty(ref _monthData, value); }
@@ -142,11 +173,40 @@ public sealed class CalendarViewModel : ObservableObject
 
     public Task ActivateAsync() { _isActive = true; return RefreshAsync(); }
     public void Deactivate() { _isActive = false; Cancel(); CancelDay(); }
-    public Task RefreshAsync()
+    public Task RefreshAsync() => LoadTask = RefreshAllAsync();
+
+    private Task RefreshAllAsync()
     {
-        LoadTask = LoadAsync();
-        return SelectedDate.HasValue ? Task.WhenAll(LoadTask, RefreshDayAsync()) : LoadTask;
+        Task month = LoadAsync();
+        return SelectedDate.HasValue ? Task.WhenAll(month, RefreshDayAsync()) : month;
     }
+
+    private void FiltersChanged()
+    {
+        CancelDay();
+        ClearDayResults();
+        MonthData = null;
+        SetGrid(new TradingCalendarQuery(_month.Year, _month.Month, SelectedAccount.Id));
+        if (_isActive) _ = RefreshAsync();
+    }
+
+    private void PublishAccounts(IReadOnlyList<AccountListItem> accounts, CalendarAccountOption requested)
+    {
+        var options = accounts.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.Id)
+            .Select(a => new CalendarAccountOption(a.Id, a.Name + (a.IsActive ? "" : " (inactive)"))).Prepend(AllAccounts).ToList();
+        CalendarAccountOption? selected = options.FirstOrDefault(a => a.Id == requested.Id);
+        if (selected is null)
+        {
+            selected = new(requested.Id, requested.Name.Replace(" (unavailable)", "", StringComparison.Ordinal) + " (unavailable)");
+            options.Add(selected);
+        }
+        // Publish without invoking the selection setter and starting a second request.
+        _selectedAccount = selected;
+        Accounts = options;
+        OnPropertyChanged(nameof(SelectedAccount));
+    }
+
+    private static string UnavailableAccountMessage => "The selected account is no longer available. Choose another account or All accounts.";
 
     private DateOnly Today => DateOnly.FromDateTime(
         TradingTimePolicy.ConvertUtcToTradingTime(_timeProvider.GetUtcNow()).DateTime);
@@ -219,6 +279,8 @@ public sealed class CalendarViewModel : ObservableObject
         using var cancellation = new CancellationTokenSource();
         _loadCancellation = cancellation;
         DateOnly requestedMonth = _month;
+        CalendarAccountOption requestedAccount = SelectedAccount;
+        string requestedCurrency = SelectedCurrency;
         MonthData = null;
         SetGrid(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month));
         ErrorMessage = null;
@@ -227,9 +289,26 @@ public sealed class CalendarViewModel : ObservableObject
         try
         {
             // SQLite's async provider can perform synchronous work; keep it off the dispatcher.
-            TradingCalendarMonth result = await Task.Run(() => _reader.GetAsync(
-                new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month), cancellation.Token), cancellation.Token);
+            var loaded = await Task.Run(async () =>
+            {
+                IReadOnlyList<AccountListItem> accounts = await _accountReader.GetAllAsync(cancellation.Token);
+                TradingCalendarMonth? month = requestedAccount.Id is { } id && !accounts.Any(a => a.Id == id) ? null
+                    : await _reader.GetAsync(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month, requestedAccount.Id), cancellation.Token);
+                return (accounts, month);
+            }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested || !_isActive) return;
+            PublishAccounts(loaded.accounts, requestedAccount);
+            if (loaded.month is not { } source)
+            {
+                ErrorMessage = UnavailableAccountMessage;
+                return;
+            }
+            Currencies = source.Currencies.Select(c => c.Currency)
+                .Concat(requestedCurrency == AllCurrencies ? [] : new[] { requestedCurrency })
+                .Distinct(StringComparer.Ordinal).OrderBy(c => c, StringComparer.Ordinal).Prepend(AllCurrencies).ToArray();
+            OnPropertyChanged(nameof(SelectedCurrency));
+            TradingCalendarMonth result = requestedCurrency == AllCurrencies ? source
+                : source with { Currencies = source.Currencies.Where(c => c.Currency == requestedCurrency).ToArray() };
             MonthData = result;
             SetGrid(new TradingCalendarQuery(requestedMonth.Year, requestedMonth.Month), result);
         }
@@ -276,12 +355,28 @@ public sealed class CalendarViewModel : ObservableObject
         _dayCancellation?.Cancel();
         using var cancellation = new CancellationTokenSource();
         _dayCancellation = cancellation;
+        Guid? requestedAccount = SelectedAccount.Id;
+        string requestedCurrency = SelectedCurrency;
         ClearDayResults();
         IsDayLoading = true;
         try
         {
-            TradingCalendarDayDetails result = await Task.Run(() => _dayReader.GetAsync(new(date), cancellation.Token), cancellation.Token);
+            TradingCalendarDayDetails? source = await Task.Run(async () =>
+            {
+                if (requestedAccount is { } id && !(await _accountReader.GetAllAsync(cancellation.Token)).Any(a => a.Id == id)) return null;
+                return await _dayReader.GetAsync(new(date, requestedAccount), cancellation.Token);
+            }, cancellation.Token);
             if (generation != _dayGeneration || cancellation.IsCancellationRequested || !_isActive || SelectedDate != date) return;
+            if (source is null)
+            {
+                DayErrorMessage = UnavailableAccountMessage;
+                return;
+            }
+            TradingCalendarDayDetails result = requestedCurrency == AllCurrencies ? source : source with
+            {
+                Trades = source.Trades.Where(t => t.Currency == requestedCurrency).ToArray(),
+                Currencies = source.Currencies.Where(c => c.Currency == requestedCurrency).ToArray(),
+            };
             DayDetails = result;
             DayTrades = result.Trades.Select(t => new CalendarTradePresentation(t)).ToArray();
             DaySummaries = result.Currencies.Select(c => new CalendarPnlSummary(c.Currency, c.Metrics)).ToArray();

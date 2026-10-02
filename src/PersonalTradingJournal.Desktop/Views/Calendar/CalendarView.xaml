@@ -100,6 +100,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -125,7 +126,26 @@
                     ToolTip="Current New York month" Style="{DynamicResource PtjButtonStyle}" />
         </Grid>
 
-        <WrapPanel Grid.Row="1" MinHeight="24" Margin="0,0,0,8">
+        <WrapPanel Grid.Row="1" Margin="0,0,0,4">
+            <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                <Label Content="Account" Target="{Binding ElementName=CalendarAccountSelector}"
+                       VerticalAlignment="Center" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+                <ComboBox x:Name="CalendarAccountSelector" Width="220" MaxWidth="220" VerticalAlignment="Center"
+                          ItemsSource="{Binding Accounts}" DisplayMemberPath="Name" SelectedItem="{Binding SelectedAccount}"
+                          Style="{DynamicResource PtjComboBoxStyle}"
+                          AutomationProperties.Name="Calendar account" ToolTip="{Binding SelectedAccount.Name}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Label Content="Currency" Target="{Binding ElementName=CalendarCurrencySelector}"
+                       VerticalAlignment="Center" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+                <ComboBox x:Name="CalendarCurrencySelector" Width="150" VerticalAlignment="Center"
+                          ItemsSource="{Binding Currencies}" SelectedItem="{Binding SelectedCurrency}"
+                          Style="{DynamicResource PtjComboBoxStyle}"
+                          AutomationProperties.Name="Calendar currency" />
+            </StackPanel>
+        </WrapPanel>
+
+        <WrapPanel Grid.Row="2" MinHeight="24" Margin="0,0,0,8">
             <TextBlock Text="{Binding StatusMessage}" Style="{DynamicResource PtjCaptionTextStyle}"
                        VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
             <Button Content="Cancel" Margin="12,0,0,0" Command="{Binding CancelCommand}"
@@ -138,7 +158,7 @@
                     Style="{DynamicResource PtjSecondaryButtonStyle}" />
         </WrapPanel>
 
-        <ScrollViewer x:Name="CalendarPageScroller" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="CalendarPageScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
         <ScrollViewer x:Name="CalendarScroller"
                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"

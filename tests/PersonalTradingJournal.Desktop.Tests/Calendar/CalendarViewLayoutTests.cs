@@ -15,6 +15,94 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarViewLayoutTests
 {
     [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task FilterControlsUseSharedThemeKeyboardNamesBindingAndWrapAboveGrid(string theme, int width, int dpi)
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        await OnSta(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new System.Windows.Threading.DispatcherSynchronizationContext());
+            // This component host has no Application.Resources. Flatten the unchanged production
+            // resource declarations so detached Popup templates have their shared resources.
+            DirectoryInfo? repository = new(AppContext.BaseDirectory);
+            while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "PersonalTradingJournal.sln"))) repository = repository.Parent;
+            string resourcePath = Path.Combine(repository!.FullName, "src/PersonalTradingJournal.Desktop/Resources");
+            var declarations = new[] { $"Themes/{theme}Theme", "Typography", "Spacing", "Icons", "Controls" }
+                .Select(file => System.Xml.Linq.XDocument.Load(Path.Combine(resourcePath, file + ".xaml")).Root!).ToArray();
+            var combined = new System.Xml.Linq.XElement(declarations[^1]);
+            combined.RemoveNodes();
+            foreach (var declaration in declarations) combined.Add(declaration.Elements());
+            combined.SetAttributeValue(System.Xml.Linq.XNamespace.Xmlns + "system", "clr-namespace:System;assembly=System.Runtime");
+            foreach (string prefix in new[] { "converters", "validation" })
+            {
+                var attribute = combined.Attribute(System.Xml.Linq.XNamespace.Xmlns + prefix)!;
+                string oldNamespace = attribute.Value;
+                attribute.Value += ";assembly=PersonalTradingJournal.Desktop";
+                foreach (var element in combined.Descendants().Where(e => e.Name.NamespaceName == oldNamespace))
+                    element.Name = System.Xml.Linq.XNamespace.Get(attribute.Value) + element.Name.LocalName;
+            }
+            var resources = (ResourceDictionary)System.Windows.Markup.XamlReader.Parse(combined.ToString());
+            var view = new CalendarView { DataContext = vm, Resources = resources };
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            void Layout()
+            {
+                view.Measure(new Size(width, 980));
+                view.Arrange(new Rect(0, 0, width, 980));
+                view.UpdateLayout();
+            }
+            Layout();
+            var account = (ComboBox)view.FindName("CalendarAccountSelector");
+            var currency = (ComboBox)view.FindName("CalendarCurrencySelector");
+            var grid = (ScrollViewer)view.FindName("CalendarScroller");
+            Assert.Equal("Calendar account", AutomationProperties.GetName(account));
+            Assert.Equal("Calendar currency", AutomationProperties.GetName(currency));
+            Assert.Same(vm.SelectedAccount, account.SelectedItem);
+            Assert.Equal("All currencies", currency.SelectedItem);
+            Assert.Same(view.Resources["PtjComboBoxStyle"], account.Style);
+            Assert.Same(account.Style, currency.Style);
+            Assert.All(new[] { account, currency }, combo =>
+            {
+                Assert.True(combo.Focusable);
+                Assert.True(KeyboardNavigation.GetIsTabStop(combo));
+                var origin = combo.TransformToAncestor(view).Transform(new Point());
+                Assert.InRange(origin.X + combo.ActualWidth, 1, width);
+                Assert.True(origin.Y + combo.ActualHeight <= grid.TransformToAncestor(view).Transform(new Point()).Y);
+                Assert.Equal(((SolidColorBrush)view.Resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)combo.Foreground).Color);
+            });
+            double ay = account.TransformToAncestor(view).Transform(new Point()).Y;
+            double cy = currency.TransformToAncestor(view).Transform(new Point()).Y;
+            if (width == 480) Assert.True(cy > ay + account.ActualHeight);
+            else Assert.Equal(ay, cy, 1);
+            currency.SelectedItem = "EUR";
+            var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            _ = vm.LoadTask.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)),
+                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
+            vm.LoadTask.GetAwaiter().GetResult();
+            Layout();
+            Assert.Equal("EUR", vm.SelectedCurrency);
+            Assert.Equal("EUR", currency.SelectedItem);
+            Assert.Single(vm.MonthData!.Currencies);
+            Assert.All(vm.Weeks.SelectMany(w => w.Days).SelectMany(d => d.WeeklySummaries), s => Assert.Equal("EUR", s.Currency));
+            if (width < 840) Assert.True(grid.ScrollableWidth > 0);
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 980 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(view);
+            if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(output, $"calendar-filters-{theme}-{width}-{dpi}.png"));
+                encoder.Save(file);
+            }
+        });
+    }
+
+    [Theory]
     [InlineData("Light", 1100, 96, Key.Enter)]
     [InlineData("Dark", 1100, 96, Key.Space)]
     [InlineData("Light", 640, 240, Key.Space)]
@@ -39,6 +127,7 @@ public sealed class CalendarViewLayoutTests
                 view.Resources[name] = new Style(typeof(Button));
             foreach (string name in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
                 view.Resources[name] = new Style(typeof(TextBlock));
+            view.Resources["PtjComboBoxStyle"] = new Style(typeof(ComboBox));
             view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
             void Layout()
             {
@@ -133,6 +222,7 @@ public sealed class CalendarViewLayoutTests
                 view.Resources[key] = new Style(typeof(Button));
             foreach (string key in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
                 view.Resources[key] = new Style(typeof(TextBlock));
+            view.Resources["PtjComboBoxStyle"] = new Style(typeof(ComboBox));
             view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
             view.Measure(new Size(width, 980));
             view.Arrange(new Rect(0, 0, width, 980));
@@ -206,7 +296,7 @@ public sealed class CalendarViewLayoutTests
     {
         await OnSta(() =>
         {
-                var vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
+                var vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
                 while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month < year * 12 + month)
                     vm.NextCommand.Execute(null);
                 while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month > year * 12 + month)
@@ -221,6 +311,7 @@ public sealed class CalendarViewLayoutTests
                     view.Resources[key] = new Style(typeof(Button));
                 foreach (string key in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
                     view.Resources[key] = new Style(typeof(TextBlock));
+                view.Resources["PtjComboBoxStyle"] = new Style(typeof(ComboBox));
                 view.Measure(new Size(width, 760));
                 view.Arrange(new Rect(0, 0, width, 760));
                 view.UpdateLayout();

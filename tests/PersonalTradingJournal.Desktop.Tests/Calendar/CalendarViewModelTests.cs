@@ -14,7 +14,7 @@ public sealed class CalendarViewModelTests
     public async Task CompleteMonthGridHasFourFiveOrSixMondaySundayRows(
         int year, int month, int rows, string first, string last)
     {
-        var vm = new CalendarViewModel(new ImmediateReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(new ImmediateReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month < year * 12 + month)
             vm.NextCommand.Execute(null);
         while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month > year * 12 + month)
@@ -40,7 +40,7 @@ public sealed class CalendarViewModelTests
     {
         // UTC has reached October, but New York is still in September.
         var clock = new FixedClock(new(2026, 10, 1, 1, 0, 0, TimeSpan.Zero));
-        var vm = new CalendarViewModel(new ImmediateReader(), clock, new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(new ImmediateReader(), clock, new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
         Assert.Single(vm.Weeks.SelectMany(w => w.Days), day => day.IsToday && day.Date.Day == 30);
         await vm.ActivateAsync();
@@ -55,7 +55,7 @@ public sealed class CalendarViewModelTests
     public void TodayRefreshesHighlightAfterNewYorkDayChangesWithinSameMonth()
     {
         var clock = new AdjustableClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero));
-        var vm = new CalendarViewModel(new ImmediateReader(), clock, new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(new ImmediateReader(), clock, new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         Assert.Single(vm.Weeks.SelectMany(w => w.Days), day => day.IsToday && day.Date.Day == 9);
         clock.Instant = new(2026, 9, 10, 12, 0, 0, TimeSpan.Zero);
         vm.TodayCommand.Execute(null);
@@ -66,7 +66,7 @@ public sealed class CalendarViewModelTests
     public async Task RapidMonthChangeKeepsGridAndDiscardsLateOldResult()
     {
         var reader = new DelayedReader();
-        var vm = new CalendarViewModel(reader, new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(reader, new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         Task september = vm.ActivateAsync();
         await reader.Seen(new(2026, 9, 1));
         Assert.True(vm.IsLoading);
@@ -92,7 +92,7 @@ public sealed class CalendarViewModelTests
     public async Task EmptyErrorCancellationAndRetryRetainUsableDates()
     {
         var reader = new DelayedReader();
-        var vm = new CalendarViewModel(reader, new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(reader, new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         Task first = vm.ActivateAsync();
         await reader.Seen(new(2026, 9, 1));
         vm.CancelCommand.Execute(null);
@@ -110,7 +110,7 @@ public sealed class CalendarViewModelTests
         Assert.Equal(new DateOnly(2026, 10, 1), vm.SelectedMonth);
         Assert.NotEmpty(vm.Weeks);
 
-        var recovered = new CalendarViewModel(new ImmediateReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader());
+        var recovered = new CalendarViewModel(new ImmediateReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         await recovered.ActivateAsync();
         Assert.Empty(recovered.MonthData!.Currencies);
         Assert.Null(recovered.ErrorMessage);

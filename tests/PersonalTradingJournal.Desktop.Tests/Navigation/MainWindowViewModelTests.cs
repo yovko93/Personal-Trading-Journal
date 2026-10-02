@@ -1175,7 +1175,7 @@ public sealed class MainWindowViewModelTests
             new FakeTradeScreenshotDeleteConfirmation());
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader()),
+            new CalendarViewModel(new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()),
             accounts,
             instruments,
             import,

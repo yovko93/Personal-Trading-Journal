@@ -88,7 +88,7 @@ internal static class CalendarSummaryFixture
     public static async Task<CalendarViewModel> CreateAsync(ITradingCalendarDayReader? dayReader = null)
     {
         var reader = new TradingCalendarReader(new FactsReader());
-        var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader());
+        var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
         await vm.ActivateAsync();
         return vm;
     }
