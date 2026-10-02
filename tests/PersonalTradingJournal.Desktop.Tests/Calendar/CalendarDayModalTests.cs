@@ -38,7 +38,15 @@ public sealed class CalendarDayModalTests
         var detail = TradesViewModelTests.CreateEditableTradeDetail(second, null);
         var details = new FakeTradeDetailReader(); details.EnqueueResult(detail);
         var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details);
-        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [first, second])) };
+        var classification = new CalendarTradeClassification(Guid.NewGuid(), longName
+            ? "A long historical Setup name with several conditions and confirmations to review"
+            : "15m key level + 15m range", true, longName
+                ? [new(Guid.NewGuid(), "Entered before confirmation of the planned Setup", true),
+                   new(Guid.NewGuid(), "Exceeded the planned position size", false),
+                   new(Guid.NewGuid(), "Moved the protective stop repeatedly", true)] : []);
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(q.Date, [first, second]) with
+            { Classifications = new Dictionary<Guid, CalendarTradeClassification> { [second.Id] = classification } }) };
         var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
         await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
         await vm.ViewTradeCommand.ExecuteAsync(second);
@@ -54,7 +62,28 @@ public sealed class CalendarDayModalTests
                 Grid[] rows = Descendants(content).OfType<Grid>().Where(g => g.Name == "DayTradeRow").ToArray();
                 Assert.Equal(2, rows.Length);
                 Grid[] grids = [header, .. rows];
+                Assert.Equal(new[] { "Time (New York)", "Instrument", "Account", "Net P&L", "Size", "Direction", "Setup", "Trading Mistakes", "Action" },
+                    header.Children.OfType<TextBlock>().OrderBy(Grid.GetColumn).Select(t => t.Text));
                 TextBlock[] names = rows.Select(g => g.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2)).ToArray();
+                foreach (Grid row in rows)
+                {
+                    var trade = (CalendarTradePresentation)row.DataContext;
+                    Assert.Equal(trade.AmountText, row.Children.OfType<StackPanel>().Single(p => Grid.GetColumn(p) == 3).Children.OfType<TextBlock>().First().Text);
+                    Assert.Equal(trade.SizeText, row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 4).Text);
+                    Assert.Equal(trade.Trade.Direction.ToString(), row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 5).Text);
+                    foreach (int column in new[] { 6, 7 })
+                    {
+                        var text = row.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == column);
+                        Assert.Equal(column == 6 ? trade.SetupText : trade.MistakesText, text.Text);
+                        Assert.Equal(text.Text, text.ToolTip);
+                        Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
+                        Assert.InRange(text.ActualWidth, 1, column == 6 ? 142 : 162);
+                        // TextBlocks stretch to the tallest cell; desired height measures actual wrapping.
+                        if (longName && trade.Trade.Id == second.Id) Assert.True(text.DesiredSize.Height > 30);
+                        if (text.Text == "None assigned") Assert.True(text.DesiredSize.Height < 25);
+                    }
+                    Assert.Equal("View", row.Children.OfType<Button>().Single(b => Grid.GetColumn(b) == 8).Content);
+                }
                 void CheckAlignment()
                 {
                     foreach (Grid row in rows)
@@ -77,8 +106,8 @@ public sealed class CalendarDayModalTests
                 Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
                 CheckAlignment();
                 Assert.All(rows, g => Assert.Equal(after, g.ColumnDefinitions[2].ActualWidth, 1));
-                Assert.True(header.ColumnDefinitions[6].ActualWidth >= 140);
-                Assert.True(header.ColumnDefinitions[7].ActualWidth >= 180);
+                Assert.Equal(150, header.ColumnDefinitions[6].ActualWidth, 1);
+                Assert.Equal(170, header.ColumnDefinitions[7].ActualWidth, 1);
                 Assert.Single(vm.DayTrades, r => r.IsExpanded && r.Trade.Id == second.Id);
                 if (width < 700)
                 {
@@ -109,18 +138,30 @@ public sealed class CalendarDayModalTests
                     var account = grid.ColumnDefinitions[2];
                     account.MinWidth = 0; account.MaxWidth = 160; account.Width = GridLength.Auto;
                     account.SharedSizeGroup = "DayTradeAccount";
-                    grid.ColumnDefinitions[6].Width = new GridLength(1, GridUnitType.Star);
-                    grid.ColumnDefinitions[7].Width = new GridLength(1, GridUnitType.Star);
+                    grid.ColumnDefinitions[6].Width = new GridLength(150);
+                    grid.ColumnDefinitions[7].Width = new GridLength(170);
                 }
                 Pump(); window.UpdateLayout();
                 Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
                 if (!longName) Assert.True(before > after);
                 CheckAlignment();
-                string measurements = $"Viewport={scroller.ViewportWidth:F2} DIPs; Account before={before:F2}, after={after:F2}; Setup={header.ColumnDefinitions[6].ActualWidth:F2}; Mistakes={header.ColumnDefinitions[7].ActualWidth:F2}";
+                string measurements = $"Viewport={scroller.ViewportWidth:F2} DIPs; Account before={before:F2}, after={after:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
                 var page = (ScrollViewer)content.FindName("DayContentScroller");
                 page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
                 Pump(); window.UpdateLayout();
                 Render(content, $"account-{(longName ? "long" : "short")}-{theme}", width, dpi);
+                if (width < 700)
+                {
+                    scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    foreach (Grid row in rows)
+                    {
+                        var action = row.Children.OfType<Button>().Single(b => Grid.GetColumn(b) == 8);
+                        double x = action.TransformToAncestor(scroller).Transform(new Point()).X;
+                        Assert.True(x >= 0 && x + action.ActualWidth <= scroller.ViewportWidth + 1);
+                    }
+                    Render(content, $"account-{(longName ? "long" : "short")}-right-{theme}", width, dpi);
+                    scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                }
                 if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
                     File.WriteAllText(System.IO.Path.Combine(output, $"calendar-account-{theme}-{width}-{dpi}-{longName}.txt"),
                         measurements);
