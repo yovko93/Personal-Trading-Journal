@@ -22,6 +22,114 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarDayModalTests
 {
     [Theory]
+    [InlineData("Light", 1100, 96, false)]
+    [InlineData("Dark", 1100, 96, false)]
+    [InlineData("Light", 480, 240, false)]
+    [InlineData("Dark", 480, 240, false)]
+    [InlineData("Light", 1100, 96, true)]
+    [InlineData("Dark", 1100, 96, true)]
+    [InlineData("Light", 480, 240, true)]
+    [InlineData("Dark", 480, 240, true)]
+    public async Task AccountContentWidthIsSharedCappedAndStableWithExpandedRows(string theme, int width, int dpi, bool longName)
+    {
+        var first = CalendarDayDetailsTests.Row(new(2026, 9, 5), 200, 197) with { TradingAccountName = "P 21" };
+        var second = first with { Id = Guid.NewGuid(), TradingAccountName = longName
+            ? "An unusually long historical account name that must remain available in full" : "Q 7" };
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(second, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details);
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [first, second])) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(second);
+        await OnSta(() =>
+        {
+            var content = new CalendarDayDetailsView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var window = new CalendarDayDialogWindow { DataContext = vm, Content = content, Width = width, Height = 760, ShowInTaskbar = false };
+            try
+            {
+                window.Show(); Pump(); window.UpdateLayout();
+                var header = (Grid)content.FindName("DayTradesHeader");
+                var scroller = (ScrollViewer)content.FindName("DayTradesScroller");
+                Grid[] rows = Descendants(content).OfType<Grid>().Where(g => g.Name == "DayTradeRow").ToArray();
+                Assert.Equal(2, rows.Length);
+                Grid[] grids = [header, .. rows];
+                TextBlock[] names = rows.Select(g => g.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2)).ToArray();
+                void CheckAlignment()
+                {
+                    foreach (Grid row in rows)
+                        for (int column = 0; column < header.ColumnDefinitions.Count; column++)
+                        {
+                            var heading = header.Children.OfType<FrameworkElement>().Single(e => Grid.GetColumn(e) == column);
+                            var value = row.Children.OfType<FrameworkElement>().Single(e => Grid.GetColumn(e) == column);
+                            Assert.Equal(heading.TransformToAncestor(scroller).Transform(new Point()).X,
+                                value.TransformToAncestor(scroller).Transform(new Point()).X, 1);
+                        }
+                }
+                double after = header.ColumnDefinitions[2].ActualWidth;
+                var label = header.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2);
+                label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                Assert.InRange(after, label.DesiredSize.Width - .1, 160);
+                // WPF layout rounding at the host's display DPI may shave a fraction of a DIP.
+                if (longName) Assert.InRange(after, 159, 160);
+                else Assert.True(after < 90, $"Short Account width was {after}");
+                Assert.All(names, t => Assert.Equal(((CalendarTradePresentation)t.DataContext).Trade.TradingAccountName, t.ToolTip));
+                Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
+                CheckAlignment();
+                Assert.All(rows, g => Assert.Equal(after, g.ColumnDefinitions[2].ActualWidth, 1));
+                Assert.True(header.ColumnDefinitions[6].ActualWidth >= 140);
+                Assert.True(header.ColumnDefinitions[7].ActualWidth >= 180);
+                Assert.Single(vm.DayTrades, r => r.IsExpanded && r.Trade.Id == second.Id);
+                if (width < 700)
+                {
+                    scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
+                    Assert.True(scroller.HorizontalOffset > 0);
+                    Assert.Equal(scroller.ScrollableWidth, scroller.HorizontalOffset, 1);
+                    CheckAlignment();
+                    Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
+                    scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
+                }
+
+                // Measure the previous star-sized layout at the same actual table viewport.
+                foreach (Grid grid in grids)
+                {
+                    grid.ColumnDefinitions[1].Width = new GridLength(1, GridUnitType.Star);
+                    grid.ColumnDefinitions[1].MinWidth = 100;
+                    var account = grid.ColumnDefinitions[2];
+                    account.SharedSizeGroup = null; account.MaxWidth = double.PositiveInfinity;
+                    account.MinWidth = 120; account.Width = new GridLength(1, GridUnitType.Star);
+                    grid.ColumnDefinitions[6].Width = new GridLength(140);
+                    grid.ColumnDefinitions[7].Width = new GridLength(180);
+                }
+                Pump(); window.UpdateLayout();
+                double before = header.ColumnDefinitions[2].ActualWidth;
+                foreach (Grid grid in grids)
+                {
+                    grid.ColumnDefinitions[1].MinWidth = 0; grid.ColumnDefinitions[1].Width = new GridLength(100);
+                    var account = grid.ColumnDefinitions[2];
+                    account.MinWidth = 0; account.MaxWidth = 160; account.Width = GridLength.Auto;
+                    account.SharedSizeGroup = "DayTradeAccount";
+                    grid.ColumnDefinitions[6].Width = new GridLength(1, GridUnitType.Star);
+                    grid.ColumnDefinitions[7].Width = new GridLength(1, GridUnitType.Star);
+                }
+                Pump(); window.UpdateLayout();
+                Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
+                if (!longName) Assert.True(before > after);
+                CheckAlignment();
+                string measurements = $"Viewport={scroller.ViewportWidth:F2} DIPs; Account before={before:F2}, after={after:F2}; Setup={header.ColumnDefinitions[6].ActualWidth:F2}; Mistakes={header.ColumnDefinitions[7].ActualWidth:F2}";
+                var page = (ScrollViewer)content.FindName("DayContentScroller");
+                page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
+                Pump(); window.UpdateLayout();
+                Render(content, $"account-{(longName ? "long" : "short")}-{theme}", width, dpi);
+                if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+                    File.WriteAllText(System.IO.Path.Combine(output, $"calendar-account-{theme}-{width}-{dpi}-{longName}.txt"),
+                        measurements);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Theory]
     [InlineData("Light", 1100, 96)]
     [InlineData("Dark", 1100, 96)]
     [InlineData("Light", 480, 240)]

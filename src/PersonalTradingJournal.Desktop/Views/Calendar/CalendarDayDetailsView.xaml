@@ -101,18 +101,18 @@
                             AutomationProperties.HelpText="Journal storage and editing are not available."
                             Style="{DynamicResource PtjButtonStyle}" />
                 </StackPanel>
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                               interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">
-                    <StackPanel MinWidth="1040">
-                        <Grid Margin="8,0,8,8">
+                    <StackPanel MinWidth="1040" Grid.IsSharedSizeScope="True">
+                        <Grid x:Name="DayTradesHeader" Margin="8,0,8,8">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="112" /><ColumnDefinition Width="*" MinWidth="100" />
-                                <ColumnDefinition Width="*" MinWidth="120" /><ColumnDefinition Width="70" />
-                                <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="140" /><ColumnDefinition Width="180" /><ColumnDefinition Width="64" />
+                                <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MaxWidth="160" /><ColumnDefinition Width="70" />
+                                <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="*" MinWidth="180" /><ColumnDefinition Width="64" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Time (New York)" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="1" Text="Instrument" Foreground="{DynamicResource PtjTextMutedBrush}" />
-                            <TextBlock Grid.Column="2" Text="Account" Foreground="{DynamicResource PtjTextMutedBrush}" />
+                            <TextBlock Grid.Column="2" Text="Account" Margin="0,0,8,0" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="3" Text="Direction" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="4" Text="Size" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="5" Text="Net P&amp;L" Foreground="{DynamicResource PtjTextMutedBrush}" />
@@ -120,7 +120,7 @@
                             <TextBlock Grid.Column="7" Text="Trading Mistakes" Foreground="{DynamicResource PtjTextMutedBrush}" />
                             <TextBlock Grid.Column="8" Text="Action" Foreground="{DynamicResource PtjTextMutedBrush}" />
                         </Grid>
-                        <ItemsControl ItemsSource="{Binding DayTrades}">
+                        <ItemsControl x:Name="DayTradesList" ItemsSource="{Binding DayTrades}">
                             <ItemsControl.ItemTemplate><DataTemplate>
                                 <Border Padding="8" Margin="0,0,0,6" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource PtjBorderBrush}"
                                         AutomationProperties.Name="{Binding AccessibleName}">
@@ -138,17 +138,17 @@
                                         </Style>
                                     </Border.Style>
                                     <StackPanel>
-                                    <Grid>
+                                    <Grid x:Name="DayTradeRow">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="112" /><ColumnDefinition Width="*" MinWidth="100" />
-                                            <ColumnDefinition Width="*" MinWidth="120" /><ColumnDefinition Width="70" />
-                                            <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="140" /><ColumnDefinition Width="180" /><ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MaxWidth="160" /><ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="56" /><ColumnDefinition Width="170" /><ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="*" MinWidth="180" /><ColumnDefinition Width="64" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{Binding ClosingTime}" TextWrapping="Wrap" ToolTip="{Binding ClosingTimeDescription}"
                                                    AutomationProperties.Name="{Binding ClosingTimeDescription}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                         <TextBlock Grid.Column="1" Text="{Binding Trade.InstrumentSymbol}" Margin="0,0,8,0" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                                        <TextBlock Grid.Column="2" Text="{Binding Trade.TradingAccountName}" Margin="0,0,8,0" TextWrapping="Wrap"
+                                        <TextBlock Grid.Column="2" Text="{Binding Trade.TradingAccountName}" Margin="0,0,8,0" MaxWidth="152" HorizontalAlignment="Left" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource PtjTextPrimaryBrush}" ToolTip="{Binding Trade.TradingAccountName}" />
                                         <TextBlock Grid.Column="3" Text="{Binding Trade.Direction}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                         <TextBlock Grid.Column="4" Text="{Binding SizeText}" Margin="0,0,8,0" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
