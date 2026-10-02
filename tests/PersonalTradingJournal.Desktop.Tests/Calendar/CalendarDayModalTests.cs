@@ -273,7 +273,7 @@ public sealed class CalendarDayModalTests
             foreach (var nested in Descendants(child)) yield return nested;
         }
     }
-    private static Task OnSta(Action action)
+    internal static Task OnSta(Action action)
     {
         // Another existing test shuts down WPF's process-wide Application. Native windows
         // must have a fresh WPF lifetime; never depend on xUnit collection execution order.
@@ -289,7 +289,7 @@ public sealed class CalendarDayModalTests
             RedirectStandardOutput = true, RedirectStandardError = true };
         start.ArgumentList.Add("vstest");
         start.ArgumentList.Add(typeof(CalendarDayModalTests).Assembly.Location);
-        start.ArgumentList.Add("/TestCaseFilter:FullyQualifiedName~CalendarDayModalTests");
+        start.ArgumentList.Add("/TestCaseFilter:FullyQualifiedName~CalendarDayModalTests|FullyQualifiedName~CalendarDayPerformanceChartTests");
         start.Environment["PTJ_CALENDAR_MODAL_TEST_HOST"] = "1";
         using Process process = Process.Start(start)!;
         Task<string> output = process.StandardOutput.ReadToEndAsync(), error = process.StandardError.ReadToEndAsync();
