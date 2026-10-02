@@ -67,8 +67,8 @@ public sealed class CalendarViewLayoutTests
                     ((SolidColorBrush)marker.BorderBrush).Color);
                 Assert.Equal(day.IsToday ? Brush("PtjOnCalendarTodayBrush") : day.IsInDisplayedMonth
                     ? Brush("PtjTextPrimaryBrush") : Brush("PtjTextMutedBrush"), ((SolidColorBrush)number.Foreground).Color);
-                Assert.Equal(new Thickness(0, 0, 1, 1), cell.BorderThickness); // No today/selection full-cell outline.
-                Assert.Equal(Brush("PtjBorderBrush"), ((SolidColorBrush)cell.BorderBrush).Color);
+                Assert.Equal(day.IsSelected ? new Thickness(2) : new Thickness(0, 0, 1, 1), cell.BorderThickness);
+                Assert.Equal(Brush(day.IsSelected ? "PtjAccentBrush" : "PtjBorderBrush"), ((SolidColorBrush)cell.BorderBrush).Color);
                 // Focus remains a separate outer marker ring, even when a click also focuses a selected cell.
                 Border focusMarker = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateFocusMarker");
                 Assert.Equal(new Thickness(1), focusMarker.BorderThickness);
@@ -100,6 +100,77 @@ public sealed class CalendarViewLayoutTests
                 encoder.Save(file);
             }
         });
+    }
+
+    [Theory]
+    [InlineData("Light", 1100, 96)]
+    [InlineData("Dark", 1100, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 480, 240)]
+    public async Task HitTestingScopesDateHoverToMarkerNotDailyWeeklyOrEmptyCellAreas(string theme, int width, int dpi)
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        await OnSta(() =>
+        {
+            var view = new CalendarView { DataContext = vm, Resources = SharedThemeResources(theme) };
+            view.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            view.Measure(new Size(width, 980));
+            view.Arrange(new Rect(0, 0, width, 980));
+            view.UpdateLayout();
+            foreach (CalendarDayHost cell in Descendants(view).OfType<CalendarDayHost>())
+            {
+                var day = (CalendarDayCell)cell.DataContext;
+                Border marker = Assert.Single(Descendants(cell).OfType<Border>(), b => b.Name == "DateFocusMarker");
+                Assert.Null(cell.ToolTip);
+                Assert.Equal(Colors.Transparent, ((SolidColorBrush)marker.Background).Color);
+                Assert.Equal(day.DateTooltip, marker.ToolTip);
+                Assert.Equal(day.DailyAccessibleDescription, AutomationProperties.GetHelpText(marker));
+                Assert.Contains(day.DailyAccessibleDescription, AutomationProperties.GetHelpText(cell));
+                Assert.DoesNotContain("Estimated", day.DateTooltip, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("commission", day.DateTooltip, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("fees", day.DateTooltip, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("coverage", day.DateTooltip, StringComparison.OrdinalIgnoreCase);
+                // Use the compiled visual tree's real hit targets, including transparent marker padding.
+                foreach (Point point in new[] { new Point(3, 18), new Point(18, 18), new Point(32, 18) })
+                    Assert.Same(marker, TooltipOwnerAt(cell, marker.TransformToAncestor(cell).Transform(point)));
+                Assert.Null(TooltipOwnerAt(cell, new Point(12, cell.ActualHeight - 12)));
+                foreach (TextBlock text in Descendants(cell).OfType<TextBlock>().Where(t =>
+                    t.IsVisible && t.ActualWidth > 0 && (t.DataContext is CalendarPnlSummary || t.Text.StartsWith("Week", StringComparison.Ordinal) || t.Text == "0 Trades")))
+                {
+                    Assert.Null(TooltipOwnerAt(cell, text.TransformToAncestor(cell).Transform(new Point(text.ActualWidth / 2, text.ActualHeight / 2))));
+                    Assert.Null(text.ToolTip);
+                }
+                Assert.All(Descendants(cell).OfType<FrameworkElement>().Where(e => e.ToolTip is not null), e => Assert.Same(marker, e));
+            }
+            var estimated = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 4));
+            Assert.Contains("commission/fees unknown", AutomationProperties.GetHelpText(estimated));
+            var saturday = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+            Assert.Contains("7.00 USD; 1 Trade", ((CalendarDayCell)saturday.DataContext).DateTooltip);
+            Assert.DoesNotContain("-205", ((CalendarDayCell)saturday.DataContext).DateTooltip);
+            Assert.Contains(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "-205.00 USD");
+            Assert.Contains(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "7 Trades");
+            var scroller = (ScrollViewer)view.FindName("CalendarScroller");
+            if (width < 840)
+            {
+                scroller.ScrollToHorizontalOffset(100);
+                view.UpdateLayout();
+                Assert.Equal(100, scroller.HorizontalOffset);
+                Border marker = Assert.Single(Descendants(estimated).OfType<Border>(), b => b.Name == "DateFocusMarker");
+                Assert.Same(marker, TooltipOwnerAt(estimated, marker.TransformToAncestor(estimated).Transform(new Point(18, 18))));
+            }
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 980 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(view);
+        });
+
+        static FrameworkElement? TooltipOwnerAt(CalendarDayHost cell, Point position)
+        {
+            DependencyObject? hit = VisualTreeHelper.HitTest(cell, position)?.VisualHit;
+            Assert.NotNull(hit);
+            // WPF can find a tooltip on an ancestor even when the hit child has no tooltip.
+            for (DependencyObject? current = hit; current is not null; current = VisualTreeHelper.GetParent(current))
+                if (current is FrameworkElement element && ToolTipService.GetToolTip(element) is not null && ToolTipService.GetIsEnabled(element)) return element;
+            return null;
+        }
     }
 
     [Theory]
@@ -395,14 +466,32 @@ public sealed class CalendarViewLayoutTests
             }
             Border adjacent = Cell(8, 31);
             var mouse = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
-                { RoutedEvent = UIElement.MouseLeftButtonUpEvent };
-            adjacent.RaiseEvent(mouse);
+                { RoutedEvent = Mouse.MouseUpEvent };
+            adjacent.Child.RaiseEvent(mouse); // Bubble from the cell body, not only the marker.
             Assert.True(mouse.Handled);
             FinishLoad();
             Layout();
             Assert.Equal(new DateOnly(2026, 8, 31), vm.SelectedDate);
             Assert.False(((CalendarDayCell)saturday.DataContext).IsSelected);
             Assert.Equal(2, reader.Calls.Count);
+            TextBlock weekLabel = Assert.Single(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "Week 1");
+            var weeklyClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.MouseUpEvent };
+            weekLabel.RaiseEvent(weeklyClick);
+            FinishLoad();
+            Layout();
+            Assert.True(weeklyClick.Handled);
+            Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+            TextBlock dailyAmount = Assert.Single(Descendants(Cell(9, 4)).OfType<TextBlock>(),
+                t => t.DataContext is CalendarPnlSummary s && t.Text == s.AmountText);
+            var amountClick = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left)
+                { RoutedEvent = Mouse.MouseUpEvent };
+            dailyAmount.RaiseEvent(amountClick);
+            FinishLoad();
+            Layout();
+            Assert.True(amountClick.Handled);
+            Assert.Equal(new DateOnly(2026, 9, 4), vm.SelectedDate);
+            Assert.Equal(4, reader.Calls.Count);
         });
     }
 

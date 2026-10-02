@@ -21,6 +21,10 @@
                 <DataTrigger Binding="{Binding DailyOutcome}" Value="{x:Static converters:PnLOutcome.Negative}">
                     <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
                 </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+                    <Setter Property="BorderThickness" Value="2" />
+                </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="CalendarDateFocusStyle" TargetType="Border">
@@ -76,7 +80,7 @@
             </Style.Triggers>
         </Style>
         <DataTemplate x:Key="CalendarPnlTemplate">
-            <Border Padding="2,4" ToolTip="{Binding Description}" AutomationProperties.Name="{Binding Description}">
+            <Border Padding="2,4" AutomationProperties.Name="{Binding Description}">
                 <Border.Style>
                     <Style TargetType="Border">
                         <Style.Triggers>
@@ -240,15 +244,17 @@
                                                 Style="{StaticResource CalendarDayStyle}"
                                                 AutomationProperties.Name="{Binding AccessibleName}"
                                                 AutomationProperties.ItemStatus="{Binding AccessibleStatus}"
-                                                AutomationProperties.HelpText="Select this date with Enter or Space to show its closed Trades."
-                                                ToolTip="{Binding AccessibleName}">
+                                                AutomationProperties.HelpText="{Binding SelectionHelpText}">
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
                                                 </Grid.RowDefinitions>
                                                 <Border x:Name="DateFocusMarker" Width="36" Height="36" CornerRadius="18"
-                                                        HorizontalAlignment="Center" Style="{StaticResource CalendarDateFocusStyle}">
+                                                        HorizontalAlignment="Center" Background="Transparent"
+                                                        ToolTip="{Binding DateTooltip}"
+                                                        AutomationProperties.HelpText="{Binding DailyAccessibleDescription}"
+                                                        Style="{StaticResource CalendarDateFocusStyle}">
                                                 <Border x:Name="DateSelectionMarker" Width="30" Height="30" CornerRadius="15"
                                                         HorizontalAlignment="Center" Style="{StaticResource CalendarDateMarkerStyle}">
                                                 <Border x:Name="TodayMarker" Width="24" Height="24" CornerRadius="12"
@@ -278,8 +284,7 @@
                                                 <Border Grid.Row="1" VerticalAlignment="Center"
                                                         Style="{StaticResource CalendarSaturdayAreaStyle}"
                                                         AutomationProperties.Name="Weekly summary area"
-                                                        AutomationProperties.HelpText="{Binding WeeklyDescription}"
-                                                        ToolTip="{Binding WeeklyDescription}">
+                                                        AutomationProperties.HelpText="{Binding WeeklyDescription}">
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding WeekLabel}" FontWeight="SemiBold" TextAlignment="Center"
                                                                    Foreground="{DynamicResource PtjTextPrimaryBrush}" />
@@ -322,7 +327,12 @@
                 </WrapPanel>
                 <ItemsControl ItemsSource="{Binding DaySummaries}" ItemTemplate="{StaticResource CalendarPnlTemplate}" Margin="0,0,0,12">
                     <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemContainerStyle><Style TargetType="ContentPresenter"><Setter Property="Margin" Value="0,0,16,0" /></Style></ItemsControl.ItemContainerStyle>
+                    <ItemsControl.ItemContainerStyle>
+                        <Style TargetType="ContentPresenter">
+                            <Setter Property="Margin" Value="0,0,16,0" />
+                            <Setter Property="ToolTip" Value="{Binding Description}" />
+                        </Style>
+                    </ItemsControl.ItemContainerStyle>
                 </ItemsControl>
                 <TextBlock Text="No closed Trades on this date." Margin="0,4" TextWrapping="Wrap"
                            Foreground="{DynamicResource PtjTextSecondaryBrush}"

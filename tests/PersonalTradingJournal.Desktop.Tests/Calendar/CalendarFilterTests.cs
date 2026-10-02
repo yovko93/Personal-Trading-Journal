@@ -184,6 +184,8 @@ public sealed class CalendarFilterTests
         Assert.True(vm.MonthlySummaries[0].Summary.IsEstimated);
         Assert.Contains("commission/fees unknown", vm.MonthlySummaries[0].Description);
         Assert.Equal(9m, Assert.Single(Cell(vm).DailySummaries).Amount);
+        Assert.Contains("9.00 USD; 1 Trade", Cell(vm).DateTooltip);
+        Assert.DoesNotContain("EUR", Cell(vm).DateTooltip);
         var row = Assert.Single(vm.DayTrades).Trade;
         Assert.Equal(data.Historical.Id, row.TradingAccountId);
         Assert.Equal("USD", row.Currency);
@@ -195,6 +197,8 @@ public sealed class CalendarFilterTests
         await vm.LoadTask;
         Assert.Equal(-2m, Assert.Single(vm.DaySummaries).Amount);
         Assert.Equal(-2m, Assert.Single(Cell(vm).WeeklySummaries).Amount);
+        Assert.Contains("-2.00 EUR; 1 Trade", Cell(vm).DateTooltip);
+        Assert.DoesNotContain("USD", Cell(vm).DateTooltip);
         Assert.Equal(-2m, Assert.Single(vm.MonthlySummaries).Amount);
         Assert.Equal(1, vm.DayDetails!.ClosedTradeCount);
         vm.SelectedCurrency = "All currencies";

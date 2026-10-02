@@ -57,6 +57,15 @@ public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool
         (WeeklySummaries.Count > 0 ? string.Join(" ", WeeklySummaries.Select(s => s.Description))
             : IsDataLoaded ? "No closed Trades." : "Summary not loaded.");
     public string DayNumber => Date.Day.ToString(CultureInfo.CurrentCulture);
+    public string DailyAccessibleDescription => HasDailyTrades
+        ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
+        : IsDataLoaded ? "No closed Trades on this date." : "Daily results not loaded.";
+    public string SelectionHelpText => "Select this date with Enter or Space to show its closed Trades. " + DailyAccessibleDescription;
+    // Hover is deliberately concise, while accessibility retains provenance and coverage.
+    // Saturday's marker describes Saturday, not the weekly total displayed beneath it.
+    public string DateTooltip => Date.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture) + Environment.NewLine +
+        (HasDailyTrades ? string.Join(Environment.NewLine, DailySummaries.Select(s => $"P/L: {s.AmountText}; {s.TradeCountText}"))
+            : IsBusy ? "Loading daily results…" : IsDataLoaded ? "0 Trades" : "Daily results not loaded.");
     public string AccessibleName => $"{Date.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture)}" +
         (IsToday ? ", today" : "") + (IsInDisplayedMonth ? "" : ", adjacent month") +
         (IsSelected ? ", selected" : "") +

@@ -9,6 +9,28 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
 public sealed class CalendarSummaryTests
 {
+    [Fact]
+    public async Task MarkerHoverShowsDailyValuesOnlyWhileAccessibilityRetainsCostProvenance()
+    {
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
+        CalendarDayCell Day(int day) => CalendarDayDetailsTests.Cell(vm, new(2026, 9, day));
+        Assert.Contains("-285.00 USD; 1 Trade", Day(4).DateTooltip);
+        Assert.DoesNotContain("Estimated", Day(4).DateTooltip);
+        Assert.DoesNotContain("unknown", Day(4).DateTooltip);
+        Assert.Contains("Estimated", Day(4).DailyAccessibleDescription);
+        Assert.Contains("commission/fees unknown", Day(4).SelectionHelpText);
+        Assert.Contains("0.00 USD; 1 Trade", Day(3).DateTooltip);
+        Assert.Contains("— USD; 1 Trade", Day(7).DateTooltip);
+        Assert.Contains("0 Trades", Day(10).DateTooltip);
+        Assert.DoesNotContain("0.00", Day(10).DateTooltip);
+        Assert.Contains("-20.00 EUR; 1 Trade", Day(8).DateTooltip);
+        Assert.Contains("10.00 USD; 1 Trade", Day(8).DateTooltip);
+        Assert.Contains("7.00 USD; 1 Trade", Day(5).DateTooltip);
+        Assert.DoesNotContain("Week", Day(5).DateTooltip);
+        Assert.DoesNotContain("-205", Day(5).DateTooltip);
+        Assert.Contains("Verified Net", Day(5).DailyAccessibleDescription);
+    }
+
     [Theory]
     [InlineData(25, PnLOutcome.Positive)]
     [InlineData(-25, PnLOutcome.Negative)]
