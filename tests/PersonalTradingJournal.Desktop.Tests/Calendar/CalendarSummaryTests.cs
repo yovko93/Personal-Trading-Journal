@@ -39,19 +39,25 @@ public sealed class CalendarSummaryTests
     }
 
     [Fact]
-    public async Task SaturdayRetainsDailyActivityAndFullMondaySundayReaderSummary()
+    public async Task SaturdayShowsOnlyFullMondaySundaySummaryWhileRetainingDailyReaderData()
     {
         CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
         CalendarDayCell saturday = vm.Weeks[0].Days[5];
         Assert.Equal(new DateOnly(2026, 9, 5), saturday.Date);
         Assert.Equal("Week 1", saturday.WeekLabel);
         Assert.Equal(7m, Assert.Single(saturday.DailySummaries).Amount);
+        Assert.False(saturday.ShowsDailySummary);
         var week = Assert.Single(saturday.WeeklySummaries);
         Assert.Equal(-205m, week.Amount); // Includes adjacent Aug 31 and Sunday Sep 6.
         Assert.Equal(7, week.Metrics.ClosedTradeCount);
         Assert.Contains("Estimated", week.Description);
         Assert.Same(vm.MonthData!.Currencies.Single(c => c.Currency == "USD").Weeks[0].Metrics, week.Metrics);
         Assert.Equal(11m, Assert.Single(vm.Weeks[0].Days[6].DailySummaries).Amount);
+        CalendarDayCell quietSaturday = vm.Weeks[1].Days[5];
+        Assert.Empty(quietSaturday.DailySummaries);
+        Assert.False(quietSaturday.ShowsDailySummary);
+        Assert.Equal(2, quietSaturday.WeeklySummaries.Count);
+        Assert.Equal(3, quietSaturday.WeeklySummaries.Single(s => s.Currency == "USD").Metrics.ClosedTradeCount);
         CalendarDayCell lastSaturday = vm.Weeks[4].Days[5];
         Assert.False(lastSaturday.IsInDisplayedMonth);
         Assert.Equal("Week 5", lastSaturday.WeekLabel);

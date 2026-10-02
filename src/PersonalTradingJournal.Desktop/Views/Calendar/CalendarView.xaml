@@ -160,7 +160,6 @@
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
-                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <TextBlock Text="{Binding DayNumber}" HorizontalAlignment="Right" FontSize="14">
                                                     <TextBlock.Style>
@@ -175,15 +174,10 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                                 <StackPanel Grid.Row="1" VerticalAlignment="Center" Margin="0,8,0,0"
-                                                            Visibility="{Binding HasDailyTrades, Converter={StaticResource BoolVisibility}}">
-                                                    <TextBlock Text="Daily" FontSize="12" TextAlignment="Center"
-                                                               Foreground="{DynamicResource PtjTextSecondaryBrush}"
-                                                               Visibility="{Binding IsSaturday, Converter={StaticResource BoolVisibility}}" />
+                                                            Visibility="{Binding ShowsDailySummary, Converter={StaticResource BoolVisibility}}">
                                                     <ItemsControl ItemsSource="{Binding DailySummaries}" ItemTemplate="{StaticResource CalendarPnlTemplate}" />
                                                 </StackPanel>
-                                                <Border Grid.Row="2" MinHeight="48" Margin="0,8,0,0"
-                                                        Padding="0,6,0,0" BorderThickness="0,1,0,0"
-                                                        BorderBrush="{DynamicResource PtjBorderBrush}"
+                                                <Border Grid.Row="1" VerticalAlignment="Center"
                                                         Style="{StaticResource CalendarSaturdayAreaStyle}"
                                                         AutomationProperties.Name="Weekly summary area"
                                                         AutomationProperties.HelpText="{Binding WeeklyDescription}"

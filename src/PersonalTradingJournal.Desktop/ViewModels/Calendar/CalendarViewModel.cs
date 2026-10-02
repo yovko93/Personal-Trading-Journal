@@ -16,8 +16,9 @@ public sealed record CalendarDayCell(DateOnly Date, bool IsInDisplayedMonth, boo
     public bool IsDataLoaded { get; init; }
     public string WeekLabel { get; init; } = "";
     public bool HasDailyTrades => DailySummaries.Count > 0;
+    public bool ShowsDailySummary => !IsSaturday && HasDailyTrades;
     public bool HasEmptyWeek => IsDataLoaded && IsSaturday && WeeklySummaries.Count == 0;
-    // Saturday contains an independent weekly outcome; tint its daily band, not the entire cell.
+    // Saturday displays its weekly outcome; its daily metrics remain available for day details.
     public PnLOutcome DailyOutcome => IsInDisplayedMonth && !IsSaturday && DailySummaries.Count == 1
         ? DailySummaries[0].Outcome : PnLOutcome.None;
     public string WeeklyDescription => !IsSaturday ? "" : $"{WeekLabel}, Monday {Date.AddDays(-5):yyyy-MM-dd} through Sunday {Date.AddDays(1):yyyy-MM-dd}. " +
@@ -26,9 +27,9 @@ public sealed record CalendarDayCell(DateOnly Date, bool IsInDisplayedMonth, boo
     public string DayNumber => Date.Day.ToString(CultureInfo.CurrentCulture);
     public string AccessibleName => $"{Date.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture)}" +
         (IsToday ? ", today" : "") + (IsInDisplayedMonth ? "" : ", adjacent month") +
-        ". " + (HasDailyTrades ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
-            : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.") +
-        (IsSaturday ? " " + WeeklyDescription : "");
+        ". " + (IsSaturday ? WeeklyDescription
+            : HasDailyTrades ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
+            : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.");
 }
 
 public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);

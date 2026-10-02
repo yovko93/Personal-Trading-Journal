@@ -18,7 +18,7 @@ public sealed class CalendarViewLayoutTests
     [InlineData("Dark", 1100, 96)]
     [InlineData("Light", 640, 240)]
     [InlineData("Dark", 640, 240)]
-    public async Task PopulatedGridRendersSignsSaturdayActivityAndCurrencyBandsWithoutOverlap(string theme, int width, int dpi)
+    public async Task PopulatedGridRendersSignsAndCenteredWeeklyOnlySaturdayAcrossThemes(string theme, int width, int dpi)
     {
         CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync();
         await OnSta(() =>
@@ -69,11 +69,22 @@ public sealed class CalendarViewLayoutTests
             Border saturday = Cell(9, 5);
             Border weekly = Assert.Single(Descendants(saturday).OfType<Border>(),
                 b => AutomationProperties.GetName(b) == "Weekly summary area");
-            TextBlock daily = Assert.Single(Descendants(saturday).OfType<TextBlock>(), t =>
-                t.DataContext is CalendarPnlSummary s && s.Amount == 7m && t.Text == s.AmountText);
-            Assert.True(daily.TransformToAncestor(saturday).Transform(new Point(0, daily.ActualHeight)).Y <
-                weekly.TransformToAncestor(saturday).Transform(new Point(0, 0)).Y);
+            ItemsControl dailyItems = Assert.Single(Descendants(saturday).OfType<ItemsControl>(),
+                i => ReferenceEquals(i.ItemsSource, ((CalendarDayCell)saturday.DataContext).DailySummaries));
+            Assert.Equal(Visibility.Collapsed, ((StackPanel)VisualTreeHelper.GetParent(dailyItems)).Visibility);
+            Assert.Equal(0d, weekly.BorderThickness.Top);
+            Assert.InRange(Math.Abs(weekly.TransformToAncestor(saturday).Transform(new Point(0, weekly.ActualHeight / 2)).Y
+                - saturday.ActualHeight / 2), 0, 12);
             Assert.Contains(Descendants(saturday).OfType<TextBlock>(), t => t.Text == "Week 1");
+            Assert.Contains(Descendants(weekly).OfType<TextBlock>(), t => t.Text == "-205.00 USD");
+            Assert.Contains(Descendants(weekly).OfType<TextBlock>(), t => t.Text == "7 Trades");
+            Border quietSaturday = Cell(9, 12);
+            Border quietWeek = Assert.Single(Descendants(quietSaturday).OfType<Border>(),
+                b => AutomationProperties.GetName(b) == "Weekly summary area");
+            Assert.InRange(Math.Abs(quietWeek.TransformToAncestor(quietSaturday).Transform(new Point(0, quietWeek.ActualHeight / 2)).Y
+                - quietSaturday.ActualHeight / 2), 0, 12);
+            Assert.Contains(Descendants(quietWeek).OfType<TextBlock>(), t => t.Text == "Week 2");
+            Assert.Contains(Descendants(quietWeek).OfType<TextBlock>(), t => t.Text == "3 Trades");
             Assert.Contains(Descendants(Cell(9, 7)).OfType<TextBlock>(), t => t.Text == "— USD");
             Assert.Contains(Descendants(Cell(9, 3)).OfType<TextBlock>(), t => t.Text == "1 Trade");
             Assert.DoesNotContain(Descendants(Cell(9, 10)).OfType<TextBlock>(), t => t.DataContext is CalendarPnlSummary);
@@ -133,7 +144,7 @@ public sealed class CalendarViewLayoutTests
                     .Where(b => AutomationProperties.GetName(b) == "Weekly summary area" && b.Visibility == Visibility.Visible)
                     .ToArray();
                 Assert.Equal(rows, saturdayAreas.Length);
-                Assert.All(saturdayAreas, area => Assert.True(area.ActualHeight >= 48));
+                Assert.All(saturdayAreas, area => Assert.True(area.ActualHeight > 0));
                 if (dayCells.Any(cell => ((CalendarDayCell)cell.DataContext).IsToday))
                 {
                     Border today = Assert.Single(dayCells, cell => ((CalendarDayCell)cell.DataContext).IsToday);
