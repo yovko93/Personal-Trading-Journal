@@ -115,7 +115,7 @@ public sealed class CalendarDayModalTests
                 Assert.InRange(after, label.DesiredSize.Width - .1, 160);
                 // WPF layout rounding at the host's display DPI may shave a fraction of a DIP.
                 if (longName) Assert.InRange(after, 159, 160);
-                else Assert.True(after < 90, $"Short Account width was {after}");
+                else Assert.Equal(100, after, 1);
                 Assert.All(names, t => Assert.Equal(((CalendarTradePresentation)t.DataContext).Trade.TradingAccountName, t.ToolTip));
                 Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
                 CheckAlignment();
@@ -155,37 +155,30 @@ public sealed class CalendarDayModalTests
                     scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
                 }
 
-                // Measure the preceding double-star Net layout at the same viewport.
-                GridLength[] responsiveWidths = header.ColumnDefinitions.Select(c => c.Width).ToArray();
-                double[] minimumWidths = header.ColumnDefinitions.Select(c => c.MinWidth).ToArray();
-                GridLength[] priorWidths = [new(1, GridUnitType.Star), new(1, GridUnitType.Star), GridLength.Auto,
-                    new(2, GridUnitType.Star), new(.5, GridUnitType.Star), new(.75, GridUnitType.Star), new(150), new(170), new(64)];
-                double[] priorMinimums = [112, 100, 0, 170, 56, 70, 0, 0, 0];
-                foreach (Grid grid in grids)
-                {
-                    for (int column = 0; column < priorWidths.Length; column++)
-                    {
-                        grid.ColumnDefinitions[column].Width = priorWidths[column];
-                        grid.ColumnDefinitions[column].MinWidth = priorMinimums[column];
-                    }
-                }
+                // Measure the immediately preceding content-only Account at the same viewport.
+                foreach (Grid grid in grids) grid.ColumnDefinitions[2].MinWidth = 0;
                 Pump(); window.UpdateLayout();
                 double beforeGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
-                double beforeNetWidth = header.ColumnDefinitions[3].ActualWidth;
-                foreach (Grid grid in grids)
-                {
-                    for (int column = 0; column < responsiveWidths.Length; column++)
-                    {
-                        grid.ColumnDefinitions[column].Width = responsiveWidths[column];
-                        grid.ColumnDefinitions[column].MinWidth = minimumWidths[column];
-                    }
-                }
+                double beforeAccount = header.ColumnDefinitions[2].ActualWidth;
+                double beforeSetup = header.ColumnDefinitions[6].ActualWidth;
+                double beforeMistakes = header.ColumnDefinitions[7].ActualWidth;
+                foreach (Grid grid in grids) grid.ColumnDefinitions[2].MinWidth = 100;
                 Pump(); window.UpdateLayout();
                 Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
                 CheckAlignment();
                 double afterGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
                 Assert.InRange(afterGap, -.1, .1);
-                string measurements = $"Window={window.ActualWidth:F2}, Viewport={scroller.ViewportWidth:F2} DIPs; unused after Action before={beforeGap:F2}, after={afterGap:F2}; Net width before={beforeNetWidth:F2}, after={header.ColumnDefinitions[3].ActualWidth:F2}; Account={after:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
+                if (!longName)
+                {
+                    double accountGain = after - beforeAccount;
+                    double setupLoss = beforeSetup - header.ColumnDefinitions[6].ActualWidth;
+                    double mistakesLoss = beforeMistakes - header.ColumnDefinitions[7].ActualWidth;
+                    Assert.InRange(accountGain, 40, 50);
+                    Assert.Equal(accountGain, setupLoss + mistakesLoss, 1);
+                    Assert.InRange(setupLoss / accountGain, .4, .6);
+                    Assert.InRange(mistakesLoss / accountGain, .4, .6);
+                }
+                string measurements = $"Window={window.ActualWidth:F2}, Viewport={scroller.ViewportWidth:F2} DIPs; unused after Action before={beforeGap:F2}, after={afterGap:F2}; Account before={beforeAccount:F2}, after={after:F2}; Setup before={beforeSetup:F2}, after={header.ColumnDefinitions[6].ActualWidth:F2}; Mistakes before={beforeMistakes:F2}, after={header.ColumnDefinitions[7].ActualWidth:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
                 var page = (ScrollViewer)content.FindName("DayContentScroller");
                 page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
                 Pump(); window.UpdateLayout();

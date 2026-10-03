@@ -109,7 +109,7 @@
                         <Grid x:Name="DayTradesHeader" Margin="8,0,8,8">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
-                                <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MaxWidth="160" /><ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MinWidth="100" MaxWidth="160" /><ColumnDefinition Width="150" />
                                 <ColumnDefinition Width="56" /><ColumnDefinition Width="70" /><ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="1.2*" MinWidth="170" /><ColumnDefinition Width="64" />
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="Time (New York)" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextMutedBrush}" />
@@ -144,7 +144,7 @@
                                     <Grid x:Name="DayTradeRow">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MaxWidth="160" /><ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="DayTradeAccount" MinWidth="100" MaxWidth="160" /><ColumnDefinition Width="150" />
                                             <ColumnDefinition Width="56" /><ColumnDefinition Width="70" /><ColumnDefinition Width="*" MinWidth="150" /><ColumnDefinition Width="1.2*" MinWidth="170" /><ColumnDefinition Width="64" />
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{Binding ClosingTime}" TextWrapping="Wrap" ToolTip="{Binding ClosingTimeDescription}"
