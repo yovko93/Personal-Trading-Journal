@@ -19,7 +19,7 @@ using PersonalTradingJournal.Desktop.Tests.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
-public sealed class CalendarDayModalTests
+public sealed partial class CalendarDayModalTests
 {
     [Theory]
     [InlineData("Light", 1100, 96, false)]
@@ -302,7 +302,7 @@ public sealed class CalendarDayModalTests
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
                         Assert.Equal(view.ActualWidth, dialog.ActualWidth, 1);
                         Assert.Equal(view.ActualHeight, dialog.ActualHeight, 1);
-                        Assert.InRange(panel.ActualWidth, 1, Math.Min(1000, dialog.ActualWidth - 32));
+                        Assert.InRange(panel.ActualWidth, 1, Math.Min(1280, dialog.ActualWidth - 32));
                         Assert.Same(dialog, Window.GetWindow(backdrop));
                         Assert.False(backdrop.IsAncestorOf(panel));
                         Assert.Same(view.Resources["PtjBackgroundBrush"], panel.Background);

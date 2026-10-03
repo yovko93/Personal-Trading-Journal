@@ -13,14 +13,24 @@
     <Grid>
         <!-- The enabled modal owns this backdrop: a disabled ShowDialog owner cannot receive dismissal clicks. -->
         <Border x:Name="DialogBackdrop" Background="#66000000" />
-        <Border x:Name="DayPanel" Margin="16" MaxWidth="1000" MaxHeight="820" Padding="12"
+        <Border x:Name="DayPanel" Margin="16" MaxWidth="1280" MaxHeight="820" Padding="12"
                 Background="{DynamicResource PtjBackgroundBrush}" BorderBrush="{DynamicResource PtjBorderBrush}"
                 BorderThickness="1" CornerRadius="6" KeyboardNavigation.TabNavigation="Cycle">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Button x:Name="DismissButton" Content="×" HorizontalAlignment="Right" Click="OnClose"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" Padding="8,2" Margin="0,0,0,4"
-                        AutomationProperties.Name="Close Day Performance" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,4">
+                    <Button x:Name="MinimizeButton" Content="−" Click="OnMinimize" Margin="0,0,4,0"
+                            Style="{DynamicResource PtjSecondaryButtonStyle}" Padding="8,2"
+                            ToolTip="Minimize application and Day Performance"
+                            AutomationProperties.Name="Minimize application and Day Performance" />
+                    <Button x:Name="MaximizeButton" Content="□" Click="OnMaximizeRestore" Margin="0,0,4,0"
+                            Style="{DynamicResource PtjSecondaryButtonStyle}" Padding="8,2"
+                            ToolTip="Maximize Day Performance within the application"
+                            AutomationProperties.Name="Maximize Day Performance" />
+                    <Button x:Name="DismissButton" Content="×" Click="OnClose"
+                            Style="{DynamicResource PtjSecondaryButtonStyle}" Padding="8,2"
+                            AutomationProperties.Name="Close Day Performance" />
+                </StackPanel>
                 <calendar:CalendarDayDetailsView x:Name="DayContent" Grid.Row="1" />
                 <Button x:Name="CloseButton" Grid.Row="2" Content="Close" Margin="0,12,0,0"
                         HorizontalAlignment="Right" Click="OnClose"

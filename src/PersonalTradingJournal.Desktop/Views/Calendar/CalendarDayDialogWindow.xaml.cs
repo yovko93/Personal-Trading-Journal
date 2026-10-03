@@ -11,6 +11,8 @@ public partial class CalendarDayDialogWindow : Window
     public CalendarDayDialogWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => { AttachOwner(); FitToOwner(); };
+        Closed += (_, _) => DetachOwner();
         Closing += (_, e) =>
         {
             if (DataContext is ViewModels.Calendar.CalendarViewModel vm && !vm.TryCloseDayDialog()) e.Cancel = true;
@@ -57,7 +59,8 @@ public partial class CalendarDayDialogWindow : Window
 
     internal void FitToOwner()
     {
-        if (Owner?.Content is not FrameworkElement { IsLoaded: true } content) return;
+        if (Owner is not { WindowState: not WindowState.Minimized } ||
+            Owner.Content is not FrameworkElement { IsLoaded: true } content) return;
         // PointToScreen is in device pixels; Window positions and layout use DIPs.
         // Cover the owner's client area, including a maximized or high-DPI owner.
         var fromDevice = PresentationSource.FromVisual(Owner)?.CompositionTarget?.TransformFromDevice;
