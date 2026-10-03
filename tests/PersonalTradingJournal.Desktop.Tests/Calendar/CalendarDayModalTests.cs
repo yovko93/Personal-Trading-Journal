@@ -36,8 +36,8 @@ public sealed class CalendarDayModalTests
     [InlineData("Dark", 480, 240, true)]
     public async Task ResponsiveColumnsCenterNetFillViewportAndKeepAccountStableWithExpandedRows(string theme, int width, int dpi, bool longName)
     {
-        var first = CalendarDayDetailsTests.Row(new(2026, 9, 5), 200, 197) with { TradingAccountName = "P 21" };
-        var second = first with { Id = Guid.NewGuid(), TradingAccountName = longName
+        var first = CalendarDayDetailsTests.Row(new(2026, 9, 5), -1234567.89m, null) with { TradingAccountName = "P 21" };
+        var second = first with { Id = Guid.NewGuid(), GrossPnL = 200m, NetPnL = 197m, TotalCosts = 3m, TradingAccountName = longName
             ? "An unusually long historical account name that must remain available in full" : "Q 7" };
         var detail = TradesViewModelTests.CreateEditableTradeDetail(second, null);
         var details = new FakeTradeDetailReader(); details.EnqueueResult(detail);
@@ -81,14 +81,20 @@ public sealed class CalendarDayModalTests
                         Assert.Equal(column == 6 ? trade.SetupText : trade.MistakesText, text.Text);
                         Assert.Equal(text.Text, text.ToolTip);
                         Assert.Equal(TextWrapping.Wrap, text.TextWrapping);
-                        Assert.InRange(text.ActualWidth, 1, column == 6 ? 142 : 162);
+                        Assert.Equal(row.ColumnDefinitions[column].ActualWidth - 8, text.ActualWidth, 1);
                         // TextBlocks stretch to the tallest cell; desired height measures actual wrapping.
-                        if (longName && trade.Trade.Id == second.Id) Assert.True(text.DesiredSize.Height > 30);
+                        if (longName && width < 700 && trade.Trade.Id == second.Id) Assert.True(text.DesiredSize.Height > 30);
                         if (text.Text == "None assigned") Assert.True(text.DesiredSize.Height < 25);
                     }
                     Assert.Equal("View", row.Children.OfType<Button>().Single(b => Grid.GetColumn(b) == 8).Content);
                     var net = row.Children.OfType<StackPanel>().Single(p => Grid.GetColumn(p) == 3);
                     Assert.All(net.Children.OfType<TextBlock>(), t => Assert.Equal(TextAlignment.Center, t.TextAlignment));
+                    var amount = net.Children.OfType<TextBlock>().First();
+                    amount.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                    Assert.True(amount.DesiredSize.Width <= net.ActualWidth, "Signed currency value must fit the compact Net column.");
+                    Assert.Same(content.Resources[trade.Amount < 0 ? "PtjDangerBrush" : "PtjSuccessBrush"], amount.Foreground);
+                    Assert.Equal(trade.NetDescription, net.ToolTip);
+                    Assert.Equal(trade.IsEstimated ? Visibility.Visible : Visibility.Collapsed, net.Children.OfType<TextBlock>().Last().Visibility);
                     double columnCenter = row.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + row.ColumnDefinitions[3].ActualWidth / 2;
                     Assert.Equal(columnCenter, net.TransformToAncestor(row).Transform(new Point()).X + net.ActualWidth / 2, 1);
                 }
@@ -114,8 +120,9 @@ public sealed class CalendarDayModalTests
                 Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
                 CheckAlignment();
                 Assert.All(rows, g => Assert.Equal(after, g.ColumnDefinitions[2].ActualWidth, 1));
-                Assert.Equal(150, header.ColumnDefinitions[6].ActualWidth, 1);
-                Assert.Equal(170, header.ColumnDefinitions[7].ActualWidth, 1);
+                Assert.All(grids, grid => Assert.Equal(150, grid.ColumnDefinitions[3].ActualWidth, 1));
+                Assert.True(header.ColumnDefinitions[6].ActualWidth >= 150);
+                Assert.True(header.ColumnDefinitions[7].ActualWidth >= 170);
                 var netHeading = header.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 3);
                 Assert.Equal(TextAlignment.Center, netHeading.TextAlignment);
                 Assert.Equal(header.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + header.ColumnDefinitions[3].ActualWidth / 2,
@@ -134,7 +141,7 @@ public sealed class CalendarDayModalTests
                 if (width >= 1900)
                 {
                     Assert.Equal(0, scroller.ScrollableWidth);
-                    foreach (int column in new[] { 0, 1, 3, 4, 5 })
+                    foreach (int column in new[] { 6, 7 })
                         Assert.True(header.ColumnDefinitions[column].ActualWidth > header.ColumnDefinitions[column].MinWidth);
                 }
                 Assert.Single(vm.DayTrades, r => r.IsExpanded && r.Trade.Id == second.Id);
@@ -148,28 +155,37 @@ public sealed class CalendarDayModalTests
                     scroller.ScrollToLeftEnd(); Pump(); window.UpdateLayout();
                 }
 
-                // Measure the immediately preceding fixed-width layout at the same viewport.
+                // Measure the preceding double-star Net layout at the same viewport.
                 GridLength[] responsiveWidths = header.ColumnDefinitions.Select(c => c.Width).ToArray();
-                int[] fixedWidths = [112, 100, 0, 170, 56, 70, 150, 170, 64];
+                double[] minimumWidths = header.ColumnDefinitions.Select(c => c.MinWidth).ToArray();
+                GridLength[] priorWidths = [new(1, GridUnitType.Star), new(1, GridUnitType.Star), GridLength.Auto,
+                    new(2, GridUnitType.Star), new(.5, GridUnitType.Star), new(.75, GridUnitType.Star), new(150), new(170), new(64)];
+                double[] priorMinimums = [112, 100, 0, 170, 56, 70, 0, 0, 0];
                 foreach (Grid grid in grids)
                 {
-                    for (int column = 0; column < fixedWidths.Length; column++)
-                        if (column != 2) grid.ColumnDefinitions[column].Width = new GridLength(fixedWidths[column]);
+                    for (int column = 0; column < priorWidths.Length; column++)
+                    {
+                        grid.ColumnDefinitions[column].Width = priorWidths[column];
+                        grid.ColumnDefinitions[column].MinWidth = priorMinimums[column];
+                    }
                 }
                 Pump(); window.UpdateLayout();
                 double beforeGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
-                double beforeNetCenter = header.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + header.ColumnDefinitions[3].ActualWidth / 2;
+                double beforeNetWidth = header.ColumnDefinitions[3].ActualWidth;
                 foreach (Grid grid in grids)
                 {
                     for (int column = 0; column < responsiveWidths.Length; column++)
+                    {
                         grid.ColumnDefinitions[column].Width = responsiveWidths[column];
+                        grid.ColumnDefinitions[column].MinWidth = minimumWidths[column];
+                    }
                 }
                 Pump(); window.UpdateLayout();
                 Assert.Equal(after, header.ColumnDefinitions[2].ActualWidth, 1);
                 CheckAlignment();
                 double afterGap = header.ActualWidth - header.ColumnDefinitions.Sum(c => c.ActualWidth);
                 Assert.InRange(afterGap, -.1, .1);
-                string measurements = $"Window={window.ActualWidth:F2}, Viewport={scroller.ViewportWidth:F2} DIPs; unused after Action before={beforeGap:F2}, after={afterGap:F2}; Net column center before={beforeNetCenter:F2}, after={header.ColumnDefinitions.Take(3).Sum(c => c.ActualWidth) + header.ColumnDefinitions[3].ActualWidth / 2:F2}; Account={after:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
+                string measurements = $"Window={window.ActualWidth:F2}, Viewport={scroller.ViewportWidth:F2} DIPs; unused after Action before={beforeGap:F2}, after={afterGap:F2}; Net width before={beforeNetWidth:F2}, after={header.ColumnDefinitions[3].ActualWidth:F2}; Account={after:F2}; Columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
                 var page = (ScrollViewer)content.FindName("DayContentScroller");
                 page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
                 Pump(); window.UpdateLayout();
