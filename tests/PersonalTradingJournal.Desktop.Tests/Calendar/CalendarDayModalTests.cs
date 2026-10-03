@@ -264,6 +264,149 @@ public sealed class CalendarDayModalTests
         });
     }
 
+    [Theory]
+    [InlineData("Light", 1100, 96, "Outside")]
+    [InlineData("Dark", 1400, 96, "Outside")]
+    [InlineData("Light", 480, 240, "Outside")]
+    [InlineData("Dark", 480, 240, "Outside")]
+    [InlineData("Light", 1100, 96, "X")]
+    [InlineData("Dark", 1100, 96, "Escape")]
+    public async Task BackdropConsumesOneWholeClickAndAllClosePathsRestoreSelection(string theme, int width, int dpi, string close)
+    {
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(q.Date, [CalendarDayDetailsTests.Row(q.Date, 10, 9)], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader);
+        await OnSta(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var owner = new Window { Content = view, Width = width, Height = 760, ShowInTaskbar = false };
+            Exception? failure = null;
+            int closed = 0, ownerClicks = 0;
+            owner.PreviewMouseUp += (_, _) => ownerClicks++;
+            try
+            {
+                owner.Show(); Pump(); owner.UpdateLayout();
+                var cell = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                var account = vm.SelectedAccount; string currency = vm.SelectedCurrency;
+                dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    try
+                    {
+                        var dialog = view.DayDialog!;
+                        dialog.Closed += (_, _) => closed++;
+                        await vm.DayLoadTask; dialog.UpdateLayout();
+                        var backdrop = (Border)dialog.FindName("DialogBackdrop");
+                        var panel = (Border)dialog.FindName("DayPanel");
+                        var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
+                        Assert.Equal(view.ActualWidth, dialog.ActualWidth, 1);
+                        Assert.Equal(view.ActualHeight, dialog.ActualHeight, 1);
+                        Assert.InRange(panel.ActualWidth, 1, Math.Min(1000, dialog.ActualWidth - 32));
+                        Assert.Same(dialog, Window.GetWindow(backdrop));
+                        Assert.False(backdrop.IsAncestorOf(panel));
+                        Assert.Same(view.Resources["PtjBackgroundBrush"], panel.Background);
+                        Assert.Same(view.Resources["PtjBorderBrush"], panel.BorderBrush);
+                        // The inset area belongs to the enabled modal, even with a disabled native owner.
+                        Assert.Same(backdrop, dialog.InputHitTest(new Point(4, 4)));
+                        foreach (UIElement inside in new UIElement[] { panel, content,
+                            (ScrollViewer)content.FindName("DayContentScroller"),
+                            Descendants(content).OfType<DayPerformanceChart>().Single(),
+                            Descendants(content).OfType<Button>().Single(b => Equals(b.Content, "View")) })
+                        {
+                            Press(inside); Release(inside); Assert.True(dialog.IsVisible);
+                        }
+                        // Tooltips live in a separate popup and cannot inherit the backdrop click route.
+                        Border point = Descendants(content).OfType<Border>().First(b => b.Tag is CalendarDayPerformancePoint);
+                        var tip = (ToolTip)point.ToolTip;
+                        tip.PlacementTarget = point; tip.IsOpen = true; Pump();
+                        Assert.NotSame(PresentationSource.FromVisual(dialog), PresentationSource.FromVisual(tip));
+                        Point tooltipCenter = dialog.PointFromScreen(tip.PointToScreen(new Point(tip.ActualWidth / 2, tip.ActualHeight / 2)));
+                        Assert.True(dialog.IsPointOnOpenToolTip(tooltipCenter));
+                        Press(tip); Release(tip); Assert.True(dialog.IsVisible); tip.IsOpen = false;
+                        Assert.False(dialog.IsPointOnOpenToolTip(tooltipCenter));
+                        // A press inside/release outside is not an outside click.
+                        Press(panel); Release(backdrop); Assert.True(dialog.IsVisible);
+                        // A press outside/release inside does not dismiss either.
+                        Assert.True(Press(backdrop).Handled); Release(panel); Assert.True(dialog.IsVisible);
+                        var other = new Window { Width = 200, Height = 100, ShowInTaskbar = false };
+                        try { other.Show(); other.Activate(); Pump(); Assert.True(dialog.IsVisible); }
+                        finally { other.Close(); dialog.Activate(); Pump(); }
+                        Render(dialog, $"backdrop-{theme}", width, dpi);
+                        if (close == "Outside")
+                        {
+                            Assert.True(Press(backdrop).Handled);
+                            Assert.True(dialog.IsVisible); // No click-through mouse-up to Calendar.
+                            Assert.True(Release(backdrop).Handled);
+                        }
+                        else if (close == "X") ((Button)dialog.FindName("DismissButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                        else
+                        {
+                            var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(dialog)!, 0, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                            dialog.RaiseEvent(key); Assert.True(key.Handled);
+                        }
+                    }
+                    catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
+                }));
+                cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
+                Pump(); if (failure is not null) throw failure;
+                Assert.Equal(1, closed); Assert.Equal(0, ownerClicks);
+                Assert.Null(view.DayDialog); Assert.True(cell.IsKeyboardFocused);
+                Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+                Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
+                Assert.Same(account, vm.SelectedAccount); Assert.Equal(currency, vm.SelectedCurrency);
+                Assert.Single(reader.Calls);
+            }
+            finally { owner.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task BackdropAndKeyboardCloseKeepInlineDraftUntilUserCancels()
+    {
+        var row = CalendarDayDetailsTests.Row(new(2026, 9, 5), 10, 9);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details, reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [row], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(reader, editor);
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, new(2026, 9, 5)));
+        await vm.ViewTradeCommand.ExecuteAsync(row);
+        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+        await OnSta(() =>
+        {
+            var dialog = new CalendarDayDialogWindow { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources("Light") };
+            int closed = 0; dialog.Closed += (_, _) => closed++;
+            try
+            {
+                dialog.Show(); Pump();
+                var backdrop = (Border)dialog.FindName("DialogBackdrop");
+                var inline = Assert.Single(Descendants(dialog).OfType<CalendarInlineTradeView>());
+                Press(inline); Release(inline);
+                Assert.True(Press(backdrop).Handled); Assert.True(Release(backdrop).Handled);
+                Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible);
+                Assert.Contains("Save or Cancel", vm.DayErrorMessage);
+                var key = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(dialog)!, 0, Key.Escape) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                dialog.RaiseEvent(key); Assert.True(key.Handled); Assert.True(dialog.IsVisible);
+                ((Button)dialog.FindName("DismissButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                ((Button)dialog.FindName("CloseButton")).RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible); Assert.Equal(0, closed);
+                editor.CancelTradeEditCommand.Execute(null);
+                Press(backdrop); Release(backdrop);
+                Assert.False(dialog.IsVisible); Assert.Equal(1, closed);
+            }
+            finally { editor.CancelTradeEditCommand.Execute(null); dialog.Close(); }
+        });
+    }
+
+    private static MouseButtonEventArgs Press(UIElement target) => RaisePointerButton(target, Mouse.PreviewMouseDownEvent);
+    private static MouseButtonEventArgs Release(UIElement target) => RaisePointerButton(target, Mouse.PreviewMouseUpEvent);
+    private static MouseButtonEventArgs RaisePointerButton(UIElement target, RoutedEvent routedEvent)
+    {
+        var args = new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, System.Windows.Input.MouseButton.Left) { RoutedEvent = routedEvent };
+        target.RaiseEvent(args); return args;
+    }
+
     private static readonly Lazy<Task> NativeHost = new(RunNativeHostAsync);
     [Fact]
     public void PerformanceUsesActualClosuresCurrencyPartitionsAndExactAuthoritativeNet()
@@ -497,7 +640,7 @@ public sealed class CalendarDayModalTests
         });
     }
 
-    private static void Render(CalendarDayDetailsView content, string theme, int width, int dpi)
+    private static void Render(FrameworkElement content, string theme, int width, int dpi)
     {
         if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is not { Length: > 0 } output) return;
         content.Measure(new Size(width, 700)); content.Arrange(new Rect(0, 0, width, 700)); content.UpdateLayout();

@@ -44,9 +44,8 @@ public partial class CalendarView : UserControl
             {
                 Owner = owner,
                 DataContext = vm,
-                Width = Math.Max(320, Math.Min(1000, owner.ActualWidth - 32)),
-                Height = Math.Max(280, Math.Min(820, Math.Min(owner.ActualHeight - 40, SystemParameters.WorkArea.Height - 40))),
             };
+            dialog.FitToOwner();
             dialog.Resources.MergedDictionaries.Add(Resources);
             dialog.Closed += (_, _) => { _dayDialog = null; ModalShade.Visibility = Visibility.Collapsed; };
             _dayDialog = dialog;
