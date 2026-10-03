@@ -8,6 +8,7 @@ using System.Globalization;
 using System.IO;
 using PersonalTradingJournal.Application.Imports;
 using PersonalTradingJournal.Application.Imports.Topstep;
+using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Import;
 
@@ -898,8 +899,9 @@ public sealed partial class ImportViewModel : ObservableObject
             $"{item.BrokerSymbol} → {item.CanonicalSymbol}",
             item.AccountName,
             item.Direction.ToString(),
-            item.OpenedAtNewYork.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture),
-            item.ClosedAtNewYork?.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture) ?? "Open",
+            TradingTimestampFormatter.Format(item.OpenedAtNewYork, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture),
+            item.ClosedAtNewYork is { } closed
+                ? TradingTimestampFormatter.Format(closed, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) : "Open",
             item.ExecutionCount,
             item.OpeningQuantity.ToString("G29", CultureInfo.InvariantCulture),
             item.WeightedAverageEntryPrice,

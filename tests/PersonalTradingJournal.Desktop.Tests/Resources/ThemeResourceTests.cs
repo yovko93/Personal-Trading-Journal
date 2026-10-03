@@ -66,7 +66,7 @@ public sealed class ThemeResourceTests
     }
 
     [Fact]
-    public void EveryDynamicThemeResourceExistsInBothThemes()
+    public void EveryDynamicProjectResourceExistsInBothThemesOrSharedDictionaries()
     {
         string desktopDirectory = GetDesktopProjectDirectory();
         string[] xamlFiles = Directory
@@ -82,14 +82,17 @@ public sealed class ThemeResourceTests
         (string darkPath, string lightPath) = GetThemePaths();
         HashSet<string> darkKeys = CollectKeys(darkPath, KeyPattern);
         HashSet<string> lightKeys = CollectKeys(lightPath, KeyPattern);
+        HashSet<string> sharedKeys = new(StringComparer.Ordinal);
+        foreach (string file in new[] { "Typography.xaml", "Spacing.xaml", "Icons.xaml", "Controls.xaml" })
+            sharedKeys.UnionWith(CollectKeys(Path.Combine(desktopDirectory, "Resources", file), KeyPattern));
         string[] missing = references
-            .Where(key => !darkKeys.Contains(key) || !lightKeys.Contains(key))
+            .Where(key => !sharedKeys.Contains(key) && (!darkKeys.Contains(key) || !lightKeys.Contains(key)))
             .Order(StringComparer.Ordinal)
             .ToArray();
 
         Assert.True(
             missing.Length == 0,
-            $"Dynamic theme key(s) missing from one or both themes: {string.Join(", ", missing)}");
+            $"Dynamic resource key(s) missing from shared resources or one/both themes: {string.Join(", ", missing)}");
     }
 
     private static (string Dark, string Light) GetThemePaths()

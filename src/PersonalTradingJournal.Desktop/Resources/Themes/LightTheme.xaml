@@ -22,12 +22,17 @@
     <SolidColorBrush x:Key="PtjTextSecondaryBrush" Color="{StaticResource PtjColorTextSecondary}" />
     <SolidColorBrush x:Key="PtjTextMutedBrush" Color="{StaticResource PtjColorTextMuted}" />
     <SolidColorBrush x:Key="PtjAccentBrush" Color="{StaticResource PtjColorAccent}" />
+    <SolidColorBrush x:Key="PtjCalendarTodayBrush" Color="#0077B5" />
+    <SolidColorBrush x:Key="PtjOnCalendarTodayBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjOnAccentBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
     <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />
     <SolidColorBrush x:Key="PtjSuccessSurfaceBrush" Color="{StaticResource PtjColorSuccessSurface}" />
     <SolidColorBrush x:Key="PtjDangerSurfaceBrush" Color="{StaticResource PtjColorDangerSurface}" />
+    <SolidColorBrush x:Key="PtjCalendarHoverBrush" Color="#F5F8FA" />
+    <SolidColorBrush x:Key="PtjCalendarSuccessHoverBrush" Color="#F1FAF4" />
+    <SolidColorBrush x:Key="PtjCalendarDangerHoverBrush" Color="#FEF3F5" />
     <!-- Sidebar has a distinct dark palette in both modes; content accents retain text contrast. -->
     <SolidColorBrush x:Key="PtjSidebarBrush" Color="#141316" />
     <SolidColorBrush x:Key="PtjSidebarTextBrush" Color="#E9EDF4" />

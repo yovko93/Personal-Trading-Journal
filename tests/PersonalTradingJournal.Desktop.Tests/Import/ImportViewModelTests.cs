@@ -14,6 +14,23 @@ namespace PersonalTradingJournal.Desktop.Tests.Import;
 
 public sealed class ImportViewModelTests
 {
+    [Theory]
+    [InlineData(9, "UTC-4")]
+    [InlineData(12, "UTC-5")]
+    public async Task TradovateCandidateTimesLabelActualOffsetWithoutChangingPreview(int month, string offset)
+    {
+        Fixture fixture = CreateFixture(sourceTimestamp: new DateTime(2026, month, 14, 16, 30, 0));
+        await fixture.ViewModel.EnsureLoadedAsync();
+        await fixture.ViewModel.SelectCsvCommand.ExecuteAsync(null);
+        fixture.ViewModel.SelectedAccount = Assert.Single(fixture.ViewModel.Accounts);
+        await fixture.ViewModel.BuildPreviewCommand.ExecuteAsync(null);
+        var candidate = Assert.Single(fixture.ViewModel.Trades);
+        Assert.Equal($"2026-{month:00}-14 09:30:00 {offset}", candidate.OpenedAt);
+        Assert.EndsWith(offset, candidate.ClosedAt);
+        Assert.Equal(TimeSpan.FromHours(month == 9 ? -4 : -5), fixture.ViewModel.PreviewSummary!.PeriodStartNewYork!.Value.Offset);
+        Assert.Equal(0, fixture.ImportStore.CallCount);
+    }
+
     [Fact]
     public async Task EnsureLoadedAsyncLoadsAllAccountsOnceWithoutSelectingOne()
     {

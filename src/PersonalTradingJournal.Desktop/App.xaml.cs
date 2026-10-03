@@ -17,6 +17,7 @@ using PersonalTradingJournal.Desktop.Theming;
 using PersonalTradingJournal.Desktop.ViewModels;
 using PersonalTradingJournal.Desktop.ViewModels.Accounts;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
@@ -121,6 +122,7 @@ public partial class App : System.Windows.Application
                 WpfTradeScreenshotDeleteConfirmation>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
+            builder.Services.AddTransient<CalendarViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
             builder.Services.AddTransient<ImportViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();

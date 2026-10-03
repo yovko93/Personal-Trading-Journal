@@ -1,0 +1,71 @@
+# Trading Calendar
+
+## Read-only data and financial semantics (M13.1)
+
+`TradingCalendarQuery(year, month, tradingAccountId?)` selects a New York month. A null Account means all accounts; an empty ID is invalid. `ITradingCalendarReader.GetAsync` returns `TradingCalendarMonth` with `MonthStart`, `GridStart`, `GridEnd`, ordered `GridDates` and separate historical-currency buckets. The grid starts on Monday on/before the first and ends on Sunday on/after the last, giving four to six complete rows. September 2026 includes August 31 through October 4. Empty months still have complete date grids and no fabricated currency bucket.
+
+The reader makes one inclusive grid-date request to `IDashboardAnalyticsReader`. The fresh-context, no-tracking query selects fully closed Trades by authoritative `ClosedAtUtc`, using half-open UTC bounds for New York local midnights. Spring/fall DST days span 23/25 hours where applicable. Open and partially exited Trades, import TradeDay, current Instrument prices and Trades-list paging do not determine results. Reads forward cancellation and make no database writes.
+
+Each currency has ordered `TradingCalendarWeek` rows with seven daily values and a Monday–Sunday `ClosedTradeMetrics` summary, reusing M12 daily/weekly calculations and historical pricing currency. Saturday and Sunday activity contribute once to their week, including adjacent-month activity. There is no cross-currency monetary total.
+
+`Metrics == null` means no closed Trades, not financial zero. A populated period with `EffectiveNet.Total == 0` is genuine zero; a null total is unavailable/incomplete. Known subtotals and coverage remain partial evidence, never a complete total. Effective Net uses authoritative Net when known, otherwise known Gross as an estimate for a closed Trade with unknown costs. Unknown Gross cannot become a numeric estimate. Estimate counts, strict verified Net and coverage remain available; stored unknown costs and Net remain null. Culture-aware display formatting does not change decimal precision.
+
+`TradingCalendarMonthlyPnl.From` combines only daily metrics belonging to the displayed month, with checked arithmetic and coverage. It excludes adjacent-month dates and never sums weekly summaries again. Saturday's own day and Sunday each contribute once. Currencies remain separate; incomplete months show a dash, genuine zero stays numeric, and no activity says No closed Trades. Overflow becomes a recoverable read error, not a truncated total.
+
+## Month grid and compact summaries (M13.2–M13.3)
+
+Calendar is a navigation destination with a retained `CalendarViewModel`. Its initial month and Today marker use the current New York date. Previous, Next and Today navigate months; centered Monthly P/L sits above navigation. Month changes replace dates synchronously, cancel old reads and reject late responses. Loading, cancellation and recoverable errors keep the grid and recovery controls available.
+
+The reference-derived presentation is a spacious Monday–Sunday grid with subtle borders and compact financial content:
+
+- Non-Saturday dates with Trades show daily Effective Net and a closed-Trade count per currency. Empty dates remain quiet. Positive/negative amounts are green/red; zero/unavailable amounts are neutral. Active-month daily cells have subtle outcome surfaces. Mixed currencies have separate lines/bands, never a combined total.
+- Saturday shows its top-centered date, then only Week 1, Week 2, etc., weekly P/L and weekly Trade count, centered in the remaining cell. No Daily section or reserved daily space remains. An empty week shows a dash and 0 Trades without inventing currency or monetary zero.
+- Every date number is top-centered. Today has a blue circle. Selection outlines the whole cell and number marker; keyboard focus has a separate high-contrast marker ring. These states remain discernible together.
+- Hover anywhere in a cell to lighten its outcome surface. Zero, empty, unavailable, Saturday and adjacent-month cells use a neutral hover; mixed-currency bands lighten separately. Leaving restores the surface, with adjacent dates subdued and selection/today/focus preserved.
+- Only the day-number marker owns a tooltip: date, that date's daily P/L and Trade count, including Saturday's own daily result. Amounts, counts, weekly content and empty areas do not inherit a parent tooltip. Estimated-cost/coverage explanations stay in accessible descriptions, not visible cost prose in this tooltip.
+
+Whole-cell click, Tab then Enter/Space, and UI Automation Invoke select every date, including Saturday and adjacent dates. The grid has an 840-DIP minimum with horizontal scrolling at narrower widths; the page scrolls vertically. Wrapped currency summaries can increase row height. Shared Light/Dark resources supply outcome, hover, text, selection and focus brushes.
+
+## Selected-day read path and modal (M13.4 and refinements)
+
+`TradingCalendarDayQuery(date, tradingAccountId?)` reuses Dashboard's New York date validation and UTC boundaries. `ITradingCalendarDayReader.GetAsync` filters the date in SQL and returns `TradingCalendarDayDetails`, newest closure first with Trade ID as stable tie-breaker. It is not a paged Trades-list load followed by ViewModel filtering. Rows preserve stored economics and historical currency; daily metrics reuse `DashboardMetricCalculator` over exactly those rows. Peak Size uses the existing batched execution quantity/side reader. Two batch classification queries load Setup and Trading Mistakes, not one query per row. Inactive references remain identified, missing references say unavailable, and absent assignments say None assigned. Reads change no Trade/classification data.
+
+Selecting a day opens the owned, themed Day Performance modal; the former below-grid panel is removed. Saturday opens Saturday's own Trades, not its visible weekly total. The dialog shows the date, daily count, separate-currency summaries/charts, Day Journal and a scrollable Trades table. Empty days still open with explicit empty chart/Trades states. Loading, Cancel, error/Retry and generation guards prevent stale day/filter results.
+
+The enabled modal/backdrop covers the application's client area while `ShowDialog` disables the Calendar owner. The initial centered panel is capped at 1,280 × 820 DIPs with a 16-DIP backdrop inset. Maximize expands the panel within the owner area with an 8-DIP inset; Restore restores its preceding size limits/inset. Minimize minimizes owner and modal together, retaining the open dialog and draft. Returning restores modality, not an interactive Calendar behind it. Owner size/location changes keep the backdrop aligned.
+
+Dismiss with ×, Close, Escape, or a complete click/release on the backdrop. The outside click is consumed through mouse release, preventing Calendar click-through. Panel controls, scrollbars and tooltip popups do not dismiss; a press/release crossing the panel boundary is not a backdrop click. Switching applications does not close the dialog. Every close path requires finishing inline loading or saving/cancelling an edit. Closing retains month/date/Account/currency and restores selected-cell focus. Closing a pending day read cancels presentation work; leaving Calendar cancels reads and closes the modal.
+
+### Day Performance chart
+
+The chart groups authoritative Effective Net by historical currency and actual UTC closure instant, ordered chronologically. Coincident closures are one point/count per currency without inventing execution order. Decimal cumulative sums are checked. An unknown value makes that and all later complete cumulative values unavailable, not zero or a resumed complete subtotal. Estimated provenance carries forward. UTC elapsed time determines X coordinates, including repeated DST clock hours.
+
+Thin 1.25-DIP green/red step lines and faint 8% fills hold the preceding result until the next actual closure. They do not interpolate profit or fabricate an opening/baseline Trade. Unavailable gaps remain unconnected/unfilled; the amount axis includes a zero baseline. Axis titles are Profit and Time, with currency on monetary ticks. Visible time ticks are New York `HH:mm:ss` only. Detailed tooltip/accessibility text retains optional subsecond precision and an explicit actual offset such as UTC-4 or UTC-5. The shared formatter also supports UTC+5:30. A genuine 04:00 closure is not suppressed; missing closure data is unavailable, never manufactured as 04:00.
+
+Full-height transparent hover regions meet at neighboring plotted X midpoints. One active guide/highlight follows hover, or keyboard focus when no pointer target remains. Coincident closures cannot compete for the same currency target. Resize/scroll keeps geometry aligned; changing series clears obsolete interactions. Unavailable points retain explanatory access without a numeric guide. `ChartTooltipFollower` supplies 100 ms initial hover, prompt pointer-follow placement within window bounds, non-hit-testing popups and target-anchored keyboard tooltips. Exact times, values, closure counts and estimate/coverage information remain accessible.
+
+### Trades table and inline editing
+
+Column order is Time (New York) | Instrument | Account | Net P&L | Size | Direction | Setup | Trading Mistakes | Action. The shared table has a 1,048-DIP readable minimum, finite viewport-driven width and aligned header/row definitions. Account is content-sized for the displayed day, 100–160 DIPs including padding, with full-name tooltips when clipped. Net P&L is fixed at 150 DIPs with centered heading/values. Setup/Mistakes share remaining width (150/170-DIP minima), wrap and retain full-text tooltips. Action stays near the right edge without an unused trailing column. Narrow viewports scroll horizontally, including expanded details/editor content. Table and chart time derive from the same authoritative UTC closure.
+
+View expands its own row without navigating away. Edit reuses the shared Trade form, supported execution shapes, validation, historical-reference handling, DST-overlap round trips and `UpdateTradeUseCase`. It does not extend which Trade economics can be edited. Save or Cancel before switching rows/closing; failed validation/persistence retains the draft. External refresh is deferred during inline work. A committed save refreshes the row, day summaries/chart and month totals, retains modal/filter state and invalidates retained Trades/Dashboard data. A moved closure date or changed filter membership removes the row with an explicit notice. Stale row commands cannot target a prior day.
+
+Day Journal remains a placeholder: Add Journal is disabled with Coming later guidance and has no editor, command or storage.
+
+## Account/currency filtering (M13.5)
+
+Compact selectors default to All accounts and All currencies. Accounts use readable names and inactive labels; historical inactive Accounts remain selectable. Account IDs filter both month and day in the read path. An unavailable selection stays explicitly selected with recovery guidance and cleared data, never silently switching to All accounts or another Account.
+
+Currency selection consistently filters existing historical-currency buckets and day rows/counts/summaries. Options include visible-grid currencies plus the retained currency. All currencies keeps amounts separate without conversion. Filters persist through Previous/Next/Today, date selection, empty months and re-entry. Changing a filter retains the selected date, clears old financial presentation and invalidates/cancels both reads. Late responses cannot replace the current captured filter state.
+
+## Refresh, recovery and accessibility (M13.6)
+
+Refresh reloads the month and any selected day without resetting month/date/filters. Committed manual Trade changes and Tradovate/TopstepX imports notify active Calendar on its WPF dispatcher. TopstepX notification survives cleared Import presentation and each committed generation is consumed once. NoChanges, Blocked, failed and rolled-back/cancelled imports do not trigger committed refresh. An import that actually committed still notifies if its presentation was cancelled. Re-entry rereads current data; persistence is independent of UI callbacks.
+
+Independent read generations reject superseded month/day results. Same-month date containers remain for focus; pending reads clear old financial values. Calendar Cancel stops both reads; day Cancel stops only the day read. Retry/Refresh restores usability after cancellation/errors. Empty month, empty day, genuine zero, unavailable economics, loading, read error and unavailable Account remain distinct. Adjacent activity cannot disguise an empty displayed month.
+
+Navigation, filters, dates, Refresh, modal controls and View/Edit are keyboard reachable, with meaningful names and selected/busy descriptions. Daily results are distinguished from Saturday's weekly summary. Scoped nested wheel routing sends ordinary vertical input once to a movable page ancestor, preserves boundary propagation and horizontal scrollbars/Shift+wheel, and adds no global handler.
+
+## Acceptance (M13.7)
+
+See [M13 acceptance](m13-acceptance.md) for the evidence matrix, test/build counts, measured widths, isolated Windows checklist and remaining live checks. Automated native-WPF interaction tests and generated Light/Dark/240-DPI renders are not live pointer, monitor-scaling or screen-reader acceptance. User-confirmed Calendar hover, modal controls/backdrop dismissal and explicit UTC-4 display are recorded separately, without extending those observations to every Calendar interaction. No real journal or customer data is needed for acceptance.
