@@ -34,8 +34,9 @@ public sealed record CalendarDayPerformance(string Currency, IReadOnlyList<Calen
 public sealed record CalendarDayPerformancePoint(DateTimeOffset ClosedAtUtc, decimal? Value, bool IsEstimated,
     int TradeCount, string Currency)
 {
-    public string TimeText => TradingTimePolicy.ConvertUtcToTradingTime(ClosedAtUtc).ToString("HH:mm:ss.FFFFFFF zzz", CultureInfo.CurrentCulture);
-    public string Description => $"{TimeText} New York; {TradeCount} closed {(TradeCount == 1 ? "Trade" : "Trades")}. Cumulative realized P&L: " +
+    public string TimeText => TradingTimePolicy.ConvertUtcToTradingTime(ClosedAtUtc).ToString("HH:mm:ss", CultureInfo.CurrentCulture);
+    private string DetailedTimeText => TradingTimePolicy.ConvertUtcToTradingTime(ClosedAtUtc).ToString("HH:mm:ss.FFFFFFF 'New York (UTC offset' zzz')'", CultureInfo.CurrentCulture);
+    public string Description => $"{DetailedTimeText}; {TradeCount} closed {(TradeCount == 1 ? "Trade" : "Trades")}. Cumulative realized P&L: " +
         (Value is { } value ? $"{value.ToString(CultureInfo.CurrentCulture)} {Currency}. " : $"Unavailable {Currency}: incomplete economics. ") +
         (IsEstimated ? "Includes estimated Net — commission/fees unknown; Gross is used." : "");
 }

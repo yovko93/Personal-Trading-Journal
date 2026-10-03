@@ -15,6 +15,37 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarDayPerformanceChartTests
 {
     [Theory]
+    [InlineData("Light", 9, 9, "05:10:34", "-04:00", 96)]
+    [InlineData("Dark", 9, 9, "05:10:34", "-04:00", 240)]
+    [InlineData("Light", 12, 10, "05:10:34", "-05:00", 240)]
+    [InlineData("Dark", 12, 10, "05:10:34", "-05:00", 96)]
+    [InlineData("Light", 9, 8, "04:00:00", "-04:00", 96)]
+    [InlineData("Dark", 12, 9, "04:00:00", "-05:00", 240)]
+    public async Task AxisShowsClockSecondsWhilePointDetailsRetainExplicitOffset(string theme, int month,
+        int utcHour, string expected, string offset, int dpi)
+    {
+        await CalendarDayModalTests.OnSta(() =>
+        {
+            var instant = new DateTimeOffset(2026, month, 5, utcHour,
+                expected == "04:00:00" ? 0 : 10, expected == "04:00:00" ? 0 : 34, TimeSpan.Zero).AddTicks(1234567);
+            var point = new CalendarDayPerformancePoint(instant, 100m, false, 2, "USD");
+            var chart = Chart(theme, 960, new("USD", [point]));
+            Draw(chart, dpi);
+            Assert.Equal(expected, point.TimeText);
+            string[] labels = Descendants(chart).OfType<TextBlock>().Select(t => t.Text).ToArray();
+            Assert.Contains(expected, labels);
+            Assert.DoesNotContain(labels, text => text.Contains(offset, StringComparison.Ordinal));
+            var target = Assert.Single(Targets(chart));
+            Assert.Equal(instant, ((CalendarDayPerformancePoint)target.Tag).ClosedAtUtc);
+            Assert.Contains($"{expected}.1234567 New York (UTC offset {offset})", AutomationProperties.GetName(target));
+            Assert.Equal(point.Description, ((ToolTip)Assert.Single(Regions(chart)).ToolTip).Content);
+            Assert.Equal(100m, point.Value);
+            Assert.Equal(2, point.TradeCount);
+            Render(chart, $"{theme}-clock-{month}-{utcHour}", 960, dpi);
+        });
+    }
+
+    [Theory]
     [InlineData("Light", 960, 96)]
     [InlineData("Light", 480, 240)]
     [InlineData("Dark", 960, 96)]
@@ -167,7 +198,7 @@ public sealed class CalendarDayPerformanceChartTests
             Assert.Equal(2, ((CalendarDayPerformancePoint)target.Tag).TradeCount);
             Assert.Equal(20m, ((CalendarDayPerformancePoint)target.Tag).Value);
             Assert.Contains("20 USD", (string)((ToolTip)region.ToolTip).Content);
-            Assert.Contains("12:00:00.1234567 -04:00", (string)((ToolTip)region.ToolTip).Content);
+            Assert.Contains("12:00:00.1234567 New York (UTC offset -04:00)", (string)((ToolTip)region.ToolTip).Content);
             Enter(region); AssertGuideAt(usd, target);
             Assert.Equal(Visibility.Collapsed, Guide(eur).Visibility);
             Leave(region);
