@@ -4,6 +4,7 @@ using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
@@ -14,7 +15,7 @@ public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTrade
     public string ClosingTime => Trade.ClosedAtUtc is { } closed
         ? TradingTimePolicy.ConvertUtcToTradingTime(closed).ToString("HH:mm:ss.FFFFFFF", CultureInfo.CurrentCulture) : "—";
     public string ClosingTimeDescription => Trade.ClosedAtUtc is { } closed
-        ? TradingTimePolicy.ConvertUtcToTradingTime(closed).ToString("yyyy-MM-dd HH:mm:ss.FFFFFFF 'UTC'zzz", CultureInfo.CurrentCulture) + " New York"
+        ? TradingTimestampFormatter.FormatNewYork(closed, TradingTimestampFormatter.DefaultClockFormat, CultureInfo.CurrentCulture) + " New York"
         : "Closing time unavailable";
     public string SetupText => classification?.SetupId is null ? "None assigned"
         : ReferenceName(classification.SetupName, classification.IsSetupActive, "Setup");

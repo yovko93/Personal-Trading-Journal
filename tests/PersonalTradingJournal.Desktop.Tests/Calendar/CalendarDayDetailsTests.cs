@@ -141,8 +141,8 @@ public sealed class CalendarDayDetailsTests
         var second = new CalendarTradePresentation(first.Trade with { ClosedAtUtc = new(2026, 11, 1, 6, 30, 0, TimeSpan.Zero) });
         Assert.Equal("01:30:00", first.ClosingTime);
         Assert.Equal("01:30:00", second.ClosingTime);
-        Assert.Contains("UTC-04:00", first.ClosingTimeDescription);
-        Assert.Contains("UTC-05:00", second.ClosingTimeDescription);
+        Assert.Contains("UTC-4", first.ClosingTimeDescription);
+        Assert.Contains("UTC-5", second.ClosingTimeDescription);
         Assert.Equal(-285m, first.Amount);
         Assert.True(first.IsEstimated);
         Assert.Contains("commission/fees unknown", first.NetDescription);

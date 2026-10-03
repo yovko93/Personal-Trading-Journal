@@ -331,6 +331,8 @@ The M11.4 reference-preparation baseline adds 35 tests: **1,892 tests pass** (40
 dotnet run --project src/PersonalTradingJournal.Desktop/PersonalTradingJournal.Desktop.csproj
 ```
 
+Displayed timestamp offsets use explicit, timestamp-specific notation: `UTC-4` in New York daylight time, `UTC-5` in standard time, and minutes where needed (for example `UTC+5:30`). Calendar inline execution details, closing-time help, chart point descriptions and Tradovate preview timestamps share this presentation formatter. Clock-only chart axes remain `HH:mm:ss`; editable time fields, source CSV offsets, stored UTC instants and economics are unchanged.
+
 ## Local Application Data
 
 Application data is rooted at:

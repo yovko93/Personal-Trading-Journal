@@ -24,10 +24,10 @@ public sealed class CalendarInlineTradeTests
     }
 
     [Theory]
-    [InlineData(2026, 3, 8, 6, 59, "01:59:00", "UTC-05:00")]
-    [InlineData(2026, 3, 8, 7, 0, "03:00:00", "UTC-04:00")]
-    [InlineData(2026, 9, 5, 8, 0, "04:00:00", "UTC-04:00")]
-    [InlineData(2026, 9, 5, 16, 35, "12:35:00", "UTC-04:00")]
+    [InlineData(2026, 3, 8, 6, 59, "01:59:00", "UTC-5")]
+    [InlineData(2026, 3, 8, 7, 0, "03:00:00", "UTC-4")]
+    [InlineData(2026, 9, 5, 8, 0, "04:00:00", "UTC-4")]
+    [InlineData(2026, 9, 5, 16, 35, "12:35:00", "UTC-4")]
     public void ClockTimeIsAuthoritativeAndOffsetIsClearlyLabelled(int year, int month, int day, int hour, int minute, string expected, string offset)
     {
         var trade = CalendarDayDetailsTests.Row(new(year, month, day), 5, 5) with { ClosedAtUtc = new(year, month, day, hour, minute, 0, TimeSpan.Zero) };

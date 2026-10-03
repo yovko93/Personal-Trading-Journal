@@ -621,8 +621,8 @@ public sealed partial class CalendarDayModalTests
             Border[] targets = Descendants(chart).OfType<Border>().Where(b => b.Tag is CalendarDayPerformancePoint).ToArray();
             Assert.Equal(3, targets.Length);
             Assert.All(targets, target => { Assert.True(target.Focusable); Assert.Equal(((CalendarDayPerformancePoint)target.Tag).Description, AutomationProperties.GetName(target)); Assert.IsType<ToolTip>(target.ToolTip); });
-            Assert.Contains("01:30:00 New York (UTC offset -04:00)", AutomationProperties.GetName(targets[0]));
-            Assert.Contains("01:30:00 New York (UTC offset -05:00)", AutomationProperties.GetName(targets[1]));
+            Assert.Contains("01:30:00 UTC-4 New York", AutomationProperties.GetName(targets[0]));
+            Assert.Contains("01:30:00 UTC-5 New York", AutomationProperties.GetName(targets[1]));
             double x1 = Canvas.GetLeft(targets[0]), x2 = Canvas.GetLeft(targets[1]), x3 = Canvas.GetLeft(targets[2]);
             Assert.Equal(2d, (x3 - x2) / (x2 - x1), 6); // Actual elapsed UTC time, including the DST overlap.
             var steps = Descendants(chart).OfType<Line>().Where(line => Equals(line.Tag, "ClosureStep")).ToArray();

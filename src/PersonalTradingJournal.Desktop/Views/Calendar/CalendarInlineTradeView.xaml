@@ -5,7 +5,7 @@
     AutomationProperties.Name="Inline Trade details and editor">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
-        <converters:UtcToTradingTimeConverter x:Key="TradingTime" />
+        <converters:TradingTimestampConverter x:Key="TradingTime" />
     </UserControl.Resources>
     <StackPanel>
         <TextBlock Text="Trade Details" Style="{DynamicResource PtjSectionTitleTextStyle}" />
@@ -26,7 +26,7 @@
         <ItemsControl ItemsSource="{Binding SelectedTradeDetail.Executions}">
             <ItemsControl.ItemTemplate><DataTemplate>
                 <WrapPanel Margin="0,4">
-                    <TextBlock Text="{Binding ExecutedAtUtc, Converter={StaticResource TradingTime}, StringFormat={}{0:yyyy-MM-dd HH:mm:ss.FFFFFFF zzz}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <TextBlock Text="{Binding ExecutedAtUtc, Converter={StaticResource TradingTime}}" AutomationProperties.Name="{Binding Text, RelativeSource={RelativeSource Self}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBlock Text="{Binding Side}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBlock Text="{Binding Quantity, StringFormat=Quantity: {0:0.############################}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBlock Text="{Binding Price, StringFormat=Price: {0:F2}}" Margin="0,0,16,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />

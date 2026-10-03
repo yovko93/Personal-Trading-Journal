@@ -1,6 +1,7 @@
 using System.Globalization;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Trades;
+using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
@@ -35,7 +36,7 @@ public sealed record CalendarDayPerformancePoint(DateTimeOffset ClosedAtUtc, dec
     int TradeCount, string Currency)
 {
     public string TimeText => TradingTimePolicy.ConvertUtcToTradingTime(ClosedAtUtc).ToString("HH:mm:ss", CultureInfo.CurrentCulture);
-    private string DetailedTimeText => TradingTimePolicy.ConvertUtcToTradingTime(ClosedAtUtc).ToString("HH:mm:ss.FFFFFFF 'New York (UTC offset' zzz')'", CultureInfo.CurrentCulture);
+    private string DetailedTimeText => TradingTimestampFormatter.FormatNewYork(ClosedAtUtc, "HH:mm:ss.FFFFFFF", CultureInfo.CurrentCulture) + " New York";
     public string Description => $"{DetailedTimeText}; {TradeCount} closed {(TradeCount == 1 ? "Trade" : "Trades")}. Cumulative realized P&L: " +
         (Value is { } value ? $"{value.ToString(CultureInfo.CurrentCulture)} {Currency}. " : $"Unavailable {Currency}: incomplete economics. ") +
         (IsEstimated ? "Includes estimated Net — commission/fees unknown; Gross is used." : "");
