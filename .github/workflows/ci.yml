@@ -30,7 +30,8 @@ jobs:
         run: dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test PersonalTradingJournal.sln --configuration Release --no-build --logger trx --results-directory TestResults
+        timeout-minutes: 10
+        run: dotnet test PersonalTradingJournal.sln --configuration Release --no-build --logger trx --results-directory TestResults --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini --diag TestResults/vstest.log
 
       - name: Upload test results and native WPF diagnostics
         if: always()

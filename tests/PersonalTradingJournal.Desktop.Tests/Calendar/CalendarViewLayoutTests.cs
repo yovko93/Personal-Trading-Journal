@@ -726,27 +726,48 @@ public sealed class CalendarViewLayoutTests
     {
         await OnSta(() =>
         {
-                var vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
-                while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month < year * 12 + month)
-                    vm.NextCommand.Execute(null);
-                while (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month > year * 12 + month)
-                    vm.PreviousCommand.Execute(null);
-                var view = new CalendarView { DataContext = vm };
+                CalendarViewModel vm;
+                using (CalendarStaTest.Phase($"ViewModel construction: {theme}/{year}-{month}/{width}/{dpi}"))
+                    vm = new CalendarViewModel(new EmptyReader(), new FixedClock(new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero)), new FakeTradingCalendarDayReader(), new FakeTradingAccountReader());
+                using (CalendarStaTest.Phase("ViewModel month navigation"))
+                {
+                    int distance = year * 12 + month - (vm.SelectedMonth.Year * 12 + vm.SelectedMonth.Month);
+                    for (int step = 0; step < Math.Abs(distance); step++)
+                    {
+                        DateOnly previous = vm.SelectedMonth;
+                        var command = distance > 0 ? vm.NextCommand : vm.PreviousCommand;
+                        Assert.True(command.CanExecute(null));
+                        command.Execute(null);
+                        Assert.Equal(previous.AddMonths(Math.Sign(distance)), vm.SelectedMonth);
+                    }
+                    Assert.Equal(new DateOnly(year, month, 1), vm.SelectedMonth);
+                }
+                CalendarView view;
+                using (CalendarStaTest.Phase("CalendarView construction")) view = new CalendarView();
+                using (CalendarStaTest.Phase("CalendarView DataContext assignment")) view.DataContext = vm;
                 foreach (string file in new[] { $"Themes/{theme}Theme" })
+                using (CalendarStaTest.Phase("pack resource loading: " + file))
                     view.Resources.MergedDictionaries.Add(new ResourceDictionary
                     {
                         Source = new Uri($"/PersonalTradingJournal.Desktop;component/Resources/{file}.xaml", UriKind.Relative),
                     });
-                foreach (string key in new[] { "PtjButtonStyle", "PtjIconButtonStyle", "PtjSecondaryButtonStyle" })
-                    view.Resources[key] = new Style(typeof(Button));
-                foreach (string key in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
-                    view.Resources[key] = new Style(typeof(TextBlock));
-                view.Resources["PtjComboBoxStyle"] = new Style(typeof(ComboBox));
-                view.Measure(new Size(width, 760));
-                view.Arrange(new Rect(0, 0, width, 760));
-                view.UpdateLayout();
-                new RenderTargetBitmap(width * dpi / 96, 760 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32).Render(view);
+                using (CalendarStaTest.Phase("detached control style assignment"))
+                {
+                    foreach (string key in new[] { "PtjButtonStyle", "PtjIconButtonStyle", "PtjSecondaryButtonStyle" })
+                        view.Resources[key] = new Style(typeof(Button));
+                    foreach (string key in new[] { "PtjSectionTitleTextStyle", "PtjCaptionTextStyle", "PtjBodyTextStyle" })
+                        view.Resources[key] = new Style(typeof(TextBlock));
+                    view.Resources["PtjComboBoxStyle"] = new Style(typeof(ComboBox));
+                }
+                using (CalendarStaTest.Phase("Measure")) view.Measure(new Size(width, 760));
+                using (CalendarStaTest.Phase("Arrange")) view.Arrange(new Rect(0, 0, width, 760));
+                using (CalendarStaTest.Phase("UpdateLayout")) view.UpdateLayout();
+                RenderTargetBitmap bitmap;
+                using (CalendarStaTest.Phase($"RenderTargetBitmap construction: {width * dpi / 96}x{760 * dpi / 96}, {dpi} DPI"))
+                    bitmap = new RenderTargetBitmap(width * dpi / 96, 760 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+                using (CalendarStaTest.Phase("RenderTargetBitmap.Render")) bitmap.Render(view);
 
+                using var assertions = CalendarStaTest.Phase("layout assertions");
                 var dayCells = Descendants(view).OfType<Border>()
                     .Where(b => b.DataContext is CalendarDayCell && b.Focusable)
                     .ToArray();
@@ -821,14 +842,14 @@ public sealed class CalendarViewLayoutTests
         }
     }
 
-    private static Task OnSta(Action action)
-    {
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() => { try { action(); done.SetResult(); } catch (Exception e) { done.SetException(e); } });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        return done.Task.WaitAsync(TimeSpan.FromSeconds(30));
-    }
+    private static readonly Lazy<Task> LayoutHost = new(() => IsolatedTestProcess.RunSuiteAsync(
+        typeof(CalendarViewLayoutTests), "calendar-grid", "PTJ_CALENDAR_LAYOUT_TEST_HOST",
+        TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));
+
+    private static Task OnSta(Action action, [System.Runtime.CompilerServices.CallerMemberName] string scenario = "") =>
+        Environment.GetEnvironmentVariable("PTJ_CALENDAR_LAYOUT_TEST_HOST") == "1"
+            ? CalendarStaTest.RunAsync(action, scenario)
+            : LayoutHost.Value;
 
     private sealed class EmptyReader : ITradingCalendarReader
     {

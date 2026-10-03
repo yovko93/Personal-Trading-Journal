@@ -670,39 +670,19 @@ public sealed partial class CalendarDayModalTests
             foreach (var nested in Descendants(child)) yield return nested;
         }
     }
-    internal static Task OnSta(Action action)
+    internal static Task OnSta(Action action, [System.Runtime.CompilerServices.CallerMemberName] string scenario = "")
     {
-        // Another existing test shuts down WPF's process-wide Application. Native windows
-        // must have a fresh WPF lifetime; never depend on xUnit collection execution order.
+        // Native windows own a fresh WPF lifetime independent of test ordering.
+        // Application-owning resource tests are also isolated from this host.
         if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_MODAL_TEST_HOST") != "1") return NativeHost.Value;
-        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() => { try { action(); done.SetResult(); } catch (Exception exception) { done.SetException(exception); } });
-        thread.SetApartmentState(ApartmentState.STA); thread.Start(); return done.Task.WaitAsync(TimeSpan.FromSeconds(45));
+        // Preserve the native suite's process-owned renderer lifetime. Tearing down
+        // the shared compositor between every native case makes Window/bitmap
+        // initialization repeat; the supervised child owns final native cleanup.
+        return CalendarStaTest.RunAsync(action, scenario, TimeSpan.FromSeconds(45), shutdownDispatcher: false);
     }
 
-    private static async Task RunNativeHostAsync()
-    {
-        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardOutput = true, RedirectStandardError = true };
-        start.ArgumentList.Add("vstest");
-        start.ArgumentList.Add(typeof(CalendarDayModalTests).Assembly.Location);
-        start.ArgumentList.Add("/TestCaseFilter:FullyQualifiedName~CalendarDayModalTests|FullyQualifiedName~CalendarDayPerformanceChartTests");
-        string results = System.IO.Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")
-            ?? System.IO.Path.Combine(AppContext.BaseDirectory, "TestResults"), "calendar-native");
-        Directory.CreateDirectory(results);
-        start.ArgumentList.Add("/Logger:trx;LogFileName=calendar-native.trx");
-        start.ArgumentList.Add($"/ResultsDirectory:{results}");
-        start.Environment["PTJ_CALENDAR_MODAL_TEST_HOST"] = "1";
-        using Process process = Process.Start(start)!;
-        Task<string> output = process.StandardOutput.ReadToEndAsync(), error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
-        string stdout = await output, stderr = await error;
-        await File.WriteAllTextAsync(System.IO.Path.Combine(results, "native-output.log"), stdout + Environment.NewLine + stderr);
-        string failures = string.Join(Environment.NewLine, stdout.Split('\n').Where(line =>
-            line.StartsWith("  Failed ", StringComparison.Ordinal) || line.StartsWith("Failed!", StringComparison.Ordinal) ||
-            line.Contains("Assert.", StringComparison.Ordinal) || line.StartsWith("Expected:", StringComparison.Ordinal) ||
-            line.StartsWith("Range:", StringComparison.Ordinal) || line.StartsWith("Actual:", StringComparison.Ordinal)));
-        Assert.True(process.ExitCode == 0, $"Shared native modal/chart suite failed (this is not necessarily the calling case). " +
-            $"Full exceptions and actual child-case outcomes: {System.IO.Path.Combine(results, "calendar-native.trx")}; native-output.log.\n{failures}\n{stderr}");
-    }
+    private static Task RunNativeHostAsync() => IsolatedTestProcess.RunSuiteAsync(
+        typeof(CalendarDayModalTests), "calendar-native", "PTJ_CALENDAR_MODAL_TEST_HOST",
+        TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(45),
+        testCaseFilter: "FullyQualifiedName~CalendarDayModalTests|FullyQualifiedName~CalendarDayPerformanceChartTests");
 }

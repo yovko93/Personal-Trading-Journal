@@ -315,7 +315,7 @@ Topstep coverage includes preview, snapshot-bound confirmation, replay/conflicts
 dotnet test PersonalTradingJournal.sln
 ```
 
-Calendar native-window tests run in a fresh STA/dispatcher test process because another Desktop test shuts down WPF's process-wide Application. Layout assertions use the measured viewport and content demand, not a requested window size or a DPI-specific text width. Separate compiled-view measure/arrange tests explicitly cover wide and narrow tables even on a small hosted desktop. See [Windows WPF test diagnostics](docs/ci-wpf-tests.md) for constrained-runner reproduction and child-suite results.
+Calendar grid and native-window tests run in supervised, separate test processes with named background STA threads. The Application-owning Import resource test also runs separately so its shutdown cannot poison later native Popup tests. Grid cases clean up their dispatcher; the native suite retains its existing process-owned renderer lifetime. A failed or stuck child cannot leave an unbounded foreground STA in the main test host; process-tree cleanup also runs on cancellation or diagnostic I/O failure. Grid/Import resource cases retain their 30-second deadline, native cases 45 seconds, and their suites a two-minute process deadline. Phase breadcrumbs and best-effort hang dumps identify initialization, navigation, resource, layout, render and assertion phases. Layout assertions still use the measured viewport and content demand, not a requested window size or DPI-specific text width. See [Windows WPF test diagnostics](docs/ci-wpf-tests.md) for runner evidence, constrained reproduction and the still-unverified original run-70 blocking operation.
 
 The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Application, 504 Infrastructure, and 504 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, isolated SQLite acceptance, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior. These automated tests do not establish interactive WPF acceptance; see the [acceptance record](docs/m10-acceptance.md).
 
@@ -391,7 +391,7 @@ GitHub Actions runs the CI workflow:
 - with the SDK resolved from `global.json`; and
 - through restore, Release build, and test stages.
 
-CI always uploads a `windows-test-results` artifact with project TRX results, the isolated Calendar native suite's own TRX and output, and measured window/DPI/table diagnostics. A shared native-suite failure can surface on several parent test names; inspect `calendar-native/calendar-native.trx` for the actual failing cases. Local passing tests do not establish that a subsequent GitHub run passed.
+CI always uploads a `windows-test-results` artifact with project TRX results, VSTest diagnostics, and isolated Calendar suites' TRX, streamed output, phase logs, measured window/DPI/table diagnostics and any collected hang dumps. Each child has a unique `calendar-grid-*` or `calendar-native-*` directory. A shared suite failure can surface on several parent test names; inspect the child TRX for the actual failing cases. A three-minute outer VSTest hang collector and ten-minute Test-step bound preserve diagnostics if another host stalls; they do not increase Calendar's case deadlines. Local passing tests do not establish that a subsequent GitHub run passed.
 
 ## Dashboard Analytics Foundation
 

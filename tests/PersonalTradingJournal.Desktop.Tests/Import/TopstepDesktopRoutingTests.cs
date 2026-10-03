@@ -395,10 +395,19 @@ public sealed class TopstepDesktopRoutingTests
     [Fact]
     public async Task CompiledImportViewLoadsRealResourcesAndMaterializesTopstepReviewControls()
     {
+        const string hostVariable = "PTJ_IMPORT_RESOURCE_TEST_HOST";
+        if (Environment.GetEnvironmentVariable(hostVariable) != "1")
+        {
+            // Application is process-wide even after Shutdown. Keep this resource
+            // test independent of every later native window/Popup test's order.
+            await IsolatedTestProcess.RunSuiteAsync(typeof(TopstepDesktopRoutingTests), "import-resources",
+                hostVariable, TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: $"FullyQualifiedName={typeof(TopstepDesktopRoutingTests).FullName}.{nameof(CompiledImportViewLoadsRealResourcesAndMaterializesTopstepReviewControls)}");
+            return;
+        }
         await using var f = await Fixture.Create();
         await f.Preview();
-        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
+        await CalendarStaTest.RunAsync(() =>
         {
             System.Windows.Application? application = null;
             try
@@ -428,14 +437,9 @@ public sealed class TopstepDesktopRoutingTests
                 view.UpdateLayout();
                 Assert.False(f.Vm.HasDiagnostics);
                 Assert.Equal(System.Windows.Visibility.Collapsed, diagnosticsSection.Visibility);
-                completed.SetResult();
             }
-            catch (Exception exception) { completed.SetException(exception); }
             finally { application?.Shutdown(); }
         });
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        await completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
 
         static IEnumerable<System.Windows.DependencyObject> Descendants(System.Windows.DependencyObject root)
         {
