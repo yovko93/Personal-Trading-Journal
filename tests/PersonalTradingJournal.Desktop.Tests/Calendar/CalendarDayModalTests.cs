@@ -58,6 +58,7 @@ public sealed partial class CalendarDayModalTests
         {
             var content = new CalendarDayDetailsView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
             var window = new CalendarDayDialogWindow { DataContext = vm, Content = content, Width = width, Height = 760, ShowInTaskbar = false };
+            ApplyRunnerWindowConstraint(window);
             try
             {
                 window.Show(); Pump(); window.UpdateLayout();
@@ -66,6 +67,7 @@ public sealed partial class CalendarDayModalTests
                 Grid[] rows = Descendants(content).OfType<Grid>().Where(g => g.Name == "DayTradeRow").ToArray();
                 Assert.Equal(2, rows.Length);
                 Grid[] grids = [header, .. rows];
+                WriteLayoutDiagnostics(window, header, scroller, rows, $"Responsive: {theme}/{width}/{dpi}/{longName}");
                 Assert.Equal(new[] { "Time (New York)", "Instrument", "Account", "Net P&L", "Size", "Direction", "Setup", "Trading Mistakes", "Action" },
                     header.Children.OfType<TextBlock>().OrderBy(Grid.GetColumn).Select(t => t.Text));
                 TextBlock[] names = rows.Select(g => g.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2)).ToArray();
@@ -113,9 +115,7 @@ public sealed partial class CalendarDayModalTests
                 var label = header.Children.OfType<TextBlock>().Single(t => Grid.GetColumn(t) == 2);
                 label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 Assert.InRange(after, label.DesiredSize.Width - .1, 160);
-                // WPF layout rounding at the host's display DPI may shave a fraction of a DIP.
-                if (longName) Assert.InRange(after, 159, 160);
-                else Assert.Equal(100, after, 1);
+                AssertContentSizedAccount(header, rows);
                 Assert.All(names, t => Assert.Equal(((CalendarTradePresentation)t.DataContext).Trade.TradingAccountName, t.ToolTip));
                 Assert.All(names, t => Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming));
                 CheckAlignment();
@@ -138,15 +138,23 @@ public sealed partial class CalendarDayModalTests
                         Assert.InRange(Math.Max(scroller.ViewportWidth, scroller.ExtentWidth) - right, 7, 9);
                     });
                 }
-                if (width >= 1900)
+                var table = (StackPanel)content.FindName("DayTradesTable");
+                // A hosted Windows desktop can constrain even a requested 1,900-DIP window.
+                // The actual viewport, not the theory's requested width, determines overflow.
+                if (scroller.ViewportWidth >= table.MinWidth)
                 {
                     Assert.Equal(0, scroller.ScrollableWidth);
+                    Assert.Equal(scroller.ViewportWidth, table.ActualWidth, 1);
+                }
+                if (scroller.ViewportWidth >= table.MinWidth + 32)
+                {
                     foreach (int column in new[] { 6, 7 })
                         Assert.True(header.ColumnDefinitions[column].ActualWidth > header.ColumnDefinitions[column].MinWidth);
                 }
                 Assert.Single(vm.DayTrades, r => r.IsExpanded && r.Trade.Id == second.Id);
-                if (width < 700)
+                if (scroller.ViewportWidth < table.MinWidth)
                 {
+                    Assert.True(scroller.ScrollableWidth > 0);
                     scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
                     Assert.True(scroller.HorizontalOffset > 0);
                     Assert.Equal(scroller.ScrollableWidth, scroller.HorizontalOffset, 1);
@@ -183,7 +191,7 @@ public sealed partial class CalendarDayModalTests
                 page.ScrollToVerticalOffset(page.VerticalOffset + header.TransformToAncestor(page).Transform(new Point()).Y - 12);
                 Pump(); window.UpdateLayout();
                 Render(content, $"account-{(longName ? "long" : "short")}-{theme}", width, dpi);
-                if (width < 700)
+                if (scroller.ScrollableWidth > 0)
                 {
                     scroller.ScrollToRightEnd(); Pump(); window.UpdateLayout();
                     foreach (Grid row in rows)
@@ -679,10 +687,22 @@ public sealed partial class CalendarDayModalTests
         start.ArgumentList.Add("vstest");
         start.ArgumentList.Add(typeof(CalendarDayModalTests).Assembly.Location);
         start.ArgumentList.Add("/TestCaseFilter:FullyQualifiedName~CalendarDayModalTests|FullyQualifiedName~CalendarDayPerformanceChartTests");
+        string results = System.IO.Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")
+            ?? System.IO.Path.Combine(AppContext.BaseDirectory, "TestResults"), "calendar-native");
+        Directory.CreateDirectory(results);
+        start.ArgumentList.Add("/Logger:trx;LogFileName=calendar-native.trx");
+        start.ArgumentList.Add($"/ResultsDirectory:{results}");
         start.Environment["PTJ_CALENDAR_MODAL_TEST_HOST"] = "1";
         using Process process = Process.Start(start)!;
         Task<string> output = process.StandardOutput.ReadToEndAsync(), error = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2));
-        Assert.True(process.ExitCode == 0, $"Isolated native modal tests failed:\n{await output}\n{await error}");
+        string stdout = await output, stderr = await error;
+        await File.WriteAllTextAsync(System.IO.Path.Combine(results, "native-output.log"), stdout + Environment.NewLine + stderr);
+        string failures = string.Join(Environment.NewLine, stdout.Split('\n').Where(line =>
+            line.StartsWith("  Failed ", StringComparison.Ordinal) || line.StartsWith("Failed!", StringComparison.Ordinal) ||
+            line.Contains("Assert.", StringComparison.Ordinal) || line.StartsWith("Expected:", StringComparison.Ordinal) ||
+            line.StartsWith("Range:", StringComparison.Ordinal) || line.StartsWith("Actual:", StringComparison.Ordinal)));
+        Assert.True(process.ExitCode == 0, $"Shared native modal/chart suite failed (this is not necessarily the calling case). " +
+            $"Full exceptions and actual child-case outcomes: {System.IO.Path.Combine(results, "calendar-native.trx")}; native-output.log.\n{failures}\n{stderr}");
     }
 }

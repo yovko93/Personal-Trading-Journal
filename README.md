@@ -315,6 +315,8 @@ Topstep coverage includes preview, snapshot-bound confirmation, replay/conflicts
 dotnet test PersonalTradingJournal.sln
 ```
 
+Calendar native-window tests run in a fresh STA/dispatcher test process because another Desktop test shuts down WPF's process-wide Application. Layout assertions use the measured viewport and content demand, not a requested window size or a DPI-specific text width. Separate compiled-view measure/arrange tests explicitly cover wide and narrow tables even on a small hosted desktop. See [Windows WPF test diagnostics](docs/ci-wpf-tests.md) for constrained-runner reproduction and child-suite results.
+
 The M10 acceptance baseline contains 1,720 passing tests: 400 Domain, 312 Application, 504 Infrastructure, and 504 Desktop tests, with zero failed and zero skipped. Desktop tests exercise presentation, ViewModel orchestration, import confirmation state, isolated SQLite acceptance, paging/sorting, lifecycle actions, navigation, settings persistence, Windows theme resolution, theme switching, and project-owned XAML-resource behavior. These automated tests do not establish interactive WPF acceptance; see the [acceptance record](docs/m10-acceptance.md).
 
 The M11.1 parsing baseline adds 65 synthetic Topstep contract/parser tests: the full suite passes 1,785 tests (400 Domain, 317 Application, 564 Infrastructure, 504 Desktop). The supplied Topstep export was parsed read-only with 25 accepted rows, 0 rejected rows, and no diagnostics; it is not stored as a repository fixture. Topstep import and Desktop acceptance remain outside M11.1.
@@ -388,6 +390,8 @@ GitHub Actions runs the CI workflow:
 - on a Windows-hosted runner;
 - with the SDK resolved from `global.json`; and
 - through restore, Release build, and test stages.
+
+CI always uploads a `windows-test-results` artifact with project TRX results, the isolated Calendar native suite's own TRX and output, and measured window/DPI/table diagnostics. A shared native-suite failure can surface on several parent test names; inspect `calendar-native/calendar-native.trx` for the actual failing cases. Local passing tests do not establish that a subsequent GitHub run passed.
 
 ## Dashboard Analytics Foundation
 

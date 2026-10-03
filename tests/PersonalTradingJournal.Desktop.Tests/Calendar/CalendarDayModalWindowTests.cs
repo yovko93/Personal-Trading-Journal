@@ -52,6 +52,7 @@ public sealed partial class CalendarDayModalTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
             var owner = new Window { Content = view, Width = width, Height = 920, ShowInTaskbar = false };
+            ApplyRunnerWindowConstraint(owner);
             Exception? failure = null;
             try
             {
@@ -74,6 +75,7 @@ public sealed partial class CalendarDayModalTests
                         panel.MaxWidth = initialCap; Pump(); dialog.UpdateLayout();
                         Assert.Equal(0, scroll.HorizontalOffset);
                         var grid = Descendants(content).OfType<Grid>().Single(g => g.Name == "DayTradeRow");
+                        WriteLayoutDiagnostics(owner, header, scroll, [grid], $"Owned: {theme}/{width}/{dpi}/{longName}");
                         for (int i = 0; i < 9; i++)
                         {
                             Assert.Equal(header.ColumnDefinitions[i].ActualWidth, grid.ColumnDefinitions[i].ActualWidth, 1);
@@ -83,11 +85,11 @@ public sealed partial class CalendarDayModalTests
                                 value.TransformToAncestor(scroll).Transform(new Point()).X, 1);
                         }
                         Assert.Equal(150, header.ColumnDefinitions[3].ActualWidth, 1);
-                        Assert.InRange(header.ColumnDefinitions[2].ActualWidth, longName ? 159 : 99, longName ? 160 : 101);
+                        AssertContentSizedAccount(header, [grid]);
                         var action = grid.Children.OfType<Button>().Single();
                         double actionRight = action.TransformToAncestor(scroll).Transform(new Point()).X + action.ActualWidth;
                         bool actionFits = actionRight <= scroll.ViewportWidth + 1;
-                        if (width >= 1280)
+                        if (scroll.ViewportWidth >= table.MinWidth)
                         {
                             Assert.Equal(0, scroll.ScrollableWidth);
                             Assert.True(actionFits);

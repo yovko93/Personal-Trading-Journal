@@ -11,6 +11,8 @@ on:
 jobs:
   validate:
     runs-on: windows-latest
+    env:
+      PTJ_TEST_RESULTS_DIRECTORY: ${{ github.workspace }}/TestResults
 
     steps:
       - name: Checkout repository
@@ -28,4 +30,12 @@ jobs:
         run: dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test PersonalTradingJournal.sln --configuration Release --no-build
+        run: dotnet test PersonalTradingJournal.sln --configuration Release --no-build --logger trx --results-directory TestResults
+
+      - name: Upload test results and native WPF diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-results
+          path: TestResults/
+          if-no-files-found: warn
