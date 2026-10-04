@@ -3,7 +3,7 @@ using PersonalTradingJournal.Domain.Common;
 namespace PersonalTradingJournal.Domain.Journals;
 
 /// <summary>
-/// A user's journal text for one trading-calendar date and one exact Account scope.
+/// A user's journal and Daily Review for one trading-calendar date and one exact Account scope.
 /// A null Account identifies the independent all-accounts journal for that date.
 /// </summary>
 public sealed class DailyJournalEntry : AuditableEntity
@@ -17,14 +17,28 @@ public sealed class DailyJournalEntry : AuditableEntity
         string text,
         bool isDraft,
         DateTimeOffset createdAtUtc)
+        : this(tradingDate, tradingAccountId, text, isDraft, createdAtUtc, DailyReviewAnswers.Empty)
+    {
+    }
+
+    public DailyJournalEntry(
+        DateOnly tradingDate,
+        Guid? tradingAccountId,
+        string text,
+        bool isDraft,
+        DateTimeOffset createdAtUtc,
+        DailyReviewAnswers review)
         : base(createdAtUtc)
     {
         ValidateAccountId(tradingAccountId);
         ValidateText(text);
+        ArgumentNullException.ThrowIfNull(review);
+        ValidateCompletion(isDraft, review);
 
         TradingDate = tradingDate;
         TradingAccountId = tradingAccountId;
         Text = text;
+        Review = review;
         IsDraft = isDraft;
         Revision = 1;
     }
@@ -46,11 +60,13 @@ public sealed class DailyJournalEntry : AuditableEntity
         bool isDraft,
         long revision,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        DailyReviewAnswers review)
         : base(id, createdAtUtc, updatedAtUtc)
     {
         ValidateAccountId(tradingAccountId);
         ValidateText(text);
+        ArgumentNullException.ThrowIfNull(review);
         if (revision < 1)
         {
             throw new ArgumentOutOfRangeException(
@@ -60,6 +76,7 @@ public sealed class DailyJournalEntry : AuditableEntity
         TradingDate = tradingDate;
         TradingAccountId = tradingAccountId;
         Text = text;
+        Review = review;
         IsDraft = isDraft;
         Revision = revision;
     }
@@ -72,7 +89,10 @@ public sealed class DailyJournalEntry : AuditableEntity
     /// <summary>Exact plain text, including empty content, whitespace and line endings.</summary>
     public string Text { get; private set; }
 
-    /// <summary>Stored draft state; it does not imply a completion workflow.</summary>
+    /// <summary>The exact structured answers stored with this revision.</summary>
+    public DailyReviewAnswers Review { get; private set; }
+
+    /// <summary>A completed review is read-only until explicitly reopened as a draft.</summary>
     public bool IsDraft { get; private set; }
 
     public long Revision { get; private set; }
@@ -85,27 +105,55 @@ public sealed class DailyJournalEntry : AuditableEntity
         bool isDraft,
         long revision,
         DateTimeOffset createdAtUtc,
-        DateTimeOffset updatedAtUtc)
+        DateTimeOffset updatedAtUtc,
+        DailyReviewAnswers? review = null)
     {
         return new DailyJournalEntry(
             id, tradingDate, tradingAccountId, text, isDraft, revision,
-            createdAtUtc, updatedAtUtc);
+            createdAtUtc, updatedAtUtc, review ?? DailyReviewAnswers.Empty);
     }
 
     public bool UpdateContent(string text, bool isDraft, DateTimeOffset updatedAtUtc)
+        => UpdateContent(text, isDraft, updatedAtUtc, Review);
+
+    public bool UpdateContent(
+        string text,
+        bool isDraft,
+        DateTimeOffset updatedAtUtc,
+        DailyReviewAnswers review)
     {
         ValidateText(text);
-        if (Text == text && IsDraft == isDraft)
+        ArgumentNullException.ThrowIfNull(review);
+        bool unchangedContent = Text == text && Review == review;
+        if (unchangedContent && IsDraft == isDraft)
         {
             return false;
         }
 
+        if (!IsDraft && !unchangedContent)
+        {
+            throw new InvalidOperationException(
+                "A completed review must be reopened before its journal text or answers can be edited.");
+        }
+
+        ValidateCompletion(isDraft, review);
         long nextRevision = checked(Revision + 1);
         SetUpdatedAtUtc(updatedAtUtc);
         Text = text;
+        Review = review;
         IsDraft = isDraft;
         Revision = nextRevision;
         return true;
+    }
+
+    private static void ValidateCompletion(bool isDraft, DailyReviewAnswers review)
+    {
+        if (!isDraft && !review.CanComplete)
+        {
+            throw new ArgumentException(
+                "Answer all three Daily Review questions with meaningful text before completing the review.",
+                nameof(review));
+        }
     }
 
     private static void ValidateAccountId(Guid? tradingAccountId)

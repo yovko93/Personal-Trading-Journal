@@ -22,8 +22,10 @@ public sealed class JournalViewModel : ObservableObject
     private DateTime? _selectedDate;
     private DailyJournalEntry? _entry;
     private string _text = "", _savedText = "";
+    private string _wentWell = "", _needsImprovement = "", _nextTradingDay = "";
+    private DailyReviewAnswers _savedReview = DailyReviewAnswers.Empty;
     private string? _errorMessage, _notice;
-    private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError;
+    private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError, _completionAttempted;
     private CancellationTokenSource? _loadCancellation, _saveCancellation;
     private long _generation;
 
@@ -37,6 +39,8 @@ public sealed class JournalViewModel : ObservableObject
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             (timeProvider ?? TimeProvider.System).GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+        CompleteReviewCommand = new AsyncRelayCommand(CompleteReviewAsync, CanSave);
+        ReopenReviewCommand = new AsyncRelayCommand(ReopenReviewAsync, CanReopen);
         ReloadCommand = new AsyncRelayCommand(ReloadAsync, () => _active && !IsBusy,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelOperationCommand = new RelayCommand(CancelOperation,
@@ -92,25 +96,57 @@ public sealed class JournalViewModel : ObservableObject
         }
     }
 
+    public string WentWell
+    {
+        get => _wentWell;
+        set => SetAnswer(ref _wentWell, value);
+    }
+
+    public string NeedsImprovement
+    {
+        get => _needsImprovement;
+        set => SetAnswer(ref _needsImprovement, value);
+    }
+
+    public string NextTradingDay
+    {
+        get => _nextTradingDay;
+        set => SetAnswer(ref _nextTradingDay, value);
+    }
+
+    private void SetAnswer(ref string field, string value, [System.Runtime.CompilerServices.CallerMemberName] string? name = null)
+    {
+        if (!CanEdit || value is null || !SetProperty(ref field, value, name)) return;
+        _notice = null;
+        NotifyState();
+    }
+
     public bool HasDateInputError
     {
         get => _hasDateInputError;
         set { if (SetProperty(ref _hasDateInputError, value)) NotifyState(); }
     }
-    public bool IsDirty => !string.Equals(_text, _savedText, StringComparison.Ordinal);
+    public bool IsDirty => !string.Equals(_text, _savedText, StringComparison.Ordinal)
+        || !string.Equals(_wentWell, _savedReview.WentWell, StringComparison.Ordinal)
+        || !string.Equals(_needsImprovement, _savedReview.NeedsImprovement, StringComparison.Ordinal)
+        || !string.Equals(_nextTradingDay, _savedReview.NextTradingDay, StringComparison.Ordinal);
     public bool IsExisting => _entry is not null;
     public bool IsDraft => _entry?.IsDraft ?? true;
+    public bool IsCompleted => IsExisting && !IsDraft;
     public long? Revision => _entry?.Revision;
     public bool IsLoading => _isLoading;
     public bool IsSaving => _isSaving;
     public bool IsBusy => IsLoading || IsSaving;
     public bool CanChangeScope => !IsSaving;
-    public bool CanEdit => _active && _hasLoaded && SelectedDate.HasValue && SelectedAccount.IsAvailable && !IsBusy;
+    public bool CanReadContent => _active && _hasLoaded && SelectedDate.HasValue && !IsLoading;
+    public bool CanEdit => CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
+    public bool IsReadOnly => !CanEdit;
+    public bool CanComplete => CanSave() && AllAnswersMeaningful;
     public string CharacterCountText => $"{Text.Length:N0} / {DailyJournalEntry.MaximumTextLength:N0} characters";
     public string? ErrorMessage => HasDateInputError ? "Enter a valid journal date before saving."
         : Text.Length > DailyJournalEntry.MaximumTextLength
             ? "Journal text cannot exceed 100,000 UTF-16 code units. Your text has been kept; shorten it before saving."
-            : _errorMessage;
+            : ReviewLengthError ?? (_completionAttempted && !AllAnswersMeaningful ? CompletionError : _errorMessage);
     public string ScopeMessage => SelectedAccount.Id is null
         ? "All accounts is its own journal, separate from each account's journal. Dates use New York trading time."
         : !SelectedAccount.IsAvailable
@@ -120,13 +156,15 @@ public sealed class JournalViewModel : ObservableObject
         ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling save…" : "Saving…"
         : IsLoading ? "Loading journal…"
         : !SelectedDate.HasValue ? "Choose a journal date."
-        : _reloadRequired ? "Reload required before saving. Your text has been kept."
+        : _reloadRequired ? "Reload required before saving. Your text has been kept, along with your review answers."
         : IsDirty ? "Unsaved changes"
         : _notice ?? (!_hasLoaded ? "Select Reload to load this journal."
             : !IsExisting ? "New draft — not saved"
-            : IsDraft ? $"Saved draft · Revision {Revision}" : $"Saved journal · Revision {Revision}");
+            : IsDraft ? $"Saved draft · Revision {Revision}" : $"Completed review · Revision {Revision}");
 
     public IAsyncRelayCommand SaveCommand { get; }
+    public IAsyncRelayCommand CompleteReviewCommand { get; }
+    public IAsyncRelayCommand ReopenReviewCommand { get; }
     public IAsyncRelayCommand ReloadCommand { get; }
     public IRelayCommand CancelOperationCommand { get; }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
@@ -163,9 +201,12 @@ public sealed class JournalViewModel : ObservableObject
         CancelLoad();
         _entry = null;
         _text = _savedText = "";
+        _wentWell = _needsImprovement = _nextTradingDay = "";
+        _savedReview = DailyReviewAnswers.Empty;
         _hasLoaded = _reloadRequired = false;
+        _completionAttempted = false;
         _errorMessage = _notice = null;
-        OnPropertyChanged(nameof(Text));
+        NotifyContent();
         NotifyState();
         Task context = TradeContext.SetScopeAsync(SelectedTradingDate, SelectedAccount.Id);
         LoadTask = _active ? Task.WhenAll(LoadAsync(), context) : context;
@@ -202,18 +243,16 @@ public sealed class JournalViewModel : ObservableObject
             }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested || !_active) return;
             PublishAccounts(loaded.accounts, account, loaded.journal);
-            _entry = loaded.journal?.Entry;
-            _text = _savedText = _entry?.Text ?? "";
+            PublishEntry(loaded.journal?.Entry);
             _hasLoaded = date.HasValue;
             _reloadRequired = false;
             if (!SelectedAccount.IsAvailable) _errorMessage = UnavailableAccountMessage;
-            OnPropertyChanged(nameof(Text));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)
         {
             if (generation != _generation || !_active) return;
-            _errorMessage = "Journal could not be loaded. Your text has been kept. Select Reload to retry.";
+            _errorMessage = "Journal could not be loaded. Your text has been kept, along with your review answers. Select Reload to retry.";
         }
         finally
         {
@@ -252,17 +291,67 @@ public sealed class JournalViewModel : ObservableObject
     }
 
     private bool CanSave() => CanEdit && !_reloadRequired && !HasDateInputError
-        && Text.Length <= DailyJournalEntry.MaximumTextLength;
+        && Text.Length <= DailyJournalEntry.MaximumTextLength && ReviewLengthError is null;
 
-    private async Task SaveAsync()
+    private bool CanReopen() => CanReadContent && IsCompleted && SelectedAccount.IsAvailable
+        && !IsBusy && !_reloadRequired && !HasDateInputError;
+
+    private bool AllAnswersMeaningful => DailyReviewAnswers.HasMeaningfulText(WentWell)
+        && DailyReviewAnswers.HasMeaningfulText(NeedsImprovement)
+        && DailyReviewAnswers.HasMeaningfulText(NextTradingDay);
+
+    private string? ReviewLengthError
     {
-        // Guard the method as well as ICommand so repeated invocations remain single-flight.
+        get
+        {
+            foreach (var answer in new[]
+            {
+                (WentWell, "What went well?"), (NeedsImprovement, "What needs improvement?"),
+                (NextTradingDay, "What will I do differently next trading day?"),
+            })
+            {
+                if (answer.Item1.Length > DailyReviewAnswers.MaximumAnswerLength)
+                    return $"The answer to ‘{answer.Item2}’ cannot exceed 100,000 UTF-16 code units. Your answers have been kept; shorten it before saving.";
+            }
+            return null;
+        }
+    }
+
+    private string CompletionError
+    {
+        get
+        {
+            var missing = new List<string>();
+            if (!DailyReviewAnswers.HasMeaningfulText(WentWell)) missing.Add("What went well?");
+            if (!DailyReviewAnswers.HasMeaningfulText(NeedsImprovement)) missing.Add("What needs improvement?");
+            if (!DailyReviewAnswers.HasMeaningfulText(NextTradingDay)) missing.Add("What will I do differently next trading day?");
+            return $"Complete each review answer with meaningful text: {string.Join("; ", missing)}";
+        }
+    }
+
+    private async Task CompleteReviewAsync()
+    {
         if (!CanSave()) return;
+        _completionAttempted = true;
+        if (!AllAnswersMeaningful) { NotifyState(); return; }
+        await WriteAsync(isDraft: false);
+    }
+
+    private Task ReopenReviewAsync() => CanReopen() ? WriteAsync(isDraft: true) : Task.CompletedTask;
+
+    private Task SaveAsync() => CanSave() ? WriteAsync(isDraft: true) : Task.CompletedTask;
+
+    private async Task WriteAsync(bool isDraft)
+    {
+        // All three actions share this guard so concurrent command types cannot overlap.
+        if (IsSaving || (IsCompleted ? !CanReopen() : !CanSave())) return;
         using var cancellation = new CancellationTokenSource();
         _saveCancellation = cancellation;
         _isSaving = true;
+        _completionAttempted = false;
         _errorMessage = _notice = null;
         string text = Text;
+        var review = new DailyReviewAnswers(WentWell, NeedsImprovement, NextTradingDay);
         DailyJournalEntry? entry = _entry;
         DateOnly date = DateOnly.FromDateTime(SelectedDate!.Value);
         Guid? accountId = SelectedAccount.Id;
@@ -270,8 +359,8 @@ public sealed class JournalViewModel : ObservableObject
         try
         {
             DailyJournalWriteResult result = await Task.Run(() => entry is null
-                ? _repository.CreateAsync(new(date, accountId, text), cancellation.Token)
-                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, entry.IsDraft), cancellation.Token), cancellation.Token);
+                ? _repository.CreateAsync(new(date, accountId, text, isDraft, review), cancellation.Token)
+                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, isDraft, review), cancellation.Token), cancellation.Token);
             // A repository can return a committed result after cancellation was requested.
             // Its authoritative result must still be accepted; cancellation cannot undo a commit.
             switch (result.Status)
@@ -280,23 +369,21 @@ public sealed class JournalViewModel : ObservableObject
                 case DailyJournalWriteStatus.Updated:
                 case DailyJournalWriteStatus.Unchanged:
                     if (result.Journal is null) throw new InvalidOperationException("A saved journal result is required.");
-                    _entry = result.Journal.Entry;
-                    _text = _savedText = _entry.Text;
+                    PublishEntry(result.Journal.Entry);
                     _reloadRequired = false;
                     _notice = result.Status == DailyJournalWriteStatus.Unchanged ? "No changes to save." : null;
-                    OnPropertyChanged(nameof(Text));
                     break;
                 case DailyJournalWriteStatus.AlreadyExists:
                     _reloadRequired = true;
-                    _errorMessage = "A journal was created for this date and account elsewhere. Your text has been kept. Reload to read it before saving.";
+                    _errorMessage = "A journal was created for this date and account elsewhere. Your text has been kept, along with your review answers. Reload to read it before saving.";
                     break;
                 case DailyJournalWriteStatus.Conflict:
                     _reloadRequired = true;
-                    _errorMessage = "This journal was changed elsewhere. Your text has been kept. Reload the latest revision before saving.";
+                    _errorMessage = "This journal was changed elsewhere. Your text has been kept, along with your review answers. Reload the latest revision before saving.";
                     break;
                 case DailyJournalWriteStatus.NotFound:
                     _reloadRequired = true;
-                    _errorMessage = "This journal no longer exists. Your text has been kept. Reload before saving.";
+                    _errorMessage = "This journal no longer exists. Your text has been kept, along with your review answers. Reload before saving.";
                     break;
                 case DailyJournalWriteStatus.AccountUnavailable:
                     _reloadRequired = true;
@@ -308,11 +395,11 @@ public sealed class JournalViewModel : ObservableObject
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            _errorMessage = "Save cancelled. Your text has been kept.";
+            _errorMessage = "Save cancelled. Your text has been kept, along with your review answers.";
         }
         catch (Exception)
         {
-            _errorMessage = "Journal could not be saved. Your text has been kept. Try Save again.";
+            _errorMessage = "Journal could not be saved. Your text has been kept, along with your review answers. Try the action again.";
         }
         finally
         {
@@ -320,6 +407,26 @@ public sealed class JournalViewModel : ObservableObject
             _isSaving = false;
             NotifyState();
         }
+    }
+
+    private void PublishEntry(DailyJournalEntry? entry)
+    {
+        _entry = entry;
+        _text = _savedText = entry?.Text ?? "";
+        _savedReview = entry?.Review ?? DailyReviewAnswers.Empty;
+        _wentWell = _savedReview.WentWell;
+        _needsImprovement = _savedReview.NeedsImprovement;
+        _nextTradingDay = _savedReview.NextTradingDay;
+        _completionAttempted = false;
+        NotifyContent();
+    }
+
+    private void NotifyContent()
+    {
+        OnPropertyChanged(nameof(Text));
+        OnPropertyChanged(nameof(WentWell));
+        OnPropertyChanged(nameof(NeedsImprovement));
+        OnPropertyChanged(nameof(NextTradingDay));
     }
 
     private void CancelOperation()
@@ -345,24 +452,30 @@ public sealed class JournalViewModel : ObservableObject
     }
 
     private const string UnavailableAccountMessage =
-        "The selected account is no longer available. Your text and account scope have been kept. Select Reload to check again, or choose another scope.";
+        "The selected account is no longer available. Your text, review answers, and account scope have been kept. Select Reload to check again, or choose another scope.";
 
     private void NotifyState()
     {
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(IsExisting));
         OnPropertyChanged(nameof(IsDraft));
+        OnPropertyChanged(nameof(IsCompleted));
         OnPropertyChanged(nameof(Revision));
         OnPropertyChanged(nameof(IsLoading));
         OnPropertyChanged(nameof(IsSaving));
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanChangeScope));
         OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(CanReadContent));
+        OnPropertyChanged(nameof(IsReadOnly));
+        OnPropertyChanged(nameof(CanComplete));
         OnPropertyChanged(nameof(CharacterCountText));
         OnPropertyChanged(nameof(ErrorMessage));
         OnPropertyChanged(nameof(ScopeMessage));
         OnPropertyChanged(nameof(StatusText));
         SaveCommand.NotifyCanExecuteChanged();
+        CompleteReviewCommand.NotifyCanExecuteChanged();
+        ReopenReviewCommand.NotifyCanExecuteChanged();
         ReloadCommand.NotifyCanExecuteChanged();
         CancelOperationCommand.NotifyCanExecuteChanged();
     }

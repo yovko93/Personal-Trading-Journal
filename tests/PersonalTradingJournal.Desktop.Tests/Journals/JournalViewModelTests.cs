@@ -100,28 +100,26 @@ public sealed class JournalViewModelTests
         Assert.False(vm.IsDirty);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ExistingSaveUsesLoadedIdentityRevisionAndPreservesDraftFlag(bool draft)
+    [Fact]
+    public async Task ExistingDraftSaveUsesLoadedIdentityRevisionAndPreservesDraftFlag()
     {
-        var repository = new Repository { Journal = Details("original", draft: draft, revision: 7) };
+        var repository = new Repository { Journal = Details("original", revision: 7) };
         Guid id = repository.Journal.Entry.Id;
         var vm = Create(repository);
         await vm.ActivateAsync();
-        Assert.Equal(draft, vm.IsDraft);
+        Assert.True(vm.IsDraft);
         vm.Text = "revised";
         await vm.SaveCommand.ExecuteAsync(null);
 
         UpdateDailyJournalCommand command = Assert.Single(repository.Updates);
         Assert.Equal(id, command.JournalId);
         Assert.Equal(7L, command.ExpectedRevision);
-        Assert.Equal(draft, command.IsDraft);
+        Assert.True(command.IsDraft);
         Assert.Equal("revised", command.Text);
         Assert.Equal(8L, vm.Revision);
         Assert.False(vm.IsDirty);
-        Assert.Equal(draft, vm.IsDraft);
-        Assert.Contains(draft ? "Saved draft" : "Saved journal", vm.StatusText);
+        Assert.True(vm.IsDraft);
+        Assert.Contains("Saved draft", vm.StatusText);
         Assert.Empty(repository.Creates);
     }
 
@@ -664,8 +662,8 @@ public sealed class JournalViewModelTests
             new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), accounts ?? new AccountsReader()), new Clock(Now));
 
     private static DailyJournalDetails Details(string text, bool draft = true, long revision = 1,
-        Guid? accountId = null, DateOnly? date = null, Guid? id = null) =>
-        new(DailyJournalEntry.Rehydrate(id ?? Guid.NewGuid(), date ?? Day, accountId, text, draft, revision, Now, Now),
+        Guid? accountId = null, DateOnly? date = null, Guid? id = null, DailyReviewAnswers? review = null) =>
+        new(DailyJournalEntry.Rehydrate(id ?? Guid.NewGuid(), date ?? Day, accountId, text, draft, revision, Now, Now, review),
             accountId.HasValue ? DailyJournalAccountState.Active : DailyJournalAccountState.AllAccounts,
             accountId.HasValue ? "Account" : null);
 
@@ -717,7 +715,7 @@ public sealed class JournalViewModelTests
         {
             Creates.Enqueue(command);
             if (CreateBehavior is not null) return CreateBehavior(command, cancellationToken);
-            Journal = Details(command.Text, command.IsDraft, accountId: command.TradingAccountId, date: command.TradingDate);
+            Journal = Details(command.Text, command.IsDraft, accountId: command.TradingAccountId, date: command.TradingDate, review: command.Review);
             return Task.FromResult(new DailyJournalWriteResult(DailyJournalWriteStatus.Created, Journal));
         }
 
@@ -725,9 +723,10 @@ public sealed class JournalViewModelTests
         {
             Updates.Enqueue(command);
             if (UpdateBehavior is not null) return UpdateBehavior(command, cancellationToken);
-            bool unchanged = Journal!.Entry.Text == command.Text && Journal.Entry.IsDraft == command.IsDraft;
+            bool unchanged = Journal!.Entry.Text == command.Text && Journal.Entry.IsDraft == command.IsDraft
+                && Journal.Entry.Review == command.Review;
             Journal = Details(command.Text, command.IsDraft, command.ExpectedRevision + (unchanged ? 0 : 1),
-                Journal.Entry.TradingAccountId, Journal.Entry.TradingDate, command.JournalId);
+                Journal.Entry.TradingAccountId, Journal.Entry.TradingDate, command.JournalId, command.Review);
             return Task.FromResult(new DailyJournalWriteResult(unchanged ? DailyJournalWriteStatus.Unchanged : DailyJournalWriteStatus.Updated, Journal));
         }
 

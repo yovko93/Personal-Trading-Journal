@@ -98,13 +98,13 @@ Ten destinations—Dashboard, Calendar, Trades, Journal, Import, Accounts, Instr
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
-## Journal Editor (M14.2)
+## Journal Editor and Daily Review (M14.2–M14.4)
 
 The Journal page edits one explicit New York date and exact Account scope through `IDailyJournalRepository`. The date defaults to today in New York; All accounts is its own entry, and inactive Accounts remain selectable with inactive labels. Days without Trades are valid. Unavailable Account selections keep their original IDs and a visible unavailable state, with writes blocked.
 
-The multiline plain-text editor exposes **Save**, **Reload latest**, operation cancellation, character count, dirty/saved state and revision feedback. Save or **Ctrl+S** sends the exact current text without trimming or truncation. There is no autosave. New entries are drafts; text updates preserve the existing draft flag, and there is no completion toggle or history browser. Over-limit text is retained with validation feedback and Save disabled.
+The optional multiline text editor and three Daily Review answer controls expose **Save draft**, **Complete review**, **Reload latest**, operation cancellation and revision feedback. Save draft or **Ctrl+S** sends exact text/answers without trimming or truncation. Partial drafts are valid. Complete review requires meaningful text in all three answers and saves completed state atomically; it does not require Trades. Completed controls remain readable/copyable and read-only until **Reopen review** commits a draft revision. All write actions share submission/concurrency guards; over-limit content stays visible with writes blocked. There is no autosave or history browser.
 
-Date/Account changes and explicit reload also require confirmation before discarding dirty text. Failed or cancelled operations retain it. A conflict, duplicate creation or missing entry preserves the local draft and blocks another save until a successful explicit reload; no automatic overwrite or merge occurs. Asynchronous reads capture scope and reject obsolete results, and save operations are single-flight. The ViewModel uses Application contracts and the Desktop dialog service without accessing EF Core or Trade data.
+Date/Account changes and explicit reload require confirmation before discarding dirty text or answers. Failed or cancelled operations retain every local value. A conflict, duplicate creation or missing entry preserves local content and blocks another write until a successful explicit reload; no automatic overwrite or merge occurs. Asynchronous reads capture scope and reject obsolete results, and write operations are single-flight. The ViewModel uses Application contracts and the Desktop dialog service without accessing EF Core or Trade data.
 
 The view uses shared semantic Light/Dark brushes, form controls and calendar styling. Its date picker accepts culture-aware input and blocks Save while input is invalid or differs from the committed selected date. Labels, automation names, status/error live regions and keyboard access describe the scope and operation. Tab moves out of the multiline field; Ctrl+S invokes Save. Wrapping scope/action controls and vertical scrolling keep the page reachable at narrower sizes. These implementation details do not establish interactive visual or accessibility acceptance.
 
@@ -359,7 +359,7 @@ Notebook is a top-level destination intended for free-form market notes and know
 - session observations; and
 - contextual market notes.
 
-Journal is distinct: M14.2 provides saved plain text for one New York trading date and Account scope. Structured trade-review questions and completion workflows remain deferred. Notebook functionality is not implemented yet; only its place in the shell's navigation and information architecture exists. No Notebook domain or persistence design has been chosen.
+Journal is distinct: it provides text, read-only Trade context and three Daily Review questions with explicit completion/reopening for one New York date and Account scope. Notebook functionality is not implemented yet; only its place in the shell's navigation and information architecture exists. No Notebook domain or persistence design has been chosen.
 
 ## Deferred Decisions
 
@@ -373,9 +373,9 @@ The following are intentionally not implemented:
 - Dashboard analytics and data loading;
 - Setup/Mistake performance analytics or trade-quality scoring;
 - a general keyboard shortcut system beyond existing feature shortcuts such as Journal's Ctrl+S;
-- Journal autosave, review questions, completion controls and revision-history browsing;
+- Journal autosave and revision-history browsing;
 - Calendar Add Journal activation, deferred to M14.5.
 
 ## Next Milestone
 
-The M14.2 Journal editor is implemented with explicit saves. Calendar launch remains deferred to M14.5, alongside separately scoped future review/completion work. Its implementation and the historical M14.1 test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.
+The Journal editor, Trade context and Daily Review completion are implemented with explicit revisioned writes. Calendar launch remains deferred to M14.5. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.

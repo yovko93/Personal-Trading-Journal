@@ -45,7 +45,8 @@ public sealed class DailyJournalRepository : IDailyJournalRepository
         await using JournalDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         return await context.DailyJournalRevisions.AsNoTracking()
             .Where(r => r.JournalId == journalId).OrderBy(r => r.Revision)
-            .Select(r => new DailyJournalRevision(r.JournalId, r.Revision, r.Text, r.IsDraft, r.SavedAtUtc))
+            .Select(r => new DailyJournalRevision(r.JournalId, r.Revision, r.Text, r.IsDraft, r.SavedAtUtc,
+                new DailyReviewAnswers(r.WentWell, r.NeedsImprovement, r.NextTradingDay)))
             .ToArrayAsync(cancellationToken);
     }
 
@@ -55,7 +56,7 @@ public sealed class DailyJournalRepository : IDailyJournalRepository
         ArgumentNullException.ThrowIfNull(command);
         cancellationToken.ThrowIfCancellationRequested();
         var entry = new DailyJournalEntry(command.TradingDate, command.TradingAccountId,
-            command.Text, command.IsDraft, _clock.GetUtcNow());
+            command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? DailyReviewAnswers.Empty);
         await using JournalDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         // The SQLite writer transaction starts before reference/key checks. A competing
         // writer waits and then sees the committed revision; no check-then-write gap.
@@ -96,10 +97,13 @@ public sealed class DailyJournalRepository : IDailyJournalRepository
         if (record.Revision != command.ExpectedRevision)
             return new(DailyJournalWriteStatus.Conflict, Details(record, account));
         DailyJournalEntry entry = DailyJournalPersistenceMapper.ToDomain(record);
-        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow()))
+        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? entry.Review))
             return new(DailyJournalWriteStatus.Unchanged, Details(record, account));
 
         record.Text = entry.Text;
+        record.WentWell = entry.Review.WentWell;
+        record.NeedsImprovement = entry.Review.NeedsImprovement;
+        record.NextTradingDay = entry.Review.NextTradingDay;
         record.IsDraft = entry.IsDraft;
         record.Revision = entry.Revision;
         record.UpdatedAtUtc = entry.UpdatedAtUtc;

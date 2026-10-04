@@ -16,6 +16,9 @@ public sealed class DailyJournalRevisionRecordConfiguration : IEntityTypeConfigu
         builder.Property(r => r.JournalId).ValueGeneratedNever();
         builder.Property(r => r.Revision).ValueGeneratedNever();
         builder.Property(r => r.Text).IsRequired().HasMaxLength(DailyJournalEntry.MaximumTextLength);
+        builder.Property(r => r.WentWell).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
+        builder.Property(r => r.NeedsImprovement).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
+        builder.Property(r => r.NextTradingDay).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
         builder.Property(r => r.SavedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
         builder.HasOne<DailyJournalRecord>().WithMany().HasForeignKey(r => r.JournalId)
             .OnDelete(DeleteBehavior.Restrict);

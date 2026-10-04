@@ -11,7 +11,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Migrations;
 
-public sealed class InitialMigrationTests
+public sealed partial class InitialMigrationTests
 {
     private const string InitialMigrationId = "20260908122839_InitialCreate";
     private const string RemoveStrategiesMigrationId = "20260914212911_RemoveStrategies";
@@ -23,6 +23,7 @@ public sealed class InitialMigrationTests
         "20260925214352_AddTradovateFillAllocations";
     private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
     private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
+    private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -34,11 +35,11 @@ public sealed class InitialMigrationTests
             ["DailyJournals"] =
             [
                 "Id", "TradingDate", "TradingAccountId", "Text", "IsDraft", "Revision",
-                "CreatedAtUtc", "UpdatedAtUtc",
+                "CreatedAtUtc", "UpdatedAtUtc", "NeedsImprovement", "NextTradingDay", "WentWell",
             ],
             ["DailyJournalRevisions"] =
             [
-                "JournalId", "Revision", "Text", "IsDraft", "SavedAtUtc",
+                "JournalId", "Revision", "Text", "IsDraft", "SavedAtUtc", "NeedsImprovement", "NextTradingDay", "WentWell",
             ],
             ["Instruments"] =
             [
@@ -108,7 +109,7 @@ public sealed class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -120,7 +121,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(7L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(8L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -191,7 +192,7 @@ public sealed class InitialMigrationTests
 
             context.Database.Migrate();
 
-            Assert.Equal(DailyJournalsMigrationId, context.Database.GetAppliedMigrations().Last());
+            Assert.Equal(DailyReviewMigrationId, context.Database.GetAppliedMigrations().Last());
             Assert.Equal(previousTables.Concat(["DailyJournals", "DailyJournalRevisions"])
                 .OrderBy(name => name, StringComparer.Ordinal), ReadTableNames(connection));
             Assert.Equal(previousSchema, ReadNonJournalSchema(connection));
@@ -511,7 +512,7 @@ public sealed class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();

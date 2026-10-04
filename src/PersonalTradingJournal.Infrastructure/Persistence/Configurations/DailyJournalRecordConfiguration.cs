@@ -15,6 +15,9 @@ public sealed class DailyJournalRecordConfiguration : IEntityTypeConfiguration<D
         builder.HasKey(r => r.Id);
         builder.Property(r => r.Id).ValueGeneratedNever();
         builder.Property(r => r.Text).IsRequired().HasMaxLength(DailyJournalEntry.MaximumTextLength);
+        builder.Property(r => r.WentWell).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
+        builder.Property(r => r.NeedsImprovement).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
+        builder.Property(r => r.NextTradingDay).IsRequired().HasMaxLength(DailyReviewAnswers.MaximumAnswerLength).HasDefaultValue(string.Empty);
         builder.Property(r => r.Revision).IsConcurrencyToken();
         builder.Property(r => r.CreatedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
         builder.Property(r => r.UpdatedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();

@@ -11,6 +11,8 @@ public sealed class DailyJournalEntryTests
         new("5daafc60-4789-4b5c-a471-55b01a1a9af6");
     private static readonly Guid JournalId =
         new("50f1e4a7-b4b3-4e62-94c0-8e4be05fab35");
+    private static readonly DailyReviewAnswers CompleteReview = new(
+        "I followed my entry plan.", "Reduce late entries.", "Wait for confirmation.");
 
     [Theory]
     [InlineData(null)]
@@ -36,7 +38,7 @@ public sealed class DailyJournalEntryTests
     [InlineData("  café 文 🙂\r\n  next line\n\r\n")]
     public void PreservesExactTextIncludingEmptyContent(string text)
     {
-        var journal = new DailyJournalEntry(TradingDate, null, text, false, CreatedAtUtc);
+        var journal = new DailyJournalEntry(TradingDate, null, text, false, CreatedAtUtc, CompleteReview);
 
         Assert.Equal(text, journal.Text);
         Assert.False(journal.IsDraft);
@@ -69,12 +71,13 @@ public sealed class DailyJournalEntryTests
         DateTimeOffset updatedAtUtc = CreatedAtUtc.AddMinutes(5);
         const string text = "  complete\r\n";
         DailyJournalEntry journal = DailyJournalEntry.Rehydrate(
-            JournalId, TradingDate, AccountId, text, false, 12, CreatedAtUtc, updatedAtUtc);
+            JournalId, TradingDate, AccountId, text, false, 12, CreatedAtUtc, updatedAtUtc, CompleteReview);
 
         Assert.Equal(JournalId, journal.Id);
         Assert.Equal(TradingDate, journal.TradingDate);
         Assert.Equal(AccountId, journal.TradingAccountId);
         Assert.Equal(text, journal.Text);
+        Assert.Equal(CompleteReview, journal.Review);
         Assert.False(journal.IsDraft);
         Assert.Equal(12L, journal.Revision);
         Assert.Equal(CreatedAtUtc, journal.CreatedAtUtc);
@@ -123,13 +126,14 @@ public sealed class DailyJournalEntryTests
         DailyJournalEntry journal = Rehydrate();
         DateTimeOffset updatedAtUtc = CreatedAtUtc.AddMinutes(5);
 
-        Assert.True(journal.UpdateContent("  changed\r\n", false, updatedAtUtc));
+        Assert.True(journal.UpdateContent("  changed\r\n", false, updatedAtUtc, CompleteReview));
 
         Assert.Equal(JournalId, journal.Id);
         Assert.Equal(TradingDate, journal.TradingDate);
         Assert.Equal(AccountId, journal.TradingAccountId);
         Assert.Equal("  changed\r\n", journal.Text);
         Assert.False(journal.IsDraft);
+        Assert.Equal(CompleteReview, journal.Review);
         Assert.Equal(2L, journal.Revision);
         Assert.Equal(CreatedAtUtc, journal.CreatedAtUtc);
         Assert.Equal(updatedAtUtc, journal.UpdatedAtUtc);
@@ -153,7 +157,7 @@ public sealed class DailyJournalEntryTests
 
         Assert.True(journal.UpdateContent("review ", true, CreatedAtUtc));
         Assert.Equal(2L, journal.Revision);
-        Assert.True(journal.UpdateContent("review ", false, CreatedAtUtc));
+        Assert.True(journal.UpdateContent("review ", false, CreatedAtUtc, CompleteReview));
         Assert.Equal(3L, journal.Revision);
         Assert.True(journal.UpdateContent("review ", true, CreatedAtUtc));
         Assert.Equal(4L, journal.Revision);
@@ -180,11 +184,11 @@ public sealed class DailyJournalEntryTests
         DailyJournalEntry journal = Rehydrate(updatedAtUtc: currentUpdatedAtUtc);
 
         Assert.Throws<ArgumentException>(() => journal.UpdateContent(
-            "changed", false, currentUpdatedAtUtc.ToOffset(TimeSpan.FromHours(2))));
+            "changed", true, currentUpdatedAtUtc.ToOffset(TimeSpan.FromHours(2))));
         Assert.Throws<ArgumentOutOfRangeException>(() => journal.UpdateContent(
-            "changed", false, currentUpdatedAtUtc.AddTicks(-1)));
+            "changed", true, currentUpdatedAtUtc.AddTicks(-1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => journal.UpdateContent(
-            "changed", false, CreatedAtUtc.AddTicks(-1)));
+            "changed", true, CreatedAtUtc.AddTicks(-1)));
 
         Assert.Equal("review", journal.Text);
         Assert.True(journal.IsDraft);
@@ -199,12 +203,144 @@ public sealed class DailyJournalEntryTests
 
         Assert.False(journal.UpdateContent("review", true, CreatedAtUtc.AddMinutes(1)));
         Assert.Throws<OverflowException>(() =>
-            journal.UpdateContent("changed", false, CreatedAtUtc.AddMinutes(1)));
+            journal.UpdateContent("changed", true, CreatedAtUtc.AddMinutes(1)));
 
         Assert.Equal("review", journal.Text);
         Assert.True(journal.IsDraft);
         Assert.Equal(long.MaxValue, journal.Revision);
         Assert.Equal(CreatedAtUtc, journal.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void PartialAnswersCanBeSavedWithoutFreeformTextOrTrades()
+    {
+        var review = new DailyReviewAnswers("  Patient entries\r\n", string.Empty, "\t");
+        var journal = new DailyJournalEntry(TradingDate, null, string.Empty, true, CreatedAtUtc, review);
+
+        Assert.Equal(review, journal.Review);
+        Assert.True(journal.IsDraft);
+        Assert.True(journal.UpdateContent(string.Empty, true, CreatedAtUtc.AddMinutes(1),
+            new DailyReviewAnswers(review.WentWell, "Better sizing", review.NextTradingDay)));
+        Assert.Equal("  Patient entries\r\n", journal.Review.WentWell);
+        Assert.Equal(2L, journal.Revision);
+    }
+
+    [Theory]
+    [InlineData("", "Improve", "Next")]
+    [InlineData("Well", "\t\r\n", "Next")]
+    [InlineData("Well", "Improve", "...!? 🙂 \u200B")]
+    public void IncompleteAnswersRejectCompletionWithoutMutatingEntry(
+        string wentWell, string needsImprovement, string nextTradingDay)
+    {
+        var review = new DailyReviewAnswers(wentWell, needsImprovement, nextTradingDay);
+        DailyJournalEntry journal = Rehydrate();
+
+        Assert.Throws<ArgumentException>(() => new DailyJournalEntry(
+            TradingDate, null, "optional journal", false, CreatedAtUtc, review));
+        Assert.Throws<ArgumentException>(() => journal.UpdateContent(
+            "local changed text", false, CreatedAtUtc.AddMinutes(1), review));
+
+        AssertOriginalContent(journal);
+        Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
+    }
+
+    [Fact]
+    public void CompleteThenReopenPreservesScopeAndAnswersAndAddsDurableRevisionNumbers()
+    {
+        DailyJournalEntry journal = Rehydrate();
+
+        Assert.True(journal.UpdateContent(string.Empty, false, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.False(journal.IsDraft);
+        Assert.Equal(2L, journal.Revision);
+        Assert.True(journal.UpdateContent(string.Empty, true, CreatedAtUtc.AddMinutes(2), CompleteReview));
+        Assert.True(journal.IsDraft);
+        Assert.Equal(3L, journal.Revision);
+        Assert.True(journal.UpdateContent("New note", true, CreatedAtUtc.AddMinutes(3),
+            new DailyReviewAnswers("Updated", CompleteReview.NeedsImprovement, CompleteReview.NextTradingDay)));
+        Assert.Equal(4L, journal.Revision);
+        Assert.Equal(TradingDate, journal.TradingDate);
+        Assert.Equal(AccountId, journal.TradingAccountId);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void CompletedReviewCannotChangeContentEvenWhenAttemptingToReopen(
+        bool isDraft, bool changeAnswers)
+    {
+        var journal = new DailyJournalEntry(TradingDate, AccountId, "note", false, CreatedAtUtc, CompleteReview);
+        DailyReviewAnswers review = changeAnswers
+            ? new DailyReviewAnswers("Changed answer", CompleteReview.NeedsImprovement, CompleteReview.NextTradingDay)
+            : CompleteReview;
+        string text = changeAnswers ? "note" : "Changed note";
+
+        Assert.Throws<InvalidOperationException>(() => journal.UpdateContent(
+            text, isDraft, CreatedAtUtc.AddMinutes(1), review));
+
+        Assert.False(journal.IsDraft);
+        Assert.Equal("note", journal.Text);
+        Assert.Equal(CompleteReview, journal.Review);
+        Assert.Equal(1L, journal.Revision);
+        Assert.Equal(CreatedAtUtc, journal.UpdatedAtUtc);
+    }
+
+    [Fact]
+    public void LegacyCompletedEntryRemainsReadableAndMustBeReopenedBeforeEditing()
+    {
+        DailyJournalEntry journal = DailyJournalEntry.Rehydrate(
+            JournalId, TradingDate, AccountId, "historic completed note", false, 8,
+            CreatedAtUtc, CreatedAtUtc);
+
+        Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
+        Assert.False(journal.UpdateContent(journal.Text, false, CreatedAtUtc.AddMinutes(1)));
+        Assert.Throws<InvalidOperationException>(() => journal.UpdateContent(
+            journal.Text, true, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.True(journal.UpdateContent(journal.Text, true, CreatedAtUtc.AddMinutes(1)));
+        Assert.Equal(9L, journal.Revision);
+        Assert.True(journal.UpdateContent(journal.Text, false, CreatedAtUtc.AddMinutes(2), CompleteReview));
+        Assert.Equal(10L, journal.Revision);
+    }
+
+    [Fact]
+    public void ReviewValueEqualityAndOlderUpdateOverloadPreserveAnswers()
+    {
+        var equivalent = new DailyReviewAnswers(
+            CompleteReview.WentWell, CompleteReview.NeedsImprovement, CompleteReview.NextTradingDay);
+        var journal = new DailyJournalEntry(TradingDate, AccountId, "note", true, CreatedAtUtc, CompleteReview);
+
+        Assert.False(journal.UpdateContent("note", true, CreatedAtUtc.AddMinutes(1), equivalent));
+        Assert.True(journal.UpdateContent("new note", true, CreatedAtUtc.AddMinutes(1)));
+        Assert.Equal(CompleteReview, journal.Review);
+    }
+
+    [Fact]
+    public void ReviewOnlyUpdateRejectsInvalidAuditAndRevisionOverflowAtomically()
+    {
+        DailyJournalEntry journal = Rehydrate(revision: long.MaxValue);
+        Assert.Throws<OverflowException>(() => journal.UpdateContent(
+            journal.Text, true, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
+        Assert.Equal(long.MaxValue, journal.Revision);
+
+        journal = Rehydrate();
+        Assert.Throws<ArgumentException>(() => journal.UpdateContent(
+            journal.Text, true, CreatedAtUtc.ToOffset(TimeSpan.FromHours(1)), CompleteReview));
+        Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
+        AssertOriginalContent(journal);
+    }
+
+    [Fact]
+    public void NullReviewCannotBeCreatedOrAppliedAndDoesNotMutateState()
+    {
+        Assert.Throws<ArgumentNullException>(() => new DailyJournalEntry(
+            TradingDate, null, "note", true, CreatedAtUtc, null!));
+        DailyJournalEntry journal = Rehydrate();
+        Assert.Throws<ArgumentNullException>(() => journal.UpdateContent(
+            "Changed", true, CreatedAtUtc.AddMinutes(1), null!));
+        AssertOriginalContent(journal);
+        Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
     }
 
     private static DailyJournalEntry Rehydrate(long revision = 1, DateTimeOffset? updatedAtUtc = null) =>

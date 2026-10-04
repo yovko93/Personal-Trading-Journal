@@ -22,6 +22,7 @@ public sealed class JournalDatabaseInitializerTests
         "20260925214352_AddTradovateFillAllocations";
     private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
     private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
+    private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
 
     [Fact]
     public async Task InitializeAsyncCreatesMigratedUsableEmptyDatabase()
@@ -52,7 +53,7 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
@@ -117,7 +118,7 @@ public sealed class JournalDatabaseInitializerTests
                 Assert.Equal(
                     [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                         TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                        DailyJournalsMigrationId],
+                        DailyJournalsMigrationId, DailyReviewMigrationId],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -131,7 +132,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(7L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(8L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

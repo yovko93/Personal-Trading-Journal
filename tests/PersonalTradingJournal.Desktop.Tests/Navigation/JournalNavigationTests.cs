@@ -10,6 +10,35 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed partial class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public async Task AnswersWithoutFreeformTextProtectPageAndWindowNavigation(int question)
+    {
+        var fixture = CreateJournalFixture();
+        using MainWindowViewModel main = fixture.Main;
+        main.NavigateCommand.Execute(NavigationDestination.Journal);
+        await fixture.Journal.LoadTask;
+        switch (question)
+        {
+            case 1: fixture.Journal.WentWell = "I followed the plan."; break;
+            case 2: fixture.Journal.NeedsImprovement = "More patience."; break;
+            case 3: fixture.Journal.NextTradingDay = "Wait for confirmation."; break;
+        }
+        Assert.Empty(fixture.Journal.Text);
+        Assert.True(fixture.Journal.IsDirty);
+        main.NavigateCommand.Execute(NavigationDestination.Notebook);
+        Assert.Equal(NavigationDestination.Journal, main.CurrentDestination);
+        Assert.False(main.TryCloseWindow());
+        Assert.True(fixture.Journal.IsDirty);
+        Assert.Single(fixture.Repository.ReadCalls);
+        fixture.Dialogs.ConfirmationResult = true;
+        main.NavigateCommand.Execute(NavigationDestination.Notebook);
+        Assert.Equal(NavigationDestination.Notebook, main.CurrentDestination);
+        Assert.Empty(fixture.Repository.CreateCalls);
+    }
+
     [Fact]
     public async Task JournalNavigationRetainsViewModelAndLoadsFreshOnEachVisit()
     {

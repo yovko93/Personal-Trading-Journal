@@ -85,6 +85,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20260925214352_AddTradovateFillAllocations",
                     "20260928201843_AddTopstepImportPersistence",
                     "20261004145757_AddDailyJournals",
+                    "20261004165044_AddDailyJournalReviewAnswers",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

@@ -30,6 +30,12 @@ public sealed class JournalViewTests
         var dialogs = new FakeDialogService();
         var dateEditors = new[] { await CreateAsync("saved", dialogs), await CreateAsync("saved", dialogs) };
         var empty = await CreateAsync(null);
+        var reviews = new List<(JournalViewModel Draft, JournalViewModel Completed)>();
+        foreach (var _ in cases)
+        {
+            reviews.Add((await CreateAsync("", review: new("I followed the plan.", "", "")),
+                await CreateAsync("", draft: false, review: new("  I waited for my entry.\r\n", "I chased one Trade.", "I will wait for confirmation."))));
+        }
         await OnSta(() =>
         {
             // One Application and STA for this supervised child, matching production BAML's
@@ -39,11 +45,72 @@ public sealed class JournalViewTests
             {
                 var (theme, width, dpi) = cases[i];
                 CheckLayout(editors[i], text, theme, width, dpi);
+                CheckReviewLayout(reviews[i].Draft, theme, width, dpi, completed: false);
+                CheckReviewLayout(reviews[i].Completed, theme, width, dpi, completed: true);
             }
             CheckDateInput(dateEditors[0], dialogs, "en-US");
             CheckDateInput(dateEditors[1], dialogs, "bg-BG");
             CheckEmptyAndValidation(empty);
         });
+    }
+
+    private static void CheckReviewLayout(JournalViewModel vm, string theme, int width, int dpi, bool completed)
+    {
+        using var phase = CalendarStaTest.Phase($"Daily Review {theme} {width} DIP / {dpi} DPI completed={completed}");
+        var (view, root) = Layout(vm, theme, width);
+        var wentWell = (TextBox)view.FindName("WentWellAnswer");
+        var improvement = (TextBox)view.FindName("NeedsImprovementAnswer");
+        var nextDay = (TextBox)view.FindName("NextTradingDayAnswer");
+        var freeform = (TextBox)view.FindName("JournalText");
+        var save = (Button)view.FindName("SaveJournal");
+        var complete = (Button)view.FindName("CompleteJournalReview");
+        var reopen = (Button)view.FindName("ReopenJournalReview");
+        Assert.Equal(new[] { vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay }, new[] { wentWell.Text, improvement.Text, nextDay.Text });
+        Assert.Equal(new[] { "What went well?", "What needs improvement?", "What will I do differently next trading day?" },
+            new[] { wentWell, improvement, nextDay }.Select(AutomationProperties.GetName));
+        Assert.All(new[] { freeform, wentWell, improvement, nextDay }, box =>
+        {
+            Assert.True(box.IsEnabled && box.Focusable); // Completed text can still be read and copied.
+            Assert.Equal(completed, box.IsReadOnly);
+            Assert.True(box.AcceptsReturn);
+            Assert.False(box.AcceptsTab);
+            Assert.Equal(0, box.MaxLength);
+            Assert.Equal(ScrollBarVisibility.Auto, box.VerticalScrollBarVisibility);
+            Assert.True(box.ActualWidth <= width);
+            Assert.Equal(((SolidColorBrush)root.Resources["PtjSurfaceElevatedBrush"]).Color, ((SolidColorBrush)box.Background).Color);
+        });
+        Assert.Same(vm.CompleteReviewCommand, complete.Command);
+        Assert.Same(vm.ReopenReviewCommand, reopen.Command);
+        Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, save.Visibility);
+        Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, complete.Visibility);
+        Assert.Equal(completed ? Visibility.Visible : Visibility.Collapsed, reopen.Visibility);
+        Assert.True(completed ? reopen.IsEnabled : complete.IsEnabled);
+        Assert.True(wentWell.TranslatePoint(new Point(), view).Y < improvement.TranslatePoint(new Point(), view).Y);
+        Assert.True(improvement.TranslatePoint(new Point(), view).Y < nextDay.TranslatePoint(new Point(), view).Y);
+        Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
+        if (!completed)
+        {
+            improvement.Text = "  More patience.\r\n ";
+            nextDay.Text = "I will wait.";
+            Flush();
+            Assert.Equal(improvement.Text, vm.NeedsImprovement);
+            Assert.Equal(nextDay.Text, vm.NextTradingDay);
+            Assert.True(vm.IsDirty);
+            Assert.True(vm.CanComplete);
+            DateTime? date = vm.SelectedDate;
+            ((DatePicker)view.FindName("JournalDate")).SelectedDate = date!.Value.AddDays(1);
+            Flush();
+            Assert.Equal(date, vm.SelectedDate); // Answers alone participate in the discard guard.
+            Assert.Equal(improvement.Text, vm.NeedsImprovement);
+        }
+        var scroller = (ScrollViewer)view.FindName("JournalScroller");
+        scroller.ScrollToVerticalOffset(wentWell.TranslatePoint(new Point(), view).Y - 48);
+        Flush();
+        Render(root, theme, width, dpi, completed ? "review-completed-" : "review-draft-");
+        (completed ? reopen : complete).BringIntoView();
+        Flush();
+        Assert.InRange((completed ? reopen : complete).TranslatePoint(new Point(), root).Y, 0, root.ActualHeight - (completed ? reopen : complete).ActualHeight);
+        vm.Deactivate();
     }
 
     private static void CheckLayout(JournalViewModel vm, string text, string theme, int width, int dpi)
@@ -162,11 +229,12 @@ public sealed class JournalViewTests
         vm.Deactivate();
     }
 
-    private static async Task<JournalViewModel> CreateAsync(string? text, FakeDialogService? dialogs = null)
+    private static async Task<JournalViewModel> CreateAsync(string? text, FakeDialogService? dialogs = null,
+        bool draft = true, DailyReviewAnswers? review = null)
     {
         var accounts = new FakeTradingAccountReader();
         accounts.EnqueueResult([new AccountListItem(Guid.NewGuid(), "Archive account", TradingAccountType.Personal, null, null, "USD", null, false)]);
-        var vm = new JournalViewModel(new ReadRepository(text), accounts, dialogs ?? new(),
+        var vm = new JournalViewModel(new ReadRepository(text, draft, review), accounts, dialogs ?? new(),
             new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new FixedTimeProvider());
         await vm.ActivateAsync();
         return vm;
@@ -198,7 +266,7 @@ public sealed class JournalViewTests
         }
     }
 
-    private static void Render(Border root, string theme, int width, int dpi)
+    private static void Render(Border root, string theme, int width, int dpi, string variant = "")
     {
         using (CalendarStaTest.Phase("Journal RenderTargetBitmap"))
         {
@@ -210,7 +278,7 @@ public sealed class JournalViewTests
                 Directory.CreateDirectory(path);
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                using var file = File.Create(Path.Combine(path, $"journal-{theme}-{width}-{dpi}.png"));
+                using var file = File.Create(Path.Combine(path, $"journal-{variant}{theme}-{width}-{dpi}.png"));
                 encoder.Save(file);
             }
         }
@@ -223,10 +291,10 @@ public sealed class JournalViewTests
         Environment.GetEnvironmentVariable("PTJ_JOURNAL_EDITOR_TEST_HOST") == "1"
             ? CalendarStaTest.RunAsync(action, scenario) : Host.Value;
 
-    private sealed class ReadRepository(string? text) : IDailyJournalRepository
+    private sealed class ReadRepository(string? text, bool draft = true, DailyReviewAnswers? review = null) : IDailyJournalRepository
     {
         public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(text is null ? null : new DailyJournalDetails(new DailyJournalEntry(date, accountId, text, FixedTimeProvider.FixedUtcNow), DailyJournalAccountState.AllAccounts, null));
+            Task.FromResult(text is null ? null : new DailyJournalDetails(new DailyJournalEntry(date, accountId, text, draft, FixedTimeProvider.FixedUtcNow, review ?? DailyReviewAnswers.Empty), DailyJournalAccountState.AllAccounts, null));
         public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid journalId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<DailyJournalWriteResult> UpdateAsync(UpdateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();

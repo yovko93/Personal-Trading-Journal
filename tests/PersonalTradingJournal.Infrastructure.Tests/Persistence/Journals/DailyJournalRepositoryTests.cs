@@ -5,17 +5,19 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Domain.Accounts;
+using PersonalTradingJournal.Domain.Journals;
 using PersonalTradingJournal.Infrastructure.Journals;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Journals;
 
-public sealed class DailyJournalRepositoryTests
+public sealed partial class DailyJournalRepositoryTests
 {
     private static readonly DateOnly TradingDate = new(2026, 10, 4);
     private static readonly DateTimeOffset CreatedAtUtc =
         new(2026, 10, 4, 8, 30, 0, TimeSpan.Zero);
+    private static readonly DailyReviewAnswers CompleteReview = new("Followed plan", "Improve patience", "Wait for confirmation");
 
     [Fact]
     public async Task CreateAndReadPreserveExactTextScopeAndUtcAuditFields()
@@ -26,7 +28,7 @@ public sealed class DailyJournalRepositoryTests
         const string text = "  Premarket\r\n\nПлан: търпение. 📈\t  ";
 
         DailyJournalWriteResult result = await repository.CreateAsync(
-            new CreateDailyJournalCommand(TradingDate, null, text, false));
+            new CreateDailyJournalCommand(TradingDate, null, text, false, CompleteReview));
         DailyJournalDetails created = Assert.IsType<DailyJournalDetails>(result.Journal);
         DailyJournalDetails loaded = Assert.IsType<DailyJournalDetails>(
             await repository.GetAsync(TradingDate));
@@ -93,7 +95,7 @@ public sealed class DailyJournalRepositoryTests
             DailyJournalWriteResult first = await repository.CreateAsync(
                 new CreateDailyJournalCommand(scope.Date, scope.AccountId, scope.Text));
             DailyJournalWriteResult duplicate = await repository.CreateAsync(
-                new CreateDailyJournalCommand(scope.Date, scope.AccountId, "Replacement", false));
+                new CreateDailyJournalCommand(scope.Date, scope.AccountId, "Replacement", false, CompleteReview));
             DailyJournalDetails loaded = Assert.IsType<DailyJournalDetails>(
                 await repository.GetAsync(scope.Date, scope.AccountId));
 
@@ -216,7 +218,7 @@ public sealed class DailyJournalRepositoryTests
             new UpdateDailyJournalCommand(created.Entry.Id, 1, "  Edited\n", true));
         clock.Advance(TimeSpan.FromMinutes(3));
         DailyJournalWriteResult completion = await repository.UpdateAsync(
-            new UpdateDailyJournalCommand(created.Entry.Id, 2, "  Edited\n", false));
+            new UpdateDailyJournalCommand(created.Entry.Id, 2, "  Edited\n", false, CompleteReview));
 
         Assert.Equal(DailyJournalWriteStatus.Updated, edit.Status);
         Assert.Equal(DailyJournalWriteStatus.Updated, completion.Status);
@@ -263,7 +265,7 @@ public sealed class DailyJournalRepositoryTests
         var clock = new JournalTestClock(CreatedAtUtc);
         var repository = new DailyJournalRepository(database.ContextFactory, clock);
         DailyJournalDetails created = Assert.IsType<DailyJournalDetails>((await repository.CreateAsync(
-            new CreateDailyJournalCommand(TradingDate, null, "Same\r\n", false))).Journal);
+            new CreateDailyJournalCommand(TradingDate, null, "Same\r\n", false, CompleteReview))).Journal);
         clock.Advance(TimeSpan.FromHours(1));
 
         DailyJournalWriteResult result = await repository.UpdateAsync(
@@ -308,7 +310,7 @@ public sealed class DailyJournalRepositoryTests
         DailyJournalDetails created = Assert.IsType<DailyJournalDetails>((await firstRepository.CreateAsync(
             new CreateDailyJournalCommand(TradingDate, null, "Original"))).Journal);
         DailyJournalDetails stale = Assert.IsType<DailyJournalDetails>(await secondRepository.GetAsync(TradingDate));
-        await firstRepository.UpdateAsync(new UpdateDailyJournalCommand(created.Entry.Id, 1, "Latest", false));
+        await firstRepository.UpdateAsync(new UpdateDailyJournalCommand(created.Entry.Id, 1, "Latest", false, CompleteReview));
 
         DailyJournalWriteResult result = await secondRepository.UpdateAsync(
             new UpdateDailyJournalCommand(stale.Entry.Id, stale.Entry.Revision,
@@ -411,9 +413,9 @@ public sealed class DailyJournalRepositoryTests
 
         DailyJournalWriteResult[] results = await Task.WhenAll(
             Task.Run(() => firstRepository.UpdateAsync(
-                new UpdateDailyJournalCommand(created.Entry.Id, 1, "First", false), timeout.Token)),
+                new UpdateDailyJournalCommand(created.Entry.Id, 1, "First", false, CompleteReview), timeout.Token)),
             Task.Run(() => secondRepository.UpdateAsync(
-                new UpdateDailyJournalCommand(created.Entry.Id, 1, "Second", false), timeout.Token)));
+                new UpdateDailyJournalCommand(created.Entry.Id, 1, "Second", false, CompleteReview), timeout.Token)));
 
         DailyJournalWriteResult winner = Assert.Single(results, result => result.Status == DailyJournalWriteStatus.Updated);
         Assert.Single(results, result => result.Status == DailyJournalWriteStatus.Conflict);
@@ -437,7 +439,7 @@ public sealed class DailyJournalRepositoryTests
             new CreateDailyJournalCommand(TradingDate, accountId, "Review"));
         DailyJournalDetails first = Assert.IsType<DailyJournalDetails>(created.Journal);
         DailyJournalWriteResult updated = await repository.UpdateAsync(
-            new UpdateDailyJournalCommand(first.Entry.Id, 1, "Completed review", false));
+            new UpdateDailyJournalCommand(first.Entry.Id, 1, "Completed review", false, CompleteReview));
 
         Assert.Equal(DailyJournalWriteStatus.Created, created.Status);
         Assert.Equal(DailyJournalWriteStatus.Updated, updated.Status);
@@ -607,7 +609,7 @@ public sealed class DailyJournalRepositoryTests
         {
             if (journalId.HasValue)
             {
-                await repository.UpdateAsync(new UpdateDailyJournalCommand(journalId.Value, 1, "Cancelled", false), cancellation.Token);
+                await repository.UpdateAsync(new UpdateDailyJournalCommand(journalId.Value, 1, "Cancelled", false, CompleteReview), cancellation.Token);
             }
             else
             {
@@ -647,7 +649,7 @@ public sealed class DailyJournalRepositoryTests
         {
             if (original is not null)
             {
-                await repository.UpdateAsync(new UpdateDailyJournalCommand(original.Entry.Id, 1, "Failed edit", false));
+                await repository.UpdateAsync(new UpdateDailyJournalCommand(original.Entry.Id, 1, "Failed edit", false, CompleteReview));
             }
             else
             {
