@@ -10,7 +10,10 @@ public sealed class CalendarStaTestTests
     [Fact]
     public async Task ImportResourceApplicationCannotPoisonLaterNativeTooltipWindows()
     {
-        if (await RunInChild()) return;
+        // This composite runs a supervised Import child, then two real Popup
+        // checks. Use the existing suite budget, not a single STA's 30 seconds:
+        // VSTest startup/exit must not time out an already-passing child TRX.
+        if (await RunInChild(timeout: TimeSpan.FromMinutes(2))) return;
         await new Import.TopstepDesktopRoutingTests().CompiledImportViewLoadsRealResourcesAndMaterializesTopstepReviewControls();
         // The old import test signalled completion just before its Application
         // shutdown. Wait for its owner thread so the regression is not a race.
@@ -124,11 +127,12 @@ public sealed class CalendarStaTestTests
         }
     }
 
-    private static async Task<bool> RunInChild([System.Runtime.CompilerServices.CallerMemberName] string scenario = "")
+    private static async Task<bool> RunInChild([System.Runtime.CompilerServices.CallerMemberName] string scenario = "",
+        TimeSpan? timeout = null)
     {
         if (Environment.GetEnvironmentVariable(HostVariable) == "1") return false;
         await IsolatedTestProcess.RunSuiteAsync(typeof(CalendarStaTestTests), "calendar-sta-" + scenario,
-            HostVariable, TimeSpan.FromSeconds(30),
+            HostVariable, timeout ?? TimeSpan.FromSeconds(30),
             testCaseFilter: $"FullyQualifiedName={typeof(CalendarStaTestTests).FullName}.{scenario}");
         return true;
     }

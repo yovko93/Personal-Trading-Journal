@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -12,14 +13,14 @@ public sealed class IsolatedTestProcessTests
     [InlineData(7)]
     public async Task NormalAndFailedExitPreserveCompleteOutput(int exitCode)
     {
-        IsolatedProcessResult result = await IsolatedTestProcess.RunAsync(PowerShell(
-            $"[Console]::Out.WriteLine('probe stdout'); [Console]::Error.WriteLine('probe stderr'); exit {exitCode}"),
+        IsolatedProcessResult result = await IsolatedTestProcess.RunAsync(Probe("output", exitCode.ToString(CultureInfo.InvariantCulture)),
             $"exit-{exitCode}", TimeSpan.FromSeconds(15));
         Assert.Equal(exitCode, result.ExitCode);
-        Assert.Contains("probe stdout", result.StandardOutput);
-        Assert.Contains("probe stderr", result.StandardError);
-        Assert.Contains("probe stdout", await File.ReadAllTextAsync(Path.Combine(result.ResultsDirectory, "stdout.log")));
-        Assert.Contains("probe stderr", await File.ReadAllTextAsync(Path.Combine(result.ResultsDirectory, "stderr.log")));
+        string stdout = ExpectedOutput("stdout", 'O'), stderr = ExpectedOutput("stderr", 'E');
+        Assert.Equal(stdout, await File.ReadAllTextAsync(Path.Combine(result.ResultsDirectory, "stdout.log")));
+        Assert.Equal(stderr, await File.ReadAllTextAsync(Path.Combine(result.ResultsDirectory, "stderr.log")));
+        Assert.Equal(stdout[^(128 * 1024)..], result.StandardOutput);
+        Assert.Equal(stderr[^(128 * 1024)..], result.StandardError);
         Assert.Contains("Exited PID", await File.ReadAllTextAsync(Path.Combine(result.ResultsDirectory, "process-supervision.log")));
         Assert.False(IsRunning(result.ProcessId));
     }
@@ -77,7 +78,48 @@ public sealed class IsolatedTestProcessTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => IsolatedTestProcess.RunAsync(
-            PowerShell("throw 'Must not execute'"), "not-started", TimeSpan.FromSeconds(5), cancellation.Token));
+            Probe("must-not-execute"), "not-started", TimeSpan.FromSeconds(5), cancellation.Token));
+    }
+
+    [Fact]
+    public async Task ParentOnlyKillCannotSatisfyTheReadyDescendantCleanupAssertion()
+    {
+        ProcessStartInfo start = BlockedForegroundSta();
+        start.UseShellExecute = false;
+        start.CreateNoWindow = true;
+        start.RedirectStandardOutput = true;
+        using Process parent = Process.Start(start)!;
+        Process? child = null;
+        try
+        {
+            using var startupDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            string? line;
+            while ((line = await parent.StandardOutput.ReadLineAsync(startupDeadline.Token)) is not null)
+            {
+                if (line.StartsWith("CHILD ", StringComparison.Ordinal))
+                    child = Process.GetProcessById(int.Parse(line[6..], CultureInfo.InvariantCulture));
+                if (line == "FOREGROUND STA") break;
+            }
+            Assert.Equal("FOREGROUND STA", line);
+            Assert.NotNull(child);
+            parent.Kill(entireProcessTree: false); // Negative control, not the supervisor's cleanup policy.
+            await parent.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAsync<TimeoutException>(() => child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally
+        {
+            // A failing negative control must not leave its synthetic processes.
+            if (!parent.HasExited) parent.Kill(entireProcessTree: true);
+            await parent.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            if (child is not null)
+            {
+                using (child)
+                {
+                    if (!child.HasExited) child.Kill(entireProcessTree: true);
+                    await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+                }
+            }
+        }
     }
 
     [Fact]
@@ -134,49 +176,23 @@ public sealed class IsolatedTestProcessTests
             fails(buffer.ToString()) ? Task.FromException(failure) : base.WriteAsync(buffer, cancellationToken);
     }
 
-    private static ProcessStartInfo BlockedForegroundSta()
+    private static ProcessStartInfo BlockedForegroundSta() => Probe("blocked-sta");
+
+    private static ProcessStartInfo Probe(params string[] arguments)
     {
-        const string source = """
-            using System;
-            using System.Diagnostics;
-            using System.Threading;
-            public static class ForegroundStaProbe
-            {
-                public static void Run()
-                {
-                    var childStart = new ProcessStartInfo("powershell.exe");
-                    childStart.Arguments = "-NoLogo -NoProfile -NonInteractive -Command \"[Threading.Thread]::Sleep(-1)\"";
-                    childStart.UseShellExecute = false;
-                    childStart.CreateNoWindow = true;
-                    Process child = Process.Start(childStart);
-                    var thread = new Thread(() =>
-                    {
-                        Console.WriteLine("PARENT " + Process.GetCurrentProcess().Id);
-                        Console.WriteLine("CHILD " + child.Id);
-                        Console.WriteLine("FOREGROUND " + Thread.CurrentThread.GetApartmentState());
-                        Console.Out.Flush();
-                        new ManualResetEventSlim(false).Wait();
-                    });
-                    thread.IsBackground = false;
-                    thread.Name = "synthetic-blocked-foreground-sta";
-                    thread.SetApartmentState(ApartmentState.STA);
-                    thread.Start();
-                    thread.Join();
-                }
-            }
-            """;
-        return PowerShell("Add-Type -TypeDefinition '" + source.Replace("'", "''", StringComparison.Ordinal) + "'; [ForegroundStaProbe]::Run()");
+        string executable = Path.Combine(AppContext.BaseDirectory, "PersonalTradingJournal.TestProcessProbe.exe");
+        Assert.True(File.Exists(executable), "Build the Desktop test project to deploy its synthetic process probe.");
+        var start = new ProcessStartInfo(executable);
+        foreach (string argument in arguments) start.ArgumentList.Add(argument);
+        return start;
     }
 
-    private static ProcessStartInfo PowerShell(string command)
+    private static string ExpectedOutput(string name, char padding)
     {
-        var start = new ProcessStartInfo("powershell.exe");
-        start.ArgumentList.Add("-NoLogo");
-        start.ArgumentList.Add("-NoProfile");
-        start.ArgumentList.Add("-NonInteractive");
-        start.ArgumentList.Add("-Command");
-        start.ArgumentList.Add(command);
-        return start;
+        var output = new StringBuilder($"probe {name}\n");
+        for (int line = 0; line < 2048; line++)
+            output.Append(CultureInfo.InvariantCulture, $"{name} {line:D4}: {new string(padding, 96)}\n");
+        return output.Append($"complete {name} Ω\n").ToString();
     }
 
     private static int ChildId(string output) => int.Parse(output.Split('\n')

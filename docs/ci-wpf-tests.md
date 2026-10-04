@@ -97,6 +97,48 @@ This correction contains the demonstrated lifetime failure and adds diagnostics 
 
 The 13 added cases cover cleanup, the blocked-phase deadline with a manually triggered TimeProvider (not a cold-start speed assumption), poisoned-host refusal, preserved action exceptions, native lifetime policy, forced Application ordering, child-tree cancellation/timeouts, ordinary exits, and diagnostic I/O failures. Ignored local evidence is under `bin/ci-timeouts/` and `bin/ci-investigation/`. No production code, stored economics, real journal, assertion weakening, retries or skips were involved.
 
+## CI evidence: run 71 and deterministic synthetic probes
+
+[Run 71](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/37160098649), validate job `111311587429`, completed its Test step and uploaded `windows-test-results`. The complete job log and artifact ZIP were inspected.
+
+- PR head/local baseline: `552d1f470494769c855268f4e7f23af37e965316`.
+- Actual merge checkout: `3dfe6ace5f360d27ee9772570bf807261bbe30c2`; both trees are `cf1d29616ded7b301c0564f933eae706f7ef53bf`, so CI tested the same source content.
+- Windows Server 2025, image `windows-2025-vs2026`, version `20260925.250.1`.
+- Domain **400**, Application **516**, Infrastructure **719** passed; Desktop **882/883** passed. Child Calendar grid **36/36** and native modal/chart **78/78** passed, without the previous timeouts.
+- The sole failure was `IsolatedTestProcessTests.NormalAndFailedExitPreserveCompleteOutput(exitCode: 7)`, an `IsolatedProcessTimeoutException` at its unchanged **15-second** deadline. PID 10264 started at 22:59:00.471 UTC, timed out at 22:59:15.469 and was confirmed exited at 22:59:15.486. Its stdout/stderr files each contained only the three-byte UTF-8 BOM, **no probe output**. The exit-code-0 PowerShell probe then passed but took **11.07 seconds** between start and exit.
+
+The demonstrated problem is a runner-sensitive scripting-host dependency in a test meant to check output and exit handling, not a supervisor cleanup failure or Calendar failure. Even with `-NoProfile -NonInteractive`, the command must initialize Windows PowerShell before reaching its first console write. The timeout snapshot contains native wait states only; no PowerShell managed stack was collected. The evidence does **not** establish the particular internal startup wait, Defender activity, or CPU contention as the cause. No such speculation is treated as a finding.
+
+`PersonalTradingJournal.TestProcessProbe` is now a minimal prebuilt `net10.0-windows` console executable with no WPF, production services or package dependencies. Its normal executable project reference deploys the apphost, assembly, dependency manifest and runtime configuration alongside Desktop.Tests, including custom artifacts-path builds. Tests launch that apphost directly, never a shell, `dotnet run`, or an on-demand compiler.
+
+- Output mode emits deterministic UTF-8 stdout and stderr, each over 128 KiB, then exits with exactly 0 or 7. Assertions compare **complete** artifact content and the supervisor's exact bounded returned tails, including the final Unicode marker and process exit. This tests multiple pump reads and data buffered at exit rather than only one line.
+- Blocked mode uses a real foreground STA and a real descendant of the same executable. Its readiness handshake precedes the flushed `FOREGROUND STA` marker, so deadline, cancellation and injected output-write-failure tests prove they reached the intended blocked phase. This also removes PowerShell startup and `Add-Type` compilation from those tests.
+- A descendant parent-exit backstop is delayed **30 seconds**, longer than the tests' five-second descendant cleanup assertion. A separate parent-only-kill negative control verifies that it cannot falsely satisfy tree cleanup; its finally block explicitly terminates both synthetic processes. The delay only bounds a possible immediate-start/kill spawn race; it is not a retry or an extended supervisor deadline.
+- The already-cancelled test uses the same probe but still starts no process. The first-log-write and output-pump fault tests retain the original error and cleanup assertions. The supervisor itself, Calendar deadlines and CI watchdogs are unchanged. No tests are skipped or retried.
+
+The run-71 failure was not reproduced locally as a PowerShell internal hang. Local constrained checks exercise the replacement and its actual output/cleanup invariants; they do not recreate the hosted Server VM or prove GitHub is green. A new run after the user's commit/push must pass all suites and the revised synthetic probes. The original run-70 inner blocking operation remains unidentified, although run 71's complete Calendar child results show it did not recur there.
+
+### Separate local composite-host budget finding
+
+The first complete Release verification of the probe replacement found one **different** failure: the Application-lifetime regression's outer process reached its 30-second budget during VSTest completion, although its child TRX already reported **Passed**. The regression action took **25.892 seconds**, including a nested Import process taking **21.976 seconds**; that Import's STA action and dispatcher cleanup completed in **3.264 seconds**. Including outer discovery, startup and exit, the parent confirmed termination after **32.53 seconds**. Both existing real-Popup assertions had passed. This is direct evidence of a composite process-budget mismatch, not a blocked Calendar or failed assertion, and not the run-71 PowerShell failure.
+
+Only `ImportResourceApplicationCannotPoisonLaterNativeTooltipWindows` now uses the existing **two-minute suite/process budget**, because it supervises another test host and then two native Popup checks. The other synthetic STA processes retain 30 seconds, the Import action retains its 30-second STA deadline, and the console output/blocked probes retain 15/20 seconds. The nested Import isolation and its unchanged resource assertions are preserved; bypassing that isolation would recreate process-wide Application poisoning. No blanket timeout increase or retry was applied. The first failed full-suite TRX is retained alongside subsequent verification evidence rather than discarded.
+
+### Local verification of the run-71 correction (2026-10-04)
+
+| Check | Result |
+| --- | --- |
+| Final eight process probes plus composite Import/Popup regression, single-CPU process affinity, two reported .NET CPUs, process-local 96 DPI | **9/9** on each of three independent runs; stop-on-failure, no retries/skips. |
+| Exit-code-0/7 output theory, ten additional independent single-CPU runs | **20/20** passed; case durations **0.247–1.289 seconds**. Complete stdout/stderr and exact bounded tails matched. |
+| Complete Desktop suite after both corrections, two .NET CPUs / 96 DPI / 1,044-DIP native-window constraint | **884/884** passed; child grid **36/36**, modal/chart **78/78**. No synthetic probe processes remained. |
+| Final full Release suite, normal local host and ordinary solution output | Domain **400/400**, Application **516/516**, Desktop **884/884** passed; Infrastructure **718/719**. **2,518 passed, one failed**; this is not a green full-suite result. |
+| Separate failing Infrastructure case, unchanged isolated diagnostic execution | **1/1 passed**; not a replacement for the failed full-suite result or proof of a fix. |
+| Solution Release builds, ordinary and custom artifacts paths | Passed, zero warnings/errors; probe apphost/dependency/runtime files deployed in both outputs. |
+| `git diff --check` | Passed. |
+| New GitHub CI run | **Pending the user's commit/push.** Local results do not establish a green CI run. |
+
+The final full-suite exception was `ObjectDisposedException: SQLitePCL.sqlite3` in the unchanged Infrastructure test `TradeBrowseProjectionTests.SaveAsyncRegeneratesProjectionForCloseAndCorrectionOnlyForTargetTrade`, while opening a connection in `TradeMutationStore.GetByIdAsync`. Infrastructure passed all 719 cases in run 71 and the earlier local full run. The isolated case subsequently passed unchanged. Existing parallel Infrastructure fixtures use process-wide `ClearAllPools()` cleanup with default pooled connections; this is a plausible independent lifetime hazard, **not a proven cause**. No Infrastructure or production code was changed, and this transient failure is not claimed fixed. Its full-suite TRX and the isolated diagnostic result remain separate under ignored `bin/ci-probe-investigation/` for follow-up. No customer data or real journal was accessed.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:
