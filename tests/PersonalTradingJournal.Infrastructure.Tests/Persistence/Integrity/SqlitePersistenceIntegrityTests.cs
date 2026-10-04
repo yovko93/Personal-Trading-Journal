@@ -428,7 +428,7 @@ public sealed class SqlitePersistenceIntegrityTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPoolCleanup.ClearPersistencePools(applicationPaths.DatabasePath);
             Directory.Delete(testDirectory, recursive: true);
         }
 

@@ -179,7 +179,12 @@ public sealed class TradovateImportAcceptanceTests
                 await provider.DisposeAsync();
             }
 
-            SqliteConnection.ClearAllPools();
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = paths.DatabasePath,
+                ForeignKeys = true,
+            }.ToString());
+            SqliteConnection.ClearPool(connection);
             if (Directory.Exists(testRoot))
             {
                 Directory.Delete(testRoot, recursive: true);

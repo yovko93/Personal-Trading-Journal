@@ -524,7 +524,12 @@ public sealed class TopstepDesktopRoutingTests
         public async ValueTask DisposeAsync()
         {
             await services.DisposeAsync();
-            SqliteConnection.ClearAllPools();
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = new LocalApplicationPaths(root).DatabasePath,
+                ForeignKeys = true,
+            }.ToString());
+            SqliteConnection.ClearPool(connection);
             Directory.Delete(root, recursive: true);
         }
     }

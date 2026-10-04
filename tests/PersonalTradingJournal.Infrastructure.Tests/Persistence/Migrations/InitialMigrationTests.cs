@@ -739,7 +739,7 @@ public sealed class InitialMigrationTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPoolCleanup.ClearPersistencePools(databasePath);
             Directory.Delete(testDirectory, recursive: true);
             Assert.False(Directory.Exists(testDirectory));
         }

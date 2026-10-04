@@ -139,6 +139,8 @@ Only `ImportResourceApplicationCannotPoisonLaterNativeTooltipWindows` now uses t
 
 The final full-suite exception was `ObjectDisposedException: SQLitePCL.sqlite3` in the unchanged Infrastructure test `TradeBrowseProjectionTests.SaveAsyncRegeneratesProjectionForCloseAndCorrectionOnlyForTargetTrade`, while opening a connection in `TradeMutationStore.GetByIdAsync`. Infrastructure passed all 719 cases in run 71 and the earlier local full run. The isolated case subsequently passed unchanged. Existing parallel Infrastructure fixtures use process-wide `ClearAllPools()` cleanup with default pooled connections; this is a plausible independent lifetime hazard, **not a proven cause**. No Infrastructure or production code was changed, and this transient failure is not claimed fixed. Its full-suite TRX and the isolated diagnostic result remain separate under ignored `bin/ci-probe-investigation/` for follow-up. No customer data or real journal was accessed.
 
+The subsequent [SQLite lifetime investigation](sqlite-test-lifetimes.md) demonstrates the cross-fixture pool ownership defect and a controlled provider activation race, and replaces global cleanup with owned-pool release. Its verification is recorded separately from the historical run-71/probe results above.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:
