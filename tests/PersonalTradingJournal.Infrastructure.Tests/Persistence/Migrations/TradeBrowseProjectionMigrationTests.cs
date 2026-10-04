@@ -150,7 +150,7 @@ public sealed class TradeBrowseProjectionMigrationTests
                 await provider.DisposeAsync();
             }
 
-            SqliteConnection.ClearAllPools();
+            SqliteTestPoolCleanup.ClearPersistencePools(databasePath);
             Directory.Delete(directory, recursive: true);
         }
     }

@@ -253,12 +253,13 @@ public sealed class PnlChart : UserControl
 
     internal readonly record struct HoverRange(double Left, double Right);
 
-    internal static HoverRange GetHoverRange(IReadOnlyList<double> centers, int index, double plotWidth)
+    internal static HoverRange GetHoverRange(IReadOnlyList<double> centers, int index, double plotWidth,
+        double maxHalfWidth = MaxHoverHalfWidth)
     {
         double x = centers[index];
         double left = index == 0 ? 0 : (centers[index - 1] + x) / 2;
         double right = index == centers.Count - 1 ? plotWidth : (x + centers[index + 1]) / 2;
-        return new(Math.Max(left, x - MaxHoverHalfWidth), Math.Min(right, x + MaxHoverHalfWidth));
+        return new(Math.Max(left, x - maxHalfWidth), Math.Min(right, x + maxHalfWidth));
     }
 
     private void AddDateLabel(DateOnly date, double center, double plotBottom, bool origin)

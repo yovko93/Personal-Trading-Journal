@@ -164,7 +164,7 @@ public sealed class JournalDatabaseInitializerTests
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
+            SqliteTestPoolCleanup.ClearPersistencePools(applicationPaths.DatabasePath);
             Directory.Delete(testDirectory, recursive: true);
             Assert.False(Directory.Exists(testDirectory));
         }

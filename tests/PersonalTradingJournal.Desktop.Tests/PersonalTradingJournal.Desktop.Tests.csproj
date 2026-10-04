@@ -16,6 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- A normal executable reference copies the prebuilt apphost, DLL and
+         runtime/dependency files, including with custom artifacts paths. -->
+    <ProjectReference Include="..\PersonalTradingJournal.TestProcessProbe\PersonalTradingJournal.TestProcessProbe.csproj" />
     <ProjectReference Include="..\..\src\PersonalTradingJournal.Desktop\PersonalTradingJournal.Desktop.csproj" />
     <ProjectReference Include="..\..\src\PersonalTradingJournal.Application\PersonalTradingJournal.Application.csproj" />
     <ProjectReference Include="..\..\src\PersonalTradingJournal.Domain\PersonalTradingJournal.Domain.csproj" />

@@ -2977,8 +2977,11 @@ public sealed partial class TradesViewModelTests
         await viewModel.NextTradePageCommand.ExecuteAsync(null);
         await viewModel.ShowTradeEditCommand.ExecuteAsync(item);
         viewModel.EntryPriceText = "101";
+        int commits = 0;
+        viewModel.TradeDataCommitted += (_, _) => commits++;
         await viewModel.SaveTradeEditCommand.ExecuteAsync(null);
 
+        Assert.Equal(1, commits);
         Assert.Equal(1, mutationStore.SaveCallCount);
         Assert.Equal(101m, mutationStore.SavedTrade?.AverageEntryPrice);
         Assert.Equal(
@@ -3088,8 +3091,11 @@ public sealed partial class TradesViewModelTests
             tradeDeletionStore: deletionStore,
             dialogService: dialog);
 
+        int commits = 0;
+        viewModel.TradeDataCommitted += (_, _) => commits++;
         await viewModel.DeleteTradeCommand.ExecuteAsync(item);
 
+        Assert.Equal(1, commits);
         Assert.Equal(1, deletionStore.CallCount);
         Assert.Equal(item.Id, deletionStore.RequestedTradeId);
         Assert.NotNull(dialog.ConfirmationRequest);
@@ -3183,7 +3189,7 @@ public sealed partial class TradesViewModelTests
         Assert.False(viewModel.IsDeletingTrade);
     }
 
-    private static TradesViewModel CreateViewModel(
+    internal static TradesViewModel CreateViewModel(
         FakeManualTradeReferenceDataReader? reader = null,
         FakeTradeListReader? tradeListReader = null,
         FakeTradeDetailReader? tradeDetailReader = null,
@@ -3208,7 +3214,8 @@ public sealed partial class TradesViewModelTests
         FakeTradingMistakeStore? tradingMistakeStore = null,
         FakeTradeMistakeStore? tradeMistakeStore = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
-        FakeDialogService? dialogService = null)
+        FakeDialogService? dialogService = null,
+        UpdateTradeUseCase? updateTradeUseCase = null)
     {
         reader ??= new FakeManualTradeReferenceDataReader();
         tradeListReader ??= new FakeTradeListReader();
@@ -3276,7 +3283,7 @@ public sealed partial class TradesViewModelTests
                 tradeScreenshotDeletionStore,
                 tradeScreenshotFileStorage),
             tradeScreenshotDeleteConfirmation,
-            new UpdateTradeUseCase(
+            updateTradeUseCase ?? new UpdateTradeUseCase(
                 tradeMutationStore,
                 accountStore,
                 instrumentStore,
@@ -3397,7 +3404,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static FakeManualTradeReferenceDataReader CreateEditReferenceReader(
+    internal static FakeManualTradeReferenceDataReader CreateEditReferenceReader(
         TradeDetail detail)
     {
         var reader = new FakeManualTradeReferenceDataReader();
@@ -3428,7 +3435,7 @@ public sealed partial class TradesViewModelTests
         return reader;
     }
 
-    private static TradeDetail CreateEditableTradeDetail(
+    internal static TradeDetail CreateEditableTradeDetail(
         TradeListItem item,
         Guid? setupId)
     {
@@ -3468,7 +3475,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static Trade CreateEditableDomainTrade(TradeDetail detail)
+    internal static Trade CreateEditableDomainTrade(TradeDetail detail)
     {
         IReadOnlyList<TradeExecution> executions = detail.Executions
             .Select(item => TradeExecution.Rehydrate(
@@ -3564,7 +3571,7 @@ public sealed partial class TradesViewModelTests
             ]);
     }
 
-    private static TradingAccount CreateTradingAccount(Guid id)
+    internal static TradingAccount CreateTradingAccount(Guid id)
     {
         DateTimeOffset createdAtUtc =
             new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);
@@ -3582,7 +3589,7 @@ public sealed partial class TradesViewModelTests
             createdAtUtc);
     }
 
-    private static Instrument CreateInstrument(Guid id)
+    internal static Instrument CreateInstrument(Guid id)
     {
         DateTimeOffset createdAtUtc =
             new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);

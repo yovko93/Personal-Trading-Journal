@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Infrastructure.Persistence;
@@ -10,13 +9,16 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence;
 internal sealed class ReaderTestDatabase : IAsyncDisposable
 {
     private readonly string _testDirectory;
+    private readonly string _databasePath;
 
     private ReaderTestDatabase(
         string testDirectory,
+        string databasePath,
         ServiceProvider serviceProvider,
         IDbContextFactory<JournalDbContext> contextFactory)
     {
         _testDirectory = testDirectory;
+        _databasePath = databasePath;
         ServiceProvider = serviceProvider;
         ContextFactory = contextFactory;
     }
@@ -50,6 +52,7 @@ internal sealed class ReaderTestDatabase : IAsyncDisposable
 
             return new ReaderTestDatabase(
                 testDirectory,
+                applicationPaths.DatabasePath,
                 serviceProvider,
                 contextFactory);
         }
@@ -60,7 +63,7 @@ internal sealed class ReaderTestDatabase : IAsyncDisposable
                 await serviceProvider.DisposeAsync();
             }
 
-            SqliteConnection.ClearAllPools();
+            SqliteTestPoolCleanup.ClearPersistencePools(applicationPaths.DatabasePath);
             Directory.Delete(testDirectory, recursive: true);
             throw;
         }
@@ -69,7 +72,7 @@ internal sealed class ReaderTestDatabase : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await ServiceProvider.DisposeAsync();
-        SqliteConnection.ClearAllPools();
+        SqliteTestPoolCleanup.ClearPersistencePools(_databasePath);
         Directory.Delete(_testDirectory, recursive: true);
     }
 }

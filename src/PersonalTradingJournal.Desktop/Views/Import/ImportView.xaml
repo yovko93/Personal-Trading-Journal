@@ -1,7 +1,11 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Import.ImportView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.Import">
+             xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.Import"
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters">
+    <UserControl.Resources>
+        <converters:TradingTimestampConverter x:Key="TradingTimestamp" />
+    </UserControl.Resources>
     <ScrollViewer HorizontalContentAlignment="Stretch"
                   HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
@@ -215,8 +219,8 @@
                         <TextBlock Style="{StaticResource PtjDetailLabelTextStyle}" Text="File" /><TextBlock Grid.Column="1" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.FileName}" />
                         <TextBlock Grid.Column="2" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Account" /><TextBlock Grid.Column="3" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.AccountName}" />
                         <TextBlock Grid.Row="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Time policy" /><TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}"><Run Text="Source: Europe/Sofia · Canonical: UTC · Preview: America/New_York" /></TextBlock>
-                        <TextBlock Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period start" /><TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodStartNewYork, StringFormat={}{0:yyyy-MM-dd HH:mm:ss zzz}}" />
-                        <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period end" /><TextBlock Grid.Row="2" Grid.Column="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodEndNewYork, StringFormat={}{0:yyyy-MM-dd HH:mm:ss zzz}}" />
+                        <TextBlock Grid.Row="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period start" /><TextBlock Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodStartNewYork, Converter={StaticResource TradingTimestamp}, ConverterParameter='yyyy-MM-dd HH:mm:ss'}" />
+                        <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Period end" /><TextBlock Grid.Row="2" Grid.Column="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}" Text="{Binding PreviewSummary.PeriodEndNewYork, Converter={StaticResource TradingTimestamp}, ConverterParameter='yyyy-MM-dd HH:mm:ss'}" />
                         <TextBlock Grid.Row="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailLabelTextStyle}" Text="Diagnostics" /><TextBlock Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3" Margin="0,8,0,0" Style="{StaticResource PtjDetailValueTextStyle}"><Run Text="{Binding PreviewSummary.WarningCount}" /><Run Text=" warnings · " /><Run Text="{Binding PreviewSummary.ErrorCount}" /><Run Text=" errors" /></TextBlock>
                     </Grid>
                     <TextBlock Margin="0,14,0,0" Foreground="{DynamicResource PtjWarningBrush}"
