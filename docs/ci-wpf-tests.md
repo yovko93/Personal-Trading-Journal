@@ -241,6 +241,63 @@ Three regressions exercise deferred opening beyond a single idle pump; measureme
 
 Evidence is retained under ignored `bin/ci-74-investigation/`; the real journal was not accessed. README, this document, the tooltip test file and its new test-only readiness helper are the only changes. A new GitHub Actions run after the user's commit/push is still required; local results do not establish green CI.
 
+## CI evidence: run 75 — modal focus and native activation
+
+[Run 75](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/37205500198), validate job `111445728411`, completed and uploaded its diagnostic artifact. Local/PR head was `214b1a50b2c0ba9e7ddd7f1565e2c6a503eda876`, branch `develop`, initially clean. CI checked out merge `4c85c3468b3af44bb18133c4734c040d89cddf79`; both trees are `7e12a7a42fcdcade330747ff8cb79da7247b2424`.
+
+Domain **400/400**, Application **516/516**, Infrastructure **724/724** and isolated grid **36/36** passed. Native Calendar was **77 passed / 1 failed**. Parent Desktop was **810 passed / 77 propagated failures**. The first real failure was `CalendarDayModalTests.InitialOwnedPanelFitsTableAtDesktopWidthAndWrapsWithoutLosingAction("Light", 1280, 240, true)`, `CalendarDayModalWindowTests.cs`, original line **133**: `Assert.Null(view.DayDialog)` passed, then `Assert.True(cell.IsKeyboardFocused)` failed. All preceding table, wrapping, inline View and dismissal assertions passed. Tooltip-readiness checks from run 74 passed.
+
+### Focus evidence
+
+`CalendarView.SelectDay` calls the selected cell's `Focus()` in its `ShowDialog` finally block. The failing layout test then pumps arbitrary dispatcher/native events and assumes the owner still has keyboard activation. The window-controls theory already requested owner activation before making the same focus assertion. [WPF distinguishes logical and keyboard focus](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/advanced/focus-overview): a deactivated window can retain the correct logical target while another window receives keyboard input.
+
+The native TRX and phase logs prove concurrent chart windows on the same desktop:
+
+| Case | UTC interval in CI |
+| --- | --- |
+| Failing modal Light/1280/240/long | 13:27:00.3949189–13:27:01.5896382; STA23 action ended 13:27:01.5604334 |
+| Chart Dark/960/96 | 13:26:58.6827122–13:27:00.8031664 |
+| Chart Dark/480/240 | 13:27:00.8060196–13:27:01.3279132 |
+| Chart Light/960/96 | 13:27:01.3339622–13:27:01.9369097; STA38 action spans the modal failure |
+
+These are separate STAs in the same child, `WinSta0/Default`; the chart cases show real windows and use keyboard focus. Original CI logs did not record HWND activation, so the exact competing activation event is not claimed observed.
+
+Temporary instrumentation of the **existing production Focus call**, plus a controlled competing test window during the post-close pump, reproduced the exact failed assertion in the same Light/1280/240/long case:
+
+```text
+production Focus() returned True
+ShowDialog returned: owner active=True; dialog active=False, visible=False
+keyboard=selected CalendarDayHost; owner logical focus=selected CalendarDayHost
+competing window activated: owner active=False; keyboard=Button
+after Pump: owner logical focus=selected CalendarDayHost; cell.IsKeyboardFocused=False
+cell visible=True, focusable=True, enabled=True throughout
+```
+
+The original unperturbed 12-case theory passed with the instrumentation. This establishes correct restoration followed by legitimate loss of activation, not a replaced cell, incorrect target, failed modal close or layout defect. The temporary production logging was removed; `CalendarView` and all production code are unchanged. The controlled reproduction complements the proven CI overlap but cannot retroactively supply the original runner's missing focus trace.
+
+### Test-only correction
+
+`CalendarFocusProbe` first requires the selected cell to be the owner's **existing logical focused element**, still connected, visible, enabled and focusable. Only then does it issue one [SetActiveWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setactivewindow) request for that STA's test-owned HWND, the same API WPF uses in modal close. Observable owner activation, native active HWND, `Keyboard.FocusedElement`, and `cell.IsKeyboardFocused` must agree. Activation/focus events coordinate a bounded five-second check; it never calls `cell.Focus()`, resets logical focus, retries activation or sleeps. Existing raw keyboard-focus assertions remain, with no pump between the gate and assertion. All table/layout, dismissal and edit-protection assertions remain unchanged.
+
+A first helper draft required `Window.Activate()` to return true. On the hidden sandbox desktop it returned **False with owner already active, exact cell keyboard focus and native foreground HWND=0**. That was another invalid foreground-permission assumption, not failed restoration. The final helper uses thread-local activation and checks observed state, rather than requiring a global foreground request to succeed. It does not force the real application to steal focus when a user switches away, and does not serialize test collections or change 45-second STA/two-minute suite deadlines.
+
+The same gate covers the modal close/focus checks for table layout, backdrop/X/Escape, close/empty-day and window-control states. Two regressions verify that a competing window can take keyboard focus while the selected date retains logical focus, and that the gate **rejects a wrong retained target without repairing it**. Diagnostic history includes owner/dialog activation and visibility, logical/keyboard object identities, cell eligibility, HWND foreground/active/focus state and the activation request result in stdout/TRX plus `calendar-focus.log`. No Account names or Trade identifiers are logged.
+
+### Local verification
+
+The corrected tests passed on 2026-10-04:
+
+| Verification | Result |
+| --- | --- |
+| Reported layout theory (12 cases) plus competing-window and wrong-target regressions; hidden Windows desktop, `DPIUNAWARE`, two .NET CPUs, 1,044-DIP owner cap | **14/14 passed** |
+| Complete isolated Calendar-native suite under the same constraints | **80/80 passed**, 62 seconds |
+| Full Release solution suite, normal local display context | Domain **400**, Application **516**, Infrastructure **724**, Desktop **889**: **2,529 passed**, no failures or skips |
+| Native child suites during that full run | Grid **36/36**, modal/chart **80/80** |
+| Release solution build | Passed, **0 warnings / 0 errors** |
+| `git diff --check` | Passed |
+
+The original failure was deliberately reproduced before correction, not retried until passing. The corrected focused cases then also passed inside both complete native runs. A new GitHub run after the user's commit/push remains required. These are automated native-WPF tests, not live application acceptance; no real journal or customer data is used. Diagnostic TRX/logs are retained under ignored `bin/ci-75-investigation/`.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:
@@ -262,4 +319,4 @@ The workflow sets `PTJ_TEST_RESULTS_DIRECTORY`, enables TRX and VSTest diagnosti
 
 The outer Test step has a three-minute per-case VSTest hang collector and a ten-minute step bound so an unrelated stuck test can produce diagnostics and reach artifact upload without waiting indefinitely. These are fallback safety limits, not an increase of the original 30-/45-second Calendar deadlines and not retries. A collected mini dump may provide a stack where available; phase logs remain useful if dump collection fails or the host exits first.
 
-A passing local reproduction/full suite is not a passing GitHub run. The user must commit/push these changes to the PR branch, let a new Windows CI run test that new head/merge tree, and verify all project suites plus **36 grid** and **78 modal/chart** child cases. If it fails, inspect the first unfinished phase and its dump before attributing the original cause. Rerunning run 70 would only retest the old tree.
+A passing local reproduction/full suite is not a passing GitHub run. The user must commit/push these changes to the PR branch, let a new Windows CI run test that new head/merge tree, and verify all project suites plus **36 grid** and **80 modal/chart** child cases. If it fails, inspect the first unfinished phase and its dump before attributing the original cause. Rerunning run 70 would only retest the old tree.

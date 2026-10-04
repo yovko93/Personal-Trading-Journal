@@ -3,6 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Threading;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -58,11 +59,13 @@ public sealed partial class CalendarDayModalTests
             {
                 owner.Show(); Pump(); owner.UpdateLayout();
                 var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
+                using var focus = new CalendarFocusProbe(owner, cell, $"InitialOwnedPanel/{theme}/{width}/{dpi}/{longName}");
                 dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
                         var dialog = view.DayDialog!;
+                        focus.ObserveDialog(dialog);
                         await vm.DayLoadTask; dialog.UpdateLayout();
                         var panel = (Border)dialog.FindName("DayPanel");
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
@@ -124,13 +127,17 @@ public sealed partial class CalendarDayModalTests
                         var page = (ScrollViewer)content.FindName("DayContentScroller");
                         page.ScrollToVerticalOffset(header.TransformToAncestor(page).Transform(new Point()).Y - 12); Pump();
                         Render(dialog, $"initial-{theme}-{longName}", width, dpi);
+                        focus.Capture("before dialog.Close");
                         dialog.Close();
                     }
                     catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
                 }));
                 cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
+                focus.Capture("ShowDialog returned");
                 Pump(); if (failure is not null) throw failure;
-                Assert.Null(view.DayDialog); Assert.True(cell.IsKeyboardFocused);
+                Assert.Null(view.DayDialog);
+                focus.VerifyRestored();
+                Assert.True(cell.IsKeyboardFocused);
             }
             finally { owner.Close(); }
         });
@@ -161,11 +168,13 @@ public sealed partial class CalendarDayModalTests
             {
                 owner.Show(); Pump(); owner.UpdateLayout();
                 var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
+                using var focus = new CalendarFocusProbe(owner, cell, $"WindowControls/{theme}/{closeState}");
                 dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
                         var dialog = view.DayDialog!;
+                        focus.ObserveDialog(dialog);
                         await vm.DayLoadTask; dialog.UpdateLayout();
                         var panel = (Border)dialog.FindName("DayPanel");
                         var maximize = (Button)dialog.FindName("MaximizeButton");
@@ -218,10 +227,79 @@ public sealed partial class CalendarDayModalTests
                 Assert.Null(view.DayDialog); Assert.Equal(date, vm.SelectedDate);
                 Assert.True(IsWindowEnabled(new WindowInteropHelper(owner).Handle));
                 if (owner.WindowState == WindowState.Minimized) owner.WindowState = WindowState.Normal;
-                owner.Activate(); Pump(); Assert.True(cell.IsKeyboardFocused);
+                focus.VerifyRestored(); Assert.True(cell.IsKeyboardFocused);
                 Assert.Single(reader.Calls);
             }
             finally { editor.CancelTradeEditCommand.Execute(null); owner.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task ClosedModalRetainsDateFocusAcrossCompetingWindowActivation()
+    {
+        var vm = await CalendarSummaryFixture.CreateAsync(new FakeTradingCalendarDayReader
+        {
+            Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [], ct))
+        });
+        await OnSta(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources("Light") };
+            var owner = new Window { Content = view, Width = 960, Height = 760, ShowInTaskbar = false };
+            var otherButton = new Button { Content = "Competing synthetic window" };
+            var other = new Window { Content = otherButton, Width = 220, Height = 160, ShowInTaskbar = false };
+            Exception? failure = null;
+            try
+            {
+                owner.Show(); Pump(); owner.UpdateLayout();
+                var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                using var focus = new CalendarFocusProbe(owner, cell);
+                dispatcher.BeginInvoke(new Action(() =>
+                {
+                    try { focus.ObserveDialog(view.DayDialog!); view.DayDialog!.Close(); }
+                    catch (Exception error) { failure = error; view.DayDialog?.Close(); }
+                }));
+                cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
+                if (failure is not null) throw failure;
+                Assert.Null(view.DayDialog);
+                Assert.Same(cell, FocusManager.GetFocusedElement(owner));
+                other.Show(); Assert.True(otherButton.Focus());
+                Assert.True(other.IsActive);
+                focus.Capture("competing window owns keyboard after modal closed");
+                Assert.False(owner.IsActive || cell.IsKeyboardFocused);
+                Assert.Same(otherButton, Keyboard.FocusedElement);
+                Assert.Same(cell, FocusManager.GetFocusedElement(owner));
+                // No test call to cell.Focus(): Windows must restore production's retained target.
+                focus.VerifyRestored();
+                Assert.True(cell.IsKeyboardFocused);
+                Assert.Same(cell, Keyboard.FocusedElement);
+                Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
+            }
+            finally { other.Close(); owner.Close(); }
+        });
+    }
+
+    [Fact]
+    public async Task FocusVerificationRejectsWrongRetainedTargetRatherThanRepairingIt()
+    {
+        await OnSta(() =>
+        {
+            var cell = new CalendarDayHost { Focusable = true, Width = 100, Height = 60 };
+            var wrong = new Button { Content = "Wrong retained focus" };
+            var panel = new StackPanel(); panel.Children.Add(cell); panel.Children.Add(wrong);
+            var owner = new Window { Content = panel, Width = 320, Height = 240, ShowInTaskbar = false };
+            try
+            {
+                owner.Show(); Pump(); Assert.True(wrong.Focus());
+                using var focus = new CalendarFocusProbe(owner, cell);
+                var error = Assert.Throws<InvalidOperationException>(() => focus.VerifyRestored());
+                Assert.Contains("logical", error.Message, StringComparison.OrdinalIgnoreCase);
+                Assert.Same(wrong, FocusManager.GetFocusedElement(owner));
+                Assert.Same(wrong, Keyboard.FocusedElement);
+                Assert.False(cell.IsKeyboardFocused);
+            }
+            finally { owner.Close(); }
         });
     }
 

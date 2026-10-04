@@ -297,12 +297,14 @@ public sealed partial class CalendarDayModalTests
             {
                 owner.Show(); Pump(); owner.UpdateLayout();
                 var cell = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                using var focus = new CalendarFocusProbe(owner, cell, $"Backdrop/{theme}/{width}/{close}");
                 var account = vm.SelectedAccount; string currency = vm.SelectedCurrency;
                 dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
                         var dialog = view.DayDialog!;
+                        focus.ObserveDialog(dialog);
                         dialog.Closed += (_, _) => closed++;
                         await vm.DayLoadTask; dialog.UpdateLayout();
                         var backdrop = (Border)dialog.FindName("DialogBackdrop");
@@ -359,7 +361,7 @@ public sealed partial class CalendarDayModalTests
                 cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
                 Pump(); if (failure is not null) throw failure;
                 Assert.Equal(1, closed); Assert.Equal(0, ownerClicks);
-                Assert.Null(view.DayDialog); Assert.True(cell.IsKeyboardFocused);
+                Assert.Null(view.DayDialog); focus.VerifyRestored(); Assert.True(cell.IsKeyboardFocused);
                 Assert.Equal(new DateOnly(2026, 9, 5), vm.SelectedDate);
                 Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
                 Assert.Same(account, vm.SelectedAccount); Assert.Equal(currency, vm.SelectedCurrency);
@@ -465,6 +467,7 @@ public sealed partial class CalendarDayModalTests
                 Pump(); // Let Loaded/layout/container work run before interacting with the native window.
                 owner.UpdateLayout();
                 var saturday = Assert.Single(Descendants(view).OfType<CalendarDayHost>(), c => ((CalendarDayCell)c.DataContext).Date == new DateOnly(2026, 9, 5));
+                using var focus = new CalendarFocusProbe(owner, saturday, $"OwnedModal/{theme}/{width}/{empty}");
                 var account = vm.SelectedAccount;
                 string currency = vm.SelectedCurrency;
                 dispatcher.BeginInvoke(new Action(async () =>
@@ -472,6 +475,7 @@ public sealed partial class CalendarDayModalTests
                     try
                     {
                         var dialog = Assert.IsType<CalendarDayDialogWindow>(view.DayDialog);
+                        focus.ObserveDialog(dialog);
                         Assert.Same(owner, dialog.Owner);
                         Assert.True(dialog.IsVisible);
                         Assert.Equal(Visibility.Visible, ((Border)view.FindName("ModalShade")).Visibility);
@@ -521,7 +525,7 @@ public sealed partial class CalendarDayModalTests
                 Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
                 Assert.Same(account, vm.SelectedAccount);
                 Assert.Equal(currency, vm.SelectedCurrency);
-                Assert.True(saturday.IsKeyboardFocused);
+                focus.VerifyRestored(); Assert.True(saturday.IsKeyboardFocused);
             }
             finally { owner.Close(); }
         });
