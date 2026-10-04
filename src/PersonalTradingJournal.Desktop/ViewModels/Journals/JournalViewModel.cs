@@ -26,6 +26,7 @@ public sealed class JournalViewModel : ObservableObject
     private DailyReviewAnswers _savedReview = DailyReviewAnswers.Empty;
     private string? _errorMessage, _notice;
     private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError, _completionAttempted;
+    private bool _preserveOnNextActivation;
     private CancellationTokenSource? _loadCancellation, _saveCancellation;
     private long _generation;
 
@@ -169,12 +170,43 @@ public sealed class JournalViewModel : ObservableObject
     public IRelayCommand CancelOperationCommand { get; }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public JournalTradeContextViewModel TradeContext { get; }
+    public event EventHandler? JournalDataCommitted;
+
+    /// <summary>Atomically opens an explicitly requested date and Account scope; null is the independent All accounts journal.</summary>
+    public bool TryOpenScope(DateOnly date, Guid? accountId, string accountName)
+    {
+        if (IsSaving || accountId == Guid.Empty) return false;
+        bool sameScope = SelectedTradingDate == date && SelectedAccount.Id == accountId;
+        if (sameScope)
+        {
+            // Targeted Calendar navigation may revisit an inactive editor. Do not silently
+            // reload its retained draft or clear a revision conflict (including a clean reopen conflict).
+            _preserveOnNextActivation = _hasLoaded && (IsDirty || _reloadRequired);
+            return true;
+        }
+        if (!TryChangeScope()) return false;
+        _preserveOnNextActivation = false;
+        _selectedDate = date.ToDateTime(TimeOnly.MinValue);
+        _selectedAccount = accountId.HasValue ? new(accountId, accountName) : AllAccounts;
+        _hasDateInputError = false;
+        OnPropertyChanged(nameof(SelectedDate));
+        OnPropertyChanged(nameof(SelectedAccount));
+        ScopeChanged();
+        return true;
+    }
 
     public Task ActivateAsync()
     {
         Task context = TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id);
+        bool preserve = _preserveOnNextActivation;
+        _preserveOnNextActivation = false;
         // Repeated activation cannot discard work in an already-visible editor.
-        if (_active && (IsDirty || IsSaving)) return LoadTask = Task.WhenAll(LoadTask, context);
+        if (preserve || (_active && (IsDirty || IsSaving || _reloadRequired)))
+        {
+            _active = true;
+            NotifyState();
+            return LoadTask = Task.WhenAll(LoadTask, context);
+        }
         _active = true;
         return LoadTask = Task.WhenAll(LoadAsync(), context);
     }
@@ -355,6 +387,7 @@ public sealed class JournalViewModel : ObservableObject
         DailyJournalEntry? entry = _entry;
         DateOnly date = DateOnly.FromDateTime(SelectedDate!.Value);
         Guid? accountId = SelectedAccount.Id;
+        bool committed = false;
         NotifyState();
         try
         {
@@ -372,6 +405,7 @@ public sealed class JournalViewModel : ObservableObject
                     PublishEntry(result.Journal.Entry);
                     _reloadRequired = false;
                     _notice = result.Status == DailyJournalWriteStatus.Unchanged ? "No changes to save." : null;
+                    committed = result.Status is DailyJournalWriteStatus.Created or DailyJournalWriteStatus.Updated;
                     break;
                 case DailyJournalWriteStatus.AlreadyExists:
                     _reloadRequired = true;
@@ -407,6 +441,9 @@ public sealed class JournalViewModel : ObservableObject
             _isSaving = false;
             NotifyState();
         }
+        // Notify only after the authoritative result and editor state are published. A late
+        // cancellation cannot retract a commit, and UI subscribers are not part of the transaction.
+        if (committed) JournalDataCommitted?.Invoke(this, EventArgs.Empty);
     }
 
     private void PublishEntry(DailyJournalEntry? entry)

@@ -1,0 +1,165 @@
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Threading;
+using PersonalTradingJournal.Application.Calendar;
+using PersonalTradingJournal.Application.Journals;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.Tests.Trades;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
+using PersonalTradingJournal.Desktop.Views.Calendar;
+
+namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
+
+public sealed partial class CalendarDayModalTests
+{
+    [Theory]
+    [InlineData("Light", 1100, 96, true)]
+    [InlineData("Dark", 1100, 96, false)]
+    [InlineData("Light", 480, 240, false)]
+    [InlineData("Dark", 480, 240, true)]
+    public async Task JournalMarkersAndModalActionsStayCompactAcrossThemesAndSizes(string theme, int width, int dpi, bool draft)
+    {
+        var date = new DateOnly(2026, 9, 5); // Saturday remains weekly-only.
+        var statuses = new ModalJournalStatuses([
+            new(Guid.NewGuid(), date, draft, 2),
+            new(Guid.NewGuid(), new(2026, 8, 31), false, 4)]);
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: statuses);
+        vm.OpenJournalAsync = (_, _) => Task.CompletedTask;
+        await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, date));
+        await OnSta(() =>
+        {
+            var resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+            var grid = new CalendarView { DataContext = vm, Resources = resources };
+            grid.SetResourceReference(Control.BackgroundProperty, "PtjBackgroundBrush");
+            grid.Measure(new Size(width, 800)); grid.Arrange(new Rect(0, 0, width, 800)); grid.UpdateLayout();
+            foreach (var cell in Descendants(grid).OfType<CalendarDayHost>())
+            {
+                var day = (CalendarDayCell)cell.DataContext;
+                var indicator = Descendants(cell).OfType<TextBlock>().Single(t => t.Name == "DayJournalIndicator");
+                bool expected = day.Date == date || day.Date == new DateOnly(2026, 8, 31);
+                Assert.Equal(expected ? Visibility.Visible : Visibility.Collapsed, indicator.Visibility);
+                Assert.Null(indicator.ToolTip); // Date-marker-only hover behavior is unchanged.
+                if (!expected) continue;
+                Assert.Equal(day.Date == date && draft ? "Draft" : "Completed", indicator.Text);
+                Assert.Contains(indicator.Text, AutomationProperties.GetName(indicator), StringComparison.OrdinalIgnoreCase);
+                Assert.True(indicator.ActualWidth <= cell.ActualWidth);
+                Assert.True(indicator.TransformToAncestor(cell).Transform(new Point()).Y + indicator.ActualHeight <= cell.ActualHeight);
+                Assert.Same(resources["PtjTextSecondaryBrush"], indicator.Foreground);
+                Assert.Null(cell.ToolTip);
+                if (day.IsSaturday)
+                {
+                    Assert.False(day.ShowsDailySummary);
+                    Assert.Contains(Descendants(cell).OfType<TextBlock>(), t => t.Text == "Week 1");
+                }
+            }
+            Render(grid, $"journal-grid-{theme}-{draft}", width, dpi);
+            var content = new CalendarDayDetailsView { DataContext = vm, Resources = resources };
+            content.Measure(new Size(width, 760)); content.Arrange(new Rect(0, 0, width, 760)); content.UpdateLayout();
+            var button = (Button)content.FindName("DayJournalAction");
+            Assert.True(button.IsEnabled);
+            Assert.True(button.Focusable);
+            Assert.Equal(draft ? "Continue Journal" : "Open Journal", button.Content);
+            Assert.Equal(button.Content, AutomationProperties.GetName(button));
+            Assert.Contains("exact Calendar Account scope", AutomationProperties.GetHelpText(button));
+            Assert.DoesNotContain(Descendants(content).OfType<TextBlock>(), t => t.Text.Contains("Coming later", StringComparison.Ordinal));
+            var scroll = (ScrollViewer)content.FindName("DayContentScroller");
+            button.BringIntoView(); content.UpdateLayout();
+            var top = button.TransformToAncestor(scroll).Transform(new Point());
+            Assert.InRange(top.Y, -1, scroll.ViewportHeight);
+            Assert.InRange(top.Y + button.ActualHeight, 0, scroll.ViewportHeight + 1);
+            Render(content, $"journal-action-{theme}-{draft}", width, dpi);
+        });
+    }
+
+    [Theory]
+    [InlineData("Light", false)]
+    [InlineData("Dark", true)]
+    public async Task JournalActionClosesProtectedModalBeforeNavigatingAndVetoKeepsTradeDraft(string theme, bool veto)
+    {
+        var date = new DateOnly(2026, 9, 5);
+        var row = CalendarDayDetailsTests.Row(date, 10, 9);
+        var detail = TradesViewModelTests.CreateEditableTradeDetail(row, null);
+        var details = new FakeTradeDetailReader(); details.EnqueueResult(detail); details.EnqueueResult(detail);
+        var editor = TradesViewModelTests.CreateViewModel(tradeDetailReader: details,
+            reader: TradesViewModelTests.CreateEditReferenceReader(detail));
+        var dayReader = new FakeTradingCalendarDayReader { Handler = (query, ct) => Task.FromResult(
+            TradingCalendarDayDetails.Create(query.Date, [row], ct)) };
+        var vm = await CalendarSummaryFixture.CreateAsync(dayReader, editor, new ModalJournalStatuses([]));
+        await OnSta(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            var owner = new Window { Content = view, Width = 1100, Height = 820, ShowInTaskbar = false };
+            int navigations = 0;
+            vm.OpenJournalAsync = (requestedDate, account) =>
+            {
+                Assert.Null(view.DayDialog);
+                Assert.True(owner.IsEnabled);
+                Assert.Equal(date, requestedDate);
+                Assert.Null(account.Id);
+                Assert.Equal("All accounts", account.Name);
+                Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("ModalShade")).Visibility);
+                navigations++;
+                return Task.CompletedTask;
+            };
+            Exception? failure = null;
+            try
+            {
+                owner.Show(); Pump(); owner.UpdateLayout();
+                var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
+                dispatcher.BeginInvoke(new Action(async () =>
+                {
+                    try
+                    {
+                        var dialog = Assert.IsType<CalendarDayDialogWindow>(view.DayDialog);
+                        await vm.DayLoadTask; dialog.UpdateLayout();
+                        var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
+                        var button = (Button)content.FindName("DayJournalAction");
+                        Assert.True(button.IsEnabled);
+                        Assert.Equal("Add Journal", button.Content);
+                        if (veto)
+                        {
+                            await vm.ViewTradeCommand.ExecuteAsync(row);
+                            await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+                            editor.EntryPriceText = "local unsaved edit";
+                        }
+                        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                        if (!veto) return;
+                        Assert.Same(dialog, view.DayDialog);
+                        Assert.True(dialog.IsVisible);
+                        Assert.Null(dialog.JournalNavigationRequest);
+                        Assert.Equal(0, navigations);
+                        Assert.Equal("local unsaved edit", editor.EntryPriceText);
+                        Assert.True(editor.IsTradeEditVisible);
+                        editor.CancelTradeEditCommand.Execute(null);
+                        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                    }
+                    catch (Exception error) { failure = error; editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }
+                }));
+                cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
+                Pump();
+                if (failure is not null) throw failure;
+                Assert.Null(view.DayDialog);
+                Assert.Equal(1, navigations);
+                Assert.Equal(date, vm.SelectedDate);
+                Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
+                Assert.Equal("All currencies", vm.SelectedCurrency);
+                Assert.Null(vm.SelectedAccount.Id);
+            }
+            finally { editor.CancelTradeEditCommand.Execute(null); owner.Close(); }
+        });
+    }
+
+    private sealed class ModalJournalStatuses(IReadOnlyList<DailyJournalStatus> statuses) : IDailyJournalStatusReader
+    {
+        public Task<IReadOnlyList<DailyJournalStatus>> GetAsync(DateOnly from, DateOnly through,
+            Guid? tradingAccountId = null, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<DailyJournalStatus>>(statuses.Where(s => s.TradingDate >= from && s.TradingDate <= through).ToArray());
+        }
+    }
+}

@@ -6,12 +6,13 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Time;
+using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Converters;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
-public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool isToday, bool isSaturday) : ObservableObject
+public sealed partial class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool isToday, bool isSaturday) : ObservableObject
 {
     public DateOnly Date { get; } = date;
     public bool IsInDisplayedMonth { get; } = isInDisplayedMonth;
@@ -32,7 +33,8 @@ public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool
     public IReadOnlyList<CalendarPnlSummary> WeeklySummaries { get; private set; } = [];
     public bool IsDataLoaded { get; private set; }
     public bool IsBusy { get; private set; }
-    public string AccessibleStatus => (IsSelected ? "Selected. " : "") + (IsBusy ? "Loading summary." : IsDataLoaded ? "Summary loaded." : "Summary not loaded.");
+    public string AccessibleStatus => (IsSelected ? "Selected. " : "") + (IsBusy ? "Loading summary." : IsDataLoaded ? "Summary loaded." : "Summary not loaded.") +
+        (JournalAccessibleDescription.Length == 0 ? "" : " " + JournalAccessibleDescription);
     public string WeekLabel { get; private set; } = "";
 
     internal void Update(bool today, bool loaded, bool busy, string weekLabel,
@@ -71,7 +73,8 @@ public sealed class CalendarDayCell(DateOnly date, bool isInDisplayedMonth, bool
         (IsSelected ? ", selected" : "") +
         ". " + (IsSaturday ? WeeklyDescription
             : HasDailyTrades ? "Daily: " + string.Join(" ", DailySummaries.Select(s => s.Description))
-            : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.");
+            : IsDataLoaded ? "No closed Trades on this date." : "Summary not loaded.") +
+        (JournalAccessibleDescription.Length == 0 ? "" : " " + JournalAccessibleDescription);
 }
 
 public sealed record CalendarWeekRow(IReadOnlyList<CalendarDayCell> Days);
@@ -113,13 +116,15 @@ public sealed partial class CalendarViewModel : ObservableObject
     public CalendarViewModel(ITradingCalendarReader reader, TimeProvider timeProvider,
         ITradingCalendarDayReader dayReader, ITradingAccountReader accountReader,
         ILogger<CalendarViewModel>? logger = null,
-        PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? tradeEditor = null)
+        PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? tradeEditor = null,
+        IDailyJournalStatusReader? journalStatusReader = null)
     {
         _reader = reader;
         _dayReader = dayReader;
         _accountReader = accountReader;
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<CalendarViewModel>.Instance;
+        _journalStatusReader = journalStatusReader;
         DateOnly today = Today;
         _month = new(today.Year, today.Month, 1);
         SetGrid(new TradingCalendarQuery(_month.Year, _month.Month));
@@ -193,7 +198,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         }
     }
     public string? ErrorMessage { get => _errorMessage; private set => SetProperty(ref _errorMessage, value); }
-    public bool IsBusy => IsLoading || IsDayLoading;
+    public bool IsBusy => IsLoading || IsDayLoading || IsJournalLoading;
     public string AccessibleStatus => IsBusy ? "Loading Calendar data." : "Calendar ready.";
     public bool IsMonthEmpty => !IsLoading && MonthData is { } month && !month.Currencies
         .SelectMany(c => c.Weeks).SelectMany(w => w.Days).Any(d => d.IsInDisplayedMonth && d.ClosedTradeCount > 0);
@@ -245,7 +250,8 @@ public sealed partial class CalendarViewModel : ObservableObject
     {
         if (HasInlineWork) { _inlineRefreshPending = true; return Task.CompletedTask; }
         Task month = LoadAsync();
-        return SelectedDate.HasValue ? Task.WhenAll(month, RefreshDayAsync()) : month;
+        Task journals = RefreshJournalStatusesAsync();
+        return SelectedDate.HasValue ? Task.WhenAll(month, journals, RefreshDayAsync()) : Task.WhenAll(month, journals);
     }
 
     private void FiltersChanged()
@@ -312,6 +318,7 @@ public sealed partial class CalendarViewModel : ObservableObject
 
     private void SetGrid(TradingCalendarQuery query, TradingCalendarMonth? data = null)
     {
+        EnsureJournalGrid(query);
         DateOnly today = Today;
         var existing = Weeks.SelectMany(w => w.Days).ToDictionary(d => d.Date);
         var daily = data?.Currencies.SelectMany(c => c.Weeks.SelectMany(w => w.Days)
@@ -334,6 +341,7 @@ public sealed partial class CalendarViewModel : ObservableObject
                     daily?[date].Select(d => d.Summary).OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [],
                     cell.IsSaturday ? weekly?[date.AddDays(-5)].Select(w => w.Summary)
                         .OrderBy(s => s.Currency, StringComparer.Ordinal).ToArray() ?? [] : []);
+                cell.UpdateJournal(_journalStatuses.GetValueOrDefault(date), _journalStatusesLoaded);
                 return cell;
             }).ToArray();
         if (Weeks.SelectMany(w => w.Days).SequenceEqual(cells)) return;
@@ -404,6 +412,7 @@ public sealed partial class CalendarViewModel : ObservableObject
 
     private void Cancel()
     {
+        CancelJournalStatuses();
         _generation++;
         _loadCancellation?.Cancel();
         _loadCancellation = null;
@@ -539,6 +548,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         OnPropertyChanged(nameof(HasSelectedDate));
         OnPropertyChanged(nameof(SelectedDateLabel));
         RetryDayCommand.NotifyCanExecuteChanged();
+        NotifyJournalDay();
     }
 
     private void NotifyDayStatus()

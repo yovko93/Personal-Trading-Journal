@@ -92,13 +92,14 @@
                            Visibility="{Binding IsSelectedDayEmpty, Converter={StaticResource BoolVisibility}}" />
                 <StackPanel Margin="0,12,0,20" HorizontalAlignment="Center">
                     <TextBlock Text="Day Journal" TextAlignment="Center" Style="{DynamicResource PtjSectionTitleTextStyle}" />
-                    <TextBlock Text="Coming later — journal storage and editing are not available."
+                    <TextBlock Text="{Binding DayJournalStatusMessage}"
                                TextWrapping="Wrap" TextAlignment="Center" Margin="0,8"
-                               Foreground="{DynamicResource PtjTextSecondaryBrush}" />
-                    <Button Content="Add Journal" IsEnabled="False" HorizontalAlignment="Center"
-                            ToolTip="Coming later" ToolTipService.ShowOnDisabled="True"
-                            AutomationProperties.Name="Add Journal — coming later"
-                            AutomationProperties.HelpText="Journal storage and editing are not available."
+                               Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                    <Button x:Name="DayJournalAction" Content="{Binding DayJournalActionText}"
+                            IsEnabled="{Binding CanOpenDayJournal}" HorizontalAlignment="Center"
+                            Click="OnJournalClick"
+                            AutomationProperties.Name="{Binding DayJournalActionText}"
+                            AutomationProperties.HelpText="Open the selected New York date and exact Calendar Account scope in Journal."
                             Style="{DynamicResource PtjButtonStyle}" />
                 </StackPanel>
                 <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"

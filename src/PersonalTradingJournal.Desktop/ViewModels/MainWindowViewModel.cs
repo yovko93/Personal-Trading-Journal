@@ -138,6 +138,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
         _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
+        _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
+        _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -224,6 +226,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
         _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
+        _calendarViewModel.OpenJournalAsync = null;
+        _journalViewModel.JournalDataCommitted -= OnJournalDataCommitted;
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
         _journalViewModel.Deactivate();
@@ -277,6 +281,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private Task _tradeNavigationLoad = Task.CompletedTask;
+
+    private async Task OpenCalendarJournalAsync(DateOnly date, CalendarAccountOption account)
+    {
+        if (_disposed || !_journalViewModel.TryOpenScope(date, account.Id, account.Name)) return;
+        Navigate(NavigationDestination.Journal);
+        if (!_disposed && CurrentDestination == NavigationDestination.Journal)
+            await _journalViewModel.LoadTask;
+    }
 
     private async Task OpenReadOnlyTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)
     {
@@ -439,5 +451,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _dashboardViewModel.OnDataCommitted();
         _calendarViewModel.OnDataCommitted();
         _journalViewModel.TradeContext.OnDataCommitted();
+    }
+
+    private void OnJournalDataCommitted(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnJournalDataCommitted(sender, e));
+            return;
+        }
+        _calendarViewModel.OnJournalCommitted();
     }
 }

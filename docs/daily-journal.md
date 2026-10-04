@@ -1,4 +1,4 @@
-# Daily Journal — M14.1–M14.4
+# Daily Journal — M14.1–M14.5
 
 ## Scope and identity
 
@@ -72,7 +72,19 @@ Completed text and answers remain enabled for reading/copying but are read-only.
 
 All three write actions share one submission guard and cancellation path. Failures preserve local text/answers/state. A stale completion or reopen uses the same explicit **Reload latest** recovery as a stale save, with a discard prompt if local content is dirty. Successful Trade-context refresh never reloads or overwrites these edits. Completion is a user action, not a claim that the app evaluated the answers or trading quality.
 
-Calendar's **Day Journal / Add Journal** remains disabled until M14.5. The standalone editor does not change Calendar/Dashboard calculations, Trades, executions or import records.
+M14.5 connects Calendar's **Day Journal** action to this editor as described below. Journal operations do not change Calendar/Dashboard calculations, Trades, executions or import records.
+
+## Calendar integration (M14.5)
+
+`IDailyJournalStatusReader.GetAsync(from, through, accountId?, ct)` reads committed status for an inclusive visible-grid range of at most **42 dates**. A null Account selects **only** explicit All accounts journals. One fresh no-tracking query projects journal ID, trading date, `IsDraft` and revision, ordered by date; it never reads text, answers or Trades and makes no writes. Invalid ranges/empty IDs fail before querying. The reader is registered through `AddPersistence`; no new migration is required.
+
+Calendar loads this batch independently of its financial data and currency filter. Dates with entries show compact **Draft** or **Completed** indicators; no entry means no marker. Adjacent-month dates and Saturdays use their own daily Journal status. Saturday retains weekly-only financial content. Unknown/loading/error status is not interpreted as no entry: the modal action stays unavailable with Refresh recovery until a valid exact-scope status read succeeds.
+
+The Day Performance action says **Add Journal** for a new entry, **Continue Journal** for a draft and **Open Journal** for completed content. It captures the selected New York date and exact Account scope, closes through the same protected `Window.Closing` path as X/Close/Escape/backdrop, and navigates only after `ShowDialog` returns. Inline Trade loading/editing can veto the close; no Journal navigation occurs and Trade edits remain intact. No Account is inferred from a Trade, currency or the last Journal selection.
+
+`JournalViewModel.TryOpenScope` applies date and Account together with one existing unsaved-change decision, never an intermediate scope/read. Keep editing vetoes a different scope without discarding content; explicit Discard changes permits it. A retained dirty or revision-conflicted editor for the same scope is preserved on targeted reactivation rather than silently reloaded. Completed content opens read-only. Loads revalidate Account availability and preserve unavailable IDs, never falling back to All accounts. Returning to Calendar keeps month, selected date, Account and currency.
+
+Only committed `Created`/`Updated` results emit `JournalDataCommitted`, including a commit returned after cancellation was requested. Unchanged, invalid, conflicting, cancelled or failed writes do not emit it. The shell marshals notification to the dispatcher and refreshes Calendar status only; inactive Calendar rereads on return. Batch reads have their own cancellation/generation checks, so changes of month/Account/currency, refresh or deactivation reject stale results. Journal text and answers never enter the Calendar grid. Review-history navigation remains deferred to **M14.6**.
 
 ## Read-only Trade context (M14.3)
 
@@ -92,7 +104,7 @@ Focused Domain and isolated migrated-SQLite tests cover exact scope uniqueness (
 
 M14.1 verification on 2026-10-04: **91 focused tests passed** (18 Domain, 54 persistence/schema, 19 Account presentation regressions). The complete Release suite passed **2,576 tests** (418 Domain, 516 Application, 753 Infrastructure, 889 Desktop), with no failures or skips. Release build had **zero warnings/errors**, EF reported **no pending model changes**, and `git diff --check` passed. Tests used isolated migrated SQLite databases; the real journal was not opened. Existing Desktop regression tests passing is not Journal editor or interactive acceptance.
 
-The historical M14.1 results above do not establish later editor or interactive acceptance. M14.2 adds the explicit-save editor; M14.3 adds read-only Trade context; M14.4 adds structured review/completion. Richer text, attachments, history browsing, scope migration and journal deletion remain deferred. **Calendar Add Journal activation belongs to M14.5** and must pass the selected Calendar date/Account explicitly, including All accounts, without treating currency filtering as a different journal scope.
+The historical M14.1 results above do not establish later editor or interactive acceptance. M14.2 adds the explicit-save editor; M14.3 adds read-only Trade context; M14.4 adds structured review/completion; M14.5 adds exact-scope Calendar integration. Richer text, attachments, history browsing, scope migration and journal deletion remain deferred. Calendar passes the selected date/Account explicitly, including All accounts, without treating currency filtering as a different journal scope.
 
 ### M14.2 automated verification and manual follow-up
 
@@ -108,7 +120,7 @@ These results are **not live interactive acceptance**. Remaining Windows checkli
 2. Save a multiline empty-day draft with Ctrl+S, leave and return, edit and save again. Check exact text and revision feedback; verify All accounts and an inactive Account remain separate.
 3. With dirty text, change date/Account, navigate away, close the window and choose Reload latest. Exercise both Keep editing and Discard changes. Invalid typed dates must block Save.
 4. In two instances sharing the same isolated test root, save competing revisions. Confirm the losing editor keeps its text, cannot overwrite the newer revision, and asks before Reload latest discards it.
-5. Confirm Calendar's Add Journal remains disabled with Coming later guidance.
+5. This historical M14.2 check required Calendar's Add Journal to remain disabled. M14.5 replaces it with the protected exact-scope launch described above.
 
 ### M14.3 automated verification and manual follow-up
 
@@ -125,7 +137,7 @@ Verified on 2026-10-04 using synthetic data and isolated migrated SQLite databas
 2. Change the applied date and Account, including an inactive Account and an empty day. Confirm the row count, classifications, New York times and separate currencies match Calendar; veto a dirty scope change and confirm both context and draft stay on the original scope.
 3. Keep unsaved Journal text while a pending synthetic Trade/import commit finishes. Confirm context refreshes without losing the draft or changing scope; noncommitted outcomes must not refresh as commits. Test Refresh Trades/cancellation/error recovery independently of Save and Reload latest.
 
-The historical M14.3 checks did not cover review questions/completion. Those arrive in M14.4; Calendar Add Journal and history navigation remain deferred.
+The historical M14.3 checks did not cover review questions/completion or Calendar launch. M14.4 and M14.5 add them respectively; history navigation remains deferred.
 
 ### M14.4 automated verification and manual follow-up
 
@@ -141,4 +153,22 @@ Verified on 2026-10-04 using synthetic data and isolated migrated SQLite databas
 2. On a day without Trades, save a partial draft, attempt completion, then answer all three questions and complete with freeform text empty. Confirm validation preserves every answer, completed controls are read-only, and reopening unlocks editing only after a successful write.
 3. With an answer-only unsaved edit, change date/Account, navigate away, close the window and choose Reload latest. Exercise Keep editing and Discard changes; confirm the exact scope and all four content fields are retained or discarded only as chosen.
 4. In two application instances using the same disposable root, save competing draft/completion/reopen revisions. Confirm the stale editor keeps local content, cannot overwrite the newer revision and asks before Reload latest discards a dirty draft. Cancel an in-flight operation and verify its final committed/cancelled state is reported correctly.
-5. Refresh Trade context while answers are unsaved; confirm no text, answer or scope changes. Calendar Add Journal must remain disabled; review-history navigation is still deferred.
+5. Refresh Trade context while answers are unsaved; confirm no text, answer or scope changes. At M14.4 Calendar Add Journal remained disabled; M14.5 supersedes that boundary with the guarded launch above. Review-history navigation is still deferred.
+
+### M14.5 automated verification and manual follow-up
+
+Verified on 2026-10-04 using synthetic data and isolated migrated SQLite databases:
+
+- **509 focused tests passed**: 452 Desktop Calendar/Journal/navigation cases and 57 Infrastructure Journal/Calendar-reader cases. Coverage includes exact All accounts versus account-specific scope, inactive/unavailable Accounts, empty and adjacent-month dates, Saturday's own Journal, Draft/Completed/reopened markers, status-only read projection, cancellation, stale batches and commit notifications. Controlled modal tests verify closing and backdrop cleanup before navigation, inline Trade-edit close veto, and retained Calendar selections. Editor tests retain dirty/conflicted same-scope work and require an explicit discard decision before another scope.
+- Compiled WPF renders/layout checks cover markers and Journal actions in Light/Dark at **1,100 DIP / 96 DPI** and **480 DIP / 240 DPI**. Rendered images were inspected; tests check compact markers, unchanged Saturday weekly-only content, day-marker-only tooltips, accessible action names and reachable controls. These are automated renders/routed-event tests, **not live interactive acceptance**.
+- Release build: **zero warnings/errors**. No migration or model change is introduced. The existing migrated-SQLite editor flow verifies empty-day create/completion/reopen and exact-scope rereads without changes to Trade economics.
+- The full Release verification gate is **not green**. The normal solution run passed 2,715 and failed 86 of 2,801 tests: an unchanged TopstepX confirmation test timed out waiting for its test store to start, and the native Calendar process exceeded its two-minute aggregate deadline, propagating 85 failures. Phase logs show progress through existing cases, not a stalled WPF phase; the new Journal native cases had not run before that deadline. A controlled `-m:1` solution run (one test project at a time, unchanged test concurrency/assertions/deadlines) passed **2,800**, failed **one**, with no skips: Domain 444, Application 516, Infrastructure 775 and Desktop 1,065/1,066. The remaining unchanged `LeavingJournalCancelsReadAndReturningIgnoresItsLateResult` timed out at its five-second fake-reader-start signal; it passed alone in 149 ms and in the focused suite. This is evidence of full-run scheduling sensitivity, not proof that the complete suite or CI is green. No retries, deadline changes, skipped cases or production workaround were added.
+
+Live pointer, keyboard and screen-reader checks remain unverified because native desktop control is unavailable in this session. Use only a disposable `--isolated-data-root`:
+
+1. In both themes, including a narrow/high-DPI window, select an empty day, an adjacent date and Saturday. Tab to Add/Continue/Open Journal; confirm the exact date and Account, including the distinct All accounts entry. Change currency and verify the same Journal marker/scope remains.
+2. With an unsaved inline Trade edit, invoke Journal and confirm the modal stays open with edits intact. Save or Cancel, then invoke again; confirm one navigation, no Calendar click-through and retained month/date/Account/currency on return.
+3. Save a draft, complete it, reopen it and return to Calendar after each action. Confirm Draft/Completed markers change without P&L/count changes. Rapidly switch month/Account during reads and verify no stale markers. Exercise status-read error/Refresh recovery.
+4. Revisit a retained dirty or revision-conflicted Journal for the same scope; confirm no silent reload. Open a different scope and exercise Keep editing and Discard changes. Verify unavailable Accounts never fall back to All accounts. Check screen-reader state/action announcements.
+
+Review-history navigation remains M14.6 work. A clean complete Release run and new CI run are still required before calling the full verification gate passed.

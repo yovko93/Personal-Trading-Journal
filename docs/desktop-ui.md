@@ -98,7 +98,7 @@ Ten destinations—Dashboard, Calendar, Trades, Journal, Import, Accounts, Instr
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
-## Journal Editor and Daily Review (M14.2–M14.4)
+## Journal Editor, Daily Review and Calendar Integration (M14.2–M14.5)
 
 The Journal page edits one explicit New York date and exact Account scope through `IDailyJournalRepository`. The date defaults to today in New York; All accounts is its own entry, and inactive Accounts remain selectable with inactive labels. Days without Trades are valid. Unavailable Account selections keep their original IDs and a visible unavailable state, with writes blocked.
 
@@ -108,7 +108,7 @@ Date/Account changes and explicit reload require confirmation before discarding 
 
 The view uses shared semantic Light/Dark brushes, form controls and calendar styling. Its date picker accepts culture-aware input and blocks Save while input is invalid or differs from the committed selected date. Labels, automation names, status/error live regions and keyboard access describe the scope and operation. Tab moves out of the multiline field; Ctrl+S invokes Save. Wrapping scope/action controls and vertical scrolling keep the page reachable at narrower sizes. These implementation details do not establish interactive visual or accessibility acceptance.
 
-Calendar **Day Journal / Add Journal** stays disabled until M14.5; the editor is currently reached through the Journal navigation destination. See [Daily Journal](daily-journal.md) for persistence, concurrency and deferred workflow contracts.
+Calendar Day Performance offers **Add Journal**, **Continue Journal** or **Open Journal**, based on a bounded exact-scope status read. The modal closes through its protected close path before shell navigation; inline Trade edits veto closing and preserve the modal. Journal receives the captured New York date and exact nullable Account together, with existing dirty/conflict safeguards. Returning to Calendar preserves month, date and filters. Compact Draft/Completed markers use the current Account, not currency, and committed Journal changes refresh only status. Calendar never displays Journal text or answers. See [Daily Journal](daily-journal.md) for persistence, concurrency and deferred workflow contracts.
 
 M14.3 adds `JournalTradeContextViewModel` and a read-only panel below the editor. The existing Calendar day reader supplies date/Account-filtered closed Trades and separate-currency metrics; existing Calendar presentation supplies time, peak Size, Effective Net and historical classifications. Its own cancellable, generation-guarded read state refreshes after committed Trade/import changes without reloading or discarding journal text. Refresh Trades works independently of Save/Reload latest. Empty/error context remains distinct from the editable Journal. Rows are keyboard-focusable with complete accessible descriptions, shared Light/Dark outcome styling, wrapping/tooltips and narrow-table horizontal scrolling; vertical wheel input reaches the page. The panel has no View/Edit action.
 
@@ -346,7 +346,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 `PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog create/view/edit/lifecycle/delete behavior, Trade capture/browsing/paging/sorting/correction/closure/deletion, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, retained navigation instances with clean re-entry state, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
-These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
+ViewModel tests do not instantiate the visual tree. Separate compiled WPF tests cover resources, layout, routed interactions and native modal lifetime in supervised isolated processes. Neither category replaces live pointer, keyboard, screen-reader or display-scaling acceptance. M14.5's Calendar Journal launch/marker checks and full-run timeout limitations are recorded in [Daily Journal verification](daily-journal.md#m145-automated-verification-and-manual-follow-up).
 
 ## Notebook vs Journal
 
@@ -374,8 +374,8 @@ The following are intentionally not implemented:
 - Setup/Mistake performance analytics or trade-quality scoring;
 - a general keyboard shortcut system beyond existing feature shortcuts such as Journal's Ctrl+S;
 - Journal autosave and revision-history browsing;
-- Calendar Add Journal activation, deferred to M14.5.
+- Journal review-history navigation, deferred to M14.6.
 
 ## Next Milestone
 
-The Journal editor, Trade context and Daily Review completion are implemented with explicit revisioned writes. Calendar launch remains deferred to M14.5. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.
+The Journal editor, Trade context, Daily Review completion and Calendar launch are implemented with explicit revisioned writes. Review-history navigation remains deferred to M14.6. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.

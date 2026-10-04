@@ -65,6 +65,10 @@ public partial class CalendarView : UserControl
                 // Preserve month/filter/date state. The same-grid container survives refresh.
                 if (IsVisible) FindSelectedCell(this)?.Focus();
             }
+            // ShowDialog has unwound and the Calendar is no longer disabled. Never navigate
+            // from Closing/Closed, where a veto or re-entrant unload could lose the editor.
+            if (dialog.JournalNavigationRequest is { } request)
+                _ = vm.NavigateToJournalAsync(request.Date, request.Account);
         }
     }
 

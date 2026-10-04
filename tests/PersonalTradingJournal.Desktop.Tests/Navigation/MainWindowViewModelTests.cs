@@ -1,6 +1,7 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Infrastructure.Imports.Topstep;
@@ -1172,7 +1173,8 @@ public sealed partial class MainWindowViewModelTests
         ITradingCalendarReader? calendarReader = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
         TradesViewModel? calendarEditor = null,
-        JournalViewModel? journalViewModel = null)
+        JournalViewModel? journalViewModel = null,
+        IDailyJournalStatusReader? journalStatusReader = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1333,7 +1335,7 @@ public sealed partial class MainWindowViewModelTests
             new FakeDialogService(), new JournalTradeContextViewModel(journalReader, new FakeTradingAccountReader()), timeProvider);
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor),
+            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor, journalStatusReader: journalStatusReader),
             journal,
             accounts,
             instruments,

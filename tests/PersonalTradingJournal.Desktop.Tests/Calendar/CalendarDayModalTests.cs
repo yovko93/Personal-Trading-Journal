@@ -449,7 +449,7 @@ public sealed partial class CalendarDayModalTests
     [InlineData("Dark", 1100, 96, true)]
     [InlineData("Light", 480, 240, true)]
     [InlineData("Dark", 480, 240, false)]
-    public async Task OwnedModalDimsCalendarClosesAndRestoresDateFocusWithJournalDisabled(string theme, int width, int dpi, bool empty)
+    public async Task OwnedModalDimsCalendarClosesAndRestoresDateFocusWithoutJournalStatusService(string theme, int width, int dpi, bool empty)
     {
         var reader = new FakeTradingCalendarDayReader { Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date,
             empty ? [] : [CalendarDayDetailsTests.Row(q.Date, -285m, null), CalendarDayDetailsTests.Row(q.Date, 10m, 9m) with { Currency = "EUR" }], ct)) };
@@ -489,7 +489,7 @@ public sealed partial class CalendarDayModalTests
                         Button journal = Assert.Single(Descendants(content).OfType<Button>(), b => Equals(b.Content, "Add Journal"));
                         Assert.False(journal.IsEnabled);
                         Assert.Null(journal.Command);
-                        Assert.Contains("coming later", AutomationProperties.GetName(journal), StringComparison.OrdinalIgnoreCase);
+                        Assert.Equal("Add Journal", AutomationProperties.GetName(journal));
                         Assert.Equal(empty ? 0 : 2, Descendants(content).OfType<DayPerformanceChart>().Count());
                         if (empty) Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "No closed Trades to chart." && t.IsVisible);
                         else
