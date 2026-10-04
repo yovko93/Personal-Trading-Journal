@@ -28,16 +28,18 @@ public sealed class TradingCalendarDayReader(IDbContextFactory<JournalDbContext>
         if (query.TradingAccountId is { } accountId)
             rows = rows.Where(row => row.Trade.TradingAccountId == accountId);
         var selected = await rows.OrderByDescending(row => row.Browse.ClosedAtUtc).ThenBy(row => row.Trade.Id)
-            .Select(row => new TradeListItem(row.Trade.Id, row.Trade.TradingAccountId,
+            .Select(row => new { Trade = new TradeListItem(row.Trade.Id, row.Trade.TradingAccountId,
                 row.Account == null ? "Unavailable Account" : row.Account.Name, row.Trade.InstrumentId,
                 row.Instrument == null ? "Unavailable Instrument" : row.Instrument.Symbol,
                 row.Browse.Direction, row.Browse.Status, row.Browse.OpenedAtUtc, row.Browse.ClosedAtUtc,
                 row.Browse.OpenQuantity, row.Browse.AverageEntryPrice, row.Browse.AverageExitPrice,
-                row.Browse.TotalCosts, row.Browse.GrossPnL, row.Browse.NetPnL, row.Trade.PricingCurrency, 0m))
+                row.Browse.TotalCosts, row.Browse.GrossPnL, row.Browse.NetPnL, row.Trade.PricingCurrency, 0m),
+                AccountIsActive = row.Account == null ? (bool?)null : row.Account.IsActive,
+                InstrumentIsActive = row.Instrument == null ? (bool?)null : row.Instrument.IsActive })
             .ToListAsync(cancellationToken);
         Dictionary<Guid, decimal> sizes = await TradePositionSizeReader.GetAsync(context,
-            selected.Select(row => row.Id).ToArray(), cancellationToken);
-        Guid[] ids = selected.Select(row => row.Id).ToArray();
+            selected.Select(row => row.Trade.Id).ToArray(), cancellationToken);
+        Guid[] ids = selected.Select(row => row.Trade.Id).ToArray();
         // Fixed-count batch reads, including historical inactive or missing references.
         var setups = await (from trade in context.Trades.AsNoTracking()
                             join setup in context.TradingSetups.AsNoTracking() on trade.TradingSetupId equals (Guid?)setup.Id into matches
@@ -55,11 +57,13 @@ public sealed class TradingCalendarDayReader(IDbContextFactory<JournalDbContext>
                                   Active = mistake == null ? (bool?)null : mistake.IsActive }).ToListAsync(cancellationToken);
         var byTrade = mistakes.ToLookup(m => m.TradeId);
         return TradingCalendarDayDetails.Create(query.Date,
-            selected.Select(row => row with { Size = sizes[row.Id] }), cancellationToken) with
+            selected.Select(row => row.Trade with { Size = sizes[row.Trade.Id] }), cancellationToken) with
         {
             Classifications = setups.ToDictionary(s => s.Id, s => new CalendarTradeClassification(
                 s.TradingSetupId, s.Name, s.Active, byTrade[s.Id].Select(m =>
                     new CalendarAssignedMistake(m.TradingMistakeId, m.Name, m.Active)).ToArray())),
+            References = selected.ToDictionary(row => row.Trade.Id,
+                row => new CalendarTradeReferenceState(row.AccountIsActive, row.InstrumentIsActive)),
         };
     }
 }

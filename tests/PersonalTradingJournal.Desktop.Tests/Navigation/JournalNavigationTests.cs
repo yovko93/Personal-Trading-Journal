@@ -215,7 +215,8 @@ public sealed partial class MainWindowViewModelTests
     {
         repository ??= new NavigationJournalRepository();
         var dialogs = new FakeDialogService();
-        var journal = new JournalViewModel(repository, new FakeTradingAccountReader(), dialogs, new FixedTimeProvider());
+        var journal = new JournalViewModel(repository, new FakeTradingAccountReader(), dialogs,
+            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new FixedTimeProvider());
         return (CreateFixture(journalViewModel: journal).Main, journal, repository, dialogs);
     }
 

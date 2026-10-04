@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Milestone M14.3 — Daily Journal Trade context: Implemented; read-only**
+
+Below the Journal editor, Trade context shows fully closed Trades for the applied New York date and Account scope, using Calendar's day reader and DST-safe boundaries. All accounts includes every Account's Trades (while the All accounts journal itself remains a separate entry). The daily count, currency-separated Effective Net summaries and rows include closure time, Instrument, Account, direction, peak Size, Net, Setup and Trading Mistakes, with estimated/unavailable economics and historical reference states preserved. Refresh Trades and committed Trade/import notifications reload only context, never unsaved journal text, its revision or scope. Stale reads are rejected; failures and empty days do not prevent writing a Journal. Light/Dark rows wrap and retain horizontal scrolling at narrow widths. There is no Trade edit/navigation action or review workflow in this panel. See [Daily Journal](docs/daily-journal.md) for the read path and verification boundaries.
+
 **Milestone M14.2 — Daily Journal editor: Implemented; Calendar activation remains deferred to M14.5**
 
 The Journal navigation destination opens a retained editor for an explicit New York date and All accounts or a specific Account, including inactive Accounts and days without Trades. **Save** or **Ctrl+S** persists exact plain text; there is no autosave. The editor shows unsaved/saved draft and revision state, preserves the stored draft flag, and offers no completion toggle. Changing date/Account, leaving Journal, closing the window, or reloading dirty text requires discard confirmation. A conflict retains local text and requires explicit **Reload latest** before another save; unavailable Accounts retain their scope and block writes. The date picker and editor use the shared Light/Dark resources. Calendar **Add Journal** stays disabled until M14.5. Implementation does not establish interactive acceptance.

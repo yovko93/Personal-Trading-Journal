@@ -32,6 +32,7 @@ public sealed class TradingCalendarDayReaderTests
             context.TradingMistakes.Add(new TradingMistakeRecord { Id = mistakeId, Name = "Historical Mistake", IsActive = false, CreatedAtUtc = Audit, UpdatedAtUtc = Audit });
             (await context.Trades.SingleAsync(t => t.Id == first.Id)).TradingSetupId = setupId;
             context.TradeMistakes.Add(new TradeMistakeRecord { Id = Guid.NewGuid(), TradeId = first.Id, TradingMistakeId = mistakeId, CreatedAtUtc = Audit, UpdatedAtUtc = Audit });
+            (await context.Instruments.SingleAsync(i => i.Id == instrument)).IsActive = false;
             await context.SaveChangesAsync();
         }
         var result = await db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>().GetAsync(new(new(2026, 9, 5)));
@@ -45,6 +46,12 @@ public sealed class TradingCalendarDayReaderTests
         Assert.False(assigned.Mistakes[0].IsActive);
         Assert.Null(result.Classifications[later.Id].SetupId);
         Assert.Empty(result.Classifications[later.Id].Mistakes);
+        Assert.Equal(result.Trades.Count, result.References.Count);
+        Assert.All(result.References.Values, reference =>
+        {
+            Assert.False(reference.AccountIsActive);
+            Assert.False(reference.InstrumentIsActive);
+        });
         // Simulate dangling historical references in this isolated database only.
         await using (var context = await db.ContextFactory.CreateDbContextAsync())
         {
@@ -52,6 +59,8 @@ public sealed class TradingCalendarDayReaderTests
             await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF");
             await context.TradingSetups.Where(s => s.Id == setupId).ExecuteDeleteAsync();
             await context.TradingMistakes.Where(m => m.Id == mistakeId).ExecuteDeleteAsync();
+            await context.TradingAccounts.Where(a => a.Id == account).ExecuteDeleteAsync();
+            await context.Instruments.Where(i => i.Id == instrument).ExecuteDeleteAsync();
             await context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = ON");
         }
         result = await db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>().GetAsync(new(new(2026, 9, 5)));
@@ -60,6 +69,13 @@ public sealed class TradingCalendarDayReaderTests
         Assert.Null(result.Classifications[first.Id].SetupName);
         Assert.Equal(mistakeId, Assert.Single(result.Classifications[first.Id].Mistakes).Id);
         Assert.Null(result.Classifications[first.Id].Mistakes[0].Name);
+        Assert.All(result.Trades, trade =>
+        {
+            Assert.Equal("Unavailable Account", trade.TradingAccountName);
+            Assert.Equal("Unavailable Instrument", trade.InstrumentSymbol);
+            Assert.Null(result.References[trade.Id].AccountIsActive);
+            Assert.Null(result.References[trade.Id].InstrumentIsActive);
+        });
     }
 
     private static readonly DateTimeOffset Audit = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
@@ -84,6 +100,11 @@ public sealed class TradingCalendarDayReaderTests
         Assert.Equal(2, result.ClosedTradeCount);
         Assert.Equal(5m, Assert.Single(result.Currencies).Metrics.EffectiveNet.Total);
         Assert.All(result.Trades, t => Assert.Equal(1m, t.Size));
+        Assert.All(result.References.Values, reference =>
+        {
+            Assert.False(reference.AccountIsActive);
+            Assert.True(reference.InstrumentIsActive);
+        });
         Assert.Empty((await reader.GetAsync(new(query.Date, Guid.NewGuid()))).Trades);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reader.GetAsync(query, new CancellationToken(true)));
         await using JournalDbContext check = await db.ContextFactory.CreateDbContextAsync();

@@ -56,6 +56,7 @@ public sealed class JournalViewTests
             var editor = (TextBox)view.FindName("JournalText");
             var save = (Button)view.FindName("SaveJournal");
             var reload = (Button)view.FindName("ReloadJournal");
+            Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
             Assert.Equal(text, editor.Text);
             Assert.False(vm.IsDirty); // Rendering must not normalize persisted line endings.
             Assert.False(vm.HasDateInputError);
@@ -165,7 +166,8 @@ public sealed class JournalViewTests
     {
         var accounts = new FakeTradingAccountReader();
         accounts.EnqueueResult([new AccountListItem(Guid.NewGuid(), "Archive account", TradingAccountType.Personal, null, null, "USD", null, false)]);
-        var vm = new JournalViewModel(new ReadRepository(text), accounts, dialogs ?? new(), new FixedTimeProvider());
+        var vm = new JournalViewModel(new ReadRepository(text), accounts, dialogs ?? new(),
+            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new FixedTimeProvider());
         await vm.ActivateAsync();
         return vm;
     }

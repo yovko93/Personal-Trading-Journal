@@ -417,8 +417,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void OnCalendarTradeCommitted(object? sender, EventArgs e)
     {
         if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnCalendarTradeCommitted(sender, e));
+            return;
+        }
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         _dashboardViewModel.OnDataCommitted();
+        _journalViewModel.TradeContext.OnDataCommitted();
         // Calendar's dedicated editor refreshes the modal after its save/reload completes.
     }
 
@@ -432,5 +438,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         _dashboardViewModel.OnDataCommitted();
         _calendarViewModel.OnDataCommitted();
+        _journalViewModel.TradeContext.OnDataCommitted();
     }
 }

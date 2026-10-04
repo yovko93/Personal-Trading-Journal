@@ -28,11 +28,12 @@ public sealed class JournalViewModel : ObservableObject
     private long _generation;
 
     public JournalViewModel(IDailyJournalRepository repository, ITradingAccountReader accountReader,
-        IDialogService dialogs, TimeProvider? timeProvider = null)
+        IDialogService dialogs, JournalTradeContextViewModel tradeContext, TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _accountReader = accountReader;
         _dialogs = dialogs;
+        TradeContext = tradeContext;
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             (timeProvider ?? TimeProvider.System).GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
@@ -129,13 +130,15 @@ public sealed class JournalViewModel : ObservableObject
     public IAsyncRelayCommand ReloadCommand { get; }
     public IRelayCommand CancelOperationCommand { get; }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
+    public JournalTradeContextViewModel TradeContext { get; }
 
     public Task ActivateAsync()
     {
+        Task context = TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id);
         // Repeated activation cannot discard work in an already-visible editor.
-        if (_active && (IsDirty || IsSaving)) return LoadTask;
+        if (_active && (IsDirty || IsSaving)) return LoadTask = Task.WhenAll(LoadTask, context);
         _active = true;
-        return LoadTask = LoadAsync();
+        return LoadTask = Task.WhenAll(LoadAsync(), context);
     }
 
     public bool TryLeave() => !IsSaving && ConfirmDiscard();
@@ -145,6 +148,7 @@ public sealed class JournalViewModel : ObservableObject
         if (IsSaving) return;
         _active = false;
         CancelLoad();
+        TradeContext.Deactivate();
         NotifyState();
     }
 
@@ -163,8 +167,11 @@ public sealed class JournalViewModel : ObservableObject
         _errorMessage = _notice = null;
         OnPropertyChanged(nameof(Text));
         NotifyState();
-        if (_active) LoadTask = LoadAsync();
+        Task context = TradeContext.SetScopeAsync(SelectedTradingDate, SelectedAccount.Id);
+        LoadTask = _active ? Task.WhenAll(LoadAsync(), context) : context;
     }
+
+    private DateOnly? SelectedTradingDate => SelectedDate is { } date ? DateOnly.FromDateTime(date) : null;
 
     private Task ReloadAsync()
     {

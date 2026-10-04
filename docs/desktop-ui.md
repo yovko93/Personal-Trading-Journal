@@ -110,6 +110,8 @@ The view uses shared semantic Light/Dark brushes, form controls and calendar sty
 
 Calendar **Day Journal / Add Journal** stays disabled until M14.5; the editor is currently reached through the Journal navigation destination. See [Daily Journal](daily-journal.md) for persistence, concurrency and deferred workflow contracts.
 
+M14.3 adds `JournalTradeContextViewModel` and a read-only panel below the editor. The existing Calendar day reader supplies date/Account-filtered closed Trades and separate-currency metrics; existing Calendar presentation supplies time, peak Size, Effective Net and historical classifications. Its own cancellable, generation-guarded read state refreshes after committed Trade/import changes without reloading or discarding journal text. Refresh Trades works independently of Save/Reload latest. Empty/error context remains distinct from the editable Journal. Rows are keyboard-focusable with complete accessible descriptions, shared Light/Dark outcome styling, wrapping/tooltips and narrow-table horizontal scrolling; vertical wheel input reaches the page. The panel has no View/Edit action.
+
 ## Dashboard Status
 
 The Dashboard is presentation-only. It contains empty visual regions for:

@@ -1,4 +1,4 @@
-# Daily Journal — M14.1–M14.2
+# Daily Journal — M14.1–M14.3
 
 ## Scope and identity
 
@@ -43,7 +43,7 @@ Reads use fresh no-tracking contexts: one exact-key query with Account left join
 
 ## Desktop editor (M14.2)
 
-The shell's **Journal** destination hosts `JournalViewModel` and `JournalView`. The initial date is today's New York calendar date. An explicit date picker and Account selector identify the exact entry; All accounts is a separate option, and days without Trades are valid. Date and Account are retained on re-entry, which rereads committed content. The editor depends on `IDailyJournalRepository`, `ITradingAccountReader` and the Desktop dialog boundary; it never queries EF Core or Trade data.
+The shell's **Journal** destination hosts `JournalViewModel` and `JournalView`. The initial date is today's New York calendar date. An explicit date picker and Account selector identify the exact entry; All accounts is a separate option, and days without Trades are valid. Date and Account are retained on re-entry, which rereads committed content. The text editor depends on `IDailyJournalRepository`, `ITradingAccountReader` and the Desktop dialog boundary; it never queries EF Core. The independent M14.3 context below it reads Trades through the existing Calendar Application boundary.
 
 **Save** or **Ctrl+S** explicitly creates or updates the selected entry. There is no autosave, save on blur, or automatic save during navigation. The editor passes plain text without trimming or truncation, including empty text, whitespace and Unicode. It shows a character count, unsaved/saved state and the saved revision. Text beyond 100,000 UTF-16 code units remains visible while Save is blocked. The date picker uses shared Light/Dark calendar resources and culture-aware typed dates; invalid or uncommitted date input blocks Save against the old bound date. Tab leaves the multiline editor instead of inserting a tab.
 
@@ -54,6 +54,18 @@ Each load captures its date/Account and rejects late results after scope changes
 Inactive Accounts remain named, marked inactive and selectable for historical journals. An unavailable selected Account stays selected with its original ID and an unavailable label; the editor blocks writes and never falls back to All accounts. New journals remain drafts and existing draft state is preserved. Revision history is persisted but has no browsing UI in this milestone.
 
 Calendar's **Day Journal / Add Journal** remains disabled until M14.5. The standalone editor does not change Calendar/Dashboard calculations, Trades, executions or import records.
+
+## Read-only Trade context (M14.3)
+
+`JournalTradeContextViewModel` composes `ITradingCalendarDayReader` and `ITradingAccountReader`. It receives only the editor's **applied** date and exact Account scope; a rejected dirty-scope change or an uncommitted typed date cannot retarget it. A null Account filters no Trades: every Account contributes, but that does not aggregate or change the independent All accounts journal text. Inactive Accounts remain supported. An unavailable selected Account produces an explicit context error, never an All accounts fallback. There is no currency filter or Trade editing/navigation in this milestone.
+
+`TradingCalendarDayQuery` reuses the existing New York midnight-to-next-midnight **half-open UTC range** over authoritative `ClosedAtUtc`, including 23-/25-hour DST days. The reader excludes open/partially exited Trades, has no browse-page limit, and returns newest closure first with Trade ID as the stable tie-breaker. Its fixed set of batch queries reads browse rows, peak execution/allocation Size, Setups and Mistakes; there is no per-Trade query. Account/Instrument activity metadata is carried in `TradingCalendarDayDetails.References` from the same left joins. Missing references are retained as unavailable; inactive and unassigned classification states remain explicit. The additional metadata is read-only and requires no schema change.
+
+The panel displays daily closed-Trade count, separate per-currency Effective Net summaries, and each Trade's New York closing time, Instrument, Account, Net, Size, direction, Setup and Mistakes. It reuses `CalendarTradePresentation` and `CalendarPnlSummary`; it never recomputes economics from prices. Known Net remains authoritative; unknown Net with known Gross is visibly **Estimated**; unknown economics remain **—**, not zero. A genuinely zero Trade still has a row and count. Detailed time help keeps the actual timestamp's explicit UTC offset. Full names/classifications have tooltips, long text wraps, and the table scrolls horizontally when necessary. Read-only rows are keyboard-focusable and carry complete accessible descriptions; ordinary vertical wheel input reaches the Journal page.
+
+Context loading, cancellation, empty and error states are independent of the editor. **Refresh Trades** and confirmed Trade create/edit/delete, Calendar inline edits, and successful Tradovate/TopstepX imports reload only context while Journal is active. Noncommitted import outcomes do not generate a commit refresh. Re-entry always reads current context. Each read captures the date/Account and a generation; scope changes, newer refreshes and deactivation invalidate older responses, including readers that finish after cancellation. Obsolete rows are cleared rather than shown under another scope. Context refresh never calls the journal repository, prompts to discard text, changes draft/revision state or changes the applied scope; journal saves also do not depend on a successful Trade read.
+
+No Calendar Add Journal activation, structured review questions, completion workflow, history browser, Trade mutation, persisted economics change or migration is included.
 
 ## Verification and later milestones
 
@@ -78,3 +90,20 @@ These results are **not live interactive acceptance**. Remaining Windows checkli
 3. With dirty text, change date/Account, navigate away, close the window and choose Reload latest. Exercise both Keep editing and Discard changes. Invalid typed dates must block Save.
 4. In two instances sharing the same isolated test root, save competing revisions. Confirm the losing editor keeps its text, cannot overwrite the newer revision, and asks before Reload latest discards it.
 5. Confirm Calendar's Add Journal remains disabled with Coming later guidance.
+
+### M14.3 automated verification and manual follow-up
+
+Verified on 2026-10-04 using synthetic data and isolated migrated SQLite databases:
+
+- **223 focused tests passed**: 189 Desktop Journal/navigation/Calendar-day regressions and 34 Calendar-reader/Journal-persistence cases. Coverage includes exact Account scope, both DST transition days, more rows than a browse page, separate currencies, estimated/zero/unavailable economics, inactive/missing classifications and references, read-only SQLite access, and an unchanged journal/history snapshot during Trade-context reads.
+- Actual persisted Trade insert, correction and deletion refresh the context while preserving exact unsaved Journal text, revision and scope. Controlled TopstepX/Tradovate confirmation flows verify committed versus NoChanges/Blocked/cancelled/failed outcomes, commit-after-presentation-cancellation, active/inactive navigation, dispatcher publication and stale-read rejection. These controlled import-notification tests are not live import acceptance.
+- **2,669 complete Release tests passed**: 418 Domain, 516 Application, 753 Infrastructure and 982 Desktop; no failures or skips. Release build: **zero warnings/errors**. EF model check: **no pending changes**. `git diff --check` passed. No schema or persistence-rule change is needed.
+- Compiled WPF rendering and layout checks cover the context in Light/Dark at **1,100 DIP / 96 DPI** and **480 DIP / 240 DPI**. The rendered images were inspected: wrapped historical names, aligned headers/rows, separate-currency summaries, sign/estimated/unavailable styling and narrow horizontal scrolling. The checks also verify UI Automation row peers with complete names and no edit/invoke pattern, command bindings, empty/error states and vertical wheel forwarding. Existing editor renders/regressions remain covered.
+
+**Live interaction remains unverified**; native desktop interaction was unavailable in this session. Automated renders and routed-event/automation-peer assertions are not mouse, keyboard or screen-reader acceptance. With a disposable `--isolated-data-root`, check:
+
+1. In both themes, Tab from the editor to Refresh Trades and through read-only rows; inspect focus, full-name/time/estimate help, horizontal navigation and vertical wheel scrolling at normal and narrow/high-DPI sizes. Check status/error announcements with a screen reader.
+2. Change the applied date and Account, including an inactive Account and an empty day. Confirm the row count, classifications, New York times and separate currencies match Calendar; veto a dirty scope change and confirm both context and draft stay on the original scope.
+3. Keep unsaved Journal text while a pending synthetic Trade/import commit finishes. Confirm context refreshes without losing the draft or changing scope; noncommitted outcomes must not refresh as commits. Test Refresh Trades/cancellation/error recovery independently of Save and Reload latest.
+
+Calendar Add Journal remains disabled; review questions, completion and history navigation are still deferred.

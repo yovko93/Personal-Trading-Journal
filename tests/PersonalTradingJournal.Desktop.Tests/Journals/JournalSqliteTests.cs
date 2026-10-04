@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Trades;
@@ -208,13 +209,14 @@ public sealed class JournalSqliteTests
         Assert.Equal(2, (await database.Repository.GetHistoryAsync(saved.Entry.Id)).Count);
     }
 
-    private sealed record TradeDataSnapshot(TradeRecord[] Trades, TradeExecutionRecord[] Executions, TradeBrowseRecord[] Browse);
+    internal sealed record TradeDataSnapshot(TradeRecord[] Trades, TradeExecutionRecord[] Executions, TradeBrowseRecord[] Browse);
 
-    private sealed class JournalTestDatabase : IAsyncDisposable
+    internal sealed class JournalTestDatabase : IAsyncDisposable
     {
         private readonly string _root;
         private readonly LocalApplicationPaths _paths;
         private readonly List<JournalViewModel> _editors = [];
+        private readonly List<JournalTradeContextViewModel> _tradeContexts = [];
 
         private JournalTestDatabase(string root, LocalApplicationPaths paths, ServiceProvider provider)
         {
@@ -249,14 +251,23 @@ public sealed class JournalSqliteTests
         public async Task<JournalViewModel> OpenEditorAsync(DateOnly date, Guid? accountId = null, FakeDialogService? dialogs = null)
         {
             var editor = new JournalViewModel(Repository, Provider.GetRequiredService<ITradingAccountReader>(),
-                dialogs ?? new FakeDialogService(), new FixedTimeProvider());
+                dialogs ?? new FakeDialogService(), CreateTradeContext(), new FixedTimeProvider());
             _editors.Add(editor);
             await editor.ActivateAsync();
             editor.SelectedDate = date.ToDateTime(TimeOnly.MinValue);
             await editor.LoadTask;
             editor.SelectedAccount = editor.Accounts.Single(account => account.Id == accountId);
             await editor.LoadTask;
+            await editor.TradeContext.LoadTask;
             return editor;
+        }
+
+        public JournalTradeContextViewModel CreateTradeContext()
+        {
+            var tradeContext = new JournalTradeContextViewModel(Provider.GetRequiredService<ITradingCalendarDayReader>(),
+                Provider.GetRequiredService<ITradingAccountReader>());
+            _tradeContexts.Add(tradeContext);
+            return tradeContext;
         }
 
         public async Task<TradeDataSnapshot> ReadTradeDataAsync()
@@ -270,6 +281,8 @@ public sealed class JournalSqliteTests
         public async ValueTask DisposeAsync()
         {
             foreach (JournalViewModel editor in _editors) editor.Deactivate();
+            foreach (JournalTradeContextViewModel tradeContext in _tradeContexts) tradeContext.Deactivate();
+            await Task.WhenAll(_tradeContexts.Select(tradeContext => tradeContext.LoadTask));
             await Provider.DisposeAsync();
             using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
             {

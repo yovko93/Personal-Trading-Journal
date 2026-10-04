@@ -125,6 +125,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<CalendarViewModel>();
             builder.Services.AddTransient<JournalViewModel>();
+            builder.Services.AddTransient<JournalTradeContextViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
             builder.Services.AddTransient<ImportViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();

@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Domain.Journals;
@@ -24,7 +25,8 @@ public sealed class JournalViewModelTests
     public async Task DefaultDateUsesNewYorkCalendarIncludingDst(string instant, string date)
     {
         var repository = new Repository();
-        var vm = new JournalViewModel(repository, new AccountsReader(), new Dialogs(), new Clock(DateTimeOffset.Parse(instant)));
+        var vm = new JournalViewModel(repository, new AccountsReader(), new Dialogs(),
+            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new AccountsReader()), new Clock(DateTimeOffset.Parse(instant)));
 
         Assert.Equal(DateTime.Parse(date), vm.SelectedDate);
         Assert.Null(vm.SelectedAccount.Id);
@@ -658,7 +660,8 @@ public sealed class JournalViewModelTests
     }
 
     private static JournalViewModel Create(Repository? repository = null, AccountsReader? accounts = null, Dialogs? dialogs = null) =>
-        new(repository ?? new Repository(), accounts ?? new AccountsReader(), dialogs ?? new Dialogs(), new Clock(Now));
+        new(repository ?? new Repository(), accounts ?? new AccountsReader(), dialogs ?? new Dialogs(),
+            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), accounts ?? new AccountsReader()), new Clock(Now));
 
     private static DailyJournalDetails Details(string text, bool draft = true, long revision = 1,
         Guid? accountId = null, DateOnly? date = null, Guid? id = null) =>
