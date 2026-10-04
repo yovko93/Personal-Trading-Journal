@@ -58,12 +58,19 @@ public sealed class CalendarDayPerformanceChartTests
             var next = new Button { Content = "After chart" };
             var root = new StackPanel(); root.Children.Add(chart); root.Children.Add(next);
             var window = new Window { Content = root, Width = width + 40, Height = 340, ShowInTaskbar = false,
-                Background = chart.Background };
+                Background = chart.Background,
+                // This case scripts routed hover and real keyboard focus. Do not let
+                // the desktop cursor introduce an unrelated MouseEnter during a pump.
+                // VisualTreeHelper.HitTest below still checks the actual region geometry.
+                IsHitTestVisible = false };
             try
             {
                 window.Show(); Pump(); Draw(chart, dpi);
+                Assert.True(next.Focus()); Pump();
                 Border[] targets = Targets(chart), regions = Regions(chart);
                 Line guide = Guide(chart);
+                Assert.False(chart.IsHitTestVisible);
+                Assert.False(chart.IsMouseOver || chart.IsKeyboardFocusWithin);
                 Assert.Equal(4, regions.Length);
                 Assert.Equal(Visibility.Collapsed, guide.Visibility);
                 var plot = (Canvas)VisualTreeHelper.GetParent(regions[0]);

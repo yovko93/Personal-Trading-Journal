@@ -141,6 +141,57 @@ The final full-suite exception was `ObjectDisposedException: SQLitePCL.sqlite3` 
 
 The subsequent [SQLite lifetime investigation](sqlite-test-lifetimes.md) demonstrates the cross-fixture pool ownership defect and a controlled provider activation race, and replaces global cleanup with owned-pool release. Its verification is recorded separately from the historical run-71/probe results above.
 
+## CI evidence: run 73 — ambient pointer and probe encoding
+
+[Run 73](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/37196768021), validate job `111420178931`, completed the Test step with failure and successfully uploaded its diagnostic ZIP. The full log and TRX files were inspected, not just the propagated Desktop messages.
+
+- PR #16 head/local baseline: `b9554eaf0e326906a8e0d7be5acb6b7e64b0bf6f`, `develop`, initially clean.
+- CI merge checkout: `30c3c35cdb3acfa88b94a5e4bcdb4aee78fe6cbb`. Both share tree `291f89dfa8e8ff31f173af87e09530575318c8b4`; source content matches.
+- Windows Server 2025, image `windows-2025-vs2026` version `20260925.250.1`, SDK 10.0.303 / runtime 10.0.12.
+- Domain **400/400**, Application **516/516**, Infrastructure **724/724**, child Calendar grid **36/36** passed. No new SQLite failure exists and that fix is unchanged.
+- Native Calendar suite: **77 passed / 1 failed**. Its first and only assertion failure is `CalendarDayPerformanceChartTests.FullHeightRegionsHandOffOneGuideAndRetainKeyboardFocusWithSubtleThemeDrawing("Dark", 960, 96)`, original line **68**: expected `Collapsed`, actual `Visible`.
+- Parent Desktop: **805 passed / 79 failed**. **77** failures repeat the same native-suite result. The other **two** are independent output-probe encoding assertions (exit codes 0 and 7), not Calendar failures.
+
+### Guide initial-state assumption
+
+The failing test creates a real native Window, calls `Show`, pumps the dispatcher, and draws the chart before asserting there is no active guide. The chart correctly handles native region `MouseEnter` immediately. Its instance-owned hovered/focused target determines guide visibility; redraw preserves an active point by identity. A fresh chart cannot inherit another chart's target. Thus the test incorrectly assumes no ambient pointer interaction while it is showing/pumping the window.
+
+Temporary diagnostic instrumentation reproduced the exact assertion using native `WM_MOUSEMOVE` input delivered to the test window at a measured plot coordinate, before the initial assertion. All four theme/size cases failed the original `Collapsed` assertion. The Dark 960/96 case recorded:
+
+```text
+REGION MouseEnter: guide=Visible; focus=System.Windows.Window
+guide=Visible; mouseOver=True; pointer=480,100
+regions=0:False,1:False,2:True,3:False
+```
+
+This is legitimate hover, not retained stale state or automatic keyboard focus. The CI artifact did not record its physical cursor coordinates, so the precise original cursor location is not claimed observed. On the local hidden sandbox desktop, passive window positioning alone did not reproduce entry; controlled native input did. Windows/WPF can ignore synthetic native movement when the real cursor is outside its HWND; diagnostic positioning placed only the synthetic test window beneath the stationary cursor, without moving the machine's cursor. This reproduces the environmental-input mechanism, not the entire hosted VM.
+
+The correction sets `IsHitTestVisible=false` on **this scripted test's Window only**, before showing it, and explicitly focuses the button outside the chart. It asserts no hover/focus before the unchanged initial guide check. Isolation lasts through all later dispatcher pumps, not just a one-time state reset. Every existing region-geometry, adjacent-boundary, guide position, highlight, delayed-leave, zero-point, tooltip, resize, real keyboard-focus and clearing assertion remains. Raw `VisualTreeHelper.HitTest` still tests region geometry; routed events explicitly drive the interaction under test. No product event handler, state behavior, assertion, case or deadline was removed or weakened.
+
+Temporary native-message diagnostics are not retained as ordinary CI tests: adding a native-pointer-location assumption to them would recreate the problem. Their logs/TRX remain under ignored `bin/ci-73-investigation/`. The permanent interaction coverage remains the original four deterministic theory cases, not live pointer acceptance.
+
+### Independent UTF-8 probe failure
+
+Both `IsolatedTestProcessTests.NormalAndFailedExitPreserveCompleteOutput` cases failed at line **20**, comparing the complete stdout artifact: expected `complete stdout Ω`, actual `complete stdout ╬⌐`. The stderr artifacts have the same corruption. The processes exited normally with the correct codes in approximately **55 ms** (7) and **63 ms** (0); this is not the earlier PowerShell startup timeout.
+
+The console probe emits UTF-8 but its `ProcessStartInfo` had unspecified stdout/stderr encodings. UTF-8 bytes `CE A9` for `Ω` decoded as OEM437 produce the exact `╬⌐` corruption. A separate diagnostic with explicit decoders reproduced it on both streams at exit codes 0 and 7; UTF-8 decoding preserved the complete marker and exit codes. It changed no global console settings.
+
+Only the test's probe factory now declares both UTF-8 decoders. The existing theory asserts those declarations before its unchanged exact full-output, bounded-tail, exit and cleanup checks. The direct-launch parent-only-kill negative control also redirects stderr, as required for an explicit stderr decoder. The generic process supervisor still honors each caller's chosen encoding. No production code, SQLite fixtures, skipped tests, retries, sleeps, global serialization or blanket deadline changes are involved.
+
+### Local verification
+
+| Check (2026-10-04) | Result |
+| --- | --- |
+| Controlled native entry before correction | **4/4 reproduced** the original initial-guide assertion, with MouseEnter and Window-only keyboard focus recorded. This is diagnostic reproduction, not a passing acceptance run. |
+| Corrected four chart theory cases plus eight process probes, hidden sandbox desktop / process-local 96 DPI / two .NET CPUs | **12/12 passed**. Chart bitmap rendering covers 96/240 DPI; this does not claim a native 240-DPI window in the constrained run. |
+| Complete isolated Calendar native suite, same constrained host plus 1,044-DIP native-window limit | **78/78 passed**, no skips. |
+| Full Release suite, ordinary local host | **2,524/2,524 passed**: Domain **400**, Application **516**, Infrastructure **724**, Desktop **884**. Child grid **36/36** and native Calendar **78/78** passed. |
+| Solution Release build / `git diff --check` | Passed; **zero build warnings/errors**. No synthetic probe processes remained after the suite. |
+| Live application pointer interaction | Not performed. WPF interaction/render checks above are automated and use synthetic data only. |
+| New GitHub run | **Pending the user's commit/push.** Local passing results are not a green CI run. |
+
+The downloaded run-73 evidence, before-correction diagnostic TRX, encoding probe output and final local TRX/logs are under ignored `bin/ci-73-investigation/`. No customer data or real journal was accessed. Only two test files, README and this investigation document changed; production code and the SQLite ownership correction are untouched.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:

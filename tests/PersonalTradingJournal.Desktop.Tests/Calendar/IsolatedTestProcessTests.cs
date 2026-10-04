@@ -13,7 +13,10 @@ public sealed class IsolatedTestProcessTests
     [InlineData(7)]
     public async Task NormalAndFailedExitPreserveCompleteOutput(int exitCode)
     {
-        IsolatedProcessResult result = await IsolatedTestProcess.RunAsync(Probe("output", exitCode.ToString(CultureInfo.InvariantCulture)),
+        ProcessStartInfo start = Probe("output", exitCode.ToString(CultureInfo.InvariantCulture));
+        Assert.Equal(Encoding.UTF8.CodePage, start.StandardOutputEncoding?.CodePage);
+        Assert.Equal(Encoding.UTF8.CodePage, start.StandardErrorEncoding?.CodePage);
+        IsolatedProcessResult result = await IsolatedTestProcess.RunAsync(start,
             $"exit-{exitCode}", TimeSpan.FromSeconds(15));
         Assert.Equal(exitCode, result.ExitCode);
         string stdout = ExpectedOutput("stdout", 'O'), stderr = ExpectedOutput("stderr", 'E');
@@ -88,6 +91,7 @@ public sealed class IsolatedTestProcessTests
         start.UseShellExecute = false;
         start.CreateNoWindow = true;
         start.RedirectStandardOutput = true;
+        start.RedirectStandardError = true;
         using Process parent = Process.Start(start)!;
         Process? child = null;
         try
@@ -182,7 +186,13 @@ public sealed class IsolatedTestProcessTests
     {
         string executable = Path.Combine(AppContext.BaseDirectory, "PersonalTradingJournal.TestProcessProbe.exe");
         Assert.True(File.Exists(executable), "Build the Desktop test project to deploy its synthetic process probe.");
-        var start = new ProcessStartInfo(executable);
+        // The synthetic probe writes UTF-8, regardless of the runner's console
+        // code page. Decode both redirected pipes using that explicit contract.
+        var start = new ProcessStartInfo(executable)
+        {
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
         foreach (string argument in arguments) start.ArgumentList.Add(argument);
         return start;
     }
