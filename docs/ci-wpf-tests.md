@@ -192,6 +192,55 @@ Only the test's probe factory now declares both UTF-8 decoders. The existing the
 
 The downloaded run-73 evidence, before-correction diagnostic TRX, encoding probe output and final local TRX/logs are under ignored `bin/ci-73-investigation/`. No customer data or real journal was accessed. Only two test files, README and this investigation document changed; production code and the SQLite ownership correction are untouched.
 
+## CI evidence: run 74 — native tooltip readiness
+
+[Run 74](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/37202250659), validate job `111436164468`, completed its Test step and uploaded the complete TRX/diagnostic artifact. PR head/local baseline was `036957ac7c4fc7306a0f7cbadcbf298321af231b`, `develop`, with a clean worktree. The CI merge checkout `6b401dfaf1f2831c029096f0e3d1e1d4ae7ac771` has the same tree, `c257c0161b2fc3757d81f11268a6c9e4450a0d8a`.
+
+Domain **400/400**, Application **516/516**, Infrastructure **724/724**, Calendar grid **36/36**, and native Calendar **78/78** passed. Desktop was **883 passed / 1 failed**. The sole failure was `ChartTooltipFollowerTests.OpenPopupFlipsBesidePointerNearWindowRightAndBottomEdges`: `AssertPopupNearExpected`, original line **285**, threw `InvalidOperationException: This Visual is not connected to a PresentationSource` at `tip.PointToScreen`. The immediately preceding `root.PointToScreen` succeeded. The run-73 chart/probe corrections passed; neither those fixes nor SQLite are changed here.
+
+### Lifecycle evidence and limits
+
+The original test called `tip.IsOpen = true`, drained the dispatcher to `ApplicationIdle`, then measured. The scrolling placement test used the same idle drain. Neither sequence guaranteed the tooltip remained open at measurement. Production `ChartTooltipFollower` sets offsets and follows pointer/focus; it does not close a hover popup. The [WPF Popup implementation](https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/Popup.cs) queues app-deactivation handling for `WM_ACTIVATEAPP(false)`; [ToolTip's popup-close handler](https://github.com/dotnet/wpf/blob/main/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/ToolTip.cs) sets `IsOpen=false`. Other concurrent test processes create native windows, so draining unrelated native events is not an inert delay.
+
+A local baseline trace at process-local 96 DPI opened synchronously: `Opened=1`, `Closed=0`, `IsOpen=True`, `Source=HwndSource`, 100×80 DIPs, target `Window`, owner `MouseOver=False`. The unmodified placement assertion passed. Controlled native app-deactivation input to that **synthetic tooltip HWND**, followed by event-coordinated completion of its close, reproduced the exact disconnected-visual exception:
+
+```text
+Opened: IsOpen=True; source=HwndSource; opened=1; closed=0
+Closed: IsOpen=False; source=null; opened=1; closed=1
+before measurement: IsOpen=False; source=null; rootSource=HwndSource
+target=Window; window=Normal/True/True; mouseOver=False; size=100x80
+```
+
+An earlier probe also caught the closing-animation interval: `IsOpen=False` while the source was still attached. Thus a non-null source alone is not sufficient. Geometry was unchanged and the root remained connected; this reproduced closure, not a coordinate conversion failure, slow opening, or pointer hover. It did not switch applications or move the user's pointer.
+
+**The original CI artifact did not record Opened/Closed, IsOpen or activation state.** This controlled reproduction demonstrates the test's lifetime assumption and the same failure mechanism, not proof of the precise original hosted-runner event sequence. No product tooltip defect was demonstrated. Future failures now carry the missing evidence rather than only a disconnected-visual stack.
+
+### Test-only correction
+
+`TooltipPopupReadiness` subscribes before opening to Opened/Closed, IsOpen changes, presentation-source changes, load/layout, window activation/closure and owner hover. It waits for an observed Opened event, `IsOpen=true`, a connected popup, and valid positive layout. The existing physical-pixel assertions then execute in the same STA operation without a generic idle drain in between. The follower's synchronous offset changes are measured the same way after pointer movement and horizontal scrolling.
+
+Deferred readiness is coordinated by dispatcher/events with one **five-second deadline**, not sleeps or polling. A closed/closing popup fails explicitly; a never-opened popup times out with state; neither is reopened or retried. Handler, queued-check and timer cleanup is scoped. Existing five-physical-pixel X/Y tolerances, edge calculations, test cases, process/CI deadlines and production code are unchanged.
+
+These native placement windows also exclude ambient pointer hit testing: their pointer coordinates are scripted, while their HWNDs, popup HWNDs, screen coordinates and DPI conversion remain real. This prevents an unsolicited tooltip-service opening from defeating the deliberately deferred-opening regression. It does not suppress native app-deactivation messages, as the regression still verifies. No production hit targets change.
+
+The observer preserves a bounded lifecycle history and reports IsOpen, presentation sources, Opened/Closed counts, placement target/offsets, measured dimensions, window bounds/state/activation, pointer hover and DPI/work area. Measurements and failures write stdout/TRX and optional `chart-popup-readiness.log`. No customer content is logged.
+
+Three regressions exercise deferred opening beyond a single idle pump; measurement before an unrelated queued native deactivation followed by diagnostic rejection of the closing popup; and a never-opened popup's immediate test deadline without measuring/retrying. Controlled deactivation is confined to the test HWND. The zero-duration test deadline exercises failure cleanup without waiting five seconds; normal placement checks use the bounded default.
+
+### Local verification
+
+| Local check (2026-10-04) | Result |
+| --- | --- |
+| Instrumented original edge test, hidden desktop / process-local 96 DPI / two .NET CPUs | Passed; Opened and source were ready synchronously, no hover or closure recorded before measurement. |
+| Controlled native deactivation then Closed, before correction | Reproduced the exact disconnected-visual exception with the root still connected. This is negative diagnostic evidence, not a passing run. |
+| Final tooltip suite, three independent constrained runs | **18/18 passed on each run**, stopping on failure rather than retrying. Includes the original edge/scrolling checks and three readiness regressions. |
+| Final complete Desktop suite, 96 DPI / two .NET CPUs / 1,044-DIP Calendar window constraint | **887/887 passed**, child grid **36/36**, native Calendar **78/78**. |
+| Final full Release suite, ordinary local host | **2,527/2,527 passed**: Domain **400**, Application **516**, Infrastructure **724**, Desktop **887**; child grid **36/36**, native Calendar **78/78**. Popup diagnostics confirm native **240 DPI** (`TransformToDevice=2.5`) in this run, versus **96 DPI** in the constrained runs. |
+| Release solution build / `git diff --check` | Passed; zero build warnings/errors. |
+| New GitHub CI run / live application acceptance | **Not performed.** The user must commit/push and inspect a new run; automated native WPF checks are not live application verification. |
+
+Evidence is retained under ignored `bin/ci-74-investigation/`; the real journal was not accessed. README, this document, the tooltip test file and its new test-only readiness helper are the only changes. A new GitHub Actions run after the user's commit/push is still required; local results do not establish green CI.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:

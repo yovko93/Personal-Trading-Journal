@@ -4,6 +4,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.Views.Dashboard;
 
 namespace PersonalTradingJournal.Desktop.Tests.Dashboard;
@@ -209,10 +210,12 @@ public sealed class ChartTooltipFollowerTests
             var root = new Grid();
             root.Children.Add(scroll);
             var window = new Window { Width = 500, Height = 300, Left = 100, Top = 100,
-                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false };
+                // Pointer coordinates are scripted; keep native geometry but exclude ambient hover.
+                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false, IsHitTestVisible = false };
             var tip = new ToolTip { Width = 100, Height = 80, Content = "Exact chart value" };
             owner.ToolTip = tip;
             var follower = new ChartTooltipFollower(owner, tip);
+            using var popup = new TooltipPopupReadiness(tip, owner, window);
             try
             {
                 window.Show();
@@ -221,20 +224,16 @@ public sealed class ChartTooltipFollowerTests
                 scroll.UpdateLayout();
                 var pointerInOwner = new Point(20, 30);
                 follower.Follow(pointerInOwner);
-                tip.IsOpen = true;
-                PumpDispatcher();
-                Assert.NotNull(PresentationSource.FromVisual(tip));
-                AssertPopupNearExpected(tip, owner, pointerInOwner, root);
+                popup.Verify(() => AssertPopupNearExpected(tip, owner, pointerInOwner, root),
+                    () => tip.IsOpen = true);
 
                 follower.Follow(new Point(30, 40));
-                PumpDispatcher();
-                AssertPopupNearExpected(tip, owner, new Point(30, 40), root);
+                popup.Verify(() => AssertPopupNearExpected(tip, owner, new Point(30, 40), root));
 
                 scroll.ScrollToHorizontalOffset(320);
                 scroll.UpdateLayout();
                 follower.Follow(pointerInOwner);
-                PumpDispatcher();
-                AssertPopupNearExpected(tip, owner, pointerInOwner, root);
+                popup.Verify(() => AssertPopupNearExpected(tip, owner, pointerInOwner, root));
             }
             finally
             {
@@ -255,18 +254,18 @@ public sealed class ChartTooltipFollowerTests
             Canvas.SetTop(owner, 260);
             root.Children.Add(owner);
             var window = new Window { Width = 500, Height = 300, Left = 100, Top = 100,
-                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false };
+                WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false, IsHitTestVisible = false };
             var tip = new ToolTip { Width = 100, Height = 80, Content = "Edge value" };
             owner.ToolTip = tip;
             var follower = new ChartTooltipFollower(owner, tip);
+            using var popup = new TooltipPopupReadiness(tip, owner, window);
             try
             {
                 window.Show();
                 PumpDispatcher();
                 follower.Follow(new Point(20, 20));
-                tip.IsOpen = true;
-                PumpDispatcher();
-                AssertPopupNearExpected(tip, owner, new Point(20, 20), root);
+                popup.Verify(() => AssertPopupNearExpected(tip, owner, new Point(20, 20), root),
+                    () => tip.IsOpen = true);
             }
             finally
             {
@@ -275,6 +274,90 @@ public sealed class ChartTooltipFollowerTests
             }
         });
     }
+
+    [Fact]
+    public async Task PopupReadinessWaitsForDeferredOpeningAndMeasuresNativePixels()
+    {
+        await WithEdgePopup((window, root, owner, tip, popup) =>
+        {
+            // A single ApplicationIdle pump is not an observable opening contract.
+            window.Dispatcher.BeginInvoke(DispatcherPriority.SystemIdle, new Action(() => tip.IsOpen = true));
+            PumpDispatcher();
+            Assert.False(tip.IsOpen);
+            Assert.Null(PresentationSource.FromVisual(tip));
+            popup.Verify(() => AssertPopupNearExpected(tip, owner, new Point(20, 20), root));
+            Assert.Equal(1, popup.OpenedCount);
+            Assert.Equal(0, popup.ClosedCount);
+        });
+    }
+
+    [Fact]
+    public async Task PopupReadinessMeasuresBeforeUnrelatedDeactivationAndRejectsClosingWithoutReopening()
+    {
+        await WithEdgePopup((window, root, owner, tip, popup) =>
+        {
+            bool deactivated = false;
+            window.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+            {
+                var source = Assert.IsType<System.Windows.Interop.HwndSource>(PresentationSource.FromVisual(tip));
+                // Native app deactivation, as when another test process activates a window.
+                SendMessage(source.Handle, 0x001C, IntPtr.Zero, IntPtr.Zero);
+                deactivated = true;
+            }));
+            popup.Verify(() => AssertPopupNearExpected(tip, owner, new Point(20, 20), root),
+                () => tip.IsOpen = true);
+            Assert.False(deactivated); // No unrelated idle drain between readiness and measurement.
+            PumpDispatcher();
+            Assert.True(deactivated);
+            Assert.False(tip.IsOpen);
+            Assert.NotNull(PresentationSource.FromVisual(root));
+            bool measured = false;
+            var error = Assert.Throws<InvalidOperationException>(() => popup.Verify(() => measured = true));
+            Assert.Contains("IsOpen=False", error.Message);
+            Assert.Contains("Opened=1", error.Message);
+            Assert.Contains("target=Window", error.Message);
+            Assert.False(measured || tip.IsOpen);
+            Assert.Equal(1, popup.OpenedCount);
+        });
+    }
+
+    [Fact]
+    public async Task PopupReadinessDeadlineReportsUnopenedStateWithoutMeasuringOrRetrying()
+    {
+        await WithEdgePopup((_, _, _, tip, popup) =>
+        {
+            bool measured = false;
+            // An immediate deadline exercises timeout cleanup without spending the real budget.
+            var error = Assert.Throws<TimeoutException>(() =>
+                popup.Verify(() => measured = true, timeout: TimeSpan.Zero));
+            Assert.Contains("IsOpen=False", error.Message);
+            Assert.Contains("Source=null", error.Message);
+            Assert.Contains("Opened=0", error.Message);
+            Assert.Contains("Closed=0", error.Message);
+            Assert.False(measured || tip.IsOpen);
+        });
+    }
+
+    private static Task WithEdgePopup(Action<Window, Canvas, Border, ToolTip, TooltipPopupReadiness> action) => OnSta(() =>
+    {
+        var root = new Canvas();
+        var owner = new Border { Width = 30, Height = 30, Background = Brushes.Transparent };
+        Canvas.SetLeft(owner, 460); Canvas.SetTop(owner, 260);
+        root.Children.Add(owner);
+        var window = new Window { Width = 500, Height = 300, Left = 100, Top = 100,
+            WindowStyle = WindowStyle.None, Content = root, ShowInTaskbar = false, IsHitTestVisible = false };
+        var tip = new ToolTip { Width = 100, Height = 80, Content = "Edge value" };
+        owner.ToolTip = tip;
+        var follower = new ChartTooltipFollower(owner, tip);
+        using var popup = new TooltipPopupReadiness(tip, owner, window);
+        try
+        {
+            window.Show(); PumpDispatcher();
+            follower.Follow(new Point(20, 20));
+            action(window, root, owner, tip, popup);
+        }
+        finally { tip.IsOpen = false; window.Close(); }
+    });
 
     private static void AssertPopupNearExpected(ToolTip tip, UIElement owner, Point pointerInOwner, UIElement root)
     {
@@ -297,6 +380,9 @@ public sealed class ChartTooltipFollowerTests
             new Action(() => frame.Continue = false));
         Dispatcher.PushFrame(frame);
     }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
     private static void Draw(FrameworkElement element, int dpi = 96)
     {
