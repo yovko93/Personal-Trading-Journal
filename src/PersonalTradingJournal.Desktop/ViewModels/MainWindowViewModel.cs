@@ -9,6 +9,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -21,6 +22,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly CalendarViewModel _calendarViewModel;
+    private readonly JournalViewModel _journalViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
@@ -41,6 +43,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public MainWindowViewModel(
         DashboardViewModel dashboardViewModel,
         CalendarViewModel calendarViewModel,
+        JournalViewModel journalViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
         ImportViewModel importViewModel,
@@ -53,6 +56,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
+        ArgumentNullException.ThrowIfNull(journalViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
         ArgumentNullException.ThrowIfNull(importViewModel);
@@ -64,6 +68,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _dashboardViewModel = dashboardViewModel;
         _calendarViewModel = calendarViewModel;
+        _journalViewModel = journalViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
         _importViewModel = importViewModel;
@@ -201,6 +206,15 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand ToggleThemeCommand { get; }
 
+    public bool TryCloseWindow()
+    {
+        if (CurrentDestination != NavigationDestination.Journal) return true;
+        if (!_journalViewModel.TryLeave()) return false;
+
+        _journalViewModel.Deactivate();
+        return true;
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -212,6 +226,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
+        _journalViewModel.Deactivate();
     }
 
     private (bool Trades, bool Instruments) InvalidateTopstepChanges()
@@ -273,6 +288,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        if (destination != CurrentDestination &&
+            CurrentDestination == NavigationDestination.Journal &&
+            !_journalViewModel.TryLeave())
+            return;
+
         var changed = InvalidateTopstepChanges();
         if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
@@ -288,12 +308,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate();
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Calendar => _calendarViewModel,
+            NavigationDestination.Journal => _journalViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
             NavigationDestination.Import => _importViewModel,
@@ -306,6 +328,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Calendar)
             _ = _calendarViewModel.ActivateAsync();
+
+        if (destination == NavigationDestination.Journal)
+            _ = _journalViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Accounts)
         {

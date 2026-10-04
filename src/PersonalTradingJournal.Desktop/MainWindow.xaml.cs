@@ -1,4 +1,5 @@
 using PersonalTradingJournal.Desktop.ViewModels;
+using System.ComponentModel;
 using System.Windows;
 
 namespace PersonalTradingJournal.Desktop;
@@ -14,5 +15,12 @@ public partial class MainWindow : Window
 
         InitializeComponent();
         DataContext = viewModel;
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        base.OnClosing(e);
+        if (!e.Cancel && DataContext is MainWindowViewModel viewModel)
+            e.Cancel = !viewModel.TryCloseWindow();
     }
 }

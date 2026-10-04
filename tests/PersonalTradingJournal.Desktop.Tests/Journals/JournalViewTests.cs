@@ -1,0 +1,232 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Journals;
+using PersonalTradingJournal.Desktop.Tests.CalendarPage;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
+using PersonalTradingJournal.Desktop.Views.Journals;
+using PersonalTradingJournal.Domain.Accounts;
+using PersonalTradingJournal.Domain.Journals;
+
+namespace PersonalTradingJournal.Desktop.Tests.Journals;
+
+public sealed class JournalViewTests
+{
+    [Fact]
+    public async Task CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts()
+    {
+        const string text = "  Plan\r\n\nТърпение 📈\t  ";
+        var cases = new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) };
+        var editors = new List<JournalViewModel>();
+        foreach (var _ in cases) editors.Add(await CreateAsync(text));
+        var dialogs = new FakeDialogService();
+        var dateEditors = new[] { await CreateAsync("saved", dialogs), await CreateAsync("saved", dialogs) };
+        var empty = await CreateAsync(null);
+        await OnSta(() =>
+        {
+            // One Application and STA for this supervised child, matching production BAML's
+            // application-level StaticResource lookup without polluting the main test host.
+            _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            for (int i = 0; i < cases.Length; i++)
+            {
+                var (theme, width, dpi) = cases[i];
+                CheckLayout(editors[i], text, theme, width, dpi);
+            }
+            CheckDateInput(dateEditors[0], dialogs, "en-US");
+            CheckDateInput(dateEditors[1], dialogs, "bg-BG");
+            CheckEmptyAndValidation(empty);
+        });
+    }
+
+    private static void CheckLayout(JournalViewModel vm, string text, string theme, int width, int dpi)
+    {
+        using (CalendarStaTest.Phase("Journal construction and layout"))
+        {
+            var (view, root) = Layout(vm, theme, width);
+            var date = (DatePicker)view.FindName("JournalDate");
+            var account = (ComboBox)view.FindName("JournalAccount");
+            var editor = (TextBox)view.FindName("JournalText");
+            var save = (Button)view.FindName("SaveJournal");
+            var reload = (Button)view.FindName("ReloadJournal");
+            Assert.Equal(text, editor.Text);
+            Assert.False(vm.IsDirty); // Rendering must not normalize persisted line endings.
+            Assert.False(vm.HasDateInputError);
+            Assert.True(editor.AcceptsReturn);
+            Assert.False(editor.AcceptsTab); // Tab remains keyboard navigation, not a trap.
+            Assert.Equal(0, editor.MaxLength); // Oversize input is validated, never silently truncated.
+            Assert.True(editor.Focusable && date.Focusable && account.Focusable && save.Focusable && reload.Focusable);
+            Assert.Equal("Daily journal text", AutomationProperties.GetName(editor));
+            Assert.Equal("Journal date in New York", AutomationProperties.GetName(date));
+            Assert.Equal("Journal Account scope", AutomationProperties.GetName(account));
+            Assert.Same(vm.SaveCommand, save.Command);
+            Assert.Same(vm.ReloadCommand, reload.Command);
+            Assert.Contains(view.InputBindings.OfType<KeyBinding>(), b => b.Key == Key.S && b.Modifiers == ModifierKeys.Control);
+            Assert.Equal(ScrollBarVisibility.Auto, editor.VerticalScrollBarVisibility);
+            Assert.Equal(ScrollBarVisibility.Disabled, ((ScrollViewer)view.FindName("JournalScroller")).HorizontalScrollBarVisibility);
+            var datePosition = date.TranslatePoint(new Point(), root);
+            var accountPosition = account.TranslatePoint(new Point(), root);
+            Assert.True(accountPosition.X + account.ActualWidth <= width);
+            Assert.True(datePosition.X + date.ActualWidth <= width);
+            if (width < 600) Assert.True(accountPosition.Y > datePosition.Y);
+            else Assert.Equal(datePosition.Y, accountPosition.Y, 1);
+            Assert.InRange(editor.ActualWidth, 250, width);
+            Assert.Equal(((SolidColorBrush)root.Resources["PtjSurfaceElevatedBrush"]).Color,
+                ((SolidColorBrush)editor.Background).Color);
+            editor.Text = text + "\nExact appended line  ";
+            Flush();
+            Assert.Equal(editor.Text, vm.Text);
+            Assert.True(vm.IsDirty);
+            Assert.True(save.IsEnabled);
+            Assert.Equal("Unsaved changes", ((TextBlock)view.FindName("JournalStatus")).Text);
+            Render(root, theme, width, dpi);
+            var scroller = (ScrollViewer)view.FindName("JournalScroller");
+            scroller.ScrollToEnd();
+            Flush();
+            root.UpdateLayout();
+            Assert.InRange(save.TranslatePoint(new Point(), root).Y, 0, root.ActualHeight - save.ActualHeight);
+
+            // Exercise the actual DatePicker-owned calendar template without opening a
+            // native popup. Live popup/focus acceptance is deliberately reported separately.
+            var popup = (Popup)date.Template.FindName("PART_Popup", date);
+            var calendar = Assert.IsType<System.Windows.Controls.Calendar>(popup.Child);
+            calendar.Measure(new Size(300, 320));
+            calendar.Arrange(new Rect(0, 0, 300, 320));
+            calendar.UpdateLayout();
+            Assert.Same(date.CalendarStyle, calendar.Style);
+            var selectedDay = Assert.Single(Descendants(calendar).OfType<CalendarDayButton>(), b => b.IsSelected);
+            Assert.Equal(Desktop.Views.Dashboard.RangeDay.Single, selectedDay.Tag);
+            Assert.True(selectedDay.Focusable);
+            Assert.Equal(vm.SelectedDate, calendar.SelectedDate);
+            vm.Deactivate();
+        }
+    }
+
+    private static void CheckDateInput(JournalViewModel vm, FakeDialogService dialogs, string culture)
+    {
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+        var (view, _) = Layout(vm, "Light", 960);
+        var date = (DatePicker)view.FindName("JournalDate");
+        var account = (ComboBox)view.FindName("JournalAccount");
+        var input = (DatePickerTextBox)date.Template.FindName("PART_TextBox", date);
+        DateTime applied = vm.SelectedDate!.Value;
+        vm.Text = "local draft";
+        input.Text = "not a date";
+        Flush();
+        Assert.True(vm.HasDateInputError);
+        Assert.False(vm.SaveCommand.CanExecute(null));
+        Assert.Equal(applied, vm.SelectedDate);
+        input.Text = applied.AddDays(1).ToString("d", CultureInfo.CurrentCulture);
+        Flush();
+        Assert.True(vm.HasDateInputError); // Valid but not yet applied must not save under yesterday.
+        input.Text = applied.ToString("d", CultureInfo.CurrentCulture);
+        Flush();
+        Assert.False(vm.HasDateInputError);
+        date.SelectedDate = applied.AddDays(1); // Keep editing rejects the scope change.
+        Flush();
+        Assert.Equal(applied, vm.SelectedDate);
+        Assert.Equal(applied, date.SelectedDate);
+        Assert.Equal(applied, DateTime.Parse(input.Text, CultureInfo.CurrentCulture));
+        Assert.False(vm.HasDateInputError);
+        account.SelectedItem = vm.Accounts.Single(a => a.Id.HasValue);
+        Flush();
+        Assert.Null(vm.SelectedAccount.Id);
+        Assert.Same(vm.SelectedAccount, account.SelectedItem);
+        Assert.Equal("local draft", vm.Text);
+        Assert.True(vm.SaveCommand.CanExecute(null));
+        Assert.NotNull(dialogs.ConfirmationRequest);
+        vm.Deactivate();
+    }
+
+    private static void CheckEmptyAndValidation(JournalViewModel vm)
+    {
+        var (view, _) = Layout(vm, "Dark", 480);
+        var editor = (TextBox)view.FindName("JournalText");
+        Assert.Equal("New draft — not saved", ((TextBlock)view.FindName("JournalStatus")).Text);
+        Assert.Empty(editor.Text);
+        Assert.True(((Button)view.FindName("SaveJournal")).IsEnabled); // Empty journals are valid.
+        editor.Text = new string('x', DailyJournalEntry.MaximumTextLength + 1);
+        Flush();
+        Assert.Equal(DailyJournalEntry.MaximumTextLength + 1, vm.Text.Length);
+        Assert.False(((Button)view.FindName("SaveJournal")).IsEnabled);
+        Assert.Contains("kept", ((TextBlock)view.FindName("JournalError")).Text);
+        Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting((TextBlock)view.FindName("JournalError")));
+        vm.Deactivate();
+    }
+
+    private static async Task<JournalViewModel> CreateAsync(string? text, FakeDialogService? dialogs = null)
+    {
+        var accounts = new FakeTradingAccountReader();
+        accounts.EnqueueResult([new AccountListItem(Guid.NewGuid(), "Archive account", TradingAccountType.Personal, null, null, "USD", null, false)]);
+        var vm = new JournalViewModel(new ReadRepository(text), accounts, dialogs ?? new(), new FixedTimeProvider());
+        await vm.ActivateAsync();
+        return vm;
+    }
+
+    private static (JournalView View, Border Root) Layout(JournalViewModel vm, string theme, int width)
+    {
+        ResourceDictionary resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+        System.Windows.Application.Current.Resources = resources;
+        var view = new JournalView { DataContext = vm };
+        var root = new Border { Resources = resources, Child = view };
+        root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+        root.Measure(new Size(width, 720));
+        root.Arrange(new Rect(0, 0, width, 720));
+        root.UpdateLayout();
+        Flush();
+        return (view, root);
+    }
+
+    private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, i);
+            yield return child;
+            foreach (DependencyObject nested in Descendants(child)) yield return nested;
+        }
+    }
+
+    private static void Render(Border root, string theme, int width, int dpi)
+    {
+        using (CalendarStaTest.Phase("Journal RenderTargetBitmap"))
+        {
+            var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(root);
+            Assert.Equal(width * dpi / 96, bitmap.PixelWidth);
+            if (Environment.GetEnvironmentVariable("PTJ_JOURNAL_RENDER_DIRECTORY") is { Length: > 0 } path)
+            {
+                Directory.CreateDirectory(path);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var file = File.Create(Path.Combine(path, $"journal-{theme}-{width}-{dpi}.png"));
+                encoder.Save(file);
+            }
+        }
+    }
+
+    private static readonly Lazy<Task> Host = new(() => IsolatedTestProcess.RunSuiteAsync(
+        typeof(JournalViewTests), "journal-editor", "PTJ_JOURNAL_EDITOR_TEST_HOST",
+        TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));
+    private static Task OnSta(Action action, [System.Runtime.CompilerServices.CallerMemberName] string scenario = "") =>
+        Environment.GetEnvironmentVariable("PTJ_JOURNAL_EDITOR_TEST_HOST") == "1"
+            ? CalendarStaTest.RunAsync(action, scenario) : Host.Value;
+
+    private sealed class ReadRepository(string? text) : IDailyJournalRepository
+    {
+        public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(text is null ? null : new DailyJournalDetails(new DailyJournalEntry(date, accountId, text, FixedTimeProvider.FixedUtcNow), DailyJournalAccountState.AllAccounts, null));
+        public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid journalId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<DailyJournalWriteResult> UpdateAsync(UpdateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+}

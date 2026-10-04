@@ -22,6 +22,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -32,7 +33,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
-public sealed class MainWindowViewModelTests
+public sealed partial class MainWindowViewModelTests
 {
     [Fact]
     public void NavigationDestinationsContainNineteenEntries() =>
@@ -1158,7 +1159,8 @@ public sealed class MainWindowViewModelTests
         ITradingCalendarDayReader? calendarDayReader = null,
         ITradingCalendarReader? calendarReader = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
-        TradesViewModel? calendarEditor = null)
+        TradesViewModel? calendarEditor = null,
+        JournalViewModel? journalViewModel = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1316,6 +1318,7 @@ public sealed class MainWindowViewModelTests
         var main = new MainWindowViewModel(
             dashboard,
             new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor),
+            journalViewModel ?? new JournalViewModel(new NavigationJournalRepository(), new FakeTradingAccountReader(), new FakeDialogService(), timeProvider),
             accounts,
             instruments,
             import,
