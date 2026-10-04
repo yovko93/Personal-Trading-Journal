@@ -6,6 +6,7 @@ using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Application.Mistakes;
@@ -16,6 +17,7 @@ using PersonalTradingJournal.Infrastructure.Accounts;
 using PersonalTradingJournal.Infrastructure.Analytics;
 using PersonalTradingJournal.Infrastructure.Calendar;
 using PersonalTradingJournal.Infrastructure.Instruments;
+using PersonalTradingJournal.Infrastructure.Journals;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Imports.Topstep;
 using PersonalTradingJournal.Infrastructure.Mistakes;
@@ -47,6 +49,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
+        services.AddTransient<IDailyJournalRepository, DailyJournalRepository>();
         services.AddTransient<
             ITradingAccountDeletionStore,
             TradingAccountDeletionStore>();

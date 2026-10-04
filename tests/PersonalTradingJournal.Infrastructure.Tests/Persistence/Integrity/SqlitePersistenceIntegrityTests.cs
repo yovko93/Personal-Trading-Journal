@@ -60,6 +60,8 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradeMistakeRecord),
             typeof(TradovateImportedExecutionRecord),
             typeof(TopstepImportedRowRecord),
+            typeof(DailyJournalRecord),
+            typeof(DailyJournalRevisionRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -69,13 +71,8 @@ public sealed class SqlitePersistenceIntegrityTests
 
         foreach (IEntityType entityType in entityTypes)
         {
-            string keyName = entityType.ClrType == typeof(TradeBrowseRecord)
-                ? nameof(TradeBrowseRecord.TradeId)
-                : entityType.ClrType == typeof(TradovateImportedExecutionRecord)
-                    ? nameof(TradovateImportedExecutionRecord.TradeExecutionId)
-                    : "Id";
-            IProperty idProperty = entityType.FindProperty(keyName)!;
-            Assert.Equal(ValueGenerated.Never, idProperty.ValueGenerated);
+            Assert.All(entityType.FindPrimaryKey()!.Properties,
+                property => Assert.Equal(ValueGenerated.Never, property.ValueGenerated));
         }
     }
 
@@ -154,7 +151,11 @@ public sealed class SqlitePersistenceIntegrityTests
             .ToList();
         AssertForeignKey(model, typeof(TopstepImportedRowRecord), nameof(TopstepImportedRowRecord.TradeId),
             typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
-        Assert.Equal(10, foreignKeys.Count);
+        AssertForeignKey(model, typeof(DailyJournalRecord), nameof(DailyJournalRecord.TradingAccountId),
+            typeof(TradingAccountRecord), isRequired: false, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(DailyJournalRevisionRecord), nameof(DailyJournalRevisionRecord.JournalId),
+            typeof(DailyJournalRecord), isRequired: true, DeleteBehavior.Restrict);
+        Assert.Equal(12, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
@@ -238,10 +239,17 @@ public sealed class SqlitePersistenceIntegrityTests
                     Properties = index.Properties
                         .Select(property => property.Name)
                         .ToArray(),
+                    Filter = index.GetFilter(),
                 }))
             .ToList();
 
-        Assert.Equal(5, uniqueIndexes.Count);
+        Assert.Equal(7, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyJournalRecord) &&
+            index.Properties.SequenceEqual([nameof(DailyJournalRecord.TradingDate), nameof(DailyJournalRecord.TradingAccountId)]) &&
+            index.Filter == "\"TradingAccountId\" IS NOT NULL");
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyJournalRecord) &&
+            index.Properties.SequenceEqual([nameof(DailyJournalRecord.TradingDate)]) &&
+            index.Filter == "\"TradingAccountId\" IS NULL");
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TopstepImportedRowRecord) &&
             index.Properties.SequenceEqual([nameof(TopstepImportedRowRecord.TradingAccountIdAtImport), nameof(TopstepImportedRowRecord.SourceId)]));
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TopstepImportedRowRecord) &&

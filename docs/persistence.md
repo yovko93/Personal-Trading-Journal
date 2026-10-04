@@ -24,7 +24,7 @@ The repository deliberately has no generic repository, Unit of Work abstraction,
 
 ## JournalDbContext
 
-`JournalDbContext` exposes one `DbSet` for each current persistence record and applies eight explicit `IEntityTypeConfiguration` implementations. `AddPersistence(...)` configures SQLite from `IApplicationPaths.DatabasePath`, enables SQLite foreign-key enforcement, registers `IDbContextFactory<JournalDbContext>`, and registers the runtime initializer.
+`JournalDbContext` exposes one `DbSet` and explicit `IEntityTypeConfiguration` for each current persistence record. `AddPersistence(...)` configures SQLite from `IApplicationPaths.DatabasePath`, enables SQLite foreign-key enforcement, registers `IDbContextFactory<JournalDbContext>`, and registers the runtime initializer.
 
 Contexts are short-lived: create one from the factory for an operation, save or query, and dispose it. The desktop application does not retain a long-lived context.
 
@@ -40,6 +40,11 @@ Infrastructure defines one persistence record for each current entity concept:
 - `TradeExecutionRecord`
 - `TradeScreenshotRecord`
 - `TradeMistakeRecord`
+- `TradeBrowseRecord`
+- `TradovateImportedExecutionRecord`
+- `TopstepImportedRowRecord`
+- `DailyJournalRecord`
+- `DailyJournalRevisionRecord`
 
 The records carry persistence state without changing Domain encapsulation. Relationships are configured explicitly and do not rely on CLR navigation properties or generate implicit join entities.
 
@@ -54,7 +59,7 @@ Inactive reference records are still mapped and queryable. `IsActive` controls l
 
 ## Database Schema
 
-The database contains exactly nine application tables:
+The database contains thirteen application tables:
 
 1. `Instruments`
 2. `TradingAccounts`
@@ -65,6 +70,10 @@ The database contains exactly nine application tables:
 7. `TradeScreenshots`
 8. `TradeMistakes`
 9. `TradeBrowse`
+10. `TradovateImportedExecutions`
+11. `TopstepImportedRows`
+12. `DailyJournals`
+13. `DailyJournalRevisions`
 
 EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMigrationsLock` to coordinate migration execution; it is provider infrastructure, not an application table or Domain concept.
 
@@ -80,6 +89,8 @@ EF manages `__EFMigrationsHistory`. The SQLite provider may also create `__EFMig
 | `TradeMistakes.TradeId` | `Trades.Id` | Yes | Restrict |
 | `TradeMistakes.TradingMistakeId` | `TradingMistakes.Id` | Yes | Restrict |
 | `TradeBrowse.TradeId` | `Trades.Id` | Yes | Cascade |
+| `DailyJournals.TradingAccountId` | `TradingAccounts.Id` | No | Restrict |
+| `DailyJournalRevisions.JournalId` | `DailyJournals.Id` | Yes | Restrict |
 
 `TradeExecution` is an aggregate-owned factual child and `TradeBrowse` is a derived one-to-one projection, so those two relationships cascade from Trade. Screenshot records use restrict because their external-file lifecycle must not be silently implied by a database cascade. Trade-mistake associations are historical process-quality evidence, and reference records are protected so historical trades remain rehydratable.
 
@@ -99,6 +110,10 @@ The schema does not currently define uniqueness for instrument symbols, setup na
 ### Instrument Management
 
 Instrument details are projected through a no-tracking, identifier-scoped reader. Aggregate updates reuse `InstrumentPersistenceMapper` and persist the complete validated Domain state; derived Point Value is not stored. Hard delete first performs an instrument-scoped `AnyAsync` Trade reference check, and the existing `Restrict` foreign key remains the race-safe final guard. SQLite constraint failures are translated to the deterministic referenced result used by Application and Desktop. Editing an Instrument never updates Trade records: their pricing point value, currency, executions, costs, and P&L inputs remain unchanged.
+
+## Daily Journal persistence (M14.1)
+
+Daily Journals are separate from Trade economics. `IDailyJournalRepository` implements exact New York date/nullable Account reads and atomic create/update/history. The all-accounts journal is its own scope; two filtered unique indexes protect null and account-specific keys. Head and full revision snapshots share a SQLite writer transaction, with an expected-revision check and EF concurrency token. Inactive Accounts are supported; missing references block writes; restrictive foreign keys protect Accounts and durable journal history. The Account deletion store translates the journal FK restriction to the existing referenced result without changing Trades. See [Daily Journal](daily-journal.md) for precise contracts, audit/text semantics, cancellation, concurrency and deferred Desktop work.
 
 ## Trade Source of Truth
 
@@ -199,7 +214,7 @@ Tests verify exact equality, ascending and descending ordering, inclusive `>=`/`
 
 ## Migrations
 
-The current application has five migrations:
+The current application has seven migrations:
 
 ```text
 20260908122839_InitialCreate
@@ -207,9 +222,11 @@ The current application has five migrations:
 20260917165522_AddTradeBrowseProjection
 20260923074655_AddTradovateImportPersistence
 20260925214352_AddTradovateFillAllocations
+20260928201843_AddTopstepImportPersistence
+20261004145757_AddDailyJournals
 ```
 
-`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. `AddTradovateImportPersistence` makes execution costs and browse total costs nullable and adds durable account-scoped Tradovate execution identities without changing existing non-null values. `AddTradovateFillAllocations` extends that ledger with allocation index and immutable source economics and updates its unique index. Legacy rows receive allocation index 0 and retain null source economics; no historical facts are invented from mutable Trades. The latest schema has ten application tables and nine foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
+`InitialCreate` records the historical pre-removal schema and remains unchanged. `RemoveStrategies` removes the former catalog and association without inventing Trading Setup meaning. `AddTradeBrowseProjection` adds the one-to-one derived table, its cascading Trade FK, and indexes for opened time and exact decimal sort keys. `AddTradovateImportPersistence` makes execution costs and browse total costs nullable and adds durable account-scoped Tradovate execution identities without changing existing non-null values. `AddTradovateFillAllocations` extends that ledger with allocation index and immutable source economics and updates its unique index. Legacy rows receive allocation index 0 and retain null source economics; no historical facts are invented from mutable Trades. `AddTopstepImportPersistence` adds its separate closed-row identity ledger. `AddDailyJournals` adds only journal roots/history and their constraints, without rewriting any existing table or trading data. The latest schema has thirteen application tables and twelve foreign keys. Production schema management uses migrations and must not use `EnsureCreated`.
 
 ## Runtime Initialization
 

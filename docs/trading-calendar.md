@@ -50,7 +50,7 @@ Column order is Time (New York) | Instrument | Account | Net P&L | Size | Direct
 
 View expands its own row without navigating away. Edit reuses the shared Trade form, supported execution shapes, validation, historical-reference handling, DST-overlap round trips and `UpdateTradeUseCase`. It does not extend which Trade economics can be edited. Save or Cancel before switching rows/closing; failed validation/persistence retains the draft. External refresh is deferred during inline work. A committed save refreshes the row, day summaries/chart and month totals, retains modal/filter state and invalidates retained Trades/Dashboard data. A moved closure date or changed filter membership removes the row with an explicit notice. Stale row commands cannot target a prior day.
 
-Day Journal remains a placeholder: Add Journal is disabled with Coming later guidance and has no editor, command or storage.
+Day Journal remains a presentation placeholder: Add Journal is disabled with Coming later guidance and has no editor or connected command. M14.1 adds independent [Daily Journal persistence](daily-journal.md), keyed by the explicitly selected New York date and Account scope, without wiring this modal or changing Calendar summaries. The All accounts journal is a separate entry, not an aggregation of account-specific journals; currency is not part of a journal's scope.
 
 ## Account/currency filtering (M13.5)
 
