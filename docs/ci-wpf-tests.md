@@ -500,6 +500,14 @@ Local timings are observations, not a guarantee on a hosted runner. Matching Git
 
 ## Reproduce without changing Windows display settings
 
+### M14.6 prerequisite check (2026-10-05)
+
+Actual clean `develop` HEAD was `91a634c31c903bb18b9223d8f9fe788f042206a7`, containing the preceding Desktop concurrency correction. The GitHub Actions API query for this exact `head_sha` returned **total_count: 0**; latest green run #77 tests the older M13 `main` merge. Thus the two preceding local green parallel runs do **not** establish hosted M14.5 acceptance. No matching failure was found to investigate before implementing M14.6. This workflow runs for pushes to `main` and PRs targeting `main`, not standalone `develop` pushes; only the user's Git writes can trigger verification of the new changes.
+
+M14.6 adds a separate supervised Journal-history render child (one compiled-view scenario covering both themes, normal and narrow/high-DPI), reusing existing background STA lifecycle and deadlines. It does not alter native/grid budgets, the two-collection Desktop cap, assertions or isolation. Local results and remaining live history checks are recorded in [Daily Journal](daily-journal.md#m146-automated-verification-and-manual-follow-up). A matching new GitHub Actions result remains required.
+
+Final local workflow-command-equivalent parallel Release run: **2,838/2,838 passed**, zero failures/skips (444/529/779/1,086 by project), with TRX, blame collector and diagnostics enabled. Native child **86/86**, started **19:35:58.3951908 UTC**, exited **19:37:33.2026613 UTC**: **94.807 s**, **25.193 s** headroom against its unchanged 120 s bound. Grid **36/36**, **40.120 s** process wall time. Raw logs/TRX remain under ignored `artifacts/m146-full-release`; focused **233/233** passed, build had zero warnings/errors, EF/diff checks passed. A final exact-SHA GitHub lookup still returned zero runs. These are local results only, not hosted CI or live UI acceptance.
+
 Use a fresh PowerShell process in the repository on Windows:
 
 ```powershell

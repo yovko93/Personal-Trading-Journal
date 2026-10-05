@@ -31,12 +31,14 @@ public sealed class JournalViewModel : ObservableObject
     private long _generation;
 
     public JournalViewModel(IDailyJournalRepository repository, ITradingAccountReader accountReader,
-        IDialogService dialogs, JournalTradeContextViewModel tradeContext, TimeProvider? timeProvider = null)
+        IDialogService dialogs, JournalTradeContextViewModel tradeContext, TimeProvider? timeProvider = null,
+        IDailyJournalHistoryReader? historyReader = null)
     {
         _repository = repository;
         _accountReader = accountReader;
         _dialogs = dialogs;
         TradeContext = tradeContext;
+        History = historyReader is null ? null : new JournalHistoryViewModel(historyReader, OpenFromHistory);
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             (timeProvider ?? TimeProvider.System).GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
@@ -170,7 +172,21 @@ public sealed class JournalViewModel : ObservableObject
     public IRelayCommand CancelOperationCommand { get; }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public JournalTradeContextViewModel TradeContext { get; }
+    public JournalHistoryViewModel? History { get; }
     public event EventHandler? JournalDataCommitted;
+
+    private bool OpenFromHistory(JournalHistoryItem item)
+    {
+        bool sameScope = SelectedTradingDate == item.TradingDate && SelectedAccount.Id == item.AccountId;
+        if (!TryOpenScope(item.TradingDate, item.AccountId, item.AccountName ?? "Unavailable account")) return false;
+        // History is already on this page, unlike Calendar's targeted reactivation.
+        // Do not carry that reactivation flag into a later explicit discard/navigation.
+        _preserveOnNextActivation = false;
+        // A clean current editor may be older than the history metadata. Dirty or
+        // conflicted contents instead keep the existing explicit Reload protection.
+        if (sameScope && _active && !IsDirty && !_reloadRequired) LoadTask = LoadAsync();
+        return true;
+    }
 
     /// <summary>Atomically opens an explicitly requested date and Account scope; null is the independent All accounts journal.</summary>
     public bool TryOpenScope(DateOnly date, Guid? accountId, string accountName)
@@ -197,6 +213,7 @@ public sealed class JournalViewModel : ObservableObject
 
     public Task ActivateAsync()
     {
+        Task history = History?.ActivateAsync(SelectedAccount.Id) ?? Task.CompletedTask;
         Task context = TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id);
         bool preserve = _preserveOnNextActivation;
         _preserveOnNextActivation = false;
@@ -205,10 +222,10 @@ public sealed class JournalViewModel : ObservableObject
         {
             _active = true;
             NotifyState();
-            return LoadTask = Task.WhenAll(LoadTask, context);
+            return LoadTask = Task.WhenAll(LoadTask, context, history);
         }
         _active = true;
-        return LoadTask = Task.WhenAll(LoadAsync(), context);
+        return LoadTask = Task.WhenAll(LoadAsync(), context, history);
     }
 
     public bool TryLeave() => !IsSaving && ConfirmDiscard();
@@ -219,6 +236,7 @@ public sealed class JournalViewModel : ObservableObject
         _active = false;
         CancelLoad();
         TradeContext.Deactivate();
+        History?.Deactivate();
         NotifyState();
     }
 
@@ -241,7 +259,8 @@ public sealed class JournalViewModel : ObservableObject
         NotifyContent();
         NotifyState();
         Task context = TradeContext.SetScopeAsync(SelectedTradingDate, SelectedAccount.Id);
-        LoadTask = _active ? Task.WhenAll(LoadAsync(), context) : context;
+        Task history = History?.SetScopeAsync(SelectedAccount.Id) ?? Task.CompletedTask;
+        LoadTask = _active ? Task.WhenAll(LoadAsync(), context, history) : context;
     }
 
     private DateOnly? SelectedTradingDate => SelectedDate is { } date ? DateOnly.FromDateTime(date) : null;
@@ -443,7 +462,11 @@ public sealed class JournalViewModel : ObservableObject
         }
         // Notify only after the authoritative result and editor state are published. A late
         // cancellation cannot retract a commit, and UI subscribers are not part of the transaction.
-        if (committed) JournalDataCommitted?.Invoke(this, EventArgs.Empty);
+        if (committed)
+        {
+            JournalDataCommitted?.Invoke(this, EventArgs.Empty);
+            if (History is not null) await History.RefreshAsync();
+        }
     }
 
     private void PublishEntry(DailyJournalEntry? entry)

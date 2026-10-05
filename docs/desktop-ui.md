@@ -98,11 +98,13 @@ Ten destinations—Dashboard, Calendar, Trades, Journal, Import, Accounts, Instr
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
 
-## Journal Editor, Daily Review and Calendar Integration (M14.2–M14.5)
+## Journal Editor, Daily Review, Calendar Integration and History (M14.2–M14.6)
 
 The Journal page edits one explicit New York date and exact Account scope through `IDailyJournalRepository`. The date defaults to today in New York; All accounts is its own entry, and inactive Accounts remain selectable with inactive labels. Days without Trades are valid. Unavailable Account selections keep their original IDs and a visible unavailable state, with writes blocked.
 
-The optional multiline text editor and three Daily Review answer controls expose **Save draft**, **Complete review**, **Reload latest**, operation cancellation and revision feedback. Save draft or **Ctrl+S** sends exact text/answers without trimming or truncation. Partial drafts are valid. Complete review requires meaningful text in all three answers and saves completed state atomically; it does not require Trades. Completed controls remain readable/copyable and read-only until **Reopen review** commits a draft revision. All write actions share submission/concurrency guards; over-limit content stays visible with writes blocked. There is no autosave or history browser.
+The optional multiline text editor and three Daily Review answer controls expose **Save draft**, **Complete review**, **Reload latest**, operation cancellation and revision feedback. Save draft or **Ctrl+S** sends exact text/answers without trimming or truncation. Partial drafts are valid. Complete review requires meaningful text in all three answers and saves completed state atomically; it does not require Trades. Completed controls remain readable/copyable and read-only until **Reopen review** commits a draft revision. All write actions share submission/concurrency guards; over-limit content stays visible with writes blocked. There is no autosave.
+
+M14.6 adds **Review History** above the editor. Its expandable browser uses the selected exact Account scope and 20-item, newest-date-first pages. **Open review** targets the row's New York date through existing draft/conflict guards. Revision metadata pages are newest-first; **View revision** loads one read-only snapshot with UTC audit time, state, text and answers. Viewing never saves/restores, replaces local drafts or changes completion state. The separate `IDailyJournalHistoryReader` performs bounded no-tracking queries; cancellation/generation checks reject late scope/page/selection reads. Committed Journal changes refresh history metadata, not editor text. Lists and copyable snapshot controls use shared theme brushes and internal scrolling, with wrapped metadata and keyboard-accessible row actions. See [Daily Journal](daily-journal.md#review-history-m146) for query limits and verification boundaries.
 
 Date/Account changes and explicit reload require confirmation before discarding dirty text or answers. Failed or cancelled operations retain every local value. A conflict, duplicate creation or missing entry preserves local content and blocks another write until a successful explicit reload; no automatic overwrite or merge occurs. Asynchronous reads capture scope and reject obsolete results, and write operations are single-flight. The ViewModel uses Application contracts and the Desktop dialog service without accessing EF Core or Trade data.
 
@@ -373,9 +375,8 @@ The following are intentionally not implemented:
 - Dashboard analytics and data loading;
 - Setup/Mistake performance analytics or trade-quality scoring;
 - a general keyboard shortcut system beyond existing feature shortcuts such as Journal's Ctrl+S;
-- Journal autosave and revision-history browsing;
-- Journal review-history navigation, deferred to M14.6.
+- Journal autosave and restoration of historical revisions.
 
 ## Next Milestone
 
-The Journal editor, Trade context, Daily Review completion and Calendar launch are implemented with explicit revisioned writes. Review-history navigation remains deferred to M14.6. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.
+The Journal editor, Trade context, Daily Review completion, Calendar launch and paged Review History are implemented with explicit revisioned writes and read-only history browsing. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.

@@ -1,4 +1,4 @@
-# Daily Journal — M14.1–M14.5
+# Daily Journal — M14.1–M14.6
 
 ## Scope and identity
 
@@ -18,7 +18,7 @@ Existing inactive Accounts permit create/read/update: historical review is not n
 
 ## Application boundary
 
-`Application.Journals.IDailyJournalRepository` is the single purpose-specific persistence boundary, registered by `AddPersistence`:
+`Application.Journals.IDailyJournalRepository` is the write/entry persistence boundary, registered by `AddPersistence`. M14.6 adds a separate bounded, read-only history reader; the legacy full-history method below is not used by Desktop browsing:
 
 | Operation | Contract |
 | --- | --- |
@@ -56,7 +56,7 @@ Changing date/Account, choosing **Reload latest**, navigating to another page or
 
 Each load captures its date/Account and rejects late results after scope changes, cancellation or deactivation. Loading/saving state, safe error feedback and retry controls are explicit. Load and save failures keep the local text. A stale update, duplicate creation or missing entry does not overwrite the stored journal or silently replace the local draft: Save is blocked until an explicit successful **Reload latest**. Reload asks before discarding dirty text, then reads the authoritative entry and revision. There is no automatic merge or forced overwrite.
 
-Inactive Accounts remain named, marked inactive and selectable for historical journals. An unavailable selected Account stays selected with its original ID and an unavailable label; the editor blocks writes and never falls back to All accounts. New journals start as drafts, including partial answers. Revision history is persisted but has no browsing UI in this milestone.
+Inactive Accounts remain named, marked inactive and selectable for historical journals. An unavailable selected Account stays selected with its original ID and an unavailable label; the editor blocks writes and never falls back to All accounts. New journals start as drafts, including partial answers. M14.6 adds the bounded history browser described below.
 
 ## Daily Review and completion (M14.4)
 
@@ -84,7 +84,7 @@ The Day Performance action says **Add Journal** for a new entry, **Continue Jour
 
 `JournalViewModel.TryOpenScope` applies date and Account together with one existing unsaved-change decision, never an intermediate scope/read. Keep editing vetoes a different scope without discarding content; explicit Discard changes permits it. A retained dirty or revision-conflicted editor for the same scope is preserved on targeted reactivation rather than silently reloaded. Completed content opens read-only. Loads revalidate Account availability and preserve unavailable IDs, never falling back to All accounts. Returning to Calendar keeps month, selected date, Account and currency.
 
-Only committed `Created`/`Updated` results emit `JournalDataCommitted`, including a commit returned after cancellation was requested. Unchanged, invalid, conflicting, cancelled or failed writes do not emit it. The shell marshals notification to the dispatcher and refreshes Calendar status only; inactive Calendar rereads on return. Batch reads have their own cancellation/generation checks, so changes of month/Account/currency, refresh or deactivation reject stale results. Journal text and answers never enter the Calendar grid. Review-history navigation remains deferred to **M14.6**.
+Only committed `Created`/`Updated` results emit `JournalDataCommitted`, including a commit returned after cancellation was requested. Unchanged, invalid, conflicting, cancelled or failed writes do not emit it. The shell marshals notification to the dispatcher and refreshes Calendar status only; inactive Calendar rereads on return. Batch reads have their own cancellation/generation checks, so changes of month/Account/currency, refresh or deactivation reject stale results. Journal text and answers never enter the Calendar grid. M14.6 independently refreshes the editor's history metadata after committed Journal writes.
 
 ## Read-only Trade context (M14.3)
 
@@ -98,13 +98,33 @@ Context loading, cancellation, empty and error states are independent of the edi
 
 M14.3 itself adds no Calendar Add Journal activation, review workflow, history browser, Trade mutation or economics/schema change. M14.4 adds the review workflow described above; Trade context remains read-only.
 
+## Review History (M14.6)
+
+The **Review History** expander on Journal uses the page's explicit Account scope. Changing the editor date does not silently filter the history to that single date; previous reviews remain browsable. Reviews are ordered by their stored New York `TradingDate` descending, with journal ID as a deterministic tie-breaker. Draft and Completed entries, including zero-Trade days, have date, scope, state and current revision context. All accounts is an exact null scope, not a wildcard. Inactive names are labeled; an unavailable selected Account retains its original ID and recovery message. Historical Account names/activity use current reference metadata; snapshots retain text, answers, state and audits, not historical Account names.
+
+**Open review** requests that row's exact date/scope through the existing editor guard. Keep editing vetoes a different scope without losing freeform text or any answer. Discard changes is explicit. Opening a clean current entry reloads its latest committed version; opening the same entry with dirty or conflicted content preserves it and does not bypass Reload latest. Completed entries still require explicit Reopen review before editing. A stale row button after a page/scope refresh cannot open another entry.
+
+Once a review is opened, a separate newest-first revision page shows revision number, Draft/Completed state and explicit UTC audit time. **View revision** fetches only that immutable snapshot, with exact freeform text and all three structured answers in read-only, copyable controls. Viewing is not restoring: it never calls create/update, changes editor content/revision, completes/reopens a review or adds history. There is no restore-old-version action. Journal saves/completion/reopening refresh metadata; they do not copy a displayed historical snapshot into the editor.
+
+`IDailyJournalHistoryReader`, registered by `AddPersistence`, exposes:
+
+| Read | Semantics |
+| --- | --- |
+| `BrowseAsync(accountId?, page, pageSize, ct)` | Exact-scope entry metadata; date descending then ID; total count and bounded page. No text/answers, Trades or per-entry revision query. |
+| `BrowseRevisionsAsync(journalId, page, pageSize, ct)` | Revision metadata descending by revision; total count and bounded page. No snapshot text. |
+| `GetRevisionAsync(journalId, revision, ct)` | One stored full snapshot, or null if unavailable. |
+
+Page numbers are **one-based**; sizes **1–50**, with Desktop fixed at **20**. Invalid identifiers, sizes and overflowing offsets fail before querying. Empty or beyond-last pages remain empty without scope fallback. Each metadata page uses a count query and one `Skip`/`Take` projection, not one query per row. A selected snapshot uses one query. Fresh no-tracking contexts observe committed changes; cancellation propagates. All reads are independent of Trade queries and make no database writes. The schema and optimistic write rules are unchanged; no migration is required. The existing unbounded `GetHistoryAsync` remains a compatibility API, not the browser's read path.
+
+List, revision-page and snapshot work run off the WPF dispatcher, each with a cancellation token and generation. Account/page/entry/revision changes or deactivation invalidate older work even if a reader returns after cancellation. Loading clears obsolete rows/content; failures show safe Refresh/View revision recovery without altering the editor. History cancellation is separate from editor Save/Reload and never discards its draft. Shared Light/Dark resources, wrapping controls, bounded vertically scrolling lists and read-only text fields keep long history reachable; Tab/Enter reach row actions and the expander has a visible focus border.
+
 ## Verification and later milestones
 
 Focused Domain and isolated migrated-SQLite tests cover exact scope uniqueness (including direct database enforcement), empty trading dates, New York DST date identity, text/audit round trips, durable history, no-ops, stale and concurrent writes, inactive/missing Accounts, referential protection, cancellation/rollback and read-only retrieval. Migration tests verify an upgrade preserves existing trading data and a downgrade removes only the new journal tables.
 
 M14.1 verification on 2026-10-04: **91 focused tests passed** (18 Domain, 54 persistence/schema, 19 Account presentation regressions). The complete Release suite passed **2,576 tests** (418 Domain, 516 Application, 753 Infrastructure, 889 Desktop), with no failures or skips. Release build had **zero warnings/errors**, EF reported **no pending model changes**, and `git diff --check` passed. Tests used isolated migrated SQLite databases; the real journal was not opened. Existing Desktop regression tests passing is not Journal editor or interactive acceptance.
 
-The historical M14.1 results above do not establish later editor or interactive acceptance. M14.2 adds the explicit-save editor; M14.3 adds read-only Trade context; M14.4 adds structured review/completion; M14.5 adds exact-scope Calendar integration. Richer text, attachments, history browsing, scope migration and journal deletion remain deferred. Calendar passes the selected date/Account explicitly, including All accounts, without treating currency filtering as a different journal scope.
+The historical M14.1 results above do not establish later editor or interactive acceptance. M14.2 adds the explicit-save editor; M14.3 adds read-only Trade context; M14.4 adds structured review/completion; M14.5 adds exact-scope Calendar integration; M14.6 adds paged review/revision browsing. Richer text, attachments, scope migration, revision restoration and journal deletion remain deferred. Calendar passes the selected date/Account explicitly, including All accounts, without treating currency filtering as a different journal scope.
 
 ### M14.2 automated verification and manual follow-up
 
@@ -137,7 +157,7 @@ Initial verification on 2026-10-04 using synthetic data and isolated migrated SQ
 2. Change the applied date and Account, including an inactive Account and an empty day. Confirm the row count, classifications, New York times and separate currencies match Calendar; veto a dirty scope change and confirm both context and draft stay on the original scope.
 3. Keep unsaved Journal text while a pending synthetic Trade/import commit finishes. Confirm context refreshes without losing the draft or changing scope; noncommitted outcomes must not refresh as commits. Test Refresh Trades/cancellation/error recovery independently of Save and Reload latest.
 
-The historical M14.3 checks did not cover review questions/completion or Calendar launch. M14.4 and M14.5 add them respectively; history navigation remains deferred.
+The historical M14.3 checks did not cover review questions/completion or Calendar launch. M14.4 and M14.5 add them respectively; M14.6 adds history navigation separately.
 
 ### M14.4 automated verification and manual follow-up
 
@@ -153,7 +173,7 @@ Verified on 2026-10-04 using synthetic data and isolated migrated SQLite databas
 2. On a day without Trades, save a partial draft, attempt completion, then answer all three questions and complete with freeform text empty. Confirm validation preserves every answer, completed controls are read-only, and reopening unlocks editing only after a successful write.
 3. With an answer-only unsaved edit, change date/Account, navigate away, close the window and choose Reload latest. Exercise Keep editing and Discard changes; confirm the exact scope and all four content fields are retained or discarded only as chosen.
 4. In two application instances using the same disposable root, save competing draft/completion/reopen revisions. Confirm the stale editor keeps local content, cannot overwrite the newer revision and asks before Reload latest discards a dirty draft. Cancel an in-flight operation and verify its final committed/cancelled state is reported correctly.
-5. Refresh Trade context while answers are unsaved; confirm no text, answer or scope changes. At M14.4 Calendar Add Journal remained disabled; M14.5 supersedes that boundary with the guarded launch above. Review-history navigation is still deferred.
+5. Refresh Trade context while answers are unsaved; confirm no text, answer or scope changes. At M14.4 Calendar Add Journal remained disabled; M14.5 supersedes that boundary with the guarded launch above. This historical checklist did not cover M14.6 history navigation.
 
 ### M14.5 automated verification and manual follow-up
 
@@ -173,4 +193,30 @@ Live pointer, keyboard and screen-reader checks remain unverified; this follow-u
 3. Save a draft, complete it, reopen it and return to Calendar after each action. Confirm Draft/Completed markers change without P&L/count changes. Rapidly switch month/Account during reads and verify no stale markers. Exercise status-read error/Refresh recovery.
 4. Revisit a retained dirty or revision-conflicted Journal for the same scope; confirm no silent reload. Open a different scope and exercise Keep editing and Discard changes. Verify unavailable Accounts never fall back to All accounts. Check screen-reader state/action announcements.
 
-Review-history navigation remains M14.6 work. The local complete Release gate now passes; a new CI run after the user's commit/push and the live checklist above remain unverified.
+The historical M14.5 local complete Release gate passes; a matching CI run and its live checklist remain unverified. M14.6 adds history navigation separately below.
+
+### M14.6 automated verification and manual follow-up
+
+The pre-implementation checkout on 2026-10-05 was clean `develop` at `91a634c31c903bb18b9223d8f9fe788f042206a7`, containing the bounded Desktop concurrency fix. GitHub's exact-head Actions query returned **zero runs**. Latest green CI #77 covers the older M13 `main` merge, not this fix. No matching failing run existed to investigate; local M14.5 success is not GitHub acceptance.
+
+Focused history, Journal and navigation tests use synthetic fixtures and disposable migrated SQLite databases. Coverage includes 43 reviews across three pages, exact null versus Account scope, inactive/orphan references, 23 revision snapshots across two pages, completion/reopen refresh, exact answers/audits, invalid inputs/cancellation, metadata-only SQL projections, read-only single snapshots, dirty/conflict guards and controlled late list/revision/snapshot responses. Compiled WPF checks cover Light/Dark at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, wrapping, row targeting, keyboard-focusable actions, one-way/read-only snapshot bindings and shared resources. These are automated renders, not live input or screen-reader verification.
+
+| Gate | Result |
+| --- | --- |
+| Focused Journal/history/navigation | **233 passed**: 44 Domain, 13 Application, 53 Infrastructure, 123 Desktop; no failures/skips. |
+| Complete parallel Release suite, with workflow blame/diagnostic flags | **2,838 passed**: 444 Domain, 529 Application, 779 Infrastructure, 1,086 Desktop; no failures/skips. TRX and child diagnostics under ignored `artifacts/m146-full-release`. |
+| Native/grid safety regressions during that full run | Native **86/86**, **94.807 s** process wall time, **25.193 s** below unchanged 120 s deadline; grid **36/36**, **40.120 s**. No harness/coverage/deadline changes. |
+| Build/model/diff | Release build **zero warnings/errors**; EF **no pending model changes** using the in-memory design-time factory; `git diff --check` passed. |
+| Automated visual evidence | Four Light/Dark, normal/narrow-high-DPI history renders generated and inspected. This does not establish live pointer/keyboard/screen-reader acceptance. |
+| GitHub Actions | Exact baseline SHA lookup still returns **zero runs** after local verification. A new matching PR run is required after user commit/push; local green is not CI green. |
+| Live UI | **Unverified**. Native desktop control is not available in the current tooling. Use the checklist below. |
+
+Changed implementation files: Application `Journals/IDailyJournalHistoryReader.cs`; Infrastructure `Journals/DailyJournalHistoryReader.cs` and `Persistence/PersistenceServiceCollectionExtensions.cs`; Desktop `ViewModels/Journals/JournalHistoryViewModel.cs`, `JournalViewModel.cs`, and `Views/Journals/JournalHistoryView.xaml`, `JournalHistoryView.xaml.cs`, `JournalView.xaml`. Added tests: Application `Journals/JournalHistoryPagingTests.cs`; Infrastructure `Persistence/Journals/DailyJournalHistoryReaderTests.cs`; Desktop `Journals/JournalHistoryViewModelTests.cs`, `JournalHistorySqliteTests.cs`, `JournalHistoryViewTests.cs`, `JournalHistoryTestReader.cs`. Documentation: `README.md`, `docs/daily-journal.md`, `docs/desktop-ui.md`, `docs/ci-wpf-tests.md`. No existing work was present initially; no Git writes, schema changes or real journal access were performed.
+
+Remaining isolated Windows checklist (launch with a disposable `--isolated-data-root`; never the real journal):
+
+1. In Light and Dark, expand Review History at normal and narrow/high-DPI sizes. Tab/Enter through paging, Open review and View revision; check focus, list/text scrolling and screen-reader names/live feedback.
+2. Save reviews on empty dates in All accounts and an inactive Account. Switch scope and page; confirm each list contains only its exact scope, newest date first, and empty scope feedback does not fall back.
+3. With unsaved text or answers, open a different review. Keep editing must retain everything; Discard changes must open the requested date. Opening the same dirty/conflicted entry must preserve it, while a later explicit discard on leaving still works.
+4. View an old revision and copy all four text fields; confirm its timestamp/state/content are historical, the editor is unchanged and no revision appears merely from viewing. Complete/reopen/save normally, then check refreshed metadata.
+5. In two instances sharing only that disposable root, save competing edits. Verify conflict recovery, history viewing without an overwrite, and safe cancellation/error recovery during rapid scope/page/selection changes.

@@ -79,6 +79,7 @@
                            Style="{DynamicResource PtjFormLabelTextStyle}" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="{Binding ScopeMessage}" TextWrapping="Wrap" Margin="0,4,0,0"
                            Style="{DynamicResource PtjSecondaryTextStyle}" />
+                <journals:JournalHistoryView DataContext="{Binding History}" Margin="0,12,0,0" />
                 <ProgressBar Height="3" Margin="0,8,0,0" IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
                              Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Journal operation in progress" />
