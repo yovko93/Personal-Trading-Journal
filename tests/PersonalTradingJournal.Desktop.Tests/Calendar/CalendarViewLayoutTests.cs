@@ -804,6 +804,7 @@ public sealed class CalendarViewLayoutTests
 
     internal static ResourceDictionary SharedThemeResources(string theme)
     {
+        using var timing = CalendarStaTest.Timing("theme resource loading");
         // Detached component hosts have no Application.Resources: flatten the unchanged shared
         // declarations so Popup templates resolve them without cross-thread global resources.
         DirectoryInfo? repository = new(AppContext.BaseDirectory);

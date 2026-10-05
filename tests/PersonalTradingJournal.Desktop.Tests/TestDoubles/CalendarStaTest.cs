@@ -16,6 +16,38 @@ internal static class CalendarStaTest
     private static readonly CancellationTokenSource Poisoned = new();
     private static readonly Lazy<NativeDispatcherHost> NativeHost = new(() => new());
 
+    // Opt-in timings do not change dispatcher priorities, pumps or test deadlines.
+    // Scopes can surround asynchronous fixture work as well as native STA work.
+    internal static IDisposable Timing(string operation, [CallerMemberName] string scenario = "") =>
+        Environment.GetEnvironmentVariable("PTJ_CALENDAR_TIMINGS") == "1"
+            ? new TimingScope(operation, scenario) : EmptyTiming.Instance;
+
+    private sealed class EmptyTiming : IDisposable
+    {
+        internal static readonly EmptyTiming Instance = new();
+        public void Dispose() { }
+    }
+
+    private sealed class TimingScope(string operation, string scenario) : IDisposable
+    {
+        private readonly long _start = Stopwatch.GetTimestamp();
+        public void Dispose()
+        {
+            string line = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Scenario = scenario, Operation = operation,
+                Milliseconds = Stopwatch.GetElapsedTime(_start).TotalMilliseconds,
+                Thread = Environment.CurrentManagedThreadId,
+            });
+            Console.WriteLine("Calendar timing: " + line);
+            if (Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") is { Length: > 0 } output)
+            {
+                Directory.CreateDirectory(output);
+                lock (typeof(TimingScope)) File.AppendAllText(Path.Combine(output, "calendar-timings.jsonl"), line + Environment.NewLine);
+            }
+        }
+    }
+
     internal static IDisposable Phase(string name)
     {
         State state = _current ?? throw new InvalidOperationException("Calendar phases require the STA harness.");

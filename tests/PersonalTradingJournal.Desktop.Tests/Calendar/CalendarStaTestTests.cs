@@ -6,6 +6,22 @@ namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 public sealed class CalendarStaTestTests
 {
     private const string HostVariable = "PTJ_CALENDAR_STA_PROBE_HOST";
+    // These probes leave the host healthy and can share discovery/runtime startup.
+    // Poisoning, fatal-callback and Application-lifetime probes must remain in
+    // distinct children: their process-global state is deliberately destructive.
+    private static readonly string[] HealthyScenarios =
+    [
+        nameof(SuccessfulActionShutsDownItsNamedBackgroundDispatcher),
+        nameof(AssertionFailureIsPreservedAfterDispatcherCleanup),
+        nameof(TimeoutExceptionFromActionIsNotMistakenForAnExpiredHarnessDeadline),
+        nameof(NativeModeReusesBackgroundDispatcherUntilItsChildExits),
+        nameof(NativeActionsCannotReenterEachOtherThroughANestedDispatcherFrame),
+        nameof(NativeActionFailurePreservesExceptionAndReleasesTheDispatcherForTheNextCase),
+    ];
+    private static readonly Lazy<Task> HealthyHost = new(() => IsolatedTestProcess.RunSuiteAsync(
+        typeof(CalendarStaTestTests), "calendar-sta-healthy", HostVariable, TimeSpan.FromSeconds(30),
+        testCaseFilter: string.Join("|", HealthyScenarios.Select(scenario =>
+            $"FullyQualifiedName={typeof(CalendarStaTestTests).FullName}.{scenario}"))));
 
     [Fact]
     public async Task ImportResourceApplicationCannotPoisonLaterNativeTooltipWindows()
@@ -270,6 +286,12 @@ public sealed class CalendarStaTestTests
         TimeSpan? timeout = null)
     {
         if (Environment.GetEnvironmentVariable(HostVariable) == "1") return false;
+        if (HealthyScenarios.Contains(scenario))
+        {
+            Assert.Null(timeout); // The entire healthy group retains the 30-second child bound.
+            await HealthyHost.Value;
+            return true;
+        }
         await IsolatedTestProcess.RunSuiteAsync(typeof(CalendarStaTestTests), "calendar-sta-" + scenario,
             HostVariable, timeout ?? TimeSpan.FromSeconds(30),
             testCaseFilter: $"FullyQualifiedName={typeof(CalendarStaTestTests).FullName}.{scenario}");

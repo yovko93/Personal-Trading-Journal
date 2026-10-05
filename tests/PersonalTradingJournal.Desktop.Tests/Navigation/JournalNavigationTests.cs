@@ -14,6 +14,15 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 public sealed partial class MainWindowViewModelTests
 {
     private readonly ITestOutputHelper _journalOutput;
+    private const string JournalRaceHostVariable = "PTJ_JOURNAL_NAVIGATION_RACE_HOST";
+    // Keep the controlled concurrent reads independent of unrelated WPF tests'
+    // shared ThreadPool. The child still runs all 16 flows concurrently, with the
+    // same five-second operation guards and normal solution-level concurrency.
+    private static readonly Lazy<Task> JournalRaceHost = new(() => IsolatedTestProcess.RunSuiteAsync(
+        typeof(MainWindowViewModelTests), "journal-navigation-races", JournalRaceHostVariable,
+        TimeSpan.FromSeconds(30), testCaseFilter:
+        $"FullyQualifiedName={typeof(MainWindowViewModelTests).FullName}.{nameof(LeavingJournalCancelsReadAndReturningIgnoresItsLateResult)}|" +
+        $"FullyQualifiedName={typeof(MainWindowViewModelTests).FullName}.{nameof(ConcurrentJournalNavigationsKeepFreshStateWhenCancelledReadsFinishLate)}"));
 
     public MainWindowViewModelTests(ITestOutputHelper journalOutput) => _journalOutput = journalOutput;
 
@@ -138,12 +147,16 @@ public sealed partial class MainWindowViewModelTests
     [InlineData(false)]
     [InlineData(true)]
     public Task LeavingJournalCancelsReadAndReturningIgnoresItsLateResult(bool lateFailure) =>
-        AssertLateJournalReadIgnoredAsync(lateFailure, "single navigation");
+        Environment.GetEnvironmentVariable(JournalRaceHostVariable) == "1"
+            ? AssertLateJournalReadIgnoredAsync(lateFailure, "single navigation")
+            : JournalRaceHost.Value;
 
     [Fact]
     public Task ConcurrentJournalNavigationsKeepFreshStateWhenCancelledReadsFinishLate() =>
-        Task.WhenAll(Enumerable.Range(0, 16).Select(index =>
-            AssertLateJournalReadIgnoredAsync(index % 2 == 1, $"parallel navigation {index}", logSuccess: false)));
+        Environment.GetEnvironmentVariable(JournalRaceHostVariable) == "1"
+            ? Task.WhenAll(Enumerable.Range(0, 16).Select(index =>
+                AssertLateJournalReadIgnoredAsync(index % 2 == 1, $"parallel navigation {index}", logSuccess: false)))
+            : JournalRaceHost.Value;
 
     [Theory]
     [InlineData(false)]

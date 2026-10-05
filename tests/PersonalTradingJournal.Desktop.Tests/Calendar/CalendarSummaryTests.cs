@@ -142,6 +142,7 @@ internal static class CalendarSummaryFixture
         PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? editor = null,
         PersonalTradingJournal.Application.Journals.IDailyJournalStatusReader? journalStatusReader = null)
     {
+        using var timing = CalendarStaTest.Timing("fixture create and activate");
         var reader = new TradingCalendarReader(new FactsReader());
         var vm = new CalendarViewModel(reader, new Clock(), dayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(),
             tradeEditor: editor, journalStatusReader: journalStatusReader);

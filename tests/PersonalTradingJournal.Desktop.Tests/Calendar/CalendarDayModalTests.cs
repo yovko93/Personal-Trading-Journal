@@ -664,6 +664,7 @@ public sealed partial class CalendarDayModalTests
     }
     private static void Pump()
     {
+        using var timing = CalendarStaTest.Timing("modal dispatcher pump");
         var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame);
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
