@@ -31,8 +31,10 @@ internal static class CalendarStaTest
     private sealed class TimingScope(string operation, string scenario) : IDisposable
     {
         private readonly long _start = Stopwatch.GetTimestamp();
+        private int _disposed;
         public void Dispose()
         {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
             string line = System.Text.Json.JsonSerializer.Serialize(new
             {
                 Scenario = scenario, Operation = operation,
@@ -187,12 +189,20 @@ internal static class CalendarStaTest
             {
                 // Acquire outside the dispatcher: a nested ShowDialog/PushFrame
                 // must never dispatch a second test while the first still runs.
-                await _action.WaitAsync(Poisoned.Token).ConfigureAwait(false);
+                using (Timing("native action gate wait"))
+                    await _action.WaitAsync(Poisoned.Token).ConfigureAwait(false);
                 try
                 {
                     ThrowIfPoisoned();
-                    Dispatcher dispatcher = await _ready.Task.WaitAsync(Poisoned.Token).ConfigureAwait(false);
-                    await dispatcher.InvokeAsync(() => ExecuteAction(state, action, shutdownDispatcher: false),
+                    Dispatcher dispatcher;
+                    using (Timing("native dispatcher readiness"))
+                        dispatcher = await _ready.Task.WaitAsync(Poisoned.Token).ConfigureAwait(false);
+                    using var scheduling = Timing("native dispatcher scheduled wait");
+                    await dispatcher.InvokeAsync(() =>
+                    {
+                        scheduling.Dispose();
+                        ExecuteAction(state, action, shutdownDispatcher: false);
+                    },
                         DispatcherPriority.Normal, Poisoned.Token).Task.ConfigureAwait(false);
                 }
                 finally { _action.Release(); }

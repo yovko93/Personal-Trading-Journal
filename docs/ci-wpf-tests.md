@@ -434,6 +434,70 @@ The final native process started at `17:13:30.821Z`; its first STA action began 
 
 The earlier grouped full run's 102.092-second native pass is useful evidence, not proof of a stable performance fix. The final run supersedes it for acceptance: **M14.5 automated acceptance is not green**. The measured redundant startup and diagnostic work were reduced, and the observed Journal scheduling failure is isolated without changing its race assertions, but the remaining native full-load budget exhaustion is unresolved. No further speculative production/harness change, deadline increase, retry, skipped case or global serialization was made to obtain a green result. Further work needs full-load per-operation profiling to distinguish the remaining layout/window cost from concurrent renderer/CPU contention; a matching Windows CI run is also still required. No M14.6 work was started.
 
+## M14.5 bounded Desktop fan-out (2026-10-05)
+
+The actual checkout was **`dd683873f5b8d2709b1784955c9b3477c5bb15a0`**, `develop`, initially clean: the user had committed all ten preceding files. The remote `develop` ref matched, but the repository-wide Actions query for this exact pushed SHA returned **zero runs**. No Git writes or real journal access were performed. This follow-up does not turn the older CI #77 result into M14.5 verification.
+
+### Controlled comparisons before correction
+
+All runs below used the same Release binaries, eight reported logical CPUs, ordinary Windows/DPI settings, all 86 native cases and their unchanged deadlines. `PTJ_CALENDAR_TIMINGS=1` was enabled. The full baseline ran all four assemblies in parallel. The two workload comparisons excluded only unrelated tests **for diagnosis**, not from final acceptance or CI. The native child was not run concurrently with a separate experiment. Process sampling at one-second intervals recorded assembly module, CPU, working/private memory and thread counts; Windows CIM command-line inspection was denied, so loaded test modules and existing child PID breadcrumbs identified the processes. No machine-wide scheduling or display setting was changed.
+
+| Workload | Native process wall seconds | Headroom to 120 s | Completed STA actions | Sum action wall / process CPU seconds | Peak action-boundary working set MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native only | 75.512 | 44.488 | 85 | 70.298 / 75.828 | 652.953 |
+| Native + all 775 Infrastructure tests | 88.462 | 31.538 | 85 | 81.666 / 84.047 | 642.250 |
+| All Desktop tests, no other assembly | 98.419 | 21.581 | 85 | 89.806 / 91.922 | 707.789 |
+| Complete parallel Release baseline | timed out at 120 | none | 84 | 104.205 / 97.453 (completed actions only) | 650.727 |
+| Complete parallel Release, bounded Desktop collections | 97.707 | 22.293 | 85 | 86.258 / 87.984 | 728.957 |
+| Corrected focused harness run, isolated native child | 80.779 | 39.221 | 85 | 73.857 / 80.453 | 624.984 |
+| Corrected complete parallel Release with CI diagnostics | 102.859 | 17.141 | 85 | 90.253 / 94.750 | 680.672 |
+
+85 STA actions plus the pure calculation case are **86 tests**. CPU includes the native renderer and other threads in that child, so it can exceed wall time; wall minus process CPU is **not** a scheduling-wait measurement. Boundary memory and one-second peak samples differ. The baseline completed 84 actions in this reproduction, versus 77 in the prior run; that variance is retained rather than selecting a favourable result.
+
+[Raw per-action timings](ci-evidence/m14-5-native-load.csv) preserve UTC starts, exact wall/CPU durations, memory samples and observed occurrence order. Occurrences are not invented theory-parameter identifiers. Full phase/JSONL/supervisor logs, TRX and sampled process data remain in ignored `artifacts/m145-load/`. The four baseline/comparison directories are `baseline-full`, `native-isolated`, `native-infrastructure`, `desktop-only`; `bounded-full-built` is the first corrected full run. An attempted `bounded-full` measurement was cancelled because it started before a build completed, locking copy destinations; it is excluded from timing/acceptance evidence. A subsequent completed build had zero warnings/errors before corrected verification.
+
+### Where the time went
+
+Same operations and counts (seconds; nested scopes are inclusive and must not be summed):
+
+| Operation | Count | Native only | Native + Infrastructure | Desktop only | Full baseline | Bounded full |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Process startup to first STA | 1 | 2.855 | 3.704 | 3.959 | 8.741 | 6.901 |
+| Initial owned-panel owner Show/layout | 12 | 5.901 | 9.595 | 10.624 | 13.965 | 10.102 |
+| Initial owned-panel modal interaction/return | 12 | 7.996 | 11.024 | 12.670 | 14.367 | 11.891 |
+| Initial owned-panel close cleanup (dialog + owner) | 12 + 12 | 3.169 | 3.669 | 4.022 | 4.417 | 3.887 |
+| All theme resource loading | 85 | 6.333 | 7.978 | 8.320 | 10.537 | 8.679 |
+| All modal dispatcher pumps | 221 | 6.335 | 7.246 | 8.336 | 8.875 | 7.686 |
+| Chart layout / bitmap rendering | 21 / 21 | 2.024 / 0.202 | 2.639 / 0.258 | 1.776 / 0.325 | 3.582 / 0.346 | 2.964 / 0.414 |
+| Fixture creation/activation | 61 | 0.501 | 0.939 | 1.317 | 2.325 | 1.014 |
+
+The competing workload is **combined Desktop fan-out and Infrastructure CPU**, not a single stalled modal action. Infrastructure alone added about 12.95 seconds to the native lifetime; other Desktop work added about 22.91 seconds without Infrastructure. These are ablations, not additive estimates of saved wall time. In the Desktop-only trace, the main Desktop host consumed **92.09 CPU seconds**, the concurrent grid child **45.23 CPU seconds**, in addition to native **99.12 CPU seconds**; independent Journal/resource/probe children also overlapped. Infrastructure consumed **141.95 CPU seconds** in the paired run. Domain/Application finished quickly and were not the sustained load. The full baseline also failed `JournalTradeContextTests.CancelOrDeactivateRejectsLateSuccess(true)` at reader readiness; the Desktop-only run failed `RefreshClearsOldRowsImmediatelyAndErrorsRemainSeparateFromEmpty` at the same readiness boundary. Neither assertion failure establishes stale production data. Their assertions were preserved, not separately retried or isolated away in this change.
+
+### Small execution-layout correction
+
+`Desktop.Tests/AssemblyInfo.cs` caps **Desktop xUnit collection concurrency at two**, rather than automatically multiplying WPF renderer/native-child work by the runner's processor count. This is not global serialization: two Desktop collections can run together; Domain, Application and Infrastructure retain their existing concurrency and still overlap Desktop; explicitly concurrent test operations (including 16 Journal flows and import races) are unchanged. No test is excluded and no test method/assertion, 120-second aggregate bound, per-operation deadline, process cleanup, fatal callback or timeout poisoning rule changes. The existing external native action gate still prevents nested-frame reentry.
+
+The only other harness code change adds opt-in timing for that gate, dispatcher readiness and the interval from posting a dispatcher operation to its execution. In the corrected full run, **85 scheduled waits totalled 102.669 ms, maximum 15.971 ms**; readiness totalled 0.501 ms. Gate waits totalled 31.483 seconds, maximum 2.749 seconds, overlapping the other native class's active work. They are intentional serialization of the one shared STA, not an extra 31-second wall-time penalty. Idempotent disposal avoids double-reporting a queued timing scope during cancellation/exception cleanup. No production dispatcher or ThreadPool setting changed.
+
+### Verification
+
+The first corrected complete parallel Release run passed **2,810/2,810**, zero failures/skips: Domain **444**, Application **516**, Infrastructure **775**, Desktop **1,075**. The native child passed **86/86 in 97.707 seconds**, leaving **22.293 seconds**; grid **36/36 in 24.987 seconds**; Journal race child **3/3**. Healthy, fatal, poison and nested-frame harness regressions passed with unchanged assertions. Native memory remained bounded; the improvement is concurrency control, not a claimed new memory reduction.
+
+Final verification on the same code:
+
+| Check | Result |
+| --- | --- |
+| Focused harness/process, Calendar native/grid and Journal/navigation regressions (`bounded-focused`) | **280/280 passed**, no skips. Native **86/86 in 80.779 s**, **39.221 s headroom**; grid **36/36 in 20.421 s**; Journal race child **3/3 in 3.374 s**. Ordinary eight-CPU/DPI settings, not a machine-wide CPU constraint. |
+| Second complete parallel Release run, with the workflow's `--blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini --diag` (`bounded-ci-full`) | **2,810/2,810 passed**, zero failures/skips, same 444/516/775/1,075 project counts. Native **86/86 in 102.859 s**, **17.141 s headroom**; grid **36/36 in 26.452 s**; Journal races **3/3 in 7.722 s**. This is local CI-command-equivalent evidence, **not GitHub Actions**. |
+| Release build | Passed, **zero warnings/errors**. |
+| EF model consistency | No pending changes, using the existing in-memory design-time factory. |
+| `git diff --check` | Passed. |
+| Production/schema/real data/live UI | None changed/accessed; no live UI verification performed. |
+
+The second full run checks diagnostic-collector overhead after the first green run, not a retry of a failed assertion. Both full runs keep normal solution-level parallel execution. Raw per-action CSV includes both corrected full runs and the focused run. The demonstrated local native-budget blocker is resolved in these measurements; **hosted CI verification is still outstanding**. No claim is made that unbounded processor-count-driven fan-out is safe, or that one machine's headroom predicts every runner.
+
+Local timings are observations, not a guarantee on a hosted runner. Matching GitHub Actions and live application acceptance remain separate gates; no M14.6 work is included.
+
 ## Reproduce without changing Windows display settings
 
 Use a fresh PowerShell process in the repository on Windows:
