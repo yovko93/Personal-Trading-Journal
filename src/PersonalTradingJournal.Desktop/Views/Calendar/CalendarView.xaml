@@ -320,7 +320,7 @@
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Border>
-                                                <TextBlock x:Name="DayJournalIndicator" Grid.Row="2" Text="{Binding JournalStatusText}"
+                                                <TextBlock x:Name="DayJournalIndicator" Grid.Row="2" Text="{Binding JournalIndicatorText}"
                                                            Visibility="{Binding HasJournal, Converter={StaticResource BoolVisibility}}"
                                                            Margin="0,4,0,0" FontSize="11" TextAlignment="Center"
                                                            Foreground="{DynamicResource PtjTextSecondaryBrush}"

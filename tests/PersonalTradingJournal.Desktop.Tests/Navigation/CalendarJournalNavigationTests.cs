@@ -88,6 +88,7 @@ public sealed partial class MainWindowViewModelTests
         var fixture = CreateJournalFixture();
         using var main = fixture.Main;
         await fixture.Journal.ActivateAsync();
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Keep both drafts safe";
         fixture.Journal.WentWell = "Retained review";
         fixture.Journal.Deactivate();
@@ -114,6 +115,7 @@ public sealed partial class MainWindowViewModelTests
         var fixture = CreateJournalFixture();
         using var main = fixture.Main;
         await fixture.Journal.ActivateAsync();
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.NextTradingDay = "Keep local answer";
         DateOnly day = DateOnly.FromDateTime(fixture.Journal.SelectedDate!.Value);
         fixture.Journal.Deactivate();
@@ -163,6 +165,7 @@ public sealed partial class MainWindowViewModelTests
 
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
         Assert.Equal(NavigationDestination.Journal, main.CurrentDestination);
+        journal.OpenEditorCommand.Execute(null);
         journal.WentWell = "Well";
         journal.NeedsImprovement = "Improve";
         journal.NextTradingDay = "Next";
@@ -175,6 +178,7 @@ public sealed partial class MainWindowViewModelTests
         Assert.True(cell.IsSaturday);
 
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
+        journal.OpenEditorCommand.Execute(null);
         await journal.CompleteReviewCommand.ExecuteAsync(null);
         main.NavigateCommand.Execute(NavigationDestination.Calendar);
         await calendar.LoadTask;
@@ -211,6 +215,7 @@ public sealed partial class MainWindowViewModelTests
         var calendar = Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel);
         await calendar.LoadTask;
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         journal.Text = "Committed scope";
         await journal.SaveCommand.ExecuteAsync(null);
         await calendar.JournalLoadTask;

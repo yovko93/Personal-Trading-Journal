@@ -26,6 +26,8 @@ public sealed class JournalReviewSqliteTests
         Assert.Empty(editor.NeedsImprovement);
         Assert.Empty(editor.NextTradingDay);
 
+        Assert.False(editor.IsEditorOpen);
+        editor.OpenEditorCommand.Execute(null);
         editor.NeedsImprovement = "  I chased one entry.\n";
         editor.NextTradingDay = "I will wait for confirmation.  ";
         var completedAnswers = new DailyReviewAnswers(well, editor.NeedsImprovement, editor.NextTradingDay);
@@ -62,6 +64,7 @@ public sealed class JournalReviewSqliteTests
         second.NeedsImprovement = "More patience at the open.";
         await second.SaveCommand.ExecuteAsync(null);
         Assert.Equal(4L, second.Revision);
+        second.OpenEditorCommand.Execute(null);
         await second.CompleteReviewCommand.ExecuteAsync(null);
         Assert.Equal(5L, second.Revision);
 

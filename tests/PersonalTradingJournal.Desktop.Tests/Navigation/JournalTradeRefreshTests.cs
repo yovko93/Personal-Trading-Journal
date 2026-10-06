@@ -31,6 +31,7 @@ public sealed partial class MainWindowViewModelTests
         await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await Task.WhenAll(fixture.Journal.LoadTask, fixture.Journal.TradeContext.LoadTask);
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Local journal draft remains exact.\r\n  ";
         DateTime? date = fixture.Journal.SelectedDate;
         var row = CalendarPage.CalendarDayDetailsTests.Row(DateOnly.FromDateTime(date!.Value), -285m, null);
@@ -82,6 +83,7 @@ public sealed partial class MainWindowViewModelTests
         await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await Task.WhenAll(fixture.Journal.LoadTask, fixture.Journal.TradeContext.LoadTask);
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Keep my draft.";
         DateTime? date = fixture.Journal.SelectedDate;
         var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -154,6 +156,7 @@ public sealed partial class MainWindowViewModelTests
         await deletion.DeleteStarted.WaitAsync(TimeSpan.FromSeconds(10));
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await Task.WhenAll(fixture.Journal.LoadTask, fixture.Journal.TradeContext.LoadTask);
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Written while deletion was pending.";
         Assert.Equal(row.Id, Assert.Single(fixture.Journal.TradeContext.Rows).Trade.Id);
         fixture.JournalReader.Handler = (q, ct) => Task.FromResult(TradingCalendarDayDetails.Create(q.Date, [], ct));
@@ -184,6 +187,7 @@ public sealed partial class MainWindowViewModelTests
         await store.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await Task.WhenAll(fixture.Journal.LoadTask, fixture.Journal.TradeContext.LoadTask);
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Tradovate import must keep this draft.";
         DateTime? date = fixture.Journal.SelectedDate;
         var row = CalendarPage.CalendarDayDetailsTests.Row(DateOnly.FromDateTime(date!.Value), 20m, null);

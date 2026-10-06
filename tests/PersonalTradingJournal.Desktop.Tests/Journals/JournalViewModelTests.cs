@@ -33,6 +33,7 @@ public sealed class JournalViewModelTests
         Assert.Empty(repository.Reads);
         Assert.False(vm.CanEdit);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal(DateOnly.Parse(date), Assert.Single(repository.Reads).Date);
         Assert.Null(Assert.Single(repository.Reads).AccountId);
@@ -48,6 +49,7 @@ public sealed class JournalViewModelTests
         var vm = Create(repository);
         vm.SelectedDate = new DateTime(year, month, day, 20, 31, 0, DateTimeKind.Local);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal(new DateOnly(year, month, day), Assert.Single(repository.Reads).Date);
@@ -61,6 +63,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.False(vm.IsExisting);
         Assert.True(vm.IsDraft);
@@ -86,6 +89,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "first draft";
         vm.Text = exact;
 
@@ -107,6 +111,7 @@ public sealed class JournalViewModelTests
         Guid id = repository.Journal.Entry.Id;
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         Assert.True(vm.IsDraft);
         vm.Text = "revised";
         await vm.SaveCommand.ExecuteAsync(null);
@@ -129,6 +134,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository { Journal = Details("unchanged", revision: 3) };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "temporary";
         vm.Text = "unchanged";
         Assert.False(vm.IsDirty);
@@ -145,6 +151,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         string tooLong = new('x', DailyJournalEntry.MaximumTextLength + 1);
         vm.Text = tooLong;
 
@@ -154,6 +161,7 @@ public sealed class JournalViewModelTests
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Empty(repository.Creates);
 
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = tooLong[..DailyJournalEntry.MaximumTextLength];
         Assert.Null(vm.ErrorMessage);
         Assert.True(vm.SaveCommand.CanExecute(null));
@@ -167,6 +175,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "keep this";
         DateTime? date = vm.SelectedDate;
         vm.HasDateInputError = true;
@@ -194,6 +203,7 @@ public sealed class JournalViewModelTests
         var dialogs = new Dialogs { ConfirmResult = true };
         var vm = Create(repository, dialogs: dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "pending save";
         DateTime? selected = vm.SelectedDate;
         Task saving = vm.SaveCommand.ExecuteAsync(null);
@@ -207,6 +217,7 @@ public sealed class JournalViewModelTests
         Assert.False(vm.TryLeave());
         vm.SelectedDate = selected!.Value.AddDays(1);
         vm.SelectedAccount = new(Guid.NewGuid(), "Another");
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "must not replace captured text";
         await vm.SaveCommand.ExecuteAsync(null);
         await vm.ReloadCommand.ExecuteAsync(null);
@@ -220,7 +231,9 @@ public sealed class JournalViewModelTests
         completion.SetResult(new(DailyJournalWriteStatus.Created, Details("pending save")));
         await saving;
         Assert.False(vm.IsBusy);
-        Assert.True(vm.CanEdit);
+        Assert.False(vm.CanEdit);
+        Assert.False(vm.IsEditorOpen);
+        Assert.True(vm.ShowCompactReview);
         Assert.False(vm.IsDirty);
     }
 
@@ -239,6 +252,7 @@ public sealed class JournalViewModelTests
         };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "cancelled draft";
         Task saving = vm.SaveCommand.ExecuteAsync(null);
         await Wait(started.Task);
@@ -246,12 +260,14 @@ public sealed class JournalViewModelTests
         await saving;
 
         Assert.Equal("cancelled draft", vm.Text);
+        Assert.True(vm.IsEditorOpen);
         Assert.True(vm.IsDirty);
         Assert.False(vm.IsExisting);
         Assert.False(vm.IsSaving);
         Assert.Contains("cancelled", vm.ErrorMessage);
         Assert.True(vm.SaveCommand.CanExecute(null));
         repository.CreateBehavior = null;
+        vm.OpenEditorCommand.Execute(null);
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.True(vm.IsExisting);
         Assert.False(vm.IsDirty);
@@ -269,6 +285,7 @@ public sealed class JournalViewModelTests
         };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "committed";
         Task saving = vm.SaveCommand.ExecuteAsync(null);
         await Wait(started.Task);
@@ -295,10 +312,12 @@ public sealed class JournalViewModelTests
         };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "my draft";
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal("my draft", vm.Text);
+        Assert.True(vm.IsEditorOpen);
         Assert.True(vm.IsDirty);
         Assert.False(vm.IsExisting);
         Assert.Contains("could not be saved", vm.ErrorMessage);
@@ -322,6 +341,7 @@ public sealed class JournalViewModelTests
         var dialogs = new Dialogs();
         var vm = Create(repository, dialogs: dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "local work";
         await vm.SaveCommand.ExecuteAsync(null);
 
@@ -330,6 +350,7 @@ public sealed class JournalViewModelTests
         Assert.Contains("Reload", vm.ErrorMessage);
         Assert.False(vm.SaveCommand.CanExecute(null));
         Assert.True(vm.CanEdit);
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "more local work";
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(1, repository.Creates.Count + repository.Updates.Count);
@@ -349,6 +370,7 @@ public sealed class JournalViewModelTests
         Assert.Null(vm.ErrorMessage);
         Assert.True(vm.SaveCommand.CanExecute(null));
         repository.UpdateBehavior = null;
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "reviewed edit";
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(9L, repository.Updates.Last().ExpectedRevision);
@@ -364,6 +386,7 @@ public sealed class JournalViewModelTests
         };
         var vm = Create(repository, dialogs: new Dialogs { ConfirmResult = true });
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "precious local work";
         await vm.SaveCommand.ExecuteAsync(null);
         repository.ReadBehavior = (_, _, _) => throw new IOException("unavailable");
@@ -382,6 +405,7 @@ public sealed class JournalViewModelTests
         var dialogs = new Dialogs();
         var vm = Create(repository, dialogs: dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "keep editing";
         var changed = new List<string?>();
         vm.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
@@ -412,9 +436,11 @@ public sealed class JournalViewModelTests
         var dialogs = new Dialogs { ConfirmResult = true };
         var vm = Create(repository, dialogs: dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "discard me";
         vm.SelectedDate = Day.AddDays(1).ToDateTime(TimeOnly.MinValue);
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal(Day.AddDays(1), repository.Reads.Last().Date);
         Assert.Equal("", vm.Text);
@@ -432,12 +458,14 @@ public sealed class JournalViewModelTests
         var dialogs = new Dialogs { ConfirmResult = true };
         var vm = Create(repository, dialogs: dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "discard";
         Assert.True(vm.TryLeave());
         vm.Deactivate();
         Assert.False(vm.CanEdit);
         repository.Journal = Details("fresh from storage", revision: 2);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal("fresh from storage", vm.Text);
         Assert.False(vm.IsDirty);
@@ -450,8 +478,10 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "keep this";
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal("keep this", vm.Text);
         Assert.Single(repository.Reads);
@@ -466,17 +496,20 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository, accounts);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         JournalAccountOption option = Assert.Single(vm.Accounts, a => a.Id == inactive.Id);
         Assert.Contains("inactive", option.Name);
         Assert.True(option.IsAvailable);
         vm.SelectedAccount = option;
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "historical notes";
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal(inactive.Id, repository.Reads.Last().AccountId);
         Assert.Equal(inactive.Id, Assert.Single(repository.Creates).TradingAccountId);
-        Assert.True(vm.CanEdit);
+        Assert.False(vm.IsEditorOpen);
+        Assert.True(vm.ShowCompactReview);
         Assert.Null(vm.ErrorMessage);
     }
 
@@ -491,6 +524,7 @@ public sealed class JournalViewModelTests
         var vm = Create(repository);
         vm.SelectedAccount = new(accountId, "Historical");
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal(accountId, vm.SelectedAccount.Id);
         Assert.False(vm.SelectedAccount.IsAvailable);
@@ -513,8 +547,10 @@ public sealed class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository, accounts);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.SelectedAccount = vm.Accounts.Single(a => a.Id == account.Id);
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
         accounts.Items = [];
         await vm.ReloadCommand.ExecuteAsync(null);
 
@@ -536,8 +572,10 @@ public sealed class JournalViewModelTests
         AccountListItem account = Account("Specific");
         var vm = Create(accounts: new AccountsReader { Items = [account] });
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.SelectedAccount = vm.Accounts.Single(a => a.Id == account.Id);
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
         vm.SelectedAccount = null!;
         Assert.Equal(account.Id, vm.SelectedAccount.Id);
     }
@@ -553,6 +591,7 @@ public sealed class JournalViewModelTests
         var vm = Create(repository, new AccountsReader { Items = [account] });
         vm.SelectedAccount = new(account.Id, account.Name);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "retained";
         await vm.SaveCommand.ExecuteAsync(null);
 
@@ -586,6 +625,7 @@ public sealed class JournalViewModelTests
         await Wait(secondStarted.Task);
         Assert.True(vm.IsLoading);
         Assert.False(vm.CanEdit);
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "cannot edit a pending scope";
         Assert.Equal("", vm.Text);
         second.SetResult(Details("new date", date: Day.AddDays(1)));
@@ -629,6 +669,7 @@ public sealed class JournalViewModelTests
         var repository = new Repository { ReadBehavior = (_, _, _) => throw new IOException("sensitive details") };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Contains("could not be loaded", vm.ErrorMessage);
         Assert.DoesNotContain("sensitive", vm.ErrorMessage);
@@ -638,6 +679,7 @@ public sealed class JournalViewModelTests
         repository.ReadBehavior = null;
         await vm.ReloadCommand.ExecuteAsync(null);
         Assert.Null(vm.ErrorMessage);
+        vm.OpenEditorCommand.Execute(null);
         Assert.True(vm.CanEdit);
     }
 
@@ -648,6 +690,7 @@ public sealed class JournalViewModelTests
         var vm = Create(repository);
         vm.SelectedDate = null;
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.False(vm.CanEdit);
@@ -655,6 +698,86 @@ public sealed class JournalViewModelTests
         Assert.Equal("Choose a journal date.", vm.StatusText);
         Assert.Empty(repository.Reads);
         Assert.Empty(repository.Creates);
+    }
+
+    [Fact]
+    public async Task BrowseIsDefaultAndExplicitAddAndContinueOpenExactScopeWithoutWriting()
+    {
+        var repository = new Repository();
+        var vm = Create(repository);
+        await vm.ActivateAsync();
+        Assert.False(vm.IsEditorOpen);
+        Assert.True(vm.ShowEmptyReview);
+        Assert.False(vm.CanEdit);
+        Assert.False(vm.SaveCommand.CanExecute(null));
+        Assert.Empty(repository.Creates);
+
+        vm.OpenEditorCommand.Execute(null);
+        Assert.True(vm.IsEditorOpen && vm.CanEdit);
+        Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), vm.SelectedDate);
+        Assert.Null(vm.SelectedAccount.Id);
+        vm.Text = "  exact draft\r\n";
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.False(vm.IsEditorOpen);
+        Assert.True(vm.ShowCompactReview && vm.ShowContinueReview);
+        Assert.Equal("  exact draft\r\n", vm.SavedText);
+        vm.OpenEditorCommand.Execute(null);
+        Assert.True(vm.CanEdit);
+        Assert.Equal(vm.SavedText, vm.Text);
+        Assert.Single(repository.Creates);
+        Assert.Empty(repository.Updates);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task CloseFormProtectsAllFourFieldsAndExplicitDiscardRestoresSavedReview()
+    {
+        var repository = new Repository { Journal = Details("saved") };
+        var dialogs = new Dialogs();
+        var vm = Create(repository, dialogs: dialogs);
+        await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
+        vm.Text = "local";
+        vm.WentWell = "answer one";
+        vm.NeedsImprovement = "answer two";
+        vm.NextTradingDay = "answer three";
+        vm.CloseEditorCommand.Execute(null);
+        Assert.True(vm.IsEditorOpen && vm.IsDirty);
+        Assert.Equal(new[] { "local", "answer one", "answer two", "answer three" },
+            new[] { vm.Text, vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay });
+        Assert.False(vm.TryLeave());
+        vm.SelectedDate = Day.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), vm.SelectedDate);
+        dialogs.ConfirmResult = true;
+        vm.CloseEditorCommand.Execute(null);
+        Assert.False(vm.IsEditorOpen || vm.IsDirty);
+        Assert.True(vm.ShowCompactReview);
+        Assert.Equal("saved", vm.Text);
+        Assert.Equal(new[] { "", "", "" }, new[] { vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay });
+        Assert.Empty(repository.Updates);
+        vm.Deactivate();
+    }
+
+    [Theory]
+    [InlineData(DailyJournalWriteStatus.Conflict)]
+    [InlineData(DailyJournalWriteStatus.AlreadyExists)]
+    [InlineData(DailyJournalWriteStatus.AccountUnavailable)]
+    public async Task RejectedSaveKeepsFormOpenAndAllEnteredText(DailyJournalWriteStatus status)
+    {
+        var repository = new Repository { CreateBehavior = (_, _) => Task.FromResult(new DailyJournalWriteResult(status, null)) };
+        var vm = Create(repository);
+        await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
+        vm.Text = "local text";
+        vm.WentWell = "one"; vm.NeedsImprovement = "two"; vm.NextTradingDay = "three";
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.True(vm.IsEditorOpen && vm.IsDirty);
+        Assert.False(vm.ShowCompactReview);
+        Assert.Equal(new[] { "local text", "one", "two", "three" },
+            new[] { vm.Text, vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay });
+        Assert.NotNull(vm.ErrorMessage);
+        Assert.False(vm.SaveCommand.CanExecute(null));
+        vm.Deactivate();
     }
 
     private static JournalViewModel Create(Repository? repository = null, AccountsReader? accounts = null, Dialogs? dialogs = null) =>

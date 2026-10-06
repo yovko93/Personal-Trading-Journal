@@ -9,6 +9,7 @@ public sealed partial class CalendarDayCell
     public DailyJournalStatus? JournalStatus { get; private set; }
     public bool HasJournal => JournalStatus is not null;
     public string JournalStatusText => JournalStatus is { IsDraft: true } ? "Draft" : HasJournal ? "Completed" : "";
+    public string JournalIndicatorText => JournalStatus is { IsDraft: true } ? "Draft" : HasJournal ? "✓" : "";
     private bool _journalStatusLoaded;
     public string JournalAccessibleDescription => JournalStatus is { } status
         ? $"Daily Journal {JournalStatusText.ToLowerInvariant()}, revision {status.Revision}, in the current Account scope."

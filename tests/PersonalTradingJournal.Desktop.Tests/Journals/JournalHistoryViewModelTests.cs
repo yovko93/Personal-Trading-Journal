@@ -60,6 +60,7 @@ public sealed class JournalHistoryViewModelTests
         var vm = new JournalViewModel(repository, new FakeTradingAccountReader(), dialogs,
             new(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new Clock(), reader);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "local unsaved text";
         vm.WentWell = "local answer";
         var row = vm.History!.Entries[0];
@@ -73,6 +74,7 @@ public sealed class JournalHistoryViewModelTests
         dialogs.ConfirmationResult = true;
         await vm.History.OpenCommand.ExecuteAsync(row);
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
         Assert.Equal(row.Item.TradingDate, DateOnly.FromDateTime(vm.SelectedDate!.Value));
         Assert.Equal(row, vm.History.SelectedEntry);
         vm.Text = "new local draft";
@@ -87,6 +89,7 @@ public sealed class JournalHistoryViewModelTests
         Assert.True(vm.TryLeave()); // Explicit discard on leaving must still take effect on return.
         vm.Deactivate();
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         Assert.Empty(vm.Text);
         vm.Deactivate();
     }

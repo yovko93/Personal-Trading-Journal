@@ -287,7 +287,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (_disposed || !_journalViewModel.TryOpenScope(date, account.Id, account.Name)) return;
         Navigate(NavigationDestination.Journal);
         if (!_disposed && CurrentDestination == NavigationDestination.Journal)
+        {
             await _journalViewModel.LoadTask;
+            // Calendar Add/Continue is an explicit request to edit, unlike history browsing.
+            if (!_disposed && CurrentDestination == NavigationDestination.Journal &&
+                _journalViewModel.SelectedDate == date.ToDateTime(TimeOnly.MinValue) &&
+                _journalViewModel.SelectedAccount.Id == account.Id)
+                _journalViewModel.OpenEditorCommand.Execute(null);
+        }
     }
 
     private async Task OpenReadOnlyTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)

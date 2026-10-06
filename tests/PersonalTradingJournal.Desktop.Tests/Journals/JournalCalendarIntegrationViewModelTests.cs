@@ -30,6 +30,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         Assert.True(vm.TryOpenScope(selected, accountId, "Historical (inactive)"));
         Assert.Empty(repository.Reads);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Equal((selected, accountId), Assert.Single(repository.Reads));
         Assert.Equal(accountId, vm.SelectedAccount.Id);
@@ -47,6 +48,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var dialogs = new Dialogs();
         var vm = Create(repository, dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Local freeform";
         vm.WentWell = "Local answer";
         Guid requestedAccount = Guid.NewGuid();
@@ -63,6 +65,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         dialogs.Result = true;
         Assert.True(vm.TryOpenScope(requestedDate, requestedAccount, "Other"));
         await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
         Assert.Equal(2, dialogs.Requests.Count);
         Assert.Equal(2, repository.Reads.Count);
         Assert.Equal((requestedDate, (Guid?)requestedAccount), repository.Reads.Last());
@@ -82,6 +85,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var dialogs = new Dialogs();
         var vm = Create(repository, dialogs);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Precious local draft";
         vm.NextTradingDay = "Precious local plan";
         if (conflict) await vm.SaveCommand.ExecuteAsync(null);
@@ -90,6 +94,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
 
         Assert.True(vm.TryOpenScope(Day, null, "Not an implicit account"));
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Single(repository.Reads);
         Assert.Empty(dialogs.Requests);
@@ -111,12 +116,14 @@ public sealed class JournalCalendarIntegrationViewModelTests
         };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
         Assert.False(vm.IsDirty);
         Assert.False(vm.ReopenReviewCommand.CanExecute(null));
         vm.Deactivate();
         Assert.True(vm.TryOpenScope(Day, null, "All accounts"));
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
 
         Assert.Single(repository.Reads);
         Assert.True(vm.IsCompleted);
@@ -133,6 +140,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var repository = new Repository { Write = (_, _) => { started.TrySetResult(); return pending.Task; } };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Saving";
         Task saving = vm.SaveCommand.ExecuteAsync(null);
         await Wait(started.Task);
@@ -151,6 +159,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         int notifications = 0;
         vm.JournalDataCommitted += (_, _) => { notifications++; Assert.False(vm.IsSaving); Assert.False(vm.IsDirty); };
         vm.WentWell = Ready.WentWell;
@@ -158,8 +167,10 @@ public sealed class JournalCalendarIntegrationViewModelTests
         vm.NextTradingDay = Ready.NextTradingDay;
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(1, notifications);
+        vm.OpenEditorCommand.Execute(null);
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(1, notifications);
+        vm.OpenEditorCommand.Execute(null);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
         Assert.Equal(2, notifications);
         Assert.True(vm.IsCompleted);
@@ -178,6 +189,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var repository = new Repository { Write = (_, _) => Task.FromResult(new DailyJournalWriteResult(status, Details("remote"))) };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Local";
         int notifications = 0;
         vm.JournalDataCommitted += (_, _) => notifications++;
@@ -197,6 +209,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var repository = new Repository { Write = (_, _) => { started.TrySetResult(); return pending.Task; } };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Retained";
         int notifications = 0;
         vm.JournalDataCommitted += (_, _) => notifications++;
@@ -218,6 +231,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         var repository = new Repository { Write = (_, _) => { started.TrySetResult(); return pending.Task; } };
         var vm = Create(repository);
         await vm.ActivateAsync();
+        vm.OpenEditorCommand.Execute(null);
         vm.Text = "Committed";
         int notifications = 0;
         vm.JournalDataCommitted += (_, _) => notifications++;

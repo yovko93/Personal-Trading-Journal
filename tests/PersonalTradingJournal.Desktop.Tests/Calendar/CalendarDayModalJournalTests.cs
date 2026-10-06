@@ -42,8 +42,10 @@ public sealed partial class CalendarDayModalTests
                 Assert.Equal(expected ? Visibility.Visible : Visibility.Collapsed, indicator.Visibility);
                 Assert.Null(indicator.ToolTip); // Date-marker-only hover behavior is unchanged.
                 if (!expected) continue;
-                Assert.Equal(day.Date == date && draft ? "Draft" : "Completed", indicator.Text);
-                Assert.Contains(indicator.Text, AutomationProperties.GetName(indicator), StringComparison.OrdinalIgnoreCase);
+                bool isDraft = day.Date == date && draft;
+                Assert.Equal(isDraft ? "Draft" : "✓", indicator.Text);
+                Assert.Contains(isDraft ? "Draft" : "Completed", AutomationProperties.GetName(indicator), StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("Completed", indicator.Text);
                 Assert.True(indicator.ActualWidth <= cell.ActualWidth);
                 Assert.True(indicator.TransformToAncestor(cell).Transform(new Point()).Y + indicator.ActualHeight <= cell.ActualHeight);
                 Assert.Same(resources["PtjTextSecondaryBrush"], indicator.Foreground);

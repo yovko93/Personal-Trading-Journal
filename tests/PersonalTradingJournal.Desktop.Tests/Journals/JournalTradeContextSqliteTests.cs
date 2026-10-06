@@ -37,6 +37,7 @@ public sealed class JournalTradeContextSqliteTests
         Assert.Equal(0, tradeContext.ClosedTradeCount);
         JournalSnapshot savedBefore = await ReadJournalsAsync(database);
         const string draft = "  Unsaved review\r\nKeep this text exactly.\t ";
+        editor.OpenEditorCommand.Execute(null);
         editor.Text = draft;
         var trade = ClosedTrade(account.Id, instrument.Id, ClosingTime, 8m);
         await database.Provider.GetRequiredService<ITradeStore>().AddAsync(trade);

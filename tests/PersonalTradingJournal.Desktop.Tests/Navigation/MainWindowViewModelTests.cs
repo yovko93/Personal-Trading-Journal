@@ -911,6 +911,7 @@ public sealed partial class MainWindowViewModelTests
                     }
                     else if (destination == NavigationDestination.Journal)
                     {
+                        fixture.Journal.OpenEditorCommand.Execute(null);
                         fixture.Journal.Text = "A draft on the owning dispatcher.";
                         fixture.Journal.TradeContext.PropertyChanged += (_, e) =>
                         {

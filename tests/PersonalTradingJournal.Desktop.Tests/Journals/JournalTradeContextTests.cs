@@ -300,6 +300,7 @@ public sealed class JournalTradeContextTests
         var journal = Journal(journalRepository, context, accounts);
         journal.SelectedAccount = new(account.Id, account.Name);
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         journal.Text = "  keep my draft\r\n\t";
         var options = journal.Accounts;
         var selected = journal.SelectedAccount;
@@ -340,6 +341,7 @@ public sealed class JournalTradeContextTests
         var context = new JournalTradeContextViewModel(reader, new AccountsReader());
         var journal = Journal(repository, context);
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         journal.Text = "pending save";
         Task save = journal.SaveCommand.ExecuteAsync(null);
         await Wait(saveStarted.Task);
@@ -372,6 +374,7 @@ public sealed class JournalTradeContextTests
         var context = new JournalTradeContextViewModel(reader, new AccountsReader());
         var journal = Journal(repository, context);
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         Assert.NotNull(context.ErrorMessage);
         Assert.Null(journal.ErrorMessage);
         Assert.True(journal.CanEdit);
@@ -383,6 +386,7 @@ public sealed class JournalTradeContextTests
         repository.ReadHandler = (_, _, _) => throw new IOException("failed journal");
         reader.Handler = (query, _) => Task.FromResult(TradingCalendarDayDetails.Create(query.Date, [Row(query.Date, Guid.NewGuid(), "USD", 3m, 2m)]));
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         Assert.NotNull(journal.ErrorMessage);
         Assert.Null(context.ErrorMessage);
         Assert.Single(context.Rows);
@@ -396,6 +400,7 @@ public sealed class JournalTradeContextTests
         var dialogs = new FakeDialogService();
         var journal = Journal(new JournalRepository(), context, dialogs: dialogs);
         await journal.ActivateAsync();
+        journal.OpenEditorCommand.Execute(null);
         journal.Text = "dirty";
         journal.SelectedDate = Day.AddDays(1).ToDateTime(TimeOnly.MinValue);
         Assert.Single(reader.Calls);
@@ -403,6 +408,7 @@ public sealed class JournalTradeContextTests
         dialogs.ConfirmationResult = true;
         journal.SelectedDate = Day.AddDays(1).ToDateTime(TimeOnly.MinValue);
         await journal.LoadTask;
+        journal.OpenEditorCommand.Execute(null);
         Assert.Equal(Day.AddDays(1), reader.Calls.Last().Query.Date);
         Assert.Contains(Day.AddDays(1).ToString("yyyy-MM-dd"), context.ScopeLabel);
         Assert.False(journal.IsDirty);

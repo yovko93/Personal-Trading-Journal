@@ -57,6 +57,8 @@ public sealed class JournalViewTests
     private static void CheckReviewLayout(JournalViewModel vm, string theme, int width, int dpi, bool completed)
     {
         using var phase = CalendarStaTest.Phase($"Daily Review {theme} {width} DIP / {dpi} DPI completed={completed}");
+        Assert.False(vm.IsEditorOpen);
+        if (!completed) vm.OpenEditorCommand.Execute(null);
         var (view, root) = Layout(vm, theme, width);
         var wentWell = (TextBox)view.FindName("WentWellAnswer");
         var improvement = (TextBox)view.FindName("NeedsImprovementAnswer");
@@ -85,11 +87,21 @@ public sealed class JournalViewTests
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, complete.Visibility);
         Assert.Equal(completed ? Visibility.Visible : Visibility.Collapsed, reopen.Visibility);
         Assert.True(completed ? reopen.IsEnabled : complete.IsEnabled);
-        Assert.True(wentWell.TranslatePoint(new Point(), view).Y < improvement.TranslatePoint(new Point(), view).Y);
-        Assert.True(improvement.TranslatePoint(new Point(), view).Y < nextDay.TranslatePoint(new Point(), view).Y);
+        Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, ((Border)view.FindName("ReviewEditor")).Visibility);
+        Assert.Equal(completed ? Visibility.Visible : Visibility.Collapsed, ((Border)view.FindName("CompactJournal")).Visibility);
+        Assert.Equal(completed, vm.ShowCompactReview);
+        if (completed)
+        {
+            Assert.False(((Button)view.FindName("AddJournal")).IsEnabled);
+            Assert.Contains(Descendants((Border)view.FindName("CompactJournal")).OfType<TextBlock>(), t => t.Text == vm.SavedReview.WentWell);
+        }
         Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
         if (!completed)
         {
+            Assert.True(wentWell.TranslatePoint(new Point(), view).Y < improvement.TranslatePoint(new Point(), view).Y);
+            Assert.True(improvement.TranslatePoint(new Point(), view).Y < nextDay.TranslatePoint(new Point(), view).Y);
+            Assert.Equal(120, freeform.ActualHeight);
+            Assert.All(new[] { wentWell, improvement, nextDay }, box => Assert.Equal(72, box.ActualHeight));
             improvement.Text = "  More patience.\r\n ";
             nextDay.Text = "I will wait.";
             Flush();
@@ -104,12 +116,13 @@ public sealed class JournalViewTests
             Assert.Equal(improvement.Text, vm.NeedsImprovement);
         }
         var scroller = (ScrollViewer)view.FindName("JournalScroller");
-        scroller.ScrollToVerticalOffset(wentWell.TranslatePoint(new Point(), view).Y - 48);
+        if (!completed) scroller.ScrollToVerticalOffset(wentWell.TranslatePoint(new Point(), view).Y - 48);
         Flush();
         Render(root, theme, width, dpi, completed ? "review-completed-" : "review-draft-");
         (completed ? reopen : complete).BringIntoView();
         Flush();
-        Assert.InRange((completed ? reopen : complete).TranslatePoint(new Point(), root).Y, 0, root.ActualHeight - (completed ? reopen : complete).ActualHeight);
+        // WPF layout can differ by subpixel floating-point error at the viewport edge.
+        Assert.InRange((completed ? reopen : complete).TranslatePoint(new Point(), root).Y, -0.1, root.ActualHeight - (completed ? reopen : complete).ActualHeight + 0.1);
         vm.Deactivate();
     }
 
@@ -118,6 +131,19 @@ public sealed class JournalViewTests
         using (CalendarStaTest.Phase("Journal construction and layout"))
         {
             var (view, root) = Layout(vm, theme, width);
+            Assert.False(vm.IsEditorOpen);
+            Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("HistorySection")).Visibility);
+            Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("FreeformEditor")).Visibility);
+            Assert.Equal(Visibility.Visible, ((Border)view.FindName("CompactJournal")).Visibility);
+            var add = (Button)view.FindName("AddJournal");
+            Assert.True(add.IsEnabled && add.Focusable && add.IsVisible == view.IsVisible);
+            Assert.Same(vm.OpenEditorCommand, add.Command);
+            Assert.InRange(add.TranslatePoint(new Point(), root).X + add.ActualWidth, 1, width);
+            Render(root, theme, width, dpi, "compact-");
+            add.Command.Execute(null);
+            Flush(); root.UpdateLayout();
+            Assert.Equal(Visibility.Visible, ((Border)view.FindName("FreeformEditor")).Visibility);
+            Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("CompactJournal")).Visibility);
             var date = (DatePicker)view.FindName("JournalDate");
             var account = (ComboBox)view.FindName("JournalAccount");
             var editor = (TextBox)view.FindName("JournalText");
@@ -179,6 +205,7 @@ public sealed class JournalViewTests
 
     private static void CheckDateInput(JournalViewModel vm, FakeDialogService dialogs, string culture)
     {
+        vm.OpenEditorCommand.Execute(null);
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
         var (view, _) = Layout(vm, "Light", 960);
         var date = (DatePicker)view.FindName("JournalDate");
@@ -215,6 +242,8 @@ public sealed class JournalViewTests
 
     private static void CheckEmptyAndValidation(JournalViewModel vm)
     {
+        Assert.True(vm.ShowEmptyReview);
+        vm.OpenEditorCommand.Execute(null);
         var (view, _) = Layout(vm, "Dark", 480);
         var editor = (TextBox)view.FindName("JournalText");
         Assert.Equal("New draft — not saved", ((TextBlock)view.FindName("JournalStatus")).Text);

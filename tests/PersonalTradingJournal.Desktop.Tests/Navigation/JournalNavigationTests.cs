@@ -36,6 +36,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         switch (question)
         {
             case 1: fixture.Journal.WentWell = "I followed the plan."; break;
@@ -63,6 +64,7 @@ public sealed partial class MainWindowViewModelTests
 
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
 
         Assert.Equal("Journal", main.PageTitle);
         Assert.Same(fixture.Journal, main.CurrentContentViewModel);
@@ -71,6 +73,7 @@ public sealed partial class MainWindowViewModelTests
         main.NavigateCommand.Execute(NavigationDestination.Notebook);
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
 
         Assert.Same(fixture.Journal, main.CurrentContentViewModel);
         Assert.Equal(2, fixture.Repository.ReadCalls.Count);
@@ -83,6 +86,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Keep this unsaved note.";
         NavigationSectionViewModel analysis = main.NavigationSections.Single(section => section.Title == "ANALYSIS");
         analysis.ToggleCommand.Execute(null);
@@ -110,6 +114,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Discard this edit.";
         fixture.Dialogs.ConfirmationResult = true;
 
@@ -121,6 +126,7 @@ public sealed partial class MainWindowViewModelTests
 
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         Assert.Same(fixture.Journal, main.CurrentContentViewModel);
         Assert.Equal("Saved note.", fixture.Journal.Text);
         Assert.Equal(2, repository.ReadCalls.Count);
@@ -133,6 +139,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Unsaved note.";
 
         main.NavigateCommand.Execute(NavigationDestination.Journal);
@@ -196,6 +203,9 @@ public sealed partial class MainWindowViewModelTests
                 await load.WaitAsync(TimeSpan.FromSeconds(5));
                 Assert.Single(repository.ReadCalls);
                 Assert.Null(fixture.Journal.ErrorMessage);
+                Assert.True(fixture.Journal.ShowCompactReview);
+                Assert.False(fixture.Journal.IsEditorOpen);
+                fixture.Journal.OpenEditorCommand.Execute(null);
                 Assert.True(fixture.Journal.CanEdit);
             }
         }
@@ -334,6 +344,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Save this note.";
         Task save = fixture.Journal.SaveCommand.ExecuteAsync(null);
         await repository.CreateStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -365,6 +376,7 @@ public sealed partial class MainWindowViewModelTests
         using MainWindowViewModel main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Journal);
         await fixture.Journal.LoadTask;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "Keep the window open.";
 
         Assert.False(main.TryCloseWindow());
@@ -400,6 +412,7 @@ public sealed partial class MainWindowViewModelTests
     {
         var fixture = CreateJournalFixture();
         using MainWindowViewModel main = fixture.Main;
+        fixture.Journal.OpenEditorCommand.Execute(null);
         fixture.Journal.Text = "An unactivated editor cannot block another page.";
 
         Assert.True(main.TryCloseWindow());

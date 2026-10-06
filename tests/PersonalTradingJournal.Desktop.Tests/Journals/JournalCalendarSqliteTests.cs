@@ -53,6 +53,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.True(editor.TradeContext.IsEmpty);
             Assert.Equal(saturday.ToDateTime(TimeOnly.MinValue), editor.SelectedDate);
             Assert.Null(editor.SelectedAccount.Id);
+            editor.OpenEditorCommand.Execute(null);
             await editor.SaveCommand.ExecuteAsync(null); // Even an empty trading-day draft is a real entry.
             Assert.Null(editor.ErrorMessage);
 
@@ -62,6 +63,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal("Continue Journal", calendar.DayJournalActionText);
             Assert.Equal(1L, calendar.SelectedDayJournalStatus!.Revision);
 
+            editor.OpenEditorCommand.Execute(null);
             editor.WentWell = Answers.WentWell;
             editor.NeedsImprovement = Answers.NeedsImprovement;
             editor.NextTradingDay = Answers.NextTradingDay;
@@ -152,6 +154,7 @@ public sealed class JournalCalendarSqliteTests
             await calendar.JournalLoadTask;
             Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal(2L, calendar.SelectedDayJournalStatus!.Revision);
+            editor.OpenEditorCommand.Execute(null);
             await editor.CompleteReviewCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);

@@ -34,6 +34,7 @@ public sealed class JournalSqliteTests
         Assert.False(first.IsExisting);
         Assert.False(first.IsDirty);
         Assert.Equal(string.Empty, first.Text);
+        first.OpenEditorCommand.Execute(null);
         first.Text = original;
         await first.SaveCommand.ExecuteAsync(null);
 
@@ -47,6 +48,7 @@ public sealed class JournalSqliteTests
         JournalViewModel reopened = await database.OpenEditorAsync(TradingDate);
         Assert.Equal(original, reopened.Text);
         Assert.Equal(1L, reopened.Revision);
+        reopened.OpenEditorCommand.Execute(null);
         reopened.Text = revised;
         await reopened.SaveCommand.ExecuteAsync(null);
 
@@ -107,11 +109,13 @@ public sealed class JournalSqliteTests
         Assert.Single(before.Browse);
         JournalViewModel editor = await database.OpenEditorAsync(TradingDate);
 
+        editor.OpenEditorCommand.Execute(null);
         editor.Text = "All accounts for the day";
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.ErrorMessage);
         editor.SelectedAccount = editor.Accounts.Single(account => account.Id == active.Id);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.False(editor.IsExisting);
         Assert.Equal(string.Empty, editor.Text);
         editor.Text = "Active account only";
@@ -119,6 +123,7 @@ public sealed class JournalSqliteTests
         Assert.Null(editor.ErrorMessage);
         editor.SelectedAccount = editor.Accounts.Single(account => account.Id == inactive.Id);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.True(editor.SelectedAccount.IsAvailable);
         Assert.False(editor.IsExisting);
         Assert.Equal(string.Empty, editor.Text);
@@ -127,6 +132,7 @@ public sealed class JournalSqliteTests
         Assert.Null(editor.ErrorMessage);
         editor.SelectedDate = TradingDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.False(editor.IsExisting);
         Assert.Equal(string.Empty, editor.Text);
         editor.Text = "Inactive account next day";
@@ -135,19 +141,24 @@ public sealed class JournalSqliteTests
 
         editor.SelectedAccount = editor.Accounts.Single(account => account.Id is null);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.False(editor.IsExisting);
         Assert.Equal(string.Empty, editor.Text);
         editor.SelectedDate = TradingDate.ToDateTime(TimeOnly.MinValue);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.Equal("All accounts for the day", editor.Text);
         editor.SelectedAccount = editor.Accounts.Single(account => account.Id == active.Id);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.Equal("Active account only", editor.Text);
         editor.SelectedAccount = editor.Accounts.Single(account => account.Id == inactive.Id);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.Equal("Inactive account history", editor.Text);
         editor.SelectedDate = TradingDate.AddDays(1).ToDateTime(TimeOnly.MinValue);
         await editor.LoadTask;
+        editor.OpenEditorCommand.Execute(null);
         Assert.Equal("Inactive account next day", editor.Text);
 
         DailyJournalDetails allJournal = Assert.IsType<DailyJournalDetails>(await database.Repository.GetAsync(TradingDate));
@@ -170,13 +181,16 @@ public sealed class JournalSqliteTests
     {
         await using JournalTestDatabase database = await JournalTestDatabase.CreateAsync();
         JournalViewModel first = await database.OpenEditorAsync(TradingDate);
+        first.OpenEditorCommand.Execute(null);
         first.Text = "Initial saved journal";
         await first.SaveCommand.ExecuteAsync(null);
         Assert.Null(first.ErrorMessage);
         var dialogs = new FakeDialogService();
         JournalViewModel stale = await database.OpenEditorAsync(TradingDate, dialogs: dialogs);
         Assert.Equal(1L, stale.Revision);
+        stale.OpenEditorCommand.Execute(null);
         stale.Text = "  Keep this local draft.\r\n\t ";
+        first.OpenEditorCommand.Execute(null);
         first.Text = "Newer saved journal";
         await first.SaveCommand.ExecuteAsync(null);
         Assert.Equal(2L, first.Revision);
@@ -254,10 +268,13 @@ public sealed class JournalSqliteTests
                 dialogs ?? new FakeDialogService(), CreateTradeContext(), new FixedTimeProvider());
             _editors.Add(editor);
             await editor.ActivateAsync();
+            editor.OpenEditorCommand.Execute(null);
             editor.SelectedDate = date.ToDateTime(TimeOnly.MinValue);
             await editor.LoadTask;
+            editor.OpenEditorCommand.Execute(null);
             editor.SelectedAccount = editor.Accounts.Single(account => account.Id == accountId);
             await editor.LoadTask;
+            editor.OpenEditorCommand.Execute(null);
             await editor.TradeContext.LoadTask;
             return editor;
         }

@@ -15,7 +15,7 @@
             <Setter Property="Margin" Value="0,6,0,12" />
         </Style>
     </UserControl.Resources>
-    <Expander x:Name="HistoryExpander" Header="Review History" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+    <Expander x:Name="HistoryExpander" Header="Review History" IsExpanded="True" Foreground="{DynamicResource PtjTextPrimaryBrush}"
               AutomationProperties.Name="Review History for the selected Account scope">
         <Expander.Template>
             <ControlTemplate TargetType="Expander">

@@ -21,6 +21,7 @@ public sealed class JournalHistorySqliteTests
         try
         {
             await vm.ActivateAsync();
+            vm.OpenEditorCommand.Execute(null);
             Assert.Empty(vm.History!.Entries);
             vm.Text = "  freeform\r\n";
             vm.WentWell = "I waited";
@@ -32,6 +33,7 @@ public sealed class JournalHistorySqliteTests
             Assert.Equal(1, row.Item.Revision);
             await vm.History.OpenCommand.ExecuteAsync(row);
             await vm.LoadTask;
+            vm.OpenEditorCommand.Execute(null);
             await vm.CompleteReviewCommand.ExecuteAsync(null);
             Assert.False(Assert.Single(vm.History.Entries).Item.IsDraft);
             Assert.False(vm.History.SelectedEntry!.Item.IsDraft);
@@ -39,6 +41,7 @@ public sealed class JournalHistorySqliteTests
             await vm.ReopenReviewCommand.ExecuteAsync(null);
             Assert.True(Assert.Single(vm.History.Entries).Item.IsDraft);
             Assert.Equal(3, vm.History.Revisions[0].Item.Revision);
+            vm.OpenEditorCommand.Execute(null);
             vm.Text = "new unsaved text";
             vm.NextTradingDay = "new unsaved answer";
             await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions.Single(r => r.Item.Revision == 2));
@@ -55,6 +58,7 @@ public sealed class JournalHistorySqliteTests
             Assert.Empty(await context.Trades.ToArrayAsync());
         }
         finally { vm.Deactivate(); await vm.LoadTask; }
+        vm.OpenEditorCommand.Execute(null);
     }
 
     [Fact]
@@ -69,10 +73,12 @@ public sealed class JournalHistorySqliteTests
         try
         {
             await vm.ActivateAsync();
+            vm.OpenEditorCommand.Execute(null);
             await db.Repository.UpdateAsync(new(created.Id, 1, "external second", true));
             await vm.History!.RefreshCommand.ExecuteAsync(null);
             await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]);
             await vm.LoadTask;
+            vm.OpenEditorCommand.Execute(null);
             Assert.Equal("external second", vm.Text);
             Assert.Equal(2, vm.Revision);
             vm.Text = "local draft";
@@ -90,5 +96,6 @@ public sealed class JournalHistorySqliteTests
             Assert.Equal(3, (await db.Repository.GetHistoryAsync(created.Id)).Count);
         }
         finally { vm.Deactivate(); await vm.LoadTask; }
+        vm.OpenEditorCommand.Execute(null);
     }
 }

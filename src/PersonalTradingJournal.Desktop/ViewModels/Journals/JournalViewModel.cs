@@ -27,6 +27,7 @@ public sealed class JournalViewModel : ObservableObject
     private string? _errorMessage, _notice;
     private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError, _completionAttempted;
     private bool _preserveOnNextActivation;
+    private bool _isEditorOpen;
     private CancellationTokenSource? _loadCancellation, _saveCancellation;
     private long _generation;
 
@@ -44,6 +45,8 @@ public sealed class JournalViewModel : ObservableObject
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
         CompleteReviewCommand = new AsyncRelayCommand(CompleteReviewAsync, CanSave);
         ReopenReviewCommand = new AsyncRelayCommand(ReopenReviewAsync, CanReopen);
+        OpenEditorCommand = new RelayCommand(OpenEditor, CanOpenEditor);
+        CloseEditorCommand = new RelayCommand(CloseEditor, () => IsEditorOpen && !IsSaving);
         ReloadCommand = new AsyncRelayCommand(ReloadAsync, () => _active && !IsBusy,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelOperationCommand = new RelayCommand(CancelOperation,
@@ -142,7 +145,15 @@ public sealed class JournalViewModel : ObservableObject
     public bool IsBusy => IsLoading || IsSaving;
     public bool CanChangeScope => !IsSaving;
     public bool CanReadContent => _active && _hasLoaded && SelectedDate.HasValue && !IsLoading;
-    public bool CanEdit => CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
+    public bool IsEditorOpen => _isEditorOpen;
+    public bool ShowCompactReview => CanReadContent && !IsEditorOpen;
+    public bool ShowEmptyReview => ShowCompactReview && !IsExisting;
+    public bool ShowContinueReview => IsExisting && IsDraft;
+    public bool HasHistory => History is not null;
+    public string EntryHeading => SelectedTradingDate?.ToString("yyyy-MM-dd") + " · " + SelectedAccount.Name;
+    public string SavedText => _entry?.Text ?? "";
+    public DailyReviewAnswers SavedReview => _entry?.Review ?? DailyReviewAnswers.Empty;
+    public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
     public bool IsReadOnly => !CanEdit;
     public bool CanComplete => CanSave() && AllAnswersMeaningful;
     public string CharacterCountText => $"{Text.Length:N0} / {DailyJournalEntry.MaximumTextLength:N0} characters";
@@ -170,6 +181,8 @@ public sealed class JournalViewModel : ObservableObject
     public IAsyncRelayCommand ReopenReviewCommand { get; }
     public IAsyncRelayCommand ReloadCommand { get; }
     public IRelayCommand CancelOperationCommand { get; }
+    public IRelayCommand OpenEditorCommand { get; }
+    public IRelayCommand CloseEditorCommand { get; }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public JournalTradeContextViewModel TradeContext { get; }
     public JournalHistoryViewModel? History { get; }
@@ -184,8 +197,28 @@ public sealed class JournalViewModel : ObservableObject
         _preserveOnNextActivation = false;
         // A clean current editor may be older than the history metadata. Dirty or
         // conflicted contents instead keep the existing explicit Reload protection.
-        if (sameScope && _active && !IsDirty && !_reloadRequired) LoadTask = LoadAsync();
+        if (sameScope && _active && !IsDirty && !_reloadRequired)
+        {
+            _isEditorOpen = false;
+            LoadTask = LoadAsync();
+        }
         return true;
+    }
+
+    private bool CanOpenEditor() => CanReadContent && SelectedAccount.IsAvailable && IsDraft && !IsBusy && !HasDateInputError;
+    private void OpenEditor()
+    {
+        if (!CanOpenEditor()) return;
+        _isEditorOpen = true;
+        NotifyState();
+    }
+    private void CloseEditor()
+    {
+        if (!IsEditorOpen || IsSaving || !ConfirmDiscard()) return;
+        PublishEntry(_entry); // Explicit discard restores the loaded revision, not another scope.
+        _isEditorOpen = false;
+        _notice = null;
+        NotifyState();
     }
 
     /// <summary>Atomically opens an explicitly requested date and Account scope; null is the independent All accounts journal.</summary>
@@ -225,6 +258,7 @@ public sealed class JournalViewModel : ObservableObject
             return LoadTask = Task.WhenAll(LoadTask, context, history);
         }
         _active = true;
+        _isEditorOpen = false;
         return LoadTask = Task.WhenAll(LoadAsync(), context, history);
     }
 
@@ -254,6 +288,7 @@ public sealed class JournalViewModel : ObservableObject
         _wentWell = _needsImprovement = _nextTradingDay = "";
         _savedReview = DailyReviewAnswers.Empty;
         _hasLoaded = _reloadRequired = false;
+        _isEditorOpen = false;
         _completionAttempted = false;
         _errorMessage = _notice = null;
         NotifyContent();
@@ -388,11 +423,11 @@ public sealed class JournalViewModel : ObservableObject
         await WriteAsync(isDraft: false);
     }
 
-    private Task ReopenReviewAsync() => CanReopen() ? WriteAsync(isDraft: true) : Task.CompletedTask;
+    private Task ReopenReviewAsync() => CanReopen() ? WriteAsync(isDraft: true, openEditorOnSuccess: true) : Task.CompletedTask;
 
     private Task SaveAsync() => CanSave() ? WriteAsync(isDraft: true) : Task.CompletedTask;
 
-    private async Task WriteAsync(bool isDraft)
+    private async Task WriteAsync(bool isDraft, bool openEditorOnSuccess = false)
     {
         // All three actions share this guard so concurrent command types cannot overlap.
         if (IsSaving || (IsCompleted ? !CanReopen() : !CanSave())) return;
@@ -422,6 +457,7 @@ public sealed class JournalViewModel : ObservableObject
                 case DailyJournalWriteStatus.Unchanged:
                     if (result.Journal is null) throw new InvalidOperationException("A saved journal result is required.");
                     PublishEntry(result.Journal.Entry);
+                    _isEditorOpen = openEditorOnSuccess;
                     _reloadRequired = false;
                     _notice = result.Status == DailyJournalWriteStatus.Unchanged ? "No changes to save." : null;
                     committed = result.Status is DailyJournalWriteStatus.Created or DailyJournalWriteStatus.Updated;
@@ -487,6 +523,8 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(WentWell));
         OnPropertyChanged(nameof(NeedsImprovement));
         OnPropertyChanged(nameof(NextTradingDay));
+        OnPropertyChanged(nameof(SavedText));
+        OnPropertyChanged(nameof(SavedReview));
     }
 
     private void CancelOperation()
@@ -517,6 +555,11 @@ public sealed class JournalViewModel : ObservableObject
     private void NotifyState()
     {
         OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(IsEditorOpen));
+        OnPropertyChanged(nameof(ShowCompactReview));
+        OnPropertyChanged(nameof(ShowEmptyReview));
+        OnPropertyChanged(nameof(ShowContinueReview));
+        OnPropertyChanged(nameof(EntryHeading));
         OnPropertyChanged(nameof(IsExisting));
         OnPropertyChanged(nameof(IsDraft));
         OnPropertyChanged(nameof(IsCompleted));
@@ -538,5 +581,7 @@ public sealed class JournalViewModel : ObservableObject
         ReopenReviewCommand.NotifyCanExecuteChanged();
         ReloadCommand.NotifyCanExecuteChanged();
         CancelOperationCommand.NotifyCanExecuteChanged();
+        OpenEditorCommand.NotifyCanExecuteChanged();
+        CloseEditorCommand.NotifyCanExecuteChanged();
     }
 }
