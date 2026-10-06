@@ -42,4 +42,17 @@
     <Style x:Key="JournalComboBox" TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}">
         <Setter Property="FontSize" Value="16" />
     </Style>
+    <!-- Closing a read-only view is red outlined; permanent deletion is solid danger. -->
+    <Style x:Key="JournalCloseButton" TargetType="Button" BasedOn="{StaticResource JournalButton}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="JournalDeleteButton" TargetType="Button" BasedOn="{StaticResource PtjDangerButtonStyle}">
+        <Setter Property="FontSize" Value="16" />
+    </Style>
 </ResourceDictionary>

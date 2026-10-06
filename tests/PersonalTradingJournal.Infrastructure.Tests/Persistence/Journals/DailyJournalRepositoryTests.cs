@@ -536,6 +536,10 @@ public sealed partial class DailyJournalRepositoryTests
         Assert.Null(await repository.GetAsync(TradingDate, accountId));
         Assert.Equal("All accounts journal", Assert.IsType<DailyJournalDetails>(
             await repository.GetAsync(TradingDate)).Entry.Text);
+        Assert.Equal(DailyJournalWriteStatus.Deleted, (await repository.DeleteAsync(new(original.Entry.Id, 1))).Status);
+        Assert.Null(await repository.GetAsync(TradingDate, unavailableAccountId));
+        Assert.Empty(await repository.GetHistoryAsync(original.Entry.Id));
+        Assert.NotNull(await repository.GetAsync(TradingDate));
     }
 
     [Fact]

@@ -29,6 +29,7 @@ public sealed class JournalViewModel : ObservableObject
     private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError, _completionAttempted;
     private bool _preserveOnNextActivation;
     private bool _isEditorOpen;
+    private bool _isDeleting;
     private CancellationTokenSource? _loadCancellation, _saveCancellation;
     private long _generation;
 
@@ -44,6 +45,7 @@ public sealed class JournalViewModel : ObservableObject
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             (timeProvider ?? TimeProvider.System).GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+        DeleteCommand = new AsyncRelayCommand(DeleteAsync, CanDelete);
         CompleteReviewCommand = new AsyncRelayCommand(CompleteReviewAsync, CanSave);
         ReopenReviewCommand = new AsyncRelayCommand(ReopenReviewAsync, CanReopen);
         OpenEditorCommand = new RelayCommand(OpenEditor, CanOpenEditor);
@@ -170,7 +172,7 @@ public sealed class JournalViewModel : ObservableObject
             ? "This account is unavailable. Its journal keeps its original account scope and cannot be saved."
             : $"Journal for {SelectedAccount.Name}. Dates use New York trading time.";
     public string StatusText => IsSaving
-        ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling save…" : "Saving…"
+        ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling operation…" : _isDeleting ? "Deleting journal…" : "Saving…"
         : IsLoading ? "Loading journal…"
         : !SelectedDate.HasValue ? "Choose a journal date."
         : _reloadRequired ? "Reload required before saving. Your text has been kept, along with your review answers."
@@ -180,6 +182,7 @@ public sealed class JournalViewModel : ObservableObject
             : IsDraft ? $"Saved draft · Revision {Revision}" : $"Completed review · Revision {Revision}");
 
     public IAsyncRelayCommand SaveCommand { get; }
+    public IAsyncRelayCommand DeleteCommand { get; }
     public IAsyncRelayCommand CompleteReviewCommand { get; }
     public IAsyncRelayCommand ReopenReviewCommand { get; }
     public IAsyncRelayCommand ReloadCommand { get; }
@@ -508,6 +511,63 @@ public sealed class JournalViewModel : ObservableObject
         }
     }
 
+    private bool CanDelete() => CanReadContent && IsExisting && !IsBusy && !_reloadRequired && !HasDateInputError;
+
+    private async Task DeleteAsync()
+    {
+        if (!CanDelete() || _entry is not { } entry) return;
+        if (!_dialogs.Confirm(new ConfirmationDialogRequest("Delete Journal permanently?",
+            $"Delete the journal for New York date {entry.TradingDate:yyyy-MM-dd}, Account scope: {SelectedAccount.Name}? " +
+            "The entry and ALL revision history will be permanently deleted and cannot be recovered. " +
+            "Any unsaved text and answers in this editor will also be discarded. A new entry may then be created for this same date and scope.",
+            "Delete Journal", "Keep Journal", isDestructive: true))) return;
+
+        using var cancellation = new CancellationTokenSource();
+        _saveCancellation = cancellation;
+        _isSaving = _isDeleting = true;
+        _errorMessage = _notice = null;
+        bool committed = false;
+        NotifyState();
+        try
+        {
+            var result = await Task.Run(() => _repository.DeleteAsync(new(entry.Id, entry.Revision), cancellation.Token), cancellation.Token);
+            switch (result.Status)
+            {
+                case DailyJournalWriteStatus.Deleted:
+                    PublishEntry(null);
+                    _isEditorOpen = false;
+                    _notice = "Journal and revision history permanently deleted.";
+                    History?.CloseReviewCommand.Execute(null);
+                    committed = true;
+                    break;
+                case DailyJournalWriteStatus.Conflict:
+                    _reloadRequired = true;
+                    _errorMessage = "This journal has a newer revision. Nothing was deleted. Your edits are kept; Reload before deciding whether to delete it.";
+                    break;
+                case DailyJournalWriteStatus.NotFound:
+                    _reloadRequired = true;
+                    _errorMessage = "This journal no longer exists. Your edits are kept. Reload to refresh this scope.";
+                    break;
+                default: throw new InvalidOperationException("Unexpected journal deletion result.");
+            }
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        { _errorMessage = "Deletion cancelled. Your journal text and answers have been kept."; }
+        catch (Exception)
+        { _errorMessage = "Journal could not be deleted. Your text and answers have been kept. Try again."; }
+        finally
+        {
+            _saveCancellation = null;
+            _isSaving = _isDeleting = false;
+            NotifyState();
+        }
+        if (committed)
+        {
+            JournalDataCommitted?.Invoke(this, EventArgs.Empty);
+            if (History is not null) await History.RefreshAsync();
+        }
+    }
+
     private void PublishEntry(DailyJournalEntry? entry)
     {
         _entry = entry;
@@ -582,6 +642,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(ScopeMessage));
         OnPropertyChanged(nameof(StatusText));
         SaveCommand.NotifyCanExecuteChanged();
+        DeleteCommand.NotifyCanExecuteChanged();
         CompleteReviewCommand.NotifyCanExecuteChanged();
         ReopenReviewCommand.NotifyCanExecuteChanged();
         ReloadCommand.NotifyCanExecuteChanged();

@@ -547,6 +547,9 @@ public sealed class JournalReviewViewModelTests
     }
     private sealed class Repository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public DailyJournalDetails? Journal { get; set; }
         public Func<object, CancellationToken, Task<DailyJournalWriteResult>>? WriteBehavior { get; init; }
         public Func<DateOnly, Guid?, CancellationToken, Task<DailyJournalDetails?>>? ReadBehavior { get; init; }

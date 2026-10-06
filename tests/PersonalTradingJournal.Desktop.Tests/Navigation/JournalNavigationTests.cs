@@ -434,6 +434,9 @@ public sealed partial class MainWindowViewModelTests
 
     private sealed class NavigationJournalRepository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public ConcurrentQueue<(DateOnly Date, Guid? AccountId, CancellationToken Token)> ReadCalls { get; } = new();
         public ConcurrentQueue<(CreateDailyJournalCommand Command, CancellationToken Token)> CreateCalls { get; } = new();
         public TaskCompletionSource ReadStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

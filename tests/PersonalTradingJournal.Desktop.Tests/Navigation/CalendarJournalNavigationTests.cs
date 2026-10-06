@@ -151,7 +151,7 @@ public sealed partial class MainWindowViewModelTests
     public async Task ShellRefreshesExactCalendarStatusAfterDraftSaveCompleteAndReopenOnReturn()
     {
         var repository = new CalendarNavigationJournalRepository();
-        var journal = new JournalViewModel(repository, new FakeTradingAccountReader(), new FakeDialogService(),
+        var journal = new JournalViewModel(repository, new FakeTradingAccountReader(), new FakeDialogService { ConfirmationResult = true },
             new(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new FixedTimeProvider());
         var fixture = CreateFixture(journalViewModel: journal, journalStatusReader: repository);
         using var main = fixture.Main;
@@ -165,7 +165,7 @@ public sealed partial class MainWindowViewModelTests
 
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
         Assert.Equal(NavigationDestination.Journal, main.CurrentDestination);
-        journal.OpenEditorCommand.Execute(null);
+        Assert.True(journal.IsEditorOpen && journal.CanEdit); // Add opens immediately, no second click.
         journal.WentWell = "Well";
         journal.NeedsImprovement = "Improve";
         journal.NextTradingDay = "Next";
@@ -196,6 +196,15 @@ public sealed partial class MainWindowViewModelTests
         Assert.Null(calendar.SelectedAccount.Id);
         Assert.Equal("All currencies", calendar.SelectedCurrency);
         Assert.True(calendar.IsSelectedDayEmpty);
+        await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
+        await journal.DeleteCommand.ExecuteAsync(null);
+        Assert.False(journal.IsExisting);
+        main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        await calendar.LoadTask;
+        Assert.Equal(5, repository.StatusReads);
+        Assert.False(cell.HasJournal);
+        Assert.Equal(cell.Date, calendar.SelectedDate);
+        Assert.Equal(new DateOnly(2026, 9, 1), calendar.SelectedMonth);
     }
 
     [Theory]
@@ -227,6 +236,14 @@ public sealed partial class MainWindowViewModelTests
 
     private sealed class CalendarNavigationJournalRepository : IDailyJournalRepository, IDailyJournalStatusReader
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default)
+        {
+            Assert.Equal(_journal!.Entry.Id, command.JournalId);
+            Assert.Equal(_journal.Entry.Revision, command.ExpectedRevision);
+            _journal = null;
+            return Task.FromResult(new DailyJournalWriteResult(DailyJournalWriteStatus.Deleted, null));
+        }
+
         private DailyJournalDetails? _journal;
         private int _statusReads;
         public int StatusReads => _statusReads;

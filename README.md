@@ -6,6 +6,12 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Journal actions and Trade context**
+
+Trade context has single-line headings, wider Time/Direction columns and aligned horizontal scrolling on narrow screens. Calendar Add/Continue opens the exact-date, exact-Account draft form immediately; Save Journal and Cancel are beside the fields as well as below the answers. Opening the form reveals it even after scrolling History. Close review and Close view use a red outline; Delete Journal has a distinct solid destructive treatment and confirms permanent removal of the exact entry **and all revision history**. Deletion checks the loaded revision, is atomic, retains local edits on failure, permits recreation of the same date/scope, and refreshes History/Calendar only after commit. No migration or Trade-economics change. See [deletion policy](docs/daily-journal.md#permanent-deletion).
+
+Local verification on 2026-10-06: **2,878/2,878 parallel Release tests passed**, zero failures/skips; Release build **zero warnings/errors**, EF **no pending model changes**, diff check passed. Generated Light/Dark normal and narrow/240-DPI renders were inspected. **Live interaction and a matching GitHub Actions run remain unverified.** See [evidence and manual checks](docs/daily-journal.md#journal-actions-verification-2026-10-06).
+
 **Journal readability and Review History layout**
 
 Journal uses **16-DIP primary text**, **22-DIP section headings**, high-contrast shared Light/Dark brushes and a **760-DIP reading column**, with full long notes reachable rather than clipped. The selected New York trading date has a readable heading and a distinct **No entry / Draft / Completed** badge. **Add Journal** remains prominent for empty days; exact Account-scope explanation is collapsed in keyboard-accessible help. History stays full-width below the selected review/form, with **Date (New York) | Account | Status | Revision | Action**, a flexible Account column, subtle separators/hover, top-right Refresh and bottom-right table paging. Narrow rows stack and wrap while keeping Open review reachable. **10-entry pages**, Close review/Close view, New York revision audit times and all editor/write rules are unchanged. See [Daily Journal layout](docs/daily-journal.md#readability-and-history-layout).

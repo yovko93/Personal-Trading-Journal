@@ -88,6 +88,10 @@
                         Style="{DynamicResource JournalPrimaryButton}" Margin="16,24,0,12" VerticalAlignment="Top"
                         AutomationProperties.Name="Add Journal for selected date and Account scope"
                         ToolTip="Open the selected date and exact Account scope. An existing draft continues the same entry; completed reviews must be reopened." />
+                <Button x:Name="DeleteJournal" Content="Delete Journal" Command="{Binding DeleteCommand}"
+                        Style="{DynamicResource JournalDeleteButton}" Margin="16,24,0,12" VerticalAlignment="Top"
+                        Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}"
+                        AutomationProperties.Name="Permanently delete selected Journal and its revision history" />
             </WrapPanel>
             <StackPanel Grid.Row="1" Margin="0,0,0,16">
                 <WrapPanel Margin="0,0,0,8">
@@ -135,8 +139,17 @@
                 </StackPanel>
             </Border>
             <Border x:Name="FreeformEditor" Grid.Row="2" Style="{DynamicResource PtjCardStyle}"
+                    IsVisibleChanged="OnEditorVisibilityChanged"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <StackPanel MaxWidth="760">
+                    <WrapPanel Margin="0,0,0,12">
+                        <Button x:Name="EditorSaveJournal" Content="Save Journal" Command="{Binding SaveCommand}"
+                                Style="{DynamicResource JournalPrimaryButton}" Margin="0,0,8,4"
+                                AutomationProperties.Name="Save Journal" ToolTip="Save draft (Ctrl+S)" />
+                        <Button x:Name="EditorCancel" Content="Cancel" Command="{Binding CloseEditorCommand}"
+                                Style="{DynamicResource JournalButton}" Margin="0,0,0,4"
+                                AutomationProperties.Name="Cancel Journal editing" ToolTip="Close the form; unsaved edits require confirmation." />
+                    </WrapPanel>
                     <Label Content="Journal _text (optional)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="JournalText" Style="{DynamicResource JournalTextBox}"
@@ -190,14 +203,14 @@
                        Style="{StaticResource JournalErrorStyle}" AutomationProperties.LiveSetting="Assertive" />
             <WrapPanel Grid.Row="5" Margin="0,12,0,0">
                 <WrapPanel Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
-                <Button x:Name="SaveJournal" Content="_Save draft" Command="{Binding SaveCommand}" Margin="0,0,8,8"
+                <Button x:Name="SaveJournal" Content="_Save Journal" Command="{Binding SaveCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource JournalPrimaryButton}" AutomationProperties.Name="Save journal draft" ToolTip="Save journal draft (Ctrl+S)" />
                 <Button x:Name="CompleteJournalReview" Content="_Complete review" Command="{Binding CompleteReviewCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Complete daily review"
                         ToolTip="Save and complete this review. All three answers require meaningful text." />
-                <Button x:Name="CloseJournalEditor" Content="Close _editor" Command="{Binding CloseEditorCommand}" Margin="0,0,8,8"
+                <Button x:Name="CloseJournalEditor" Content="_Cancel" Command="{Binding CloseEditorCommand}" Margin="0,0,8,8"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Close Journal editor"
                         ToolTip="Unsaved text and answers require an explicit discard decision." />
                 </WrapPanel>

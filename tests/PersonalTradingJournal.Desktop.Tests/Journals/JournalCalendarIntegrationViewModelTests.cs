@@ -272,6 +272,9 @@ public sealed class JournalCalendarIntegrationViewModelTests
     }
     private sealed class Repository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public DailyJournalDetails? Journal { get; set; }
         public Func<object, CancellationToken, Task<DailyJournalWriteResult>>? Write { get; set; }
         public ConcurrentQueue<(DateOnly Date, Guid? AccountId)> Reads { get; } = new();

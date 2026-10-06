@@ -29,6 +29,7 @@
             <Setter Property="Margin" Value="0,0,8,0" />
         </Style>
         <Style x:Key="ContextHeaderText" TargetType="TextBlock" BasedOn="{StaticResource ContextCellText}">
+            <Setter Property="TextWrapping" Value="NoWrap" />
             <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
         </Style>
         <Style x:Key="ContextRow" TargetType="Border">
@@ -90,13 +91,13 @@
                           Visibility="{Binding HasResult, Converter={StaticResource BoolVisibility}}"
                           interactions:NestedTableWheelRouting.ForwardVerticalWheel="True"
                           AutomationProperties.Name="Closed Trades, read-only; scroll horizontally for more columns">
-                <StackPanel x:Name="ContextTable" MinWidth="964" Width="{Binding ViewportWidth, ElementName=ContextScroller}"
+                <StackPanel x:Name="ContextTable" MinWidth="1010" Width="{Binding ViewportWidth, ElementName=ContextScroller}"
                             Grid.IsSharedSizeScope="True">
                     <Grid x:Name="ContextHeader" Margin="8,0,8,8">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="132" /><ColumnDefinition Width="100" />
                             <ColumnDefinition Width="Auto" SharedSizeGroup="JournalTradeAccount" MinWidth="100" MaxWidth="160" />
-                            <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="70" />
+                            <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="96" />
                             <ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="1.2*" MinWidth="160" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="Time (New York)" Style="{StaticResource ContextHeaderText}" />
@@ -113,9 +114,9 @@
                             <journals:JournalTradeContextRow Style="{StaticResource ContextRow}">
                                 <Grid x:Name="ContextRowGrid">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="112" /><ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="132" /><ColumnDefinition Width="100" />
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="JournalTradeAccount" MinWidth="100" MaxWidth="160" />
-                                        <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="96" />
                                         <ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="1.2*" MinWidth="160" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding ClosingTime}" ToolTip="{Binding ClosingTimeDescription}"

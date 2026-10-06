@@ -9,4 +9,5 @@ public enum DailyJournalWriteStatus
     NotFound = 5,
     Conflict = 6,
     AccountUnavailable = 7,
+    Deleted = 8,
 }

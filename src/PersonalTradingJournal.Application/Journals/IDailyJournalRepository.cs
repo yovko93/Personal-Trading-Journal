@@ -6,6 +6,10 @@ namespace PersonalTradingJournal.Application.Journals;
 /// </summary>
 public interface IDailyJournalRepository
 {
+    /// <summary>Atomically removes the entry and all revision snapshots, without retargeting its scope.
+    /// Inactive/unavailable accounts do not prevent removal of an existing entry by ID.</summary>
+    Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default);
+
     Task<DailyJournalDetails?> GetAsync(
         DateOnly tradingDate,
         Guid? tradingAccountId = null,

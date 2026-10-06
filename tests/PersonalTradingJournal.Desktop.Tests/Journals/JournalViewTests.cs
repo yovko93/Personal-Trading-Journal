@@ -104,6 +104,15 @@ public sealed class JournalViewTests
         Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
         if (!completed)
         {
+            var topSave = (Button)view.FindName("EditorSaveJournal");
+            var topCancel = (Button)view.FindName("EditorCancel");
+            Assert.Equal("Save Journal", topSave.Content);
+            Assert.Equal("Cancel", topCancel.Content);
+            Assert.Same(vm.SaveCommand, topSave.Command);
+            Assert.Same(vm.CloseEditorCommand, topCancel.Command);
+            Assert.True(topSave.Focusable && topCancel.Focusable);
+            Assert.True(topSave.TranslatePoint(new Point(), view).Y < freeform.TranslatePoint(new Point(), view).Y);
+            Assert.InRange(topCancel.TranslatePoint(new Point(topCancel.ActualWidth, 0), view).X, 0, width);
             Assert.True(wentWell.TranslatePoint(new Point(), view).Y < improvement.TranslatePoint(new Point(), view).Y);
             Assert.True(improvement.TranslatePoint(new Point(), view).Y < nextDay.TranslatePoint(new Point(), view).Y);
             Assert.Equal(120, freeform.ActualHeight);
@@ -374,6 +383,9 @@ public sealed class JournalViewTests
 
     private sealed class ReadRepository(string? text, bool draft = true, DailyReviewAnswers? review = null) : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(text is null ? null : new DailyJournalDetails(new DailyJournalEntry(date, accountId, text, draft, FixedTimeProvider.FixedUtcNow, review ?? DailyReviewAnswers.Empty), DailyJournalAccountState.AllAccounts, null));
         public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid journalId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

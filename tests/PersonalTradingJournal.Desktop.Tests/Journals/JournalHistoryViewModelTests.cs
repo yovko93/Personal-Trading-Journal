@@ -436,6 +436,9 @@ public sealed class JournalHistoryViewModelTests
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(10));
     private sealed class Repository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public int Writes { get; private set; }
         public Task<DailyJournalDetails?> GetAsync(DateOnly tradingDate, Guid? tradingAccountId = null, CancellationToken cancellationToken = default) => Task.FromResult<DailyJournalDetails?>(null);
         public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid journalId, CancellationToken cancellationToken = default) => throw new NotSupportedException();

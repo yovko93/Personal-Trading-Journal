@@ -66,6 +66,15 @@ public sealed class JournalTradeContextViewTests
         Assert.Equal(new[] { "Time (New York)", "Instrument", "Account", "Net P&L", "Size", "Direction", "Setup", "Trading Mistakes" },
             header.Children.OfType<TextBlock>().OrderBy(Grid.GetColumn).Select(t => t.Text));
         Assert.True(NestedTableWheelRouting.GetForwardVerticalWheel(scroller));
+        foreach (var heading in header.Children.OfType<TextBlock>())
+        {
+            Assert.Equal(TextWrapping.NoWrap, heading.TextWrapping);
+            var glyphs = new FormattedText(heading.Text, System.Globalization.CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight, new Typeface(heading.FontFamily, heading.FontStyle, heading.FontWeight, heading.FontStretch),
+                heading.FontSize, heading.Foreground, dpi / 96d);
+            Assert.True(heading.ActualWidth >= glyphs.Width, $"{heading.Text}: available {heading.ActualWidth}, needs {glyphs.Width}");
+            Assert.True(heading.ActualHeight < 30); // A single 16-DIP line, not a wrapped heading.
+        }
         Assert.Equal(ScrollBarVisibility.Auto, scroller.HorizontalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Disabled, scroller.VerticalScrollBarVisibility);
         Assert.DoesNotContain(Descendants(rows), e => e is TextBox or Button); // No edit, View/navigation or mutable input.

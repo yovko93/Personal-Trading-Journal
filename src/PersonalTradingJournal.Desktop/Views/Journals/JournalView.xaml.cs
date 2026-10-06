@@ -33,6 +33,18 @@ public partial class JournalView : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e) => ScheduleDateValidation();
     private void OnUnloaded(object sender, RoutedEventArgs e) { _dateValidation?.Abort(); _dateValidation = null; }
 
+    private void OnEditorVisibilityChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is not true) return;
+        // The retained page may have been scrolled deep into history. After the newly
+        // opened form is laid out, reveal its actions and text rather than that old offset.
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (!FreeformEditor.IsVisible || DataContext is not JournalViewModel { IsEditorOpen: true }) return;
+            FreeformEditor.BringIntoView(new Rect(0, 0, FreeformEditor.ActualWidth, Math.Min(FreeformEditor.ActualHeight, 280)));
+        }));
+    }
+
     // This page owns vertical scrolling. Let a bounded editor scroll its text first,
     // but do not let a disabled or exhausted inner TextBox viewer swallow the wheel.
     // Revision text grows with the page; no nested revision/list viewport is needed.

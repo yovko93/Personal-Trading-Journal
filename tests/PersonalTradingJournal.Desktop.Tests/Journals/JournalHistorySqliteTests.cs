@@ -12,6 +12,49 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class JournalHistorySqliteTests
 {
     [Fact]
+    public async Task CommittedDeletionClearsHistorySnapshotAndCalendarStatusAndStaleDeletionKeepsDraft()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var dialogs = new FakeDialogService { ConfirmationResult = true };
+        var vm = new JournalViewModel(db.Repository, db.Provider.GetRequiredService<ITradingAccountReader>(), dialogs,
+            db.CreateTradeContext(), new JournalHistoryViewModelTests.Clock(), db.Provider.GetRequiredService<IDailyJournalHistoryReader>());
+        try
+        {
+            await vm.ActivateAsync();
+            vm.OpenEditorCommand.Execute(null);
+            vm.Text = "Original";
+            await vm.SaveCommand.ExecuteAsync(null);
+            var row = Assert.Single(vm.History!.Entries);
+            await vm.History.OpenCommand.ExecuteAsync(row);
+            await vm.LoadTask;
+            await vm.History.ViewRevisionCommand.ExecuteAsync(Assert.Single(vm.History.Revisions));
+            Assert.NotNull(vm.History.Snapshot);
+            await db.Repository.UpdateAsync(new(row.Item.Id, 1, "Other writer", true));
+            vm.OpenEditorCommand.Execute(null);
+            vm.Text = "Local text";
+            await vm.DeleteCommand.ExecuteAsync(null);
+            Assert.True(vm.IsEditorOpen && vm.IsDirty);
+            Assert.Equal("Local text", vm.Text);
+            Assert.NotNull(vm.ErrorMessage);
+            Assert.Equal(2, (await db.Repository.GetHistoryAsync(row.Item.Id)).Count);
+            await vm.ReloadCommand.ExecuteAsync(null); // Explicit discard; now revision 2 is reviewed.
+            await vm.DeleteCommand.ExecuteAsync(null);
+            Assert.Null(vm.ErrorMessage);
+            Assert.False(vm.IsExisting || vm.IsEditorOpen || vm.IsDirty);
+            Assert.Empty(vm.History.Entries);
+            Assert.Null(vm.History.SelectedEntry);
+            Assert.Null(vm.History.Snapshot);
+            var status = db.Provider.GetRequiredService<IDailyJournalStatusReader>();
+            Assert.Empty(await status.GetAsync(row.Item.TradingDate, row.Item.TradingDate, null));
+            Assert.Empty(await db.Repository.GetHistoryAsync(row.Item.Id));
+            vm.OpenEditorCommand.Execute(null);
+            await vm.SaveCommand.ExecuteAsync(null);
+            Assert.NotEqual(row.Item.Id, Assert.Single(vm.History.Entries).Item.Id);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Fact]
     public async Task EditorSaveCompleteReopenRefreshesHistoryWhileViewingOldSnapshotsNeverWrites()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();

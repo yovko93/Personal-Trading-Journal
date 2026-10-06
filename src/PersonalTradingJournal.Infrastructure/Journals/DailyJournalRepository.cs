@@ -134,6 +134,31 @@ public sealed class DailyJournalRepository : IDailyJournalRepository
             account.IsActive ? DailyJournalAccountState.Active : DailyJournalAccountState.Inactive,
         account?.Name);
 
+    public async Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateId(command.JournalId);
+        if (command.ExpectedRevision < 1) throw new ArgumentOutOfRangeException(nameof(command.ExpectedRevision));
+        cancellationToken.ThrowIfCancellationRequested();
+        await using JournalDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        DailyJournalRecord? record = await context.DailyJournals.SingleOrDefaultAsync(
+            j => j.Id == command.JournalId, cancellationToken);
+        if (record is null) return new(DailyJournalWriteStatus.NotFound, null);
+        if (record.Revision != command.ExpectedRevision) return new(DailyJournalWriteStatus.Conflict, null);
+
+        // Keep the restrictive FK. Delete snapshots explicitly within the writer transaction;
+        // cancellation or a failed parent delete rolls back the entire removal.
+        await context.DailyJournalRevisions.Where(r => r.JournalId == record.Id).ExecuteDeleteAsync(cancellationToken);
+        context.DailyJournals.Remove(record);
+        try { await context.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException) { return new(DailyJournalWriteStatus.Conflict, null); }
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(cancellationToken);
+        return new(DailyJournalWriteStatus.Deleted, null);
+    }
+
     private static void ValidateId(Guid id)
     {
         if (id == Guid.Empty) throw new ArgumentException("A journal identifier is required.", nameof(id));

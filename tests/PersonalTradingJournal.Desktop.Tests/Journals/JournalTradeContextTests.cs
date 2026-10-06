@@ -480,6 +480,9 @@ public sealed class JournalTradeContextTests
 
     private sealed class JournalRepository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public ConcurrentQueue<(DateOnly Date, Guid? Account)> Reads { get; } = new();
         public ConcurrentQueue<CreateDailyJournalCommand> Creates { get; } = new();
         public ConcurrentQueue<UpdateDailyJournalCommand> Updates { get; } = new();

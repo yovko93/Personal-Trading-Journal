@@ -149,7 +149,7 @@
                     <TextBlock Text="{Binding SelectedEntry.Description}" TextWrapping="Wrap" VerticalAlignment="Center"
                                Style="{DynamicResource JournalLabel}" />
                     <Button x:Name="CloseOpenedReview" Grid.Column="1" Content="Close _review" Command="{Binding CloseReviewCommand}"
-                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource JournalButton}"
+                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource JournalCloseButton}"
                             AutomationProperties.Name="Close opened review and its revisions"
                             ToolTip="Collapse revisions and return to this history page without changing your date, Account or editor." />
                 </Grid>
@@ -180,7 +180,7 @@
                     </ItemsControl>
                 <StackPanel Visibility="{Binding HasRevisionView, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
                     <Button x:Name="CloseRevisionView" Content="_Close view" Command="{Binding CloseViewCommand}"
-                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource JournalPrimaryButton}"
+                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource JournalCloseButton}"
                             AutomationProperties.Name="Close read-only revision view"
                             ToolTip="Return to the selected review. Viewing and closing never saves or restores a revision." />
                     <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"

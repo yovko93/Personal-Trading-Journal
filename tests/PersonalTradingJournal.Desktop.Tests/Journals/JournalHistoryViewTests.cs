@@ -145,6 +145,13 @@ public sealed class JournalHistoryViewTests
         Assert.True(KeyboardNavigation.GetIsTabStop(closeReview));
         Assert.Same(vm.History!.CloseReviewCommand, closeReview.Command);
         Assert.NotSame(close.Command, closeReview.Command);
+        foreach (var closeButton in new[] { close, closeReview })
+        {
+            Assert.Equal(((SolidColorBrush)resources["PtjDangerBrush"]).Color, ((SolidColorBrush)closeButton.Foreground).Color);
+            Assert.Equal(((SolidColorBrush)resources["PtjDangerBrush"]).Color, ((SolidColorBrush)closeButton.BorderBrush).Color);
+            Assert.Equal(Colors.Transparent, ((SolidColorBrush)closeButton.Background).Color);
+            Assert.NotNull(closeButton.Template.FindName("FocusIndicator", closeButton));
+        }
         Assert.Contains("Close opened review", AutomationProperties.GetName(closeReview));
         Assert.InRange(closeReview.TranslatePoint(new Point(), root).X, 0, width);
         Assert.InRange(closeReview.TranslatePoint(new Point(closeReview.ActualWidth, 0), root).X, 0, width);
@@ -357,6 +364,9 @@ public sealed class JournalHistoryViewTests
 
     private sealed class EmptyRepository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? account = null, CancellationToken cancellationToken = default) => Task.FromResult<DailyJournalDetails?>(null);
         public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();

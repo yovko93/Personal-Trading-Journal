@@ -10,7 +10,7 @@ using PersonalTradingJournal.Domain.Journals;
 
 namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
-public sealed class JournalViewModelTests
+public sealed partial class JournalViewModelTests
 {
     private static readonly DateOnly Day = new(2026, 9, 9);
     private static readonly DateTimeOffset Now = new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
@@ -850,6 +850,12 @@ public sealed class JournalViewModelTests
 
     private sealed class Repository : IDailyJournalRepository
     {
+        public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default) =>
+            DeleteBehavior(command, cancellationToken);
+
+        public Func<DeleteDailyJournalCommand, CancellationToken, Task<DailyJournalWriteResult>> DeleteBehavior { get; set; } =
+            (_, _) => throw new NotSupportedException();
+
         public DailyJournalDetails? Journal { get; set; }
         public Func<DateOnly, Guid?, CancellationToken, Task<DailyJournalDetails?>>? ReadBehavior { get; set; }
         public Func<CreateDailyJournalCommand, CancellationToken, Task<DailyJournalWriteResult>>? CreateBehavior { get; set; }
