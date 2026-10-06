@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Dialogs;
@@ -13,6 +14,36 @@ public sealed class JournalViewModelTests
 {
     private static readonly DateOnly Day = new(2026, 9, 9);
     private static readonly DateTimeOffset Now = new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData("en-GB", "06 Oct 2026")]
+    [InlineData("bg-BG", "06 окт 2026")]
+    public async Task ReadableHeadingUsesSelectedTradingDateWithoutInstantConversionAndStatesRemainDistinct(string cultureName, string expected)
+    {
+        var previous = CultureInfo.CurrentCulture;
+        var repository = new Repository();
+        var vm = Create(repository);
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+            vm.SelectedDate = new DateTime(2026, 10, 6, 0, 0, 0, DateTimeKind.Utc);
+            await vm.ActivateAsync();
+            Assert.Equal(expected, vm.SelectedDateHeading);
+            Assert.Equal("No entry", vm.EntryStateLabel);
+            vm.OpenEditorCommand.Execute(null);
+            await vm.SaveCommand.ExecuteAsync(null);
+            Assert.Equal("Draft", vm.EntryStateLabel);
+            vm.OpenEditorCommand.Execute(null);
+            vm.WentWell = "Plan";
+            vm.NeedsImprovement = "Patience";
+            vm.NextTradingDay = "Wait";
+            await vm.CompleteReviewCommand.ExecuteAsync(null);
+            Assert.Equal("Completed", vm.EntryStateLabel);
+            Assert.Equal(new DateOnly(2026, 10, 6), Assert.Single(repository.Creates).TradingDate);
+            Assert.Equal(expected, vm.SelectedDateHeading);
+        }
+        finally { vm.Deactivate(); CultureInfo.CurrentCulture = previous; }
+    }
 
     [Theory]
     [InlineData("2026-10-01T01:00:00Z", "2026-09-30")]

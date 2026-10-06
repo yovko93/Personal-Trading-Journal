@@ -9,6 +9,8 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Journals;
 public sealed record JournalHistoryRow(JournalHistoryItem Item)
 {
     public string DateText => Item.TradingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    public string DisplayDate => Item.TradingDate.ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
+    public string RevisionText => $"Revision {Item.Revision}";
     public string StateText => Item.IsDraft ? "Draft" : "Completed";
     public string ScopeText => Item.AccountState switch
     {
@@ -81,9 +83,10 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public bool IsRevisionLoading => _revisionLoading;
     public bool IsBusy => _loading || _revisionLoading || _snapshotLoading;
     public string PageText => $"Page {_page} · {_total} reviews";
+    public string Heading => $"Review History · {_total} reviews";
     public string RevisionPageText => $"Page {_revisionPage} · {_revisionTotal} revisions";
     public string StatusText => IsLoading ? "Loading reviews…" : _error ?? (_entries.Count == 0
-        ? "No saved reviews in this Account scope." : "Open a review to edit its latest version or browse its read-only revisions.");
+        ? "No saved reviews in this Account scope." : "Open a review or browse revisions.");
     public string RevisionStatusText => IsRevisionLoading ? "Loading revisions…" : _revisionError ?? (_selectedEntry is null
         ? "" : _revisions.Count == 0 ? "No revisions available." : "Viewing history does not save or restore a revision.");
     public string? SnapshotStatusText => _snapshotLoading ? "Loading revision…" : _snapshotError;

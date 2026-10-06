@@ -26,6 +26,21 @@ public sealed class JournalHistoryViewTests
         await vm.ActivateAsync(null);
         await vm.OpenCommand.ExecuteAsync(vm.Entries[0]);
         await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        var pagedReviews = new List<JournalHistoryViewModel>();
+        Guid archivedAccount = Guid.NewGuid();
+        var pagedReader = new JournalHistoryTestReader();
+        for (int i = 0; i < 21; i++)
+        {
+            pagedReader.Add(new DateOnly(2026, 10, 5).AddDays(-i), archivedAccount, draft: i % 2 == 0);
+            pagedReader.Items[i] = pagedReader.Items[i] with { AccountName = "Archived Account with a long readable historical name" };
+        }
+        for (int pageNumber = 1; pageNumber <= 3; pageNumber++)
+        {
+            var paged = new JournalHistoryViewModel(pagedReader, _ => true);
+            await paged.ActivateAsync(archivedAccount);
+            for (int i = 1; i < pageNumber; i++) await paged.NextCommand.ExecuteAsync(null);
+            pagedReviews.Add(paged);
+        }
         var journalPages = new List<JournalViewModel>();
         foreach (var _ in Enumerable.Range(0, 4))
         {
@@ -59,6 +74,7 @@ public sealed class JournalHistoryViewTests
                 root.Measure(new Size(width, 720));
                 root.Arrange(new Rect(0, 0, width, 720));
                 root.UpdateLayout();
+                CheckHistoryTable(view, root, vm, width);
                 Assert.Equal(20, ((ItemsControl)view.FindName("HistoryRevisions")).Items.Count);
                 Assert.Single(((ItemsControl)view.FindName("HistoryEntries")).Items);
                 foreach (string name in new[] { "RevisionText", "RevisionWentWell", "RevisionNeedsImprovement", "RevisionNextTradingDay" })
@@ -91,10 +107,12 @@ public sealed class JournalHistoryViewTests
                 }
                 ((ScrollViewer)root.Child).Content = null;
                 CheckFullPage(journalPages[pageIndex++], resources, theme, width, dpi);
+                foreach (var paged in pagedReviews) CheckPagedTable(paged, resources, theme, width, dpi);
             }
         });
         vm.Deactivate();
         foreach (var page in journalPages) page.Deactivate();
+        foreach (var paged in pagedReviews) paged.Deactivate();
     }
 
     private static void CheckFullPage(JournalViewModel vm, ResourceDictionary resources, string theme, int width, int dpi)
@@ -221,6 +239,110 @@ public sealed class JournalHistoryViewTests
     }
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+
+    private static void CheckHistoryTable(JournalHistoryView view, Border root, JournalHistoryViewModel vm, int width)
+    {
+        Assert.Equal(width < 720, view.IsCompact);
+        Assert.Equal("Review History · 1 reviews", vm.Heading);
+        var refresh = (Button)view.FindName("RefreshHistory");
+        Assert.Same(vm.RefreshCommand, refresh.Command);
+        Assert.True(refresh.IsEnabled && refresh.Focusable);
+        Assert.Equal(16, refresh.FontSize);
+        Assert.Equal(view.TranslatePoint(new Point(view.ActualWidth, 0), root).X,
+            refresh.TranslatePoint(new Point(refresh.ActualWidth, 0), root).X, 1); // Excludes the page scrollbar.
+        var heading = Assert.Single(Descendants(view).OfType<TextBlock>(), t => t.Text == vm.Heading);
+        Assert.Equal(22, heading.FontSize);
+        Assert.True(heading.TranslatePoint(new Point(), root).X < refresh.TranslatePoint(new Point(), root).X);
+        var entries = (ItemsControl)view.FindName("HistoryEntries");
+        var presenter = Assert.IsType<ContentPresenter>(entries.ItemContainerGenerator.ContainerFromIndex(0));
+        T Part<T>(string name) where T : FrameworkElement => (T)presenter.ContentTemplate.FindName(name, presenter);
+        var row = Part<Border>("HistoryRow");
+        var columns = Part<Grid>("EntryColumns");
+        var date = Part<TextBlock>("EntryDate");
+        var account = Part<TextBlock>("EntryAccount");
+        var state = Part<TextBlock>("EntryStatus");
+        var revision = Part<TextBlock>("EntryRevision");
+        var open = Part<Button>("OpenReview");
+        var header = (Grid)view.FindName("HistoryColumns");
+        Assert.Equal(width < 720 ? Visibility.Collapsed : Visibility.Visible, header.Visibility);
+        Assert.Equal(vm.Entries[0].DisplayDate, date.Text);
+        Assert.Equal(FontWeights.SemiBold, date.FontWeight);
+        Assert.Equal(16, date.FontSize);
+        Assert.Equal(vm.Entries[0].ScopeText, account.Text);
+        Assert.Equal(vm.Entries[0].ScopeText, account.ToolTip);
+        Assert.Equal("Draft", state.Text);
+        Assert.Same(vm.Entries[0], open.CommandParameter);
+        Assert.InRange(open.TranslatePoint(new Point(), root).X, 0, width);
+        Assert.InRange(open.TranslatePoint(new Point(open.ActualWidth, 0), root).X, 0, width);
+        Assert.True(open.Focusable && KeyboardNavigation.GetIsTabStop(open));
+        Assert.Equal(new Thickness(0, 0, 0, 1), row.BorderThickness);
+        // Exercise the actual theme trigger, not a live pointer claim.
+        var hoverKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+        row.SetValue(hoverKey, true); Flush();
+        Assert.Equal(((SolidColorBrush)root.Resources["PtjSurfaceElevatedBrush"]).Color, ((SolidColorBrush)row.Background).Color);
+        row.SetValue(hoverKey, false); Flush();
+        Assert.Equal(Colors.Transparent, ((SolidColorBrush)row.Background).Color);
+        if (width >= 720)
+        {
+            Assert.Equal(new[] { "Date (New York)", "Account", "Status", "Revision", "Action" }, header.Children.OfType<TextBlock>().Select(t => t.Text));
+            FrameworkElement[] values = [date, account, state, revision, open];
+            var labels = header.Children.OfType<TextBlock>().ToArray();
+            for (int i = 0; i < values.Length; i++)
+                Assert.Equal(labels[i].TranslatePoint(new Point(), root).X, values[i].TranslatePoint(new Point(), root).X, 1);
+            Assert.True(columns.ColumnDefinitions[1].Width.IsStar);
+            Assert.True(account.ActualWidth > 100);
+        }
+        else
+        {
+            Assert.True(account.TranslatePoint(new Point(), row).Y > date.TranslatePoint(new Point(), row).Y);
+            Assert.True(state.TranslatePoint(new Point(state.ActualWidth, 0), row).X <= revision.TranslatePoint(new Point(), row).X);
+            Assert.Equal("Revision 23", revision.Text);
+        }
+        var footer = (WrapPanel)view.FindName("HistoryPaging");
+        Assert.Equal(HorizontalAlignment.Right, footer.HorizontalAlignment);
+        Assert.True(footer.TranslatePoint(new Point(), root).Y >= entries.TranslatePoint(new Point(0, entries.ActualHeight), root).Y);
+        Assert.Equal(vm.PageText, ((TextBlock)view.FindName("HistoryPageNumber")).Text);
+        Assert.Same(vm.PreviousCommand, ((Button)view.FindName("PreviousReviews")).Command);
+        Assert.Same(vm.NextCommand, ((Button)view.FindName("NextReviews")).Command);
+        Assert.False(((Button)view.FindName("PreviousReviews")).IsEnabled);
+        Assert.False(((Button)view.FindName("NextReviews")).IsEnabled);
+        Assert.Equal(10, JournalHistoryViewModel.PageSize);
+    }
+
+    private static void CheckPagedTable(JournalHistoryViewModel vm, ResourceDictionary resources, string theme, int width, int dpi)
+    {
+        var view = new JournalHistoryView { DataContext = vm };
+        var scroller = new ScrollViewer { Content = view, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        var root = new Border { Resources = resources, Child = scroller };
+        root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+        root.Measure(new Size(width, 720)); root.Arrange(new Rect(0, 0, width, 720)); root.UpdateLayout(); Flush();
+        int page = int.Parse(vm.PageText.Split(' ')[1]);
+        var entries = (ItemsControl)view.FindName("HistoryEntries");
+        Assert.Equal(page < 3 ? 10 : 1, entries.Items.Count);
+        Assert.Equal("Review History · 21 reviews", vm.Heading);
+        Assert.Equal(page > 1, ((Button)view.FindName("PreviousReviews")).IsEnabled);
+        Assert.Equal(page < 3, ((Button)view.FindName("NextReviews")).IsEnabled);
+        var buttons = Descendants(entries).OfType<Button>().ToArray();
+        Assert.Equal(entries.Items.Count, buttons.Length);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            Assert.Same(vm.Entries[i], buttons[i].CommandParameter);
+            Assert.InRange(buttons[i].TranslatePoint(new Point(buttons[i].ActualWidth, 0), root).X, 0, width);
+        }
+        Assert.All(Descendants(entries).OfType<TextBlock>().Where(t => t.Name == "EntryAccount"), t =>
+        {
+            Assert.Contains("inactive", t.Text);
+            Assert.True(t.ActualWidth > 0);
+            Assert.True(t.ActualHeight >= 24);
+            Assert.Equal(TextWrapping.Wrap, t.TextWrapping);
+        });
+        var footer = (WrapPanel)view.FindName("HistoryPaging");
+        footer.BringIntoView(); Flush(); root.UpdateLayout();
+        Assert.InRange(footer.TranslatePoint(new Point(0, footer.ActualHeight), scroller).Y, -0.1, scroller.ViewportHeight + 0.1);
+        Capture(root, theme, width, dpi, $"history-page-{page}");
+        scroller.Content = null;
+    }
     private static void Capture(Border root, string theme, int width, int dpi, string name)
     {
         var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);

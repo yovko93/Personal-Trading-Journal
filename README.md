@@ -6,7 +6,13 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
-**Journal Review History: close review and New York revision times**
+**Journal readability and Review History layout**
+
+Journal uses **16-DIP primary text**, **22-DIP section headings**, high-contrast shared Light/Dark brushes and a **760-DIP reading column**, with full long notes reachable rather than clipped. The selected New York trading date has a readable heading and a distinct **No entry / Draft / Completed** badge. **Add Journal** remains prominent for empty days; exact Account-scope explanation is collapsed in keyboard-accessible help. History stays full-width below the selected review/form, with **Date (New York) | Account | Status | Revision | Action**, a flexible Account column, subtle separators/hover, top-right Refresh and bottom-right table paging. Narrow rows stack and wrap while keeping Open review reachable. **10-entry pages**, Close review/Close view, New York revision audit times and all editor/write rules are unchanged. See [Daily Journal layout](docs/daily-journal.md#readability-and-history-layout).
+
+Verification on 2026-10-06: **286 focused Desktop tests** and **2,865/2,865 parallel Release tests** passed, zero failures/skips. Release build: zero warnings/errors; EF: no pending model changes; diff check passed. Automated Light/Dark renders were inspected at 960 DIP / 96 DPI and 480 DIP / 240 DPI. [Detailed evidence and manual checks](docs/daily-journal.md#journal-readability-verification-2026-10-06). **Live interaction and a new matching GitHub Actions run remain unverified.**
+
+**Previous Journal Review History: close review and New York revision times**
 
 **Close review** beside the opened review heading collapses its revisions and any snapshot, keeping the same history page, selected Journal date, exact Account scope and unsaved editor content. **Close view** still dismisses only an individual revision snapshot. Both actions cancel obsolete presentation reads and never save or restore a revision. Revision audit times now use concise, culture-aware **New York** date/time with each instant's explicit **UTC-4 / UTC-5** offset; persisted UTC timestamps and history ordering are unchanged. See [verification and remaining live checks](docs/daily-journal.md#review-history-close-and-time-verification-2026-10-06).
 

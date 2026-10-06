@@ -4,9 +4,11 @@
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
-             AutomationProperties.Name="Read-only Journal Trade context"
+             FontSize="16" AutomationProperties.Name="Read-only Journal Trade context"
              AutomationProperties.ItemStatus="{Binding StatusText}">
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="JournalPresentationResources.xaml" /></ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
         <converters:PnLOutcomeConverter x:Key="PnlOutcome" />
         <Style x:Key="ContextAmount" TargetType="TextBlock">
@@ -49,21 +51,22 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+    </ResourceDictionary>
     </UserControl.Resources>
     <Border Style="{DynamicResource PtjCardStyle}">
         <StackPanel>
-            <TextBlock Text="Trade context" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+            <TextBlock Text="Trade context" Style="{DynamicResource JournalHeading}" />
             <TextBlock Text="{Binding ScopeLabel}" TextWrapping="Wrap" Margin="0,4"
                        Foreground="{DynamicResource PtjTextSecondaryBrush}" />
             <WrapPanel Margin="0,4,0,8">
                 <TextBlock x:Name="ContextCount" Text="{Binding CountText}" VerticalAlignment="Center" Margin="0,0,16,4"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.LiveSetting="Polite" />
                 <Button x:Name="RefreshContext" Content="Refresh Trades" Command="{Binding RefreshCommand}" Margin="0,0,8,4"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Refresh Journal Trade context"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Refresh Journal Trade context"
                         ToolTip="Reload closed Trades only. Unsaved journal text is not changed." />
                 <Button x:Name="CancelContext" Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,0,0,4"
                         Visibility="{Binding IsLoading, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Cancel Trade context loading" />
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Cancel Trade context loading" />
             </WrapPanel>
             <TextBlock x:Name="ContextStatus" Text="{Binding StatusText}" TextWrapping="Wrap"
                        Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />

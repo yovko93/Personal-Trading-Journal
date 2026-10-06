@@ -3,14 +3,22 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:dashboard="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
              xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
-             Background="{DynamicResource PtjBackgroundBrush}"
+             FontSize="16" Background="{DynamicResource PtjBackgroundBrush}"
              Loaded="OnLoaded" Unloaded="OnUnloaded">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="../Dashboard/DashboardCalendarResources.xaml" />
+                <ResourceDictionary Source="JournalPresentationResources.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+            <Style x:Key="JournalErrorStyle" TargetType="TextBlock" BasedOn="{StaticResource PtjFormErrorTextStyle}">
+                <Setter Property="FontSize" Value="16" />
+                <Style.Triggers>
+                    <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                    <Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                </Style.Triggers>
+            </Style>
             <Style x:Key="JournalCalendarDay" TargetType="CalendarDayButton" BasedOn="{StaticResource RangeCalendarDay}">
                 <Style.Triggers>
                     <Trigger Property="IsSelected" Value="True">
@@ -24,16 +32,16 @@
             <Style x:Key="JournalDatePicker" TargetType="DatePicker">
                 <Setter Property="CalendarStyle" Value="{StaticResource JournalCalendar}" />
                 <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
-                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontSize" Value="16" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="DatePicker">
                             <Grid>
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
-                                <DatePickerTextBox x:Name="PART_TextBox" Style="{DynamicResource PtjTextBoxStyle}"
+                                <DatePickerTextBox x:Name="PART_TextBox" Style="{DynamicResource JournalTextBox}"
                                                    AutomationProperties.Name="Journal date in New York" />
                                 <Button x:Name="PART_Button" Grid.Column="1" Content="▾" Margin="4,0,0,0"
-                                        Style="{DynamicResource PtjSecondaryButtonStyle}" Padding="4"
+                                        Style="{DynamicResource JournalButton}" Padding="4"
                                         AutomationProperties.Name="Open journal date calendar" ToolTip="Choose date (Alt+Down)" />
                                 <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" />
                             </Grid>
@@ -70,22 +78,33 @@
                 <StackPanel Width="280" Margin="0,0,0,12">
                     <Label Content="_Account scope" Target="{Binding ElementName=JournalAccount}" Padding="0,0,0,6"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <ComboBox x:Name="JournalAccount" Style="{DynamicResource PtjComboBoxStyle}"
+                    <ComboBox x:Name="JournalAccount" Style="{DynamicResource JournalComboBox}"
                               ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
                               DisplayMemberPath="Name" IsEnabled="{Binding CanChangeScope}"
                               AutomationProperties.Name="Journal Account scope"
                               AutomationProperties.HelpText="All accounts is a separate journal, not a combination of Account journals." />
                 </StackPanel>
                 <Button x:Name="AddJournal" Content="_Add Journal" Command="{Binding OpenEditorCommand}"
-                        Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="16,24,0,12" VerticalAlignment="Top"
+                        Style="{DynamicResource JournalPrimaryButton}" Margin="16,24,0,12" VerticalAlignment="Top"
                         AutomationProperties.Name="Add Journal for selected date and Account scope"
                         ToolTip="Open the selected date and exact Account scope. An existing draft continues the same entry; completed reviews must be reopened." />
             </WrapPanel>
-            <StackPanel Grid.Row="1" Margin="0,0,0,12">
+            <StackPanel Grid.Row="1" Margin="0,0,0,16">
+                <WrapPanel Margin="0,0,0,8">
+                    <TextBlock x:Name="SelectedJournalDate" Text="{Binding SelectedDateHeading}" Style="{StaticResource JournalHeading}" Margin="0,0,16,0"
+                               AutomationProperties.Name="Selected New York journal date" />
+                    <Border CornerRadius="4" Background="{DynamicResource PtjSurfaceElevatedBrush}" Padding="10,2" VerticalAlignment="Center"
+                            Visibility="{Binding CanReadContent, Converter={StaticResource BoolVisibility}}">
+                        <TextBlock x:Name="EntryState" Text="{Binding EntryStateLabel}" Style="{StaticResource JournalLabel}"
+                                   AutomationProperties.LiveSetting="Polite" />
+                    </Border>
+                </WrapPanel>
                 <TextBlock x:Name="JournalStatus" Text="{Binding StatusText}" TextWrapping="Wrap"
-                           Style="{DynamicResource PtjFormLabelTextStyle}" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock Text="{Binding ScopeMessage}" TextWrapping="Wrap" Margin="0,4,0,0"
-                           Style="{DynamicResource PtjSecondaryTextStyle}" />
+                           Style="{DynamicResource JournalLabel}" AutomationProperties.LiveSetting="Polite" />
+                <Expander x:Name="ScopeHelp" Header="About Account scope" IsExpanded="False" Margin="0,6,0,0"
+                          Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Help about exact Journal Account scope">
+                    <TextBlock Text="{Binding ScopeMessage}" Style="{StaticResource JournalNote}" Margin="0,8,0,0" />
+                </Expander>
                 <ProgressBar Height="3" Margin="0,8,0,0" IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
                              Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Journal operation in progress" />
@@ -93,25 +112,23 @@
             <Border x:Name="CompactJournal" Grid.Row="2" Style="{DynamicResource PtjCardStyle}"
                     Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
                 <StackPanel>
-                    <TextBlock Text="{Binding EntryHeading}" TextWrapping="Wrap" Style="{DynamicResource PtjSectionTitleTextStyle}" />
-                    <TextBlock Text="No saved Journal for this date. Choose Add Journal to start." Margin="0,8,0,0" TextWrapping="Wrap"
-                               Style="{DynamicResource PtjSecondaryTextStyle}" Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
+                    <TextBlock Text="No journal saved for this date." Margin="0,8,0,0" TextWrapping="Wrap"
+                               Style="{DynamicResource JournalBody}" Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
                     <StackPanel x:Name="SavedJournalContent" Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}">
-                        <TextBlock Text="{Binding StatusText}" Margin="0,8,0,8" Style="{DynamicResource PtjFormLabelTextStyle}" TextWrapping="Wrap" />
-                        <TextBlock Text="Journal text" Style="{DynamicResource PtjCaptionTextStyle}" />
-                        <TextBlock Text="{Binding SavedText}" ToolTip="{Binding SavedText}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="64" Margin="0,4,0,8" Style="{DynamicResource PtjSecondaryTextStyle}" />
-                        <TextBlock Text="What went well?" Style="{DynamicResource PtjCaptionTextStyle}" />
-                        <TextBlock Text="{Binding SavedReview.WentWell}" ToolTip="{Binding SavedReview.WentWell}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" Margin="0,4,0,8" Style="{DynamicResource PtjSecondaryTextStyle}" />
-                        <TextBlock Text="What needs improvement?" Style="{DynamicResource PtjCaptionTextStyle}" />
-                        <TextBlock Text="{Binding SavedReview.NeedsImprovement}" ToolTip="{Binding SavedReview.NeedsImprovement}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" Margin="0,4,0,8" Style="{DynamicResource PtjSecondaryTextStyle}" />
-                        <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource PtjCaptionTextStyle}" />
-                        <TextBlock Text="{Binding SavedReview.NextTradingDay}" ToolTip="{Binding SavedReview.NextTradingDay}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="48" Margin="0,4,0,8" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                        <TextBlock Text="Journal text" Style="{DynamicResource JournalCaption}" />
+                        <TextBlock Text="{Binding SavedText}" ToolTip="{Binding SavedText}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
+                        <TextBlock Text="What went well?" Style="{DynamicResource JournalCaption}" />
+                        <TextBlock Text="{Binding SavedReview.WentWell}" ToolTip="{Binding SavedReview.WentWell}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
+                        <TextBlock Text="What needs improvement?" Style="{DynamicResource JournalCaption}" />
+                        <TextBlock Text="{Binding SavedReview.NeedsImprovement}" ToolTip="{Binding SavedReview.NeedsImprovement}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
+                        <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalCaption}" />
+                        <TextBlock Text="{Binding SavedReview.NextTradingDay}" ToolTip="{Binding SavedReview.NextTradingDay}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
                         <WrapPanel>
                             <Button x:Name="ContinueJournal" Content="_Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,8,8,0"
-                                    Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource PtjPrimaryButtonStyle}"
+                                    Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalPrimaryButton}"
                                     AutomationProperties.Name="Continue editing saved Journal draft" />
                             <Button x:Name="ReopenJournalReview" Content="_Reopen review" Command="{Binding ReopenReviewCommand}" Margin="0,8,8,0"
-                                    Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource PtjPrimaryButtonStyle}"
+                                    Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalPrimaryButton}"
                                     AutomationProperties.Name="Reopen completed daily review" ToolTip="Create a draft revision before editing this completed review." />
                         </WrapPanel>
                     </StackPanel>
@@ -119,10 +136,10 @@
             </Border>
             <Border x:Name="FreeformEditor" Grid.Row="2" Style="{DynamicResource PtjCardStyle}"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
-                <StackPanel>
+                <StackPanel MaxWidth="760">
                     <Label Content="Journal _text (optional)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <TextBox x:Name="JournalText" Style="{DynamicResource PtjTextBoxStyle}"
+                    <TextBox x:Name="JournalText" Style="{DynamicResource JournalTextBox}"
                              Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanReadContent}" IsReadOnly="{Binding IsReadOnly}" AcceptsReturn="True" AcceptsTab="False"
                              TextWrapping="Wrap" VerticalContentAlignment="Stretch" MinHeight="80" Height="120"
@@ -130,19 +147,19 @@
                              AutomationProperties.Name="Daily journal text"
                              AutomationProperties.HelpText="Plain text. Ctrl+S saves. Tab moves to the next control. Unsaved edits are protected when changing scope or page." />
                     <TextBlock Text="{Binding CharacterCountText}" Margin="0,8,0,0" TextWrapping="Wrap"
-                               Style="{DynamicResource PtjCaptionTextStyle}" />
+                               Style="{DynamicResource JournalCaption}" />
                 </StackPanel>
             </Border>
             <Border x:Name="ReviewEditor" Grid.Row="3" Margin="0,16,0,0" Style="{DynamicResource PtjCardStyle}"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
-                <StackPanel>
-                    <TextBlock Text="Daily Review" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+                <StackPanel MaxWidth="760">
+                    <TextBlock Text="Daily Review" Style="{DynamicResource JournalHeading}" />
                     <TextBlock Text="Completed review. Reopen to make changes." Margin="0,8,0,0" TextWrapping="Wrap"
-                               Style="{DynamicResource PtjSecondaryTextStyle}"
+                               Style="{DynamicResource JournalBody}"
                                Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" />
                     <Label Content="_What went well?" Target="{Binding ElementName=WentWellAnswer}" Margin="0,12,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <TextBox x:Name="WentWellAnswer" Style="{DynamicResource PtjTextBoxStyle}"
+                    <TextBox x:Name="WentWellAnswer" Style="{DynamicResource JournalTextBox}"
                              Text="{Binding WentWell, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanReadContent}" IsReadOnly="{Binding IsReadOnly}"
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
@@ -151,7 +168,7 @@
                              AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
                     <Label Content="What _needs improvement?" Target="{Binding ElementName=NeedsImprovementAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <TextBox x:Name="NeedsImprovementAnswer" Style="{DynamicResource PtjTextBoxStyle}"
+                    <TextBox x:Name="NeedsImprovementAnswer" Style="{DynamicResource JournalTextBox}"
                              Text="{Binding NeedsImprovement, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanReadContent}" IsReadOnly="{Binding IsReadOnly}"
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
@@ -160,7 +177,7 @@
                              AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
                     <Label Content="What will I _do differently next trading day?" Target="{Binding ElementName=NextTradingDayAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                    <TextBox x:Name="NextTradingDayAnswer" Style="{DynamicResource PtjTextBoxStyle}"
+                    <TextBox x:Name="NextTradingDayAnswer" Style="{DynamicResource JournalTextBox}"
                              Text="{Binding NextTradingDay, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                              IsEnabled="{Binding CanReadContent}" IsReadOnly="{Binding IsReadOnly}"
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
@@ -169,27 +186,27 @@
                              AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
                 </StackPanel>
             </Border>
-            <TextBlock x:Name="JournalError" Grid.Row="4" Text="{Binding ErrorMessage}" Margin="0,12,0,0"
-                       Style="{DynamicResource PtjFormErrorTextStyle}" AutomationProperties.LiveSetting="Assertive" />
+            <TextBlock x:Name="JournalError" FontSize="16" Grid.Row="4" Text="{Binding ErrorMessage}" Margin="0,12,0,0"
+                       Style="{StaticResource JournalErrorStyle}" AutomationProperties.LiveSetting="Assertive" />
             <WrapPanel Grid.Row="5" Margin="0,12,0,0">
                 <WrapPanel Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <Button x:Name="SaveJournal" Content="_Save draft" Command="{Binding SaveCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource PtjPrimaryButtonStyle}" AutomationProperties.Name="Save journal draft" ToolTip="Save journal draft (Ctrl+S)" />
+                        Style="{DynamicResource JournalPrimaryButton}" AutomationProperties.Name="Save journal draft" ToolTip="Save journal draft (Ctrl+S)" />
                 <Button x:Name="CompleteJournalReview" Content="_Complete review" Command="{Binding CompleteReviewCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Complete daily review"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Complete daily review"
                         ToolTip="Save and complete this review. All three answers require meaningful text." />
                 <Button x:Name="CloseJournalEditor" Content="Close _editor" Command="{Binding CloseEditorCommand}" Margin="0,0,8,8"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Close Journal editor"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Close Journal editor"
                         ToolTip="Unsaved text and answers require an explicit discard decision." />
                 </WrapPanel>
                 <Button x:Name="ReloadJournal" Content="_Reload latest" Command="{Binding ReloadCommand}" Margin="0,0,8,8"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Reload latest journal"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Reload latest journal"
                         ToolTip="Read the latest revision. Discarding unsaved text requires confirmation." />
                 <Button x:Name="CancelJournalOperation" Content="Cancel operation" Command="{Binding CancelOperationCommand}" Margin="0,0,0,8"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Cancel journal operation" />
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Cancel journal operation" />
             </WrapPanel>
             <Border x:Name="HistorySection" Grid.Row="6" Margin="0,16,0,0"
                     Visibility="{Binding HasHistory, Converter={StaticResource BoolVisibility}}">

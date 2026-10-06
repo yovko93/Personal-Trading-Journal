@@ -30,6 +30,9 @@ public sealed class JournalViewTests
         var dialogs = new FakeDialogService();
         var dateEditors = new[] { await CreateAsync("saved", dialogs), await CreateAsync("saved", dialogs) };
         var empty = await CreateAsync(null);
+        string longText = string.Join("\n", Enumerable.Range(1, 45).Select(i => $"Journal line {i}: full saved content remains readable without ellipsis."));
+        var longNotes = new List<JournalViewModel>();
+        foreach (var _ in cases) longNotes.Add(await CreateAsync(longText));
         var reviews = new List<(JournalViewModel Draft, JournalViewModel Completed)>();
         foreach (var _ in cases)
         {
@@ -47,6 +50,7 @@ public sealed class JournalViewTests
                 CheckLayout(editors[i], text, theme, width, dpi);
                 CheckReviewLayout(reviews[i].Draft, theme, width, dpi, completed: false);
                 CheckReviewLayout(reviews[i].Completed, theme, width, dpi, completed: true);
+                CheckLongSavedNotes(longNotes[i], longText, theme, width, dpi);
             }
             CheckDateInput(dateEditors[0], dialogs, "en-US");
             CheckDateInput(dateEditors[1], dialogs, "bg-BG");
@@ -60,6 +64,8 @@ public sealed class JournalViewTests
         Assert.False(vm.IsEditorOpen);
         if (!completed) vm.OpenEditorCommand.Execute(null);
         var (view, root) = Layout(vm, theme, width);
+        Assert.Equal(completed ? "Completed" : "Draft", ((TextBlock)view.FindName("EntryState")).Text);
+        Assert.Equal(vm.SelectedDate!.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture), ((TextBlock)view.FindName("SelectedJournalDate")).Text);
         var wentWell = (TextBox)view.FindName("WentWellAnswer");
         var improvement = (TextBox)view.FindName("NeedsImprovementAnswer");
         var nextDay = (TextBox)view.FindName("NextTradingDayAnswer");
@@ -138,6 +144,24 @@ public sealed class JournalViewTests
             var add = (Button)view.FindName("AddJournal");
             Assert.True(add.IsEnabled && add.Focusable && add.IsVisible == view.IsVisible);
             Assert.Same(vm.OpenEditorCommand, add.Command);
+            Assert.Equal("Draft", ((TextBlock)view.FindName("EntryState")).Text);
+            var dateHeading = (TextBlock)view.FindName("SelectedJournalDate");
+            Assert.Equal(vm.SelectedDate!.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture), dateHeading.Text);
+            Assert.Equal(22, dateHeading.FontSize);
+            Assert.Equal(16, ((TextBlock)view.FindName("EntryState")).FontSize);
+            Assert.False(((Expander)view.FindName("ScopeHelp")).IsExpanded);
+            Assert.Equal(Visibility.Collapsed, ((TextBlock)view.FindName("JournalError")).Visibility);
+            var notes = Descendants((StackPanel)view.FindName("SavedJournalContent")).OfType<TextBlock>().Where(t => t.Text == vm.SavedText).ToArray();
+            Assert.NotEmpty(notes);
+            Assert.All(notes, note =>
+            {
+                Assert.Equal(16, note.FontSize);
+                Assert.Equal(24, note.LineHeight);
+                Assert.Equal(760, note.MaxWidth);
+                Assert.True(double.IsPositiveInfinity(note.MaxHeight));
+                Assert.Equal(TextTrimming.None, note.TextTrimming);
+                Assert.Equal(((SolidColorBrush)root.Resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)note.Foreground).Color);
+            });
             Assert.InRange(add.TranslatePoint(new Point(), root).X + add.ActualWidth, 1, width);
             Render(root, theme, width, dpi, "compact-");
             add.Command.Execute(null);
@@ -151,6 +175,7 @@ public sealed class JournalViewTests
             var reload = (Button)view.FindName("ReloadJournal");
             Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
             Assert.Equal(text, editor.Text);
+            Assert.Equal(16, editor.FontSize);
             Assert.False(vm.IsDirty); // Rendering must not normalize persisted line endings.
             Assert.False(vm.HasDateInputError);
             Assert.True(editor.AcceptsReturn);
@@ -243,9 +268,21 @@ public sealed class JournalViewTests
     private static void CheckEmptyAndValidation(JournalViewModel vm)
     {
         Assert.True(vm.ShowEmptyReview);
+        foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+        {
+            var (emptyView, emptyRoot) = Layout(vm, theme, width);
+            Assert.Equal("No entry", ((TextBlock)emptyView.FindName("EntryState")).Text);
+            Assert.Equal(Visibility.Visible, ((Border)emptyView.FindName("CompactJournal")).Visibility);
+            var add = (Button)emptyView.FindName("AddJournal");
+            Assert.True(add.IsEnabled && add.Focusable);
+            Assert.InRange(add.TranslatePoint(new Point(add.ActualWidth, 0), emptyRoot).X, 0, width);
+            Render(emptyRoot, theme, width, dpi, "no-entry-");
+        }
         vm.OpenEditorCommand.Execute(null);
         var (view, _) = Layout(vm, "Dark", 480);
         var editor = (TextBox)view.FindName("JournalText");
+        Assert.Equal("No entry", ((TextBlock)view.FindName("EntryState")).Text);
+        Assert.Same(vm.OpenEditorCommand, ((Button)view.FindName("AddJournal")).Command);
         Assert.Equal("New draft — not saved", ((TextBlock)view.FindName("JournalStatus")).Text);
         Assert.Empty(editor.Text);
         Assert.True(((Button)view.FindName("SaveJournal")).IsEnabled); // Empty journals are valid.
@@ -254,7 +291,22 @@ public sealed class JournalViewTests
         Assert.Equal(DailyJournalEntry.MaximumTextLength + 1, vm.Text.Length);
         Assert.False(((Button)view.FindName("SaveJournal")).IsEnabled);
         Assert.Contains("kept", ((TextBlock)view.FindName("JournalError")).Text);
+        Assert.Equal(Visibility.Visible, ((TextBlock)view.FindName("JournalError")).Visibility);
         Assert.Equal(AutomationLiveSetting.Assertive, AutomationProperties.GetLiveSetting((TextBlock)view.FindName("JournalError")));
+        vm.Deactivate();
+    }
+
+    private static void CheckLongSavedNotes(JournalViewModel vm, string text, string theme, int width, int dpi)
+    {
+        var (view, root) = Layout(vm, theme, width);
+        var note = Assert.Single(Descendants((StackPanel)view.FindName("SavedJournalContent")).OfType<TextBlock>(), t => t.Text == text);
+        Assert.True(note.ActualHeight > 800);
+        Assert.InRange(note.ActualWidth, 100, Math.Min(760, width));
+        Assert.Equal(TextTrimming.None, note.TextTrimming);
+        var scroller = (ScrollViewer)view.FindName("JournalScroller");
+        note.BringIntoView(new Rect(0, note.ActualHeight - 24, note.ActualWidth, 24)); Flush(); root.UpdateLayout();
+        Assert.InRange(note.TranslatePoint(new Point(0, note.ActualHeight), scroller).Y, -0.1, scroller.ViewportHeight + 0.1);
+        Render(root, theme, width, dpi, "long-note-end-");
         vm.Deactivate();
     }
 

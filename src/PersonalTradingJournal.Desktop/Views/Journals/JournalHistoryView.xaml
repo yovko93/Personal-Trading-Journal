@@ -1,98 +1,166 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Journals.JournalHistoryView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals" FontSize="16">
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="JournalPresentationResources.xaml" /></ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
         <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
-        <Style x:Key="SnapshotText" TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
+        <Style x:Key="SnapshotText" TargetType="TextBox" BasedOn="{StaticResource JournalTextBox}">
             <Setter Property="IsReadOnly" Value="True" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="AcceptsReturn" Value="True" />
             <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
             <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
-            <Setter Property="MinHeight" Value="60" />
+            <Setter Property="MinHeight" Value="40" />
             <Setter Property="Margin" Value="0,6,0,12" />
         </Style>
+    </ResourceDictionary>
     </UserControl.Resources>
-    <Expander x:Name="HistoryExpander" Header="Review History" IsExpanded="True" Foreground="{DynamicResource PtjTextPrimaryBrush}"
-              AutomationProperties.Name="Review History for the selected Account scope">
-        <Expander.Template>
-            <ControlTemplate TargetType="Expander">
-                <StackPanel>
-                    <ToggleButton IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                  AutomationProperties.Name="Expand or collapse Review History" HorizontalContentAlignment="Left"
-                                  Foreground="{TemplateBinding Foreground}" Background="Transparent">
-                        <ToggleButton.Template>
-                            <ControlTemplate TargetType="ToggleButton">
-                                <Border x:Name="HeaderBorder" BorderThickness="1" BorderBrush="Transparent" Padding="4"
-                                        Background="Transparent">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="Chevron" Text="▸" Foreground="{TemplateBinding Foreground}" Margin="0,0,8,0" />
-                                        <TextBlock Text="Review History" Foreground="{TemplateBinding Foreground}" />
-                                    </StackPanel>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Text" Value="▾" /></Trigger>
-                                    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HeaderBorder" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </ToggleButton.Template>
-                    </ToggleButton>
+    <StackPanel>
+        <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <ToggleButton x:Name="HistoryToggle" IsChecked="{Binding IsExpanded, ElementName=HistoryExpander, Mode=TwoWay}"
+                          HorizontalContentAlignment="Left" Foreground="{DynamicResource PtjTextPrimaryBrush}" Background="Transparent"
+                          AutomationProperties.Name="Expand or collapse Review History">
+                <ToggleButton.Template>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="HeaderBorder" BorderThickness="1" BorderBrush="Transparent" Padding="0,4" Background="Transparent">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="Chevron" Text="▸" Foreground="{TemplateBinding Foreground}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Heading}" Style="{StaticResource JournalHeading}" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chevron" Property="Text" Value="▾" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HeaderBorder" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </ToggleButton.Template>
+            </ToggleButton>
+            <Button x:Name="RefreshHistory" Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}"
+                    Style="{StaticResource JournalButton}" Margin="12,0,0,0" VerticalAlignment="Top"
+                    AutomationProperties.Name="Refresh Review History" />
+        </Grid>
+        <Expander x:Name="HistoryExpander" Header="{Binding Heading}" IsExpanded="True"
+                  AutomationProperties.Name="Review History for the selected Account scope">
+            <Expander.Template>
+                <ControlTemplate TargetType="Expander">
                     <ContentPresenter x:Name="HistoryContent" ContentSource="Content" Visibility="Collapsed" />
-                </StackPanel>
-                <ControlTemplate.Triggers>
-                    <Trigger Property="IsExpanded" Value="True"><Setter TargetName="HistoryContent" Property="Visibility" Value="Visible" /></Trigger>
-                </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Expander.Template>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True"><Setter TargetName="HistoryContent" Property="Visibility" Value="Visible" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Expander.Template>
         <Border Style="{DynamicResource PtjCardStyle}" Margin="0,8,0,12">
             <StackPanel>
-                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
+                <TextBlock Text="{Binding StatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
                            AutomationProperties.LiveSetting="Polite" />
-                <WrapPanel Margin="0,8,0,8">
-                    <Button Content="Refresh history" Command="{Binding RefreshCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" />
-                    <Button Content="Previous reviews" Command="{Binding PreviousCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" />
-                    <Button Content="Next reviews" Command="{Binding NextCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" />
-                    <Button Content="Cancel history loading" Command="{Binding CancelCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}"
-                            Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
-                </WrapPanel>
-                <TextBlock Text="{Binding PageText}" Style="{DynamicResource PtjCaptionTextStyle}" />
+                <Button Content="Cancel history loading" Command="{Binding CancelCommand}" Margin="0,6,0,6"
+                        HorizontalAlignment="Left" Style="{StaticResource JournalButton}"
+                        Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
+                <Grid x:Name="HistoryColumns" Margin="10,12,10,4">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Style.Triggers><DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=journals:JournalHistoryView}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger></Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="154" /><ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="100" /><ColumnDefinition Width="88" /><ColumnDefinition Width="132" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Date (New York)" Style="{StaticResource JournalCaption}" />
+                    <TextBlock Grid.Column="1" Text="Account" Style="{StaticResource JournalCaption}" />
+                    <TextBlock Grid.Column="2" Text="Status" Style="{StaticResource JournalCaption}" />
+                    <TextBlock Grid.Column="3" Text="Revision" Style="{StaticResource JournalCaption}" />
+                    <TextBlock Grid.Column="4" Text="Action" Style="{StaticResource JournalCaption}" Margin="8,0,0,0" />
+                </Grid>
                     <ItemsControl x:Name="HistoryEntries" ItemsSource="{Binding Entries}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,8,0,0">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" VerticalAlignment="Center"
-                                               Style="{DynamicResource PtjSecondaryTextStyle}" Margin="0,0,8,0" />
-                                    <Button Grid.Column="1" Content="Open review" Style="{DynamicResource PtjSecondaryButtonStyle}"
-                                            Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding OpenAccessibleName}" />
-                                </Grid>
+                                <Border x:Name="HistoryRow" Padding="10,10" BorderThickness="0,0,0,1"
+                                        BorderBrush="{DynamicResource PtjBorderBrush}" AutomationProperties.Name="{Binding Description}">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="Transparent" />
+                                            <Style.Triggers><Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                                            </Trigger></Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid x:Name="EntryColumns">
+                                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition x:Name="DateColumn" Width="154" /><ColumnDefinition x:Name="AccountColumn" Width="*" />
+                                            <ColumnDefinition x:Name="StateColumn" Width="100" /><ColumnDefinition x:Name="RevisionColumn" Width="88" />
+                                            <ColumnDefinition x:Name="ActionColumn" Width="132" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="EntryDate" Text="{Binding DisplayDate}" Style="{StaticResource JournalLabel}" VerticalAlignment="Center"
+                                                   AutomationProperties.Name="{Binding DateText, StringFormat='New York review date: {0}'}" />
+                                        <TextBlock x:Name="EntryAccount" Grid.Column="1" Text="{Binding ScopeText}" ToolTip="{Binding ScopeText}"
+                                                   Style="{StaticResource JournalBody}" Margin="0,0,12,0" VerticalAlignment="Center" />
+                                        <WrapPanel x:Name="EntryMeta" Grid.Column="2" Grid.ColumnSpan="2" VerticalAlignment="Center">
+                                            <TextBlock x:Name="EntryStatus" Width="100" Text="{Binding StateText}" Style="{StaticResource JournalBody}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="EntryRevision" Width="88" Text="{Binding Item.Revision}" Style="{StaticResource JournalBody}" VerticalAlignment="Center" />
+                                        </WrapPanel>
+                                        <Button x:Name="OpenReview" Grid.Column="4" Content="Open review" Style="{StaticResource JournalButton}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" AutomationProperties.Name="{Binding OpenAccessibleName}" />
+                                    </Grid>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=journals:JournalHistoryView}}" Value="True">
+                                        <Setter TargetName="DateColumn" Property="Width" Value="*" />
+                                        <Setter TargetName="AccountColumn" Property="Width" Value="0" />
+                                        <Setter TargetName="StateColumn" Property="Width" Value="0" />
+                                        <Setter TargetName="RevisionColumn" Property="Width" Value="0" />
+                                        <Setter TargetName="ActionColumn" Property="Width" Value="132" />
+                                        <Setter TargetName="EntryMeta" Property="Grid.Column" Value="0" />
+                                        <Setter TargetName="EntryMeta" Property="Grid.ColumnSpan" Value="1" />
+                                        <Setter TargetName="EntryMeta" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="EntryMeta" Property="Margin" Value="0,4,0,0" />
+                                        <Setter TargetName="EntryStatus" Property="Width" Value="Auto" />
+                                        <Setter TargetName="EntryStatus" Property="Margin" Value="0,0,12,0" />
+                                        <Setter TargetName="EntryRevision" Property="Width" Value="Auto" />
+                                        <Setter TargetName="EntryRevision" Property="Text" Value="{Binding RevisionText}" />
+                                        <Setter TargetName="EntryRevision" Property="Margin" Value="0,0,12,0" />
+                                        <Setter TargetName="EntryAccount" Property="Grid.Column" Value="0" />
+                                        <Setter TargetName="EntryAccount" Property="Grid.Row" Value="2" />
+                                        <Setter TargetName="OpenReview" Property="Grid.RowSpan" Value="3" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                <WrapPanel x:Name="HistoryPaging" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <TextBlock x:Name="HistoryPageNumber" Text="{Binding PageText}" Style="{StaticResource JournalCaption}" VerticalAlignment="Center" Margin="0,0,12,8" />
+                    <Button x:Name="PreviousReviews" Content="Previous" Command="{Binding PreviousCommand}" Style="{StaticResource JournalButton}" Margin="0,0,8,8"
+                            AutomationProperties.Name="Previous reviews page" />
+                    <Button x:Name="NextReviews" Content="Next" Command="{Binding NextCommand}" Style="{StaticResource JournalButton}" Margin="0,0,0,8"
+                            AutomationProperties.Name="Next reviews page" />
+                </WrapPanel>
                 <StackPanel x:Name="OpenedReview" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
                 <Grid Margin="0,12,0,8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding SelectedEntry.Description}" TextWrapping="Wrap" VerticalAlignment="Center"
-                               Style="{DynamicResource PtjFormLabelTextStyle}" />
+                               Style="{DynamicResource JournalLabel}" />
                     <Button x:Name="CloseOpenedReview" Grid.Column="1" Content="Close _review" Command="{Binding CloseReviewCommand}"
-                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource PtjSecondaryButtonStyle}"
+                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource JournalButton}"
                             AutomationProperties.Name="Close opened review and its revisions"
                             ToolTip="Collapse revisions and return to this history page without changing your date, Account or editor." />
                 </Grid>
-                <TextBlock Text="{Binding RevisionStatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
+                <TextBlock Text="{Binding RevisionStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
                            AutomationProperties.LiveSetting="Polite" />
                 <WrapPanel Margin="0,8,0,0">
                     <Button Content="Previous revisions" Command="{Binding PreviousRevisionsCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" />
+                            Style="{DynamicResource JournalButton}" />
                     <Button Content="Next revisions" Command="{Binding NextRevisionsCommand}" Margin="0,0,8,8"
-                            Style="{DynamicResource PtjSecondaryButtonStyle}" />
-                    <TextBlock Text="{Binding RevisionPageText}" Style="{DynamicResource PtjCaptionTextStyle}" VerticalAlignment="Center" />
+                            Style="{DynamicResource JournalButton}" />
+                    <TextBlock Text="{Binding RevisionPageText}" Style="{DynamicResource JournalCaption}" VerticalAlignment="Center" />
                 </WrapPanel>
                     <ItemsControl x:Name="HistoryRevisions" ItemsSource="{Binding Revisions}">
                         <ItemsControl.ItemTemplate>
@@ -100,10 +168,10 @@
                                 <Grid Margin="0,6,0,0">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <StackPanel Margin="0,0,8,0" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding StateText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" />
-                                        <TextBlock Text="{Binding SavedAtText}" TextWrapping="Wrap" Style="{DynamicResource PtjCaptionTextStyle}" />
+                                        <TextBlock Text="{Binding StateText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}" />
+                                        <TextBlock Text="{Binding SavedAtText}" TextWrapping="Wrap" Style="{DynamicResource JournalCaption}" />
                                     </StackPanel>
-                                    <Button Grid.Column="1" Content="View revision" Style="{DynamicResource PtjSecondaryButtonStyle}"
+                                    <Button Grid.Column="1" Content="View revision" Style="{DynamicResource JournalButton}"
                                             Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding}" AutomationProperties.Name="{Binding ViewAccessibleName}" />
                                 </Grid>
@@ -112,24 +180,24 @@
                     </ItemsControl>
                 <StackPanel Visibility="{Binding HasRevisionView, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
                     <Button x:Name="CloseRevisionView" Content="_Close view" Command="{Binding CloseViewCommand}"
-                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource PtjPrimaryButtonStyle}"
+                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource JournalPrimaryButton}"
                             AutomationProperties.Name="Close read-only revision view"
                             ToolTip="Return to the selected review. Viewing and closing never saves or restores a revision." />
-                    <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
+                    <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
                                AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>
-                <StackPanel Visibility="{Binding HasSnapshot, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
-                    <TextBlock Text="{Binding SnapshotDescription}" TextWrapping="Wrap" Style="{DynamicResource PtjFormLabelTextStyle}" />
-                    <TextBlock Text="Journal text (read-only)" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                <StackPanel Visibility="{Binding HasSnapshot, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0" MaxWidth="760">
+                    <TextBlock Text="{Binding SnapshotDescription}" TextWrapping="Wrap" Style="{DynamicResource JournalLabel}" />
+                    <TextBlock Text="Journal text (read-only)" Style="{DynamicResource JournalBody}" />
                     <TextBox x:Name="RevisionText" Text="{Binding Snapshot.Text, Mode=OneWay}" Style="{StaticResource SnapshotText}"
                              AutomationProperties.Name="Revision journal text, read-only" />
-                    <TextBlock Text="What went well?" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                    <TextBlock Text="What went well?" Style="{DynamicResource JournalBody}" />
                     <TextBox x:Name="RevisionWentWell" Text="{Binding Snapshot.Review.WentWell, Mode=OneWay}" Style="{StaticResource SnapshotText}"
                              AutomationProperties.Name="Revision what went well, read-only" />
-                    <TextBlock Text="What needs improvement?" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                    <TextBlock Text="What needs improvement?" Style="{DynamicResource JournalBody}" />
                     <TextBox x:Name="RevisionNeedsImprovement" Text="{Binding Snapshot.Review.NeedsImprovement, Mode=OneWay}" Style="{StaticResource SnapshotText}"
                              AutomationProperties.Name="Revision what needs improvement, read-only" />
-                    <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                    <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalBody}" />
                     <TextBox x:Name="RevisionNextTradingDay" Text="{Binding Snapshot.Review.NextTradingDay, Mode=OneWay}" Style="{StaticResource SnapshotText}"
                              AutomationProperties.Name="Revision next trading day, read-only" />
                 </StackPanel>
@@ -137,4 +205,5 @@
             </StackPanel>
         </Border>
     </Expander>
+    </StackPanel>
 </UserControl>

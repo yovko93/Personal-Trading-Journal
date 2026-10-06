@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Accounts;
@@ -151,6 +152,8 @@ public sealed class JournalViewModel : ObservableObject
     public bool ShowContinueReview => IsExisting && IsDraft;
     public bool HasHistory => History is not null;
     public string EntryHeading => SelectedTradingDate?.ToString("yyyy-MM-dd") + " · " + SelectedAccount.Name;
+    public string SelectedDateHeading => SelectedTradingDate?.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) ?? "Choose a date";
+    public string EntryStateLabel => !IsExisting ? "No entry" : IsDraft ? "Draft" : "Completed";
     public string SavedText => _entry?.Text ?? "";
     public DailyReviewAnswers SavedReview => _entry?.Review ?? DailyReviewAnswers.Empty;
     public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
@@ -560,6 +563,8 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowEmptyReview));
         OnPropertyChanged(nameof(ShowContinueReview));
         OnPropertyChanged(nameof(EntryHeading));
+        OnPropertyChanged(nameof(SelectedDateHeading));
+        OnPropertyChanged(nameof(EntryStateLabel));
         OnPropertyChanged(nameof(IsExisting));
         OnPropertyChanged(nameof(IsDraft));
         OnPropertyChanged(nameof(IsCompleted));
