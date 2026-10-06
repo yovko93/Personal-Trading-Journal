@@ -24,7 +24,7 @@ public sealed record JournalHistoryRow(JournalHistoryItem Item)
 public sealed record JournalRevisionRow(JournalRevisionItem Item)
 {
     public string StateText => $"Revision {Item.Revision} · {(Item.IsDraft ? "Draft" : "Completed")}";
-    public string SavedAtText => TradingTimestampFormatter.Format(Item.SavedAtUtc, "yyyy-MM-dd HH:mm:ss.FFFFFFF", CultureInfo.CurrentCulture);
+    public string SavedAtText => TradingTimestampFormatter.FormatNewYork(Item.SavedAtUtc, "G", CultureInfo.CurrentCulture) + " · New York";
     public string Description => StateText + " · " + SavedAtText;
     public string ViewAccessibleName => "View read-only revision: " + Description;
 }
@@ -63,6 +63,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
             row => _active && row is not null, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
         CloseViewCommand = new RelayCommand(() => { ClearSnapshot(); Notify(); }, () => _active && HasRevisionView);
+        CloseReviewCommand = new RelayCommand(() => { ClearSelection(); Notify(); }, () => _active && HasSelectedEntry);
     }
 
     public const int PageSize = 10;
@@ -98,6 +99,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public IAsyncRelayCommand<JournalRevisionRow> ViewRevisionCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand CloseViewCommand { get; }
+    public IRelayCommand CloseReviewCommand { get; }
 
     public Task ActivateAsync(Guid? accountId)
     {
@@ -281,5 +283,6 @@ public sealed class JournalHistoryViewModel : ObservableObject
         OpenCommand.NotifyCanExecuteChanged(); PreviousRevisionsCommand.NotifyCanExecuteChanged(); NextRevisionsCommand.NotifyCanExecuteChanged();
         ViewRevisionCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
         CloseViewCommand.NotifyCanExecuteChanged();
+        CloseReviewCommand.NotifyCanExecuteChanged();
     }
 }

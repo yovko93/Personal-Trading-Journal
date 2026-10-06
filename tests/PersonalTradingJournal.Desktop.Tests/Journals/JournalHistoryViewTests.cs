@@ -114,6 +114,31 @@ public sealed class JournalHistoryViewTests
         Assert.True(editor.TranslatePoint(new Point(0, editor.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         Assert.True(answers.TranslatePoint(new Point(0, answers.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         var close = (Button)historyView.FindName("CloseRevisionView");
+        var closeReview = (Button)historyView.FindName("CloseOpenedReview");
+        var openedReview = (StackPanel)historyView.FindName("OpenedReview");
+        // This render tree has no native PresentationSource, so IsVisible is false
+        // even for its root. Check bound visibility, arranged size and reachability.
+        Assert.Equal(Visibility.Visible, openedReview.Visibility);
+        Assert.Equal(Visibility.Visible, closeReview.Visibility);
+        Assert.InRange(closeReview.ActualHeight, 20, 80);
+        Assert.InRange(closeReview.ActualWidth, 80, width);
+        Assert.True(closeReview.IsEnabled);
+        Assert.True(closeReview.Focusable);
+        Assert.True(KeyboardNavigation.GetIsTabStop(closeReview));
+        Assert.Same(vm.History!.CloseReviewCommand, closeReview.Command);
+        Assert.NotSame(close.Command, closeReview.Command);
+        Assert.Contains("Close opened review", AutomationProperties.GetName(closeReview));
+        Assert.InRange(closeReview.TranslatePoint(new Point(), root).X, 0, width);
+        Assert.InRange(closeReview.TranslatePoint(new Point(closeReview.ActualWidth, 0), root).X, 0, width);
+        closeReview.BringIntoView(); Flush(); root.UpdateLayout();
+        Assert.InRange(closeReview.TranslatePoint(new Point(), scroller).Y, -0.1, scroller.ViewportHeight + 0.1);
+        Assert.InRange(closeReview.TranslatePoint(new Point(0, closeReview.ActualHeight), scroller).Y, -0.1, scroller.ViewportHeight + 0.1);
+        Capture(root, theme, width, dpi, "opened-review-actions");
+        Assert.All(Descendants(historyView).OfType<TextBlock>().Where(t => t.Text.Contains("UTC", StringComparison.Ordinal)), t =>
+        {
+            Assert.DoesNotContain("UTC+0", t.Text);
+            Assert.Contains("New York", t.Text);
+        });
         Assert.True(close.IsEnabled);
         Assert.True(close.Focusable);
         Assert.Same(vm.History!.CloseViewCommand, close.Command);
@@ -174,8 +199,24 @@ public sealed class JournalHistoryViewTests
         Assert.Null(vm.History.Snapshot);
         Assert.Same(selected, vm.History.SelectedEntry);
         Assert.False(close.IsVisible);
+        Assert.Equal(Visibility.Visible, openedReview.Visibility); // Close view leaves the review browser open.
+        Assert.True(closeReview.IsEnabled);
         Assert.True(vm.IsEditorOpen);
         Assert.Equal("unsaved local draft", vm.Text);
+        var date = vm.SelectedDate;
+        var account = vm.SelectedAccount;
+        string pageText = vm.History.PageText;
+        vm.History.CloseReviewCommand.Execute(null);
+        Flush(); root.UpdateLayout();
+        Assert.Equal(Visibility.Collapsed, openedReview.Visibility);
+        Assert.Equal(0, openedReview.ActualHeight);
+        Assert.False(closeReview.IsEnabled);
+        Assert.Empty(((ItemsControl)historyView.FindName("HistoryRevisions")).Items);
+        Assert.Equal(pageText, vm.History.PageText);
+        Assert.Equal(date, vm.SelectedDate);
+        Assert.Same(account, vm.SelectedAccount);
+        Assert.Equal("unsaved local draft", vm.Text);
+        Assert.True(vm.IsEditorOpen);
         root.Child = null;
     }
 

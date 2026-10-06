@@ -75,9 +75,16 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                <StackPanel Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
-                <TextBlock Text="{Binding SelectedEntry.Description}" Margin="0,12,0,0" TextWrapping="Wrap"
-                           Style="{DynamicResource PtjFormLabelTextStyle}" />
+                <StackPanel x:Name="OpenedReview" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
+                <Grid Margin="0,12,0,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding SelectedEntry.Description}" TextWrapping="Wrap" VerticalAlignment="Center"
+                               Style="{DynamicResource PtjFormLabelTextStyle}" />
+                    <Button x:Name="CloseOpenedReview" Grid.Column="1" Content="Close _review" Command="{Binding CloseReviewCommand}"
+                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource PtjSecondaryButtonStyle}"
+                            AutomationProperties.Name="Close opened review and its revisions"
+                            ToolTip="Collapse revisions and return to this history page without changing your date, Account or editor." />
+                </Grid>
                 <TextBlock Text="{Binding RevisionStatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
                            AutomationProperties.LiveSetting="Polite" />
                 <WrapPanel Margin="0,8,0,0">

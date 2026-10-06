@@ -1,3 +1,4 @@
+using System.Globalization;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Journals;
@@ -41,7 +42,8 @@ public sealed class JournalHistoryViewModelTests
         Assert.Equal(0, reader.SnapshotReads);
         await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[^1]);
         Assert.Equal("  text 1\r\n", vm.Snapshot!.Text);
-        Assert.Contains("UTC+0", vm.SnapshotDescription);
+        Assert.Contains("UTC-4", vm.SnapshotDescription);
+        Assert.Contains("New York", vm.SnapshotDescription);
         Assert.Contains("Read-only", vm.SnapshotDescription);
         Assert.Equal(new DailyReviewAnswers("well", "improve", "next"), vm.Snapshot.Review);
         await vm.SetScopeAsync(null);
@@ -310,6 +312,123 @@ public sealed class JournalHistoryViewModelTests
         Assert.False(vm.HasRevisionView);
         Assert.Same(selected, vm.SelectedEntry);
         Assert.Equal(2, reader.SnapshotReads); // Close adds no reads or writes.
+        vm.Deactivate();
+    }
+
+    [Theory]
+    [InlineData("2026-03-08T06:59:59Z", "2026-03-08T01:59:59", "UTC-5", "en-US")]
+    [InlineData("2026-03-08T07:00:00Z", "2026-03-08T03:00:00", "UTC-4", "en-US")]
+    [InlineData("2026-11-01T05:30:00Z", "2026-11-01T01:30:00", "UTC-4", "en-US")]
+    [InlineData("2026-11-01T06:30:00Z", "2026-11-01T01:30:00", "UTC-5", "en-US")]
+    [InlineData("2026-03-08T06:59:59Z", "2026-03-08T01:59:59", "UTC-5", "bg-BG")]
+    [InlineData("2026-03-08T07:00:00Z", "2026-03-08T03:00:00", "UTC-4", "bg-BG")]
+    [InlineData("2026-11-01T05:30:00Z", "2026-11-01T01:30:00", "UTC-4", "bg-BG")]
+    [InlineData("2026-11-01T06:30:00Z", "2026-11-01T01:30:00", "UTC-5", "bg-BG")]
+    public void RevisionTimesUseConciseCultureAwareNewYorkClockAndActualDstOffset(
+        string utc, string clock, string offset, string cultureName)
+    {
+        var previous = CultureInfo.CurrentCulture;
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(cultureName);
+            CultureInfo.CurrentCulture = culture;
+            var instant = DateTimeOffset.Parse(utc, CultureInfo.InvariantCulture).AddTicks(1234567);
+            var item = new JournalRevisionItem(Guid.NewGuid(), 2, false, instant);
+            var row = new JournalRevisionRow(item);
+            var expectedClock = DateTime.ParseExact(clock, "yyyy-MM-dd'T'HH:mm:ss", CultureInfo.InvariantCulture);
+            Assert.Equal(expectedClock.ToString("G", culture) + " " + offset + " · New York", row.SavedAtText);
+            Assert.Contains(row.SavedAtText, row.Description);
+            Assert.Contains(row.SavedAtText, row.ViewAccessibleName);
+            Assert.DoesNotContain("UTC+0", row.SavedAtText);
+            Assert.DoesNotContain("1234567", row.SavedAtText);
+            Assert.Equal(instant, row.Item.SavedAtUtc); // Presentation never mutates the audit instant.
+        }
+        finally { CultureInfo.CurrentCulture = previous; }
+    }
+
+    [Fact]
+    public async Task CloseReviewDiffersFromCloseViewAndPreservesDirtyEditorDateScopeAndPage()
+    {
+        var reader = new JournalHistoryTestReader();
+        for (int i = 0; i < 11; i++) reader.Add(Day.AddDays(-i), revision: 23);
+        var repository = new Repository();
+        var vm = new JournalViewModel(repository, new FakeTradingAccountReader(), new FakeDialogService(),
+            new(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new Clock(), reader);
+        await vm.ActivateAsync();
+        var history = vm.History!;
+        await history.NextCommand.ExecuteAsync(null);
+        var row = Assert.Single(history.Entries);
+        await history.OpenCommand.ExecuteAsync(row);
+        await vm.LoadTask;
+        vm.OpenEditorCommand.Execute(null);
+        vm.Text = "local journal";
+        vm.WentWell = "local well";
+        vm.NeedsImprovement = "local improve";
+        vm.NextTradingDay = "local next";
+        await history.NextRevisionsCommand.ExecuteAsync(null);
+        await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);
+        history.CloseViewCommand.Execute(null);
+        Assert.Same(row, history.SelectedEntry);
+        Assert.Equal(3, history.Revisions.Count);
+        await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);
+        history.CloseReviewCommand.Execute(null);
+        Assert.False(history.HasSelectedEntry);
+        Assert.Null(history.Snapshot);
+        Assert.Empty(history.Revisions);
+        Assert.False(history.HasRevisionView);
+        Assert.False(history.CloseReviewCommand.CanExecute(null));
+        Assert.Equal("Page 2 · 11 reviews", history.PageText);
+        Assert.Same(row, Assert.Single(history.Entries));
+        Assert.Equal(row.Item.TradingDate, DateOnly.FromDateTime(vm.SelectedDate!.Value));
+        Assert.Null(vm.SelectedAccount.Id);
+        Assert.Equal(new[] { "local journal", "local well", "local improve", "local next" },
+            new[] { vm.Text, vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay });
+        Assert.True(vm.IsDirty);
+        Assert.True(vm.IsEditorOpen);
+        Assert.Equal(0, repository.Writes);
+        vm.Deactivate();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CloseReviewCancelsPendingRevisionOrSnapshotWithoutChangingAccountPage(bool snapshot)
+    {
+        var reader = new JournalHistoryTestReader();
+        Guid account = Guid.NewGuid();
+        for (int i = 0; i < 11; i++) reader.Add(Day.AddDays(-i), account);
+        var vm = new JournalHistoryViewModel(reader, _ => true);
+        await vm.ActivateAsync(account);
+        await vm.NextCommand.ExecuteAsync(null);
+        var row = Assert.Single(vm.Entries);
+        var started = Signal();
+        var revisionResult = new TaskCompletionSource<JournalHistoryPage<JournalRevisionItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var snapshotResult = new TaskCompletionSource<DailyJournalRevision?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        Task pending;
+        if (snapshot)
+        {
+            await vm.OpenCommand.ExecuteAsync(row);
+            reader.Snapshot = (_, _, ct) => { token = ct; started.TrySetResult(); return snapshotResult.Task; };
+            pending = vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        }
+        else
+        {
+            reader.Revisions = (_, _, ct) => { token = ct; started.TrySetResult(); return revisionResult.Task; };
+            pending = vm.OpenCommand.ExecuteAsync(row);
+        }
+        await Wait(started.Task);
+        vm.CloseReviewCommand.Execute(null);
+        Assert.True(token.IsCancellationRequested);
+        if (snapshot) snapshotResult.SetResult(reader.Snapshots.First(r => r.JournalId == row.Item.Id));
+        else revisionResult.SetResult(new([new(row.Item.Id, 1, true, JournalHistoryTestReader.Now)], 1, 1, 20));
+        await Wait(pending);
+        Assert.Null(vm.SelectedEntry);
+        Assert.Empty(vm.Revisions);
+        Assert.Null(vm.Snapshot);
+        Assert.False(vm.IsBusy);
+        Assert.Equal("Page 2 · 11 reviews", vm.PageText);
+        Assert.Equal(account, Assert.Single(vm.Entries).Item.AccountId);
         vm.Deactivate();
     }
 
