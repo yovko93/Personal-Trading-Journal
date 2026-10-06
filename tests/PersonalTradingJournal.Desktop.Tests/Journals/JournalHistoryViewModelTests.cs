@@ -18,15 +18,17 @@ public sealed class JournalHistoryViewModelTests
         var scoped = reader.Add(Day, account, 23);
         var vm = new JournalHistoryViewModel(reader, _ => true);
         await vm.ActivateAsync(null);
-        Assert.Equal(20, vm.Entries.Count);
+        Assert.Equal(10, vm.Entries.Count);
         Assert.Equal("2026-10-05", vm.Entries[0].DateText);
         await vm.NextCommand.ExecuteAsync(null);
-        Assert.Equal("2026-09-15", vm.Entries[0].DateText);
+        Assert.Equal("2026-09-25", vm.Entries[0].DateText);
+        await vm.NextCommand.ExecuteAsync(null);
+        await vm.NextCommand.ExecuteAsync(null);
         await vm.NextCommand.ExecuteAsync(null);
         Assert.Equal(3, vm.Entries.Count);
         Assert.False(vm.NextCommand.CanExecute(null));
         await vm.PreviousCommand.ExecuteAsync(null);
-        Assert.Contains("Page 2", vm.PageText);
+        Assert.Contains("Page 4", vm.PageText);
         await vm.SetScopeAsync(account);
         Assert.Equal(scoped.Id, Assert.Single(vm.Entries).Item.Id);
         Assert.Contains("inactive", vm.Entries[0].ScopeText);
@@ -233,6 +235,7 @@ public sealed class JournalHistoryViewModelTests
         await vm.ViewRevisionCommand.ExecuteAsync(revision);
         Assert.True(vm.HasSnapshot);
         await vm.NextCommand.ExecuteAsync(null);
+        await vm.NextCommand.ExecuteAsync(null);
         Assert.Single(vm.Entries);
         Assert.Empty(vm.Revisions);
         Assert.Null(vm.SelectedEntry);
@@ -241,6 +244,75 @@ public sealed class JournalHistoryViewModelTests
         Assert.False(vm.HasSnapshot);
         vm.Deactivate();
     }
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(20)]
+    public async Task ReviewPagesContainTenEntriesWithStableOrderAndExactNavigation(int count)
+    {
+        var reader = new JournalHistoryTestReader();
+        for (int i = 0; i < count; i++) reader.Add(Day.AddDays(-i));
+        var vm = new JournalHistoryViewModel(reader, _ => true);
+        await vm.ActivateAsync(null);
+        var firstIds = vm.Entries.Select(r => r.Item.Id).ToArray();
+        Assert.Equal(Math.Min(10, count), firstIds.Length);
+        Assert.False(vm.PreviousCommand.CanExecute(null));
+        Assert.Equal(count > 10, vm.NextCommand.CanExecute(null));
+        Assert.Equal(reader.Items.Take(10).Select(r => r.Id), firstIds);
+        if (count > 10)
+        {
+            await vm.NextCommand.ExecuteAsync(null);
+            Assert.Equal(count - 10, vm.Entries.Count);
+            Assert.Equal(Day.AddDays(-10), vm.Entries[0].Item.TradingDate);
+            Assert.True(vm.PreviousCommand.CanExecute(null));
+            Assert.False(vm.NextCommand.CanExecute(null));
+            await vm.PreviousCommand.ExecuteAsync(null);
+            Assert.Equal(firstIds, vm.Entries.Select(r => r.Item.Id));
+        }
+        await vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(firstIds, vm.Entries.Select(r => r.Item.Id));
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task CloseViewRetainsReviewPageScopeAndRevisionPageAndRejectsPendingSnapshot()
+    {
+        var reader = new JournalHistoryTestReader();
+        Guid account = Guid.NewGuid();
+        for (int i = 0; i < 11; i++) reader.Add(Day.AddDays(-i), account, 23);
+        var vm = new JournalHistoryViewModel(reader, _ => true);
+        await vm.ActivateAsync(account);
+        await vm.NextCommand.ExecuteAsync(null);
+        var selected = Assert.Single(vm.Entries);
+        await vm.OpenCommand.ExecuteAsync(selected);
+        await vm.NextRevisionsCommand.ExecuteAsync(null);
+        await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        Assert.True(vm.CloseViewCommand.CanExecute(null));
+        vm.CloseViewCommand.Execute(null);
+        Assert.False(vm.HasRevisionView);
+        Assert.Null(vm.Snapshot);
+        Assert.Same(selected, vm.SelectedEntry);
+        Assert.Equal(account, vm.SelectedEntry!.Item.AccountId);
+        Assert.Equal("Page 2 · 11 reviews", vm.PageText);
+        Assert.Equal("Page 2 · 23 revisions", vm.RevisionPageText);
+        Assert.Equal(3, vm.Revisions.Count);
+        var started = Signal();
+        var pending = new TaskCompletionSource<DailyJournalRevision?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        reader.Snapshot = (_, _, ct) => { token = ct; started.TrySetResult(); return pending.Task; };
+        Task load = vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        await Wait(started.Task);
+        vm.CloseViewCommand.Execute(null);
+        Assert.True(token.IsCancellationRequested);
+        pending.SetResult(reader.Snapshots.First(r => r.JournalId == selected.Item.Id));
+        await Wait(load);
+        Assert.False(vm.HasRevisionView);
+        Assert.Same(selected, vm.SelectedEntry);
+        Assert.Equal(2, reader.SnapshotReads); // Close adds no reads or writes.
+        vm.Deactivate();
+    }
+
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static Task Wait(Task task) => task.WaitAsync(TimeSpan.FromSeconds(10));
     private sealed class Repository : IDailyJournalRepository

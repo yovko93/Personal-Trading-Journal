@@ -523,6 +523,31 @@ The direct-host variable runs the actual native cases instead of the parent gate
 
 ## Artifacts and verification gate
 
+### Calendar grid deadline follow-up, 2026-10-06
+
+The Journal correction started on clean `develop` at `f73b8fb9cd53821c3cf50420f04b8cfe880039ba`. The prior Journal refinement run had 36 propagated grid failures from one `calendar-grid` child reaching its unchanged 120-second aggregate bound. Its last completed action ended at `12:52:04.710Z`; the next `HitTestingScopesDateHoverToMarkerNotDailyWeeklyOrEmptyCellAreas` action entered at `12:52:05.212Z`, approximately 1.3 seconds before the deadline. This does not show that that action stalled. The last completed boundary reported 91.484 process CPU seconds, about 166.6 MiB working set and zero pending ThreadPool work. Process cleanup was confirmed. Native passed separately in 118.812 seconds; none of these failures were Journal assertions.
+
+The unchanged Calendar cases were measured separately before the current Journal build, then in the final full parallel run. No scheduling, resources, dispatcher lifetime, assertions or budgets were changed. Existing opt-in timing was enabled; historical raw logs were retained.
+
+| Measurement | Previous failed full run | Isolated unchanged grid | Current parallel Release |
+| --- | ---: | ---: | ---: |
+| Completed grid actions/cases | 31 before termination | 36/36 | 36/36 |
+| Grid supervisor wall seconds | 120-second deadline | 21.792 | 35.454 |
+| Grid headroom seconds | none | 98.208 | 84.546 |
+| Compiled-grid four-case action elapsed sum | 16.080 | 3.150 | — |
+| Those cases: Measure seconds | 3.470 | 1.050 | — |
+| Those cases: UpdateLayout seconds | 7.830 | 0.970 | — |
+| Those cases: RenderTargetBitmap.Render seconds | 0.810 | 0.160 | — |
+| Day-selection four-case action elapsed sum | 23.520 | 4.840 | — |
+| Monthly-header eight-case action elapsed sum | 17.090 | 2.740 | — |
+| Native full-run cases / wall seconds | 86/86 / 118.812 | not run here | 86/86 / 77.743 |
+
+Rounded phase sums are inclusive observations, not additive estimates of scheduling delay. The slowdown spans several groups and layout phases; no single blocked application operation or accumulating grid-memory defect was demonstrated. Full-load scheduling sensitivity remains plausible, not a newly proven exact cause. The current grid's final boundary reported 38.047 process CPU seconds and about 175.9 MiB working set; multi-threaded CPU is not wall time or time waiting for work. The earlier failing schedule was not reproduced, so no speculative Calendar/harness fix was made.
+
+Raw old phases/supervision: ignored `artifacts/journal-ui-refinement/full-release-final/calendar-grid-20261006-125005-9134f102124f45bc8d31821408e5cc8b`. Isolated: `artifacts/journal-layout-fix/grid-isolated-before/calendar-grid-20261006-143327-4e81e9b4fd35439a937e06ecdd276d3c`. Current full grid: `artifacts/journal-layout-fix/full-release/calendar-grid-20261006-144106-35ae349590554f3ba845fae33a3f5420`; native: `calendar-native-20261006-144143-270060e416a84729830510ed824840d6` in that full-run directory. Logs retain phase records, supervision and child TRX where completed.
+
+Current complete parallel Release passed **2,852/2,852**, zero failures/skips (444 Domain, 529 Application, 783 Infrastructure, 1,096 Desktop). Build had zero warnings/errors; EF/diff checks passed. This is a green local run, not permanent resolution of earlier deadline variance or green GitHub Actions. A matching new PR workflow after the user's Git writes remains required. Live UI acceptance is separate and was not performed.
+
 The workflow sets `PTJ_TEST_RESULTS_DIRECTORY`, enables TRX and VSTest diagnostic logging, and uploads `windows-test-results` even after a test failure. Unique `calendar-grid-*` and `calendar-native-*` folders contain the child TRX, `stdout.log`, `stderr.log`, `process-supervision.log`, `calendar-sta-phases.log`, any dump/sequence files, and `calendar-layout.txt` for native cases (actual screen/work area, window, DPI, viewport, extent and columns). Synthetic diagnostics do not log Account names, Trade IDs or customer rows. The complete child output remains in artifacts; parent exceptions contain only a bounded tail and its location.
 
 The outer Test step has a three-minute per-case VSTest hang collector and a ten-minute step bound so an unrelated stuck test can produce diagnostics and reach artifact upload without waiting indefinitely. These are fallback safety limits, not an increase of the original 30-/45-second Calendar deadlines and not retries. A collected mini dump may provide a stack where available; phase logs remain useful if dump collection fails or the host exits first.

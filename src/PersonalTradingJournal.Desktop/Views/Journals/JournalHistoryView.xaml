@@ -8,10 +8,9 @@
             <Setter Property="IsReadOnly" Value="True" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="AcceptsReturn" Value="True" />
-            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
             <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
             <Setter Property="MinHeight" Value="60" />
-            <Setter Property="MaxHeight" Value="150" />
             <Setter Property="Margin" Value="0,6,0,12" />
         </Style>
     </UserControl.Resources>
@@ -62,7 +61,6 @@
                             Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
                 </WrapPanel>
                 <TextBlock Text="{Binding PageText}" Style="{DynamicResource PtjCaptionTextStyle}" />
-                <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="HistoryEntries" ItemsSource="{Binding Entries}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -77,7 +75,6 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
                 <StackPanel Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
                 <TextBlock Text="{Binding SelectedEntry.Description}" Margin="0,12,0,0" TextWrapping="Wrap"
                            Style="{DynamicResource PtjFormLabelTextStyle}" />
@@ -90,7 +87,6 @@
                             Style="{DynamicResource PtjSecondaryButtonStyle}" />
                     <TextBlock Text="{Binding RevisionPageText}" Style="{DynamicResource PtjCaptionTextStyle}" VerticalAlignment="Center" />
                 </WrapPanel>
-                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <ItemsControl x:Name="HistoryRevisions" ItemsSource="{Binding Revisions}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
@@ -107,9 +103,14 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
-                <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
-                           AutomationProperties.LiveSetting="Polite" />
+                <StackPanel Visibility="{Binding HasRevisionView, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
+                    <Button x:Name="CloseRevisionView" Content="_Close view" Command="{Binding CloseViewCommand}"
+                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource PtjPrimaryButtonStyle}"
+                            AutomationProperties.Name="Close read-only revision view"
+                            ToolTip="Return to the selected review. Viewing and closing never saves or restores a revision." />
+                    <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
                 <StackPanel Visibility="{Binding HasSnapshot, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
                     <TextBlock Text="{Binding SnapshotDescription}" TextWrapping="Wrap" Style="{DynamicResource PtjFormLabelTextStyle}" />
                     <TextBlock Text="Journal text (read-only)" Style="{DynamicResource PtjSecondaryTextStyle}" />

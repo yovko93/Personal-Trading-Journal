@@ -51,6 +51,11 @@ public sealed class JournalHistorySqliteTests
             Assert.Equal("new unsaved text", vm.Text);
             Assert.Equal("new unsaved answer", vm.NextTradingDay);
             Assert.True(vm.IsDirty);
+            vm.History.CloseViewCommand.Execute(null);
+            Assert.Null(vm.History.Snapshot);
+            Assert.Equal(row.Item.Id, vm.History.SelectedEntry!.Item.Id);
+            Assert.Equal("new unsaved text", vm.Text);
+            Assert.Equal("new unsaved answer", vm.NextTradingDay);
             Assert.Equal(3, vm.Revision);
             Assert.Equal(3, (await db.Repository.GetHistoryAsync(row.Item.Id)).Count);
             await using var context = await db.ContextFactory.CreateDbContextAsync();

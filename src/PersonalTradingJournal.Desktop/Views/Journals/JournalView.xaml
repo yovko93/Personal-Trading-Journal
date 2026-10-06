@@ -46,13 +46,16 @@
     <UserControl.InputBindings>
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
     </UserControl.InputBindings>
-    <ScrollViewer x:Name="JournalScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer x:Name="JournalScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                  PreviewMouseWheel="OnPreviewMouseWheel" PanningMode="VerticalOnly"
+                  AutomationProperties.Name="Journal page scrolling">
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" /></ScrollViewer.Resources>
         <Grid Margin="0,0,12,12">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <WrapPanel x:Name="ScopeControls">
                 <StackPanel Width="220" Margin="0,0,16,12">
@@ -83,9 +86,6 @@
                            Style="{DynamicResource PtjFormLabelTextStyle}" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="{Binding ScopeMessage}" TextWrapping="Wrap" Margin="0,4,0,0"
                            Style="{DynamicResource PtjSecondaryTextStyle}" />
-                <Border x:Name="HistorySection" Visibility="{Binding HasHistory, Converter={StaticResource BoolVisibility}}">
-                    <journals:JournalHistoryView DataContext="{Binding History}" Margin="0,12,0,0" />
-                </Border>
                 <ProgressBar Height="3" Margin="0,8,0,0" IsIndeterminate="True"
                              Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
                              Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Journal operation in progress" />
@@ -191,7 +191,11 @@
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Cancel journal operation" />
             </WrapPanel>
-            <journals:JournalTradeContextView Grid.Row="6" Margin="0,16,0,0" DataContext="{Binding TradeContext}" />
+            <Border x:Name="HistorySection" Grid.Row="6" Margin="0,16,0,0"
+                    Visibility="{Binding HasHistory, Converter={StaticResource BoolVisibility}}">
+                <journals:JournalHistoryView x:Name="ReviewHistory" DataContext="{Binding History}" />
+            </Border>
+            <journals:JournalTradeContextView Grid.Row="7" Margin="0,16,0,0" DataContext="{Binding TradeContext}" />
         </Grid>
     </ScrollViewer>
 </UserControl>

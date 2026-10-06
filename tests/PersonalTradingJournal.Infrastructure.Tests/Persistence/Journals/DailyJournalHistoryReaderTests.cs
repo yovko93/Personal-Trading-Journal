@@ -9,6 +9,33 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Journals;
 
 public sealed partial class DailyJournalRepositoryTests
 {
+    [Theory]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(20)]
+    public async Task TenEntryPagesKeepNewestDateOrderingAndDoNotWrite(int count)
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var repository = GetRepository(db);
+        for (int i = 0; i < count; i++) await repository.CreateAsync(new(TradingDate.AddDays(-i), null, "history"));
+        var probe = new HistoryReadProbe();
+        var factory = await InterceptingFactory.CreateAsync(db, probe);
+        var reader = new DailyJournalHistoryReader(factory);
+        var first = await reader.BrowseAsync(null, 1, 10);
+        var second = await reader.BrowseAsync(null, 2, 10);
+        Assert.Equal(Math.Min(count, 10), first.Items.Count);
+        Assert.Equal(Math.Max(count - 10, 0), second.Items.Count);
+        Assert.Equal(count > 10, first.HasNext);
+        Assert.False(second.HasNext);
+        Assert.Equal(Enumerable.Range(0, count).Select(i => TradingDate.AddDays(-i)),
+            first.Items.Concat(second.Items).Select(i => i.TradingDate));
+        var repeated = await reader.BrowseAsync(null, 1, 10);
+        Assert.Equal(first.Items.Select(i => i.Id), repeated.Items.Select(i => i.Id));
+        Assert.Equal(6, probe.Sql.Count);
+        Assert.All(probe.Sql, sql => Assert.StartsWith("SELECT", sql));
+    }
+
     [Fact]
     public async Task HistoryPagesUseExactScopeNewestDateAndBoundedMetadataWithoutTradeRequirement()
     {

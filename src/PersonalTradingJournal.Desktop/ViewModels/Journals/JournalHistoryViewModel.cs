@@ -58,19 +58,22 @@ public sealed class JournalHistoryViewModel : ObservableObject
         PreviousRevisionsCommand = new AsyncRelayCommand(() => ChangeRevisionPageAsync(-1),
             () => _active && !IsRevisionLoading && _revisionPage > 1);
         NextRevisionsCommand = new AsyncRelayCommand(() => ChangeRevisionPageAsync(1),
-            () => _active && !IsRevisionLoading && (long)_revisionPage * PageSize < _revisionTotal);
+            () => _active && !IsRevisionLoading && (long)_revisionPage * RevisionPageSize < _revisionTotal);
         ViewRevisionCommand = new AsyncRelayCommand<JournalRevisionRow>(ViewRevisionAsync,
             row => _active && row is not null, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelCommand = new RelayCommand(Cancel, () => IsBusy);
+        CloseViewCommand = new RelayCommand(() => { ClearSnapshot(); Notify(); }, () => _active && HasRevisionView);
     }
 
-    public const int PageSize = 20;
+    public const int PageSize = 10;
+    public const int RevisionPageSize = 20;
     public IReadOnlyList<JournalHistoryRow> Entries => _entries;
     public IReadOnlyList<JournalRevisionRow> Revisions => _revisions;
     public JournalHistoryRow? SelectedEntry => _selectedEntry;
     public bool HasSelectedEntry => _selectedEntry is not null;
     public DailyJournalRevision? Snapshot => _snapshot;
     public bool HasSnapshot => _snapshot is not null;
+    public bool HasRevisionView => HasSnapshot || _snapshotLoading || _snapshotError is not null;
     public string SnapshotDescription => _snapshot is null ? "" : new JournalRevisionRow(new(
         _snapshot.JournalId, _snapshot.Revision, _snapshot.IsDraft, _snapshot.SavedAtUtc)).Description + " · Read-only";
     public bool IsLoading => _loading;
@@ -94,6 +97,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public IAsyncRelayCommand NextRevisionsCommand { get; }
     public IAsyncRelayCommand<JournalRevisionRow> ViewRevisionCommand { get; }
     public IRelayCommand CancelCommand { get; }
+    public IRelayCommand CloseViewCommand { get; }
 
     public Task ActivateAsync(Guid? accountId)
     {
@@ -202,7 +206,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
         Notify();
         try
         {
-            var result = await Task.Run(() => _reader.BrowseRevisionsAsync(journalId, page, PageSize, cancellation.Token), cancellation.Token);
+            var result = await Task.Run(() => _reader.BrowseRevisionsAsync(journalId, page, RevisionPageSize, cancellation.Token), cancellation.Token);
             if (!_active || generation != _revisionGeneration || cancellation.IsCancellationRequested) return;
             _revisions = result.Items.Select(i => new JournalRevisionRow(i)).ToArray();
             _revisionTotal = result.TotalCount;
@@ -276,5 +280,6 @@ public sealed class JournalHistoryViewModel : ObservableObject
         RefreshCommand.NotifyCanExecuteChanged(); PreviousCommand.NotifyCanExecuteChanged(); NextCommand.NotifyCanExecuteChanged();
         OpenCommand.NotifyCanExecuteChanged(); PreviousRevisionsCommand.NotifyCanExecuteChanged(); NextRevisionsCommand.NotifyCanExecuteChanged();
         ViewRevisionCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
+        CloseViewCommand.NotifyCanExecuteChanged();
     }
 }
