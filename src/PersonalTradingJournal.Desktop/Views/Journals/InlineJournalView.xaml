@@ -1,0 +1,88 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Journals.InlineJournalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontSize="16" PreviewMouseWheel="OnPreviewMouseWheel" AutomationProperties.Name="Day Performance inline Journal">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!-- Dynamic shared control styles resolve after this embedded view is attached. -->
+            <Style x:Key="JournalBody" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="16" /><Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="LineHeight" Value="24" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            </Style>
+            <Style x:Key="JournalHeading" TargetType="TextBlock" BasedOn="{StaticResource JournalBody}">
+                <Setter Property="FontSize" Value="22" /><Setter Property="LineHeight" Value="30" /><Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="JournalLabel" TargetType="TextBlock" BasedOn="{StaticResource JournalBody}">
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="JournalNote" TargetType="TextBlock" BasedOn="{StaticResource JournalBody}">
+                <Setter Property="MaxWidth" Value="760" /><Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Margin" Value="0,4,0,12" />
+                <Style.Triggers>
+                    <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                    <Trigger Property="Text" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                </Style.Triggers>
+            </Style>
+            <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <UserControl.InputBindings><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" /></UserControl.InputBindings>
+    <Border Style="{DynamicResource PtjCardStyle}">
+        <!-- No inner page scroller: the modal owns vertical navigation to chart and Trades. -->
+        <StackPanel>
+            <TextBlock Text="{Binding EntryHeading}" Style="{DynamicResource JournalHeading}" />
+            <TextBlock Text="{Binding EntryStateLabel}" Style="{DynamicResource JournalLabel}"
+                       Visibility="{Binding CanReadContent, Converter={StaticResource BoolVisibility}}" />
+            <TextBlock Text="{Binding StatusText}" Style="{DynamicResource JournalBody}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}"
+                       AutomationProperties.LiveSetting="Assertive" />
+            <WrapPanel Margin="0,8">
+                <Button Content="Reload latest" Command="{Binding ReloadCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                        ToolTip="Read the current revision. Discarding local edits requires confirmation." />
+                <Button Content="Cancel loading/saving" Command="{Binding CancelOperationCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                        Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
+                <Button x:Name="DeleteInlineJournal" Content="Delete Journal" Command="{Binding DeleteCommand}" Style="{DynamicResource PtjDangerButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                        Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}" />
+            </WrapPanel>
+            <StackPanel x:Name="InlineForm" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
+                        IsVisibleChanged="OnFormVisible" MaxWidth="760">
+                <WrapPanel Margin="0,0,0,8">
+                    <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16" Margin="0,0,8,4" />
+                    <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding CloseEditorCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                            ToolTip="Close this form without closing Day Performance. Unsaved edits require confirmation." />
+                    <Button Content="Complete review" Command="{Binding CompleteReviewCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4" />
+                </WrapPanel>
+                <Label Content="Journal _text (optional)" Target="{Binding ElementName=InlineText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <TextBox x:Name="InlineText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="120" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
+                         AutomationProperties.Name="Day Journal text" />
+                <Label Content="What went _well?" Target="{Binding ElementName=InlineWell}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <TextBox x:Name="InlineWell" Text="{Binding WentWell, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
+                         AutomationProperties.Name="What went well?" />
+                <Label Content="What needs _improvement?" Target="{Binding ElementName=InlineImprove}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <TextBox x:Name="InlineImprove" Text="{Binding NeedsImprovement, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
+                         AutomationProperties.Name="What needs improvement?" />
+                <Label Content="What will I do differently _next trading day?" Target="{Binding ElementName=InlineNext}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <TextBox x:Name="InlineNext" Text="{Binding NextTradingDay, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
+                         AutomationProperties.Name="What will I do differently next trading day?" />
+            </StackPanel>
+            <StackPanel Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
+                <TextBlock Text="No entry for this date and Account scope." Style="{DynamicResource JournalBody}"
+                           Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
+                <StackPanel Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}">
+                    <TextBlock Text="Journal text" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedText}" Style="{DynamicResource JournalNote}" />
+                    <TextBlock Text="What went well?" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedReview.WentWell}" Style="{DynamicResource JournalNote}" />
+                    <TextBlock Text="What needs improvement?" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedReview.NeedsImprovement}" Style="{DynamicResource JournalNote}" />
+                    <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedReview.NextTradingDay}" Style="{DynamicResource JournalNote}" />
+                </StackPanel>
+                <WrapPanel>
+                    <Button Content="Add Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                            Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
+                    <Button Content="Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                            Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" />
+                    <Button x:Name="ReopenInlineJournal" Content="Reopen review" Command="{Binding ReopenReviewCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                            Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" />
+                </WrapPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

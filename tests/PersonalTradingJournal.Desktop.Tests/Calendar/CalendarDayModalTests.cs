@@ -488,7 +488,8 @@ public sealed partial class CalendarDayModalTests
                         Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "Day Performance");
                         Button journal = Assert.Single(Descendants(content).OfType<Button>(), b => Equals(b.Content, "Add Journal"));
                         Assert.False(journal.IsEnabled);
-                        Assert.Null(journal.Command);
+                        Assert.Same(vm.OpenInlineJournalCommand, journal.Command);
+                        Assert.False(journal.Command.CanExecute(null));
                         Assert.Equal("Add Journal", AutomationProperties.GetName(journal));
                         Assert.Equal(empty ? 0 : 2, Descendants(content).OfType<DayPerformanceChart>().Count());
                         if (empty) Assert.Contains(Descendants(content).OfType<TextBlock>(), t => t.Text == "No closed Trades to chart." && t.IsVisible);

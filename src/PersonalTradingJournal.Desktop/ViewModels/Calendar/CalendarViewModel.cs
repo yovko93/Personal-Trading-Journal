@@ -117,7 +117,9 @@ public sealed partial class CalendarViewModel : ObservableObject
         ITradingCalendarDayReader dayReader, ITradingAccountReader accountReader,
         ILogger<CalendarViewModel>? logger = null,
         PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? tradeEditor = null,
-        IDailyJournalStatusReader? journalStatusReader = null)
+        IDailyJournalStatusReader? journalStatusReader = null,
+        IDailyJournalRepository? journalRepository = null,
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null)
     {
         _reader = reader;
         _dayReader = dayReader;
@@ -125,6 +127,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<CalendarViewModel>.Instance;
         _journalStatusReader = journalStatusReader;
+        InitializeDayJournal(journalRepository, journalDialogs);
         DateOnly today = Today;
         _month = new(today.Year, today.Month, 1);
         SetGrid(new TradingCalendarQuery(_month.Year, _month.Month));
@@ -152,6 +155,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         set
         {
             if (HasInlineWork || value is null || value.Id == _selectedAccount.Id) return;
+            if (!TryCloseInlineJournal()) { OnPropertyChanged(); return; }
             SetProperty(ref _selectedAccount, value);
             FiltersChanged();
         }
@@ -239,7 +243,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     public bool IsSelectedDayEmpty => !IsDayLoading && DayDetails?.ClosedTradeCount == 0;
 
     public Task ActivateAsync() { _isActive = true; return RefreshAsync(); }
-    public void Deactivate() { _isActive = false; Cancel(); CancelDay(); }
+    public void Deactivate() { _isActive = false; ReleaseInlineJournal(); Cancel(); CancelDay(); }
     public Task RefreshAsync() => LoadTask = RefreshAllAsync();
     public void OnDataCommitted()
     {
@@ -294,6 +298,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private void SelectMonth(DateOnly date)
     {
         if (HasInlineWork) return;
+        if (!TryCloseInlineJournal()) return;
         CloseInlineDetails();
         ClearDaySelection();
         DateOnly first = new(date.Year, date.Month, 1);
@@ -439,6 +444,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private Task SelectDayAsync(CalendarDayCell? day)
     {
         if (HasInlineWork || day is null || !_isActive || !Weeks.SelectMany(w => w.Days).Any(d => d.Date == day.Date)) return Task.CompletedTask;
+        if (day.Date != SelectedDate && !TryCloseInlineJournal()) return Task.CompletedTask;
         CloseInlineDetails();
         _selectedDate = day.Date;
         NotifySelection();

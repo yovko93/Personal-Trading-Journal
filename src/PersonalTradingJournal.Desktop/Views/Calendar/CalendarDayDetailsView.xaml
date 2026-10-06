@@ -4,6 +4,7 @@
     xmlns:calendar="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
     xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
     xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+    xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
     AutomationProperties.Name="Calendar day performance">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
@@ -97,10 +98,28 @@
                                Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
                     <Button x:Name="DayJournalAction" Content="{Binding DayJournalActionText}"
                             IsEnabled="{Binding CanOpenDayJournal}" HorizontalAlignment="Center"
-                            Click="OnJournalClick"
+                            Command="{Binding OpenInlineJournalCommand}"
                             AutomationProperties.Name="{Binding DayJournalActionText}"
-                            AutomationProperties.HelpText="Open the selected New York date and exact Calendar Account scope in Journal."
+                            AutomationProperties.HelpText="Open the selected New York date and exact Calendar Account scope inline in Day Performance."
                             Style="{DynamicResource PtjButtonStyle}" />
+                </StackPanel>
+                <StackPanel x:Name="InlineJournalSection" Margin="0,0,0,16"
+                            Visibility="{Binding HasInlineJournal, Converter={StaticResource BoolVisibility}}">
+                    <Button Content="Close Journal" Command="{Binding CloseInlineJournalCommand}" HorizontalAlignment="Right"
+                            Margin="0,0,0,8" Style="{DynamicResource PtjSecondaryButtonStyle}"
+                            AutomationProperties.Name="Close inline Journal; keep Day Performance open" />
+                    <ContentControl x:Name="DayJournalEditor" Content="{Binding InlineJournal}">
+                        <ContentControl.Style>
+                            <Style TargetType="ContentControl">
+                                <Setter Property="ContentTemplate">
+                                    <Setter.Value><DataTemplate><journals:InlineJournalView /></DataTemplate></Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="Content" Value="{x:Null}"><Setter Property="ContentTemplate" Value="{x:Null}" /></Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ContentControl.Style>
+                    </ContentControl>
                 </StackPanel>
                 <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                               interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">

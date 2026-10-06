@@ -307,6 +307,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Calendar &&
+            !_calendarViewModel.TryCloseInlineJournal()) return;
         if (destination != CurrentDestination &&
             CurrentDestination == NavigationDestination.Journal &&
             !_journalViewModel.TryLeave())

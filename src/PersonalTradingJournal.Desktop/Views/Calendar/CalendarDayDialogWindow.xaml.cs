@@ -8,7 +8,6 @@ namespace PersonalTradingJournal.Desktop.Views.Calendar;
 public partial class CalendarDayDialogWindow : Window
 {
     private bool _backdropPressed;
-    internal (DateOnly Date, ViewModels.Calendar.CalendarAccountOption Account)? JournalNavigationRequest { get; private set; }
     public CalendarDayDialogWindow()
     {
         InitializeComponent();
@@ -21,15 +20,6 @@ public partial class CalendarDayDialogWindow : Window
     }
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
-    internal void RequestJournalNavigation()
-    {
-        if (DataContext is not ViewModels.Calendar.CalendarViewModel { CanOpenDayJournal: true, SelectedDate: { } date } vm)
-            return;
-        JournalNavigationRequest = (date, vm.SelectedAccount);
-        // Window.Closing is the single protected path shared with Close/X/Escape/backdrop.
-        Close();
-        if (IsVisible) JournalNavigationRequest = null; // Inline editing vetoed dismissal.
-    }
     private void OnDialogMouseDown(object sender, MouseButtonEventArgs e)
     {
         // A sibling of DayPanel, not an ancestor: content, scrollbars and popups never use this route.

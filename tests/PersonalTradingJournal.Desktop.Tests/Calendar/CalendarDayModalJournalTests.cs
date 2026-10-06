@@ -78,7 +78,7 @@ public sealed partial class CalendarDayModalTests
     [Theory]
     [InlineData("Light", false)]
     [InlineData("Dark", true)]
-    public async Task JournalActionClosesProtectedModalBeforeNavigatingAndVetoKeepsTradeDraft(string theme, bool veto)
+    public async Task JournalActionStaysInlineAndProtectedModalCloseKeepsTradeAndJournalDrafts(string theme, bool veto)
     {
         var date = new DateOnly(2026, 9, 5);
         var row = CalendarDayDetailsTests.Row(date, 10, 9);
@@ -88,7 +88,9 @@ public sealed partial class CalendarDayModalTests
             reader: TradesViewModelTests.CreateEditReferenceReader(detail));
         var dayReader = new FakeTradingCalendarDayReader { Handler = (query, ct) => Task.FromResult(
             TradingCalendarDayDetails.Create(query.Date, [row], ct)) };
-        var vm = await CalendarSummaryFixture.CreateAsync(dayReader, editor, new ModalJournalStatuses([]));
+        var journalRepository = new FakeDailyJournalRepository();
+        var journalDialogs = new FakeDialogService();
+        var vm = await CalendarSummaryFixture.CreateAsync(dayReader, editor, journalRepository, journalRepository, journalDialogs);
         await OnSta(() =>
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
@@ -98,12 +100,6 @@ public sealed partial class CalendarDayModalTests
             int navigations = 0;
             vm.OpenJournalAsync = (requestedDate, account) =>
             {
-                Assert.Null(view.DayDialog);
-                Assert.True(owner.IsEnabled);
-                Assert.Equal(date, requestedDate);
-                Assert.Null(account.Id);
-                Assert.Equal("All accounts", account.Name);
-                Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("ModalShade")).Visibility);
                 navigations++;
                 return Task.CompletedTask;
             };
@@ -128,24 +124,43 @@ public sealed partial class CalendarDayModalTests
                             await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
                             editor.EntryPriceText = "local unsaved edit";
                         }
-                        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
-                        if (!veto) return;
+                        Assert.Same(vm.OpenInlineJournalCommand, button.Command);
+                        button.Command.Execute(null);
+                        await vm.OpenInlineJournalCommand.ExecutionTask!;
+                        dialog.UpdateLayout(); // Materialize the lazy editor under the real modal's scoped resources.
+                        var inlineView = Assert.Single(Descendants(content).OfType<PersonalTradingJournal.Desktop.Views.Journals.InlineJournalView>());
+                        Assert.True(inlineView.IsVisible);
                         Assert.Same(dialog, view.DayDialog);
                         Assert.True(dialog.IsVisible);
-                        Assert.Null(dialog.JournalNavigationRequest);
                         Assert.Equal(0, navigations);
-                        Assert.Equal("local unsaved edit", editor.EntryPriceText);
-                        Assert.True(editor.IsTradeEditVisible);
-                        editor.CancelTradeEditCommand.Execute(null);
-                        button.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+                        Assert.Equal(Visibility.Visible, ((Border)view.FindName("ModalShade")).Visibility);
+                        var journal = Assert.IsType<PersonalTradingJournal.Desktop.ViewModels.Journals.JournalViewModel>(vm.InlineJournal);
+                        Assert.True(journal.IsEditorOpen && journal.CanEdit);
+                        Assert.Equal(date.ToDateTime(TimeOnly.MinValue), journal.SelectedDate);
+                        Assert.Null(journal.SelectedAccount.Id);
+                        journal.Text = "Keep modal draft";
+                        dialog.Close(); // Trade edit or Journal unsaved-change veto.
+                        Assert.Same(dialog, view.DayDialog);
+                        Assert.Equal("Keep modal draft", journal.Text);
+                        if (veto)
+                        {
+                            Assert.Equal("local unsaved edit", editor.EntryPriceText);
+                            Assert.True(editor.IsTradeEditVisible);
+                            editor.CancelTradeEditCommand.Execute(null);
+                            dialog.Close();
+                            Assert.Same(dialog, view.DayDialog); // Journal now independently vetoes.
+                        }
+                        journalDialogs.ConfirmationResult = true;
+                        dialog.Close();
                     }
-                    catch (Exception error) { failure = error; editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }
+                    catch (Exception error) { failure = error; journalDialogs.ConfirmationResult = true; editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }
                 }));
                 cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
                 Pump();
                 if (failure is not null) throw failure;
                 Assert.Null(view.DayDialog);
-                Assert.Equal(1, navigations);
+                Assert.Equal(0, navigations);
+                Assert.Null(vm.InlineJournal);
                 Assert.Equal(date, vm.SelectedDate);
                 Assert.Equal(new DateOnly(2026, 9, 1), vm.SelectedMonth);
                 Assert.Equal("All currencies", vm.SelectedCurrency);

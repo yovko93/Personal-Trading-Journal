@@ -30,6 +30,7 @@ public sealed class JournalViewModel : ObservableObject
     private bool _preserveOnNextActivation;
     private bool _isEditorOpen;
     private bool _isDeleting;
+    private bool _loadTradeContext = true;
     private CancellationTokenSource? _loadCancellation, _saveCancellation;
     private long _generation;
 
@@ -250,10 +251,13 @@ public sealed class JournalViewModel : ObservableObject
         return true;
     }
 
-    public Task ActivateAsync()
+    public Task ActivateAsync() => ActivateAsync(loadTradeContext: true);
+
+    public Task ActivateAsync(bool loadTradeContext)
     {
+        _loadTradeContext = loadTradeContext;
         Task history = History?.ActivateAsync(SelectedAccount.Id) ?? Task.CompletedTask;
-        Task context = TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id);
+        Task context = loadTradeContext ? TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id) : Task.CompletedTask;
         bool preserve = _preserveOnNextActivation;
         _preserveOnNextActivation = false;
         // Repeated activation cannot discard work in an already-visible editor.
@@ -299,7 +303,7 @@ public sealed class JournalViewModel : ObservableObject
         _errorMessage = _notice = null;
         NotifyContent();
         NotifyState();
-        Task context = TradeContext.SetScopeAsync(SelectedTradingDate, SelectedAccount.Id);
+        Task context = _loadTradeContext ? TradeContext.SetScopeAsync(SelectedTradingDate, SelectedAccount.Id) : Task.CompletedTask;
         Task history = History?.SetScopeAsync(SelectedAccount.Id) ?? Task.CompletedTask;
         LoadTask = _active ? Task.WhenAll(LoadAsync(), context, history) : context;
     }

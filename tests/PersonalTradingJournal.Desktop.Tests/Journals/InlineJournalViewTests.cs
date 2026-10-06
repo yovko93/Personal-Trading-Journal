@@ -1,0 +1,112 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using PersonalTradingJournal.Desktop.Tests.CalendarPage;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.ViewModels.Calendar;
+using PersonalTradingJournal.Desktop.Views.Calendar;
+using PersonalTradingJournal.Desktop.Views.Journals;
+
+namespace PersonalTradingJournal.Desktop.Tests.Journals;
+
+public sealed class InlineJournalViewTests
+{
+    [Fact]
+    public async Task InlineFormAndCompactReviewKeepTradesReachableAcrossThemesAndSizes()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_INLINE_JOURNAL_TEST_HOST") != "1")
+        {
+            await IsolatedTestProcess.RunSuiteAsync(typeof(InlineJournalViewTests), "inline-journal", "PTJ_INLINE_JOURNAL_TEST_HOST",
+                TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30));
+            return;
+        }
+        var cases = new[] { ("Light", 1100, 96), ("Dark", 1100, 96), ("Light", 480, 240), ("Dark", 480, 240) };
+        var models = new List<CalendarViewModel>();
+        foreach (var _ in cases)
+        {
+            var repo = new FakeDailyJournalRepository();
+            var vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
+                journalDialogs: new FakeDialogService { ConfirmationResult = true });
+            await vm.SelectDayCommand.ExecuteAsync(vm.Weeks[0].Days[5]);
+            await vm.OpenInlineJournalCommand.ExecuteAsync(null);
+            vm.InlineJournal!.Text = "Exact local text\n" + new string('x', 200);
+            models.Add(vm);
+        }
+        await CalendarStaTest.RunAsync(() =>
+        {
+            _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            for (int i = 0; i < cases.Length; i++)
+            {
+                var (theme, width, dpi) = cases[i];
+                var vm = models[i];
+                System.Windows.Application.Current.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                var view = new CalendarDayDetailsView { DataContext = vm };
+                view.Measure(new Size(width, 720)); view.Arrange(new Rect(0, 0, width, 720)); view.UpdateLayout(); Flush();
+                var host = (ContentControl)view.FindName("DayJournalEditor");
+                var inline = Assert.IsType<InlineJournalView>(FindInlineView(host));
+                var section = (StackPanel)view.FindName("InlineJournalSection");
+                var table = (ScrollViewer)view.FindName("DayTradesScroller");
+                var page = (ScrollViewer)view.FindName("DayContentScroller");
+                var form = (StackPanel)inline.FindName("InlineForm");
+                Assert.Equal(Visibility.Visible, section.Visibility);
+                Assert.True(section.TranslatePoint(new Point(0, section.ActualHeight), view).Y <= table.TranslatePoint(new Point(), view).Y);
+                Assert.Same(vm.InlineJournal, inline.DataContext);
+                Assert.Same(vm.InlineJournal!.SaveCommand, ((Button)inline.FindName("SaveInlineJournal")).Command);
+                Assert.Same(vm.InlineJournal.CloseEditorCommand, ((Button)inline.FindName("CancelInlineJournal")).Command);
+                foreach (var name in new[] { "InlineText", "InlineWell", "InlineImprove", "InlineNext" })
+                {
+                    var field = (TextBox)inline.FindName(name);
+                    Assert.True(field.Focusable && !field.IsReadOnly);
+                    Assert.False(field.AcceptsTab);
+                    Assert.InRange(field.ActualWidth, 150, width);
+                    Assert.Equal(ScrollBarVisibility.Auto, field.VerticalScrollBarVisibility);
+                }
+                form.BringIntoView(new Rect(0, 0, form.ActualWidth, 240)); Flush();
+                var save = (Button)inline.FindName("SaveInlineJournal");
+                Assert.InRange(save.TranslatePoint(new Point(), page).Y, 0, page.ViewportHeight);
+                Render(view, theme, width, dpi, "expanded");
+                var fieldText = (TextBox)inline.FindName("InlineText");
+                var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                double before = page.VerticalOffset;
+                fieldText.RaiseEvent(wheel); Flush();
+                Assert.True(wheel.Handled);
+                Assert.True(page.VerticalOffset > before);
+                table.BringIntoView(new Rect(0, 0, table.ActualWidth, 80)); Flush();
+                Assert.InRange(table.TranslatePoint(new Point(), page).Y, -1, page.ViewportHeight);
+                vm.InlineJournal.CloseEditorCommand.Execute(null); Flush();
+                Assert.False(vm.InlineJournal.IsEditorOpen);
+                Assert.Equal(Visibility.Collapsed, form.Visibility);
+                section.BringIntoView(); Flush(); Render(view, theme, width, dpi, "collapsed");
+                vm.CloseInlineJournalCommand.Execute(null); Flush();
+                Assert.Equal(Visibility.Collapsed, section.Visibility);
+                Assert.NotNull(vm.DayDetails);
+                vm.Deactivate();
+            }
+        }, "Inline Journal themes, layout and scrolling");
+    }
+
+    private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+    private static InlineJournalView? FindInlineView(DependencyObject node)
+    {
+        if (node is InlineJournalView inline) return inline;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            var child = VisualTreeHelper.GetChild(node, i);
+            if (FindInlineView(child) is { } result) return result;
+        }
+        return null;
+    }
+    private static void Render(Visual view, string theme, int width, int dpi, string state)
+    {
+        var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
+        bitmap.Render(view);
+        if (Environment.GetEnvironmentVariable("PTJ_JOURNAL_RENDER_DIRECTORY") is not { Length: > 0 } path) return;
+        Directory.CreateDirectory(path);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var output = File.Create(Path.Combine(path, $"inline-journal-{theme}-{width}-{dpi}-{state}.png"));
+        encoder.Save(output);
+    }
+}

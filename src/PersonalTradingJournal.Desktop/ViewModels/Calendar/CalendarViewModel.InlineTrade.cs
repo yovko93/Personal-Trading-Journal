@@ -89,6 +89,7 @@ public sealed partial class CalendarViewModel
             DayErrorMessage = "Finish loading, or Save or Cancel your Trade edits before closing.";
             return false;
         }
+        if (!TryCloseInlineJournal()) return false;
         CloseInlineDetails();
         return true;
     }

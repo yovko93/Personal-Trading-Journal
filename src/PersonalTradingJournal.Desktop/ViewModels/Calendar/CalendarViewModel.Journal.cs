@@ -35,7 +35,7 @@ public sealed partial class CalendarViewModel
     private bool _journalStatusesLoaded, _isJournalLoading;
     private string? _journalErrorMessage;
 
-    /// <summary>The shell supplies guarded Journal navigation; the view first closes the Day modal.</summary>
+    /// <summary>Optional targeted standalone navigation. Day Performance uses its own inline editor.</summary>
     public Func<DateOnly, CalendarAccountOption, Task>? OpenJournalAsync { get; set; }
     public Task JournalNavigationTask { get; private set; } = Task.CompletedTask;
     public Task JournalLoadTask { get; private set; } = Task.CompletedTask;
@@ -166,6 +166,7 @@ public sealed partial class CalendarViewModel
 
     private void NotifyJournalDay()
     {
+        OpenInlineJournalCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SelectedDayJournalStatus));
         OnPropertyChanged(nameof(CanOpenDayJournal));
         OnPropertyChanged(nameof(DayJournalActionText));
