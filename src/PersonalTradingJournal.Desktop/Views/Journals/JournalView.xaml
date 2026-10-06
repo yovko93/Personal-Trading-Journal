@@ -142,14 +142,6 @@
                     IsVisibleChanged="OnEditorVisibilityChanged"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <StackPanel MaxWidth="760">
-                    <WrapPanel Margin="0,0,0,12">
-                        <Button x:Name="EditorSaveJournal" Content="Save Journal" Command="{Binding SaveCommand}"
-                                Style="{DynamicResource JournalPrimaryButton}" Margin="0,0,8,4"
-                                AutomationProperties.Name="Save Journal" ToolTip="Save draft (Ctrl+S)" />
-                        <Button x:Name="EditorCancel" Content="Cancel" Command="{Binding CloseEditorCommand}"
-                                Style="{DynamicResource JournalButton}" Margin="0,0,0,4"
-                                AutomationProperties.Name="Cancel Journal editing" ToolTip="Close the form; unsaved edits require confirmation." />
-                    </WrapPanel>
                     <Label Content="Journal _text (optional)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="JournalText" Style="{DynamicResource JournalTextBox}"
@@ -178,7 +170,7 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What went well?"
-                             AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal keeps this review as a draft. Tab moves to the next control." />
                     <Label Content="What _needs improvement?" Target="{Binding ElementName=NeedsImprovementAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="NeedsImprovementAnswer" Style="{DynamicResource JournalTextBox}"
@@ -187,7 +179,7 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What needs improvement?"
-                             AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal keeps this review as a draft. Tab moves to the next control." />
                     <Label Content="What will I _do differently next trading day?" Target="{Binding ElementName=NextTradingDayAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="NextTradingDayAnswer" Style="{DynamicResource JournalTextBox}"
@@ -196,20 +188,16 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What will I do differently next trading day?"
-                             AutomationProperties.HelpText="Required to complete. Partial answers may be saved as a draft. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal keeps this review as a draft. Tab moves to the next control." />
                 </StackPanel>
             </Border>
             <TextBlock x:Name="JournalError" FontSize="16" Grid.Row="4" Text="{Binding ErrorMessage}" Margin="0,12,0,0"
                        Style="{StaticResource JournalErrorStyle}" AutomationProperties.LiveSetting="Assertive" />
             <WrapPanel Grid.Row="5" Margin="0,12,0,0">
-                <WrapPanel Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
+                <WrapPanel x:Name="JournalEditorActions" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <Button x:Name="SaveJournal" Content="_Save Journal" Command="{Binding SaveCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource JournalPrimaryButton}" AutomationProperties.Name="Save journal draft" ToolTip="Save journal draft (Ctrl+S)" />
-                <Button x:Name="CompleteJournalReview" Content="_Complete review" Command="{Binding CompleteReviewCommand}" Margin="0,0,8,8"
-                        Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Complete daily review"
-                        ToolTip="Save and complete this review. All three answers require meaningful text." />
                 <Button x:Name="CloseJournalEditor" Content="_Cancel" Command="{Binding CloseEditorCommand}" Margin="0,0,8,8"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Close Journal editor"
                         ToolTip="Unsaved text and answers require an explicit discard decision." />

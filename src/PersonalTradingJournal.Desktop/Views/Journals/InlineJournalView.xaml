@@ -46,12 +46,6 @@
             </WrapPanel>
             <StackPanel x:Name="InlineForm" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
                         IsVisibleChanged="OnFormVisible" MaxWidth="760">
-                <WrapPanel Margin="0,0,0,8">
-                    <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16" Margin="0,0,8,4" />
-                    <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding CloseEditorCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
-                            ToolTip="Close this form without closing Day Performance. Unsaved edits require confirmation." />
-                    <Button Content="Complete review" Command="{Binding CompleteReviewCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4" />
-                </WrapPanel>
                 <Label Content="Journal _text (optional)" Target="{Binding ElementName=InlineText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <TextBox x:Name="InlineText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="120" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="Day Journal text" />
@@ -64,6 +58,13 @@
                 <Label Content="What will I do differently _next trading day?" Target="{Binding ElementName=InlineNext}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <TextBox x:Name="InlineNext" Text="{Binding NextTradingDay, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="What will I do differently next trading day?" />
+                <WrapPanel x:Name="InlineEditorActions" Margin="0,12,0,0">
+                    <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                            AutomationProperties.Name="Save journal draft" ToolTip="Save text and all answers as a draft (Ctrl+S)" />
+                    <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding CloseEditorCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                            AutomationProperties.Name="Cancel Journal editing"
+                            ToolTip="Close this form without closing Day Performance. Unsaved edits require confirmation." />
+                </WrapPanel>
             </StackPanel>
             <StackPanel Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
                 <TextBlock Text="No entry for this date and Account scope." Style="{DynamicResource JournalBody}"

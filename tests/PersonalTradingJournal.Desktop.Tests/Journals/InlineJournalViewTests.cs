@@ -56,6 +56,9 @@ public sealed class InlineJournalViewTests
                 Assert.Same(vm.InlineJournal, inline.DataContext);
                 Assert.Same(vm.InlineJournal!.SaveCommand, ((Button)inline.FindName("SaveInlineJournal")).Command);
                 Assert.Same(vm.InlineJournal.CloseEditorCommand, ((Button)inline.FindName("CancelInlineJournal")).Command);
+                Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.SaveCommand));
+                Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.CloseEditorCommand));
+                Assert.DoesNotContain(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.CompleteReviewCommand));
                 foreach (var name in new[] { "InlineText", "InlineWell", "InlineImprove", "InlineNext" })
                 {
                     var field = (TextBox)inline.FindName(name);
@@ -66,7 +69,10 @@ public sealed class InlineJournalViewTests
                 }
                 form.BringIntoView(new Rect(0, 0, form.ActualWidth, 240)); Flush();
                 var save = (Button)inline.FindName("SaveInlineJournal");
-                Assert.InRange(save.TranslatePoint(new Point(), page).Y, 0, page.ViewportHeight);
+                var cancel = (Button)inline.FindName("CancelInlineJournal");
+                var lastAnswer = (TextBox)inline.FindName("InlineNext");
+                Assert.True(save.TranslatePoint(new Point(), inline).Y >= lastAnswer.TranslatePoint(new Point(0, lastAnswer.ActualHeight), inline).Y);
+                Assert.True(save.Focusable && cancel.Focusable);
                 Render(view, theme, width, dpi, "expanded");
                 var fieldText = (TextBox)inline.FindName("InlineText");
                 var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
@@ -74,6 +80,10 @@ public sealed class InlineJournalViewTests
                 fieldText.RaiseEvent(wheel); Flush();
                 Assert.True(wheel.Handled);
                 Assert.True(page.VerticalOffset > before);
+                ((WrapPanel)inline.FindName("InlineEditorActions")).BringIntoView(); Flush();
+                Assert.InRange(save.TranslatePoint(new Point(), page).Y, -0.1, page.ViewportHeight - save.ActualHeight + 0.1);
+                Assert.InRange(cancel.TranslatePoint(new Point(), page).Y, -0.1, page.ViewportHeight - cancel.ActualHeight + 0.1);
+                Render(view, theme, width, dpi, "actions");
                 table.BringIntoView(new Rect(0, 0, table.ActualWidth, 80)); Flush();
                 Assert.InRange(table.TranslatePoint(new Point(), page).Y, -1, page.ViewportHeight);
                 vm.InlineJournal.CloseEditorCommand.Execute(null); Flush();
@@ -89,6 +99,15 @@ public sealed class InlineJournalViewTests
     }
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject node)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(node); i++)
+        {
+            var child = VisualTreeHelper.GetChild(node, i);
+            yield return child;
+            foreach (var nested in Descendants(child)) yield return nested;
+        }
+    }
     private static InlineJournalView? FindInlineView(DependencyObject node)
     {
         if (node is InlineJournalView inline) return inline;

@@ -71,7 +71,7 @@ public sealed class JournalViewTests
         var nextDay = (TextBox)view.FindName("NextTradingDayAnswer");
         var freeform = (TextBox)view.FindName("JournalText");
         var save = (Button)view.FindName("SaveJournal");
-        var complete = (Button)view.FindName("CompleteJournalReview");
+        var cancel = (Button)view.FindName("CloseJournalEditor");
         var reopen = (Button)view.FindName("ReopenJournalReview");
         Assert.Equal(new[] { vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay }, new[] { wentWell.Text, improvement.Text, nextDay.Text });
         Assert.Equal(new[] { "What went well?", "What needs improvement?", "What will I do differently next trading day?" },
@@ -87,12 +87,18 @@ public sealed class JournalViewTests
             Assert.True(box.ActualWidth <= width);
             Assert.Equal(((SolidColorBrush)root.Resources["PtjSurfaceElevatedBrush"]).Color, ((SolidColorBrush)box.Background).Color);
         });
-        Assert.Same(vm.CompleteReviewCommand, complete.Command);
+        Assert.Null(view.FindName("CompleteJournalReview"));
+        Assert.Null(view.FindName("EditorSaveJournal"));
+        Assert.Null(view.FindName("EditorCancel"));
+        Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.SaveCommand));
+        Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CloseEditorCommand));
+        Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CompleteReviewCommand));
+        Assert.Same(vm.CloseEditorCommand, cancel.Command);
         Assert.Same(vm.ReopenReviewCommand, reopen.Command);
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, save.Visibility);
-        Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, complete.Visibility);
+        Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, ((WrapPanel)view.FindName("JournalEditorActions")).Visibility);
         Assert.Equal(completed ? Visibility.Visible : Visibility.Collapsed, reopen.Visibility);
-        Assert.True(completed ? reopen.IsEnabled : complete.IsEnabled);
+        Assert.True(completed ? reopen.IsEnabled : save.IsEnabled);
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, ((Border)view.FindName("ReviewEditor")).Visibility);
         Assert.Equal(completed ? Visibility.Visible : Visibility.Collapsed, ((Border)view.FindName("CompactJournal")).Visibility);
         Assert.Equal(completed, vm.ShowCompactReview);
@@ -104,15 +110,10 @@ public sealed class JournalViewTests
         Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
         if (!completed)
         {
-            var topSave = (Button)view.FindName("EditorSaveJournal");
-            var topCancel = (Button)view.FindName("EditorCancel");
-            Assert.Equal("Save Journal", topSave.Content);
-            Assert.Equal("Cancel", topCancel.Content);
-            Assert.Same(vm.SaveCommand, topSave.Command);
-            Assert.Same(vm.CloseEditorCommand, topCancel.Command);
-            Assert.True(topSave.Focusable && topCancel.Focusable);
-            Assert.True(topSave.TranslatePoint(new Point(), view).Y < freeform.TranslatePoint(new Point(), view).Y);
-            Assert.InRange(topCancel.TranslatePoint(new Point(topCancel.ActualWidth, 0), view).X, 0, width);
+            Assert.Same(vm.SaveCommand, save.Command);
+            Assert.True(save.Focusable && cancel.Focusable);
+            Assert.True(save.TranslatePoint(new Point(), view).Y >= nextDay.TranslatePoint(new Point(0, nextDay.ActualHeight), view).Y);
+            Assert.InRange(cancel.TranslatePoint(new Point(cancel.ActualWidth, 0), view).X, 0, width);
             Assert.True(wentWell.TranslatePoint(new Point(), view).Y < improvement.TranslatePoint(new Point(), view).Y);
             Assert.True(improvement.TranslatePoint(new Point(), view).Y < nextDay.TranslatePoint(new Point(), view).Y);
             Assert.Equal(120, freeform.ActualHeight);
@@ -134,10 +135,15 @@ public sealed class JournalViewTests
         if (!completed) scroller.ScrollToVerticalOffset(wentWell.TranslatePoint(new Point(), view).Y - 48);
         Flush();
         Render(root, theme, width, dpi, completed ? "review-completed-" : "review-draft-");
-        (completed ? reopen : complete).BringIntoView();
+        (completed ? reopen : cancel).BringIntoView();
         Flush();
         // WPF layout can differ by subpixel floating-point error at the viewport edge.
-        Assert.InRange((completed ? reopen : complete).TranslatePoint(new Point(), root).Y, -0.1, root.ActualHeight - (completed ? reopen : complete).ActualHeight + 0.1);
+        Assert.InRange((completed ? reopen : cancel).TranslatePoint(new Point(), root).Y, -0.1, root.ActualHeight - (completed ? reopen : cancel).ActualHeight + 0.1);
+        if (!completed)
+        {
+            Assert.InRange(save.TranslatePoint(new Point(), root).Y, -0.1, root.ActualHeight - save.ActualHeight + 0.1);
+            Render(root, theme, width, dpi, "editor-actions-");
+        }
         vm.Deactivate();
     }
 
