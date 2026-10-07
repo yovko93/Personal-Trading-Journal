@@ -25,6 +25,7 @@ public sealed class InlineJournalViewTests
         }
         var cases = new[] { ("Light", 1100, 96), ("Dark", 1100, 96), ("Light", 480, 240), ("Dark", 480, 240) };
         var models = new List<CalendarViewModel>();
+        var reviews = new List<CalendarViewModel>();
         foreach (var _ in cases)
         {
             var repo = new FakeDailyJournalRepository();
@@ -41,6 +42,11 @@ public sealed class InlineJournalViewTests
             await vm.AddDayJournalCommand.ExecuteAsync(null);
             vm.InlineJournal!.Text = "Exact local text\n" + new string('x', 200);
             models.Add(vm);
+            var review = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
+                journalDialogs: new FakeDialogService { ConfirmationResult = true });
+            await review.SelectDayCommand.ExecuteAsync(review.Weeks[0].Days[5]);
+            await review.OpenDayJournalCommand.ExecuteAsync(review.DayJournals.Single(r => r.AccountId is null));
+            reviews.Add(review);
         }
         await CalendarStaTest.RunAsync(() =>
         {
@@ -142,6 +148,37 @@ public sealed class InlineJournalViewTests
                 Assert.Equal(Visibility.Collapsed, section.Visibility);
                 Assert.NotNull(vm.DayDetails);
                 vm.Deactivate();
+                var reviewVm = reviews[i];
+                var reviewView = new CalendarDayDetailsView { DataContext = reviewVm };
+                reviewView.Measure(new Size(width, 720)); reviewView.Arrange(new Rect(0, 0, width, 720)); reviewView.UpdateLayout(); Flush();
+                var list = (ItemsControl)reviewView.FindName("DayJournalEntries");
+                var detailHosts = Descendants(list).OfType<ContentControl>().Where(c => c.Name == "RowJournalDetail").ToArray();
+                Assert.Equal(3, detailHosts.Length);
+                var expanded = Assert.Single(detailHosts, c => c.Content is not null);
+                Assert.Same(reviewVm.InlineJournal, expanded.Content);
+                Assert.Equal(Visibility.Collapsed, ((StackPanel)reviewView.FindName("InlineJournalSection")).Visibility);
+                var containers = Enumerable.Range(0, list.Items.Count).Select(n => (FrameworkElement)list.ItemContainerGenerator.ContainerFromIndex(n)).ToArray();
+                Assert.True(expanded.TranslatePoint(new Point(0, expanded.ActualHeight), list).Y <= containers[1].TranslatePoint(new Point(), list).Y);
+                var close = Assert.Single(Descendants(expanded).OfType<Button>(), b => Equals(b.Content, "Close Journal"));
+                Assert.Same(reviewVm.CloseInlineJournalCommand, close.Command);
+                Assert.True(close.Focusable && close.IsEnabled);
+                Assert.DoesNotContain(Descendants(reviewView).OfType<Button>(), b => b.Content?.ToString()?.Contains("Reload") == true);
+                var refresh = Assert.Single(Descendants(reviewView).OfType<Button>(), b => Equals(b.Content, "Refresh Journals"));
+                Assert.Same(reviewVm.RefreshDayJournalsCommand, refresh.Command);
+                expanded.BringIntoView(new Rect(0, 0, expanded.ActualWidth, 260)); Flush();
+                Render(reviewView, theme, width, dpi, "in-place-review");
+                var lastAction = Descendants(expanded).OfType<Button>().Last(b => b.Visibility == Visibility.Visible);
+                lastAction.BringIntoView(); Flush();
+                var detailScroller = (ScrollViewer)reviewView.FindName("DayContentScroller");
+                Assert.InRange(lastAction.TranslatePoint(new Point(0, lastAction.ActualHeight), detailScroller).Y, 0, detailScroller.ViewportHeight + 1);
+                Render(reviewView, theme, width, dpi, "in-place-review-bottom");
+                close.BringIntoView(); Flush();
+                var reviewScroller = (ScrollViewer)reviewView.FindName("DayContentScroller");
+                Assert.InRange(close.TranslatePoint(new Point(), reviewScroller).Y, -1, reviewScroller.ViewportHeight);
+                close.Command.Execute(null); Flush();
+                Assert.All(detailHosts, c => Assert.Null(c.Content));
+                Assert.Equal(3, list.Items.Count);
+                reviewVm.Deactivate();
             }
         }, "Inline Journal themes, layout and scrolling");
     }

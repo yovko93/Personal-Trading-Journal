@@ -123,7 +123,7 @@ public sealed class JournalHistoryViewModelTests
         await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);
         Assert.Equal("new local draft", vm.Text);
         Assert.Equal(0, repository.Writes);
-        await vm.History.RefreshCommand.ExecuteAsync(null);
+        await vm.History.RefreshAsync(); // Background metadata refresh, not the user-requested combined Refresh.
         await vm.History.OpenCommand.ExecuteAsync(row); // Old button after rebind is ignored.
         Assert.Equal("new local draft", vm.Text);
         await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]); // Same key preserves dirty edits without arming Calendar reactivation.

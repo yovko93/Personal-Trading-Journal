@@ -211,9 +211,13 @@
                         AutomationProperties.HelpText="Save changes as Draft and close only the editor. An unchanged Completed review keeps its status and history. An empty new form creates no entry."
                         ToolTip="Save as draft and close; unchanged Completed reviews close without saving" />
                 </WrapPanel>
-                <Button x:Name="ReloadJournal" Content="_Reload latest" Command="{Binding ReloadCommand}" Margin="0,0,8,8"
-                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Reload latest journal"
-                        ToolTip="Read the latest revision. Discarding unsaved text requires confirmation." />
+                <Button x:Name="RefreshJournal" Content="_Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8"
+                        AutomationProperties.Name="Refresh journal and Review History"
+                        ToolTip="Refresh this Journal and History. Replacing unsaved edits requires confirmation.">
+                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource JournalButton}">
+                        <Style.Triggers><DataTrigger Binding="{Binding HasHistory}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers>
+                    </Style></Button.Style>
+                </Button>
                 <Button x:Name="CancelJournalOperation" Content="Cancel operation" Command="{Binding CancelOperationCommand}" Margin="0,0,0,8"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Cancel journal operation" />

@@ -58,8 +58,9 @@ public sealed class JournalViewModel : ObservableObject
         ReopenReviewCommand = new AsyncRelayCommand(ReopenReviewAsync, CanReopen);
         OpenEditorCommand = new RelayCommand(OpenEditor, CanOpenEditor);
         CloseEditorCommand = new RelayCommand(CloseEditor, () => IsEditorOpen && !IsSaving);
-        ReloadCommand = new AsyncRelayCommand(ReloadAsync, () => _active && !IsBusy,
+        RefreshCommand = new AsyncRelayCommand(async () => { await RefreshAsync(); }, () => _active && !IsBusy,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        if (History is not null) History.RefreshRequested = () => RefreshCommand.ExecuteAsync(null);
         CancelOperationCommand = new RelayCommand(CancelOperation,
             () => IsLoading || (IsSaving && _saveCancellation?.IsCancellationRequested == false));
     }
@@ -212,9 +213,9 @@ public sealed class JournalViewModel : ObservableObject
         ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling operation…" : _isDeleting ? "Deleting journal…" : "Saving…"
         : IsLoading ? "Loading journal…"
         : !SelectedDate.HasValue ? "Choose a journal date."
-        : _reloadRequired ? "Reload required before saving. Your text has been kept, along with your review answers."
+        : _reloadRequired ? "Refresh required before saving. Your text has been kept, along with your review answers."
         : IsDirty ? "Unsaved changes"
-        : _notice ?? (!_hasLoaded ? "Select Reload to load this journal."
+        : _notice ?? (!_hasLoaded ? "Select Refresh to load this journal."
             : !IsExisting ? "New draft — not saved"
             : IsDraft ? $"Saved draft · Revision {Revision}" : $"Completed review · Revision {Revision}");
 
@@ -223,7 +224,8 @@ public sealed class JournalViewModel : ObservableObject
     public IAsyncRelayCommand DeleteCommand { get; }
     public IAsyncRelayCommand CompleteReviewCommand { get; }
     public IAsyncRelayCommand ReopenReviewCommand { get; }
-    public IAsyncRelayCommand ReloadCommand { get; }
+    public IAsyncRelayCommand RefreshCommand { get; }
+    public IAsyncRelayCommand ReloadCommand => RefreshCommand;
     public IRelayCommand CancelOperationCommand { get; }
     public IRelayCommand OpenEditorCommand { get; }
     public IRelayCommand CloseEditorCommand { get; }
@@ -367,10 +369,13 @@ public sealed class JournalViewModel : ObservableObject
 
     private DateOnly? SelectedTradingDate => SelectedDate is { } date ? DateOnly.FromDateTime(date) : null;
 
-    private Task ReloadAsync()
+    public async Task<bool> RefreshAsync()
     {
-        if (!_active || IsBusy || !ConfirmDiscard()) return Task.CompletedTask;
-        return LoadTask = LoadAsync(_targetCollision && _entry is null ? EditorAccount : _loadedAccount);
+        if (!_active || IsBusy || !ConfirmDiscard()) return false;
+        await (LoadTask = Task.WhenAll(
+            LoadAsync(_targetCollision && _entry is null ? EditorAccount : _loadedAccount),
+            History?.RefreshAsync() ?? Task.CompletedTask));
+        return true;
     }
 
     private async Task LoadAsync(JournalAccountOption? editorScope = null, bool newEntry = false)
@@ -411,7 +416,7 @@ public sealed class JournalViewModel : ObservableObject
         catch (Exception)
         {
             if (generation != _generation || !_active) return;
-            _errorMessage = "Journal could not be loaded. Your text has been kept, along with your review answers. Select Reload to retry.";
+            _errorMessage = "Journal could not be loaded. Your text has been kept, along with your review answers. Select Refresh to retry.";
         }
         finally
         {
@@ -568,7 +573,7 @@ public sealed class JournalViewModel : ObservableObject
                 case DailyJournalWriteStatus.AlreadyExists:
                     _reloadRequired = true;
                     _targetCollision = true;
-                    _errorMessage = "A journal was created for this date and account elsewhere. Your text has been kept, along with your review answers. Reload to read it before saving.";
+                    _errorMessage = "A journal was created for this date and account elsewhere. Your text has been kept, along with your review answers. Refresh to read it before saving.";
                     break;
                 case DailyJournalWriteStatus.AccountScopeOccupied:
                     _targetCollision = true;
@@ -576,11 +581,11 @@ public sealed class JournalViewModel : ObservableObject
                     break;
                 case DailyJournalWriteStatus.Conflict:
                     _reloadRequired = true;
-                    _errorMessage = "This journal was changed elsewhere. Your text has been kept, along with your review answers. Reload the latest revision before saving.";
+                    _errorMessage = "This journal was changed elsewhere. Your text has been kept, along with your review answers. Refresh the latest revision before saving.";
                     break;
                 case DailyJournalWriteStatus.NotFound:
                     _reloadRequired = true;
-                    _errorMessage = "This journal no longer exists. Your text has been kept, along with your review answers. Reload before saving.";
+                    _errorMessage = "This journal no longer exists. Your text has been kept, along with your review answers. Refresh before saving.";
                     break;
                 case DailyJournalWriteStatus.AccountUnavailable:
                     _reloadRequired = true;
@@ -644,11 +649,11 @@ public sealed class JournalViewModel : ObservableObject
                     break;
                 case DailyJournalWriteStatus.Conflict:
                     _reloadRequired = true;
-                    _errorMessage = "This journal has a newer revision. Nothing was deleted. Your edits are kept; Reload before deciding whether to delete it.";
+                    _errorMessage = "This journal has a newer revision. Nothing was deleted. Your edits are kept; Refresh before deciding whether to delete it.";
                     break;
                 case DailyJournalWriteStatus.NotFound:
                     _reloadRequired = true;
-                    _errorMessage = "This journal no longer exists. Your edits are kept. Reload to refresh this scope.";
+                    _errorMessage = "This journal no longer exists. Your edits are kept. Refresh to refresh this scope.";
                     break;
                 default: throw new InvalidOperationException("Unexpected journal deletion result.");
             }
@@ -710,7 +715,7 @@ public sealed class JournalViewModel : ObservableObject
         else if (IsLoading)
         {
             CancelLoad();
-            _notice = "Loading cancelled. Select Reload to retry.";
+            _notice = "Loading cancelled. Select Refresh to retry.";
         }
         NotifyState();
     }
@@ -724,7 +729,7 @@ public sealed class JournalViewModel : ObservableObject
     }
 
     private const string UnavailableAccountMessage =
-        "The selected account is no longer available. Your text, review answers, and account scope have been kept. Select Reload to check again, or choose another scope.";
+        "The selected account is no longer available. Your text, review answers, and account scope have been kept. Select Refresh to check again, or choose another scope.";
 
     private void NotifyState()
     {

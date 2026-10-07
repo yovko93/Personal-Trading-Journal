@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**In-place Calendar Journal detail and one guarded Refresh**
+
+Open/Continue now expands the selected Journal immediately below its own Calendar card, with Close Journal beside that detail; other account cards remain visible. Standalone Journal has one Refresh action for its selected entry and Review History (including open read-only detail), preserving date, filter and valid page. Inline Refresh Journals also refreshes its open entry and cards; redundant Reload latest buttons are removed. Unsaved edits require the existing explicit discard decision before any user-requested refresh replaces state. Trade Retry and journal persistence are unchanged. See [presentation and refresh behavior](docs/daily-journal.md#in-place-calendar-detail-and-combined-refresh).
+
 **Day Performance journals match Calendar indicators**
 
 Under All accounts, Day Performance now lists every journal for its New York date, including individual Accounts and the separate null-scoped entry. A specific Account remains exact. Separate compact cards show Account, Draft/Completed and saved text above Trades; Open/Continue targets that journal's identity. Add Journal opens a new inline form with a visible Account choice and collision protection. Journal loading/retry is independent of Trades, and committed Save, Cancel/Draft, moves and deletion refresh the cards and Calendar markers. See [day-journal behavior](docs/daily-journal.md#day-performance-journal-list).

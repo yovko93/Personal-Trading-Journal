@@ -89,7 +89,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
         _repository = repository;
         _revisionWriter = repository as IDailyJournalRevisionWriter;
         _dialogs = dialogs;
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => _active,
+        RefreshCommand = new AsyncRelayCommand(() => RefreshRequested?.Invoke() ?? RefreshAsync(), () => _active,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
         PreviousCommand = new AsyncRelayCommand(() => ChangePageAsync(-1), () => _active && !IsLoading && _page > 1);
         NextCommand = new AsyncRelayCommand(() => ChangePageAsync(1), () => _active && !IsLoading && (long)_page * PageSize < _total);
@@ -149,6 +149,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public Task SnapshotLoadTask { get; private set; } = Task.CompletedTask;
     public Task PreviewLoadTask { get; private set; } = Task.CompletedTask;
     public IAsyncRelayCommand RefreshCommand { get; }
+    public Func<Task>? RefreshRequested { get; set; }
     public IAsyncRelayCommand PreviousCommand { get; }
     public IAsyncRelayCommand NextCommand { get; }
     public IAsyncRelayCommand<JournalHistoryRow> OpenCommand { get; }
@@ -207,8 +208,21 @@ public sealed class JournalHistoryViewModel : ObservableObject
         Notify();
     }
 
-    public Task RefreshAsync() => !_active || _deleting ? Task.CompletedTask : Task.WhenAll(
-        LoadTask = LoadAsync(), _selectedEntry is null ? Task.CompletedTask : RevisionLoadTask = LoadReviewAsync());
+    public async Task RefreshAsync()
+    {
+        if (!_active || _deleting) return;
+        await (LoadTask = LoadAsync());
+        if (_active && _selectedEntry is not null)
+        {
+            var selected = _selectedEntry;
+            long? revision = _viewingRevision;
+            await (RevisionLoadTask = LoadReviewAsync());
+            if (_active && ReferenceEquals(selected, _selectedEntry) && revision.HasValue
+                && _revisions.FirstOrDefault(r => r.Item.Revision == revision.Value) is { } row)
+                await (SnapshotLoadTask = LoadSnapshotAsync(row.Item));
+            else if (_active && ReferenceEquals(selected, _selectedEntry) && revision.HasValue) { ClearSnapshot(); Notify(); }
+        }
+    }
 
     private Task ChangePageAsync(int delta)
     {
@@ -235,8 +249,11 @@ public sealed class JournalHistoryViewModel : ObservableObject
             if (!_active || generation != _listGeneration || cancellation.IsCancellationRequested) return;
             _entries = result.Items.Select(i => new JournalHistoryRow(i)).ToArray();
             _total = result.TotalCount;
+            int lastPage = Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+            if (_page > lastPage) { _page = lastPage; await LoadAsync(); return; }
             if (_selectedEntry is not null && _entries.FirstOrDefault(r => r.Item.Id == _selectedEntry.Item.Id) is { } selected)
                 _selectedEntry = selected;
+            else if (_selectedEntry is not null) ClearSelection();
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)

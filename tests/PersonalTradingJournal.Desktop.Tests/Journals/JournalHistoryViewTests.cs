@@ -156,6 +156,7 @@ public sealed class JournalHistoryViewTests
     private static void CheckFullPage(JournalViewModel vm, ResourceDictionary resources, string theme, int width, int dpi)
     {
         var page = new JournalView { DataContext = vm };
+        Assert.NotNull(vm.History!.RefreshRequested);
         var root = new Border { Resources = resources, Child = page };
         root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
         root.Measure(new Size(width, 720));
@@ -167,6 +168,12 @@ public sealed class JournalHistoryViewTests
         var answers = (Border)page.FindName("ReviewEditor");
         var history = (Border)page.FindName("HistorySection");
         var historyView = (JournalHistoryView)page.FindName("ReviewHistory");
+        Assert.Equal(Visibility.Collapsed, ((Button)page.FindName("RefreshJournal")).Visibility);
+        var refresh = (Button)historyView.FindName("RefreshHistory");
+        Assert.Equal(Visibility.Visible, refresh.Visibility);
+        Assert.Same(vm.History!.RefreshCommand, refresh.Command);
+        Assert.Equal("Refresh journal and Review History", AutomationProperties.GetName(refresh));
+        Assert.DoesNotContain(Descendants(page).OfType<Button>(), b => b.Content?.ToString()?.Contains("Reload") == true);
         Assert.True(editor.TranslatePoint(new Point(0, editor.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         Assert.True(answers.TranslatePoint(new Point(0, answers.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         var reviewView = Review(historyView);

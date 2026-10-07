@@ -216,7 +216,11 @@ public sealed class JournalViewTests
             Assert.InRange(formAccount.ActualWidth, 200, width);
             Assert.True(formAccount.TranslatePoint(new Point(0, formAccount.ActualHeight), view).Y < editor.TranslatePoint(new Point(), view).Y);
             var save = (Button)view.FindName("SaveJournal");
-            var reload = (Button)view.FindName("ReloadJournal");
+            var reload = (Button)view.FindName("RefreshJournal");
+            Assert.Null(view.FindName("ReloadJournal"));
+            Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => b.Content?.ToString()?.Contains("Reload") == true);
+            Assert.Single(Descendants(view).OfType<Button>(), b => b.Visibility == Visibility.Visible &&
+                (ReferenceEquals(b.Command, vm.RefreshCommand) || (vm.History is { } history && ReferenceEquals(b.Command, history.RefreshCommand))));
             Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
             Assert.Equal(text, editor.Text);
             Assert.Equal(16, editor.FontSize);

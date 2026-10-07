@@ -1,5 +1,47 @@
 # Daily Journal — M14.1–M14.6
 
+## In-place Calendar detail and combined Refresh
+
+Day Performance renders one expanded Journal **directly beneath its own saved card and before the next card**, with **Close Journal** in the same detail host. Other Account cards remain visible and the All accounts aggregate/order is unchanged. Open/Continue captures the exact journal ID; switching cards or closing uses the existing unsaved-editor guard. A declined switch preserves every field and the original expansion. A new unsaved Add form has no card yet and remains below the card list, above Trades; after saving it attaches to its new saved card. A retained editor whose entry is temporarily unavailable remains reachable rather than losing local text. Account moves, revision rules and scope filtering are unchanged.
+
+Standalone Journal exposes **one Refresh** in the Review History heading (a fallback Refresh is shown only when the host has no History service). It replaces the separate Reload latest control. Before issuing any reads that would replace state, it uses the existing explicit discard/keep-editing guard; declining preserves the selected entry, text/answers, History rows/count/page and open snapshot. Confirmed Refresh loads the selected journal's exact loaded scope (or the explicitly chosen collision-recovery target) and History under its unchanged Account filter. It refreshes current text/status, counts, the opened review preview/revisions and an opened read-only snapshot. Date/filter and page remain unchanged while valid; if deletions remove the final page, paging reconciles to the last valid page. Reviews no longer on that page close without a write. Completed data remains read-only and old revision snapshots remain historical, never restored by Refresh.
+
+The modal exposes one **Refresh Journals** action for its open Journal plus the day list and grid markers. The inline Reload latest button is removed. Declining the dirty guard leaves both editor and cards unchanged; successful or failed reads use existing generation/error/concurrency handling. Automatic commit/status refresh still preserves local drafts without prompting or reloading their fields. Calendar month/date/Account/currency remain unchanged. The separate Trade Retry action is untouched. Recovery messages now point to Refresh. The legacy `ReloadCommand` API aliases the same guarded combined command for existing callers; there is no second user-visible reload operation.
+
+### In-place detail and Refresh verification (2026-10-08)
+
+- Initial checkout: clean `develop`, HEAD `a5ecbd4e3f81fd95498298c9eb10e7fd09d6fcd9`. The prior detail host followed the whole card list, and History Refresh and editor Reload performed separate reads. No persistence, schema, Trade/import or economics changes were needed.
+- Final focused Release: **400 passed**, zero failures/skips (Domain 54, Application 13, Infrastructure 80, Desktop 253). Regressions cover row-attached detail/close, exact Account identity, switching with dirty veto, combined Refresh veto without changing any displayed section, concurrent-save conflict recovery, refreshed current preview versus immutable revision snapshot, and retained/clamped History pages. SQLite fixtures are isolated and disposable; read-only refresh is checked not to append revisions.
+- Complete **parallel** Release: **2,996 passed**, zero failures/skips (Domain 454, Application 529, Infrastructure 806, Desktop 1,207); the native Calendar child passed **86/86**. No timeout, retry, skip or harness-concurrency changes were made. An older obsolete-row test now explicitly invokes background metadata refresh rather than a user Refresh that accepts discarding edits; its dirty-text/obsolete-row assertions remain intact.
+- Release build: **0 warnings/errors**. EF model consistency: no pending model changes. `git diff --check`: passed. Logs/TRX and synthetic images are ignored under `artifacts/journal-in-place-refresh/`.
+- Automated Light/Dark renders inspected: Calendar **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**, standalone **960 DIP / 96 DPI** and **480 DIP / 240 DPI**. Compiled layout checks place the detail after its own card and before the next, preserve all three cards, verify the exact Close command, scroll to bottom actions, and verify one visible Refresh with no Reload latest control. These are automated renders/routed interactions, not live acceptance.
+- Remaining live/CI checks: on an isolated Windows data root, open different Account cards, edit then decline switching/Refresh, confirm then refresh a competing revision, close the local detail, and reach all text/actions/Trades by keyboard and wheel in both themes at narrow scaling. On the standalone page, refresh an opened review/snapshot on page two and check that valid date/filter/page remain unchanged. A new GitHub Actions run after the user's commit/push is still required. No real journal was accessed; no Git write was performed.
+
+Changed files (19 modified, one new):
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.DayJournals.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalHistoryViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/InlineJournalView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalHistoryView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalView.xaml
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarDayJournalsTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalCombinedRefreshTests.cs (new)
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalReviewViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewTests.cs
+```
+
 ## Day Performance journal list
 
 Calendar **All accounts** now has the same aggregate meaning for Day Performance's saved-journal list as for grid indicators: all Account-specific entries plus the distinct null-scoped entry on the selected New York trading date. A specific Account filters exactly. Currency is not a Journal filter. Each entry has its own Account/state label, compact saved-text preview and Open/Continue action; no arbitrary entry is substituted for a multi-journal date. Inactive and unavailable Account references stay explicit.
@@ -465,9 +507,9 @@ Changed files (repository-relative, this refinement):
 
 Calendar loads this batch independently of its financial data and currency filter. Dates with entries show compact **Draft** or **✓** indicators; Completed is conveyed by the accessible name, not visible cell text. Any Draft takes precedence, with accessible aggregate counts. No entry means no marker. Indicators do not own a tooltip, preserving the day-number-only hover tooltip. Adjacent-month dates and Saturdays use their own daily Journal status. Saturday retains weekly-only financial content. Unknown/loading/error status is not interpreted as no entry. Day Performance's separate one-date content reader and Add action remain usable even if the grid-status or Trade read fails; Refresh Journals retries the list and status batch.
 
-Day Performance lists separate saved-entry cards for the selected Account filter, including every Account plus null scope under All accounts. Each card says **Continue Journal** for a draft or **Open Journal** for completed content. **Add Journal** is separately available for a new form. Actions open an **inline section below the cards and above Trades**; the modal remains open and Calendar stays selected. No Account is inferred from a Trade, currency or the last Journal selection. Each card retains its exact journal identity; null remains an independent write scope.
+Day Performance lists separate saved-entry cards for the selected Account filter, including every Account plus null scope under All accounts. Each card says **Continue Journal** for a draft or **Open Journal** for completed content. **Add Journal** is separately available for a new form. Existing-entry actions expand full detail **beneath their own card and before the next card**; a new Add form sits above Trades; the modal remains open and Calendar stays selected. No Account is inferred from a Trade, currency or the last Journal selection. Each card retains its exact journal identity; null remains an independent write scope.
 
-After a successful exact-scope load, Add/Continue opens the writable form immediately. The modal reveals the fields after layout; its **single Save Journal / Cancel row sits below all four fields** and is reachable by keyboard and the modal scroller. There is no Complete review button. Previously Completed entries display saved content read-only until an explicit revision-checked Reopen; unavailable references remain protected. Save success records Completed and collapses the form to a compact saved view. Failed/cancelled/conflicting saves retain all four fields and offer guarded Reload latest. Cancel saves all four fields as Draft without a discard prompt and closes only after success. Empty never-saved forms close without a write; failed/conflicting/cancelled writes keep every field. **Close Journal** collapses the entire inline section without closing Day Performance. Delete uses the existing permanent-history confirmation and revision check; only a committed result removes the Calendar indicator.
+After a successful exact-scope load, Add/Continue opens the writable form immediately. The modal reveals the fields after layout; its **single Save Journal / Cancel row sits below all four fields** and is reachable by keyboard and the modal scroller. There is no Complete review button. Previously Completed entries display saved content read-only until an explicit revision-checked Reopen; unavailable references remain protected. Save success records Completed and collapses the form to a compact saved view. Failed/cancelled/conflicting saves retain all four fields and offer the single guarded Refresh action. Cancel saves all four fields as Draft without a discard prompt and closes only after success. Empty never-saved forms close without a write; failed/conflicting/cancelled writes keep every field. **Close Journal** collapses the entire inline section without closing Day Performance. Delete uses the existing permanent-history confirmation and revision check; only a committed result removes the Calendar indicator.
 
 Calendar creates a separate `JournalViewModel` for each inline session and applies date/Account together through `TryOpenScope`. This reuses persistence/validation/unsaved guards rather than introducing Calendar write rules. It does not share or discard the standalone Journal page's retained draft or history selection. Inline activation omits History and duplicate Trade-context reads because the modal already has its Trade table. Closing invalidates/cancels the session's reads; late completions cannot populate another session. Date/Account/month changes require the same unsaved-change decision. Currency changes and Trade refresh never rewrite Journal fields or scope. Loads revalidate availability without falling back to All accounts.
 

@@ -8,6 +8,24 @@
     AutomationProperties.Name="Calendar day performance">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <Style x:Key="DayJournalDetailHost" TargetType="ContentControl">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value><DataTemplate>
+                    <StackPanel Margin="0,0,0,16">
+                        <Button Content="Close Journal" HorizontalAlignment="Right" Margin="0,0,0,8"
+                                Command="{Binding DataContext.CloseInlineJournalCommand, RelativeSource={RelativeSource AncestorType=calendar:CalendarDayDetailsView}}"
+                                Style="{DynamicResource PtjSecondaryButtonStyle}"
+                                AutomationProperties.Name="Close inline Journal; keep Day Performance open" />
+                        <journals:InlineJournalView />
+                    </StackPanel>
+                </DataTemplate></Setter.Value>
+            </Setter>
+            <Style.Triggers><Trigger Property="Content" Value="{x:Null}">
+                <Setter Property="ContentTemplate" Value="{x:Null}" />
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger></Style.Triggers>
+        </Style>
         <converters:PnLOutcomeConverter x:Key="PnlOutcome" />
         <Style x:Key="CalendarTradeAmountStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
@@ -108,6 +126,7 @@
                 <ItemsControl x:Name="DayJournalEntries" ItemsSource="{Binding DayJournals}" Margin="0,0,0,12"
                               AutomationProperties.Name="Journals for selected New York date and Account filter">
                     <ItemsControl.ItemTemplate><DataTemplate>
+                        <StackPanel>
                         <Border Padding="12" Margin="0,0,0,10" CornerRadius="6" BorderThickness="1"
                                 Background="{DynamicResource PtjJournalReviewSurfaceBrush}" BorderBrush="{DynamicResource PtjJournalReviewBorderBrush}"
                                 AutomationProperties.Name="{Binding Description}">
@@ -126,25 +145,13 @@
                                         AutomationProperties.Name="{Binding Description}" />
                             </StackPanel>
                         </Border>
+                        <ContentControl x:Name="RowJournalDetail" Content="{Binding ExpandedJournal}" Style="{StaticResource DayJournalDetailHost}" />
+                        </StackPanel>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <StackPanel x:Name="InlineJournalSection" Margin="0,0,0,16"
-                            Visibility="{Binding HasInlineJournal, Converter={StaticResource BoolVisibility}}">
-                    <Button Content="Close Journal" Command="{Binding CloseInlineJournalCommand}" HorizontalAlignment="Right"
-                            Margin="0,0,0,8" Style="{DynamicResource PtjSecondaryButtonStyle}"
-                            AutomationProperties.Name="Close inline Journal; keep Day Performance open" />
-                    <ContentControl x:Name="DayJournalEditor" Content="{Binding InlineJournal}">
-                        <ContentControl.Style>
-                            <Style TargetType="ContentControl">
-                                <Setter Property="ContentTemplate">
-                                    <Setter.Value><DataTemplate><journals:InlineJournalView /></DataTemplate></Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="Content" Value="{x:Null}"><Setter Property="ContentTemplate" Value="{x:Null}" /></Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ContentControl.Style>
-                    </ContentControl>
+                            Visibility="{Binding HasDetachedInlineJournal, Converter={StaticResource BoolVisibility}}">
+                    <ContentControl x:Name="DayJournalEditor" Content="{Binding DetachedInlineJournal}" Style="{StaticResource DayJournalDetailHost}" />
                 </StackPanel>
                 <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                               interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">

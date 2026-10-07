@@ -8,7 +8,10 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 public sealed partial class CalendarViewModel
 {
     private Func<JournalViewModel>? _dayJournalFactory;
+    private Guid? _inlineJournalRowId;
     public JournalViewModel? InlineJournal { get; private set; }
+    public JournalViewModel? DetachedInlineJournal => DayJournals.Any(r => ReferenceEquals(r.ExpandedJournal, InlineJournal)) ? null : InlineJournal;
+    public bool HasDetachedInlineJournal => DetachedInlineJournal is not null;
     public bool HasInlineJournal => InlineJournal is not null;
     public IAsyncRelayCommand OpenInlineJournalCommand { get; private set; } = null!;
     public IRelayCommand CloseInlineJournalCommand { get; private set; } = null!;
@@ -28,7 +31,7 @@ public sealed partial class CalendarViewModel
         OpenDayJournalCommand = new AsyncRelayCommand<CalendarJournalEntry>(OpenDayJournalAsync,
             row => _isActive && !IsDayJournalLoading && row is not null && DayJournals.Contains(row)
                 && _dayJournalFactory is not null && InlineJournal?.IsBusy != true);
-        RefreshDayJournalsCommand = new AsyncRelayCommand(() => RefreshJournalStatusesAsync(),
+        RefreshDayJournalsCommand = new AsyncRelayCommand(RefreshInlineAndListAsync,
             () => _isActive && SelectedDate.HasValue, AsyncRelayCommandOptions.AllowConcurrentExecutions);
     }
 
@@ -40,6 +43,7 @@ public sealed partial class CalendarViewModel
         Guid? account = row is null ? SelectedAccount.Id : row.AccountId;
         if (!journal.TryOpenScope(date, account, row?.AccountLabel ?? SelectedAccount.Name)) return;
         InlineJournal = journal;
+        _inlineJournalRowId = row?.Id;
         journal.JournalDataCommitted += OnInlineJournalCommitted;
         NotifyInlineJournal();
         await journal.ActivateAsync(loadTradeContext: false, newEntry: row is null, expectedJournalId: row?.Id);
@@ -55,6 +59,13 @@ public sealed partial class CalendarViewModel
             return;
         }
         if (journal.OpenEditorCommand.CanExecute(null)) journal.OpenEditorCommand.Execute(null);
+        NotifyInlineJournal();
+    }
+
+    private async Task RefreshInlineAndListAsync()
+    {
+        if (InlineJournal is { } journal && !await journal.RefreshAsync()) return;
+        if (_isActive) await RefreshJournalStatusesAsync();
     }
 
     private async Task OpenInlineJournalAsync()
@@ -85,6 +96,7 @@ public sealed partial class CalendarViewModel
         journal.JournalDataCommitted -= OnInlineJournalCommitted;
         journal.Deactivate(); // Cancels obsolete reads; their generation cannot publish to a new editor.
         InlineJournal = null;
+        _inlineJournalRowId = null;
         NotifyInlineJournal();
     }
 

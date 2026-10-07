@@ -224,7 +224,7 @@ public sealed class JournalHistorySqliteTests
             await db.Repository.UpdateAsync(new(created.Id, 2, "external third", true));
             await vm.SaveCommand.ExecuteAsync(null);
             Assert.Equal("local draft", vm.Text);
-            Assert.Contains("Reload required", vm.StatusText);
+            Assert.Contains("Refresh required", vm.StatusText);
             await vm.History.RefreshCommand.ExecuteAsync(null);
             await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]); // Same scope: conflict must remain protected.
             await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[^1]);

@@ -1,10 +1,15 @@
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using PersonalTradingJournal.Application.Journals;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
-public sealed record CalendarJournalEntry(DailyJournalDetails Details)
+public sealed class CalendarJournalEntry(DailyJournalDetails details) : ObservableObject
 {
+    public DailyJournalDetails Details { get; } = details;
+    private JournalViewModel? _expandedJournal;
+    public JournalViewModel? ExpandedJournal { get => _expandedJournal; internal set => SetProperty(ref _expandedJournal, value); }
     public Guid Id => Details.Entry.Id;
     public Guid? AccountId => Details.Entry.TradingAccountId;
     public string AccountLabel => Details.AccountState switch
@@ -101,6 +106,10 @@ public sealed partial class CalendarViewModel
 
     private void NotifyDayJournals()
     {
+        foreach (var row in DayJournals)
+            row.ExpandedJournal = row.Id == (_inlineJournalRowId ?? InlineJournal?.JournalId) ? InlineJournal : null;
+        OnPropertyChanged(nameof(DetachedInlineJournal));
+        OnPropertyChanged(nameof(HasDetachedInlineJournal));
         OnPropertyChanged(nameof(DayJournals));
         OnPropertyChanged(nameof(IsDayJournalLoading));
         OnPropertyChanged(nameof(DayJournalError));

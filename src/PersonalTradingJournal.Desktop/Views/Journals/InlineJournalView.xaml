@@ -37,8 +37,6 @@
             <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}"
                        AutomationProperties.LiveSetting="Assertive" />
             <WrapPanel Margin="0,8">
-                <Button Content="Reload latest" Command="{Binding ReloadCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16" Margin="0,0,8,4"
-                        ToolTip="Read the current revision. Discarding local edits requires confirmation." />
                 <Button Content="Cancel loading/saving" Command="{Binding CancelOperationCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16" Margin="0,0,8,4"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
                 <Button x:Name="DeleteInlineJournal" Content="Delete Journal" Command="{Binding DeleteCommand}" Style="{DynamicResource PtjDangerButtonStyle}" FontSize="16" Margin="0,0,8,4"

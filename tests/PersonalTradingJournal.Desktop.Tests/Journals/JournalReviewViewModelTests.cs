@@ -224,7 +224,7 @@ public sealed class JournalReviewViewModelTests
         await Execute(vm, action);
 
         Assert.Equal(expected, (vm.Text, vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay));
-        Assert.Contains("Reload", vm.ErrorMessage);
+        Assert.Contains("Refresh", vm.ErrorMessage);
         Assert.False(vm.SaveCommand.CanExecute(null));
         Assert.False(vm.CompleteReviewCommand.CanExecute(null));
         Assert.False(vm.ReopenReviewCommand.CanExecute(null));

@@ -13,6 +13,43 @@ public sealed class CalendarDayJournalsTests
     private static readonly DateOnly Date = new(2026, 10, 1);
 
     [Fact]
+    public async Task ExpansionFollowsExactRowAndRefreshHonorsDirtyGuardBeforeAnyListChange()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        Guid account = await AddAccount(db, "P 21");
+        var global = (await db.Repository.CreateAsync(new(Date, null, "Global", false))).Journal!.Entry;
+        var scoped = (await db.Repository.CreateAsync(new(Date, account, "Scoped", false))).Journal!.Entry;
+        var dialogs = new FakeDialogService();
+        var vm = Create(db, dialogs: dialogs);
+        try
+        {
+            await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
+            var rows = vm.DayJournals;
+            await vm.OpenDayJournalCommand.ExecuteAsync(rows.Single(r => r.Id == scoped.Id));
+            Assert.Same(vm.InlineJournal, rows.Single(r => r.Id == scoped.Id).ExpandedJournal);
+            Assert.Null(vm.DetachedInlineJournal); Assert.Null(vm.SelectedAccount.Id);
+            await vm.InlineJournal!.ReopenReviewCommand.ExecuteAsync(null);
+            vm.InlineJournal.Text = "Unsaved";
+            await vm.OpenDayJournalCommand.ExecuteAsync(rows.Single(r => r.Id == global.Id));
+            Assert.Equal(scoped.Id, vm.InlineJournal.JournalId);
+            await db.Repository.UpdateAsync(new(scoped.Id, scoped.Revision, "Concurrent", false, ReopenCompleted: true));
+            await vm.RefreshDayJournalsCommand.ExecuteAsync(null);
+            Assert.Same(rows, vm.DayJournals); Assert.Equal("Unsaved", vm.InlineJournal.Text);
+            dialogs.ConfirmationResult = true;
+            await vm.RefreshDayJournalsCommand.ExecuteAsync(null);
+            Assert.Equal("Concurrent", vm.InlineJournal.Text);
+            Assert.Same(vm.InlineJournal, vm.DayJournals.Single(r => r.Id == scoped.Id).ExpandedJournal);
+            await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.Id == global.Id));
+            Assert.Equal(global.Id, vm.InlineJournal!.JournalId);
+            Assert.Single(vm.DayJournals, r => r.ExpandedJournal is not null);
+            vm.CloseInlineJournalCommand.Execute(null);
+            Assert.All(vm.DayJournals, r => Assert.Null(r.ExpandedJournal));
+            Assert.Equal(2, vm.DayJournals.Count); Assert.Equal(Date, vm.SelectedDate);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Fact]
     public async Task OctoberFirstAllAccountsMatchesMarkerAndKeepsSeparateEntriesAndExactEditingTargets()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
@@ -111,7 +148,7 @@ public sealed class CalendarDayJournalsTests
             await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals[0]);
             var editor = vm.InlineJournal!; editor.Text = "Unsaved";
             reader.Read = (_, _, _) => throw new InvalidOperationException("Journal failure");
-            await vm.RefreshDayJournalsCommand.ExecuteAsync(null);
+            vm.OnJournalCommitted(); await vm.JournalLoadTask;
             Assert.Contains("could not be loaded", vm.DayJournalStatusMessage);
             Assert.DoesNotContain("No Journal", vm.DayJournalStatusMessage);
             Assert.Equal("Unsaved", editor.Text); Assert.True(editor.IsEditorOpen);

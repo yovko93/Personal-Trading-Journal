@@ -388,7 +388,7 @@ public sealed partial class JournalViewModelTests
 
         Assert.Equal("local work", vm.Text);
         Assert.True(vm.IsDirty);
-        Assert.Contains("Reload", vm.ErrorMessage);
+        Assert.Contains("Refresh", vm.ErrorMessage);
         Assert.False(vm.SaveCommand.CanExecute(null));
         Assert.True(vm.CanEdit);
         vm.OpenEditorCommand.Execute(null);
