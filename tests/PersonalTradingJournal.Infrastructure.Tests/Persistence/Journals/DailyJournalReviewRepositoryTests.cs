@@ -8,6 +8,36 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Journals;
 
 public sealed partial class DailyJournalRepositoryTests
 {
+    [Fact]
+    public async Task LegacyAnswersOnlyCompletionRemainsReadableWithoutMigrationAndRecompletionRequiresText()
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var repository = GetRepository(db);
+        var entry = (await repository.CreateAsync(new(TradingDate, null, "Originally valid", false, CompleteReview))).Journal!.Entry;
+        // Reproduce data written by the former answers-only completion rule, in an isolated database.
+        await using (var context = await db.ContextFactory.CreateDbContextAsync())
+        {
+            await context.DailyJournals.Where(j => j.Id == entry.Id).ExecuteUpdateAsync(s => s.SetProperty(j => j.Text, ""));
+            await context.DailyJournalRevisions.Where(j => j.JournalId == entry.Id).ExecuteUpdateAsync(s => s.SetProperty(j => j.Text, ""));
+        }
+        var loaded = (await repository.GetAsync(TradingDate))!.Entry;
+        Assert.False(loaded.IsDraft);
+        Assert.Empty(loaded.Text);
+        Assert.Equal(CompleteReview, loaded.Review);
+        Assert.Empty(Assert.Single(await repository.GetHistoryAsync(entry.Id)).Text);
+        Assert.Equal(DailyJournalWriteStatus.Unchanged, (await repository.UpdateAsync(new(entry.Id, 1, "", false))).Status);
+        await repository.UpdateAsync(new(entry.Id, 1, "", true));
+        await Assert.ThrowsAsync<ArgumentException>(() => repository.UpdateAsync(new(entry.Id, 2, "", false)));
+        Assert.Equal(2, (await repository.GetHistoryAsync(entry.Id)).Count);
+        Assert.True((await repository.GetAsync(TradingDate))!.Entry.IsDraft);
+        await repository.UpdateAsync(new(entry.Id, 2, "Now includes Journal text", false, DailyReviewAnswers.Empty));
+        var history = await repository.GetHistoryAsync(entry.Id);
+        Assert.Equal(new[] { false, true, false }, history.Select(r => r.IsDraft));
+        Assert.Empty(history[0].Text);
+        Assert.Equal(CompleteReview, history[0].Review);
+        Assert.Equal(DailyReviewAnswers.Empty, history[2].Review);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -77,10 +107,10 @@ public sealed partial class DailyJournalRepositoryTests
             new CreateDailyJournalCommand(TradingDate, account, "", true, CompleteReview))).Journal);
         clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(DailyJournalWriteStatus.Updated, (await repository.UpdateAsync(
-            new UpdateDailyJournalCommand(original.Entry.Id, 1, "", false))).Status);
+            new UpdateDailyJournalCommand(original.Entry.Id, 1, "Journal", false))).Status);
         clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(DailyJournalWriteStatus.Updated, (await repository.UpdateAsync(
-            new UpdateDailyJournalCommand(original.Entry.Id, 2, "", true))).Status);
+            new UpdateDailyJournalCommand(original.Entry.Id, 2, "Journal", true))).Status);
         var revisedAnswers = new DailyReviewAnswers("Kept discipline", CompleteReview.NeedsImprovement, CompleteReview.NextTradingDay);
         clock.Advance(TimeSpan.FromMinutes(1));
         Assert.Equal(DailyJournalWriteStatus.Updated, (await repository.UpdateAsync(
@@ -158,7 +188,7 @@ public sealed partial class DailyJournalRepositoryTests
         IDailyJournalRepository repository = GetRepository(database);
         DailyJournalDetails original = Assert.IsType<DailyJournalDetails>((await repository.CreateAsync(
             new CreateDailyJournalCommand(TradingDate, null, "", true, CompleteReview))).Journal);
-        await repository.UpdateAsync(new UpdateDailyJournalCommand(original.Entry.Id, 1, "", false));
+        await repository.UpdateAsync(new UpdateDailyJournalCommand(original.Entry.Id, 1, "Journal", false));
 
         DailyJournalWriteResult staleCompletion = await repository.UpdateAsync(
             new UpdateDailyJournalCommand(original.Entry.Id, 1, "Local draft", false, DailyReviewAnswers.Empty));
@@ -202,14 +232,14 @@ public sealed partial class DailyJournalRepositoryTests
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         IDailyJournalRepository reader = GetRepository(database);
         DailyJournalDetails original = Assert.IsType<DailyJournalDetails>((await reader.CreateAsync(
-            new CreateDailyJournalCommand(TradingDate, null, "", !reopen, CompleteReview))).Journal);
+            new CreateDailyJournalCommand(TradingDate, null, "Journal", !reopen, CompleteReview))).Journal);
         using var cancellation = new CancellationTokenSource();
         Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor interceptor = cancel
             ? new CancelAfterSaveInterceptor(cancellation) : new FailAfterSaveInterceptor();
         var repository = new DailyJournalRepository(await InterceptingFactory.CreateAsync(database, interceptor));
 
         Func<Task> write = () => repository.UpdateAsync(new UpdateDailyJournalCommand(
-            original.Entry.Id, 1, "", reopen, CompleteReview), cancellation.Token);
+            original.Entry.Id, 1, "Journal", reopen, CompleteReview), cancellation.Token);
         if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(write);
         else await Assert.ThrowsAsync<InvalidOperationException>(write);
 

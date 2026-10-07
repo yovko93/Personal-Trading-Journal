@@ -79,7 +79,7 @@ public sealed class JournalHistoryViewTests
                 root.Arrange(new Rect(0, 0, width, 720));
                 root.UpdateLayout();
                 CheckHistoryTable(view, root, vm, width);
-                Assert.Equal(20, ((ItemsControl)view.FindName("HistoryRevisions")).Items.Count);
+                Assert.Equal(20, ((ItemsControl)Review(view).FindName("HistoryRevisions")).Items.Count);
                 Assert.Equal(3, ((ItemsControl)view.FindName("HistoryEntries")).Items.Count);
                 var labels = Descendants(view).OfType<TextBlock>().Where(t => t.Name == "EntryAccount").ToArray();
                 Assert.Equal(vm.Entries.Select(e => e.ScopeText), labels.Select(t => t.Text));
@@ -89,7 +89,7 @@ public sealed class JournalHistoryViewTests
                 Assert.All(labels, t => Assert.Equal(t.Text, t.ToolTip));
                 foreach (string name in new[] { "RevisionText", "RevisionWentWell", "RevisionNeedsImprovement", "RevisionNextTradingDay" })
                 {
-                    var text = (TextBox)view.FindName(name);
+                    var text = (TextBox)Review(view).FindName(name);
                     Assert.True(text.IsReadOnly);
                     Assert.True(text.Focusable);
                     Assert.Equal(BindingMode.OneWay, BindingOperations.GetBinding(text, TextBox.TextProperty)!.Mode);
@@ -97,7 +97,7 @@ public sealed class JournalHistoryViewTests
                     Assert.InRange(text.ActualWidth, 100, width);
                     Assert.NotNull(text.Foreground);
                 }
-                Assert.Equal("  text 23\r\n", ((TextBox)view.FindName("RevisionText")).Text);
+                Assert.Equal("  text 23\r\n", ((TextBox)Review(view).FindName("RevisionText")).Text);
                 var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "View revision").ToArray();
                 Assert.Equal(23, buttons.Length);
                 Assert.All(buttons, b => { Assert.True(b.Focusable); Assert.True(b.IsEnabled); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(b))); });
@@ -141,9 +141,10 @@ public sealed class JournalHistoryViewTests
         var historyView = (JournalHistoryView)page.FindName("ReviewHistory");
         Assert.True(editor.TranslatePoint(new Point(0, editor.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         Assert.True(answers.TranslatePoint(new Point(0, answers.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
-        var close = (Button)historyView.FindName("CloseRevisionView");
-        var closeReview = (Button)historyView.FindName("CloseOpenedReview");
-        var openedReview = (StackPanel)historyView.FindName("OpenedReview");
+        var reviewView = Review(historyView);
+        var close = (Button)reviewView.FindName("CloseRevisionView");
+        var closeReview = (Button)reviewView.FindName("CloseOpenedReview");
+        var openedReview = (StackPanel)reviewView.FindName("OpenedReview");
         // This render tree has no native PresentationSource, so IsVisible is false
         // even for its root. Check bound visibility, arranged size and reachability.
         Assert.Equal(Visibility.Visible, openedReview.Visibility);
@@ -180,7 +181,7 @@ public sealed class JournalHistoryViewTests
         // Lists have no independent vertical viewport. Read-only text grows fully,
         // leaving one page scrollbar rather than a clipped nested 150-DIP box.
         Assert.DoesNotContain(Descendants(historyView).OfType<ScrollViewer>(), s => s.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled);
-        var last = (TextBox)historyView.FindName("RevisionNextTradingDay");
+        var last = (TextBox)reviewView.FindName("RevisionNextTradingDay");
         Assert.True(last.ActualHeight > 150);
         Assert.True(double.IsPositiveInfinity(last.MaxHeight));
         Assert.Equal(vm.History!.Snapshot!.Review!.NextTradingDay, last.Text);
@@ -241,12 +242,12 @@ public sealed class JournalHistoryViewTests
         var date = vm.SelectedDate;
         var account = vm.SelectedAccount;
         string pageText = vm.History.PageText;
+        double openExtent = scroller.ExtentHeight;
         vm.History.CloseReviewCommand.Execute(null);
         Flush(); root.UpdateLayout();
-        Assert.Equal(Visibility.Collapsed, openedReview.Visibility);
-        Assert.Equal(0, openedReview.ActualHeight);
-        Assert.False(closeReview.IsEnabled);
-        Assert.Empty(((ItemsControl)historyView.FindName("HistoryRevisions")).Items);
+        Assert.Empty(Descendants(historyView).OfType<JournalReviewView>()); // The inline view is removed, not left as a footer.
+        Assert.True(scroller.ExtentHeight < openExtent);
+        Assert.Empty(vm.History.Revisions);
         Assert.Equal(pageText, vm.History.PageText);
         Assert.Equal(date, vm.SelectedDate);
         Assert.Same(account, vm.SelectedAccount);
@@ -254,6 +255,8 @@ public sealed class JournalHistoryViewTests
         Assert.True(vm.IsEditorOpen);
         root.Child = null;
     }
+
+    private static JournalReviewView Review(JournalHistoryView view) => Assert.Single(Descendants(view).OfType<JournalReviewView>());
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
 
@@ -271,6 +274,13 @@ public sealed class JournalHistoryViewTests
         Assert.Equal(22, heading.FontSize);
         Assert.True(heading.TranslatePoint(new Point(), root).X < refresh.TranslatePoint(new Point(), root).X);
         var entries = (ItemsControl)view.FindName("HistoryEntries");
+        var expanded = Review(view);
+        var firstRow = (ContentPresenter)entries.ItemContainerGenerator.ContainerFromIndex(0);
+        var firstHeader = (Border)firstRow.ContentTemplate.FindName("HistoryRow", firstRow);
+        var nextRow = (ContentPresenter)entries.ItemContainerGenerator.ContainerFromIndex(1);
+        Assert.True(expanded.TranslatePoint(new Point(), entries).Y >= firstHeader.TranslatePoint(new Point(0, firstHeader.ActualHeight), entries).Y);
+        Assert.True(nextRow.TranslatePoint(new Point(), entries).Y >= expanded.TranslatePoint(new Point(0, expanded.ActualHeight), entries).Y);
+        Assert.Same(vm, expanded.DataContext);
         var presenter = Assert.IsType<ContentPresenter>(entries.ItemContainerGenerator.ContainerFromIndex(0));
         T Part<T>(string name) where T : FrameworkElement => (T)presenter.ContentTemplate.FindName(name, presenter);
         var row = Part<Border>("HistoryRow");

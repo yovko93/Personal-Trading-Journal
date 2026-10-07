@@ -166,6 +166,7 @@ public sealed partial class MainWindowViewModelTests
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
         Assert.Equal(NavigationDestination.Journal, main.CurrentDestination);
         Assert.True(journal.IsEditorOpen && journal.CanEdit); // Add opens immediately, no second click.
+        journal.Text = "Journal";
         journal.WentWell = "Well";
         journal.NeedsImprovement = "Improve";
         journal.NextTradingDay = "Next";

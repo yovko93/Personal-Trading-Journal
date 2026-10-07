@@ -142,7 +142,7 @@
                     IsVisibleChanged="OnEditorVisibilityChanged"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <StackPanel MaxWidth="760">
-                    <Label Content="Journal _text (optional)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
+                    <Label Content="Journal _text (required)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="JournalText" Style="{DynamicResource JournalTextBox}"
                              Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -151,6 +151,8 @@
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="Daily journal text"
                              AutomationProperties.HelpText="Plain text. Ctrl+S saves. Tab moves to the next control. Unsaved edits are protected when changing scope or page." />
+                    <TextBlock x:Name="JournalTextError" Text="{Binding JournalTextValidation}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
                     <TextBlock Text="{Binding CharacterCountText}" Margin="0,8,0,0" TextWrapping="Wrap"
                                Style="{DynamicResource JournalCaption}" />
                 </StackPanel>

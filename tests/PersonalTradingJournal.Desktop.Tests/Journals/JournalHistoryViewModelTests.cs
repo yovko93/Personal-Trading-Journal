@@ -11,6 +11,41 @@ public sealed class JournalHistoryViewModelTests
     private static readonly DateOnly Day = new(2026, 10, 5);
 
     [Fact]
+    public async Task AggregatePageAndEditorAreUnaffectedByViewingSwitchingAndClosingScopedRows()
+    {
+        var reader = new JournalHistoryTestReader();
+        Guid p21 = Guid.NewGuid(), other = Guid.NewGuid();
+        for (int i = 0; i < 20; i++) reader.Add(Day.AddDays(-i), i % 3 == 0 ? null : i % 3 == 1 ? p21 : other);
+        int editorNavigations = 0;
+        var vm = new JournalHistoryViewModel(reader, _ => { editorNavigations++; return true; });
+        await vm.ActivateAsync(null);
+        await vm.NextCommand.ExecuteAsync(null);
+        var rows = vm.Entries;
+        var ids = rows.Select(r => r.Item.Id).ToArray();
+        string page = vm.PageText, count = vm.Heading;
+        var row = rows.First(r => r.Item.AccountId == p21);
+        await vm.OpenCommand.ExecuteAsync(row);
+        Assert.Same(vm, row.Review);
+        await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        Assert.Equal(row.Item.Id, vm.Snapshot!.JournalId);
+        vm.CloseViewCommand.Execute(null);
+        Assert.Same(row, vm.SelectedEntry);
+        Assert.Null(vm.Snapshot);
+        await vm.OpenCommand.ExecuteAsync(rows.First(r => r.Item.AccountId == other));
+        Assert.Null(row.Review);
+        Assert.Single(rows, r => r.Review is not null);
+        vm.CloseReviewCommand.Execute(null);
+        Assert.All(rows, r => Assert.Null(r.Review));
+        Assert.Same(rows, vm.Entries);
+        Assert.Equal(ids, vm.Entries.Select(r => r.Item.Id));
+        Assert.Equal(page, vm.PageText);
+        Assert.Equal(count, vm.Heading);
+        Assert.Equal("Page 2 · 20 reviews", page);
+        Assert.Equal(0, editorNavigations);
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task PagesScopesAndRevisionPagesAreBoundedAndDoNotEagerlyReadText()
     {
         var reader = new JournalHistoryTestReader();
@@ -70,14 +105,16 @@ public sealed class JournalHistoryViewModelTests
         vm.WentWell = "local answer";
         var row = vm.History!.Entries[0];
         await vm.History.OpenCommand.ExecuteAsync(row);
+        Assert.Null(dialogs.ConfirmationRequest); // Read-only viewing leaves local fields alone.
+        vm.History.OpenInEditorCommand.Execute(null);
         Assert.NotNull(dialogs.ConfirmationRequest);
         Assert.Equal(Day, DateOnly.FromDateTime(vm.SelectedDate!.Value));
         Assert.Equal("local unsaved text", vm.Text);
         Assert.Equal("local answer", vm.WentWell);
-        Assert.Null(vm.History.SelectedEntry);
-        Assert.Empty(vm.History.Revisions);
+        Assert.Same(row, vm.History.SelectedEntry);
+        Assert.NotEmpty(vm.History.Revisions);
         dialogs.ConfirmationResult = true;
-        await vm.History.OpenCommand.ExecuteAsync(row);
+        vm.History.OpenInEditorCommand.Execute(null);
         await vm.LoadTask;
         vm.OpenEditorCommand.Execute(null);
         Assert.Equal(row.Item.TradingDate, DateOnly.FromDateTime(vm.SelectedDate!.Value));
@@ -384,7 +421,7 @@ public sealed class JournalHistoryViewModelTests
         Assert.False(history.CloseReviewCommand.CanExecute(null));
         Assert.Equal("Page 2 · 11 reviews", history.PageText);
         Assert.Same(row, Assert.Single(history.Entries));
-        Assert.Equal(row.Item.TradingDate, DateOnly.FromDateTime(vm.SelectedDate!.Value));
+        Assert.Equal(Day, DateOnly.FromDateTime(vm.SelectedDate!.Value)); // Viewing never changes the editor date.
         Assert.Null(vm.SelectedAccount.Id);
         Assert.Equal(new[] { "local journal", "local well", "local improve", "local next" },
             new[] { vm.Text, vm.WentWell, vm.NeedsImprovement, vm.NextTradingDay });

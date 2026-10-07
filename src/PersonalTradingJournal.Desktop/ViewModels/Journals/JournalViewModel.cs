@@ -172,7 +172,7 @@ public sealed class JournalViewModel : ObservableObject
             ? "Journal text cannot exceed 100,000 UTF-16 code units. Your text has been kept; shorten it before saving."
             : ReviewLengthError ?? (_completionAttempted && !HasMeaningfulContent ? CompletionError : _errorMessage);
     public string ScopeMessage => SelectedAccount.Id is null
-        ? "This date's All accounts journal is separate from each account's journal. Review History includes every Account scope; opening a row selects its original scope. Dates use New York trading time."
+        ? "This date's All accounts journal is separate from each account's journal. Review History includes every Account scope. Viewing history leaves this selection unchanged; Open in editor selects the review's original scope. Dates use New York trading time."
         : !SelectedAccount.IsAvailable
             ? "This account is unavailable. Its journal keeps its original account scope and cannot be saved."
             : $"Journal for {SelectedAccount.Name}. Dates use New York trading time.";
@@ -416,8 +416,8 @@ public sealed class JournalViewModel : ObservableObject
     private bool CanReopen() => CanReadContent && IsCompleted && SelectedAccount.IsAvailable
         && !IsBusy && !_reloadRequired && !HasDateInputError;
 
-    private bool HasMeaningfulContent => ReviewLengthError is null && DailyJournalEntry.HasMeaningfulContent(
-        Text, new DailyReviewAnswers(WentWell, NeedsImprovement, NextTradingDay));
+    private bool HasMeaningfulContent => DailyJournalEntry.CanComplete(Text);
+    public string? JournalTextValidation => _completionAttempted && !HasMeaningfulContent ? CompletionError : null;
 
     private string? ReviewLengthError
     {
@@ -436,7 +436,7 @@ public sealed class JournalViewModel : ObservableObject
         }
     }
 
-    private const string CompletionError = "Enter meaningful journal text or at least one review answer before saving. Include a letter or digit; your text has been kept.";
+    private const string CompletionError = "Journal text is required. Include at least one letter or digit. Review answers are optional; your text has been kept.";
 
     private async Task CompleteReviewAsync()
     {
@@ -672,6 +672,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(CanComplete));
         OnPropertyChanged(nameof(CharacterCountText));
         OnPropertyChanged(nameof(ErrorMessage));
+        OnPropertyChanged(nameof(JournalTextValidation));
         OnPropertyChanged(nameof(ScopeMessage));
         OnPropertyChanged(nameof(EmptyReviewText));
         OnPropertyChanged(nameof(StatusText));

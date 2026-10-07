@@ -284,14 +284,20 @@ public sealed class JournalEditorActionTests
         }
         try
         {
-            editor.Text = editor.WentWell = editor.NeedsImprovement = editor.NextTradingDay = content;
+            editor.Text = content;
+            editor.WentWell = "Meaningful answer alone is insufficient";
+            editor.NeedsImprovement = editor.NextTradingDay = content;
             await editor.SaveCommand.ExecuteAsync(null);
-            Assert.Contains("meaningful", editor.ErrorMessage);
+            Assert.Contains("Journal text is required", editor.JournalTextValidation);
             Assert.True(editor.IsEditorOpen);
             Assert.False(editor.IsExisting);
-            Assert.Equal(new[] { content, content, content, content },
+            Assert.Equal(new[] { content, "Meaningful answer alone is insufficient", content, content },
                 new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay });
             Assert.Equal(0, source.Writes);
+            await editor.SaveDraftAndCloseCommand.ExecuteAsync(null);
+            Assert.False(editor.IsEditorOpen);
+            Assert.True(editor.IsDraft);
+            Assert.Equal(1, source.Writes);
         }
         finally { editor.Deactivate(); calendar?.Deactivate(); }
     }

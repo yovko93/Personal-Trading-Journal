@@ -133,7 +133,7 @@ public sealed class JournalViewTests
             Assert.Equal(improvement.Text, vm.NeedsImprovement);
             Assert.Equal(nextDay.Text, vm.NextTradingDay);
             Assert.True(vm.IsDirty);
-            Assert.True(vm.CanComplete);
+            Assert.False(vm.CanComplete); // Answers alone cannot complete; unsaved protection still covers them.
             DateTime? date = vm.SelectedDate;
             ((DatePicker)view.FindName("JournalDate")).SelectedDate = date!.Value.AddDays(1);
             Flush();
@@ -313,7 +313,8 @@ public sealed class JournalViewTests
         Assert.True(save.IsEnabled); // An explicit attempt explains the minimum-content validation.
         save.Command.Execute(null);
         Flush();
-        Assert.Contains("meaningful", ((TextBlock)view.FindName("JournalError")).Text);
+        Assert.Contains("Journal text is required", ((TextBlock)view.FindName("JournalTextError")).Text);
+        Assert.True(((TextBlock)view.FindName("JournalTextError")).TranslatePoint(new Point(), view).Y >= editor.TranslatePoint(new Point(0, editor.ActualHeight), view).Y);
         Assert.False(vm.IsExisting);
         Assert.True(vm.IsEditorOpen);
         editor.Text = new string('x', DailyJournalEntry.MaximumTextLength + 1);
@@ -408,7 +409,9 @@ public sealed class JournalViewTests
             throw new NotSupportedException();
 
         public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(text is null ? null : new DailyJournalDetails(new DailyJournalEntry(date, accountId, text, draft, FixedTimeProvider.FixedUtcNow, review ?? DailyReviewAnswers.Empty), DailyJournalAccountState.AllAccounts, null));
+            // Persisted fixtures include legacy answers-only Completed entries; reads rehydrate rather than create.
+            Task.FromResult(text is null ? null : new DailyJournalDetails(DailyJournalEntry.Rehydrate(Guid.NewGuid(), date, accountId, text, draft, 1,
+                FixedTimeProvider.FixedUtcNow, FixedTimeProvider.FixedUtcNow, review ?? DailyReviewAnswers.Empty), DailyJournalAccountState.AllAccounts, null));
         public Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(Guid journalId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<DailyJournalWriteResult> UpdateAsync(UpdateDailyJournalCommand command, CancellationToken cancellationToken = default) => throw new NotSupportedException();

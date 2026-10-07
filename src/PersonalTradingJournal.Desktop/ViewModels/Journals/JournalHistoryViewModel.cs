@@ -6,8 +6,11 @@ using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Journals;
 
-public sealed record JournalHistoryRow(JournalHistoryItem Item)
+public sealed class JournalHistoryRow(JournalHistoryItem item) : ObservableObject
 {
+    public JournalHistoryItem Item { get; } = item;
+    private JournalHistoryViewModel? _review;
+    public JournalHistoryViewModel? Review { get => _review; internal set => SetProperty(ref _review, value); }
     public string DateText => Item.TradingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     public string DisplayDate => Item.TradingDate.ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
     public string RevisionText => $"Revision {Item.Revision}";
@@ -57,6 +60,10 @@ public sealed class JournalHistoryViewModel : ObservableObject
         NextCommand = new AsyncRelayCommand(() => ChangePageAsync(1), () => _active && !IsLoading && (long)_page * PageSize < _total);
         OpenCommand = new AsyncRelayCommand<JournalHistoryRow>(OpenAsync, row => _active && row is not null,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        OpenInEditorCommand = new RelayCommand(() =>
+        {
+            if (_selectedEntry is { } row && _entries.Any(r => ReferenceEquals(r, row))) _open(row.Item);
+        }, () => _active && HasSelectedEntry);
         PreviousRevisionsCommand = new AsyncRelayCommand(() => ChangeRevisionPageAsync(-1),
             () => _active && !IsRevisionLoading && _revisionPage > 1);
         NextRevisionsCommand = new AsyncRelayCommand(() => ChangeRevisionPageAsync(1),
@@ -98,6 +105,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public IAsyncRelayCommand PreviousCommand { get; }
     public IAsyncRelayCommand NextCommand { get; }
     public IAsyncRelayCommand<JournalHistoryRow> OpenCommand { get; }
+    public IRelayCommand OpenInEditorCommand { get; }
     public IAsyncRelayCommand PreviousRevisionsCommand { get; }
     public IAsyncRelayCommand NextRevisionsCommand { get; }
     public IAsyncRelayCommand<JournalRevisionRow> ViewRevisionCommand { get; }
@@ -195,7 +203,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     {
         // Ignore obsolete buttons retained by a disconnected row/template.
         if (row is null || !_active || (_accountId.HasValue && row.Item.AccountId != _accountId)
-            || !_entries.Any(current => ReferenceEquals(current, row)) || !_open(row.Item))
+            || !_entries.Any(current => ReferenceEquals(current, row)))
             return Task.CompletedTask;
         ClearSelection();
         _selectedEntry = row;
@@ -275,6 +283,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
 
     private void ClearSelection()
     {
+        if (_selectedEntry is not null) _selectedEntry.Review = null;
         CancelRevisions();
         ClearSnapshot();
         _selectedEntry = null;
@@ -295,11 +304,13 @@ public sealed class JournalHistoryViewModel : ObservableObject
     }
     private void Notify()
     {
+        foreach (var row in _entries) row.Review = ReferenceEquals(row, _selectedEntry) ? this : null;
         OnPropertyChanged(string.Empty);
         RefreshCommand.NotifyCanExecuteChanged(); PreviousCommand.NotifyCanExecuteChanged(); NextCommand.NotifyCanExecuteChanged();
         OpenCommand.NotifyCanExecuteChanged(); PreviousRevisionsCommand.NotifyCanExecuteChanged(); NextRevisionsCommand.NotifyCanExecuteChanged();
         ViewRevisionCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
         CloseViewCommand.NotifyCanExecuteChanged();
         CloseReviewCommand.NotifyCanExecuteChanged();
+        OpenInEditorCommand.NotifyCanExecuteChanged();
     }
 }

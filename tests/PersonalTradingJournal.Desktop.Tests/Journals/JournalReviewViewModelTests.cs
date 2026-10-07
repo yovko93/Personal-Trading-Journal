@@ -16,7 +16,7 @@ public sealed class JournalReviewViewModelTests
     private static readonly DailyReviewAnswers Ready = new("I followed my plan.", "Improve patience.", "Wait for confirmation.");
 
     [Fact]
-    public async Task PartialAnswersSaveAsExactCompletedEntryWithoutTradesOrFreeformText()
+    public async Task AnswersAloneCannotCompleteButCancelPreservesThemAsDraft()
     {
         var repository = new Repository();
         var vm = Create(repository);
@@ -26,17 +26,23 @@ public sealed class JournalReviewViewModelTests
         vm.WentWell = exact;
         vm.NeedsImprovement = " ";
         Assert.True(vm.IsDirty);
-        Assert.True(vm.CanComplete);
+        Assert.False(vm.CanComplete);
         Assert.True(vm.SaveCommand.CanExecute(null));
         Assert.True(vm.CompleteReviewCommand.CanExecute(null));
         Assert.Equal(0, vm.TradeContext.ClosedTradeCount);
         await vm.SaveCommand.ExecuteAsync(null);
 
+        Assert.Empty(repository.Creates);
+        Assert.True(vm.IsEditorOpen);
+        Assert.Contains("Journal text is required", vm.JournalTextValidation);
+        Assert.Equal(exact, vm.WentWell);
+        await vm.SaveDraftAndCloseCommand.ExecuteAsync(null);
+
         var command = Assert.Single(repository.Creates);
         Assert.Equal("", command.Text);
         Assert.Equal(new DailyReviewAnswers(exact, " ", ""), command.Review);
-        Assert.False(command.IsDraft);
-        Assert.True(vm.IsCompleted);
+        Assert.True(command.IsDraft);
+        Assert.True(vm.IsDraft);
         Assert.False(vm.IsDirty);
         Assert.Equal(exact, vm.WentWell);
         Assert.False(vm.IsEditorOpen);
@@ -56,7 +62,7 @@ public sealed class JournalReviewViewModelTests
         SetAnswer(vm, answer, value);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
 
-        Assert.Contains("meaningful journal text", vm.ErrorMessage);
+        Assert.Contains("Journal text is required", vm.ErrorMessage);
         Assert.True(vm.IsDraft);
         Assert.Equal(value.Length > 0, vm.IsDirty);
         Assert.True(vm.CanEdit);
@@ -64,6 +70,8 @@ public sealed class JournalReviewViewModelTests
         Assert.Empty(repository.Creates);
         Assert.Empty(repository.Updates);
         SetAnswer(vm, answer, "План 2");
+        Assert.NotNull(vm.JournalTextValidation);
+        vm.Text = "План 2";
         Assert.Null(vm.ErrorMessage);
         Assert.True(vm.CanComplete);
     }
@@ -84,7 +92,7 @@ public sealed class JournalReviewViewModelTests
         Assert.Equal(Ready, command.Review);
         Assert.Equal(Day, command.TradingDate);
         Assert.Null(command.TradingAccountId);
-        Assert.Equal("", command.Text);
+        Assert.Equal("Journal", command.Text);
         Assert.True(vm.IsCompleted);
         Assert.True(vm.IsReadOnly);
         Assert.False(vm.IsEditorOpen);
@@ -102,7 +110,7 @@ public sealed class JournalReviewViewModelTests
         await vm.SaveCommand.ExecuteAsync(null);
         vm.OpenEditorCommand.Execute(null);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
-        Assert.Equal("", vm.Text);
+        Assert.Equal("Journal", vm.Text);
         Assert.Equal(Ready.WentWell, vm.WentWell);
         Assert.Equal(Ready.NeedsImprovement, vm.NeedsImprovement);
         Assert.Equal(Ready.NextTradingDay, vm.NextTradingDay);
@@ -170,17 +178,21 @@ public sealed class JournalReviewViewModelTests
     [Fact]
     public async Task LegacyCompletedJournalCanReopenAndSaveMeaningfulFreeformWithoutAnswers()
     {
-        var repository = new Repository { Journal = Details("legacy", draft: false) };
+        var repository = new Repository { Journal = Details("", draft: false, review: Ready) };
         var vm = Create(repository);
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
         Assert.True(vm.IsCompleted);
         Assert.True(vm.CanReadContent);
         Assert.True(vm.IsReadOnly);
-        Assert.Equal("", vm.WentWell);
+        Assert.Equal(Ready.WentWell, vm.WentWell);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
-        Assert.Equal("legacy", vm.Text);
+        Assert.Equal("", vm.Text);
         Assert.True(vm.IsDraft);
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Single(repository.Updates); // Reopening succeeds, re-completing now requires Journal text.
+        Assert.Contains("Journal text is required", vm.JournalTextValidation);
+        vm.Text = "legacy reviewed";
         await vm.CompleteReviewCommand.ExecuteAsync(null);
         Assert.Equal(2, repository.Updates.Count);
         Assert.True(vm.IsCompleted);
@@ -500,6 +512,7 @@ public sealed class JournalReviewViewModelTests
     private static void SetReady(JournalViewModel vm)
     {
         vm.OpenEditorCommand.Execute(null);
+        if (vm.Text.Length == 0) vm.Text = "Journal";
         vm.WentWell = Ready.WentWell;
         vm.NeedsImprovement = Ready.NeedsImprovement;
         vm.NextTradingDay = Ready.NextTradingDay;

@@ -146,17 +146,16 @@ public sealed class DailyJournalEntry : AuditableEntity
         return true;
     }
 
-    /// <summary>At least one field contains a Unicode letter or digit. Content is never trimmed.</summary>
-    public static bool HasMeaningfulContent(string? text, DailyReviewAnswers review) =>
-        DailyReviewAnswers.HasMeaningfulText(text) || review.HasMeaningfulContent;
+    /// <summary>Completion requires a Unicode letter or digit in Journal text; answers are optional.</summary>
+    public static bool CanComplete(string? text) => DailyReviewAnswers.HasMeaningfulText(text);
 
     private static void ValidateCompletion(bool isDraft, string text, DailyReviewAnswers review)
     {
-        if (!isDraft && !HasMeaningfulContent(text, review))
+        if (!isDraft && !CanComplete(text))
         {
             throw new ArgumentException(
-                "Enter meaningful journal text or at least one review answer before saving as Completed.",
-                nameof(review));
+                "Journal text is required to save as Completed. Include at least one letter or digit; review answers are optional.",
+                nameof(text));
         }
     }
 

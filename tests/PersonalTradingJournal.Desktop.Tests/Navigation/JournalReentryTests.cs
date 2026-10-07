@@ -36,6 +36,7 @@ public sealed partial class MainWindowViewModelTests
         await vm.LoadTask;
         await vm.History!.NextCommand.ExecuteAsync(null);
         await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]);
+        vm.History.OpenInEditorCommand.Execute(null); // Read-only viewing no longer retargets the editor.
         await vm.LoadTask;
         await vm.History.NextRevisionsCommand.ExecuteAsync(null);
         await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);

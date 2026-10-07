@@ -59,10 +59,10 @@ public sealed class DailyJournalStatusReaderTests
         var draft = Assert.Single(await reader.GetAsync(GridStart, GridStart));
         Assert.Equal(new DailyJournalStatus(created.Entry.Id, GridStart, true, 1), draft);
 
-        await repository.UpdateAsync(new(created.Entry.Id, 1, "", false, CompleteAnswers));
+        await repository.UpdateAsync(new(created.Entry.Id, 1, "Journal", false, CompleteAnswers));
         Assert.Equal(new DailyJournalStatus(created.Entry.Id, GridStart, false, 2), Assert.Single(await reader.GetAsync(GridStart, GridStart)));
 
-        await repository.UpdateAsync(new(created.Entry.Id, 2, "", true, CompleteAnswers));
+        await repository.UpdateAsync(new(created.Entry.Id, 2, "Journal", true, CompleteAnswers));
         Assert.Equal(new DailyJournalStatus(created.Entry.Id, GridStart, true, 3), Assert.Single(await reader.GetAsync(GridStart, GridStart)));
         Assert.Equal(3, (await repository.GetHistoryAsync(created.Entry.Id)).Count);
     }

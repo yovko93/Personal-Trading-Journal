@@ -46,9 +46,11 @@
             </WrapPanel>
             <StackPanel x:Name="InlineForm" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
                         IsVisibleChanged="OnFormVisible" MaxWidth="760">
-                <Label Content="Journal _text (optional)" Target="{Binding ElementName=InlineText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <Label Content="Journal _text (required)" Target="{Binding ElementName=InlineText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <TextBox x:Name="InlineText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="120" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="Day Journal text" />
+                    <TextBlock x:Name="JournalTextError" Text="{Binding JournalTextValidation}" TextWrapping="Wrap"
+                               Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
                 <Label Content="What went _well?" Target="{Binding ElementName=InlineWell}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <TextBox x:Name="InlineWell" Text="{Binding WentWell, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="What went well?" />

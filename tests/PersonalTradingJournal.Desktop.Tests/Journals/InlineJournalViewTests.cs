@@ -90,6 +90,16 @@ public sealed class InlineJournalViewTests
                 Assert.InRange(save.TranslatePoint(new Point(), page).Y, -0.1, page.ViewportHeight - save.ActualHeight + 0.1);
                 Assert.InRange(cancel.TranslatePoint(new Point(), page).Y, -0.1, page.ViewportHeight - cancel.ActualHeight + 0.1);
                 Render(view, theme, width, dpi, "actions");
+                string keptText = vm.InlineJournal.Text;
+                vm.InlineJournal.Text = "";
+                vm.InlineJournal.WentWell = "Answer alone cannot complete";
+                save.Command.Execute(null); Flush(); view.UpdateLayout();
+                var error = (TextBlock)inline.FindName("JournalTextError");
+                Assert.Contains("Journal text is required", error.Text);
+                Assert.True(error.TranslatePoint(new Point(), inline).Y >= fieldText.TranslatePoint(new Point(0, fieldText.ActualHeight), inline).Y);
+                Assert.True(vm.InlineJournal.IsEditorOpen);
+                vm.InlineJournal.Text = keptText; Flush();
+                Assert.Empty(error.Text);
                 table.BringIntoView(new Rect(0, 0, table.ActualWidth, 80)); Flush();
                 Assert.InRange(table.TranslatePoint(new Point(), page).Y, -1, page.ViewportHeight);
                 vm.InlineJournal.CloseEditorCommand.Execute(null); Flush();

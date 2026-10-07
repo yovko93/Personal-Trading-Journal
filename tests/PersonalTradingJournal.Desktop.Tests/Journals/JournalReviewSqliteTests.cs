@@ -18,11 +18,12 @@ public sealed class JournalReviewSqliteTests
         var tradingData = await database.ReadTradeDataAsync();
         const string well = "  I stayed patient.\r\nТърпение 📈\t ";
         editor.WentWell = well;
+        editor.Text = "Journal";
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.ErrorMessage);
         Assert.True(editor.IsCompleted);
         Assert.Equal(1L, editor.Revision);
-        Assert.Empty(editor.Text);
+        Assert.Equal("Journal", editor.Text);
         Assert.Empty(editor.NeedsImprovement);
         Assert.Empty(editor.NextTradingDay);
 
@@ -38,7 +39,7 @@ public sealed class JournalReviewSqliteTests
         Assert.True(editor.CanReadContent);
         Assert.Equal(3L, editor.Revision);
         Assert.False(editor.IsDirty);
-        Assert.Empty(editor.Text);
+        Assert.Equal("Journal", editor.Text);
         Assert.True(editor.TradeContext.IsEmpty);
 
         var loaded = (await database.Repository.GetAsync(Day))!;
@@ -50,7 +51,7 @@ public sealed class JournalReviewSqliteTests
         Assert.Equal(editor.NextTradingDay, second.NextTradingDay);
         second.Text = "A completed journal cannot be changed.";
         second.WentWell = "Nor can its answers.";
-        Assert.Empty(second.Text);
+        Assert.Equal("Journal", second.Text);
         Assert.Equal(well, second.WentWell);
         Assert.False(second.SaveCommand.CanExecute(null));
 
@@ -76,7 +77,7 @@ public sealed class JournalReviewSqliteTests
         Assert.Equal(completedAnswers, history[2].Review);
         Assert.Equal(completedAnswers, history[3].Review);
         Assert.Equal("More patience at the open.", history[4].Review!.NeedsImprovement);
-        Assert.All(history, revision => Assert.Empty(revision.Text));
+        Assert.All(history, revision => Assert.Equal("Journal", revision.Text));
         Assert.Equivalent(tradingData, await database.ReadTradeDataAsync(), strict: true);
     }
 
@@ -85,7 +86,7 @@ public sealed class JournalReviewSqliteTests
     {
         await using JournalTestDatabase database = await JournalTestDatabase.CreateAsync();
         var original = new DailyReviewAnswers("A solid plan.", "Be patient.", "Wait for confirmation.");
-        var created = await database.Repository.CreateAsync(new(Day, null, "", Review: original));
+        var created = await database.Repository.CreateAsync(new(Day, null, "Journal", Review: original));
         var first = await database.OpenEditorAsync(Day);
         var dialogs = new FakeDialogService();
         var stale = await database.OpenEditorAsync(Day, dialogs: dialogs);

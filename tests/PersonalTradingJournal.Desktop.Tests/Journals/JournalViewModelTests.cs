@@ -110,7 +110,7 @@ public sealed partial class JournalViewModelTests
         Assert.Empty(repository.Creates);
         Assert.False(vm.IsExisting);
         Assert.True(vm.IsEditorOpen);
-        Assert.Contains("meaningful", vm.ErrorMessage);
+        Assert.Contains("Journal text is required", vm.ErrorMessage);
         vm.Text = "Meaningful freeform only";
         await vm.SaveCommand.ExecuteAsync(null);
 

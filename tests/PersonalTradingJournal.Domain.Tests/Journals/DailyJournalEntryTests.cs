@@ -38,10 +38,10 @@ public sealed class DailyJournalEntryTests
     [InlineData("  café 文 🙂\r\n  next line\n\r\n")]
     public void PreservesExactTextIncludingEmptyContent(string text)
     {
-        var journal = new DailyJournalEntry(TradingDate, null, text, false, CreatedAtUtc, CompleteReview);
+        var journal = new DailyJournalEntry(TradingDate, null, text, true, CreatedAtUtc, CompleteReview);
 
         Assert.Equal(text, journal.Text);
-        Assert.False(journal.IsDraft);
+        Assert.True(journal.IsDraft);
     }
 
     [Fact]
@@ -246,11 +246,11 @@ public sealed class DailyJournalEntryTests
 
     [Theory]
     [InlineData("  Plan\r\n ", "", "", "")]
-    [InlineData("", "  文 ", "", "")]
-    [InlineData("", "", "٢", "")]
-    [InlineData("", "", "", "\U00010400")]
+    [InlineData("文", "  文 ", "", "")]
+    [InlineData("٢", "", "٢", "")]
+    [InlineData("\U00010400", "", "", "\U00010400")]
     [InlineData("Notes", "Partial", "...", "")]
-    public void AnyMeaningfulFieldCanCompleteWithoutTrimming(string text, string well, string improve, string next)
+    public void MeaningfulJournalTextCanCompleteWithOptionalAnswersWithoutTrimming(string text, string well, string improve, string next)
     {
         var answers = new DailyReviewAnswers(well, improve, next);
         var journal = new DailyJournalEntry(TradingDate, AccountId, text, false, CreatedAtUtc, answers);
@@ -266,10 +266,10 @@ public sealed class DailyJournalEntryTests
     {
         DailyJournalEntry journal = Rehydrate();
 
-        Assert.True(journal.UpdateContent(string.Empty, false, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.True(journal.UpdateContent("Journal", false, CreatedAtUtc.AddMinutes(1), CompleteReview));
         Assert.False(journal.IsDraft);
         Assert.Equal(2L, journal.Revision);
-        Assert.True(journal.UpdateContent(string.Empty, true, CreatedAtUtc.AddMinutes(2), CompleteReview));
+        Assert.True(journal.UpdateContent("Journal", true, CreatedAtUtc.AddMinutes(2), CompleteReview));
         Assert.True(journal.IsDraft);
         Assert.Equal(3L, journal.Revision);
         Assert.True(journal.UpdateContent("New note", true, CreatedAtUtc.AddMinutes(3),
@@ -318,6 +318,21 @@ public sealed class DailyJournalEntryTests
         Assert.Equal(9L, journal.Revision);
         Assert.True(journal.UpdateContent(journal.Text, false, CreatedAtUtc.AddMinutes(2), CompleteReview));
         Assert.Equal(10L, journal.Revision);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \t...")]
+    public void AnswersCannotReplaceRequiredTextButLegacyCompletedAnswersRemainReadable(string text)
+    {
+        Assert.Throws<ArgumentException>(() => new DailyJournalEntry(TradingDate, AccountId, text, false, CreatedAtUtc, CompleteReview));
+        var legacy = DailyJournalEntry.Rehydrate(JournalId, TradingDate, AccountId, text, false, 8, CreatedAtUtc, CreatedAtUtc, CompleteReview);
+        Assert.Equal(text, legacy.Text);
+        Assert.False(legacy.UpdateContent(text, false, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.True(legacy.UpdateContent(text, true, CreatedAtUtc.AddMinutes(1), CompleteReview));
+        Assert.Throws<ArgumentException>(() => legacy.UpdateContent(text, false, CreatedAtUtc.AddMinutes(2), CompleteReview));
+        Assert.Equal(9, legacy.Revision);
+        Assert.True(legacy.UpdateContent("Journal", false, CreatedAtUtc.AddMinutes(2), CompleteReview));
     }
 
     [Fact]

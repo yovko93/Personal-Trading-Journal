@@ -162,6 +162,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         vm.OpenEditorCommand.Execute(null);
         int notifications = 0;
         vm.JournalDataCommitted += (_, _) => { notifications++; Assert.False(vm.IsSaving); Assert.False(vm.IsDirty); };
+        vm.Text = "Journal";
         vm.WentWell = Ready.WentWell;
         vm.NeedsImprovement = Ready.NeedsImprovement;
         vm.NextTradingDay = Ready.NextTradingDay;

@@ -41,17 +41,25 @@ public sealed class JournalHistorySqliteTests
             Assert.Contains("inactive", row.ScopeText);
             vm.OpenEditorCommand.Execute(null);
             vm.Text = "Unsaved All accounts text";
-            await vm.History.OpenCommand.ExecuteAsync(row); // Keep editing vetoes scope navigation.
+            var rows = vm.History.Entries;
+            string page = vm.History.PageText;
+            await vm.History.OpenCommand.ExecuteAsync(row); // Read-only viewing never navigates.
+            Assert.Same(rows, vm.History.Entries);
+            Assert.Equal(page, vm.History.PageText);
+            await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);
+            Assert.Equal("P21 original", vm.History.Snapshot!.Text);
+            vm.History.OpenInEditorCommand.Execute(null); // Explicit editing can be vetoed.
             Assert.Null(vm.SelectedAccount.Id);
             Assert.Equal("Unsaved All accounts text", vm.Text);
-            Assert.Null(vm.History.SelectedEntry);
+            Assert.Same(row, vm.History.SelectedEntry);
             dialogs.ConfirmationResult = true;
-            await vm.History.OpenCommand.ExecuteAsync(row);
+            vm.History.OpenInEditorCommand.Execute(null);
             await vm.LoadTask;
             await vm.History.LoadTask;
             Assert.Equal(p21.Id, vm.SelectedAccount.Id);
             Assert.Equal(date, DateOnly.FromDateTime(vm.SelectedDate!.Value));
             Assert.Equal("P21 original", vm.Text);
+            await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries.Single(r => r.Item.Id == scoped.Id));
             Assert.Equal(scoped.Id, vm.History.SelectedEntry!.Item.Id);
             await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);
             Assert.Equal("P21 original", vm.History.Snapshot!.Text);
@@ -204,6 +212,7 @@ public sealed class JournalHistorySqliteTests
             await db.Repository.UpdateAsync(new(created.Id, 1, "external second", true));
             await vm.History!.RefreshCommand.ExecuteAsync(null);
             await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]);
+            vm.History.OpenInEditorCommand.Execute(null);
             await vm.LoadTask;
             vm.OpenEditorCommand.Execute(null);
             Assert.Equal("external second", vm.Text);
