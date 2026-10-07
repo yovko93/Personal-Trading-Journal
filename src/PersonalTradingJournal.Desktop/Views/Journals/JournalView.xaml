@@ -197,10 +197,11 @@
                 <WrapPanel x:Name="JournalEditorActions" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <Button x:Name="SaveJournal" Content="_Save Journal" Command="{Binding SaveCommand}" Margin="0,0,8,8"
                         Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
-                        Style="{DynamicResource JournalPrimaryButton}" AutomationProperties.Name="Save Journal as Completed" ToolTip="Save all fields and mark Completed (Ctrl+S)" />
-                <Button x:Name="CloseJournalEditor" Content="_Cancel" Command="{Binding CloseEditorCommand}" Margin="0,0,8,8"
-                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Close Journal editor"
-                        ToolTip="Unsaved text and answers require an explicit discard decision." />
+                        Style="{DynamicResource PtjJournalSaveButtonStyle}" AutomationProperties.Name="Save Journal as Completed" ToolTip="Save all fields and mark Completed (Ctrl+S)" />
+                <Button x:Name="CloseJournalEditor" Content="_Cancel" Command="{Binding SaveDraftAndCloseCommand}" Margin="0,0,8,8"
+                        Style="{DynamicResource PtjJournalDraftButtonStyle}" AutomationProperties.Name="Cancel — save as draft and close"
+                        AutomationProperties.HelpText="Save all four fields as Draft and close only the editor. An empty new form closes without creating an entry."
+                        ToolTip="Save as draft and close" />
                 </WrapPanel>
                 <Button x:Name="ReloadJournal" Content="_Reload latest" Command="{Binding ReloadCommand}" Margin="0,0,8,8"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Reload latest journal"

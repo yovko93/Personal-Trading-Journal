@@ -39,4 +39,16 @@
     <SolidColorBrush x:Key="PtjSidebarMutedBrush" Color="#B4BCCB" />
     <SolidColorBrush x:Key="PtjSidebarSelectionBrush" Color="#293260" />
     <SolidColorBrush x:Key="PtjSidebarSelectedTextBrush" Color="#F2F2F7" />
+    <SolidColorBrush x:Key="PtjJournalActionBrush" Color="#233D5D" />
+    <SolidColorBrush x:Key="PtjJournalActionHoverBrush" Color="#2B4B70" />
+    <SolidColorBrush x:Key="PtjJournalActionPressedBrush" Color="#34577E" />
+    <SolidColorBrush x:Key="PtjOnJournalActionBrush" Color="#D9EBFF" />
+    <SolidColorBrush x:Key="PtjJournalSaveBrush" Color="#77CF9B" />
+    <SolidColorBrush x:Key="PtjJournalSaveHoverBrush" Color="#91DDAE" />
+    <SolidColorBrush x:Key="PtjJournalSavePressedBrush" Color="#ACE7C2" />
+    <SolidColorBrush x:Key="PtjOnJournalSaveBrush" Color="#102B1C" />
+    <SolidColorBrush x:Key="PtjJournalDraftBrush" Color="#433659" />
+    <SolidColorBrush x:Key="PtjJournalDraftHoverBrush" Color="#514268" />
+    <SolidColorBrush x:Key="PtjJournalDraftPressedBrush" Color="#5D4C78" />
+    <SolidColorBrush x:Key="PtjOnJournalDraftBrush" Color="#F0E8FF" />
 </ResourceDictionary>

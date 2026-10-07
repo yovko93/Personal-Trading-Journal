@@ -282,6 +282,7 @@ public sealed class JournalHistoryViewTests
         Assert.InRange(open.TranslatePoint(new Point(), root).X, 0, width);
         Assert.InRange(open.TranslatePoint(new Point(open.ActualWidth, 0), root).X, 0, width);
         Assert.True(open.Focusable && KeyboardNavigation.GetIsTabStop(open));
+        JournalButtonAssertions.States(open, "Action");
         Assert.Equal(new Thickness(0, 0, 0, 1), row.BorderThickness);
         // Exercise the actual theme trigger, not a live pointer claim.
         var hoverKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",

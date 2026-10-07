@@ -91,9 +91,15 @@ public sealed class JournalViewTests
         Assert.Null(view.FindName("EditorSaveJournal"));
         Assert.Null(view.FindName("EditorCancel"));
         Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.SaveCommand));
-        Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CloseEditorCommand));
+        Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.SaveDraftAndCloseCommand));
         Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CompleteReviewCommand));
-        Assert.Same(vm.CloseEditorCommand, cancel.Command);
+        Assert.Same(vm.SaveDraftAndCloseCommand, cancel.Command);
+        Assert.Contains("save as draft and close", AutomationProperties.GetName(cancel));
+        if (!completed)
+        {
+            JournalButtonAssertions.States(save, "Save");
+            JournalButtonAssertions.States(cancel, "Draft");
+        }
         Assert.Equal("Save Journal as Completed", AutomationProperties.GetName(save));
         Assert.Same(vm.ReopenReviewCommand, reopen.Command);
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, save.Visibility);

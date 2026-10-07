@@ -49,6 +49,7 @@ public sealed class JournalViewModel : ObservableObject
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             _clock.GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
+        SaveDraftAndCloseCommand = new AsyncRelayCommand(SaveDraftAndCloseAsync, CanSave);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, CanDelete);
         CompleteReviewCommand = new AsyncRelayCommand(CompleteReviewAsync, CanSave);
         ReopenReviewCommand = new AsyncRelayCommand(ReopenReviewAsync, CanReopen);
@@ -186,6 +187,7 @@ public sealed class JournalViewModel : ObservableObject
             : IsDraft ? $"Saved draft · Revision {Revision}" : $"Completed review · Revision {Revision}");
 
     public IAsyncRelayCommand SaveCommand { get; }
+    public IAsyncRelayCommand SaveDraftAndCloseCommand { get; }
     public IAsyncRelayCommand DeleteCommand { get; }
     public IAsyncRelayCommand CompleteReviewCommand { get; }
     public IAsyncRelayCommand ReopenReviewCommand { get; }
@@ -445,9 +447,25 @@ public sealed class JournalViewModel : ObservableObject
 
     private Task SaveAsync() => CompleteReviewAsync();
 
+    private Task SaveDraftAndCloseAsync()
+    {
+        if (!CanSave()) return Task.CompletedTask;
+        // Only a never-saved, exactly empty form closes without a write. Drafts preserve
+        // partial/nonmeaningful text too; this button never invokes discard protection.
+        if (_entry is null && Text.Length == 0 && WentWell.Length == 0
+            && NeedsImprovement.Length == 0 && NextTradingDay.Length == 0)
+        {
+            PublishEntry(null);
+            _isEditorOpen = false;
+            NotifyState();
+            return Task.CompletedTask;
+        }
+        return WriteAsync(isDraft: true);
+    }
+
     private async Task WriteAsync(bool isDraft, bool openEditorOnSuccess = false)
     {
-        // All three actions share this guard so concurrent command types cannot overlap.
+        // All write actions share this guard so concurrent command types cannot overlap.
         if (IsSaving || (IsCompleted ? !CanReopen() : !CanSave())) return;
         using var cancellation = new CancellationTokenSource();
         _saveCancellation = cancellation;
@@ -654,6 +672,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(ScopeMessage));
         OnPropertyChanged(nameof(StatusText));
         SaveCommand.NotifyCanExecuteChanged();
+        SaveDraftAndCloseCommand.NotifyCanExecuteChanged();
         DeleteCommand.NotifyCanExecuteChanged();
         CompleteReviewCommand.NotifyCanExecuteChanged();
         ReopenReviewCommand.NotifyCanExecuteChanged();

@@ -13,13 +13,19 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class JournalEditorActionTests
 {
     [Theory]
-    [InlineData(false, 0)]
-    [InlineData(false, 1)]
-    [InlineData(false, 2)]
-    [InlineData(true, 0)]
-    [InlineData(true, 1)]
-    [InlineData(true, 2)]
-    public async Task SavePersistsEveryFieldAsCompletedAndCollapsesOnlyItsEditor(bool inline, int answersFilled)
+    [InlineData(false, 0, false)]
+    [InlineData(false, 1, false)]
+    [InlineData(false, 2, false)]
+    [InlineData(true, 0, false)]
+    [InlineData(true, 1, false)]
+    [InlineData(true, 2, false)]
+    [InlineData(false, 0, true)]
+    [InlineData(false, 1, true)]
+    [InlineData(false, 2, true)]
+    [InlineData(true, 0, true)]
+    [InlineData(true, 1, true)]
+    [InlineData(true, 2, true)]
+    public async Task SaveAndCancelPersistEveryFieldAndCollapseOnlyTheirEditor(bool inline, int answersFilled, bool draft)
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
         var accounts = db.Provider.GetRequiredService<ITradingAccountReader>();
@@ -55,50 +61,58 @@ public sealed class JournalEditorActionTests
             editor.WentWell = answers.WentWell;
             editor.NeedsImprovement = answers.NeedsImprovement;
             editor.NextTradingDay = answers.NextTradingDay;
-            await editor.SaveCommand.ExecuteAsync(null);
+            await (draft ? editor.SaveDraftAndCloseCommand : editor.SaveCommand).ExecuteAsync(null);
             if (calendar is not null) await calendar.JournalLoadTask;
 
             Assert.Null(editor.ErrorMessage);
-            Assert.False(editor.IsEditorOpen || editor.IsDirty || editor.IsDraft);
-            Assert.True(editor.ShowCompactReview && editor.IsCompleted && editor.IsReadOnly);
+            Assert.False(editor.IsEditorOpen || editor.IsDirty);
+            Assert.Equal(draft, editor.IsDraft);
+            Assert.True(editor.ShowCompactReview && editor.IsReadOnly);
+            Assert.Equal(!draft, editor.IsCompleted);
             Assert.Equal(exact, editor.SavedText);
             Assert.Equal(answers, editor.SavedReview);
             var stored = (await db.Repository.GetAsync(date))!.Entry;
             Assert.Null(stored.TradingAccountId);
             Assert.Equal(exact, stored.Text);
             Assert.Equal(answers, stored.Review);
-            Assert.False(stored.IsDraft); // Save atomically completes even a freeform-only entry.
+            Assert.Equal(draft, stored.IsDraft);
             var revision = Assert.Single(await db.Repository.GetHistoryAsync(stored.Id));
             Assert.Equal(answers, revision.Review);
             Assert.Equal(exact, revision.Text);
-            Assert.False(revision.IsDraft);
+            Assert.Equal(draft, revision.IsDraft);
             if (calendar is not null)
             {
                 Assert.Same(editor, calendar.InlineJournal);
                 Assert.Same(dayData, calendar.DayDetails);
                 Assert.Equal(month, calendar.SelectedMonth);
                 Assert.Equal(date, calendar.SelectedDate);
-                Assert.False(calendar.SelectedDayJournalStatus!.IsDraft);
-                Assert.Equal("Completed", calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date).JournalStatusText);
+                Assert.Equal(draft, calendar.SelectedDayJournalStatus!.IsDraft);
+                Assert.Equal(draft ? "Draft" : "Completed", calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date).JournalStatusText);
             }
             else
             {
                 var historyRow = Assert.Single(editor.History!.Entries);
                 Assert.Equal(stored.Id, historyRow.Item.Id);
-                Assert.Equal("Completed", historyRow.StateText);
+                Assert.Equal(draft ? "Draft" : "Completed", historyRow.StateText);
             }
         }
         finally { editor?.Deactivate(); calendar?.Deactivate(); }
     }
 
     [Theory]
-    [InlineData(false, "conflict")]
-    [InlineData(false, "failure")]
-    [InlineData(false, "cancellation")]
-    [InlineData(true, "conflict")]
-    [InlineData(true, "failure")]
-    [InlineData(true, "cancellation")]
-    public async Task UnsuccessfulSaveAndCancelKeepAllFieldsUntilExplicitDiscard(bool inline, string outcome)
+    [InlineData(false, "conflict", false)]
+    [InlineData(false, "failure", false)]
+    [InlineData(false, "cancellation", false)]
+    [InlineData(true, "conflict", false)]
+    [InlineData(true, "failure", false)]
+    [InlineData(true, "cancellation", false)]
+    [InlineData(false, "conflict", true)]
+    [InlineData(false, "failure", true)]
+    [InlineData(false, "cancellation", true)]
+    [InlineData(true, "conflict", true)]
+    [InlineData(true, "failure", true)]
+    [InlineData(true, "cancellation", true)]
+    public async Task UnsuccessfulSaveOrDraftCloseKeepsAllFieldsUntilExplicitDiscard(bool inline, string outcome, bool draft)
     {
         var source = new FakeDailyJournalRepository();
         var repository = new ControlledWrites(source);
@@ -129,12 +143,13 @@ public sealed class JournalEditorActionTests
             editor.NeedsImprovement = "Exact second answer";
             editor.NextTradingDay = "Exact next plan";
             var fields = new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay };
-            var saving = editor.SaveCommand.ExecuteAsync(null);
+            var saving = (draft ? editor.SaveDraftAndCloseCommand : editor.SaveCommand).ExecuteAsync(null);
             var command = await repository.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.False(command.IsDraft);
+            Assert.Equal(draft, command.IsDraft);
             Assert.Equal(fields[0], command.Text);
             Assert.Equal(new DailyReviewAnswers(fields[1], fields[2], fields[3]), command.Review);
             Assert.False(editor.CloseEditorCommand.CanExecute(null));
+            Assert.False(editor.SaveDraftAndCloseCommand.CanExecute(null));
             Assert.False(editor.TryLeave());
             if (calendar is not null) Assert.False(calendar.TryCloseDayDialog());
             if (outcome == "cancellation") editor.CancelOperationCommand.Execute(null);
@@ -149,6 +164,7 @@ public sealed class JournalEditorActionTests
             Assert.Equal(date, editor.SelectedDate);
             Assert.Null(editor.SelectedAccount.Id);
             Assert.Equal(0, source.Writes);
+            Assert.Null(dialogs.ConfirmationRequest); // Cancel/Draft save never asks to discard.
             editor.CloseEditorCommand.Execute(null); // Keep editing.
             Assert.True(editor.IsEditorOpen);
             Assert.Equal(fields, new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay });
@@ -178,7 +194,7 @@ public sealed class JournalEditorActionTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task CancelPreservesPersistedDraftAndItsHistory(bool inline, bool dirty)
+    public async Task GuardedCloseStillPreservesPersistedDraftAndItsHistory(bool inline, bool dirty)
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
         var accounts = db.Provider.GetRequiredService<ITradingAccountReader>();

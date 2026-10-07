@@ -55,9 +55,9 @@ public sealed class InlineJournalViewTests
                 Assert.True(section.TranslatePoint(new Point(0, section.ActualHeight), view).Y <= table.TranslatePoint(new Point(), view).Y);
                 Assert.Same(vm.InlineJournal, inline.DataContext);
                 Assert.Same(vm.InlineJournal!.SaveCommand, ((Button)inline.FindName("SaveInlineJournal")).Command);
-                Assert.Same(vm.InlineJournal.CloseEditorCommand, ((Button)inline.FindName("CancelInlineJournal")).Command);
+                Assert.Same(vm.InlineJournal.SaveDraftAndCloseCommand, ((Button)inline.FindName("CancelInlineJournal")).Command);
                 Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.SaveCommand));
-                Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.CloseEditorCommand));
+                Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.SaveDraftAndCloseCommand));
                 Assert.DoesNotContain(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.CompleteReviewCommand));
                 foreach (var name in new[] { "InlineText", "InlineWell", "InlineImprove", "InlineNext" })
                 {
@@ -71,6 +71,9 @@ public sealed class InlineJournalViewTests
                 var save = (Button)inline.FindName("SaveInlineJournal");
                 var cancel = (Button)inline.FindName("CancelInlineJournal");
                 Assert.Equal("Save Journal as Completed", System.Windows.Automation.AutomationProperties.GetName(save));
+                Assert.Contains("save as draft and close", System.Windows.Automation.AutomationProperties.GetName(cancel));
+                JournalButtonAssertions.States(save, "Save");
+                JournalButtonAssertions.States(cancel, "Draft");
                 var lastAnswer = (TextBox)inline.FindName("InlineNext");
                 Assert.True(save.TranslatePoint(new Point(), inline).Y >= lastAnswer.TranslatePoint(new Point(0, lastAnswer.ActualHeight), inline).Y);
                 Assert.True(save.Focusable && cancel.Focusable);

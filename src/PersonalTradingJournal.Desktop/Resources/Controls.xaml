@@ -84,6 +84,66 @@
         </Setter>
     </Style>
 
+    <!-- Journal actions only: opaque state colors keep text contrast in both hosts. -->
+    <Style x:Key="PtjJournalActionButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+        <Setter Property="FontSize" Value="16" />
+        <Setter Property="Background" Value="{DynamicResource PtjJournalActionBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnJournalActionBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjOnJournalActionBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource PtjCornerRadiusSm}">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+                        </Border>
+                        <Rectangle x:Name="FocusIndicator" Margin="3" Stroke="{TemplateBinding Foreground}" StrokeThickness="1"
+                                   StrokeDashArray="2,2" Visibility="Collapsed" IsHitTestVisible="False" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="FocusIndicator" Property="Visibility" Value="Visible" /></Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalActionHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalActionPressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjJournalSaveButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource PtjJournalSaveBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnJournalSaveBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjOnJournalSaveBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalSaveHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalSavePressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjJournalDraftButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Background" Value="{DynamicResource PtjJournalDraftBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnJournalDraftBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjOnJournalDraftBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalDraftHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalDraftPressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="PtjPrimaryButtonStyle"
            TargetType="{x:Type Button}"
            BasedOn="{StaticResource PtjButtonStyle}">

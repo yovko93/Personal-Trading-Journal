@@ -6,13 +6,21 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Journal Cancel saves Draft; clearer action colors**
+
+In standalone Journal and Calendar's inline editor, **Cancel** now means **Save as draft and close** (also stated in its tooltip/accessibility description). It saves all four current fields atomically under the loaded revision and closes only after success; History and Calendar show Draft. Failed/cancelled/conflicting writes keep every edit. Only an exactly empty never-saved form closes without creating an entry; nonempty partial text is retained. Existing history is never deleted, unchanged saves add no revision, and other navigation/window-close paths retain their discard protection. **Save Journal** still completes meaningful content, and Completed reviews still require explicit Reopen.
+
+Journal-only button palettes use green Save, violet Cancel/Draft and blue ordinary actions (including Open review/View revision); permanent Delete remains solid red, distinct from red-outlined Close review/Close view. Opaque hover/pressed colors, a dashed keyboard-focus indicator and readable disabled states apply in Light/Dark without changing unrelated application buttons.
+
+Verification (2026-10-07): **688 focused** and **2,936/2,936 full parallel Release** tests passed, zero failures/skips (Domain 449, Application 529, Infrastructure 791, Desktop 1,167). Release build: **zero warnings/errors**; EF: **no pending model changes**; diff check passed. Automated Light/Dark editor and History renders were inspected at normal and narrow/240-DPI sizes. **Live interaction and matching GitHub Actions remain unverified.** See [current evidence, changed files and isolated checks](docs/daily-journal.md#cancel-saves-draft-and-action-colors-2026-10-07).
+
 **Journal Save completion and standalone re-entry**
 
-**Save Journal** now saves the exact freeform text and all three answers together as **Completed**, with one atomic revision/history write. At least one field must contain a Unicode letter or digit; freeform-only and partially answered reviews are valid. Success closes the form and refreshes its host; failures/conflicts keep every edit. Existing Completed entries require explicit Reopen before editing. Cancel never writes or deletes: after the discard guard it restores the loaded Draft, or returns to No entry when nothing was saved. Both hosts retain one bottom Save Journal/Cancel pair.
+**Save Journal** now saves the exact freeform text and all three answers together as **Completed**, with one atomic revision/history write. At least one field must contain a Unicode letter or digit; freeform-only and partially answered reviews are valid. Success closes the form and refreshes its host; failures/conflicts keep every edit. Existing Completed entries require explicit Reopen before editing. Cancel saves all four fields as Draft and closes the editor, without a discard prompt. Only a completely empty never-saved form closes without creating an entry. It never deletes; failed/conflicting writes retain the form. Both hosts retain one bottom Save Journal/Cancel pair.
 
 After an accepted departure and return, standalone Journal resets to **today in New York / All accounts**, with editor, review/snapshot selection and History paging cleared. A veto leaves the current scope and edits intact. Calendar's inline Journal continues to use its selected date/Account and keeps Day Performance open. See [current rules and verification](docs/daily-journal.md#save-completion-and-standalone-re-entry).
 
-Verification: **648 focused** and **2,917/2,917 full parallel Release** tests passed, zero failures/skips (Domain 449, Application 529, Infrastructure 791, Desktop 1,148). Release build: **zero warnings/errors**; EF: **no pending model changes**; diff check passed. Automated Light/Dark renders were inspected at normal and 480 DIP/240 DPI sizes in both hosts. Live UI and a matching GitHub Actions run remain unverified. See [results, changed-file inventory and isolated manual checks](docs/daily-journal.md#current-verification-and-remaining-manual-checks-2026-10-06).
+Verification: **648 focused** and **2,917/2,917 full parallel Release** tests passed, zero failures/skips (Domain 449, Application 529, Infrastructure 791, Desktop 1,148). Release build: **zero warnings/errors**; EF: **no pending model changes**; diff check passed. Automated Light/Dark renders were inspected at normal and 480 DIP/240 DPI sizes in both hosts. Live UI and a matching GitHub Actions run remain unverified. See [results, changed-file inventory and isolated manual checks](docs/daily-journal.md#previous-save-completion-verification-2026-10-06).
 
 **Previous simplified Journal editor actions**
 

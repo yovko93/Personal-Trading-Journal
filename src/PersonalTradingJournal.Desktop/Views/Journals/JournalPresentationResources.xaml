@@ -33,17 +33,18 @@
         <Setter Property="MaxWidth" Value="760" />
         <Setter Property="MinWidth" Value="0" />
     </Style>
-    <Style x:Key="JournalPrimaryButton" TargetType="Button" BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+    <Style x:Key="JournalPrimaryButton" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
         <Setter Property="FontSize" Value="16" />
     </Style>
-    <Style x:Key="JournalButton" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+    <Style x:Key="JournalButton" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
         <Setter Property="FontSize" Value="16" />
     </Style>
     <Style x:Key="JournalComboBox" TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}">
         <Setter Property="FontSize" Value="16" />
     </Style>
     <!-- Closing a read-only view is red outlined; permanent deletion is solid danger. -->
-    <Style x:Key="JournalCloseButton" TargetType="Button" BasedOn="{StaticResource JournalButton}">
+    <Style x:Key="JournalCloseButton" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+        <Setter Property="FontSize" Value="16" />
         <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
         <Style.Triggers>

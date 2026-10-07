@@ -37,9 +37,9 @@
             <TextBlock Text="{Binding ErrorMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}"
                        AutomationProperties.LiveSetting="Assertive" />
             <WrapPanel Margin="0,8">
-                <Button Content="Reload latest" Command="{Binding ReloadCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                <Button Content="Reload latest" Command="{Binding ReloadCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16" Margin="0,0,8,4"
                         ToolTip="Read the current revision. Discarding local edits requires confirmation." />
-                <Button Content="Cancel loading/saving" Command="{Binding CancelOperationCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                <Button Content="Cancel loading/saving" Command="{Binding CancelOperationCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16" Margin="0,0,8,4"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
                 <Button x:Name="DeleteInlineJournal" Content="Delete Journal" Command="{Binding DeleteCommand}" Style="{DynamicResource PtjDangerButtonStyle}" FontSize="16" Margin="0,0,8,4"
                         Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}" />
@@ -59,11 +59,12 @@
                 <TextBox x:Name="InlineNext" Text="{Binding NextTradingDay, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="72" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="What will I do differently next trading day?" />
                 <WrapPanel x:Name="InlineEditorActions" Margin="0,12,0,0">
-                    <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                    <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" FontSize="16" Margin="0,0,8,4"
                             AutomationProperties.Name="Save Journal as Completed" ToolTip="Save all fields and mark Completed (Ctrl+S)" />
-                    <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding CloseEditorCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
-                            AutomationProperties.Name="Cancel Journal editing"
-                            ToolTip="Close this form without closing Day Performance. Unsaved edits require confirmation." />
+                    <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding SaveDraftAndCloseCommand}" Style="{DynamicResource PtjJournalDraftButtonStyle}" FontSize="16" Margin="0,0,8,4"
+                            AutomationProperties.Name="Cancel — save as draft and close"
+                            AutomationProperties.HelpText="Save all four fields as Draft and close only the editor. Day Performance stays open. An empty new form creates no entry."
+                            ToolTip="Save as draft and close" />
                 </WrapPanel>
             </StackPanel>
             <StackPanel Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
@@ -76,11 +77,11 @@
                     <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedReview.NextTradingDay}" Style="{DynamicResource JournalNote}" />
                 </StackPanel>
                 <WrapPanel>
-                    <Button Content="Add Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                    <Button Content="Add Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
                             Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
-                    <Button Content="Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                    <Button Content="Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
                             Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" />
-                    <Button x:Name="ReopenInlineJournal" Content="Reopen review" Command="{Binding ReopenReviewCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
+                    <Button x:Name="ReopenInlineJournal" Content="Reopen review" Command="{Binding ReopenReviewCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
                             Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" />
                 </WrapPanel>
             </StackPanel>
