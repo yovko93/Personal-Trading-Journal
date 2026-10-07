@@ -85,7 +85,7 @@
                               AutomationProperties.HelpText="All accounts is a separate journal, not a combination of Account journals." />
                 </StackPanel>
                 <Button x:Name="AddJournal" Content="_Add Journal" Command="{Binding OpenEditorCommand}"
-                        Style="{DynamicResource JournalPrimaryButton}" Margin="16,24,0,12" VerticalAlignment="Top"
+                        Style="{DynamicResource JournalCtaButton}" Margin="16,24,0,12" VerticalAlignment="Top"
                         AutomationProperties.Name="Add Journal for selected date and Account scope"
                         ToolTip="Open the selected date and exact Account scope. An existing draft continues the same entry; completed reviews must be reopened." />
                 <Button x:Name="DeleteJournal" Content="Delete Journal" Command="{Binding DeleteCommand}"
@@ -116,7 +116,7 @@
             <Border x:Name="CompactJournal" Grid.Row="2" Style="{DynamicResource PtjCardStyle}"
                     Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
                 <StackPanel>
-                    <TextBlock Text="No journal saved for this date." Margin="0,8,0,0" TextWrapping="Wrap"
+                    <TextBlock x:Name="EmptyJournalScope" Text="{Binding EmptyReviewText}" Margin="0,8,0,0" TextWrapping="Wrap"
                                Style="{DynamicResource JournalBody}" Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
                     <StackPanel x:Name="SavedJournalContent" Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}">
                         <TextBlock Text="Journal text" Style="{DynamicResource JournalCaption}" />
@@ -129,7 +129,7 @@
                         <TextBlock Text="{Binding SavedReview.NextTradingDay}" ToolTip="{Binding SavedReview.NextTradingDay}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
                         <WrapPanel>
                             <Button x:Name="ContinueJournal" Content="_Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,8,8,0"
-                                    Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalPrimaryButton}"
+                                    Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalCtaButton}"
                                     AutomationProperties.Name="Continue editing saved Journal draft" />
                             <Button x:Name="ReopenJournalReview" Content="_Reopen review" Command="{Binding ReopenReviewCommand}" Margin="0,8,8,0"
                                     Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalPrimaryButton}"

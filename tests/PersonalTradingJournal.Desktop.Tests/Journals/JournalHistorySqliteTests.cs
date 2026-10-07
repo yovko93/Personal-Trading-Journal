@@ -5,12 +5,80 @@ using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Domain.Journals;
+using PersonalTradingJournal.Domain.Accounts;
 using PersonalTradingJournal.Infrastructure.Persistence;
 
 namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
 public sealed class JournalHistorySqliteTests
 {
+    [Fact]
+    public async Task AllScopesHistoryOpensEditsAndDeletesOriginalAccountWithoutChangingOtherEntries()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var p21 = new TradingAccount("P 21", TradingAccountType.Personal, null, null, "USD", 0m, JournalHistoryTestReader.Now);
+        p21.Deactivate(JournalHistoryTestReader.Now.AddDays(1));
+        var other = new TradingAccount("Other account", TradingAccountType.Personal, null, null, "USD", 0m, JournalHistoryTestReader.Now);
+        var accounts = db.Provider.GetRequiredService<ITradingAccountStore>();
+        await accounts.AddAsync(p21);
+        await accounts.AddAsync(other);
+        DateOnly date = new(2026, 9, 9);
+        var global = (await db.Repository.CreateAsync(new(date, null, "Global"))).Journal!.Entry;
+        var scoped = (await db.Repository.CreateAsync(new(date, p21.Id, "P21 original"))).Journal!.Entry;
+        await db.Repository.CreateAsync(new(date, other.Id, "Other"));
+        var dialogs = new FakeDialogService();
+        var vm = new JournalViewModel(db.Repository, db.Provider.GetRequiredService<ITradingAccountReader>(), dialogs,
+            db.CreateTradeContext(), new JournalHistoryViewModelTests.Clock(), db.Provider.GetRequiredService<IDailyJournalHistoryReader>());
+        try
+        {
+            await vm.ActivateAsync();
+            Assert.Null(vm.SelectedAccount.Id);
+            Assert.False(vm.IsExisting);
+            Assert.Contains("Account-specific", vm.EmptyReviewText);
+            Assert.Equal(3, vm.History!.Entries.Count);
+            var row = vm.History.Entries.Single(r => r.Item.Id == scoped.Id);
+            Assert.Contains("P 21", row.ScopeText);
+            Assert.Contains("inactive", row.ScopeText);
+            vm.OpenEditorCommand.Execute(null);
+            vm.Text = "Unsaved All accounts text";
+            await vm.History.OpenCommand.ExecuteAsync(row); // Keep editing vetoes scope navigation.
+            Assert.Null(vm.SelectedAccount.Id);
+            Assert.Equal("Unsaved All accounts text", vm.Text);
+            Assert.Null(vm.History.SelectedEntry);
+            dialogs.ConfirmationResult = true;
+            await vm.History.OpenCommand.ExecuteAsync(row);
+            await vm.LoadTask;
+            await vm.History.LoadTask;
+            Assert.Equal(p21.Id, vm.SelectedAccount.Id);
+            Assert.Equal(date, DateOnly.FromDateTime(vm.SelectedDate!.Value));
+            Assert.Equal("P21 original", vm.Text);
+            Assert.Equal(scoped.Id, vm.History.SelectedEntry!.Item.Id);
+            await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);
+            Assert.Equal("P21 original", vm.History.Snapshot!.Text);
+            vm.OpenEditorCommand.Execute(null);
+            vm.Text = "P21 revised";
+            await vm.SaveDraftAndCloseCommand.ExecuteAsync(null);
+            Assert.Equal("P21 revised", (await db.Repository.GetAsync(date, p21.Id))!.Entry.Text);
+            Assert.Equal(2, vm.Revision);
+            vm.OpenEditorCommand.Execute(null);
+            await vm.SaveCommand.ExecuteAsync(null);
+            Assert.False((await db.Repository.GetAsync(date, p21.Id))!.Entry.IsDraft);
+            Assert.Equal(3, vm.Revision);
+            await vm.DeleteCommand.ExecuteAsync(null);
+            Assert.Null(vm.ErrorMessage);
+            Assert.Null(await db.Repository.GetAsync(date, p21.Id));
+            Assert.Equal("Global", (await db.Repository.GetAsync(date))!.Entry.Text);
+            Assert.Single(await db.Repository.GetHistoryAsync(global.Id));
+            Assert.Equal("Other", (await db.Repository.GetAsync(date, other.Id))!.Entry.Text);
+            Assert.Empty(vm.History.Entries);
+            vm.SelectedAccount = vm.Accounts.Single(a => a.Id is null);
+            await vm.LoadTask;
+            await vm.History.LoadTask;
+            Assert.Equal(2, vm.History.Entries.Count);
+        }
+        finally { vm.Deactivate(); }
+    }
+
     [Fact]
     public async Task CommittedDeletionClearsHistorySnapshotAndCalendarStatusAndStaleDeletionKeepsDraft()
     {

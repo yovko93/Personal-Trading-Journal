@@ -22,6 +22,10 @@ public sealed class JournalHistoryViewTests
     {
         var reader = new JournalHistoryTestReader();
         reader.Add(new(2026, 10, 5), revision: 23);
+        reader.Add(new(2026, 10, 4), Guid.NewGuid());
+        reader.Items[1] = reader.Items[1] with { AccountName = "P 21" };
+        reader.Add(new(2026, 10, 3), Guid.NewGuid());
+        reader.Items[2] = reader.Items[2] with { AccountName = null, AccountState = DailyJournalAccountState.Unavailable };
         var vm = new JournalHistoryViewModel(reader, _ => true);
         await vm.ActivateAsync(null);
         await vm.OpenCommand.ExecuteAsync(vm.Entries[0]);
@@ -76,7 +80,13 @@ public sealed class JournalHistoryViewTests
                 root.UpdateLayout();
                 CheckHistoryTable(view, root, vm, width);
                 Assert.Equal(20, ((ItemsControl)view.FindName("HistoryRevisions")).Items.Count);
-                Assert.Single(((ItemsControl)view.FindName("HistoryEntries")).Items);
+                Assert.Equal(3, ((ItemsControl)view.FindName("HistoryEntries")).Items.Count);
+                var labels = Descendants(view).OfType<TextBlock>().Where(t => t.Name == "EntryAccount").ToArray();
+                Assert.Equal(vm.Entries.Select(e => e.ScopeText), labels.Select(t => t.Text));
+                Assert.Contains(labels, t => t.Text == "All accounts");
+                Assert.Contains(labels, t => t.Text.Contains("P 21") && t.Text.Contains("inactive"));
+                Assert.Contains(labels, t => t.Text.Contains("unavailable"));
+                Assert.All(labels, t => Assert.Equal(t.Text, t.ToolTip));
                 foreach (string name in new[] { "RevisionText", "RevisionWentWell", "RevisionNeedsImprovement", "RevisionNextTradingDay" })
                 {
                     var text = (TextBox)view.FindName(name);
@@ -89,9 +99,9 @@ public sealed class JournalHistoryViewTests
                 }
                 Assert.Equal("  text 23\r\n", ((TextBox)view.FindName("RevisionText")).Text);
                 var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "View revision").ToArray();
-                Assert.Equal(21, buttons.Length);
+                Assert.Equal(23, buttons.Length);
                 Assert.All(buttons, b => { Assert.True(b.Focusable); Assert.True(b.IsEnabled); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(b))); });
-                var open = buttons.Single(b => b.Content.ToString() == "Open review");
+                var open = buttons.First(b => b.Content.ToString() == "Open review");
                 Assert.Same(vm.OpenCommand, open.Command);
                 Assert.Same(vm.Entries[0], open.CommandParameter);
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
@@ -250,7 +260,7 @@ public sealed class JournalHistoryViewTests
     private static void CheckHistoryTable(JournalHistoryView view, Border root, JournalHistoryViewModel vm, int width)
     {
         Assert.Equal(width < 720, view.IsCompact);
-        Assert.Equal("Review History · 1 reviews", vm.Heading);
+        Assert.Equal("Review History · 3 reviews", vm.Heading);
         var refresh = (Button)view.FindName("RefreshHistory");
         Assert.Same(vm.RefreshCommand, refresh.Command);
         Assert.True(refresh.IsEnabled && refresh.Focusable);

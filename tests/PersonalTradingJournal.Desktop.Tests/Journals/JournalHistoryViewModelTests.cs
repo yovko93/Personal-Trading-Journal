@@ -22,11 +22,11 @@ public sealed class JournalHistoryViewModelTests
         Assert.Equal(10, vm.Entries.Count);
         Assert.Equal("2026-10-05", vm.Entries[0].DateText);
         await vm.NextCommand.ExecuteAsync(null);
-        Assert.Equal("2026-09-25", vm.Entries[0].DateText);
+        Assert.Equal("2026-09-26", vm.Entries[0].DateText);
         await vm.NextCommand.ExecuteAsync(null);
         await vm.NextCommand.ExecuteAsync(null);
         await vm.NextCommand.ExecuteAsync(null);
-        Assert.Equal(3, vm.Entries.Count);
+        Assert.Equal(4, vm.Entries.Count);
         Assert.False(vm.NextCommand.CanExecute(null));
         await vm.PreviousCommand.ExecuteAsync(null);
         Assert.Contains("Page 4", vm.PageText);
@@ -51,6 +51,7 @@ public sealed class JournalHistoryViewModelTests
         Assert.Null(vm.SelectedEntry);
         Assert.Empty(vm.Revisions);
         Assert.Contains("Page 1", vm.PageText);
+        Assert.Equal("Review History · 44 reviews", vm.Heading);
         vm.Deactivate();
     }
 
@@ -98,8 +99,10 @@ public sealed class JournalHistoryViewModelTests
         vm.Deactivate();
     }
 
-    [Fact]
-    public async Task LateAccountPageCannotReplaceNewScopeAndCancellationTokenIsObserved()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LateAccountPageCannotReplaceNewScopeAndCancellationTokenIsObserved(bool returnToAll)
     {
         var started = Signal();
         var delayed = new TaskCompletionSource<JournalHistoryPage<JournalHistoryItem>>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -110,17 +113,19 @@ public sealed class JournalHistoryViewModelTests
         var current = reader.Add(Day, account);
         reader.Browse = (scope, page, ct) =>
         {
-            if (scope is null) { token = ct; started.TrySetResult(); return delayed.Task; }
-            return Task.FromResult(new JournalHistoryPage<JournalHistoryItem>([current], 1, page, 20));
+            if (scope == (returnToAll ? account : (Guid?)null)) { token = ct; started.TrySetResult(); return delayed.Task; }
+            return Task.FromResult(new JournalHistoryPage<JournalHistoryItem>(returnToAll ? [old, current] : [current], returnToAll ? 2 : 1, page, 10));
         };
         var vm = new JournalHistoryViewModel(reader, _ => true);
-        Task first = vm.ActivateAsync(null);
+        Task first = vm.ActivateAsync(returnToAll ? account : null);
         await Wait(started.Task);
-        await vm.SetScopeAsync(account);
+        await vm.SetScopeAsync(returnToAll ? null : account);
         Assert.True(token.IsCancellationRequested);
         delayed.SetResult(new([old], 1, 1, 20));
         await Wait(first);
-        Assert.Equal(account, Assert.Single(vm.Entries).Item.AccountId);
+        Assert.Equal(returnToAll ? 2 : 1, vm.Entries.Count);
+        Assert.Equal($"Review History · {(returnToAll ? 2 : 1)} reviews", vm.Heading);
+        Assert.Equal(account, vm.Entries[^1].Item.AccountId);
         vm.Deactivate();
     }
 

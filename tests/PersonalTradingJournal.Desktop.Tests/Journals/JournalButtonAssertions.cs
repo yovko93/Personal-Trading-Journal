@@ -9,6 +9,36 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
 internal static class JournalButtonAssertions
 {
+    public static void CallToAction(Button button)
+    {
+        var hover = Key(typeof(UIElement), "IsMouseOverPropertyKey");
+        var pressed = Key(typeof(ButtonBase), "IsPressedPropertyKey");
+        var focus = Key(typeof(UIElement), "IsKeyboardFocusedPropertyKey");
+        button.ApplyTemplate();
+        var chrome = Assert.IsType<Border>(button.Template.FindName("ButtonChrome", button));
+        var indicator = Assert.IsType<Border>(button.Template.FindName("FocusIndicator", button));
+        try
+        {
+            button.SetValue(hover, false); button.SetValue(pressed, false); button.SetValue(focus, false);
+            Check(button, "PtjAccentBrush");
+            Assert.NotEqual(Color(button.FindResource("PtjJournalActionBrush")), Color(button.Background));
+            button.SetValue(hover, true);
+            Assert.Equal(.88, chrome.Opacity);
+            button.SetValue(pressed, true);
+            Assert.Equal(.72, chrome.Opacity);
+            button.SetValue(focus, true);
+            Assert.NotEqual(Colors.Transparent, Color(indicator.BorderBrush));
+            button.IsEnabled = false;
+            Assert.Equal(.45, chrome.Opacity);
+        }
+        finally
+        {
+            button.SetValue(hover, false); button.SetValue(pressed, false); button.SetValue(focus, false);
+            button.ClearValue(UIElement.IsEnabledProperty);
+        }
+        Assert.True(button.Focusable);
+    }
+
     // Exercise compiled theme/template triggers deterministically, not a live-pointer claim.
     public static void States(Button button, string kind)
     {

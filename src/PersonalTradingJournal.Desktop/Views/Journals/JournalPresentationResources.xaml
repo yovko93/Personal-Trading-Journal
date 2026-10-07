@@ -33,6 +33,10 @@
         <Setter Property="MaxWidth" Value="760" />
         <Setter Property="MinWidth" Value="0" />
     </Style>
+    <!-- Restore the established mint/teal call-to-action palette only for Add/Continue. -->
+    <Style x:Key="JournalCtaButton" TargetType="Button" BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+        <Setter Property="FontSize" Value="16" />
+    </Style>
     <Style x:Key="JournalPrimaryButton" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
         <Setter Property="FontSize" Value="16" />
     </Style>

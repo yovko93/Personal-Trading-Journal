@@ -172,10 +172,13 @@ public sealed class JournalViewModel : ObservableObject
             ? "Journal text cannot exceed 100,000 UTF-16 code units. Your text has been kept; shorten it before saving."
             : ReviewLengthError ?? (_completionAttempted && !HasMeaningfulContent ? CompletionError : _errorMessage);
     public string ScopeMessage => SelectedAccount.Id is null
-        ? "All accounts is its own journal, separate from each account's journal. Dates use New York trading time."
+        ? "This date's All accounts journal is separate from each account's journal. Review History includes every Account scope; opening a row selects its original scope. Dates use New York trading time."
         : !SelectedAccount.IsAvailable
             ? "This account is unavailable. Its journal keeps its original account scope and cannot be saved."
             : $"Journal for {SelectedAccount.Name}. Dates use New York trading time.";
+    public string EmptyReviewText => SelectedAccount.Id is null
+        ? "No All accounts journal for this date. Account-specific entries may appear in Review History."
+        : $"No journal for this date in {SelectedAccount.Name}.";
     public string StatusText => IsSaving
         ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling operation…" : _isDeleting ? "Deleting journal…" : "Saving…"
         : IsLoading ? "Loading journal…"
@@ -670,6 +673,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(CharacterCountText));
         OnPropertyChanged(nameof(ErrorMessage));
         OnPropertyChanged(nameof(ScopeMessage));
+        OnPropertyChanged(nameof(EmptyReviewText));
         OnPropertyChanged(nameof(StatusText));
         SaveCommand.NotifyCanExecuteChanged();
         SaveDraftAndCloseCommand.NotifyCanExecuteChanged();

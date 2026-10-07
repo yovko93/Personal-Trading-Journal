@@ -14,7 +14,8 @@ public sealed class DailyJournalHistoryReader(IDbContextFactory<JournalDbContext
         if (accountId == Guid.Empty) throw new ArgumentException("Select an explicit Account scope.", nameof(accountId));
         cancellationToken.ThrowIfCancellationRequested();
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var journals = db.DailyJournals.AsNoTracking().Where(j => j.TradingAccountId == accountId);
+        var journals = db.DailyJournals.AsNoTracking();
+        if (accountId.HasValue) journals = journals.Where(j => j.TradingAccountId == accountId);
         int count = await journals.CountAsync(cancellationToken);
         var items = await (from j in journals
             join account in db.TradingAccounts.AsNoTracking() on j.TradingAccountId equals (Guid?)account.Id into accounts

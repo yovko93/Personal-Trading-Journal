@@ -86,7 +86,8 @@ public sealed class JournalHistoryViewModel : ObservableObject
     public string Heading => $"Review History · {_total} reviews";
     public string RevisionPageText => $"Page {_revisionPage} · {_revisionTotal} revisions";
     public string StatusText => IsLoading ? "Loading reviews…" : _error ?? (_entries.Count == 0
-        ? "No saved reviews in this Account scope." : "Open a review or browse revisions.");
+        ? _accountId is null ? "No saved reviews in any Account scope." : "No saved reviews in this Account scope."
+        : _accountId is null ? "All account scopes. Open a review in its original Account scope." : "Open a review or browse revisions.");
     public string RevisionStatusText => IsRevisionLoading ? "Loading revisions…" : _revisionError ?? (_selectedEntry is null
         ? "" : _revisions.Count == 0 ? "No revisions available." : "Viewing history does not save or restore a revision.");
     public string? SnapshotStatusText => _snapshotLoading ? "Loading revision…" : _snapshotError;
@@ -193,7 +194,8 @@ public sealed class JournalHistoryViewModel : ObservableObject
     private Task OpenAsync(JournalHistoryRow? row)
     {
         // Ignore obsolete buttons retained by a disconnected row/template.
-        if (row is null || !_active || row.Item.AccountId != _accountId || !_entries.Any(current => ReferenceEquals(current, row)) || !_open(row.Item))
+        if (row is null || !_active || (_accountId.HasValue && row.Item.AccountId != _accountId)
+            || !_entries.Any(current => ReferenceEquals(current, row)) || !_open(row.Item))
             return Task.CompletedTask;
         ClearSelection();
         _selectedEntry = row;

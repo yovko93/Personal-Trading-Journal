@@ -18,7 +18,14 @@ public sealed partial class DailyJournalRepositoryTests
     {
         await using var db = await ReaderTestDatabase.CreateAsync();
         var repository = GetRepository(db);
-        for (int i = 0; i < count; i++) await repository.CreateAsync(new(TradingDate.AddDays(-i), null, "history"));
+        Guid p21 = await SeedAccountAsync(db, "P 21", false);
+        Guid other = await SeedAccountAsync(db, "Other account");
+        var expected = new List<DailyJournalEntry>();
+        for (int i = 0; i < count; i++)
+        {
+            Guid? scope = i % 3 == 0 ? null : i % 3 == 1 ? p21 : other;
+            expected.Add((await repository.CreateAsync(new(TradingDate.AddDays(-(i / 3)), scope, "history"))).Journal!.Entry);
+        }
         var probe = new HistoryReadProbe();
         var factory = await InterceptingFactory.CreateAsync(db, probe);
         var reader = new DailyJournalHistoryReader(factory);
@@ -28,12 +35,17 @@ public sealed partial class DailyJournalRepositoryTests
         Assert.Equal(Math.Max(count - 10, 0), second.Items.Count);
         Assert.Equal(count > 10, first.HasNext);
         Assert.False(second.HasNext);
-        Assert.Equal(Enumerable.Range(0, count).Select(i => TradingDate.AddDays(-i)),
-            first.Items.Concat(second.Items).Select(i => i.TradingDate));
+        Assert.Equal(count, first.TotalCount);
+        Assert.Equal(expected.OrderByDescending(i => i.TradingDate).ThenBy(i => i.Id).Select(i => i.Id),
+            first.Items.Concat(second.Items).Select(i => i.Id));
+        Assert.Contains(first.Items, i => i.AccountId is null);
+        Assert.Contains(first.Items, i => i.AccountId == p21 && i.AccountName == "P 21" && i.AccountState == DailyJournalAccountState.Inactive);
+        Assert.Contains(first.Items, i => i.AccountId == other && i.AccountName == "Other account");
         var repeated = await reader.BrowseAsync(null, 1, 10);
         Assert.Equal(first.Items.Select(i => i.Id), repeated.Items.Select(i => i.Id));
         Assert.Equal(6, probe.Sql.Count);
         Assert.All(probe.Sql, sql => Assert.StartsWith("SELECT", sql));
+        Assert.Equal(3, probe.Sql.Count(sql => sql.Contains("LIMIT") && sql.Contains("OFFSET")));
     }
 
     [Fact]
@@ -64,7 +76,11 @@ public sealed partial class DailyJournalRepositoryTests
         Assert.Equal(TradingDate.AddDays(-20), second.Items[0].TradingDate);
         Assert.Equal(43, first.Items.Concat(second.Items).Concat(third.Items).Select(r => r.Id).Distinct().Count());
         Assert.All(first.Items, r => { Assert.Equal(account, r.AccountId); Assert.Equal("Retired account", r.AccountName); Assert.Equal(DailyJournalAccountState.Inactive, r.AccountState); });
-        Assert.All(all.Items, r => { Assert.Null(r.AccountId); Assert.Equal(DailyJournalAccountState.AllAccounts, r.AccountState); });
+        Assert.Equal(87, all.TotalCount);
+        Assert.Equal(50, all.Items.Count);
+        Assert.Contains(all.Items, r => r.AccountId is null && r.AccountState == DailyJournalAccountState.AllAccounts);
+        Assert.Contains(all.Items, r => r.AccountId == account && r.AccountState == DailyJournalAccountState.Inactive);
+        Assert.Contains(all.Items, r => r.AccountId == other);
         Assert.Empty((await reader.BrowseAsync(Guid.NewGuid())).Items);
         Assert.Empty((await reader.BrowseAsync(account, 4)).Items);
         await using var context = await db.ContextFactory.CreateDbContextAsync();
@@ -134,7 +150,10 @@ public sealed partial class DailyJournalRepositoryTests
         Assert.Equal(missing, item.AccountId);
         Assert.Equal(DailyJournalAccountState.Unavailable, item.AccountState);
         Assert.Null(item.AccountName);
-        Assert.Single((await reader.BrowseAsync(null)).Items);
+        var all = await reader.BrowseAsync(null);
+        Assert.Equal(2, all.TotalCount);
+        Assert.Contains(all.Items, r => r.AccountId is null);
+        Assert.Contains(all.Items, r => r.AccountId == missing && r.AccountName is null && r.AccountState == DailyJournalAccountState.Unavailable);
         Assert.Equal("historic", (await reader.GetRevisionAsync(entry.Id, 1))!.Text);
     }
 

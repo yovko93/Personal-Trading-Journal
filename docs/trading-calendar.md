@@ -1,6 +1,6 @@
 # Trading Calendar
 
-Current inline Journal actions: green **Save Journal** completes the entry; violet **Cancel** saves all current fields as Draft and closes only the editor, without a discard prompt. Only an exactly empty new form closes without a write. Failures/conflicts retain edits; other modal/navigation close guards remain unchanged. Ordinary Journal actions use blue accents; Delete stays solid red. See [Draft-save semantics, tests and manual checks](daily-journal.md#cancel-saves-draft-and-action-colors-2026-10-07).
+Current inline Journal actions: green **Save Journal** completes the entry; violet **Cancel** saves all current fields as Draft and closes only the editor, without a discard prompt. Only an exactly empty new form closes without a write. Failures/conflicts retain edits; other modal/navigation close guards remain unchanged. Add/Continue use the established mint/teal accent; ordinary Journal actions use blue accents; Delete stays solid red. See [Draft-save semantics, tests and manual checks](daily-journal.md#cancel-saves-draft-and-action-colors-2026-10-07).
 
 ## Read-only data and financial semantics (M13.1)
 

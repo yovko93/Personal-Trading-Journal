@@ -1,6 +1,7 @@
 namespace PersonalTradingJournal.Application.Journals;
 
-/// <summary>Bounded, read-only browsing. Null Account means only the independent All accounts scope.</summary>
+/// <summary>Bounded, read-only browsing. Null Account includes every scope; a non-null ID filters exactly.
+/// This browsing filter does not change the independent null scope used by Journal writes and Calendar indicators.</summary>
 public interface IDailyJournalHistoryReader
 {
     Task<JournalHistoryPage<JournalHistoryItem>> BrowseAsync(Guid? accountId, int page = 1, int pageSize = 20,

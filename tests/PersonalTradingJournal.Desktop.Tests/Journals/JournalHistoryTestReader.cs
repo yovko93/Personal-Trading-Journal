@@ -25,7 +25,7 @@ internal sealed class JournalHistoryTestReader : IDailyJournalHistoryReader
     public Task<JournalHistoryPage<JournalHistoryItem>> BrowseAsync(Guid? accountId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {
         if (Browse is not null) return Browse(accountId, page, cancellationToken);
-        var items = Items.Where(i => i.AccountId == accountId).OrderByDescending(i => i.TradingDate).ThenBy(i => i.Id).ToArray();
+        var items = Items.Where(i => accountId is null || i.AccountId == accountId).OrderByDescending(i => i.TradingDate).ThenBy(i => i.Id).ToArray();
         return Task.FromResult(new JournalHistoryPage<JournalHistoryItem>(items.Skip((page - 1) * pageSize).Take(pageSize).ToArray(), items.Length, page, pageSize));
     }
     public Task<JournalHistoryPage<JournalRevisionItem>> BrowseRevisionsAsync(Guid journalId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)

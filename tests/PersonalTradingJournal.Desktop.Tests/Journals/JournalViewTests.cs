@@ -99,6 +99,8 @@ public sealed class JournalViewTests
         {
             JournalButtonAssertions.States(save, "Save");
             JournalButtonAssertions.States(cancel, "Draft");
+            JournalButtonAssertions.CallToAction((Button)view.FindName("AddJournal"));
+            JournalButtonAssertions.CallToAction((Button)view.FindName("ContinueJournal"));
         }
         Assert.Equal("Save Journal as Completed", AutomationProperties.GetName(save));
         Assert.Same(vm.ReopenReviewCommand, reopen.Command);

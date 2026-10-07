@@ -77,9 +77,9 @@
                     <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalLabel}" /><TextBlock Text="{Binding SavedReview.NextTradingDay}" Style="{DynamicResource JournalNote}" />
                 </StackPanel>
                 <WrapPanel>
-                    <Button Content="Add Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
+                    <Button Content="Add Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
                             Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
-                    <Button Content="Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
+                    <Button Content="Continue Journal" Command="{Binding OpenEditorCommand}" Margin="0,0,8,4" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16"
                             Visibility="{Binding ShowContinueReview, Converter={StaticResource BoolVisibility}}" />
                     <Button x:Name="ReopenInlineJournal" Content="Reopen review" Command="{Binding ReopenReviewCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16"
                             Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" />

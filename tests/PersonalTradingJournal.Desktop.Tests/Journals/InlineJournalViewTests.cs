@@ -74,6 +74,8 @@ public sealed class InlineJournalViewTests
                 Assert.Contains("save as draft and close", System.Windows.Automation.AutomationProperties.GetName(cancel));
                 JournalButtonAssertions.States(save, "Save");
                 JournalButtonAssertions.States(cancel, "Draft");
+                foreach (var cta in Descendants(inline).OfType<Button>().Where(b => b.Content?.ToString() is "Add Journal" or "Continue Journal"))
+                    JournalButtonAssertions.CallToAction(cta);
                 var lastAnswer = (TextBox)inline.FindName("InlineNext");
                 Assert.True(save.TranslatePoint(new Point(), inline).Y >= lastAnswer.TranslatePoint(new Point(0, lastAnswer.ActualHeight), inline).Y);
                 Assert.True(save.Focusable && cancel.Focusable);
