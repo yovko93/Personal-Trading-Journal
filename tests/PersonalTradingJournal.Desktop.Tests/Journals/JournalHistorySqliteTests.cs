@@ -102,6 +102,8 @@ public sealed class JournalHistorySqliteTests
             vm.Text = "Original";
             await vm.SaveCommand.ExecuteAsync(null);
             await vm.ReopenReviewCommand.ExecuteAsync(null);
+            vm.Text += " edited";
+            await vm.SaveDraftAndCloseCommand.ExecuteAsync(null);
             var row = Assert.Single(vm.History!.Entries);
             await vm.History.OpenCommand.ExecuteAsync(row);
             await vm.LoadTask;
@@ -161,8 +163,8 @@ public sealed class JournalHistorySqliteTests
             Assert.False(vm.History.SelectedEntry!.Item.IsDraft);
             Assert.Equal(1, vm.History.Revisions[0].Item.Revision);
             await vm.ReopenReviewCommand.ExecuteAsync(null);
-            Assert.True(Assert.Single(vm.History.Entries).Item.IsDraft);
-            Assert.Equal(2, vm.History.Revisions[0].Item.Revision);
+            Assert.False(Assert.Single(vm.History.Entries).Item.IsDraft);
+            Assert.Equal(1, vm.History.Revisions[0].Item.Revision);
             vm.OpenEditorCommand.Execute(null);
             vm.Text = "new unsaved text";
             vm.NextTradingDay = "new unsaved answer";
@@ -187,10 +189,10 @@ public sealed class JournalHistorySqliteTests
             Assert.Same(account, vm.SelectedAccount);
             Assert.Equal("new unsaved text", vm.Text);
             Assert.Equal("new unsaved answer", vm.NextTradingDay);
-            Assert.Equal(2, vm.Revision);
-            Assert.Equal(2, (await db.Repository.GetHistoryAsync(row.Item.Id)).Count);
+            Assert.Equal(1, vm.Revision);
+            Assert.Single(await db.Repository.GetHistoryAsync(row.Item.Id));
             await using var context = await db.ContextFactory.CreateDbContextAsync();
-            Assert.Equal(2, await context.DailyJournalRevisions.CountAsync());
+            Assert.Equal(1, await context.DailyJournalRevisions.CountAsync());
             Assert.Empty(await context.Trades.ToArrayAsync());
         }
         finally { vm.Deactivate(); await vm.LoadTask; }

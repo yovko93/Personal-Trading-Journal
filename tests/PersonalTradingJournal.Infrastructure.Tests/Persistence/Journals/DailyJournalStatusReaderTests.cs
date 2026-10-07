@@ -16,7 +16,7 @@ public sealed class DailyJournalStatusReaderTests
     private static readonly DailyReviewAnswers CompleteAnswers = new("Followed plan", "Be patient", "Wait for confirmation");
 
     [Fact]
-    public async Task VisibleGridIncludesBothAdjacentMonthsAndOnlyExactAccountScope()
+    public async Task VisibleGridIncludesBothAdjacentMonthsAndAllScopesUnlessAccountIsSelected()
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         Guid active = await SeedAccountAsync(database, "Active", true);
@@ -35,13 +35,14 @@ public sealed class DailyJournalStatusReaderTests
         var activeResults = await reader.GetAsync(GridStart, gridEnd, active);
         var inactiveResults = await reader.GetAsync(GridStart, gridEnd, inactive);
 
-        Assert.Equal(new[] { GridStart, new DateOnly(2026, 9, 15), gridEnd }, allAccounts.Select(s => s.TradingDate));
-        Assert.Equal(allAccounts.Select(s => s.TradingDate), activeResults.Select(s => s.TradingDate));
-        Assert.Equal(allAccounts.Select(s => s.TradingDate), inactiveResults.Select(s => s.TradingDate));
-        Assert.All(allAccounts.Concat(activeResults), s => Assert.True(s.IsDraft));
+        Assert.Equal(9, allAccounts.Count);
+        Assert.Equal(new[] { GridStart, new DateOnly(2026, 9, 15), gridEnd }, allAccounts.Select(s => s.TradingDate).Distinct());
+        Assert.Equal(allAccounts.Select(s => s.TradingDate).Distinct(), activeResults.Select(s => s.TradingDate));
+        Assert.Equal(allAccounts.Select(s => s.TradingDate).Distinct(), inactiveResults.Select(s => s.TradingDate));
+        Assert.All(allAccounts.Where(s => s.TradingAccountId != inactive).Concat(activeResults), s => Assert.True(s.IsDraft));
         Assert.All(inactiveResults, s => Assert.False(s.IsDraft));
-        Assert.Empty(allAccounts.Select(s => s.JournalId).Intersect(activeResults.Select(s => s.JournalId)));
-        Assert.Empty(allAccounts.Select(s => s.JournalId).Intersect(inactiveResults.Select(s => s.JournalId)));
+        Assert.All(activeResults, s => { Assert.Equal(active, s.TradingAccountId); Assert.Contains(s, allAccounts); });
+        Assert.All(inactiveResults, s => { Assert.Equal(inactive, s.TradingAccountId); Assert.Contains(s, allAccounts); });
         Assert.Empty(await reader.GetAsync(GridStart, gridEnd, Guid.NewGuid()));
         await using JournalDbContext context = await database.ContextFactory.CreateDbContextAsync();
         Assert.Empty(await context.Trades.ToArrayAsync());

@@ -11,8 +11,8 @@ public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDaily
     public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? account = null, CancellationToken cancellationToken = default) =>
         Read?.Invoke(date, account, cancellationToken) ?? Task.FromResult(_entries.GetValueOrDefault((date, account)));
     public Task<IReadOnlyList<DailyJournalStatus>> GetAsync(DateOnly from, DateOnly through, Guid? tradingAccountId = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<DailyJournalStatus>>(_entries.Values.Where(j => j.Entry.TradingAccountId == tradingAccountId && j.Entry.TradingDate >= from && j.Entry.TradingDate <= through)
-            .Select(j => new DailyJournalStatus(j.Entry.Id, j.Entry.TradingDate, j.Entry.IsDraft, j.Entry.Revision)).ToArray());
+        Task.FromResult<IReadOnlyList<DailyJournalStatus>>(_entries.Values.Where(j => (tradingAccountId == null || j.Entry.TradingAccountId == tradingAccountId) && j.Entry.TradingDate >= from && j.Entry.TradingDate <= through)
+            .Select(j => new DailyJournalStatus(j.Entry.Id, j.Entry.TradingDate, j.Entry.IsDraft, j.Entry.Revision, j.Entry.TradingAccountId)).ToArray());
     public Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

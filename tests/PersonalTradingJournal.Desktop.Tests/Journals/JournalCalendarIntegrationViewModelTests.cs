@@ -118,6 +118,7 @@ public sealed class JournalCalendarIntegrationViewModelTests
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
+        await vm.SaveCommand.ExecuteAsync(null); // Even a clean save validates the loaded token.
         Assert.False(vm.IsDirty);
         Assert.False(vm.ReopenReviewCommand.CanExecute(null));
         vm.Deactivate();
@@ -176,6 +177,10 @@ public sealed class JournalCalendarIntegrationViewModelTests
         Assert.Equal(1, notifications); // Save already completed it; locked commands cannot write.
         Assert.True(vm.IsCompleted);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
+        Assert.Equal(1, notifications);
+        Assert.True(vm.IsCompleted);
+        vm.Text += " changed";
+        await vm.SaveDraftAndCloseCommand.ExecuteAsync(null);
         Assert.Equal(2, notifications);
         Assert.True(vm.IsDraft);
     }

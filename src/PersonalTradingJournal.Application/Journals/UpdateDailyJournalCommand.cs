@@ -7,4 +7,6 @@ public sealed record UpdateDailyJournalCommand(
     long ExpectedRevision,
     string Text,
     bool IsDraft = true,
-    DailyReviewAnswers? Review = null);
+    DailyReviewAnswers? Review = null,
+    // Explicit editor reopening is local until the next save; apply that edit in one revision.
+    bool ReopenCompleted = false);

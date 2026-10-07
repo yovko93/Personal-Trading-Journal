@@ -143,7 +143,7 @@ public sealed class JournalReviewViewModelTests
     }
 
     [Fact]
-    public async Task ExplicitReopenWritesExactCompletedContentBeforeEditingAnotherRevision()
+    public async Task ExplicitReopenIsLocalAndSaveWritesOneRevisionFromLoadedCompletedContent()
     {
         var original = Details("notes", draft: false, revision: 8, review: Ready);
         var repository = new Repository { Journal = original };
@@ -154,25 +154,21 @@ public sealed class JournalReviewViewModelTests
         Assert.False(vm.CanEdit);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
 
-        var reopened = Assert.Single(repository.Updates);
-        Assert.Equal(original.Entry.Id, reopened.JournalId);
-        Assert.Equal(8, reopened.ExpectedRevision);
-        Assert.True(reopened.IsDraft);
-        Assert.Equal("notes", reopened.Text);
-        Assert.Equal(Ready, reopened.Review);
-        Assert.True(vm.IsDraft);
-        Assert.False(vm.IsCompleted);
+        Assert.Empty(repository.Updates);
+        Assert.False(vm.IsDraft);
+        Assert.True(vm.IsCompleted);
         Assert.True(vm.CanEdit);
         Assert.True(vm.IsEditorOpen);
         Assert.False(vm.IsReadOnly);
         Assert.False(vm.IsDirty);
-        Assert.Equal(9, vm.Revision);
+        Assert.Equal(8, vm.Revision);
         vm.WentWell = "Revised reflection";
         await vm.SaveCommand.ExecuteAsync(null);
-        Assert.Equal(9, repository.Updates.Last().ExpectedRevision);
+        Assert.Equal(8, repository.Updates.Last().ExpectedRevision);
+        Assert.True(repository.Updates.Last().ReopenCompleted);
         Assert.Equal("Revised reflection", repository.Updates.Last().Review!.WentWell);
         Assert.False(repository.Updates.Last().IsDraft);
-        Assert.Equal(10, vm.Revision);
+        Assert.Equal(9, vm.Revision);
     }
 
     [Fact]
@@ -188,13 +184,13 @@ public sealed class JournalReviewViewModelTests
         Assert.Equal(Ready.WentWell, vm.WentWell);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
         Assert.Equal("", vm.Text);
-        Assert.True(vm.IsDraft);
+        Assert.True(vm.IsCompleted);
         await vm.SaveCommand.ExecuteAsync(null);
-        Assert.Single(repository.Updates); // Reopening succeeds, re-completing now requires Journal text.
+        Assert.Empty(repository.Updates); // Reopening is local; re-completing requires Journal text.
         Assert.Contains("Journal text is required", vm.JournalTextValidation);
         vm.Text = "legacy reviewed";
         await vm.CompleteReviewCommand.ExecuteAsync(null);
-        Assert.Equal(2, repository.Updates.Count);
+        Assert.Single(repository.Updates);
         Assert.True(vm.IsCompleted);
         Assert.Null(vm.ErrorMessage);
     }
@@ -216,6 +212,7 @@ public sealed class JournalReviewViewModelTests
         var vm = Create(repository, dialogs);
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
+        if (action == "reopen") { await vm.ReopenReviewCommand.ExecuteAsync(null); vm.Text = "local reopened notes"; }
         if (action != "reopen")
         {
             vm.Text = "local notes";
@@ -274,6 +271,7 @@ public sealed class JournalReviewViewModelTests
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
         if (action != "reopen") SetReady(vm);
+        else { await vm.ReopenReviewCommand.ExecuteAsync(null); vm.Text = "edited notes"; }
         Task writing = Execute(vm, action);
         await Wait(started.Task);
         Assert.True(vm.IsSaving);
@@ -360,7 +358,7 @@ public sealed class JournalReviewViewModelTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task FailedOrCancelledReopenKeepsCompletedContentReadOnly(bool cancel)
+    public async Task FailedOrCancelledDraftSaveOfReopenedCompletedKeepsLocalFields(bool cancel)
     {
         var started = Signal();
         var repository = new Repository
@@ -377,20 +375,22 @@ public sealed class JournalReviewViewModelTests
         var vm = Create(repository);
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
-        Task writing = vm.ReopenReviewCommand.ExecuteAsync(null);
+        await vm.ReopenReviewCommand.ExecuteAsync(null);
+        vm.Text = "edited completed notes";
+        Task writing = vm.SaveDraftAndCloseCommand.ExecuteAsync(null);
         await Wait(started.Task);
         if (cancel) vm.CancelOperationCommand.Execute(null);
         await writing;
 
         Assert.True(vm.IsCompleted);
-        Assert.True(vm.IsReadOnly);
+        Assert.False(vm.IsReadOnly);
         Assert.Equal(4, vm.Revision);
-        Assert.Equal("completed notes", vm.Text);
+        Assert.Equal("edited completed notes", vm.Text);
         Assert.Equal(Ready.WentWell, vm.WentWell);
         Assert.Equal(Ready.NeedsImprovement, vm.NeedsImprovement);
         Assert.Equal(Ready.NextTradingDay, vm.NextTradingDay);
-        Assert.False(vm.IsDirty);
-        Assert.True(vm.ReopenReviewCommand.CanExecute(null));
+        Assert.True(vm.IsDirty);
+        Assert.False(vm.ReopenReviewCommand.CanExecute(null));
         Assert.Contains(cancel ? "cancelled" : "could not be saved", vm.ErrorMessage);
     }
 
@@ -530,7 +530,7 @@ public sealed class JournalReviewViewModelTests
     {
         "save" => vm.SaveCommand.ExecuteAsync(null),
         "complete" => vm.CompleteReviewCommand.ExecuteAsync(null),
-        "reopen" => vm.ReopenReviewCommand.ExecuteAsync(null),
+        "reopen" => vm.SaveDraftAndCloseCommand.ExecuteAsync(null),
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 

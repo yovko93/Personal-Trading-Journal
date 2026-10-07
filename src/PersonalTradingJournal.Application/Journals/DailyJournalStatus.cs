@@ -8,4 +8,5 @@ public sealed record DailyJournalStatus(
     Guid JournalId,
     DateOnly TradingDate,
     bool IsDraft,
-    long Revision);
+    long Revision,
+    Guid? TradingAccountId = null);

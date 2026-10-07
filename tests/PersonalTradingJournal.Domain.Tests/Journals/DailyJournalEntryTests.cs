@@ -261,6 +261,25 @@ public sealed class DailyJournalEntryTests
         Assert.Throws<InvalidOperationException>(() => journal.UpdateContent("New", false, CreatedAtUtc, answers));
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExplicitCompletedEditIsOneRevisionAndStillValidatesCompletion(bool draft)
+    {
+        var journal = new DailyJournalEntry(TradingDate, AccountId, "Original", false, CreatedAtUtc, CompleteReview);
+        var answers = new DailyReviewAnswers("Changed", "", "");
+        Assert.Throws<InvalidOperationException>(() => journal.UpdateContent("Edited", draft, CreatedAtUtc, answers));
+        Assert.Equal(1, journal.Revision);
+        if (!draft)
+            Assert.Throws<ArgumentException>(() => journal.UpdateContent("", false, CreatedAtUtc, answers, reopenCompleted: true));
+        Assert.True(journal.UpdateContent("Edited", draft, CreatedAtUtc.AddMinutes(1), answers, reopenCompleted: true));
+        Assert.Equal(2, journal.Revision);
+        Assert.Equal(draft, journal.IsDraft);
+        Assert.Equal(answers, journal.Review);
+        Assert.Equal(TradingDate, journal.TradingDate);
+        Assert.Equal(AccountId, journal.TradingAccountId);
+    }
+
     [Fact]
     public void CompleteThenReopenPreservesScopeAndAnswersAndAddsDurableRevisionNumbers()
     {

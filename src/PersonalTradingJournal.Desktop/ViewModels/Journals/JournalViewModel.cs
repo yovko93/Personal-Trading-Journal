@@ -163,7 +163,7 @@ public sealed class JournalViewModel : ObservableObject
     public string EntryStateLabel => !IsExisting ? "No entry" : IsDraft ? "Draft" : "Completed";
     public string SavedText => _entry?.Text ?? "";
     public DailyReviewAnswers SavedReview => _entry?.Review ?? DailyReviewAnswers.Empty;
-    public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
+    public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy;
     public bool IsReadOnly => !CanEdit;
     public bool CanComplete => CanSave() && HasMeaningfulContent;
     public string CharacterCountText => $"{Text.Length:N0} / {DailyJournalEntry.MaximumTextLength:N0} characters";
@@ -413,7 +413,7 @@ public sealed class JournalViewModel : ObservableObject
     private bool CanSave() => CanEdit && !_reloadRequired && !HasDateInputError
         && Text.Length <= DailyJournalEntry.MaximumTextLength && ReviewLengthError is null;
 
-    private bool CanReopen() => CanReadContent && IsCompleted && SelectedAccount.IsAvailable
+    private bool CanReopen() => CanReadContent && IsCompleted && !IsEditorOpen && SelectedAccount.IsAvailable
         && !IsBusy && !_reloadRequired && !HasDateInputError;
 
     private bool HasMeaningfulContent => DailyJournalEntry.CanComplete(Text);
@@ -446,13 +446,30 @@ public sealed class JournalViewModel : ObservableObject
         await WriteAsync(isDraft: false);
     }
 
-    private Task ReopenReviewAsync() => CanReopen() ? WriteAsync(isDraft: true, openEditorOnSuccess: true) : Task.CompletedTask;
+    private Task ReopenReviewAsync()
+    {
+        if (CanReopen())
+        {
+            // Editing is local until Save or a genuinely changed Cancel. Preserve the
+            // loaded Completed snapshot and token, including change-then-revert edits.
+            _isEditorOpen = true;
+            NotifyState();
+        }
+        return Task.CompletedTask;
+    }
 
     private Task SaveAsync() => CompleteReviewAsync();
 
     private Task SaveDraftAndCloseAsync()
     {
         if (!CanSave()) return Task.CompletedTask;
+        if (IsCompleted && !IsDirty)
+        {
+            _isEditorOpen = false;
+            _completionAttempted = false;
+            NotifyState();
+            return Task.CompletedTask;
+        }
         // Only a never-saved, exactly empty form closes without a write. Drafts preserve
         // partial/nonmeaningful text too; this button never invokes discard protection.
         if (_entry is null && Text.Length == 0 && WentWell.Length == 0
@@ -469,7 +486,7 @@ public sealed class JournalViewModel : ObservableObject
     private async Task WriteAsync(bool isDraft, bool openEditorOnSuccess = false)
     {
         // All write actions share this guard so concurrent command types cannot overlap.
-        if (IsSaving || (IsCompleted ? !CanReopen() : !CanSave())) return;
+        if (IsSaving || !CanSave()) return;
         using var cancellation = new CancellationTokenSource();
         _saveCancellation = cancellation;
         _isSaving = true;
@@ -486,7 +503,7 @@ public sealed class JournalViewModel : ObservableObject
         {
             DailyJournalWriteResult result = await Task.Run(() => entry is null
                 ? _repository.CreateAsync(new(date, accountId, text, isDraft, review), cancellation.Token)
-                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, isDraft, review), cancellation.Token), cancellation.Token);
+                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, isDraft, review, ReopenCompleted: !entry.IsDraft), cancellation.Token), cancellation.Token);
             // A repository can return a committed result after cancellation was requested.
             // Its authoritative result must still be accepted; cancellation cannot undo a commit.
             switch (result.Status)
@@ -604,6 +621,9 @@ public sealed class JournalViewModel : ObservableObject
     private void PublishEntry(DailyJournalEntry? entry)
     {
         _entry = entry;
+        // A fresh Completed snapshot requires a fresh explicit Reopen, including Reload
+        // after a conflict. An earlier editor session cannot authorize editing this revision.
+        if (entry is { IsDraft: false }) _isEditorOpen = false;
         _text = _savedText = entry?.Text ?? "";
         _savedReview = entry?.Review ?? DailyReviewAnswers.Empty;
         _wentWell = _savedReview.WentWell;

@@ -24,6 +24,7 @@ public sealed partial class CalendarDayModalTests
         var date = new DateOnly(2026, 9, 5); // Saturday remains weekly-only.
         var statuses = new ModalJournalStatuses([
             new(Guid.NewGuid(), date, draft, 2),
+            new(Guid.NewGuid(), date, false, 1, Guid.NewGuid()),
             new(Guid.NewGuid(), new(2026, 8, 31), false, 4)]);
         CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: statuses);
         vm.OpenJournalAsync = (_, _) => Task.CompletedTask;
@@ -46,6 +47,11 @@ public sealed partial class CalendarDayModalTests
                 Assert.Equal(isDraft ? "Draft" : "✓", indicator.Text);
                 Assert.Contains(isDraft ? "Draft" : "Completed", AutomationProperties.GetName(indicator), StringComparison.OrdinalIgnoreCase);
                 Assert.DoesNotContain("Completed", indicator.Text);
+                if (day.Date == date)
+                {
+                    Assert.Equal(2, day.JournalCount);
+                    Assert.Contains(draft ? "1 Draft, 1 Completed" : "0 Draft, 2 Completed", AutomationProperties.GetName(indicator));
+                }
                 Assert.True(indicator.ActualWidth <= cell.ActualWidth);
                 Assert.True(indicator.TransformToAncestor(cell).Transform(new Point()).Y + indicator.ActualHeight <= cell.ActualHeight);
                 Assert.Same(resources["PtjTextSecondaryBrush"], indicator.Foreground);

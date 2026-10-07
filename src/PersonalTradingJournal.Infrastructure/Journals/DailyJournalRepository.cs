@@ -97,7 +97,7 @@ public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJour
         if (record.Revision != command.ExpectedRevision)
             return new(DailyJournalWriteStatus.Conflict, Details(record, account));
         DailyJournalEntry entry = DailyJournalPersistenceMapper.ToDomain(record);
-        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? entry.Review))
+        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? entry.Review, command.ReopenCompleted))
             return new(DailyJournalWriteStatus.Unchanged, Details(record, account));
 
         record.Text = entry.Text;

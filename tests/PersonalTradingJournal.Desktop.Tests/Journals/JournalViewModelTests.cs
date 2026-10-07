@@ -35,7 +35,7 @@ public sealed partial class JournalViewModelTests
             await vm.SaveCommand.ExecuteAsync(null);
             Assert.Equal("Completed", vm.EntryStateLabel);
             await vm.ReopenReviewCommand.ExecuteAsync(null);
-            Assert.Equal("Draft", vm.EntryStateLabel);
+            Assert.Equal("Completed", vm.EntryStateLabel); // Reopen is local until a write.
             vm.OpenEditorCommand.Execute(null);
             vm.WentWell = "Plan";
             vm.NeedsImprovement = "Patience";
@@ -768,7 +768,7 @@ public sealed partial class JournalViewModelTests
         Assert.True(vm.CanEdit);
         Assert.Equal(vm.SavedText, vm.Text);
         Assert.Single(repository.Creates);
-        Assert.True(Assert.Single(repository.Updates).IsDraft);
+        Assert.Empty(repository.Updates);
         vm.Deactivate();
     }
 

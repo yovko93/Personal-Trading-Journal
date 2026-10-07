@@ -296,7 +296,7 @@ public sealed class CalendarJournalTests
         private readonly Dictionary<Guid, IReadOnlyList<DailyJournalStatus>> _rows = [];
         public ConcurrentQueue<(DateOnly From, DateOnly Through, Guid? Account, CancellationToken Token)> Calls { get; } = new();
         public Func<DateOnly, DateOnly, Guid?, CancellationToken, Task<IReadOnlyList<DailyJournalStatus>>>? Handler { get; set; }
-        public void Set(Guid? account, params DailyJournalStatus[] statuses) => _rows[account ?? Guid.Empty] = statuses;
+        public void Set(Guid? account, params DailyJournalStatus[] statuses) => _rows[account ?? Guid.Empty] = statuses.Select(s => s with { TradingAccountId = account }).ToArray();
         public Task<IReadOnlyList<DailyJournalStatus>> GetAsync(DateOnly from, DateOnly through, Guid? tradingAccountId = null, CancellationToken cancellationToken = default)
         {
             Calls.Enqueue((from, through, tradingAccountId, cancellationToken));

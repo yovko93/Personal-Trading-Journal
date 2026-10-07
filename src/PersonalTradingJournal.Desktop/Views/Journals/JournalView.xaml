@@ -161,9 +161,6 @@
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <StackPanel MaxWidth="760">
                     <TextBlock Text="Daily Review" Style="{DynamicResource JournalHeading}" />
-                    <TextBlock Text="Completed review. Reopen to make changes." Margin="0,8,0,0" TextWrapping="Wrap"
-                               Style="{DynamicResource JournalBody}"
-                               Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" />
                     <Label Content="_What went well?" Target="{Binding ElementName=WentWellAnswer}" Margin="0,12,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="WentWellAnswer" Style="{DynamicResource JournalTextBox}"
@@ -198,12 +195,12 @@
             <WrapPanel Grid.Row="5" Margin="0,12,0,0">
                 <WrapPanel x:Name="JournalEditorActions" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <Button x:Name="SaveJournal" Content="_Save Journal" Command="{Binding SaveCommand}" Margin="0,0,8,8"
-                        Visibility="{Binding IsDraft, Converter={StaticResource BoolVisibility}}"
+                        Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
                         Style="{DynamicResource PtjJournalSaveButtonStyle}" AutomationProperties.Name="Save Journal as Completed" ToolTip="Save all fields and mark Completed (Ctrl+S)" />
                 <Button x:Name="CloseJournalEditor" Content="_Cancel" Command="{Binding SaveDraftAndCloseCommand}" Margin="0,0,8,8"
                         Style="{DynamicResource PtjJournalDraftButtonStyle}" AutomationProperties.Name="Cancel — save as draft and close"
-                        AutomationProperties.HelpText="Save all four fields as Draft and close only the editor. An empty new form closes without creating an entry."
-                        ToolTip="Save as draft and close" />
+                        AutomationProperties.HelpText="Save changes as Draft and close only the editor. An unchanged Completed review keeps its status and history. An empty new form creates no entry."
+                        ToolTip="Save as draft and close; unchanged Completed reviews close without saving" />
                 </WrapPanel>
                 <Button x:Name="ReloadJournal" Content="_Reload latest" Command="{Binding ReloadCommand}" Margin="0,0,8,8"
                         Style="{DynamicResource JournalButton}" AutomationProperties.Name="Reload latest journal"

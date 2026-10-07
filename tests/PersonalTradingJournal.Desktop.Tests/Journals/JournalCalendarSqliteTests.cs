@@ -65,9 +65,12 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal(1L, calendar.SelectedDayJournalStatus!.Revision);
 
             await editor.ReopenReviewCommand.ExecuteAsync(null);
+            editor.Text += " updated";
+            await editor.SaveDraftAndCloseCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal("Continue Journal", calendar.DayJournalActionText);
+            editor.OpenEditorCommand.Execute(null);
             editor.WentWell = Answers.WentWell;
             editor.NeedsImprovement = Answers.NeedsImprovement;
             editor.NextTradingDay = Answers.NextTradingDay;
@@ -79,6 +82,8 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal(3L, calendar.SelectedDayJournalStatus!.Revision);
 
             await editor.ReopenReviewCommand.ExecuteAsync(null);
+            editor.Text += " updated again";
+            await editor.SaveDraftAndCloseCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal(4L, calendar.SelectedDayJournalStatus!.Revision);
@@ -155,6 +160,8 @@ public sealed class JournalCalendarSqliteTests
             Assert.Contains("inactive", editor.SelectedAccount.Name);
             editor.JournalDataCommitted += (_, _) => calendar.OnJournalCommitted();
             await editor.ReopenReviewCommand.ExecuteAsync(null);
+            editor.Text += " updated";
+            await editor.SaveDraftAndCloseCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal(2L, calendar.SelectedDayJournalStatus!.Revision);

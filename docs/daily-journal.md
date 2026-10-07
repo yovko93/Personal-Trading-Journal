@@ -1,5 +1,62 @@
 # Daily Journal — M14.1–M14.6
 
+## Completed Cancel and Calendar aggregation (2026-10-07)
+
+This section supersedes earlier statements that opening Reopen immediately saves Draft or that Calendar All accounts markers use null scope only.
+
+- **Reopen review** explicitly authorizes a local editor in both the standalone page and Day Performance. The persisted Completed entry, timestamp and revision remain unchanged until a write. Reloading a Completed revision closes the old editor authorization; it must be explicitly reopened again.
+- **Cancel** compares exact ordinal values of Journal text and all three answers against the loaded snapshot. For a Completed entry with no differences, including change-then-revert, it closes only the editor without a repository write, revision, notification or status transition. Changed fields save together as Draft in one transaction/revision. A failed/cancelled/conflicting save retains every field and the open form. New exactly empty forms still close without creation; existing Drafts retain existing save/no-op behavior. Cancel does not ask to discard; other close/navigation paths retain explicit unsaved-change protection.
+- **Save Journal** still requires meaningful Journal text (Unicode letter/digit), with optional answers, and saves as Completed. `UpdateDailyJournalCommand.ReopenCompleted` explicitly combines reopening and an edit in one revision, after the existing expected-revision check. Ordinary callers cannot modify Completed content without explicit reopening. No intermediate Draft revision, schema change or legacy-data rewrite is required. Historical answers-only Completed entries remain readable and unchanged Cancel remains valid.
+- Calendar **All accounts indicators** aggregate all journals on each New York journal date, including null scope. Any Draft produces **Draft**; all Completed produces **✓**; no entries produces no marker. Multiple entries expose total, Draft and Completed counts accessibly, independent of query order. A specific account shows only its entries. Currency never filters journal indicators.
+- The indicator aggregate does **not** change editing identity: All accounts Day Performance still opens/creates the separate null-scoped entry, even if its marker came only from P 21. The status-only query retains Account IDs, uses one fresh bounded grid-range projection (at most 42 dates), and never loads text/answers. Account switching and committed save/Draft-save/deletion use existing generation-guarded refresh. Financial summaries and trade counts are unchanged.
+
+### Verification and remaining manual checks
+
+Evidence is in ignored `artifacts/journal-cancel-aggregate/`. All fixtures are synthetic/isolated; no real journal was accessed.
+
+- Focused Release: **377 passed**, zero failures/skips (Domain 53, Application 13, Infrastructure 71, Desktop 240). Covers each field independently, exact change/revert, unchanged Completed Cancel with retained snapshot/audits, both hosts, stale saves, existing Draft/new-empty behavior, aggregate P 21 + inactive + null scope, mixed states, exact modal editing, save/deletion refresh and existing stale-batch guards.
+- Targeted WPF layout/render run: **6 passed**, including the supervised **86/86 Calendar native** cases. Inspected automated Calendar Light/Dark renders at **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**; narrow grids retain horizontal scrolling. Tests check mixed aggregate accessible counts, compact Saturday indicators and visible standalone Save after local Completed reopening.
+- Complete parallel Release: **2,972 passed**, zero failures/skips (Domain **453**, Application **529**, Infrastructure **797**, Desktop **1,193**). Desktop elapsed 2m36s; Calendar native **86/86**. The first full run had 2,971 passed and one old shell-navigation expectation that Reopen alone persists Draft. The regression now explicitly checks Completed after local Reopen, then changes an answer and Cancels before expecting Draft. The final full run is green; no deadlines, retries, skips or harness settings were changed.
+- Release build: **0 warnings, 0 errors**. EF: **no pending model changes**. `git diff --check`: passed. No migration, Trade economics, import or P&L changes.
+- Branch **develop**, HEAD **786e8038df2a78ce7db113f4cc98a2821e2e30cf**; initially clean. **28 modified + 2 new files**, unstaged; no commit/push. Live interaction and matching GitHub Actions remain **unverified**; a new pushed CI run is required to verify these changes there.
+
+Remaining live Windows checks: in both themes, open a Completed entry in each host, change/revert all four fields and Cancel (still Completed); then change an answer and Cancel (Draft). Confirm the Calendar remains open. With a synthetic P 21 journal on 7 Oct 2026, switch P 21 → All accounts, add another account's Draft and verify the mixed-state accessible counts; delete the entries and verify marker removal. Confirm All accounts Add/Open still targets its own null-scoped journal. Local automated tests/renders do not verify live interaction or GitHub Actions.
+
+### Changed files
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Application/Journals/DailyJournalStatus.cs
+src/PersonalTradingJournal.Application/Journals/IDailyJournalStatusReader.cs
+src/PersonalTradingJournal.Application/Journals/UpdateDailyJournalCommand.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.Journal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Journals/InlineJournalView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalView.xaml
+src/PersonalTradingJournal.Domain/Journals/DailyJournalEntry.cs
+src/PersonalTradingJournal.Infrastructure/Journals/DailyJournalRepository.cs
+src/PersonalTradingJournal.Infrastructure/Journals/DailyJournalStatusReader.cs
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalJournalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarJournalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarInlineJournalSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalCalendarIntegrationViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalCalendarSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalReviewSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalReviewViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Navigation/CalendarJournalNavigationTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/FakeDailyJournalRepository.cs
+tests/PersonalTradingJournal.Domain.Tests/Journals/DailyJournalEntryTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Journals/DailyJournalStatusReaderTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarAggregateJournalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalCompletedCancelTests.cs
+```
+
 ## Previews, action colors and revision deletion (2026-10-07)
 
 The expanded review shows compact, labeled previews directly below **Open in editor** and before revision controls. Only nonempty Journal text/answers occupy space. One exact-date/Account repository read supplies current content for the opened journal ID (not the selected-day editor and not a stale historical snapshot). A replaced/deleted ID is unavailable rather than silently substituted. Reads are cancellable and generation-guarded. The preview is limited to three lines and at most 240 UTF-16 code units plus an ellipsis; wrapped text is also capped to three lines. Full text is unchanged in the editor and read-only revision view. All accounts filter, count, ordering, ten-entry page and unsaved editor remain intact.
@@ -10,7 +67,7 @@ The expanded review shows compact, labeled previews directly below **Open in edi
 
 `IDailyJournalRevisionWriter.DeleteRevisionAsync(JournalId, Revision, ExpectedCurrentRevision)` deletes one selected older snapshot inside a SQLite writer transaction. It checks the journal root's expected revision before deleting. Outcomes are `Deleted`, `NotFound`, `Conflict` or `CurrentRevisionProtected`; cancellation and write failure roll back removal. The confirmation identifies the New York trading date, exact Account name/ID, revision and Draft/Completed state, and warns that removal is permanent. It never deletes the journal or another snapshot. Inactive/unavailable reference names remain explicit; no scope fallback occurs.
 
-**The current/latest revision cannot be deleted**, including a journal with only one revision. Its matching current-state snapshot is an existing persistence invariant. The row visibly says Current revision — protected, with a disabled Delete revision action and accessible explanation. An older deleted number is never reused. Root text, answers, status, UTC audits and concurrency token remain unchanged; a later Save/Reopen still increments the root token, not history count. Remaining history may have gaps. No tombstones or schema migration are added. Earlier statements that history always contains every past revision now apply only until an explicit deletion.
+**The current/latest revision cannot be deleted**, including a journal with only one revision. Its matching current-state snapshot is an existing persistence invariant. The row visibly says Current revision — protected, with a disabled Delete revision action and accessible explanation. An older deleted number is never reused. Root text, answers, status, UTC audits and concurrency token remain unchanged; a later changed Save (including an explicitly reopened edit) still increments the root token, not history count. Remaining history may have gaps. No tombstones or schema migration are added. Earlier statements that history always contains every past revision now apply only until an explicit deletion.
 
 After success, the revision count is reread, an emptied final page moves to the last remaining page, and a deleted open snapshot closes. The journal-entry History page/filter remains intact. Confirmation cancellation makes no write. Failed/cancelled/conflicting writes retain the visible revision list and snapshot with recovery guidance; a stale head requires Refresh History before another deletion. Changing scope/row or leaving cancels pending work and prevents a late response from populating another review. Preview/deletion never overwrites unsaved editor text. No Calendar financial/status refresh is needed for removing an old snapshot because current journal state does not change.
 

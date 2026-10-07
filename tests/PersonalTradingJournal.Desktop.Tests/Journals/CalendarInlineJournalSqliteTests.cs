@@ -83,8 +83,8 @@ public sealed class CalendarInlineJournalSqliteTests
             Assert.False(journal.IsEditorOpen);
             Assert.Equal("Saved inside modal", journal.Text);
             var persisted = (await db.Repository.GetAsync(day.Date, scoped ? account.Id : null))!.Entry;
-            await db.Repository.UpdateAsync(new(persisted.Id, persisted.Revision, "Newer external text", true, persisted.Review));
-            journal.OpenEditorCommand.Execute(null);
+            await db.Repository.UpdateAsync(new(persisted.Id, persisted.Revision, "Newer external text", true, persisted.Review, ReopenCompleted: true));
+            await journal.ReopenReviewCommand.ExecuteAsync(null);
             journal.Text = "Keep on conflict";
             await journal.SaveCommand.ExecuteAsync(null);
             Assert.True(journal.IsEditorOpen && journal.IsDirty);

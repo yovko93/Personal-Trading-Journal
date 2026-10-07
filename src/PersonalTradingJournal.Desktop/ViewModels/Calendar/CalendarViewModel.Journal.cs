@@ -6,19 +6,26 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
 public sealed partial class CalendarDayCell
 {
+    public int JournalCount { get; private set; }
+    public int DraftJournalCount { get; private set; }
     public DailyJournalStatus? JournalStatus { get; private set; }
     public bool HasJournal => JournalStatus is not null;
     public string JournalStatusText => JournalStatus is { IsDraft: true } ? "Draft" : HasJournal ? "Completed" : "";
     public string JournalIndicatorText => JournalStatus is { IsDraft: true } ? "Draft" : HasJournal ? "✓" : "";
     private bool _journalStatusLoaded;
-    public string JournalAccessibleDescription => JournalStatus is { } status
-        ? $"Daily Journal {JournalStatusText.ToLowerInvariant()}, revision {status.Revision}, in the current Account scope."
+    public string JournalAccessibleDescription => JournalCount > 1
+        ? $"{JournalCount} Daily Journals across all Account scopes: {DraftJournalCount} Draft, {JournalCount - DraftJournalCount} Completed."
+        : JournalStatus is { } status
+        ? $"Daily Journal {JournalStatusText.ToLowerInvariant()}, revision {status.Revision}, " +
+            (status.TradingAccountId is null ? "in the explicit All accounts journal scope." : $"in Account scope {status.TradingAccountId}.")
         : _journalStatusLoaded ? "No Daily Journal for this date in the current Account scope." : "";
 
-    internal void UpdateJournal(DailyJournalStatus? status, bool loaded)
+    internal void UpdateJournal(IReadOnlyList<DailyJournalStatus>? statuses, bool loaded)
     {
-        if (JournalStatus == status && _journalStatusLoaded == loaded) return;
-        JournalStatus = status;
+        JournalCount = statuses?.Count ?? 0;
+        DraftJournalCount = statuses?.Count(s => s.IsDraft) ?? 0;
+        // Any Draft takes precedence; stable identity order avoids source-order dependence.
+        JournalStatus = statuses?.OrderByDescending(s => s.IsDraft).ThenBy(s => s.JournalId).FirstOrDefault();
         _journalStatusLoaded = loaded;
         OnPropertyChanged(string.Empty);
     }
@@ -31,7 +38,7 @@ public sealed partial class CalendarViewModel
     private long _journalGeneration;
     private DateOnly? _journalGridStart, _journalGridEnd;
     private Guid? _journalAccountId;
-    private IReadOnlyDictionary<DateOnly, DailyJournalStatus> _journalStatuses = new Dictionary<DateOnly, DailyJournalStatus>();
+    private IReadOnlyDictionary<DateOnly, IReadOnlyList<DailyJournalStatus>> _journalStatuses = new Dictionary<DateOnly, IReadOnlyList<DailyJournalStatus>>();
     private bool _journalStatusesLoaded, _isJournalLoading;
     private string? _journalErrorMessage;
 
@@ -40,7 +47,7 @@ public sealed partial class CalendarViewModel
     public Task JournalNavigationTask { get; private set; } = Task.CompletedTask;
     public Task JournalLoadTask { get; private set; } = Task.CompletedTask;
     public DailyJournalStatus? SelectedDayJournalStatus => SelectedDate is { } date
-        ? _journalStatuses.GetValueOrDefault(date) : null;
+        ? _journalStatuses.GetValueOrDefault(date)?.SingleOrDefault(s => s.TradingAccountId == SelectedAccount.Id) : null;
     public bool CanOpenDayJournal => _isActive && SelectedDate.HasValue && _journalStatusesLoaded &&
         !IsJournalLoading && JournalErrorMessage is null;
     public string DayJournalActionText => SelectedDayJournalStatus is { IsDraft: true } ? "Continue Journal"
@@ -105,7 +112,7 @@ public sealed partial class CalendarViewModel
         var query = new TradingCalendarQuery(_month.Year, _month.Month, SelectedAccount.Id);
         Guid? accountId = SelectedAccount.Id;
         _journalStatusesLoaded = false;
-        _journalStatuses = new Dictionary<DateOnly, DailyJournalStatus>();
+        _journalStatuses = new Dictionary<DateOnly, IReadOnlyList<DailyJournalStatus>>();
         JournalErrorMessage = null;
         IsJournalLoading = true;
         PublishJournalStatuses();
@@ -122,7 +129,8 @@ public sealed partial class CalendarViewModel
             if (statuses is null) JournalErrorMessage = UnavailableAccountMessage;
             else
             {
-                _journalStatuses = statuses.ToDictionary(status => status.TradingDate);
+                _journalStatuses = statuses.GroupBy(status => status.TradingDate)
+                    .ToDictionary(group => group.Key, group => (IReadOnlyList<DailyJournalStatus>)group.ToArray());
                 _journalStatusesLoaded = true;
                 PublishJournalStatuses();
             }
@@ -151,7 +159,7 @@ public sealed partial class CalendarViewModel
         _journalCancellation?.Cancel();
         _journalCancellation = null;
         _journalStatusesLoaded = false;
-        _journalStatuses = new Dictionary<DateOnly, DailyJournalStatus>();
+        _journalStatuses = new Dictionary<DateOnly, IReadOnlyList<DailyJournalStatus>>();
         JournalErrorMessage = null;
         IsJournalLoading = false;
         PublishJournalStatuses();

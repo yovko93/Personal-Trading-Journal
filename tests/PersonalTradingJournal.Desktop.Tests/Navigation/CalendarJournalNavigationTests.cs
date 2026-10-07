@@ -148,7 +148,7 @@ public sealed partial class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task ShellRefreshesExactCalendarStatusAfterDraftSaveCompleteAndReopenOnReturn()
+    public async Task ShellRefreshesExactCalendarStatusAfterCompleteAndChangedCancelOnReturn()
     {
         var repository = new CalendarNavigationJournalRepository();
         var journal = new JournalViewModel(repository, new FakeTradingAccountReader(), new FakeDialogService { ConfirmationResult = true },
@@ -188,6 +188,12 @@ public sealed partial class MainWindowViewModelTests
 
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);
         await journal.ReopenReviewCommand.ExecuteAsync(null);
+        Assert.True(journal.IsCompleted);
+        Assert.False(journal.IsDirty);
+        journal.WentWell = "Updated reflection";
+        await journal.SaveDraftAndCloseCommand.ExecuteAsync(null);
+        Assert.True(journal.IsDraft);
+        Assert.False(journal.IsEditorOpen);
         main.NavigateCommand.Execute(NavigationDestination.Calendar);
         await calendar.LoadTask;
         Assert.Equal(4, repository.StatusReads);

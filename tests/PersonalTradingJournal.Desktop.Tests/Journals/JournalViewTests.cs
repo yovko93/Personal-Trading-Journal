@@ -153,6 +153,18 @@ public sealed class JournalViewTests
             Assert.InRange(save.TranslatePoint(new Point(), root).Y, -0.1, root.ActualHeight - save.ActualHeight + 0.1);
             Render(root, theme, width, dpi, "editor-actions-");
         }
+        else
+        {
+            vm.ReopenReviewCommand.Execute(null); Flush();
+            Assert.True(vm.IsCompleted && vm.CanEdit);
+            Assert.Equal(Visibility.Visible, save.Visibility);
+            Assert.Equal(Visibility.Visible, ((WrapPanel)view.FindName("JournalEditorActions")).Visibility);
+            Assert.True(save.IsEnabled && cancel.IsEnabled && !freeform.IsReadOnly);
+            Assert.Contains("unchanged Completed", AutomationProperties.GetHelpText(cancel));
+            cancel.Command.Execute(null); Flush();
+            Assert.True(vm.IsCompleted && vm.IsReadOnly);
+            Assert.Equal(Visibility.Collapsed, ((WrapPanel)view.FindName("JournalEditorActions")).Visibility);
+        }
         vm.Deactivate();
     }
 

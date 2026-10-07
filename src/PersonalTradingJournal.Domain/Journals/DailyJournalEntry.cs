@@ -92,7 +92,8 @@ public sealed class DailyJournalEntry : AuditableEntity
     /// <summary>The exact structured answers stored with this revision.</summary>
     public DailyReviewAnswers Review { get; private set; }
 
-    /// <summary>A completed review is read-only until explicitly reopened as a draft.</summary>
+    /// <summary>Committed state. A completed review requires explicit reopening to edit;
+    /// opening an editor alone does not change this state.</summary>
     public bool IsDraft { get; private set; }
 
     public long Revision { get; private set; }
@@ -116,11 +117,14 @@ public sealed class DailyJournalEntry : AuditableEntity
     public bool UpdateContent(string text, bool isDraft, DateTimeOffset updatedAtUtc)
         => UpdateContent(text, isDraft, updatedAtUtc, Review);
 
+    /// <summary>Applies one revision. Explicit reopening may be combined atomically with the edit;
+    /// callers must still enforce the loaded revision token before applying it.</summary>
     public bool UpdateContent(
         string text,
         bool isDraft,
         DateTimeOffset updatedAtUtc,
-        DailyReviewAnswers review)
+        DailyReviewAnswers review,
+        bool reopenCompleted = false)
     {
         ValidateText(text);
         ArgumentNullException.ThrowIfNull(review);
@@ -130,7 +134,7 @@ public sealed class DailyJournalEntry : AuditableEntity
             return false;
         }
 
-        if (!IsDraft && !unchangedContent)
+        if (!IsDraft && !unchangedContent && !reopenCompleted)
         {
             throw new InvalidOperationException(
                 "A completed review must be reopened before its journal text or answers can be edited.");

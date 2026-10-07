@@ -54,11 +54,11 @@ public sealed class JournalSqliteTests
 
         Assert.Null(reopened.ErrorMessage);
         Assert.False(reopened.IsDirty);
-        Assert.Equal(3L, reopened.Revision);
+        Assert.Equal(2L, reopened.Revision);
         reopened.Deactivate();
         JournalViewModel latest = await database.OpenEditorAsync(TradingDate);
         Assert.Equal(revised, latest.Text);
-        Assert.Equal(3L, latest.Revision);
+        Assert.Equal(2L, latest.Revision);
         Assert.False(latest.IsDirty);
 
         DailyJournalDetails persisted = Assert.IsType<DailyJournalDetails>(
@@ -75,18 +75,12 @@ public sealed class JournalSqliteTests
             revision =>
             {
                 Assert.Equal(2L, revision.Revision);
-                Assert.Equal(original, revision.Text);
-                Assert.True(revision.IsDraft);
-            },
-            revision =>
-            {
-                Assert.Equal(3L, revision.Revision);
                 Assert.Equal(revised, revision.Text);
                 Assert.False(revision.IsDraft);
             });
         await using JournalDbContext context = await database.ContextFactory.CreateDbContextAsync();
         Assert.Equal(1, await context.DailyJournals.CountAsync());
-        Assert.Equal(3, await context.DailyJournalRevisions.CountAsync());
+        Assert.Equal(2, await context.DailyJournalRevisions.CountAsync());
         Assert.Empty(await context.Trades.ToArrayAsync());
         Assert.Empty(await context.TradeExecutions.ToArrayAsync());
         Assert.Empty(await context.TradeBrowse.ToArrayAsync());
