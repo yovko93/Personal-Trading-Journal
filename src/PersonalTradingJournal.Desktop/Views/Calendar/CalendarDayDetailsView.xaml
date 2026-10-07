@@ -96,13 +96,38 @@
                     <TextBlock Text="{Binding DayJournalStatusMessage}"
                                TextWrapping="Wrap" TextAlignment="Center" Margin="0,8"
                                Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
-                    <Button x:Name="DayJournalAction" Content="{Binding DayJournalActionText}"
-                            IsEnabled="{Binding CanOpenDayJournal}" HorizontalAlignment="Center"
-                            Command="{Binding OpenInlineJournalCommand}"
-                            AutomationProperties.Name="{Binding DayJournalActionText}"
-                            AutomationProperties.HelpText="Open the selected New York date and exact Calendar Account scope inline in Day Performance."
-                            Style="{DynamicResource PtjButtonStyle}" />
+                    <WrapPanel HorizontalAlignment="Center">
+                        <Button x:Name="DayJournalAction" Content="Add Journal" Margin="0,0,8,4"
+                                Command="{Binding AddDayJournalCommand}" AutomationProperties.Name="Add Journal"
+                                AutomationProperties.HelpText="Create a Journal for this New York date. Choose its Account inside the form; an occupied scope cannot be overwritten."
+                                Style="{DynamicResource PtjPrimaryButtonStyle}" />
+                        <Button Content="Refresh Journals" Command="{Binding RefreshDayJournalsCommand}" Margin="0,0,0,4"
+                                Style="{DynamicResource PtjJournalActionButtonStyle}" AutomationProperties.Name="Refresh day Journals" />
+                    </WrapPanel>
                 </StackPanel>
+                <ItemsControl x:Name="DayJournalEntries" ItemsSource="{Binding DayJournals}" Margin="0,0,0,12"
+                              AutomationProperties.Name="Journals for selected New York date and Account filter">
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <Border Padding="12" Margin="0,0,0,10" CornerRadius="6" BorderThickness="1"
+                                Background="{DynamicResource PtjJournalReviewSurfaceBrush}" BorderBrush="{DynamicResource PtjJournalReviewBorderBrush}"
+                                AutomationProperties.Name="{Binding Description}">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="{Binding AccountLabel}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,4"
+                                               Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding StateLabel}" FontSize="16" Margin="0,0,0,4" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="96" LineHeight="24"
+                                           FontSize="16" MaxWidth="760" HorizontalAlignment="Left" Margin="0,4,0,8"
+                                           Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Saved Journal text" />
+                                <Button Content="{Binding ActionLabel}" HorizontalAlignment="Left"
+                                        Command="{Binding DataContext.OpenDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Style="{DynamicResource PtjJournalActionButtonStyle}"
+                                        AutomationProperties.Name="{Binding Description}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
                 <StackPanel x:Name="InlineJournalSection" Margin="0,0,0,16"
                             Visibility="{Binding HasInlineJournal, Converter={StaticResource BoolVisibility}}">
                     <Button Content="Close Journal" Command="{Binding CloseInlineJournalCommand}" HorizontalAlignment="Right"

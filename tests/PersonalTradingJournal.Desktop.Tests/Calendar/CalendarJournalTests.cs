@@ -192,7 +192,10 @@ public sealed class CalendarJournalTests
         await vm.SelectDayCommand.ExecuteAsync(Cell(vm, Saturday));
         Assert.False(vm.CanOpenDayJournal);
         Assert.Contains("Refresh", vm.JournalErrorMessage);
-        Assert.Equal(vm.JournalErrorMessage, vm.DayJournalStatusMessage);
+        // Content reads are independent: a failed grid-status batch must not
+        // masquerade as a failed (or empty) day-content request.
+        Assert.Null(vm.DayJournalError);
+        Assert.Contains("No Journal", vm.DayJournalStatusMessage);
         Assert.NotNull(vm.MonthData);
         Assert.True(vm.IsSelectedDayEmpty);
         source.Handler = null;
@@ -270,7 +273,8 @@ public sealed class CalendarJournalTests
     private static CalendarDayCell Cell(CalendarViewModel vm, DateOnly date) => vm.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date);
     private static DailyJournalStatus Status(DateOnly date, bool draft) => new(Guid.NewGuid(), date, draft, 1);
     private static CalendarViewModel Create(StatusSource source, AccountsSource? accounts = null) => new(
-        new MonthReader(), new Clock(), new FakeTradingCalendarDayReader(), accounts ?? new AccountsSource(), journalStatusReader: source);
+        new MonthReader(), new Clock(), new FakeTradingCalendarDayReader(), accounts ?? new AccountsSource(), journalStatusReader: source,
+        journalDayReader: new FakeDailyJournalRepository());
     private sealed class Clock : TimeProvider
     { public override DateTimeOffset GetUtcNow() => new(2026, 9, 9, 12, 0, 0, TimeSpan.Zero); }
     private sealed class MonthReader : ITradingCalendarReader

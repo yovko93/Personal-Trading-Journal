@@ -30,8 +30,15 @@ public sealed class InlineJournalViewTests
             var repo = new FakeDailyJournalRepository();
             var vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
                 journalDialogs: new FakeDialogService { ConfirmationResult = true });
+            var date = vm.Weeks[0].Days[5].Date;
+            Guid p21 = Guid.NewGuid(), other = Guid.NewGuid();
+            repo.AccountNames[p21] = "P 21";
+            repo.AccountNames[other] = "Another Account with a longer readable name";
+            await repo.CreateAsync(new(date, null, "Saved global Journal", false));
+            await repo.CreateAsync(new(date, p21, "Saved account Journal\n" + new string('x', 500)));
+            await repo.CreateAsync(new(date, other, "Another completed account Journal", false));
             await vm.SelectDayCommand.ExecuteAsync(vm.Weeks[0].Days[5]);
-            await vm.OpenInlineJournalCommand.ExecuteAsync(null);
+            await vm.AddDayJournalCommand.ExecuteAsync(null);
             vm.InlineJournal!.Text = "Exact local text\n" + new string('x', 200);
             models.Add(vm);
         }
@@ -50,6 +57,26 @@ public sealed class InlineJournalViewTests
                 var section = (StackPanel)view.FindName("InlineJournalSection");
                 var table = (ScrollViewer)view.FindName("DayTradesScroller");
                 var page = (ScrollViewer)view.FindName("DayContentScroller");
+                var entries = (ItemsControl)view.FindName("DayJournalEntries");
+                Assert.Equal(3, entries.Items.Count);
+                Assert.True(entries.TranslatePoint(new Point(0, entries.ActualHeight), view).Y <= section.TranslatePoint(new Point(), view).Y);
+                var openButtons = Descendants(entries).OfType<Button>().ToArray();
+                Assert.Equal(3, openButtons.Length);
+                foreach (var button in openButtons)
+                {
+                    Assert.Same(vm.OpenDayJournalCommand, button.Command);
+                    var row = Assert.IsType<CalendarJournalEntry>(button.CommandParameter);
+                    Assert.Contains(row, vm.DayJournals);
+                    Assert.Equal(row.Description, System.Windows.Automation.AutomationProperties.GetName(button));
+                    Assert.True(button.Focusable && button.IsEnabled);
+                    Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), entries).X, 1, entries.ActualWidth);
+                }
+                Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "All accounts");
+                Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "P 21");
+                Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "Draft");
+                Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "Completed");
+                entries.BringIntoView(new Rect(0, 0, entries.ActualWidth, 300)); Flush();
+                Render(view, theme, width, dpi, "journals");
                 var form = (StackPanel)inline.FindName("InlineForm");
                 Assert.Equal(Visibility.Visible, section.Visibility);
                 Assert.True(section.TranslatePoint(new Point(0, section.ActualHeight), view).Y <= table.TranslatePoint(new Point(), view).Y);

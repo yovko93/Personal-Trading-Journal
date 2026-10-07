@@ -1,5 +1,55 @@
 # Daily Journal — M14.1–M14.6
 
+## Day Performance journal list
+
+Calendar **All accounts** now has the same aggregate meaning for Day Performance's saved-journal list as for grid indicators: all Account-specific entries plus the distinct null-scoped entry on the selected New York trading date. A specific Account filters exactly. Currency is not a Journal filter. Each entry has its own Account/state label, compact saved-text preview and Open/Continue action; no arbitrary entry is substituted for a multi-journal date. Inactive and unavailable Account references stay explicit.
+
+`IDailyJournalDayReader.GetDayAsync(date, accountId?)` performs one cancellable, no-tracking SQLite query with a left Account join, restricted to the exact stored `DateOnly`. Null means aggregate for this **reader**, not for writes or `IDailyJournalRepository.GetAsync`. Results sort null scope first, then Account name and journal ID. No Trade query, per-row query, revisions or timezone conversion is needed: journal dates are already explicit New York dates, the same values used by the indicator query. Adjacent dates and DST do not shift the selected date. There is no first-page truncation within a date.
+
+The list loads independently of chart/Trade results, with its own loading/error/empty message and **Refresh Journals** action. A failed read never displays “No Journal”; that message appears only after a successful empty query. Date/filter/generation guards discard late results. Ordinary Calendar Refresh and committed Journal writes refresh both the list and grid status. Open dirty editors retain their fields during refresh; clean, stale or moved-out-of-filter saved cards are replaced by the fresh list.
+
+Open/Continue captures the row's exact journal ID and Account, without changing Calendar filters. A moved/deleted/recreated row cannot accidentally open a replacement at the same date/scope: its guarded read requires the original identity, including on Reload. Close it and refresh the list to choose another entry. Completed reviews remain read-only until Reopen; the existing Save/Cancel, target-scope move, revision conflict, Delete and modal-close protections apply unchanged.
+
+**Add Journal remains available even when entries exist.** It opens a genuinely new form rather than loading an occupied scope. Calendar's Account is preselected (null for All accounts); the form selector determines the write target. An occupied target reports a collision and preserves every field; choose a free Account or explicitly reload the existing entry. No merge, overwrite or automatic Account selection occurs. The modal remains open and Calendar remains selected.
+
+This supersedes older exact-null-only Day Performance descriptions below. Standalone History, exact-scope journal uniqueness, stored economics and schema are unchanged.
+
+### Day-list verification (2026-10-07)
+
+Initial checkout was clean `develop` at `a06ddcfc35ae1673cf9831ddd87d338411a293db`. The cause was a scope mismatch: Calendar indicators already aggregated all scopes, but the modal read only the selected exact scope (null under All accounts). The fix adds the one-date aggregate reader and independent list, while retaining exact identity for editing.
+
+- Focused Release: **402 passed**, zero failures/skips (Domain 54, Application 13, Infrastructure 80, Desktop 255), including the supervised **86/86 native Calendar** child. Isolated SQLite regressions reproduce P 21 on **1 October 2026**, multiple Account/null entries, both DST transition dates, inactive Accounts, no Trades, unchanged reads, cancellation, exact scope, create collisions, Save/Cancel/Delete/move refresh and identity checks after delete/recreate. Controlled readers cover Trade failure, Journal error/recovery, unsaved guards and late date/Account responses.
+- Final complete **parallel** Release: **2,994 passed**, zero failures/skips (Domain 454, Application 529, Infrastructure 806, Desktop 1,205). Desktop elapsed **2m12s**; the Calendar native child passed **86/86** in approximately **79.2s** from TRX start to finish, inside its unchanged 120-second process budget. No harness deadlines/concurrency settings were changed.
+- The first full run exposed four obsolete native assertions expecting Add to be disabled without a grid-status service (85 parent cases propagated the child result). They now explicitly verify usable Add and an independently loaded empty list; layout, dismissal, focus and Trade assertions are unchanged. The final full run above supersedes that failed run.
+- Release build: **0 warnings/errors**. EF model consistency: **no pending model changes**. `git diff --check`: passed. No schema migration, economics or persistence-write changes.
+- Automated Light/Dark Day Performance renders were inspected at **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**, including null/P 21/long Account labels, separate status/text previews, wrapped text, keyboard-focusable row-targeted actions, inline fields/actions and scrolling to Trades. Native-window tests are automated, not live user interaction. Synthetic logs/TRX/renders remain ignored under `artifacts/calendar-day-journals/`.
+- **Live UI and GitHub Actions remain unverified.** In an isolated Windows data root, open an empty-Trade date with P 21, another Account and null-scoped journals under All accounts. Check each row opens its own entry, Calendar stays selected, Save/Cancel/Delete/move refresh cards and indicators, collision/conflict recovery preserves all fields, and wheel/keyboard access reaches actions/Trades in both themes at narrow scaling. Repeat with a specific Account and with a Trade-read failure. A new CI run is required after the user's commit/push; the real journal was not accessed.
+
+Changed files for this fix (16 modified, four new):
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Application/Journals/IDailyJournalDayReader.cs (new)
+src/PersonalTradingJournal.Infrastructure/Journals/DailyJournalRepository.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.DayJournals.cs (new)
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.Journal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Journals/DailyJournalDayReaderTests.cs (new)
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarDayJournalsTests.cs (new)
+tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalFormAccountTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarJournalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalJournalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/FakeDailyJournalRepository.cs
+```
+
 ## Form Account and selected review presentation
 
 Both standalone and Calendar-inline forms have a labeled, keyboard-accessible **Journal Account** selector beside their date context and before Journal text. **All accounts** is an explicit null scope and the default when no Account was chosen. Calendar Add preselects its selected Account; existing entries load their exact saved Account. Inactive Accounts remain selectable. The standalone top selector filters History while a form is open; it never changes that form's Account, fields or loaded revision. Closed-form date/Account browsing retains its existing behavior. The saved card displays the actual journal scope even when it differs from the History filter.
@@ -411,11 +461,11 @@ Changed files (repository-relative, this refinement):
 
 ## Calendar integration (M14.5)
 
-`IDailyJournalStatusReader.GetAsync(from, through, accountId?, ct)` reads committed status for an inclusive visible-grid range of at most **42 dates**. A null Account selects **only** explicit All accounts journals. One fresh no-tracking query projects journal ID, trading date, `IsDraft` and revision, ordered by date; it never reads text, answers or Trades and makes no writes. Invalid ranges/empty IDs fail before querying. The reader is registered through `AddPersistence`; no new migration is required.
+`IDailyJournalStatusReader.GetAsync(from, through, accountId?, ct)` reads committed status for an inclusive visible-grid range of at most **42 dates**. A null Account aggregates all Account scopes, including explicit All accounts journals; a specific Account filters exactly. One fresh no-tracking query projects journal ID, Account ID, trading date, `IsDraft` and revision, ordered by date; it never reads text, answers or Trades and makes no writes. Invalid ranges/empty IDs fail before querying. The reader is registered through `AddPersistence`; no new migration is required.
 
-Calendar loads this batch independently of its financial data and currency filter. Dates with entries show compact **Draft** or **✓** indicators; Completed is conveyed by the accessible name, not visible cell text. No entry means no marker. Indicators do not own a tooltip, preserving the day-number-only hover tooltip. Adjacent-month dates and Saturdays use their own daily Journal status. Saturday retains weekly-only financial content. Unknown/loading/error status is not interpreted as no entry: the modal action stays unavailable with Refresh recovery until a valid exact-scope status read succeeds.
+Calendar loads this batch independently of its financial data and currency filter. Dates with entries show compact **Draft** or **✓** indicators; Completed is conveyed by the accessible name, not visible cell text. Any Draft takes precedence, with accessible aggregate counts. No entry means no marker. Indicators do not own a tooltip, preserving the day-number-only hover tooltip. Adjacent-month dates and Saturdays use their own daily Journal status. Saturday retains weekly-only financial content. Unknown/loading/error status is not interpreted as no entry. Day Performance's separate one-date content reader and Add action remain usable even if the grid-status or Trade read fails; Refresh Journals retries the list and status batch.
 
-The Day Performance action says **Add Journal** for a new entry, **Continue Journal** for a draft and **Open Journal** for completed content. It now opens an **inline section below the chart and immediately above Trades**; the modal remains open and Calendar stays selected. No Account is inferred from a Trade, currency or the last Journal selection. Null Account remains the independent All accounts Journal.
+Day Performance lists separate saved-entry cards for the selected Account filter, including every Account plus null scope under All accounts. Each card says **Continue Journal** for a draft or **Open Journal** for completed content. **Add Journal** is separately available for a new form. Actions open an **inline section below the cards and above Trades**; the modal remains open and Calendar stays selected. No Account is inferred from a Trade, currency or the last Journal selection. Each card retains its exact journal identity; null remains an independent write scope.
 
 After a successful exact-scope load, Add/Continue opens the writable form immediately. The modal reveals the fields after layout; its **single Save Journal / Cancel row sits below all four fields** and is reachable by keyboard and the modal scroller. There is no Complete review button. Previously Completed entries display saved content read-only until an explicit revision-checked Reopen; unavailable references remain protected. Save success records Completed and collapses the form to a compact saved view. Failed/cancelled/conflicting saves retain all four fields and offer guarded Reload latest. Cancel saves all four fields as Draft without a discard prompt and closes only after success. Empty never-saved forms close without a write; failed/conflicting/cancelled writes keep every field. **Close Journal** collapses the entire inline section without closing Day Performance. Delete uses the existing permanent-history confirmation and revision check; only a committed result removes the Calendar indicator.
 

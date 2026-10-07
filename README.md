@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Day Performance journals match Calendar indicators**
+
+Under All accounts, Day Performance now lists every journal for its New York date, including individual Accounts and the separate null-scoped entry. A specific Account remains exact. Separate compact cards show Account, Draft/Completed and saved text above Trades; Open/Continue targets that journal's identity. Add Journal opens a new inline form with a visible Account choice and collision protection. Journal loading/retry is independent of Trades, and committed Save, Cancel/Draft, moves and deletion refresh the cards and Calendar markers. See [day-journal behavior](docs/daily-journal.md#day-performance-journal-list).
+
 **Journal form Account and highlighted saved review**
 
 The selected read-only review uses a subtle Light/Dark teal surface and border. Both Journal forms now show their own Account selector before Journal text. It controls Save/Cancel-Draft independently of the page's History filter; All accounts explicitly means null scope. Calendar preselects its Account without changing Calendar filters when the form selection changes. An existing journal can move to an unoccupied Account scope on the same date, preserving its ID and history and appending one revision atomically. Collisions, stale writes and failures retain the form, target and fields without merging entries. See [scope/move policy](docs/daily-journal.md#form-account-and-selected-review-presentation).

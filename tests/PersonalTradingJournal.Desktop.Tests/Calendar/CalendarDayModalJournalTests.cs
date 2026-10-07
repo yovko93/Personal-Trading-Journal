@@ -26,7 +26,8 @@ public sealed partial class CalendarDayModalTests
             new(Guid.NewGuid(), date, draft, 2),
             new(Guid.NewGuid(), date, false, 1, Guid.NewGuid()),
             new(Guid.NewGuid(), new(2026, 8, 31), false, 4)]);
-        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: statuses);
+        CalendarViewModel vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: statuses,
+            journalRepository: new FakeDailyJournalRepository(), journalDialogs: new FakeDialogService());
         vm.OpenJournalAsync = (_, _) => Task.CompletedTask;
         await vm.SelectDayCommand.ExecuteAsync(CalendarDayDetailsTests.Cell(vm, date));
         await OnSta(() =>
@@ -68,9 +69,9 @@ public sealed partial class CalendarDayModalTests
             var button = (Button)content.FindName("DayJournalAction");
             Assert.True(button.IsEnabled);
             Assert.True(button.Focusable);
-            Assert.Equal(draft ? "Continue Journal" : "Open Journal", button.Content);
+            Assert.Equal("Add Journal", button.Content);
             Assert.Equal(button.Content, AutomationProperties.GetName(button));
-            Assert.Contains("exact Calendar Account scope", AutomationProperties.GetHelpText(button));
+            Assert.Contains("Choose its Account inside the form", AutomationProperties.GetHelpText(button));
             Assert.DoesNotContain(Descendants(content).OfType<TextBlock>(), t => t.Text.Contains("Coming later", StringComparison.Ordinal));
             var scroll = (ScrollViewer)content.FindName("DayContentScroller");
             button.BringIntoView(); content.UpdateLayout();
@@ -130,9 +131,9 @@ public sealed partial class CalendarDayModalTests
                             await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
                             editor.EntryPriceText = "local unsaved edit";
                         }
-                        Assert.Same(vm.OpenInlineJournalCommand, button.Command);
+                        Assert.Same(vm.AddDayJournalCommand, button.Command);
                         button.Command.Execute(null);
-                        await vm.OpenInlineJournalCommand.ExecutionTask!;
+                        await vm.AddDayJournalCommand.ExecutionTask!;
                         dialog.UpdateLayout(); // Materialize the lazy editor under the real modal's scoped resources.
                         var inlineView = Assert.Single(Descendants(content).OfType<PersonalTradingJournal.Desktop.Views.Journals.InlineJournalView>());
                         Assert.True(inlineView.IsVisible);

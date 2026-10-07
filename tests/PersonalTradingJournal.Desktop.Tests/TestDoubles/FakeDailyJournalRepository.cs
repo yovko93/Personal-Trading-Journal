@@ -3,11 +3,16 @@ using PersonalTradingJournal.Domain.Journals;
 
 namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
-public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDailyJournalStatusReader
+public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDailyJournalStatusReader, IDailyJournalDayReader
 {
     private readonly Dictionary<(DateOnly, Guid?), DailyJournalDetails> _entries = [];
     public Func<DateOnly, Guid?, CancellationToken, Task<DailyJournalDetails?>>? Read { get; set; }
     public int Writes { get; private set; }
+    public Dictionary<Guid, string> AccountNames { get; } = [];
+    public Task<IReadOnlyList<DailyJournalDetails>> GetDayAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<DailyJournalDetails>>(_entries.Values.Where(j => j.Entry.TradingDate == date &&
+            (accountId == null || j.Entry.TradingAccountId == accountId)).OrderBy(j => j.Entry.TradingAccountId != null)
+            .ThenBy(j => j.AccountName).ThenBy(j => j.Entry.Id).ToArray());
     public Task<DailyJournalDetails?> GetAsync(DateOnly date, Guid? account = null, CancellationToken cancellationToken = default) =>
         Read?.Invoke(date, account, cancellationToken) ?? Task.FromResult(_entries.GetValueOrDefault((date, account)));
     public Task<IReadOnlyList<DailyJournalStatus>> GetAsync(DateOnly from, DateOnly through, Guid? tradingAccountId = null, CancellationToken cancellationToken = default) =>
@@ -17,7 +22,8 @@ public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDaily
     {
         cancellationToken.ThrowIfCancellationRequested();
         var entry = new DailyJournalEntry(command.TradingDate, command.TradingAccountId, command.Text, command.IsDraft, DateTimeOffset.UtcNow, command.Review ?? DailyReviewAnswers.Empty);
-        var details = new DailyJournalDetails(entry, command.TradingAccountId.HasValue ? DailyJournalAccountState.Active : DailyJournalAccountState.AllAccounts, null);
+        var details = new DailyJournalDetails(entry, command.TradingAccountId.HasValue ? DailyJournalAccountState.Active : DailyJournalAccountState.AllAccounts,
+            command.TradingAccountId is { } id ? AccountNames.GetValueOrDefault(id) : null);
         if (!_entries.TryAdd((command.TradingDate, command.TradingAccountId), details)) return Task.FromResult(new DailyJournalWriteResult(DailyJournalWriteStatus.AlreadyExists, null));
         Writes++;
         return Task.FromResult(new DailyJournalWriteResult(DailyJournalWriteStatus.Created, details));

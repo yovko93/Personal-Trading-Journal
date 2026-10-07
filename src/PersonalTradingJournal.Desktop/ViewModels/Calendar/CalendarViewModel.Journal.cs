@@ -52,11 +52,6 @@ public sealed partial class CalendarViewModel
         !IsJournalLoading && JournalErrorMessage is null;
     public string DayJournalActionText => SelectedDayJournalStatus is { IsDraft: true } ? "Continue Journal"
         : SelectedDayJournalStatus is not null ? "Open Journal" : "Add Journal";
-    public string DayJournalStatusMessage => IsJournalLoading ? "Loading Journal status…"
-        : JournalErrorMessage ?? (SelectedDayJournalStatus is { IsDraft: true } ? "Draft Journal"
-            : SelectedDayJournalStatus is not null ? "Completed Journal"
-            : _journalStatusesLoaded ? "No Journal for this date and Account scope."
-            : "Journal status not loaded. Select Refresh to retry.");
     public string? JournalErrorMessage
     {
         get => _journalErrorMessage;
@@ -100,7 +95,8 @@ public sealed partial class CalendarViewModel
         _journalAccountId = SelectedAccount.Id;
     }
 
-    private Task RefreshJournalStatusesAsync() => JournalLoadTask = LoadJournalStatusesAsync();
+    private Task RefreshJournalStatusesAsync(bool includeDay = true) => JournalLoadTask = includeDay
+        ? Task.WhenAll(LoadJournalStatusesAsync(), RefreshDayJournalsAsync()) : LoadJournalStatusesAsync();
 
     private async Task LoadJournalStatusesAsync()
     {
@@ -174,6 +170,7 @@ public sealed partial class CalendarViewModel
 
     private void NotifyJournalDay()
     {
+        NotifyDayJournals();
         OpenInlineJournalCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(SelectedDayJournalStatus));
         OnPropertyChanged(nameof(CanOpenDayJournal));

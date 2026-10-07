@@ -119,7 +119,8 @@ public sealed partial class CalendarViewModel : ObservableObject
         PersonalTradingJournal.Desktop.ViewModels.Trades.TradesViewModel? tradeEditor = null,
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? journalRepository = null,
-        PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null)
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null,
+        IDailyJournalDayReader? journalDayReader = null)
     {
         _reader = reader;
         _dayReader = dayReader;
@@ -127,6 +128,7 @@ public sealed partial class CalendarViewModel : ObservableObject
         _timeProvider = timeProvider;
         _logger = logger ?? NullLogger<CalendarViewModel>.Instance;
         _journalStatusReader = journalStatusReader;
+        _dayJournalReader = journalDayReader ?? journalRepository as IDailyJournalDayReader;
         InitializeDayJournal(journalRepository, journalDialogs);
         DateOnly today = Today;
         _month = new(today.Year, today.Month, 1);
@@ -243,7 +245,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     public bool IsSelectedDayEmpty => !IsDayLoading && DayDetails?.ClosedTradeCount == 0;
 
     public Task ActivateAsync() { _isActive = true; return RefreshAsync(); }
-    public void Deactivate() { _isActive = false; ReleaseInlineJournal(); Cancel(); CancelDay(); }
+    public void Deactivate() { _isActive = false; ReleaseInlineJournal(); Cancel(); CancelDay(); CancelDayJournals(); }
     public Task RefreshAsync() => LoadTask = RefreshAllAsync();
     public void OnDataCommitted()
     {
@@ -254,12 +256,13 @@ public sealed partial class CalendarViewModel : ObservableObject
     {
         if (HasInlineWork) { _inlineRefreshPending = true; return Task.CompletedTask; }
         Task month = LoadAsync();
-        Task journals = RefreshJournalStatusesAsync();
+        Task journals = RefreshJournalStatusesAsync(includeDay: false);
         return SelectedDate.HasValue ? Task.WhenAll(month, journals, RefreshDayAsync()) : Task.WhenAll(month, journals);
     }
 
     private void FiltersChanged()
     {
+        CancelDayJournals();
         CancelDay();
         ClearDayResults();
         MonthData = null;
@@ -428,6 +431,7 @@ public sealed partial class CalendarViewModel : ObservableObject
 
     private void CancelRefresh()
     {
+        CancelDayJournals();
         Cancel();
         CancelDay();
         _loadNotice = "Calendar refresh cancelled. Select Refresh to retry.";
@@ -454,7 +458,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     private Task RefreshDayAsync()
     {
         if (HasInlineWork) { _inlineRefreshPending = true; return Task.CompletedTask; }
-        return DayLoadTask = SelectedDate is { } date ? LoadDayAsync(date) : Task.CompletedTask;
+        return DayLoadTask = SelectedDate is { } date ? Task.WhenAll(LoadDayAsync(date), RefreshDayJournalsAsync()) : Task.CompletedTask;
     }
 
     private async Task LoadDayAsync(DateOnly date)
@@ -541,6 +545,7 @@ public sealed partial class CalendarViewModel : ObservableObject
 
     private void ClearDaySelection()
     {
+        CancelDayJournals();
         CancelDay();
         _selectedDate = null;
         ClearDayResults();

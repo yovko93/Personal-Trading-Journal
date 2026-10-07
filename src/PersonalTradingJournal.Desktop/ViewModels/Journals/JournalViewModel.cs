@@ -23,6 +23,7 @@ public sealed class JournalViewModel : ObservableObject
     private JournalAccountOption _selectedAccount = AllAccounts;
     private JournalAccountOption _editorAccount = AllAccounts, _loadedAccount = AllAccounts;
     private bool _targetCollision;
+    private Guid? _expectedJournalId;
     private DateTime? _selectedDate;
     private DailyJournalEntry? _entry;
     private string _text = "", _savedText = "";
@@ -170,6 +171,7 @@ public sealed class JournalViewModel : ObservableObject
         || !string.Equals(_nextTradingDay, _savedReview.NextTradingDay, StringComparison.Ordinal)
         || EditorAccount.Id != _loadedAccount.Id;
     public bool IsExisting => _entry is not null;
+    public Guid? JournalId => _entry?.Id;
     public bool IsDraft => _entry?.IsDraft ?? true;
     public bool IsCompleted => IsExisting && !IsDraft;
     public long? Revision => _entry?.Revision;
@@ -291,8 +293,9 @@ public sealed class JournalViewModel : ObservableObject
 
     public Task ActivateAsync() => ActivateAsync(loadTradeContext: true);
 
-    public Task ActivateAsync(bool loadTradeContext)
+    public Task ActivateAsync(bool loadTradeContext, bool newEntry = false, Guid? expectedJournalId = null)
     {
+        _expectedJournalId = expectedJournalId;
         _loadTradeContext = loadTradeContext;
         if (_resetOnNextActivation)
         {
@@ -320,7 +323,7 @@ public sealed class JournalViewModel : ObservableObject
         }
         _active = true;
         _isEditorOpen = false;
-        return LoadTask = Task.WhenAll(LoadAsync(), context, history);
+        return LoadTask = Task.WhenAll(LoadAsync(newEntry: newEntry), context, history);
     }
 
     public bool TryLeave() => !IsSaving && ConfirmDiscard();
@@ -370,7 +373,7 @@ public sealed class JournalViewModel : ObservableObject
         return LoadTask = LoadAsync(_targetCollision && _entry is null ? EditorAccount : _loadedAccount);
     }
 
-    private async Task LoadAsync(JournalAccountOption? editorScope = null)
+    private async Task LoadAsync(JournalAccountOption? editorScope = null, bool newEntry = false)
     {
         CancelLoad();
         long generation = _generation;
@@ -387,11 +390,17 @@ public sealed class JournalViewModel : ObservableObject
             var loaded = await Task.Run(async () =>
             {
                 IReadOnlyList<AccountListItem> accounts = await _accountReader.GetAllAsync(cancellation.Token);
-                DailyJournalDetails? journal = date.HasValue
+                DailyJournalDetails? journal = date.HasValue && !newEntry
                     ? await _repository.GetAsync(date.Value, account.Id, cancellation.Token) : null;
                 return (accounts, journal);
             }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested || !_active) return;
+            if (_expectedJournalId is { } expected && loaded.journal?.Entry.Id != expected)
+            {
+                _hasLoaded = false;
+                _errorMessage = "This Journal was moved or deleted. Close it and refresh the day Journals before selecting an entry again.";
+                return;
+            }
             PublishAccounts(loaded.accounts, account, loaded.journal, preserveFilter: editorScope is not null);
             PublishEntry(loaded.journal?.Entry, AccountOption(account.Id));
             _hasLoaded = date.HasValue;

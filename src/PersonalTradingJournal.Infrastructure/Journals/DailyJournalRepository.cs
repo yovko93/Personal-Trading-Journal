@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 namespace PersonalTradingJournal.Infrastructure.Journals;
 
 /// <summary>Exact-scope reads and atomic, optimistic journal writes. Never reads Trade data.</summary>
-public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJournalRevisionWriter
+public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJournalRevisionWriter, IDailyJournalDayReader
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
     private readonly TimeProvider _clock;
@@ -48,6 +48,22 @@ public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJour
             .Select(r => new DailyJournalRevision(r.JournalId, r.Revision, r.Text, r.IsDraft, r.SavedAtUtc,
                 new DailyReviewAnswers(r.WentWell, r.NeedsImprovement, r.NextTradingDay)))
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<DailyJournalDetails>> GetDayAsync(DateOnly tradingDate, Guid? accountId = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateAccountId(accountId);
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await (from journal in context.DailyJournals.AsNoTracking()
+            where journal.TradingDate == tradingDate && (accountId == null || journal.TradingAccountId == accountId)
+            join account in context.TradingAccounts.AsNoTracking()
+                on journal.TradingAccountId equals (Guid?)account.Id into accounts
+            from account in accounts.DefaultIfEmpty()
+            orderby journal.TradingAccountId != null, account.Name, journal.Id
+            select new { Journal = journal, Account = account }).ToArrayAsync(cancellationToken);
+        return rows.Select(row => Details(row.Journal, row.Account)).ToArray();
     }
 
     public async Task<DailyJournalWriteResult> CreateAsync(CreateDailyJournalCommand command,

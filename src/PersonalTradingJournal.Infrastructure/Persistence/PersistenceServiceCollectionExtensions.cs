@@ -53,6 +53,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IDailyJournalRevisionWriter, DailyJournalRepository>();
         services.AddTransient<IDailyJournalHistoryReader, DailyJournalHistoryReader>();
         services.AddTransient<IDailyJournalStatusReader, DailyJournalStatusReader>();
+        services.AddTransient<IDailyJournalDayReader, DailyJournalRepository>();
         services.AddTransient<
             ITradingAccountDeletionStore,
             TradingAccountDeletionStore>();

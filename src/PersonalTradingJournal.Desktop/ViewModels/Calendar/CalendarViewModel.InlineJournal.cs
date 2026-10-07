@@ -23,6 +23,38 @@ public sealed partial class CalendarViewModel
         OpenInlineJournalCommand = new AsyncRelayCommand(OpenInlineJournalAsync,
             () => CanOpenDayJournal && !HasInlineJournal && _dayJournalFactory is not null);
         CloseInlineJournalCommand = new RelayCommand(() => TryCloseInlineJournal(), () => HasInlineJournal);
+        AddDayJournalCommand = new AsyncRelayCommand(() => OpenDayJournalAsync(null),
+            () => _isActive && SelectedDate.HasValue && _dayJournalFactory is not null && InlineJournal?.IsBusy != true);
+        OpenDayJournalCommand = new AsyncRelayCommand<CalendarJournalEntry>(OpenDayJournalAsync,
+            row => _isActive && !IsDayJournalLoading && row is not null && DayJournals.Contains(row)
+                && _dayJournalFactory is not null && InlineJournal?.IsBusy != true);
+        RefreshDayJournalsCommand = new AsyncRelayCommand(() => RefreshJournalStatusesAsync(),
+            () => _isActive && SelectedDate.HasValue, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+    }
+
+    private async Task OpenDayJournalAsync(CalendarJournalEntry? row)
+    {
+        if (!_isActive || _dayJournalFactory is null || SelectedDate is not { } date
+            || (row is not null && !DayJournals.Contains(row)) || !TryCloseInlineJournal()) return;
+        var journal = _dayJournalFactory();
+        Guid? account = row is null ? SelectedAccount.Id : row.AccountId;
+        if (!journal.TryOpenScope(date, account, row?.AccountLabel ?? SelectedAccount.Name)) return;
+        InlineJournal = journal;
+        journal.JournalDataCommitted += OnInlineJournalCommitted;
+        NotifyInlineJournal();
+        await journal.ActivateAsync(loadTradeContext: false, newEntry: row is null, expectedJournalId: row?.Id);
+        if (!ReferenceEquals(InlineJournal, journal) || !_isActive) return;
+        if (journal.ErrorMessage is not null) return; // Retain guarded load-error recovery, never authorize a replacement.
+        // A deleted/recreated or moved journal at the same date/scope is not this row.
+        if (row is not null && journal.JournalId != row.Id)
+        {
+            ReleaseInlineJournal();
+            await RefreshDayJournalsAsync();
+            DayJournalError = "This Journal was moved or deleted. The list was refreshed; select its current entry to continue.";
+            NotifyDayJournals();
+            return;
+        }
+        if (journal.OpenEditorCommand.CanExecute(null)) journal.OpenEditorCommand.Execute(null);
     }
 
     private async Task OpenInlineJournalAsync()
@@ -58,6 +90,7 @@ public sealed partial class CalendarViewModel
 
     private void NotifyInlineJournal()
     {
+        NotifyDayJournals();
         OnPropertyChanged(nameof(InlineJournal));
         OnPropertyChanged(nameof(HasInlineJournal));
         OpenInlineJournalCommand.NotifyCanExecuteChanged();
