@@ -1,7 +1,8 @@
 namespace PersonalTradingJournal.Application.Journals;
 
 /// <summary>
-/// Persists disconnected journals and their immutable revision history.
+/// Persists disconnected journals and their content-immutable revision history.
+/// Older snapshots may be explicitly removed through IDailyJournalRevisionWriter; current snapshots are protected.
 /// Null Account scope selects only the all-accounts journal, never Account journals.
 /// </summary>
 public interface IDailyJournalRepository
@@ -15,7 +16,7 @@ public interface IDailyJournalRepository
         Guid? tradingAccountId = null,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Returns committed snapshots in ascending revision order, including the current revision.</summary>
+    /// <summary>Returns remaining committed snapshots in ascending revision order, including the current revision. Numbers may have gaps.</summary>
     Task<IReadOnlyList<DailyJournalRevision>> GetHistoryAsync(
         Guid journalId,
         CancellationToken cancellationToken = default);

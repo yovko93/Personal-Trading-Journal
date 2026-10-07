@@ -44,6 +44,7 @@ public sealed class JournalHistorySqliteTests
             var rows = vm.History.Entries;
             string page = vm.History.PageText;
             await vm.History.OpenCommand.ExecuteAsync(row); // Read-only viewing never navigates.
+            Assert.Equal("P21 original", Assert.Single(vm.History.Previews).Text);
             Assert.Same(rows, vm.History.Entries);
             Assert.Equal(page, vm.History.PageText);
             await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[0]);

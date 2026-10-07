@@ -45,7 +45,7 @@ public sealed class JournalViewModel : ObservableObject
         _dialogs = dialogs;
         _clock = timeProvider ?? TimeProvider.System;
         TradeContext = tradeContext;
-        History = historyReader is null ? null : new JournalHistoryViewModel(historyReader, OpenFromHistory);
+        History = historyReader is null ? null : new JournalHistoryViewModel(historyReader, OpenFromHistory, repository, dialogs);
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
             _clock.GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);

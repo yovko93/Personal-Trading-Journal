@@ -102,7 +102,7 @@
                                             <TextBlock x:Name="EntryStatus" Width="100" Text="{Binding StateText}" Style="{StaticResource JournalBody}" VerticalAlignment="Center" />
                                             <TextBlock x:Name="EntryRevision" Width="88" Text="{Binding Item.Revision}" Style="{StaticResource JournalBody}" VerticalAlignment="Center" />
                                         </WrapPanel>
-                                        <Button x:Name="OpenReview" Grid.Column="4" Content="Open review" Style="{StaticResource JournalButton}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                        <Button x:Name="OpenReview" Grid.Column="4" Content="Open review" Style="{StaticResource JournalReviewButton}" Margin="8,0,0,0" VerticalAlignment="Center"
                                                 Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}" AutomationProperties.Name="{Binding OpenAccessibleName}" />
                                     </Grid>

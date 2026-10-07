@@ -6,6 +6,6 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
-**Required Journal text and in-row read-only History**
+**Journal previews, distinct History actions and older-revision deletion**
 
-**Save Journal** requires a Unicode letter or digit in Journal text and atomically records Completed; the three Daily Review answers are optional. Both hosts show field-level validation without losing edits. Cancel still saves partial content as Draft; empty new forms close without a write. Legacy answers-only Completed entries and revisions remain readable without migration. **Open review** expands its revisions/snapshot directly beneath the selected History row while retaining the aggregate Account filter, count, order, page and unsaved editor. Only **Open in editor** explicitly selects the original date/Account through existing guards. See [verification and remaining checks](docs/daily-journal.md#required-journal-text-and-inline-history-2026-10-07)..
+Expanded History rows now preview current Journal text and nonempty Daily Review answers, capped to three readable lines. Open review (amber), Open in editor (slate), and View revision (sky) have distinct shared Light/Dark styles. Confirmed **Delete revision** permanently removes only an older snapshot. The current/latest revision is explicitly protected; journal content/status, concurrency token and future revision numbering do not change. Aggregate History and unsaved editor fields remain unchanged by previewing or revision deletion. Save still requires Journal text and completes the entry; Cancel still saves Draft. See [revision deletion policy and verification](docs/daily-journal.md#previews-action-colors-and-revision-deletion-2026-10-07).

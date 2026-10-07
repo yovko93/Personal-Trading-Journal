@@ -51,4 +51,16 @@
     <SolidColorBrush x:Key="PtjJournalDraftHoverBrush" Color="#514268" />
     <SolidColorBrush x:Key="PtjJournalDraftPressedBrush" Color="#5D4C78" />
     <SolidColorBrush x:Key="PtjOnJournalDraftBrush" Color="#F0E8FF" />
+    <SolidColorBrush x:Key="PtjJournalReviewBrush" Color="#514124" />
+    <SolidColorBrush x:Key="PtjJournalReviewHoverBrush" Color="#62502A" />
+    <SolidColorBrush x:Key="PtjJournalReviewPressedBrush" Color="#735F31" />
+    <SolidColorBrush x:Key="PtjJournalReviewForegroundBrush" Color="#FFDD90" />
+    <SolidColorBrush x:Key="PtjJournalEditorBrush" Color="#3D485A" />
+    <SolidColorBrush x:Key="PtjJournalEditorHoverBrush" Color="#4B586D" />
+    <SolidColorBrush x:Key="PtjJournalEditorPressedBrush" Color="#5A6880" />
+    <SolidColorBrush x:Key="PtjJournalEditorForegroundBrush" Color="#EDF1F8" />
+    <SolidColorBrush x:Key="PtjJournalRevisionBrush" Color="#163E52" />
+    <SolidColorBrush x:Key="PtjJournalRevisionHoverBrush" Color="#1C5068" />
+    <SolidColorBrush x:Key="PtjJournalRevisionPressedBrush" Color="#26647E" />
+    <SolidColorBrush x:Key="PtjJournalRevisionForegroundBrush" Color="#B9E5FC" />
 </ResourceDictionary>

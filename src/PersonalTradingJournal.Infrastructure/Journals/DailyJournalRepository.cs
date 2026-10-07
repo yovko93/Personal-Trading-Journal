@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 namespace PersonalTradingJournal.Infrastructure.Journals;
 
 /// <summary>Exact-scope reads and atomic, optimistic journal writes. Never reads Trade data.</summary>
-public sealed class DailyJournalRepository : IDailyJournalRepository
+public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJournalRevisionWriter
 {
     private readonly IDbContextFactory<JournalDbContext> _contextFactory;
     private readonly TimeProvider _clock;
@@ -157,6 +157,33 @@ public sealed class DailyJournalRepository : IDailyJournalRepository
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(cancellationToken);
         return new(DailyJournalWriteStatus.Deleted, null);
+    }
+
+    public async Task<DeleteJournalRevisionStatus> DeleteRevisionAsync(DeleteJournalRevisionCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateId(command.JournalId);
+        if (command.Revision < 1) throw new ArgumentOutOfRangeException(nameof(command.Revision));
+        if (command.ExpectedCurrentRevision < 1) throw new ArgumentOutOfRangeException(nameof(command.ExpectedCurrentRevision));
+        cancellationToken.ThrowIfCancellationRequested();
+        await using JournalDbContext context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var journal = await context.DailyJournals.AsNoTracking().SingleOrDefaultAsync(
+            j => j.Id == command.JournalId, cancellationToken);
+        if (journal is null) return DeleteJournalRevisionStatus.NotFound;
+        if (journal.Revision != command.ExpectedCurrentRevision) return DeleteJournalRevisionStatus.Conflict;
+        // Preserve the current-state snapshot and monotonic root revision. Gaps in older history
+        // are allowed; future saves increment the root token, never a snapshot count or maximum.
+        if (command.Revision == journal.Revision) return DeleteJournalRevisionStatus.CurrentRevisionProtected;
+        var snapshot = await context.DailyJournalRevisions.SingleOrDefaultAsync(
+            r => r.JournalId == command.JournalId && r.Revision == command.Revision, cancellationToken);
+        if (snapshot is null) return DeleteJournalRevisionStatus.NotFound;
+        context.DailyJournalRevisions.Remove(snapshot);
+        await context.SaveChangesAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(cancellationToken);
+        return DeleteJournalRevisionStatus.Deleted;
     }
 
     private static void ValidateId(Guid id)

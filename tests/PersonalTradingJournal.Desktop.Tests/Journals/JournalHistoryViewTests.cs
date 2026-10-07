@@ -26,7 +26,8 @@ public sealed class JournalHistoryViewTests
         reader.Items[1] = reader.Items[1] with { AccountName = "P 21" };
         reader.Add(new(2026, 10, 3), Guid.NewGuid());
         reader.Items[2] = reader.Items[2] with { AccountName = null, AccountState = DailyJournalAccountState.Unavailable };
-        var vm = new JournalHistoryViewModel(reader, _ => true);
+        var vm = new JournalHistoryViewModel(reader, _ => true, new HistoryRepositoryProbe(reader),
+            new FakeDialogService());
         await vm.ActivateAsync(null);
         await vm.OpenCommand.ExecuteAsync(vm.Entries[0]);
         await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
@@ -55,6 +56,7 @@ public sealed class JournalHistoryViewTests
             var page = new JournalViewModel(new EmptyRepository(), new FakeTradingAccountReader(), new FakeDialogService(),
                 new(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new JournalHistoryViewModelTests.Clock(), longReader);
             await page.ActivateAsync();
+            await page.History!.LoadTask; // Editor activation and the independent History read have separate completion.
             await page.History!.OpenCommand.ExecuteAsync(page.History.Entries[0]);
             await page.LoadTask;
             page.OpenEditorCommand.Execute(null);
@@ -102,6 +104,30 @@ public sealed class JournalHistoryViewTests
                 Assert.Equal(23, buttons.Length);
                 Assert.All(buttons, b => { Assert.True(b.Focusable); Assert.True(b.IsEnabled); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(b))); });
                 var open = buttons.First(b => b.Content.ToString() == "Open review");
+                var editor = (Button)Review(view).FindName("OpenInEditor");
+                var revision = buttons.First(b => b.Content.ToString() == "View revision");
+                JournalButtonAssertions.States(editor, "Editor");
+                JournalButtonAssertions.States(revision, "Revision");
+                var actionColors = new[] { open.Background, editor.Background, revision.Background,
+                    resources["PtjAccentBrush"], resources["PtjJournalSaveBrush"], resources["PtjJournalDraftBrush"], resources["PtjDangerBrush"] }
+                    .Select(b => ((SolidColorBrush)b).Color).ToArray();
+                Assert.Equal(actionColors.Length, actionColors.Distinct().Count());
+                var previews = (ItemsControl)Review(view).FindName("CurrentPreviews");
+                Assert.Equal(4, previews.Items.Count);
+                Assert.True(previews.TranslatePoint(new Point(), root).Y >= editor.TranslatePoint(new Point(0, editor.ActualHeight), root).Y);
+                Assert.All(Descendants(previews).OfType<TextBlock>().Where(t => t.Name == "PreviewText"), t =>
+                {
+                    Assert.True(t.ActualHeight <= 72);
+                    Assert.Equal(TextTrimming.CharacterEllipsis, t.TextTrimming);
+                    Assert.InRange(t.TranslatePoint(new Point(t.ActualWidth, 0), root).X, 0, width);
+                });
+                var deletes = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() == "Delete revision").ToArray();
+                Assert.Equal(20, deletes.Length);
+                Assert.False(deletes[0].IsEnabled);
+                Assert.True(ToolTipService.GetShowOnDisabled(deletes[0]));
+                Assert.Contains("protected", deletes[0].ToolTip.ToString());
+                Assert.All(deletes.Skip(1), b => Assert.True(b.IsEnabled));
+                Assert.All(deletes, b => { Assert.True(b.Focusable); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); });
                 Assert.Same(vm.OpenCommand, open.Command);
                 Assert.Same(vm.Entries[0], open.CommandParameter);
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
@@ -115,6 +141,8 @@ public sealed class JournalHistoryViewTests
                     using var output = File.Create(Path.Combine(path, $"journal-history-{theme}-{width}-{dpi}.png"));
                     encoder.Save(output);
                 }
+                revision.BringIntoView(); Flush(); root.UpdateLayout();
+                Capture(root, theme, width, dpi, "history-revision-actions");
                 ((ScrollViewer)root.Child).Content = null;
                 CheckFullPage(journalPages[pageIndex++], resources, theme, width, dpi);
                 foreach (var paged in pagedReviews) CheckPagedTable(paged, resources, theme, width, dpi);
@@ -302,7 +330,7 @@ public sealed class JournalHistoryViewTests
         Assert.InRange(open.TranslatePoint(new Point(), root).X, 0, width);
         Assert.InRange(open.TranslatePoint(new Point(open.ActualWidth, 0), root).X, 0, width);
         Assert.True(open.Focusable && KeyboardNavigation.GetIsTabStop(open));
-        JournalButtonAssertions.States(open, "Action");
+        JournalButtonAssertions.States(open, "Review");
         Assert.Equal(new Thickness(0, 0, 0, 1), row.BorderThickness);
         // Exercise the actual theme trigger, not a live pointer claim.
         var hoverKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",

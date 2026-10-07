@@ -1,5 +1,55 @@
 # Daily Journal — M14.1–M14.6
 
+## Previews, action colors and revision deletion (2026-10-07)
+
+The expanded review shows compact, labeled previews directly below **Open in editor** and before revision controls. Only nonempty Journal text/answers occupy space. One exact-date/Account repository read supplies current content for the opened journal ID (not the selected-day editor and not a stale historical snapshot). A replaced/deleted ID is unavailable rather than silently substituted. Reads are cancellable and generation-guarded. The preview is limited to three lines and at most 240 UTF-16 code units plus an ellipsis; wrapped text is also capped to three lines. Full text is unchanged in the editor and read-only revision view. All accounts filter, count, ordering, ten-entry page and unsaved editor remain intact.
+
+**Open review** uses amber, **Open in editor** slate, and **View revision** sky theme resources. These are distinct from mint/teal Add/Continue, green Save, violet Cancel/Draft, red-outline Close and solid-red Delete. Actions retain explicit labels, hover/pressed states, dashed keyboard focus and readable disabled states. Revision actions move below metadata at narrow widths; previews and snapshots share the page scroller.
+
+### Permanent older-snapshot deletion
+
+`IDailyJournalRevisionWriter.DeleteRevisionAsync(JournalId, Revision, ExpectedCurrentRevision)` deletes one selected older snapshot inside a SQLite writer transaction. It checks the journal root's expected revision before deleting. Outcomes are `Deleted`, `NotFound`, `Conflict` or `CurrentRevisionProtected`; cancellation and write failure roll back removal. The confirmation identifies the New York trading date, exact Account name/ID, revision and Draft/Completed state, and warns that removal is permanent. It never deletes the journal or another snapshot. Inactive/unavailable reference names remain explicit; no scope fallback occurs.
+
+**The current/latest revision cannot be deleted**, including a journal with only one revision. Its matching current-state snapshot is an existing persistence invariant. The row visibly says Current revision — protected, with a disabled Delete revision action and accessible explanation. An older deleted number is never reused. Root text, answers, status, UTC audits and concurrency token remain unchanged; a later Save/Reopen still increments the root token, not history count. Remaining history may have gaps. No tombstones or schema migration are added. Earlier statements that history always contains every past revision now apply only until an explicit deletion.
+
+After success, the revision count is reread, an emptied final page moves to the last remaining page, and a deleted open snapshot closes. The journal-entry History page/filter remains intact. Confirmation cancellation makes no write. Failed/cancelled/conflicting writes retain the visible revision list and snapshot with recovery guidance; a stale head requires Refresh History before another deletion. Changing scope/row or leaving cancels pending work and prevents a late response from populating another review. Preview/deletion never overwrites unsaved editor text. No Calendar financial/status refresh is needed for removing an old snapshot because current journal state does not change.
+
+### Verification and remaining checks
+
+Synthetic automated evidence is stored under ignored `artifacts/journal-preview-revision-delete/`. No real journal, customer text, schema, Trade economics or import rules were changed.
+
+- Focused Journal Release: **344 passed** (Domain 51, Application 13, Infrastructure 71, Desktop 209), zero failures/skips. SQLite covers exact scopes, middle removal, protected latest/only snapshot, stale token, cancellation and failure after SQL with rollback, retained head/audits, and subsequent Completed saves with non-reused revision numbers. Desktop covers confirmation cancellation, errors/conflicts, deleted versus retained open snapshots, last-page reconciliation, preview truncation and exact scope, unchanged aggregate History, and stale previews.
+- Complete parallel Release: **2,955 passed**, zero failures/skips (Domain **451**, Application **529**, Infrastructure **797**, Desktop **1,178**; Desktop 3m03s). Release build **zero warnings/errors**; EF **no pending model changes**. `git diff --check` passed.
+- The initial broad run had **87 Desktop failures**: 85 propagated the unchanged Calendar native **120-second** deadline, one editor child exhausted its **30-second** action budget while progressing through renders (24.625s process CPU, phase log at 30.145s), and one History layout test exposed competing preview/list continuations. Preview loading now precedes revision decoration, with a controlled regression. The layout fixture also explicitly awaits its independent History list. No retry, sleep, skip, deadline increase or harness serialization was added. The later complete parallel run passed, but it does not prove the earlier resource-sensitive deadlines are eliminated.
+- Automated Light/Dark renders inspected at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**. Compiled tests verify bounded previews, responsive revision actions, distinct colors with at least **4.5:1** text contrast in normal/hover/pressed/disabled states, and keyboard focus indicators. Automated renders are not live pointer, keyboard, screen-reader or physical-DPI acceptance.
+- Final targeted layout/action run: **9/9 passed**, including additional scrolled revision-action captures in both themes and sizes. The final Release build again reports **zero warnings/errors**.
+- Live interaction and matching GitHub Actions remain **unverified**. HEAD `6f2de66ecb53e4a00bc116f6f4469d7ca89b2b7b`, branch `develop`; initially clean, no commits or pushes.
+
+Files in this refinement (**15 modified + 3 new**, unstaged):
+
+```text
+README.md
+docs/daily-journal.md
+docs/desktop-ui.md
+src/PersonalTradingJournal.Application/Journals/IDailyJournalRepository.cs
+src/PersonalTradingJournal.Application/Journals/IDailyJournalRevisionWriter.cs
+src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml
+src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalHistoryViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalHistoryView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalPresentationResources.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalReviewView.xaml
+src/PersonalTradingJournal.Infrastructure/Journals/DailyJournalRepository.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryRevisionActionsTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Journals/DailyJournalRevisionDeletionTests.cs
+```
+
+For isolated Windows acceptance: open a P 21 row on All accounts page two; check labeled, ellipsized previews without changing scope/order/page. View full text, cancel a middle-revision deletion, then confirm it; check count and snapshot closure, protected current revision, and unchanged editor draft. Save another revision through the editor and verify numbering continues. Repeat in Light/Dark at normal and narrow/high-DPI sizes with keyboard focus and screen-reader labels. Use a disposable isolated data root only.
+
 ## Required Journal text and inline History (2026-10-07)
 
 This refinement supersedes the older completion and History-navigation acceptance notes below. **Save Journal requires meaningful Journal text** (at least one Unicode letter or digit); the three answers are optional. Both standalone and inline Calendar editors use the same Domain rule and show an error next to Journal text without closing or clearing the form. Cancel still saves exact partial content as Draft, including answers-only content, without a discard prompt. A completely empty new form closes without writing. Other navigation/close guards and expected-revision conflict protection are unchanged.
@@ -169,7 +219,7 @@ Only a never-saved form with **four exactly empty strings** closes without writi
 
 This behavior applies only to the two editors' Cancel buttons. Close Journal, navigation, date/account changes, Reload and modal/window closing retain explicit discard/keep-editing guards; none automatically saves a Draft. Standalone accepted re-entry still resets to today in New York/All accounts; Calendar stays on its selected day/account and Day Performance remains open after Cancel.
 
-Shared **Journal-only** styles keep green Save, violet Cancel/Draft and blue ordinary actions such as Open review, View revision, Refresh and Reopen. **Add Journal and Continue Journal** reuse the established mint/teal `PtjPrimaryButtonStyle` accent in both hosts, distinct from blue actions. Their existing hover/pressed opacity, visible focus outline and disabled state remain intact. Solid-red Delete remains distinct from red-outlined Close review/Close view. Labels convey meaning without color alone; no persistence, migrations or Trade economics change.
+Shared **Journal-only** styles keep green Save, violet Cancel/Draft and blue ordinary actions such as Refresh and Reopen; the newer History styles use amber Open review, slate Open in editor and sky View revision. **Add Journal and Continue Journal** reuse the established mint/teal `PtjPrimaryButtonStyle` accent in both hosts, distinct from blue actions. Their existing hover/pressed opacity, visible focus outline and disabled state remain intact. Solid-red Delete remains distinct from red-outlined Close review/Close view. Labels convey meaning without color alone; no persistence, migrations or Trade economics change.
 
 Baseline: clean `develop`, HEAD `cd6c9ec9e8894e6178cc20a01a2fa760ac346bf6`. Focused Release: **688/688 passed**, zero failures/skips (Domain **49**, Application **13**, Infrastructure **65**, Desktop **561**), including theme tests. New/expanded cases cover both hosts' Draft creation and status refresh, all exact fields, write errors/cancellation/conflicts, empty/nonmeaningful forms, SQLite update/history/no-op behavior and a stale Draft save against a newer Completed revision. Guarded navigation/close tests remain unchanged in behavior. Compiled WPF assertions check the Cancel command/name, unique bottom actions, state colors/focus, and ordinary History actions. Evidence is under ignored `artifacts/journal-cancel-draft`.
 
@@ -289,7 +339,7 @@ M14.3 itself adds no Calendar Add Journal activation, review workflow, history b
 
 Baseline: clean `develop` at `41628aa5f52a16c26935db811abd9648f5c2a964`. The previous History query always compared Account ID with the selected nullable ID, so All accounts returned only null-scoped journals. Its row-open guard also rejected specific-account rows under a null filter. The reader now omits the Account predicate only for aggregate History browsing; the row command accepts current rows from that aggregate. The existing editor scope transition selects the stored date/Account before loading or writing. Journal uniqueness, revisions, Calendar status batches, Trade economics and schema are unchanged.
 
-Add/Continue in standalone and inline editors reuse the established teal/mint primary style. Save remains green, Cancel/Draft violet, ordinary History/Reload/Refresh actions blue, Close red-outlined and Delete solid red. Compiled template tests exercise hover, pressed, disabled and keyboard-focus states. The no-entry card and Account help distinguish the separate All accounts journal from aggregate History.
+Add/Continue in standalone and inline editors reuse the established teal/mint primary style. Save remains green, Cancel/Draft violet, Reload/Refresh actions blue (History now uses distinct amber/slate/sky actions), Close red-outlined and Delete solid red. Compiled template tests exercise hover, pressed, disabled and keyboard-focus states. The no-entry card and Account help distinguish the separate All accounts journal from aggregate History.
 
 Automated evidence uses synthetic data only, under ignored `artifacts/journal-history-all/`. Journal-focused Release: **327/327 passed** (Domain 49, Application 13, Infrastructure 65, Desktop 200), zero failures/skips. SQLite checks cover 9/10/11/20 mixed null/P 21/other entries, same-date ID ordering, database count/LIMIT/OFFSET, inactive/unavailable names, SELECT-only reads, and exact-account open/edit/Draft/Complete/delete without touching other scopes. Controlled reads verify cancellation and late-result rejection when switching both to and from All accounts. Existing revision/conflict, Calendar marker and navigation guards remain covered.
 
