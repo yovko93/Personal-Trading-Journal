@@ -54,16 +54,20 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equal(saturday.ToDateTime(TimeOnly.MinValue), editor.SelectedDate);
             Assert.Null(editor.SelectedAccount.Id);
             editor.OpenEditorCommand.Execute(null);
-            await editor.SaveCommand.ExecuteAsync(null); // Even an empty trading-day draft is a real entry.
+            editor.Text = "Review of a day without Trades";
+            await editor.SaveCommand.ExecuteAsync(null);
             Assert.Null(editor.ErrorMessage);
 
             await calendar.ActivateAsync();
             AssertRetainedScope();
-            Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
-            Assert.Equal("Continue Journal", calendar.DayJournalActionText);
+            Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);
+            Assert.Equal("Open Journal", calendar.DayJournalActionText);
             Assert.Equal(1L, calendar.SelectedDayJournalStatus!.Revision);
 
-            editor.OpenEditorCommand.Execute(null);
+            await editor.ReopenReviewCommand.ExecuteAsync(null);
+            await calendar.JournalLoadTask;
+            Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
+            Assert.Equal("Continue Journal", calendar.DayJournalActionText);
             editor.WentWell = Answers.WentWell;
             editor.NeedsImprovement = Answers.NeedsImprovement;
             editor.NextTradingDay = Answers.NextTradingDay;
@@ -72,12 +76,12 @@ public sealed class JournalCalendarSqliteTests
             Assert.Null(editor.ErrorMessage);
             Assert.Equal("Completed", Cell(calendar, saturday).JournalStatusText);
             Assert.Equal("Open Journal", calendar.DayJournalActionText);
-            Assert.Equal(2L, calendar.SelectedDayJournalStatus!.Revision);
+            Assert.Equal(3L, calendar.SelectedDayJournalStatus!.Revision);
 
             await editor.ReopenReviewCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Draft", Cell(calendar, saturday).JournalStatusText);
-            Assert.Equal(3L, calendar.SelectedDayJournalStatus!.Revision);
+            Assert.Equal(4L, calendar.SelectedDayJournalStatus!.Revision);
             AssertRetainedScope();
             Assert.Empty(Cell(calendar, saturday).DailySummaries);
             Assert.Empty(Cell(calendar, saturday).WeeklySummaries);
@@ -86,7 +90,7 @@ public sealed class JournalCalendarSqliteTests
             Assert.Equivalent(before, await database.ReadTradeDataAsync(), strict: true);
             var saved = Assert.IsType<DailyJournalDetails>(await database.Repository.GetAsync(saturday));
             Assert.Null(saved.Entry.TradingAccountId);
-            Assert.Equal(new[] { true, false, true }, (await database.Repository.GetHistoryAsync(saved.Entry.Id)).Select(r => r.IsDraft));
+            Assert.Equal(new[] { false, true, false, true }, (await database.Repository.GetHistoryAsync(saved.Entry.Id)).Select(r => r.IsDraft));
 
             void AssertRetainedScope()
             {

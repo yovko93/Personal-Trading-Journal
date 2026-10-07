@@ -70,6 +70,7 @@ public sealed class InlineJournalViewTests
                 form.BringIntoView(new Rect(0, 0, form.ActualWidth, 240)); Flush();
                 var save = (Button)inline.FindName("SaveInlineJournal");
                 var cancel = (Button)inline.FindName("CancelInlineJournal");
+                Assert.Equal("Save Journal as Completed", System.Windows.Automation.AutomationProperties.GetName(save));
                 var lastAnswer = (TextBox)inline.FindName("InlineNext");
                 Assert.True(save.TranslatePoint(new Point(), inline).Y >= lastAnswer.TranslatePoint(new Point(0, lastAnswer.ActualHeight), inline).Y);
                 Assert.True(save.Focusable && cancel.Focusable);

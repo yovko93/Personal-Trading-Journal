@@ -28,8 +28,8 @@ public sealed class DailyReviewAnswersTests
         Assert.Equal(wentWell, review.WentWell);
         Assert.Equal("  improve\t", review.NeedsImprovement);
         Assert.Equal("\r\nnext ", review.NextTradingDay);
-        Assert.True(review.CanComplete);
-        Assert.False(DailyReviewAnswers.Empty.CanComplete);
+        Assert.True(review.HasMeaningfulContent);
+        Assert.False(DailyReviewAnswers.Empty.HasMeaningfulContent);
     }
 
     [Theory]
@@ -41,7 +41,7 @@ public sealed class DailyReviewAnswersTests
         string[] answers = ["Well", "Improve", "Next"];
         answers[answerIndex] = new string('x', DailyReviewAnswers.MaximumAnswerLength);
         DailyReviewAnswers review = Make(answers);
-        Assert.True(review.CanComplete);
+        Assert.True(review.HasMeaningfulContent);
 
         answers[answerIndex] += "x";
         Assert.Throws<ArgumentOutOfRangeException>(() => Make(answers));

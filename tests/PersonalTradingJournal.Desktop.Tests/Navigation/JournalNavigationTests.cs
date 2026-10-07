@@ -423,12 +423,13 @@ public sealed partial class MainWindowViewModelTests
 
     private static (MainWindowViewModel Main, JournalViewModel Journal,
         NavigationJournalRepository Repository, FakeDialogService Dialogs) CreateJournalFixture(
-            NavigationJournalRepository? repository = null, ITradingAccountReader? accountReader = null)
+            NavigationJournalRepository? repository = null, ITradingAccountReader? accountReader = null,
+            TimeProvider? clock = null, IDailyJournalHistoryReader? historyReader = null)
     {
         repository ??= new NavigationJournalRepository();
         var dialogs = new FakeDialogService();
         var journal = new JournalViewModel(repository, accountReader ?? new FakeTradingAccountReader(), dialogs,
-            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), new FixedTimeProvider());
+            new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), new FakeTradingAccountReader()), clock ?? new FixedTimeProvider(), historyReader);
         return (CreateFixture(journalViewModel: journal).Main, journal, repository, dialogs);
     }
 

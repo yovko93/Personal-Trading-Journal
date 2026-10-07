@@ -13,11 +13,13 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class JournalEditorActionTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task SavePersistsEveryFieldAsDraftAndCollapsesOnlyItsEditor(bool inline, bool partial)
+    [InlineData(false, 0)]
+    [InlineData(false, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 0)]
+    [InlineData(true, 1)]
+    [InlineData(true, 2)]
+    public async Task SavePersistsEveryFieldAsCompletedAndCollapsesOnlyItsEditor(bool inline, int answersFilled)
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
         var accounts = db.Provider.GetRequiredService<ITradingAccountReader>();
@@ -47,7 +49,8 @@ public sealed class JournalEditorActionTests
             var month = calendar?.SelectedMonth;
             var date = DateOnly.FromDateTime(editor.SelectedDate!.Value);
             const string exact = "  Journal\r\nПлан 📈\t ";
-            var answers = new DailyReviewAnswers("  Went well\r\n ", partial ? " \t" : "Improve patience", partial ? "" : "Wait next day");
+            var answers = answersFilled == 0 ? DailyReviewAnswers.Empty :
+                new DailyReviewAnswers("  Went well\r\n ", answersFilled == 1 ? " \t" : "Improve patience", answersFilled == 1 ? "" : "Wait next day");
             editor.Text = exact;
             editor.WentWell = answers.WentWell;
             editor.NeedsImprovement = answers.NeedsImprovement;
@@ -56,33 +59,33 @@ public sealed class JournalEditorActionTests
             if (calendar is not null) await calendar.JournalLoadTask;
 
             Assert.Null(editor.ErrorMessage);
-            Assert.False(editor.IsEditorOpen || editor.IsDirty || editor.IsCompleted);
-            Assert.True(editor.ShowCompactReview && editor.IsDraft);
+            Assert.False(editor.IsEditorOpen || editor.IsDirty || editor.IsDraft);
+            Assert.True(editor.ShowCompactReview && editor.IsCompleted && editor.IsReadOnly);
             Assert.Equal(exact, editor.SavedText);
             Assert.Equal(answers, editor.SavedReview);
             var stored = (await db.Repository.GetAsync(date))!.Entry;
             Assert.Null(stored.TradingAccountId);
             Assert.Equal(exact, stored.Text);
             Assert.Equal(answers, stored.Review);
-            Assert.True(stored.IsDraft); // Even three meaningful answers do not complete a review on Save.
+            Assert.False(stored.IsDraft); // Save atomically completes even a freeform-only entry.
             var revision = Assert.Single(await db.Repository.GetHistoryAsync(stored.Id));
             Assert.Equal(answers, revision.Review);
             Assert.Equal(exact, revision.Text);
-            Assert.True(revision.IsDraft);
+            Assert.False(revision.IsDraft);
             if (calendar is not null)
             {
                 Assert.Same(editor, calendar.InlineJournal);
                 Assert.Same(dayData, calendar.DayDetails);
                 Assert.Equal(month, calendar.SelectedMonth);
                 Assert.Equal(date, calendar.SelectedDate);
-                Assert.True(calendar.SelectedDayJournalStatus!.IsDraft);
-                Assert.Equal("Draft", calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date).JournalStatusText);
+                Assert.False(calendar.SelectedDayJournalStatus!.IsDraft);
+                Assert.Equal("Completed", calendar.Weeks.SelectMany(w => w.Days).Single(d => d.Date == date).JournalStatusText);
             }
             else
             {
                 var historyRow = Assert.Single(editor.History!.Entries);
                 Assert.Equal(stored.Id, historyRow.Item.Id);
-                Assert.Equal("Draft", historyRow.StateText);
+                Assert.Equal("Completed", historyRow.StateText);
             }
         }
         finally { editor?.Deactivate(); calendar?.Deactivate(); }
@@ -128,7 +131,7 @@ public sealed class JournalEditorActionTests
             var fields = new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay };
             var saving = editor.SaveCommand.ExecuteAsync(null);
             var command = await repository.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.True(command.IsDraft);
+            Assert.False(command.IsDraft);
             Assert.Equal(fields[0], command.Text);
             Assert.Equal(new DailyReviewAnswers(fields[1], fields[2], fields[3]), command.Review);
             Assert.False(editor.CloseEditorCommand.CanExecute(null));
@@ -152,6 +155,7 @@ public sealed class JournalEditorActionTests
             dialogs.ConfirmationResult = true;
             editor.CloseEditorCommand.Execute(null); // Explicit discard.
             Assert.False(editor.IsEditorOpen || editor.IsDirty);
+            Assert.False(editor.IsExisting); // Discarding an unsaved entry never creates an empty journal.
             Assert.Equal(0, source.Writes);
             if (calendar is not null)
             {
@@ -167,6 +171,113 @@ public sealed class JournalEditorActionTests
             editor.Deactivate();
             calendar?.Deactivate();
         }
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task CancelPreservesPersistedDraftAndItsHistory(bool inline, bool dirty)
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var accounts = db.Provider.GetRequiredService<ITradingAccountReader>();
+        var date = new DateOnly(2026, 9, inline ? 5 : 9);
+        var savedAnswers = new DailyReviewAnswers("Saved answer", "", "");
+        var original = (await db.Repository.CreateAsync(new(date, null, "Saved Draft", true, savedAnswers))).Journal!.Entry;
+        var historyBefore = await db.Repository.GetHistoryAsync(original.Id);
+        var dialogs = new FakeDialogService();
+        CalendarViewModel? calendar = null;
+        JournalViewModel? editor = null;
+        try
+        {
+            if (inline)
+            {
+                calendar = new CalendarViewModel(db.Provider.GetRequiredService<ITradingCalendarReader>(), new FixedTimeProvider(),
+                    db.Provider.GetRequiredService<ITradingCalendarDayReader>(), accounts,
+                    journalStatusReader: db.Provider.GetRequiredService<IDailyJournalStatusReader>(),
+                    journalRepository: db.Repository, journalDialogs: dialogs);
+                await calendar.ActivateAsync();
+                await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks[0].Days[5]);
+                await calendar.OpenInlineJournalCommand.ExecuteAsync(null);
+                editor = calendar.InlineJournal!;
+            }
+            else editor = await db.OpenEditorAsync(date, dialogs: dialogs);
+            Assert.True(editor.IsEditorOpen && editor.IsDraft);
+            if (dirty)
+            {
+                editor.Text = "Local text";
+                editor.WentWell = "Local well";
+                editor.NeedsImprovement = "Local improvement";
+                editor.NextTradingDay = "Local next";
+                editor.CloseEditorCommand.Execute(null);
+                Assert.True(editor.IsEditorOpen && editor.IsDirty);
+                Assert.Equal("Local next", editor.NextTradingDay);
+                dialogs.ConfirmationResult = true;
+            }
+            editor.CloseEditorCommand.Execute(null);
+            Assert.False(editor.IsEditorOpen || editor.IsDirty);
+            Assert.True(editor.IsDraft && editor.IsExisting && editor.ShowContinueReview);
+            Assert.Equal("Saved Draft", editor.Text);
+            Assert.Equal(savedAnswers, editor.SavedReview);
+            var stored = (await db.Repository.GetAsync(date))!.Entry;
+            Assert.Equal(original.Id, stored.Id);
+            Assert.Equal(original.Revision, stored.Revision);
+            Assert.True(stored.IsDraft);
+            Assert.Equal("Saved Draft", stored.Text);
+            Assert.Equal(savedAnswers, stored.Review);
+            Assert.Equal(historyBefore, await db.Repository.GetHistoryAsync(original.Id));
+            editor.OpenEditorCommand.Execute(null);
+            Assert.True(editor.CanEdit);
+            if (calendar is not null)
+            {
+                Assert.Same(editor, calendar.InlineJournal);
+                Assert.Equal(date, calendar.SelectedDate);
+                Assert.True(calendar.SelectedDayJournalStatus!.IsDraft);
+            }
+        }
+        finally { editor?.Deactivate(); calendar?.Deactivate(); }
+    }
+
+    [Theory]
+    [InlineData(false, "")]
+    [InlineData(false, " \t\r\n")]
+    [InlineData(false, "...🙂\u200B")]
+    [InlineData(true, "")]
+    [InlineData(true, " \t\r\n")]
+    [InlineData(true, "...🙂\u200B")]
+    public async Task EitherHostRejectsSaveWithoutMeaningfulContentAndRetainsEveryField(bool inline, string content)
+    {
+        var source = new FakeDailyJournalRepository();
+        var accounts = new FakeTradingAccountReader();
+        CalendarViewModel? calendar = null;
+        JournalViewModel editor;
+        if (inline)
+        {
+            calendar = await CalendarSummaryFixture.CreateAsync(journalStatusReader: source, journalRepository: source);
+            await calendar.SelectDayCommand.ExecuteAsync(calendar.Weeks[0].Days[5]);
+            await calendar.OpenInlineJournalCommand.ExecuteAsync(null);
+            editor = calendar.InlineJournal!;
+        }
+        else
+        {
+            editor = new JournalViewModel(source, accounts, new FakeDialogService(),
+                new JournalTradeContextViewModel(new FakeTradingCalendarDayReader(), accounts), new FixedTimeProvider());
+            await editor.ActivateAsync();
+            editor.OpenEditorCommand.Execute(null);
+        }
+        try
+        {
+            editor.Text = editor.WentWell = editor.NeedsImprovement = editor.NextTradingDay = content;
+            await editor.SaveCommand.ExecuteAsync(null);
+            Assert.Contains("meaningful", editor.ErrorMessage);
+            Assert.True(editor.IsEditorOpen);
+            Assert.False(editor.IsExisting);
+            Assert.Equal(new[] { content, content, content, content },
+                new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay });
+            Assert.Equal(0, source.Writes);
+        }
+        finally { editor.Deactivate(); calendar?.Deactivate(); }
     }
 
     private sealed class ControlledWrites(IDailyJournalRepository source) : IDailyJournalRepository

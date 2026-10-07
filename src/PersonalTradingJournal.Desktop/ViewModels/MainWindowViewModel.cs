@@ -329,7 +329,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
-        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch

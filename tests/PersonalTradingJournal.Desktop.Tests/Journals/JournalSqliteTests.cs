@@ -48,17 +48,17 @@ public sealed class JournalSqliteTests
         JournalViewModel reopened = await database.OpenEditorAsync(TradingDate);
         Assert.Equal(original, reopened.Text);
         Assert.Equal(1L, reopened.Revision);
-        reopened.OpenEditorCommand.Execute(null);
+        await reopened.ReopenReviewCommand.ExecuteAsync(null);
         reopened.Text = revised;
         await reopened.SaveCommand.ExecuteAsync(null);
 
         Assert.Null(reopened.ErrorMessage);
         Assert.False(reopened.IsDirty);
-        Assert.Equal(2L, reopened.Revision);
+        Assert.Equal(3L, reopened.Revision);
         reopened.Deactivate();
         JournalViewModel latest = await database.OpenEditorAsync(TradingDate);
         Assert.Equal(revised, latest.Text);
-        Assert.Equal(2L, latest.Revision);
+        Assert.Equal(3L, latest.Revision);
         Assert.False(latest.IsDirty);
 
         DailyJournalDetails persisted = Assert.IsType<DailyJournalDetails>(
@@ -75,11 +75,18 @@ public sealed class JournalSqliteTests
             revision =>
             {
                 Assert.Equal(2L, revision.Revision);
+                Assert.Equal(original, revision.Text);
+                Assert.True(revision.IsDraft);
+            },
+            revision =>
+            {
+                Assert.Equal(3L, revision.Revision);
                 Assert.Equal(revised, revision.Text);
+                Assert.False(revision.IsDraft);
             });
         await using JournalDbContext context = await database.ContextFactory.CreateDbContextAsync();
         Assert.Equal(1, await context.DailyJournals.CountAsync());
-        Assert.Equal(2, await context.DailyJournalRevisions.CountAsync());
+        Assert.Equal(3, await context.DailyJournalRevisions.CountAsync());
         Assert.Empty(await context.Trades.ToArrayAsync());
         Assert.Empty(await context.TradeExecutions.ToArrayAsync());
         Assert.Empty(await context.TradeBrowse.ToArrayAsync());
@@ -180,10 +187,9 @@ public sealed class JournalSqliteTests
     public async Task StaleEditorPreservesLocalDraftUntilExplicitReloadIsConfirmed()
     {
         await using JournalTestDatabase database = await JournalTestDatabase.CreateAsync();
+        await database.Repository.CreateAsync(new(TradingDate, null, "Initial saved journal", true));
         JournalViewModel first = await database.OpenEditorAsync(TradingDate);
         first.OpenEditorCommand.Execute(null);
-        first.Text = "Initial saved journal";
-        await first.SaveCommand.ExecuteAsync(null);
         Assert.Null(first.ErrorMessage);
         var dialogs = new FakeDialogService();
         JournalViewModel stale = await database.OpenEditorAsync(TradingDate, dialogs: dialogs);

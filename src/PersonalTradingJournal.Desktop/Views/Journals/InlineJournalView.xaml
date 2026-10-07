@@ -60,7 +60,7 @@
                          AutomationProperties.Name="What will I do differently next trading day?" />
                 <WrapPanel x:Name="InlineEditorActions" Margin="0,12,0,0">
                     <Button x:Name="SaveInlineJournal" Content="Save Journal" Command="{Binding SaveCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
-                            AutomationProperties.Name="Save journal draft" ToolTip="Save text and all answers as a draft (Ctrl+S)" />
+                            AutomationProperties.Name="Save Journal as Completed" ToolTip="Save all fields and mark Completed (Ctrl+S)" />
                     <Button x:Name="CancelInlineJournal" Content="Cancel" Command="{Binding CloseEditorCommand}" Style="{DynamicResource PtjSecondaryButtonStyle}" FontSize="16" Margin="0,0,8,4"
                             AutomationProperties.Name="Cancel Journal editing"
                             ToolTip="Close this form without closing Day Performance. Unsaved edits require confirmation." />

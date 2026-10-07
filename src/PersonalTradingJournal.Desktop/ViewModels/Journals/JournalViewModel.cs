@@ -18,6 +18,7 @@ public sealed class JournalViewModel : ObservableObject
     private readonly IDailyJournalRepository _repository;
     private readonly ITradingAccountReader _accountReader;
     private readonly IDialogService _dialogs;
+    private readonly TimeProvider _clock;
     private IReadOnlyList<JournalAccountOption> _accounts = [AllAccounts];
     private JournalAccountOption _selectedAccount = AllAccounts;
     private DateTime? _selectedDate;
@@ -28,6 +29,7 @@ public sealed class JournalViewModel : ObservableObject
     private string? _errorMessage, _notice;
     private bool _active, _hasLoaded, _isLoading, _isSaving, _reloadRequired, _updatingAccounts, _hasDateInputError, _completionAttempted;
     private bool _preserveOnNextActivation;
+    private bool _resetOnNextActivation;
     private bool _isEditorOpen;
     private bool _isDeleting;
     private bool _loadTradeContext = true;
@@ -41,10 +43,11 @@ public sealed class JournalViewModel : ObservableObject
         _repository = repository;
         _accountReader = accountReader;
         _dialogs = dialogs;
+        _clock = timeProvider ?? TimeProvider.System;
         TradeContext = tradeContext;
         History = historyReader is null ? null : new JournalHistoryViewModel(historyReader, OpenFromHistory);
         _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(
-            (timeProvider ?? TimeProvider.System).GetUtcNow()).Date;
+            _clock.GetUtcNow()).Date;
         SaveCommand = new AsyncRelayCommand(SaveAsync, CanSave);
         DeleteCommand = new AsyncRelayCommand(DeleteAsync, CanDelete);
         CompleteReviewCommand = new AsyncRelayCommand(CompleteReviewAsync, CanSave);
@@ -161,12 +164,12 @@ public sealed class JournalViewModel : ObservableObject
     public DailyReviewAnswers SavedReview => _entry?.Review ?? DailyReviewAnswers.Empty;
     public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy && IsDraft;
     public bool IsReadOnly => !CanEdit;
-    public bool CanComplete => CanSave() && AllAnswersMeaningful;
+    public bool CanComplete => CanSave() && HasMeaningfulContent;
     public string CharacterCountText => $"{Text.Length:N0} / {DailyJournalEntry.MaximumTextLength:N0} characters";
     public string? ErrorMessage => HasDateInputError ? "Enter a valid journal date before saving."
         : Text.Length > DailyJournalEntry.MaximumTextLength
             ? "Journal text cannot exceed 100,000 UTF-16 code units. Your text has been kept; shorten it before saving."
-            : ReviewLengthError ?? (_completionAttempted && !AllAnswersMeaningful ? CompletionError : _errorMessage);
+            : ReviewLengthError ?? (_completionAttempted && !HasMeaningfulContent ? CompletionError : _errorMessage);
     public string ScopeMessage => SelectedAccount.Id is null
         ? "All accounts is its own journal, separate from each account's journal. Dates use New York trading time."
         : !SelectedAccount.IsAvailable
@@ -235,12 +238,14 @@ public sealed class JournalViewModel : ObservableObject
         bool sameScope = SelectedTradingDate == date && SelectedAccount.Id == accountId;
         if (sameScope)
         {
+            _resetOnNextActivation = false; // An explicit scope request takes precedence over default page entry.
             // Targeted Calendar navigation may revisit an inactive editor. Do not silently
             // reload its retained draft or clear a revision conflict (including a clean reopen conflict).
             _preserveOnNextActivation = _hasLoaded && (IsDirty || _reloadRequired);
             return true;
         }
         if (!TryChangeScope()) return false;
+        _resetOnNextActivation = false;
         _preserveOnNextActivation = false;
         _selectedDate = date.ToDateTime(TimeOnly.MinValue);
         _selectedAccount = accountId.HasValue ? new(accountId, accountName) : AllAccounts;
@@ -256,6 +261,19 @@ public sealed class JournalViewModel : ObservableObject
     public Task ActivateAsync(bool loadTradeContext)
     {
         _loadTradeContext = loadTradeContext;
+        if (_resetOnNextActivation)
+        {
+            // Set only after the shell's departure guard succeeds. Inline Calendar activation
+            // never requests this reset, and a vetoed departure never deactivates the page.
+            _resetOnNextActivation = _preserveOnNextActivation = false;
+            _selectedDate = TradingTimePolicy.ConvertUtcToTradingTime(_clock.GetUtcNow()).Date;
+            _selectedAccount = AllAccounts;
+            _hasDateInputError = false;
+            History?.Reset();
+            OnPropertyChanged(nameof(SelectedDate));
+            OnPropertyChanged(nameof(SelectedAccount));
+            ScopeChanged();
+        }
         Task history = History?.ActivateAsync(SelectedAccount.Id) ?? Task.CompletedTask;
         Task context = loadTradeContext ? TradeContext.ActivateAsync(SelectedTradingDate, SelectedAccount.Id) : Task.CompletedTask;
         bool preserve = _preserveOnNextActivation;
@@ -274,9 +292,10 @@ public sealed class JournalViewModel : ObservableObject
 
     public bool TryLeave() => !IsSaving && ConfirmDiscard();
 
-    public void Deactivate()
+    public void Deactivate(bool resetOnNextActivation = false)
     {
         if (IsSaving) return;
+        _resetOnNextActivation |= resetOnNextActivation;
         _active = false;
         CancelLoad();
         TradeContext.Deactivate();
@@ -392,9 +411,8 @@ public sealed class JournalViewModel : ObservableObject
     private bool CanReopen() => CanReadContent && IsCompleted && SelectedAccount.IsAvailable
         && !IsBusy && !_reloadRequired && !HasDateInputError;
 
-    private bool AllAnswersMeaningful => DailyReviewAnswers.HasMeaningfulText(WentWell)
-        && DailyReviewAnswers.HasMeaningfulText(NeedsImprovement)
-        && DailyReviewAnswers.HasMeaningfulText(NextTradingDay);
+    private bool HasMeaningfulContent => ReviewLengthError is null && DailyJournalEntry.HasMeaningfulContent(
+        Text, new DailyReviewAnswers(WentWell, NeedsImprovement, NextTradingDay));
 
     private string? ReviewLengthError
     {
@@ -413,29 +431,19 @@ public sealed class JournalViewModel : ObservableObject
         }
     }
 
-    private string CompletionError
-    {
-        get
-        {
-            var missing = new List<string>();
-            if (!DailyReviewAnswers.HasMeaningfulText(WentWell)) missing.Add("What went well?");
-            if (!DailyReviewAnswers.HasMeaningfulText(NeedsImprovement)) missing.Add("What needs improvement?");
-            if (!DailyReviewAnswers.HasMeaningfulText(NextTradingDay)) missing.Add("What will I do differently next trading day?");
-            return $"Complete each review answer with meaningful text: {string.Join("; ", missing)}";
-        }
-    }
+    private const string CompletionError = "Enter meaningful journal text or at least one review answer before saving. Include a letter or digit; your text has been kept.";
 
     private async Task CompleteReviewAsync()
     {
         if (!CanSave()) return;
         _completionAttempted = true;
-        if (!AllAnswersMeaningful) { NotifyState(); return; }
+        if (!HasMeaningfulContent) { NotifyState(); return; }
         await WriteAsync(isDraft: false);
     }
 
     private Task ReopenReviewAsync() => CanReopen() ? WriteAsync(isDraft: true, openEditorOnSuccess: true) : Task.CompletedTask;
 
-    private Task SaveAsync() => CanSave() ? WriteAsync(isDraft: true) : Task.CompletedTask;
+    private Task SaveAsync() => CompleteReviewAsync();
 
     private async Task WriteAsync(bool isDraft, bool openEditorOnSuccess = false)
     {

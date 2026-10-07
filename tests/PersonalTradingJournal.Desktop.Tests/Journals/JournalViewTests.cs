@@ -94,6 +94,7 @@ public sealed class JournalViewTests
         Assert.Single(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CloseEditorCommand));
         Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => ReferenceEquals(b.Command, vm.CompleteReviewCommand));
         Assert.Same(vm.CloseEditorCommand, cancel.Command);
+        Assert.Equal("Save Journal as Completed", AutomationProperties.GetName(save));
         Assert.Same(vm.ReopenReviewCommand, reopen.Command);
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, save.Visibility);
         Assert.Equal(completed ? Visibility.Collapsed : Visibility.Visible, ((WrapPanel)view.FindName("JournalEditorActions")).Visibility);
@@ -300,7 +301,13 @@ public sealed class JournalViewTests
         Assert.Same(vm.OpenEditorCommand, ((Button)view.FindName("AddJournal")).Command);
         Assert.Equal("New draft — not saved", ((TextBlock)view.FindName("JournalStatus")).Text);
         Assert.Empty(editor.Text);
-        Assert.True(((Button)view.FindName("SaveJournal")).IsEnabled); // Empty journals are valid.
+        var save = (Button)view.FindName("SaveJournal");
+        Assert.True(save.IsEnabled); // An explicit attempt explains the minimum-content validation.
+        save.Command.Execute(null);
+        Flush();
+        Assert.Contains("meaningful", ((TextBlock)view.FindName("JournalError")).Text);
+        Assert.False(vm.IsExisting);
+        Assert.True(vm.IsEditorOpen);
         editor.Text = new string('x', DailyJournalEntry.MaximumTextLength + 1);
         Flush();
         Assert.Equal(DailyJournalEntry.MaximumTextLength + 1, vm.Text.Length);

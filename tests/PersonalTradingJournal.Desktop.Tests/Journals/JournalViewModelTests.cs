@@ -31,7 +31,10 @@ public sealed partial class JournalViewModelTests
             Assert.Equal(expected, vm.SelectedDateHeading);
             Assert.Equal("No entry", vm.EntryStateLabel);
             vm.OpenEditorCommand.Execute(null);
+            vm.Text = "A meaningful journal";
             await vm.SaveCommand.ExecuteAsync(null);
+            Assert.Equal("Completed", vm.EntryStateLabel);
+            await vm.ReopenReviewCommand.ExecuteAsync(null);
             Assert.Equal("Draft", vm.EntryStateLabel);
             vm.OpenEditorCommand.Execute(null);
             vm.WentWell = "Plan";
@@ -81,6 +84,7 @@ public sealed partial class JournalViewModelTests
         vm.SelectedDate = new DateTime(year, month, day, 20, 31, 0, DateTimeKind.Local);
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
+        vm.Text = "Explicit DST date";
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Equal(new DateOnly(year, month, day), Assert.Single(repository.Reads).Date);
@@ -89,7 +93,7 @@ public sealed partial class JournalViewModelTests
     }
 
     [Fact]
-    public async Task MissingEntryRemainsUnsavedUntilExplicitSaveIncludingEmptyText()
+    public async Task MissingEntryRequiresMeaningfulContentAndOnlyExplicitSaveWrites()
     {
         var repository = new Repository();
         var vm = Create(repository);
@@ -103,14 +107,20 @@ public sealed partial class JournalViewModelTests
         Assert.Equal("New draft — not saved", vm.StatusText);
         Assert.Empty(repository.Creates);
         await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Empty(repository.Creates);
+        Assert.False(vm.IsExisting);
+        Assert.True(vm.IsEditorOpen);
+        Assert.Contains("meaningful", vm.ErrorMessage);
+        vm.Text = "Meaningful freeform only";
+        await vm.SaveCommand.ExecuteAsync(null);
 
         CreateDailyJournalCommand command = Assert.Single(repository.Creates);
-        Assert.Equal("", command.Text);
-        Assert.True(command.IsDraft);
+        Assert.Equal("Meaningful freeform only", command.Text);
+        Assert.False(command.IsDraft);
         Assert.True(vm.IsExisting);
         Assert.Equal(1L, vm.Revision);
         Assert.False(vm.IsDirty);
-        Assert.Contains("Saved draft", vm.StatusText);
+        Assert.Contains("Completed review", vm.StatusText);
     }
 
     [Fact]
@@ -136,7 +146,7 @@ public sealed partial class JournalViewModelTests
     }
 
     [Fact]
-    public async Task ExistingDraftSaveUsesLoadedIdentityRevisionAndPreservesDraftFlag()
+    public async Task ExistingDraftSaveUsesLoadedIdentityRevisionAndCompletes()
     {
         var repository = new Repository { Journal = Details("original", revision: 7) };
         Guid id = repository.Journal.Entry.Id;
@@ -150,17 +160,17 @@ public sealed partial class JournalViewModelTests
         UpdateDailyJournalCommand command = Assert.Single(repository.Updates);
         Assert.Equal(id, command.JournalId);
         Assert.Equal(7L, command.ExpectedRevision);
-        Assert.True(command.IsDraft);
+        Assert.False(command.IsDraft);
         Assert.Equal("revised", command.Text);
         Assert.Equal(8L, vm.Revision);
         Assert.False(vm.IsDirty);
-        Assert.True(vm.IsDraft);
-        Assert.Contains("Saved draft", vm.StatusText);
+        Assert.True(vm.IsCompleted);
+        Assert.Contains("Completed review", vm.StatusText);
         Assert.Empty(repository.Creates);
     }
 
     [Fact]
-    public async Task UnchangedSaveKeepsRevisionAndReportsNoChanges()
+    public async Task SavingUnchangedDraftContentStillAddsCompletedRevision()
     {
         var repository = new Repository { Journal = Details("unchanged", revision: 3) };
         var vm = Create(repository);
@@ -171,9 +181,9 @@ public sealed partial class JournalViewModelTests
         Assert.False(vm.IsDirty);
         await vm.SaveCommand.ExecuteAsync(null);
 
-        Assert.Equal(3L, vm.Revision);
+        Assert.Equal(4L, vm.Revision);
         Assert.False(vm.IsDirty);
-        Assert.Equal("No changes to save.", vm.StatusText);
+        Assert.True(vm.IsCompleted);
     }
 
     [Fact]
@@ -750,13 +760,15 @@ public sealed partial class JournalViewModelTests
         vm.Text = "  exact draft\r\n";
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.False(vm.IsEditorOpen);
-        Assert.True(vm.ShowCompactReview && vm.ShowContinueReview);
+        Assert.True(vm.ShowCompactReview && vm.IsCompleted);
         Assert.Equal("  exact draft\r\n", vm.SavedText);
         vm.OpenEditorCommand.Execute(null);
+        Assert.False(vm.CanEdit);
+        await vm.ReopenReviewCommand.ExecuteAsync(null);
         Assert.True(vm.CanEdit);
         Assert.Equal(vm.SavedText, vm.Text);
         Assert.Single(repository.Creates);
-        Assert.Empty(repository.Updates);
+        Assert.True(Assert.Single(repository.Updates).IsDraft);
         vm.Deactivate();
     }
 

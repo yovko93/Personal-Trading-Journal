@@ -58,12 +58,14 @@ public sealed class CalendarInlineJournalSqliteTests
             await journal.SaveCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.False(journal.IsEditorOpen);
-            Assert.Equal("Draft", day.JournalStatusText);
+            Assert.Equal("Completed", day.JournalStatusText);
             calendar.CloseInlineJournalCommand.Execute(null);
             Assert.Null(calendar.InlineJournal);
             await calendar.OpenInlineJournalCommand.ExecuteAsync(null);
             journal = calendar.InlineJournal!;
-            Assert.True(journal.IsEditorOpen); // Continue.
+            Assert.False(journal.IsEditorOpen); // Completed entries require explicit reopening.
+            await journal.ReopenReviewCommand.ExecuteAsync(null);
+            Assert.True(journal.IsEditorOpen);
             await journal.CompleteReviewCommand.ExecuteAsync(null);
             await calendar.JournalLoadTask;
             Assert.Equal("Completed", day.JournalStatusText);
@@ -113,11 +115,10 @@ public sealed class CalendarInlineJournalSqliteTests
         var dialogs = new FakeDialogService();
         var calendar = await CalendarPage.CalendarSummaryFixture.CreateAsync(journalStatusReader: repository, journalRepository: repository, journalDialogs: dialogs);
         var day = calendar.Weeks[0].Days[5];
+        await repository.CreateAsync(new(day.Date, null, "Existing Draft", true));
         await calendar.SelectDayCommand.ExecuteAsync(day);
         await calendar.OpenInlineJournalCommand.ExecuteAsync(null);
         var editor = calendar.InlineJournal!;
-        await editor.SaveCommand.ExecuteAsync(null);
-        await calendar.JournalLoadTask;
         var saved = (await repository.GetAsync(day.Date))!.Entry;
         await repository.UpdateAsync(new(saved.Id, saved.Revision, "Newer", true));
         editor.OpenEditorCommand.Execute(null);

@@ -33,7 +33,7 @@ public sealed class DailyJournalEntry : AuditableEntity
         ValidateAccountId(tradingAccountId);
         ValidateText(text);
         ArgumentNullException.ThrowIfNull(review);
-        ValidateCompletion(isDraft, review);
+        ValidateCompletion(isDraft, text, review);
 
         TradingDate = tradingDate;
         TradingAccountId = tradingAccountId;
@@ -136,7 +136,7 @@ public sealed class DailyJournalEntry : AuditableEntity
                 "A completed review must be reopened before its journal text or answers can be edited.");
         }
 
-        ValidateCompletion(isDraft, review);
+        ValidateCompletion(isDraft, text, review);
         long nextRevision = checked(Revision + 1);
         SetUpdatedAtUtc(updatedAtUtc);
         Text = text;
@@ -146,12 +146,16 @@ public sealed class DailyJournalEntry : AuditableEntity
         return true;
     }
 
-    private static void ValidateCompletion(bool isDraft, DailyReviewAnswers review)
+    /// <summary>At least one field contains a Unicode letter or digit. Content is never trimmed.</summary>
+    public static bool HasMeaningfulContent(string? text, DailyReviewAnswers review) =>
+        DailyReviewAnswers.HasMeaningfulText(text) || review.HasMeaningfulContent;
+
+    private static void ValidateCompletion(bool isDraft, string text, DailyReviewAnswers review)
     {
-        if (!isDraft && !review.CanComplete)
+        if (!isDraft && !HasMeaningfulContent(text, review))
         {
             throw new ArgumentException(
-                "Answer all three Daily Review questions with meaningful text before completing the review.",
+                "Enter meaningful journal text or at least one review answer before saving as Completed.",
                 nameof(review));
         }
     }

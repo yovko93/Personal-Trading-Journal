@@ -226,22 +226,39 @@ public sealed class DailyJournalEntryTests
     }
 
     [Theory]
-    [InlineData("", "Improve", "Next")]
-    [InlineData("Well", "\t\r\n", "Next")]
-    [InlineData("Well", "Improve", "...!? 🙂 \u200B")]
-    public void IncompleteAnswersRejectCompletionWithoutMutatingEntry(
+    [InlineData("", "", "")]
+    [InlineData(" ", "\t\r\n", "")]
+    [InlineData("...", "🙂", "...!? 🙂 \u200B")]
+    public void NonMeaningfulContentRejectsCompletionWithoutMutatingEntry(
         string wentWell, string needsImprovement, string nextTradingDay)
     {
         var review = new DailyReviewAnswers(wentWell, needsImprovement, nextTradingDay);
         DailyJournalEntry journal = Rehydrate();
 
         Assert.Throws<ArgumentException>(() => new DailyJournalEntry(
-            TradingDate, null, "optional journal", false, CreatedAtUtc, review));
+            TradingDate, null, " \t", false, CreatedAtUtc, review));
         Assert.Throws<ArgumentException>(() => journal.UpdateContent(
-            "local changed text", false, CreatedAtUtc.AddMinutes(1), review));
+            "...!?", false, CreatedAtUtc.AddMinutes(1), review));
 
         AssertOriginalContent(journal);
         Assert.Equal(DailyReviewAnswers.Empty, journal.Review);
+    }
+
+    [Theory]
+    [InlineData("  Plan\r\n ", "", "", "")]
+    [InlineData("", "  文 ", "", "")]
+    [InlineData("", "", "٢", "")]
+    [InlineData("", "", "", "\U00010400")]
+    [InlineData("Notes", "Partial", "...", "")]
+    public void AnyMeaningfulFieldCanCompleteWithoutTrimming(string text, string well, string improve, string next)
+    {
+        var answers = new DailyReviewAnswers(well, improve, next);
+        var journal = new DailyJournalEntry(TradingDate, AccountId, text, false, CreatedAtUtc, answers);
+        Assert.False(journal.IsDraft);
+        Assert.Equal(text, journal.Text);
+        Assert.Equal(answers, journal.Review);
+        Assert.Equal(1, journal.Revision);
+        Assert.Throws<InvalidOperationException>(() => journal.UpdateContent("New", false, CreatedAtUtc, answers));
     }
 
     [Fact]

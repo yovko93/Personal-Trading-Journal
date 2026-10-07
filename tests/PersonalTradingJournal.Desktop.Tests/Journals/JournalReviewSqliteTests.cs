@@ -20,14 +20,14 @@ public sealed class JournalReviewSqliteTests
         editor.WentWell = well;
         await editor.SaveCommand.ExecuteAsync(null);
         Assert.Null(editor.ErrorMessage);
-        Assert.True(editor.IsDraft);
+        Assert.True(editor.IsCompleted);
         Assert.Equal(1L, editor.Revision);
         Assert.Empty(editor.Text);
         Assert.Empty(editor.NeedsImprovement);
         Assert.Empty(editor.NextTradingDay);
 
         Assert.False(editor.IsEditorOpen);
-        editor.OpenEditorCommand.Execute(null);
+        await editor.ReopenReviewCommand.ExecuteAsync(null);
         editor.NeedsImprovement = "  I chased one entry.\n";
         editor.NextTradingDay = "I will wait for confirmation.  ";
         var completedAnswers = new DailyReviewAnswers(well, editor.NeedsImprovement, editor.NextTradingDay);
@@ -36,7 +36,7 @@ public sealed class JournalReviewSqliteTests
         Assert.True(editor.IsCompleted);
         Assert.True(editor.IsReadOnly);
         Assert.True(editor.CanReadContent);
-        Assert.Equal(2L, editor.Revision);
+        Assert.Equal(3L, editor.Revision);
         Assert.False(editor.IsDirty);
         Assert.Empty(editor.Text);
         Assert.True(editor.TradeContext.IsEmpty);
@@ -58,24 +58,24 @@ public sealed class JournalReviewSqliteTests
         Assert.Null(second.ErrorMessage);
         Assert.True(second.IsDraft);
         Assert.True(second.CanEdit);
-        Assert.Equal(3L, second.Revision);
+        Assert.Equal(4L, second.Revision);
         Assert.Equal(Day.ToDateTime(TimeOnly.MinValue), second.SelectedDate);
         Assert.Null(second.SelectedAccount.Id);
         second.NeedsImprovement = "More patience at the open.";
         await second.SaveCommand.ExecuteAsync(null);
-        Assert.Equal(4L, second.Revision);
+        Assert.Equal(5L, second.Revision);
         second.OpenEditorCommand.Execute(null);
         await second.CompleteReviewCommand.ExecuteAsync(null);
         Assert.Equal(5L, second.Revision);
 
         IReadOnlyList<DailyJournalRevision> history = await database.Repository.GetHistoryAsync(loaded.Entry.Id);
         Assert.Equal(new long[] { 1, 2, 3, 4, 5 }, history.Select(r => r.Revision));
-        Assert.Equal(new[] { true, false, true, true, false }, history.Select(r => r.IsDraft));
+        Assert.Equal(new[] { false, true, false, true, false }, history.Select(r => r.IsDraft));
         Assert.Equal(new DailyReviewAnswers(well, "", ""), history[0].Review);
-        Assert.Equal(completedAnswers, history[1].Review);
+        Assert.Equal(history[0].Review, history[1].Review);
         Assert.Equal(completedAnswers, history[2].Review);
-        Assert.Equal("More patience at the open.", history[3].Review!.NeedsImprovement);
-        Assert.Equal(history[3].Review, history[4].Review);
+        Assert.Equal(completedAnswers, history[3].Review);
+        Assert.Equal("More patience at the open.", history[4].Review!.NeedsImprovement);
         Assert.All(history, revision => Assert.Empty(revision.Text));
         Assert.Equivalent(tradingData, await database.ReadTradeDataAsync(), strict: true);
     }
@@ -124,7 +124,7 @@ public sealed class JournalReviewSqliteTests
         Assert.Null(stale.ErrorMessage);
         Assert.Equal(4L, stale.Revision);
         var history = await database.Repository.GetHistoryAsync(created.Journal.Entry.Id);
-        Assert.Equal(new[] { true, false, true, true }, history.Select(r => r.IsDraft));
+        Assert.Equal(new[] { true, false, true, false }, history.Select(r => r.IsDraft));
         Assert.Equal(original, history[0].Review);
         Assert.Equal(original, history[1].Review);
         Assert.Equal(original, history[2].Review);

@@ -174,7 +174,7 @@ public sealed partial class MainWindowViewModelTests
         main.NavigateCommand.Execute(NavigationDestination.Calendar);
         await calendar.LoadTask;
         Assert.Equal(2, repository.StatusReads);
-        Assert.Equal("Draft", cell.JournalStatusText);
+        Assert.Equal("Completed", cell.JournalStatusText);
         Assert.True(cell.IsSaturday);
 
         await calendar.NavigateToJournalAsync(cell.Date, calendar.SelectedAccount);

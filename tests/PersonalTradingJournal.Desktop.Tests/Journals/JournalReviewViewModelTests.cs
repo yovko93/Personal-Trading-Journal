@@ -16,7 +16,7 @@ public sealed class JournalReviewViewModelTests
     private static readonly DailyReviewAnswers Ready = new("I followed my plan.", "Improve patience.", "Wait for confirmation.");
 
     [Fact]
-    public async Task PartialAnswersSaveAsExactDraftWithoutTradesOrFreeformText()
+    public async Task PartialAnswersSaveAsExactCompletedEntryWithoutTradesOrFreeformText()
     {
         var repository = new Repository();
         var vm = Create(repository);
@@ -26,7 +26,7 @@ public sealed class JournalReviewViewModelTests
         vm.WentWell = exact;
         vm.NeedsImprovement = " ";
         Assert.True(vm.IsDirty);
-        Assert.False(vm.CanComplete);
+        Assert.True(vm.CanComplete);
         Assert.True(vm.SaveCommand.CanExecute(null));
         Assert.True(vm.CompleteReviewCommand.CanExecute(null));
         Assert.Equal(0, vm.TradeContext.ClosedTradeCount);
@@ -35,8 +35,8 @@ public sealed class JournalReviewViewModelTests
         var command = Assert.Single(repository.Creates);
         Assert.Equal("", command.Text);
         Assert.Equal(new DailyReviewAnswers(exact, " ", ""), command.Review);
-        Assert.True(command.IsDraft);
-        Assert.True(vm.IsDraft);
+        Assert.False(command.IsDraft);
+        Assert.True(vm.IsCompleted);
         Assert.False(vm.IsDirty);
         Assert.Equal(exact, vm.WentWell);
         Assert.False(vm.IsEditorOpen);
@@ -44,22 +44,21 @@ public sealed class JournalReviewViewModelTests
     }
 
     [Theory]
-    [InlineData(0, "  \t\r\n", "What went well?")]
-    [InlineData(1, "... 🧭", "What needs improvement?")]
-    [InlineData(2, "", "What will I do differently next trading day?")]
-    public async Task CompletionIdentifiesMissingMeaningfulAnswerAndLeavesLocalDraft(int answer, string value, string question)
+    [InlineData(0, "  \t\r\n")]
+    [InlineData(1, "... 🧭")]
+    [InlineData(2, "")]
+    public async Task CompletionRejectsContentWithoutAnyMeaningfulFieldAndLeavesLocalDraft(int answer, string value)
     {
         var repository = new Repository();
         var vm = Create(repository);
         await vm.ActivateAsync();
         vm.OpenEditorCommand.Execute(null);
-        SetReady(vm);
         SetAnswer(vm, answer, value);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
 
-        Assert.Contains(question, vm.ErrorMessage);
+        Assert.Contains("meaningful journal text", vm.ErrorMessage);
         Assert.True(vm.IsDraft);
-        Assert.True(vm.IsDirty);
+        Assert.Equal(value.Length > 0, vm.IsDirty);
         Assert.True(vm.CanEdit);
         Assert.False(vm.CanComplete);
         Assert.Empty(repository.Creates);
@@ -164,12 +163,12 @@ public sealed class JournalReviewViewModelTests
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(9, repository.Updates.Last().ExpectedRevision);
         Assert.Equal("Revised reflection", repository.Updates.Last().Review!.WentWell);
-        Assert.True(repository.Updates.Last().IsDraft);
+        Assert.False(repository.Updates.Last().IsDraft);
         Assert.Equal(10, vm.Revision);
     }
 
     [Fact]
-    public async Task LegacyCompletedJournalIsReadOnlyUntilReopenedAndStillNeedsAnswersToComplete()
+    public async Task LegacyCompletedJournalCanReopenAndSaveMeaningfulFreeformWithoutAnswers()
     {
         var repository = new Repository { Journal = Details("legacy", draft: false) };
         var vm = Create(repository);
@@ -183,8 +182,9 @@ public sealed class JournalReviewViewModelTests
         Assert.Equal("legacy", vm.Text);
         Assert.True(vm.IsDraft);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
-        Assert.Single(repository.Updates);
-        Assert.Contains("Complete each review answer", vm.ErrorMessage);
+        Assert.Equal(2, repository.Updates.Count);
+        Assert.True(vm.IsCompleted);
+        Assert.Null(vm.ErrorMessage);
     }
 
     [Theory]

@@ -172,10 +172,10 @@ public sealed class JournalCalendarIntegrationViewModelTests
         Assert.Equal(1, notifications);
         vm.OpenEditorCommand.Execute(null);
         await vm.CompleteReviewCommand.ExecuteAsync(null);
-        Assert.Equal(2, notifications);
+        Assert.Equal(1, notifications); // Save already completed it; locked commands cannot write.
         Assert.True(vm.IsCompleted);
         await vm.ReopenReviewCommand.ExecuteAsync(null);
-        Assert.Equal(3, notifications);
+        Assert.Equal(2, notifications);
         Assert.True(vm.IsDraft);
     }
 

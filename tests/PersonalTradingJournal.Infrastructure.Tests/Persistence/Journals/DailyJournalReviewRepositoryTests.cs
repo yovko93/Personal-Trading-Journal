@@ -8,6 +8,41 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Journals;
 
 public sealed partial class DailyJournalRepositoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FreeformOnlyCompletionAndPartialAnswerUpdateAreAtomicScopedAndRevisionChecked(bool scoped)
+    {
+        await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
+        Guid? account = scoped ? await SeedAccountAsync(database, "Archived review", false) : null;
+        var repository = GetRepository(database);
+        const string text = "  Freeform only\r\nПлан 📈 ";
+        var created = await repository.CreateAsync(new(TradingDate, account, text, false));
+        Assert.Equal(DailyJournalWriteStatus.Created, created.Status);
+        var entry = created.Journal!.Entry;
+        Assert.False(entry.IsDraft);
+        Assert.Equal(DailyReviewAnswers.Empty, entry.Review);
+        await repository.UpdateAsync(new(entry.Id, 1, text, true)); // Explicit exact-content reopen.
+        var partial = new DailyReviewAnswers("  One answer\r\n", "", " \t");
+        var updated = await repository.UpdateAsync(new(entry.Id, 2, text, false, partial));
+        Assert.Equal(DailyJournalWriteStatus.Updated, updated.Status);
+        Assert.False(updated.Journal!.Entry.IsDraft);
+        Assert.Equal(DailyJournalWriteStatus.Conflict,
+            (await repository.UpdateAsync(new(entry.Id, 2, "stale", false, partial))).Status);
+        var loaded = (await repository.GetAsync(TradingDate, account))!.Entry;
+        Assert.Equal(account, loaded.TradingAccountId);
+        Assert.Equal(TradingDate, loaded.TradingDate);
+        Assert.Equal(text, loaded.Text);
+        Assert.Equal(partial, loaded.Review);
+        var history = await repository.GetHistoryAsync(entry.Id);
+        Assert.Equal(new[] { false, true, false }, history.Select(r => r.IsDraft));
+        Assert.Equal(new long[] { 1, 2, 3 }, history.Select(r => r.Revision));
+        Assert.All(history, r => Assert.Equal(text, r.Text));
+        Assert.Equal(partial, history[2].Review);
+        await using var context = await database.ContextFactory.CreateDbContextAsync();
+        Assert.Empty(await context.Trades.ToArrayAsync());
+    }
+
     [Fact]
     public async Task PartialAnswersAndOptionalTextRoundTripExactlyAndEveryEditHasHistory()
     {
@@ -74,20 +109,20 @@ public sealed partial class DailyJournalRepositoryTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public async Task MissingMeaningfulAnswerCannotCompleteOrWriteHistory(int missingAnswer)
+    public async Task ContentWithoutAnyLetterOrDigitCannotCompleteOrWriteHistory(int missingAnswer)
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         IDailyJournalRepository repository = GetRepository(database);
         DailyJournalDetails original = Assert.IsType<DailyJournalDetails>((await repository.CreateAsync(
             new CreateDailyJournalCommand(TradingDate, null, "Freeform cannot replace review", true, CompleteReview))).Journal);
-        string[] answers = [CompleteReview.WentWell, CompleteReview.NeedsImprovement, CompleteReview.NextTradingDay];
+        string[] answers = ["", "", ""];
         answers[missingAnswer] = " \r\n\t...📈";
         var incomplete = new DailyReviewAnswers(answers[0], answers[1], answers[2]);
 
         await Assert.ThrowsAsync<ArgumentException>(() => repository.UpdateAsync(
-            new UpdateDailyJournalCommand(original.Entry.Id, 1, "Freeform", false, incomplete)));
+            new UpdateDailyJournalCommand(original.Entry.Id, 1, "...", false, incomplete)));
         await Assert.ThrowsAsync<ArgumentException>(() => repository.CreateAsync(
-            new CreateDailyJournalCommand(TradingDate.AddDays(1), null, "Freeform", false, incomplete)));
+            new CreateDailyJournalCommand(TradingDate.AddDays(1), null, "...", false, incomplete)));
 
         DailyJournalDetails loaded = Assert.IsType<DailyJournalDetails>(await repository.GetAsync(TradingDate));
         Assert.Equal(original.Entry.Review, loaded.Entry.Review);

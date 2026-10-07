@@ -26,9 +26,9 @@ public sealed record DailyReviewAnswers
 
     public string NextTradingDay { get; }
 
-    public bool CanComplete =>
-        HasMeaningfulText(WentWell) &&
-        HasMeaningfulText(NeedsImprovement) &&
+    public bool HasMeaningfulContent =>
+        HasMeaningfulText(WentWell) ||
+        HasMeaningfulText(NeedsImprovement) ||
         HasMeaningfulText(NextTradingDay);
 
     /// <summary>An answer must contain a Unicode letter or digit, not only whitespace or punctuation.</summary>

@@ -136,6 +136,18 @@ public sealed class JournalHistoryViewModel : ObservableObject
         Notify();
     }
 
+    /// <summary>Clears page and selection state before a fresh standalone Journal visit.</summary>
+    public void Reset()
+    {
+        Deactivate();
+        ClearSelection();
+        _page = 1;
+        _total = 0;
+        _entries = [];
+        _error = null;
+        Notify();
+    }
+
     public Task RefreshAsync() => !_active ? Task.CompletedTask : Task.WhenAll(
         LoadTask = LoadAsync(), _selectedEntry is null ? Task.CompletedTask : RevisionLoadTask = LoadRevisionsAsync());
 
