@@ -91,16 +91,23 @@ public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJour
             r => r.Id == command.JournalId, cancellationToken);
         if (record is null) return new(DailyJournalWriteStatus.NotFound, null);
         TradingAccountRecord? account = await Account(context, record.TradingAccountId, cancellationToken);
-        if (record.TradingAccountId.HasValue && account is null)
-            return new(DailyJournalWriteStatus.AccountUnavailable, Details(record, account));
         // Even an otherwise identical stale save must report the newer revision.
         if (record.Revision != command.ExpectedRevision)
             return new(DailyJournalWriteStatus.Conflict, Details(record, account));
+        Guid? targetAccountId = command.TargetScope is null ? record.TradingAccountId : command.TargetScope.TradingAccountId;
+        TradingAccountRecord? targetAccount = targetAccountId == record.TradingAccountId
+            ? account : await Account(context, targetAccountId, cancellationToken);
+        if (targetAccountId.HasValue && targetAccount is null)
+            return new(DailyJournalWriteStatus.AccountUnavailable, null);
+        if (targetAccountId != record.TradingAccountId && await context.DailyJournals.AsNoTracking().AnyAsync(
+            j => j.Id != record.Id && j.TradingDate == record.TradingDate && j.TradingAccountId == targetAccountId, cancellationToken))
+            return new(DailyJournalWriteStatus.AccountScopeOccupied, null);
         DailyJournalEntry entry = DailyJournalPersistenceMapper.ToDomain(record);
-        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? entry.Review, command.ReopenCompleted))
+        if (!entry.UpdateContent(command.Text, command.IsDraft, _clock.GetUtcNow(), command.Review ?? entry.Review, command.ReopenCompleted, command.TargetScope))
             return new(DailyJournalWriteStatus.Unchanged, Details(record, account));
 
         record.Text = entry.Text;
+        record.TradingAccountId = entry.TradingAccountId;
         record.WentWell = entry.Review.WentWell;
         record.NeedsImprovement = entry.Review.NeedsImprovement;
         record.NextTradingDay = entry.Review.NextTradingDay;
@@ -120,7 +127,7 @@ public sealed class DailyJournalRepository : IDailyJournalRepository, IDailyJour
         }
         cancellationToken.ThrowIfCancellationRequested();
         await transaction.CommitAsync(cancellationToken);
-        return new(DailyJournalWriteStatus.Updated, Details(record, account));
+        return new(DailyJournalWriteStatus.Updated, Details(record, targetAccount));
     }
 
     private static Task<TradingAccountRecord?> Account(JournalDbContext context, Guid? accountId, CancellationToken ct) =>

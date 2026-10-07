@@ -84,7 +84,7 @@ public sealed class DailyJournalEntry : AuditableEntity
     /// <summary>The selected New York calendar date, independent of audit timestamps.</summary>
     public DateOnly TradingDate { get; }
 
-    public Guid? TradingAccountId { get; }
+    public Guid? TradingAccountId { get; private set; }
 
     /// <summary>Exact plain text, including empty content, whitespace and line endings.</summary>
     public string Text { get; private set; }
@@ -124,11 +124,13 @@ public sealed class DailyJournalEntry : AuditableEntity
         bool isDraft,
         DateTimeOffset updatedAtUtc,
         DailyReviewAnswers review,
-        bool reopenCompleted = false)
+        bool reopenCompleted = false,
+        DailyJournalAccountScope? targetScope = null)
     {
         ValidateText(text);
         ArgumentNullException.ThrowIfNull(review);
-        bool unchangedContent = Text == text && Review == review;
+        Guid? accountId = targetScope is null ? TradingAccountId : targetScope.TradingAccountId;
+        bool unchangedContent = Text == text && Review == review && TradingAccountId == accountId;
         if (unchangedContent && IsDraft == isDraft)
         {
             return false;
@@ -137,7 +139,7 @@ public sealed class DailyJournalEntry : AuditableEntity
         if (!IsDraft && !unchangedContent && !reopenCompleted)
         {
             throw new InvalidOperationException(
-                "A completed review must be reopened before its journal text or answers can be edited.");
+                "A completed review must be reopened before its journal text, answers or Account scope can be edited.");
         }
 
         ValidateCompletion(isDraft, text, review);
@@ -146,6 +148,7 @@ public sealed class DailyJournalEntry : AuditableEntity
         Text = text;
         Review = review;
         IsDraft = isDraft;
+        TradingAccountId = accountId;
         Revision = nextRevision;
         return true;
     }

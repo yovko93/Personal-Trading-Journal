@@ -21,6 +21,8 @@ public sealed class JournalViewModel : ObservableObject
     private readonly TimeProvider _clock;
     private IReadOnlyList<JournalAccountOption> _accounts = [AllAccounts];
     private JournalAccountOption _selectedAccount = AllAccounts;
+    private JournalAccountOption _editorAccount = AllAccounts, _loadedAccount = AllAccounts;
+    private bool _targetCollision;
     private DateTime? _selectedDate;
     private DailyJournalEntry? _entry;
     private string _text = "", _savedText = "";
@@ -70,16 +72,38 @@ public sealed class JournalViewModel : ObservableObject
             // WPF can temporarily clear selection while replacing ItemsSource. Only the
             // explicit All accounts item may select the independent global journal.
             if (_updatingAccounts || value is null || value.Id == _selectedAccount.Id) return;
-            if (value.Id == Guid.Empty || !TryChangeScope())
+            if (value.Id == Guid.Empty || IsSaving || (!IsEditorOpen && !TryChangeScope()))
             {
                 OnPropertyChanged();
                 return;
             }
             _selectedAccount = value;
             OnPropertyChanged();
-            ScopeChanged();
+            if (IsEditorOpen)
+            {
+                // The page filter may change History, never the identity or fields of an open form.
+                LoadTask = History?.SetScopeAsync(value.Id) ?? Task.CompletedTask;
+                NotifyState();
+            }
+            else ScopeChanged();
         }
     }
+
+    public JournalAccountOption EditorAccount
+    {
+        get => _editorAccount;
+        set
+        {
+            if (_updatingAccounts || value is null || value.Id == _editorAccount.Id) return;
+            if (!CanChooseEditorAccount || value.Id == Guid.Empty) { OnPropertyChanged(); return; }
+            _editorAccount = value;
+            if (_targetCollision) { _targetCollision = _reloadRequired = false; _errorMessage = null; }
+            OnPropertyChanged();
+            NotifyState();
+            if (_loadTradeContext) _ = TradeContext.SetScopeAsync(SelectedTradingDate, value.Id);
+        }
+    }
+    public bool CanChooseEditorAccount => IsEditorOpen && CanReadContent && !IsBusy;
 
     public DateTime? SelectedDate
     {
@@ -143,7 +167,8 @@ public sealed class JournalViewModel : ObservableObject
     public bool IsDirty => !string.Equals(_text, _savedText, StringComparison.Ordinal)
         || !string.Equals(_wentWell, _savedReview.WentWell, StringComparison.Ordinal)
         || !string.Equals(_needsImprovement, _savedReview.NeedsImprovement, StringComparison.Ordinal)
-        || !string.Equals(_nextTradingDay, _savedReview.NextTradingDay, StringComparison.Ordinal);
+        || !string.Equals(_nextTradingDay, _savedReview.NextTradingDay, StringComparison.Ordinal)
+        || EditorAccount.Id != _loadedAccount.Id;
     public bool IsExisting => _entry is not null;
     public bool IsDraft => _entry?.IsDraft ?? true;
     public bool IsCompleted => IsExisting && !IsDraft;
@@ -158,12 +183,12 @@ public sealed class JournalViewModel : ObservableObject
     public bool ShowEmptyReview => ShowCompactReview && !IsExisting;
     public bool ShowContinueReview => IsExisting && IsDraft;
     public bool HasHistory => History is not null;
-    public string EntryHeading => SelectedTradingDate?.ToString("yyyy-MM-dd") + " · " + SelectedAccount.Name;
+    public string EntryHeading => SelectedTradingDate?.ToString("yyyy-MM-dd") + " · " + (IsEditorOpen ? EditorAccount.Name : _loadedAccount.Name);
     public string SelectedDateHeading => SelectedTradingDate?.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) ?? "Choose a date";
     public string EntryStateLabel => !IsExisting ? "No entry" : IsDraft ? "Draft" : "Completed";
     public string SavedText => _entry?.Text ?? "";
     public DailyReviewAnswers SavedReview => _entry?.Review ?? DailyReviewAnswers.Empty;
-    public bool CanEdit => IsEditorOpen && CanReadContent && SelectedAccount.IsAvailable && !IsBusy;
+    public bool CanEdit => IsEditorOpen && CanReadContent && EditorAccount.IsAvailable && !IsBusy;
     public bool IsReadOnly => !CanEdit;
     public bool CanComplete => CanSave() && HasMeaningfulContent;
     public string CharacterCountText => $"{Text.Length:N0} / {DailyJournalEntry.MaximumTextLength:N0} characters";
@@ -171,14 +196,16 @@ public sealed class JournalViewModel : ObservableObject
         : Text.Length > DailyJournalEntry.MaximumTextLength
             ? "Journal text cannot exceed 100,000 UTF-16 code units. Your text has been kept; shorten it before saving."
             : ReviewLengthError ?? (_completionAttempted && !HasMeaningfulContent ? CompletionError : _errorMessage);
-    public string ScopeMessage => SelectedAccount.Id is null
+    public string ScopeMessage => IsEditorOpen
+        ? "The Account inside this form determines where it is saved. All accounts is a separate journal. Dates use New York trading time. The top Account filter only filters Review History while the form is open. Moving an existing journal preserves its revisions and requires an empty target date/Account scope."
+        : SelectedAccount.Id is null
         ? "This date's All accounts journal is separate from each account's journal. Review History includes every Account scope. Viewing history leaves this selection unchanged; Open in editor selects the review's original scope. Dates use New York trading time."
         : !SelectedAccount.IsAvailable
             ? "This account is unavailable. Its journal keeps its original account scope and cannot be saved."
             : $"Journal for {SelectedAccount.Name}. Dates use New York trading time.";
-    public string EmptyReviewText => SelectedAccount.Id is null
+    public string EmptyReviewText => _loadedAccount.Id is null
         ? "No All accounts journal for this date. Account-specific entries may appear in Review History."
-        : $"No journal for this date in {SelectedAccount.Name}.";
+        : $"No journal for this date in {_loadedAccount.Name}.";
     public string StatusText => IsSaving
         ? _saveCancellation?.IsCancellationRequested == true ? "Cancelling operation…" : _isDeleting ? "Deleting journal…" : "Saving…"
         : IsLoading ? "Loading journal…"
@@ -205,7 +232,7 @@ public sealed class JournalViewModel : ObservableObject
 
     private bool OpenFromHistory(JournalHistoryItem item)
     {
-        bool sameScope = SelectedTradingDate == item.TradingDate && SelectedAccount.Id == item.AccountId;
+        bool sameScope = SelectedTradingDate == item.TradingDate && _loadedAccount.Id == item.AccountId;
         if (!TryOpenScope(item.TradingDate, item.AccountId, item.AccountName ?? "Unavailable account")) return false;
         // History is already on this page, unlike Calendar's targeted reactivation.
         // Do not carry that reactivation flag into a later explicit discard/navigation.
@@ -215,12 +242,12 @@ public sealed class JournalViewModel : ObservableObject
         if (sameScope && _active && !IsDirty && !_reloadRequired)
         {
             _isEditorOpen = false;
-            LoadTask = LoadAsync();
+            LoadTask = LoadAsync(_loadedAccount);
         }
         return true;
     }
 
-    private bool CanOpenEditor() => CanReadContent && SelectedAccount.IsAvailable && IsDraft && !IsBusy && !HasDateInputError;
+    private bool CanOpenEditor() => CanReadContent && _loadedAccount.IsAvailable && IsDraft && !IsBusy && !HasDateInputError;
     private void OpenEditor()
     {
         if (!CanOpenEditor()) return;
@@ -232,6 +259,7 @@ public sealed class JournalViewModel : ObservableObject
         if (!IsEditorOpen || IsSaving || !ConfirmDiscard()) return;
         PublishEntry(_entry); // Explicit discard restores the loaded revision, not another scope.
         _isEditorOpen = false;
+        if (_loadTradeContext) _ = TradeContext.SetScopeAsync(SelectedTradingDate, _loadedAccount.Id);
         _notice = null;
         NotifyState();
     }
@@ -240,7 +268,7 @@ public sealed class JournalViewModel : ObservableObject
     public bool TryOpenScope(DateOnly date, Guid? accountId, string accountName)
     {
         if (IsSaving || accountId == Guid.Empty) return false;
-        bool sameScope = SelectedTradingDate == date && SelectedAccount.Id == accountId;
+        bool sameScope = SelectedTradingDate == date && (_hasLoaded ? _loadedAccount.Id : SelectedAccount.Id) == accountId;
         if (sameScope)
         {
             _resetOnNextActivation = false; // An explicit scope request takes precedence over default page entry.
@@ -318,6 +346,8 @@ public sealed class JournalViewModel : ObservableObject
     {
         CancelLoad();
         _entry = null;
+        _loadedAccount = _editorAccount = SelectedAccount;
+        _targetCollision = false;
         _text = _savedText = "";
         _wentWell = _needsImprovement = _nextTradingDay = "";
         _savedReview = DailyReviewAnswers.Empty;
@@ -337,17 +367,17 @@ public sealed class JournalViewModel : ObservableObject
     private Task ReloadAsync()
     {
         if (!_active || IsBusy || !ConfirmDiscard()) return Task.CompletedTask;
-        return LoadTask = LoadAsync();
+        return LoadTask = LoadAsync(_targetCollision && _entry is null ? EditorAccount : _loadedAccount);
     }
 
-    private async Task LoadAsync()
+    private async Task LoadAsync(JournalAccountOption? editorScope = null)
     {
         CancelLoad();
         long generation = _generation;
         using var cancellation = new CancellationTokenSource();
         _loadCancellation = cancellation;
         DateOnly? date = SelectedDate is { } selected ? DateOnly.FromDateTime(selected) : null;
-        JournalAccountOption account = SelectedAccount;
+        JournalAccountOption account = editorScope ?? SelectedAccount;
         _isLoading = true;
         _errorMessage = _notice = null;
         NotifyState();
@@ -362,11 +392,11 @@ public sealed class JournalViewModel : ObservableObject
                 return (accounts, journal);
             }, cancellation.Token);
             if (generation != _generation || cancellation.IsCancellationRequested || !_active) return;
-            PublishAccounts(loaded.accounts, account, loaded.journal);
-            PublishEntry(loaded.journal?.Entry);
+            PublishAccounts(loaded.accounts, account, loaded.journal, preserveFilter: editorScope is not null);
+            PublishEntry(loaded.journal?.Entry, AccountOption(account.Id));
             _hasLoaded = date.HasValue;
             _reloadRequired = false;
-            if (!SelectedAccount.IsAvailable) _errorMessage = UnavailableAccountMessage;
+            if (!_loadedAccount.IsAvailable) _errorMessage = UnavailableAccountMessage;
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)
@@ -386,7 +416,7 @@ public sealed class JournalViewModel : ObservableObject
     }
 
     private void PublishAccounts(IReadOnlyList<AccountListItem> accounts, JournalAccountOption requested,
-        DailyJournalDetails? journal)
+        DailyJournalDetails? journal, bool preserveFilter = false)
     {
         var options = accounts.OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.Id)
             .Select(a => new JournalAccountOption(a.Id, a.Name + (a.IsActive ? "" : " (inactive)")))
@@ -402,7 +432,13 @@ public sealed class JournalViewModel : ObservableObject
         _updatingAccounts = true;
         try
         {
-            _selectedAccount = selected;
+            if (!preserveFilter) _selectedAccount = selected;
+            else
+            {
+                var filter = options.FirstOrDefault(a => a.Id == SelectedAccount.Id);
+                if (filter is null) { filter = SelectedAccount with { IsAvailable = false }; options.Add(filter); }
+                _selectedAccount = filter;
+            }
             _accounts = options;
             OnPropertyChanged(nameof(Accounts));
             OnPropertyChanged(nameof(SelectedAccount));
@@ -413,7 +449,7 @@ public sealed class JournalViewModel : ObservableObject
     private bool CanSave() => CanEdit && !_reloadRequired && !HasDateInputError
         && Text.Length <= DailyJournalEntry.MaximumTextLength && ReviewLengthError is null;
 
-    private bool CanReopen() => CanReadContent && IsCompleted && !IsEditorOpen && SelectedAccount.IsAvailable
+    private bool CanReopen() => CanReadContent && IsCompleted && !IsEditorOpen && _loadedAccount.IsAvailable
         && !IsBusy && !_reloadRequired && !HasDateInputError;
 
     private bool HasMeaningfulContent => DailyJournalEntry.CanComplete(Text);
@@ -475,7 +511,7 @@ public sealed class JournalViewModel : ObservableObject
         if (_entry is null && Text.Length == 0 && WentWell.Length == 0
             && NeedsImprovement.Length == 0 && NextTradingDay.Length == 0)
         {
-            PublishEntry(null);
+            PublishEntry(null, EditorAccount);
             _isEditorOpen = false;
             NotifyState();
             return Task.CompletedTask;
@@ -491,19 +527,21 @@ public sealed class JournalViewModel : ObservableObject
         _saveCancellation = cancellation;
         _isSaving = true;
         _completionAttempted = false;
+        _targetCollision = false; // A later revision conflict must not be cleared by changing the target.
         _errorMessage = _notice = null;
         string text = Text;
         var review = new DailyReviewAnswers(WentWell, NeedsImprovement, NextTradingDay);
         DailyJournalEntry? entry = _entry;
         DateOnly date = DateOnly.FromDateTime(SelectedDate!.Value);
-        Guid? accountId = SelectedAccount.Id;
+        Guid? accountId = EditorAccount.Id;
         bool committed = false;
         NotifyState();
         try
         {
             DailyJournalWriteResult result = await Task.Run(() => entry is null
                 ? _repository.CreateAsync(new(date, accountId, text, isDraft, review), cancellation.Token)
-                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, isDraft, review, ReopenCompleted: !entry.IsDraft), cancellation.Token), cancellation.Token);
+                : _repository.UpdateAsync(new(entry.Id, entry.Revision, text, isDraft, review, ReopenCompleted: !entry.IsDraft,
+                    TargetScope: new DailyJournalAccountScope(accountId)), cancellation.Token), cancellation.Token);
             // A repository can return a committed result after cancellation was requested.
             // Its authoritative result must still be accepted; cancellation cannot undo a commit.
             switch (result.Status)
@@ -520,7 +558,12 @@ public sealed class JournalViewModel : ObservableObject
                     break;
                 case DailyJournalWriteStatus.AlreadyExists:
                     _reloadRequired = true;
+                    _targetCollision = true;
                     _errorMessage = "A journal was created for this date and account elsewhere. Your text has been kept, along with your review answers. Reload to read it before saving.";
+                    break;
+                case DailyJournalWriteStatus.AccountScopeOccupied:
+                    _targetCollision = true;
+                    _errorMessage = "A journal already exists for this date and target Account. Nothing was moved or merged. Your fields are kept; choose another Account or close this edit before opening the existing journal.";
                     break;
                 case DailyJournalWriteStatus.Conflict:
                     _reloadRequired = true;
@@ -567,7 +610,7 @@ public sealed class JournalViewModel : ObservableObject
     {
         if (!CanDelete() || _entry is not { } entry) return;
         if (!_dialogs.Confirm(new ConfirmationDialogRequest("Delete Journal permanently?",
-            $"Delete the journal for New York date {entry.TradingDate:yyyy-MM-dd}, Account scope: {SelectedAccount.Name}? " +
+            $"Delete the journal for New York date {entry.TradingDate:yyyy-MM-dd}, Account scope: {_loadedAccount.Name}? " +
             "The entry and ALL revision history will be permanently deleted and cannot be recovered. " +
             "Any unsaved text and answers in this editor will also be discarded. A new entry may then be created for this same date and scope.",
             "Delete Journal", "Keep Journal", isDestructive: true))) return;
@@ -618,9 +661,14 @@ public sealed class JournalViewModel : ObservableObject
         }
     }
 
-    private void PublishEntry(DailyJournalEntry? entry)
+    private JournalAccountOption AccountOption(Guid? id) => Accounts.FirstOrDefault(a => a.Id == id)
+        ?? new(id, "Account unavailable", false);
+
+    private void PublishEntry(DailyJournalEntry? entry, JournalAccountOption? emptyScope = null)
     {
         _entry = entry;
+        _editorAccount = _loadedAccount = entry is not null ? AccountOption(entry.TradingAccountId) : emptyScope ?? _loadedAccount;
+        _targetCollision = false;
         // A fresh Completed snapshot requires a fresh explicit Reopen, including Reload
         // after a conflict. An earlier editor session cannot authorize editing this revision.
         if (entry is { IsDraft: false }) _isEditorOpen = false;
@@ -641,6 +689,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(NextTradingDay));
         OnPropertyChanged(nameof(SavedText));
         OnPropertyChanged(nameof(SavedReview));
+        OnPropertyChanged(nameof(EditorAccount));
     }
 
     private void CancelOperation()
@@ -687,6 +736,7 @@ public sealed class JournalViewModel : ObservableObject
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanChangeScope));
         OnPropertyChanged(nameof(CanEdit));
+        OnPropertyChanged(nameof(CanChooseEditorAccount));
         OnPropertyChanged(nameof(CanReadContent));
         OnPropertyChanged(nameof(IsReadOnly));
         OnPropertyChanged(nameof(CanComplete));

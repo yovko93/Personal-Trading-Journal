@@ -46,6 +46,12 @@
             </WrapPanel>
             <StackPanel x:Name="InlineForm" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
                         IsVisibleChanged="OnFormVisible" MaxWidth="760">
+                <Label Content="Journal _Account" Target="{Binding ElementName=InlineJournalAccount}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <ComboBox x:Name="InlineJournalAccount" ItemsSource="{Binding Accounts}" SelectedItem="{Binding EditorAccount, Mode=TwoWay}"
+                          DisplayMemberPath="Name" IsEnabled="{Binding CanChooseEditorAccount}" Style="{DynamicResource PtjComboBoxStyle}"
+                          MinWidth="0" HorizontalAlignment="Stretch" Margin="0,0,0,12" FontSize="16"
+                          AutomationProperties.Name="Journal Account for saving"
+                          AutomationProperties.HelpText="Choose the Account for Save and Cancel/Draft. All accounts is a separate journal. Calendar filters and Trade data stay unchanged. Changing an existing journal's Account moves it and its history after saving." />
                 <Label Content="Journal _text (required)" Target="{Binding ElementName=InlineText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <TextBox x:Name="InlineText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Style="{DynamicResource PtjTextBoxStyle}" Height="120" FontSize="16" MinWidth="0" MinHeight="56" TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsReadOnly="{Binding IsReadOnly}" IsEnabled="{Binding CanReadContent}"
                          AutomationProperties.Name="Day Journal text" />

@@ -14,6 +14,27 @@ public sealed class DailyJournalEntryTests
     private static readonly DailyReviewAnswers CompleteReview = new(
         "I followed my entry plan.", "Reduce late entries.", "Wait for confirmation.");
 
+    [Fact]
+    public void ScopeOnlyEditRequiresExplicitReopeningAndCreatesOneRevisionWithoutChangingDateOrContent()
+    {
+        var entry = new DailyJournalEntry(TradingDate, null, "Review", false, CreatedAtUtc, CompleteReview);
+        Assert.Throws<InvalidOperationException>(() => entry.UpdateContent("Review", false, CreatedAtUtc,
+            CompleteReview, targetScope: new(AccountId)));
+        Assert.Null(entry.TradingAccountId);
+        Assert.Equal(1, entry.Revision);
+        Assert.True(entry.UpdateContent("Review", false, CreatedAtUtc.AddMinutes(1), CompleteReview,
+            reopenCompleted: true, targetScope: new(AccountId)));
+        Assert.Equal(AccountId, entry.TradingAccountId);
+        Assert.Equal(TradingDate, entry.TradingDate);
+        Assert.Equal("Review", entry.Text);
+        Assert.Equal(CompleteReview, entry.Review);
+        Assert.Equal(2, entry.Revision);
+        Assert.False(entry.UpdateContent("Review", false, CreatedAtUtc.AddMinutes(2), CompleteReview));
+        Assert.False(entry.UpdateContent("Review", false, CreatedAtUtc.AddMinutes(2), CompleteReview,
+            targetScope: new(AccountId)));
+        Assert.Equal(2, entry.Revision);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("5daafc60-4789-4b5c-a471-55b01a1a9af6")]

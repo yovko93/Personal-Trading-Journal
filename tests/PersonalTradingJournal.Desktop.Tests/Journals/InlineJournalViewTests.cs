@@ -54,6 +54,11 @@ public sealed class InlineJournalViewTests
                 Assert.Equal(Visibility.Visible, section.Visibility);
                 Assert.True(section.TranslatePoint(new Point(0, section.ActualHeight), view).Y <= table.TranslatePoint(new Point(), view).Y);
                 Assert.Same(vm.InlineJournal, inline.DataContext);
+                var formAccount = (ComboBox)inline.FindName("InlineJournalAccount");
+                Assert.Same(vm.InlineJournal!.EditorAccount, formAccount.SelectedItem);
+                Assert.True(formAccount.Focusable && formAccount.IsEnabled);
+                Assert.InRange(formAccount.ActualWidth, 150, width);
+                Assert.True(formAccount.TranslatePoint(new Point(0, formAccount.ActualHeight), inline).Y < ((TextBox)inline.FindName("InlineText")).TranslatePoint(new Point(), inline).Y);
                 Assert.Same(vm.InlineJournal!.SaveCommand, ((Button)inline.FindName("SaveInlineJournal")).Command);
                 Assert.Same(vm.InlineJournal.SaveDraftAndCloseCommand, ((Button)inline.FindName("CancelInlineJournal")).Command);
                 Assert.Single(Descendants(inline).OfType<Button>(), b => ReferenceEquals(b.Command, vm.InlineJournal.SaveCommand));

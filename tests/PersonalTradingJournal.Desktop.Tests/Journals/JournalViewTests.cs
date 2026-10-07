@@ -177,6 +177,9 @@ public sealed class JournalViewTests
             Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("HistorySection")).Visibility);
             Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("FreeformEditor")).Visibility);
             Assert.Equal(Visibility.Visible, ((Border)view.FindName("CompactJournal")).Visibility);
+            var compact = (Border)view.FindName("CompactJournal");
+            Assert.Equal(((SolidColorBrush)root.Resources["PtjJournalReviewSurfaceBrush"]).Color, ((SolidColorBrush)compact.Background).Color);
+            Assert.Equal(((SolidColorBrush)root.Resources["PtjJournalReviewBorderBrush"]).Color, ((SolidColorBrush)compact.BorderBrush).Color);
             var add = (Button)view.FindName("AddJournal");
             Assert.True(add.IsEnabled && add.Focusable && add.IsVisible == view.IsVisible);
             Assert.Same(vm.OpenEditorCommand, add.Command);
@@ -207,6 +210,11 @@ public sealed class JournalViewTests
             var date = (DatePicker)view.FindName("JournalDate");
             var account = (ComboBox)view.FindName("JournalAccount");
             var editor = (TextBox)view.FindName("JournalText");
+            var formAccount = (ComboBox)view.FindName("EditorJournalAccount");
+            Assert.Same(vm.EditorAccount, formAccount.SelectedItem);
+            Assert.True(formAccount.Focusable && formAccount.IsEnabled);
+            Assert.InRange(formAccount.ActualWidth, 200, width);
+            Assert.True(formAccount.TranslatePoint(new Point(0, formAccount.ActualHeight), view).Y < editor.TranslatePoint(new Point(), view).Y);
             var save = (Button)view.FindName("SaveJournal");
             var reload = (Button)view.FindName("ReloadJournal");
             Assert.Same(vm.TradeContext, Assert.Single(Descendants(view).OfType<JournalTradeContextView>()).DataContext);
@@ -293,7 +301,8 @@ public sealed class JournalViewTests
         Assert.False(vm.HasDateInputError);
         account.SelectedItem = vm.Accounts.Single(a => a.Id.HasValue);
         Flush();
-        Assert.Null(vm.SelectedAccount.Id);
+        Assert.NotNull(vm.SelectedAccount.Id); // History filter can change without moving the form.
+        Assert.Null(vm.EditorAccount.Id);
         Assert.Same(vm.SelectedAccount, account.SelectedItem);
         Assert.Equal("local draft", vm.Text);
         Assert.True(vm.SaveCommand.CanExecute(null));

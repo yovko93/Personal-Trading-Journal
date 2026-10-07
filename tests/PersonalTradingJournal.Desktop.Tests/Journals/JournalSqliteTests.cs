@@ -268,10 +268,8 @@ public sealed class JournalSqliteTests
                 dialogs ?? new FakeDialogService(), CreateTradeContext(), new FixedTimeProvider());
             _editors.Add(editor);
             await editor.ActivateAsync();
-            editor.OpenEditorCommand.Execute(null);
             editor.SelectedDate = date.ToDateTime(TimeOnly.MinValue);
             await editor.LoadTask;
-            editor.OpenEditorCommand.Execute(null);
             editor.SelectedAccount = editor.Accounts.Single(account => account.Id == accountId);
             await editor.LoadTask;
             editor.OpenEditorCommand.Execute(null);

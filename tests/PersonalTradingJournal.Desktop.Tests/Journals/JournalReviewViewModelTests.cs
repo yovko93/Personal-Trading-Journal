@@ -418,7 +418,7 @@ public sealed class JournalReviewViewModelTests
     }
 
     [Fact]
-    public async Task AnswerOnlyUnsavedChangesProtectDateAccountPageAndReload()
+    public async Task AnswerOnlyUnsavedChangesProtectDatePageAndReloadWhileHistoryFilterStaysIndependent()
     {
         var repository = new Repository();
         var dialogs = new Dialogs();
@@ -433,9 +433,10 @@ public sealed class JournalReviewViewModelTests
         await vm.ReloadCommand.ExecuteAsync(null);
 
         Assert.Equal(selected, vm.SelectedDate);
-        Assert.Null(vm.SelectedAccount.Id);
+        Assert.NotNull(vm.SelectedAccount.Id);
+        Assert.Null(vm.EditorAccount.Id);
         Assert.Equal("precious unsaved answer", vm.NeedsImprovement);
-        Assert.Equal(4, dialogs.Requests.Count);
+        Assert.Equal(3, dialogs.Requests.Count);
         Assert.Single(repository.Reads);
         Assert.True(vm.IsDirty);
         dialogs.ConfirmResult = true;

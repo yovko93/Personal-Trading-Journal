@@ -1,11 +1,60 @@
 # Daily Journal — M14.1–M14.6
 
+## Form Account and selected review presentation
+
+Both standalone and Calendar-inline forms have a labeled, keyboard-accessible **Journal Account** selector beside their date context and before Journal text. **All accounts** is an explicit null scope and the default when no Account was chosen. Calendar Add preselects its selected Account; existing entries load their exact saved Account. Inactive Accounts remain selectable. The standalone top selector filters History while a form is open; it never changes that form's Account, fields or loaded revision. Closed-form date/Account browsing retains its existing behavior. The saved card displays the actual journal scope even when it differs from the History filter.
+
+Selecting another form Account is local until **Save Journal** or **Cancel**. Existing entries move, rather than copy: one SQLite writer transaction checks the loaded revision and target Account, rejects an occupied date/Account with `AccountScopeOccupied`, changes the same root's Account/content/state, and appends one revision. Journal ID, date, creation timestamp, older text/answer/state snapshots and monotonic numbering are preserved. The original scope becomes available for a separate new entry. No journals are merged. A scope-only change is an edit; changed Cancel saves Draft, while changing back to the loaded Account and original four fields preserves the unchanged-Completed no-write rule. Save still requires meaningful Journal text and completes. A never-saved empty form creates nothing.
+
+`UpdateDailyJournalCommand.TargetScope` is optional: omitted retains the stored Account; `DailyJournalAccountScope(null)` explicitly targets All accounts. Completed entries require explicit reopening before a scope move, like a content edit. Missing target Accounts block saves. Failure, cancellation before commit, target collisions and stale revisions keep all local fields and the chosen Account. Changing away from a collided target permits another deliberate save; revision conflicts require guarded Reload. Delete still targets and confirms the persisted entry's scope, not an unsaved target. Other navigation/window-close paths retain discard/keep-editing protection.
+
+After commit the selected card shows the returned exact scope, History refreshes under its unchanged filter, and Calendar's existing generation-guarded indicator refresh covers both old and new scopes. The Calendar month/date/Account/currency and financial results do not change. Revision snapshots have always stored text, answers, state and audit time, **not historical Account assignments**; the entire preserved history belongs to the moved journal's current scope. This policy needs no migration and does not retroactively alter snapshot content.
+
+The selected standalone read-only card uses shared `PtjJournalReviewSurfaceBrush` / `PtjJournalReviewBorderBrush`: pale teal in Light, muted deep teal in Dark, with primary text and existing ordinary Reopen styling. Forms retain one bottom Save/Cancel action row; Account is above Journal text.
+
+### Form Account verification (2026-10-07)
+
+- Focused Release: **389 passed**, zero failures/skips (Domain 54, Application 13, Infrastructure 77, Desktop 245). Includes explicit scope moves, inactive Accounts, null/non-null target collisions, stale revisions, monotonic history and rollback after saving; both editor hosts, top-filter independence, Cancel/Draft, scope change/revert and Calendar indicator refresh.
+- Complete **parallel** Release: **2,985 passed**, zero failures/skips (Domain 454, Application 529, Infrastructure 803, Desktop 1,199). Desktop elapsed 2m24s; Calendar native child **86/86**. No deadlines, retries, skips or concurrency settings changed. The earlier full run passed 2,984 tests before adding the collision-then-revision-conflict regression; the final run covers that fix too.
+- Release build: zero warnings/errors. EF pending-model check: no changes since the last migration. `git diff --check`: passed. No migration or model change was needed.
+- Automated WPF layout/render inspection: selected Completed card, form Account and existing controls in Light/Dark, standalone **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, inline **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**. Existing scroll-to-actions checks still pass. Logs, TRX and synthetic render output are ignored under `artifacts/journal-form-account/`; no customer data or real journal was accessed.
+- The first focused pass exposed old tests that used the top selector to retarget an already-open form. Their setup now selects scope before opening; interaction assertions now verify that changing the History filter retains form Account/fields. Date, Reload and page-discard protection remains tested. A test compilation typo was also corrected before the final runs.
+- Final review added a collision-then-stale-write regression: a later revision conflict clears the earlier collision recovery flag, so changing Account cannot bypass the guarded Reload requirement. The repository's token check remains authoritative regardless of UI state.
+
+**Still unverified live / in CI:** no native desktop interaction was performed and these uncommitted changes have no GitHub Actions result. On an isolated Windows data root, check keyboard selection in each form, changing the top filter with unsaved text, moving an entry to a free Account and attempting an occupied target, changed Cancel versus change/revert Cancel, conflict Reload, and old/new Calendar markers. Repeat in both themes at narrow/high-DPI width; the real journal must remain closed. A new CI run is required after the user's commit/push.
+
+Changed-file inventory for this refinement:
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Application/Journals/DailyJournalWriteStatus.cs
+src/PersonalTradingJournal.Application/Journals/UpdateDailyJournalCommand.cs
+src/PersonalTradingJournal.Domain/Journals/DailyJournalAccountScope.cs (new)
+src/PersonalTradingJournal.Domain/Journals/DailyJournalEntry.cs
+src/PersonalTradingJournal.Infrastructure/Journals/DailyJournalRepository.cs
+src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml
+src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Journals/InlineJournalView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalView.xaml
+tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalFormAccountTests.cs (new)
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalReviewViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalViewTests.cs
+tests/PersonalTradingJournal.Domain.Tests/Journals/DailyJournalEntryTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Journals/DailyJournalAccountMoveTests.cs (new)
+```
+
 ## Completed Cancel and Calendar aggregation (2026-10-07)
 
 This section supersedes earlier statements that opening Reopen immediately saves Draft or that Calendar All accounts markers use null scope only.
 
 - **Reopen review** explicitly authorizes a local editor in both the standalone page and Day Performance. The persisted Completed entry, timestamp and revision remain unchanged until a write. Reloading a Completed revision closes the old editor authorization; it must be explicitly reopened again.
-- **Cancel** compares exact ordinal values of Journal text and all three answers against the loaded snapshot. For a Completed entry with no differences, including change-then-revert, it closes only the editor without a repository write, revision, notification or status transition. Changed fields save together as Draft in one transaction/revision. A failed/cancelled/conflicting save retains every field and the open form. New exactly empty forms still close without creation; existing Drafts retain existing save/no-op behavior. Cancel does not ask to discard; other close/navigation paths retain explicit unsaved-change protection.
+- **Cancel** compares exact ordinal values of Journal text and all three answers, plus the form Account ID, against the loaded snapshot. For a Completed entry with no differences, including change-then-revert, it closes only the editor without a repository write, revision, notification or status transition. Changed fields/scope save together as Draft in one transaction/revision. A failed/cancelled/conflicting save retains every field and the open form. New exactly empty forms still close without creation; existing Drafts retain existing save/no-op behavior. Cancel does not ask to discard; other close/navigation paths retain explicit unsaved-change protection.
 - **Save Journal** still requires meaningful Journal text (Unicode letter/digit), with optional answers, and saves as Completed. `UpdateDailyJournalCommand.ReopenCompleted` explicitly combines reopening and an edit in one revision, after the existing expected-revision check. Ordinary callers cannot modify Completed content without explicit reopening. No intermediate Draft revision, schema change or legacy-data rewrite is required. Historical answers-only Completed entries remain readable and unchanged Cancel remains valid.
 - Calendar **All accounts indicators** aggregate all journals on each New York journal date, including null scope. Any Draft produces **Draft**; all Completed produces **✓**; no entries produces no marker. Multiple entries expose total, Draft and Completed counts accessibly, independent of query order. A specific account shows only its entries. Currency never filters journal indicators.
 - The indicator aggregate does **not** change editing identity: All accounts Day Performance still opens/creates the separate null-scoped entry, even if its marker came only from P 21. The status-only query retains Account IDs, uses one fresh bounded grid-range projection (at most 42 dates), and never loads text/answers. Account switching and committed save/Draft-save/deletion use existing generation-guarded refresh. Financial summaries and trade counts are unchanged.
@@ -167,9 +216,9 @@ tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Journals/DailyJour
 
 A `DailyJournalEntry` stores freeform text (required for new completion) and three optional Daily Review answers for **one explicit New York calendar/trading date and one exact Account scope**. The caller supplies `DateOnly TradingDate`; neither UTC audit time, machine timezone, linked Trades nor import TradeDay determines it. Both DST transition dates and days with zero Trades are valid, including for completion. Journals have no Trade dependency or currency scope and do not alter Calendar/Dashboard P&L.
 
-`TradingAccountId == null` means the independent **All accounts journal**. It is not a wildcard, fallback, sum or concatenation of account journals. The same date may have one global entry and one per Account. `Guid.Empty` is invalid. The stable journal ID, date and Account scope cannot be changed by update. There is no scope reassignment or merge. Explicit permanent deletion is described below.
+`TradingAccountId == null` means the independent **All accounts journal**. It is not a wildcard, fallback, sum or concatenation of account journals. The same date may have one global entry and one per Account. `Guid.Empty` is invalid. Journal ID and date remain stable. Account reassignment is permitted only through the explicit, revision-checked `TargetScope` move described above; there is no merge. Explicit permanent deletion is described below.
 
-Existing inactive Accounts permit create/read/update: historical review is not new trading activity. Missing Accounts reject creates/updates with `AccountUnavailable`, never retarget to null or another Account. Reads retain an orphaned historical entry and identify its scope as `Unavailable` if references were damaged outside the application. Account names/activity are current reference metadata, not revision contents. A restrictive foreign key normally prevents deleting a referenced Account; the existing Account delete workflow reports it as referenced and recommends deactivation.
+Existing inactive Accounts permit create/read/update: historical review is not new trading activity. A missing write-target Account rejects the save with `AccountUnavailable`, never implicitly retargeting to null or another Account. Reads retain an orphaned historical entry and identify its scope as `Unavailable` if references were damaged outside the application; Desktop retains its read-only recovery state. Account names/activity are current reference metadata, not revision contents. A restrictive foreign key normally prevents deleting a referenced Account; the existing Account delete workflow reports it as referenced and recommends deactivation.
 
 ## Text, draft and audits
 
@@ -177,7 +226,7 @@ Existing inactive Accounts permit create/read/update: historical review is not n
 - `Review` is an immutable `DailyReviewAnswers` value with `WentWell`, `NeedsImprovement`, and `NextTradingDay`. Each exact answer permits empty content and has a **100,000 UTF-16 code-unit** limit, separately from freeform text. No answer is trimmed or truncated. Partially answered drafts are valid.
 - The repository contract still permits Draft entries (including empty content), and existing Drafts remain recoverable. **Save Journal** in either editor explicitly requests `IsDraft=false`: Journal text must contain a Unicode letter or digit. Journal text alone is sufficient; all three answers are optional and cannot substitute for it. Whitespace, punctuation, emoji or invisible format characters alone are insufficient; this is a content-presence check, not an assessment of writing quality. The shared Domain rule validates create and update. Completed content is locked until an explicit **Reopen review** creates a draft revision with unchanged content.
 - `CreatedAtUtc` and `UpdatedAtUtc` are supplied by the repository's `TimeProvider` in canonical UTC. Updates cannot move audit time backward. They do not change the selected New York date.
-- Revision starts at **1**. Each actual text, answer or state change increments the positive 64-bit revision. Saving changed answers, completing and reopening each produce a complete durable snapshot. Equal content/state with the current expected revision returns `Unchanged`, preserving audit time and history. Equal timestamps remain valid; revision, not timestamp, is the concurrency token. Overflow fails without changes.
+- Revision starts at **1**. Each actual text, answer, Account scope or state change increments the positive 64-bit revision and produces a complete durable content snapshot. Opening Reopen is local; the next changed Save/Cancel combines reopening and editing atomically. Equal content/scope/state with the current expected revision returns `Unchanged`, preserving audit time and history. Equal timestamps remain valid; revision, not timestamp, is the concurrency token. Overflow fails without changes.
 
 ## Application boundary
 
@@ -188,12 +237,12 @@ Existing inactive Accounts permit create/read/update: historical review is not n
 | `GetAsync(date, accountId?, ct)` | Exact-scope disconnected entry plus `AllAccounts`, `Active`, `Inactive` or `Unavailable` Account state and readable name; null if no entry. Never falls back to another scope. |
 | `GetHistoryAsync(journalId, ct)` | Full committed snapshots ordered by revision ascending, including initial and current revisions; empty for a missing valid ID. |
 | `CreateAsync(command, ct)` | `Created`, `AlreadyExists` or `AccountUnavailable`. Duplicate creation never overwrites the existing entry. |
-| `UpdateAsync(command, ct)` | Required journal ID and positive `ExpectedRevision`; `Updated`, `Unchanged`, `NotFound`, `Conflict` or `AccountUnavailable`. Stale submissions conflict even if their proposed text happens to match current text. |
+| `UpdateAsync(command, ct)` | Required journal ID and positive `ExpectedRevision`; optional explicit `TargetScope`. Returns `Updated`, `Unchanged`, `NotFound`, `Conflict`, `AccountUnavailable` or `AccountScopeOccupied`. Stale submissions conflict even if their proposed text happens to match current text. |
 | `DeleteAsync(command, ct)` | Required journal ID and positive `ExpectedRevision`; `Deleted`, `NotFound` or `Conflict`. Removes the exact entry and every snapshot atomically. No tombstone is retained. |
 
 Write results contain the authoritative disconnected journal when available. A conflict requires rereading/reconciling the newer revision, not automatic resubmission or last-write-wins. Invalid identifiers/revision and Domain-invalid content throw argument exceptions; cancellation propagates `OperationCanceledException`. Unexpected database failures propagate without disguising a failed save as success. No customer journal text is logged by this path.
 
-Create/update commands carry `Review` with the exact answers. For compatibility, an omitted create review means empty answers; an omitted update review retains the current answers. History reads always include the stored answers. `IsDraft=false` explicitly requests completion; `IsDraft=true` on a completed entry permits only an exact-content reopen. Combining an edit with that reopen is rejected: reopen must commit first. The expected revision is checked before changing content or state, including same-content, completion and reopen requests.
+Create/update commands carry `Review` with the exact answers. For compatibility, an omitted create review means empty answers; an omitted update review retains the current answers. History reads always include the stored answers. `IsDraft=false` explicitly requests completion. `ReopenCompleted=true` explicitly allows a changed Completed entry to be saved or moved in the same transaction; otherwise its content/scope remains locked. The expected revision is checked before changing content, scope or state, including same-content, completion and reopen requests.
 
 ## SQLite persistence and safety
 

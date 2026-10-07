@@ -10,4 +10,5 @@ public enum DailyJournalWriteStatus
     Conflict = 6,
     AccountUnavailable = 7,
     Deleted = 8,
+    AccountScopeOccupied = 9,
 }

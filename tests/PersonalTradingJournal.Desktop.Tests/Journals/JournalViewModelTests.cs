@@ -440,7 +440,7 @@ public sealed partial class JournalViewModelTests
     }
 
     [Fact]
-    public async Task DirtyDateAndAccountChangesAndPageLeaveCanBeVetoed()
+    public async Task DirtyDateAndPageLeaveCanBeVetoedWhileTopAccountFilterDoesNotRetargetEditor()
     {
         var repository = new Repository();
         var dialogs = new Dialogs();
@@ -456,11 +456,12 @@ public sealed partial class JournalViewModelTests
 
         Assert.False(vm.TryLeave());
         Assert.Equal(originalDate, vm.SelectedDate);
-        Assert.Null(vm.SelectedAccount.Id);
+        Assert.NotNull(vm.SelectedAccount.Id);
+        Assert.Null(vm.EditorAccount.Id);
         Assert.Equal("keep editing", vm.Text);
         Assert.True(vm.IsDirty);
         Assert.Single(repository.Reads);
-        Assert.Equal(3, dialogs.Requests.Count);
+        Assert.Equal(2, dialogs.Requests.Count);
         Assert.Contains(nameof(vm.SelectedDate), changed);
         Assert.Contains(nameof(vm.SelectedAccount), changed);
         Assert.All(dialogs.Requests, request =>
@@ -537,7 +538,6 @@ public sealed partial class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository, accounts);
         await vm.ActivateAsync();
-        vm.OpenEditorCommand.Execute(null);
         JournalAccountOption option = Assert.Single(vm.Accounts, a => a.Id == inactive.Id);
         Assert.Contains("inactive", option.Name);
         Assert.True(option.IsAvailable);
@@ -588,7 +588,6 @@ public sealed partial class JournalViewModelTests
         var repository = new Repository();
         var vm = Create(repository, accounts);
         await vm.ActivateAsync();
-        vm.OpenEditorCommand.Execute(null);
         vm.SelectedAccount = vm.Accounts.Single(a => a.Id == account.Id);
         await vm.LoadTask;
         vm.OpenEditorCommand.Execute(null);

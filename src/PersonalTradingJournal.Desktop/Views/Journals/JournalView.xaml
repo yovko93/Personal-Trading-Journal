@@ -82,7 +82,7 @@
                               ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount, Mode=TwoWay}"
                               DisplayMemberPath="Name" IsEnabled="{Binding CanChangeScope}"
                               AutomationProperties.Name="Journal Account scope"
-                              AutomationProperties.HelpText="All accounts is a separate journal, not a combination of Account journals." />
+                              AutomationProperties.HelpText="Filters Review History. While a form is open its own Journal Account controls saving. All accounts History includes every scope; the All accounts journal itself is separate." />
                 </StackPanel>
                 <Button x:Name="AddJournal" Content="_Add Journal" Command="{Binding OpenEditorCommand}"
                         Style="{DynamicResource JournalCtaButton}" Margin="16,24,0,12" VerticalAlignment="Top"
@@ -114,11 +114,13 @@
                              Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Journal operation in progress" />
             </StackPanel>
             <Border x:Name="CompactJournal" Grid.Row="2" Style="{DynamicResource PtjCardStyle}"
+                    Background="{DynamicResource PtjJournalReviewSurfaceBrush}" BorderBrush="{DynamicResource PtjJournalReviewBorderBrush}"
                     Visibility="{Binding ShowCompactReview, Converter={StaticResource BoolVisibility}}">
                 <StackPanel>
                     <TextBlock x:Name="EmptyJournalScope" Text="{Binding EmptyReviewText}" Margin="0,8,0,0" TextWrapping="Wrap"
                                Style="{DynamicResource JournalBody}" Visibility="{Binding ShowEmptyReview, Converter={StaticResource BoolVisibility}}" />
                     <StackPanel x:Name="SavedJournalContent" Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}">
+                        <TextBlock Text="{Binding EntryHeading}" Style="{StaticResource JournalLabel}" Margin="0,0,0,12" />
                         <TextBlock Text="Journal text" Style="{DynamicResource JournalCaption}" />
                         <TextBlock Text="{Binding SavedText}" ToolTip="{Binding SavedText}" TextWrapping="Wrap" Style="{StaticResource JournalNote}" />
                         <TextBlock Text="What went well?" Style="{DynamicResource JournalCaption}" />
@@ -133,7 +135,7 @@
                                     AutomationProperties.Name="Continue editing saved Journal draft" />
                             <Button x:Name="ReopenJournalReview" Content="_Reopen review" Command="{Binding ReopenReviewCommand}" Margin="0,8,8,0"
                                     Visibility="{Binding IsCompleted, Converter={StaticResource BoolVisibility}}" Style="{DynamicResource JournalPrimaryButton}"
-                                    AutomationProperties.Name="Reopen completed daily review" ToolTip="Create a draft revision before editing this completed review." />
+                                    AutomationProperties.Name="Reopen completed daily review" ToolTip="Open for editing. Changes are saved only by Save Journal or Cancel/Draft." />
                         </WrapPanel>
                     </StackPanel>
                 </StackPanel>
@@ -142,6 +144,13 @@
                     IsVisibleChanged="OnEditorVisibilityChanged"
                     Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}">
                 <StackPanel MaxWidth="760">
+                    <TextBlock Text="{Binding SelectedDateHeading}" Style="{StaticResource JournalLabel}" />
+                    <Label Content="Journal _Account" Target="{Binding ElementName=EditorJournalAccount}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <ComboBox x:Name="EditorJournalAccount" ItemsSource="{Binding Accounts}" SelectedItem="{Binding EditorAccount, Mode=TwoWay}"
+                              DisplayMemberPath="Name" IsEnabled="{Binding CanChooseEditorAccount}" Style="{DynamicResource PtjComboBoxStyle}"
+                              MinWidth="0" HorizontalAlignment="Stretch" Margin="0,0,0,12" FontSize="16"
+                              AutomationProperties.Name="Journal Account for saving"
+                              AutomationProperties.HelpText="The form Account determines Save and Cancel/Draft. All accounts is a separate journal. The top filter does not change this selection. Changing an existing journal's Account moves it and its history after a successful save." />
                     <Label Content="Journal _text (required)" Target="{Binding ElementName=JournalText}" Padding="0,0,0,8"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="JournalText" Style="{DynamicResource JournalTextBox}"
@@ -169,7 +178,7 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What went well?"
-                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when any field contains meaningful text. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when Journal text contains meaningful text. Tab moves to the next control." />
                     <Label Content="What _needs improvement?" Target="{Binding ElementName=NeedsImprovementAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="NeedsImprovementAnswer" Style="{DynamicResource JournalTextBox}"
@@ -178,7 +187,7 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What needs improvement?"
-                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when any field contains meaningful text. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when Journal text contains meaningful text. Tab moves to the next control." />
                     <Label Content="What will I _do differently next trading day?" Target="{Binding ElementName=NextTradingDayAnswer}" Margin="0,16,0,6" Padding="0"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <TextBox x:Name="NextTradingDayAnswer" Style="{DynamicResource JournalTextBox}"
@@ -187,7 +196,7 @@
                              AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap" MinHeight="56" Height="72"
                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                              AutomationProperties.Name="What will I do differently next trading day?"
-                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when any field contains meaningful text. Tab moves to the next control." />
+                             AutomationProperties.HelpText="Optional answer. Save Journal completes the entry when Journal text contains meaningful text. Tab moves to the next control." />
                 </StackPanel>
             </Border>
             <TextBlock x:Name="JournalError" FontSize="16" Grid.Row="4" Text="{Binding ErrorMessage}" Margin="0,12,0,0"

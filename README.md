@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Journal form Account and highlighted saved review**
+
+The selected read-only review uses a subtle Light/Dark teal surface and border. Both Journal forms now show their own Account selector before Journal text. It controls Save/Cancel-Draft independently of the page's History filter; All accounts explicitly means null scope. Calendar preselects its Account without changing Calendar filters when the form selection changes. An existing journal can move to an unoccupied Account scope on the same date, preserving its ID and history and appending one revision atomically. Collisions, stale writes and failures retain the form, target and fields without merging entries. See [scope/move policy](docs/daily-journal.md#form-account-and-selected-review-presentation).
+
 **Completed Cancel and aggregate Calendar journal indicators**
 
 Reopen now opens a local editor without changing the saved Completed state. Cancel with all four fields unchanged (including change-then-revert) closes without a write or revision; changed Cancel saves one Draft revision using the loaded concurrency token. Save still requires meaningful Journal text and completes. Calendar **All accounts** indicators now include every account and the distinct null-scoped journal: any Draft shows **Draft**, otherwise **✓**, with accessible counts for mixed states. Modal editing remains exact-scope. See [behavior and verification](docs/daily-journal.md#completed-cancel-and-calendar-aggregation-2026-10-07).
