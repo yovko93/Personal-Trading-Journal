@@ -11,6 +11,8 @@
              xmlns:calendarViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
              xmlns:journalViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Journals"
              xmlns:journalViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
+             xmlns:reviewViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.DailyReview"
+             xmlns:reviewViews="clr-namespace:PersonalTradingJournal.Desktop.Views.DailyReview"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
@@ -51,6 +53,9 @@
 
             <DataTemplate DataType="{x:Type journalViewModels:JournalViewModel}">
                 <journalViews:JournalView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type reviewViewModels:DailyReviewViewModel}">
+                <reviewViews:DailyReviewView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">

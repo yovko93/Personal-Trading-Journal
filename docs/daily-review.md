@@ -1,5 +1,57 @@
 # Daily Review with AI Coaching — M15
 
+## M15.6: Desktop workspace
+
+The Daily Review menu now opens a read-only local workspace, initially **today in America/New_York** and **All accounts**. Its date is a calendar date, not a converted machine-local midnight. Today explicitly selects the current New York date. Navigation away cancels pending reads; returning preserves the selected date, account and history page, then reloads. There is **no Generate button, provider dependency, automatic generation or paid request**. No migration or persistence/economics change accompanies this UI.
+
+### Current evidence versus history
+
+- Current evidence uses `IDailyReviewEvidenceReader` and `DailyReviewStatisticsCalculator` unchanged. Fully closed Trades use their New York closure day; cross-midnight Trades are not split, and DST uses the established boundaries. Open/partial and unavailable-lifecycle activity are separately counted as excluded context.
+- Currency-level and per-account rows show closed count, Gross, strict Net, known Gross wins/losses/break-even, cost completeness and contributing IDs. Total/coverage use M15.2 populations; no partial subtotal is presented as a total, no Gross-as-Net estimate is substituted, and no currency conversion or cross-currency money total exists. Display rounds amounts to two decimals only; complete Trade facts and saved evidence retain the exact decimal values.
+- All accounts current evidence includes each account's records plus the distinct null-scoped Journal. Exact account selection retains only its records. Inactive accounts remain selectable. A selected account that disappears remains explicitly unavailable, never silently changes to All accounts, and can still read its saved history. The selector lists current persisted accounts (including inactive) and retains an unavailable current selection; discovery of already-deleted account scopes after restarting is not yet a separate history-browser feature.
+- Current Trade and Journal sections keep IDs, original Account, timestamps, Journal state/revision, exact text and answers. No Journal entry is distinct from an existing empty field. Trade detail navigation reads the chosen ID independently of list paging. Journal navigation uses the exact date/account with the existing unsaved-editor guard. These actions say **Open current**; saved sources have no misleading live-source navigation button.
+- History is ten analyses per page, filtered by date and **analysis scope**, ordered by stored generation UTC descending then ID. All accounts history contains aggregate analyses only, not a relabeled mixture of exact-account analyses. Page changes do not change current date/account evidence. A page emptied by deletion is reconciled to the last valid page.
+- Opening a row loads its saved record once, not once per cited source. The version-aware Desktop decoder renders stored statistics, Trades, Journal content, response sections and citation catalog without rebuilding calculations or querying today's sources. A complete saved-evidence expander retains execution details, source identifiers and missing-data markers. Unsupported/damaged snapshots show an actionable error rather than substitute current data. Citation membership/labels do not prove the AI's wording correct.
+- Generation time is labeled New York with the actual explicit UTC offset. Provider/model, analysis/packet identity, contract versions and input/cached-input/output/total token usage appear on the opened snapshot; absent usage is unknown. Monetary cost stays unknown. Raw provider diagnostics/credentials are not displayed.
+- **Delete analysis** confirms its exact ID, date, original scope and generation metadata. It permanently deletes that analysis's response/evidence only, reconciles the page and closes the snapshot. Cancellation at confirmation does nothing; errors retain the current list and offer Refresh. Source Trades/Journals and other analyses are untouched. Existing local snapshot privacy/backup limits below still apply.
+
+### Loading, accessibility and limits
+
+Current evidence and saved-history reads have independent error handling, off-dispatcher database work, cancellation and selection-generation checks. Detail reads have an additional generation so closing a snapshot, switching rows/pages, refreshing or leaving cannot resurrect a stale view. Date/account changes clear previous data before reading. Refresh and committed Trade/Journal notifications reload only the active workspace; reopening the destination also rereads current data. No raw exception or private source text is logged in these error paths.
+
+A single vertical scroller contains wrapping cards, focusable date/account controls, bounded history actions and read-only snapshots. Shared theme brushes/styles explicitly apply inside WPF templates. The calendar picker reuses Dashboard's themed calendar; dates and snapshots do not add nested scroll traps. Screen-reader names identify source/analysis IDs and loading/error announcements. Controls wrap at narrow widths; exact large payloads remain available through expandable detail.
+
+Automated synthetic renders and isolated SQLite/VM tests are distinct from live interaction. Remaining manual checks: in a disposable data directory, use mouse and Tab/Enter/Alt+Down to select dates/accounts, scroll/expand all saved evidence, open current sources and decline a dirty Journal navigation prompt, confirm/cancel one-analysis deletion, and check actual monitor scaling/screen-reader announcements in both themes. No live UI or GitHub Actions acceptance is implied by local tests; a run must include the user's eventual commit of these changes. No real journal or paid API was used.
+
+### M15.6 verification
+
+Baseline and final HEAD: `4d80b975e32cec51cdf38da4b139f063e0f3a38b`, branch `develop`. The initial worktree was clean. No commit, push, merge, schema or economics changes were made.
+
+- Focused Release: **354/354 passed** — Domain 13, Application 116, Infrastructure 51, Desktop 174. New coverage contributes 23 cases, including NY midnight/DST defaults, mixed currencies/strict missing Net, genuine zero, excluded open activity, inactive/unavailable selection, ten-row pages, confirmation/failure/deletion, saved-source survival after an isolated SQLite Journal deletion, stale current/history/detail results, exact-source navigation and the standalone Journal unsaved guard.
+- Complete parallel Release: **3,203/3,203 passed**, zero failures/skips — Domain 454, Application 645, Infrastructure 858, Desktop 1,246. Desktop duration reported 2 m 29 s. No native-suite timeout occurred in this run; unchanged deadlines and isolation were retained.
+- Release build: **0 warnings, 0 errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed (Git's LF-to-CRLF notices are not whitespace errors).
+- Automated WPF: compiled bindings, shared foreground brushes (including template/expander content), wrapping, control reachability, snapshot separation and end-of-page scrolling passed. Synthetic current/history/snapshot PNGs were generated in both themes at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**; representative current/history/snapshot renders were visually inspected across both themes/sizes. The initial renders exposed default black/unwrapped template text; explicit shared styles fixed it and assertions now guard it. These are RenderTargetBitmap layouts, not live mouse/keyboard or real-monitor DPI acceptance.
+- Early focused runs caught the new callback cleanup being placed in the wrong lifecycle method and a test incorrectly requiring a native DatePicker template button to be independently focusable. Cleanup is now in Dispose; keyboard assertions target actual workspace commands, with DatePicker/Account focusability checked separately. Final focused/full runs are green.
+- Logs/TRX/PNG evidence remains in ignored `artifacts/m156/` and `artifacts/m156-*.log`. No GitHub Actions run can cover these uncommitted changes; CI must test the user's eventual commit/push. Live UI, real monitor scaling, assistive technology and already-deleted-account scope discovery after restart remain outside verified acceptance. Existing selected unavailable accounts retain exact scope and readable history; a dedicated orphan-scope browser was not added.
+
+Changed files (7 existing, 8 new):
+
+- `README.md`
+- `docs/daily-review.md`
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml` (new)
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowDailyReviewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewWorkspaceTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewSqliteTests.cs` (new)
+
 ## M15.1: scope and evidence only
 
 `IDailyReviewEvidenceReader.GetAsync(DailyReviewQuery, CancellationToken)` provides disconnected, read-only evidence for later calculated statistics and user-requested AI generation. This milestone makes no AI request, creates no generated prose or analysis record, and adds no Daily Review UI. Existing Journal review answers remain the user's saved content. Later M15 tasks must define calculation coverage, generation, persistence and presentation explicitly.

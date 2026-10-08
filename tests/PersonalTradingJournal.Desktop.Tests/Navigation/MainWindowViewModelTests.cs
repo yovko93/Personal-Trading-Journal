@@ -1177,7 +1177,8 @@ public sealed partial class MainWindowViewModelTests
         JournalViewModel? journalViewModel = null,
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? calendarJournalRepository = null,
-        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null)
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null,
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1349,7 +1350,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges);
+            topstepChanges, dailyReview);
 
         return new ViewModelFixture(
             main,
