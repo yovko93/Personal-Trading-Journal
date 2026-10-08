@@ -13,10 +13,6 @@
             <Setter Property="ContentTemplate">
                 <Setter.Value><DataTemplate>
                     <StackPanel Margin="0,0,0,16">
-                        <Button Content="Close Journal" HorizontalAlignment="Right" Margin="0,0,0,8"
-                                Command="{Binding DataContext.CloseInlineJournalCommand, RelativeSource={RelativeSource AncestorType=calendar:CalendarDayDetailsView}}"
-                                Style="{DynamicResource PtjSecondaryButtonStyle}"
-                                AutomationProperties.Name="Close inline Journal; keep Day Performance open" />
                         <journals:InlineJournalView />
                     </StackPanel>
                 </DataTemplate></Setter.Value>
@@ -139,18 +135,27 @@
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="96" LineHeight="24"
                                            FontSize="16" MaxWidth="760" HorizontalAlignment="Left" Margin="0,4,0,8"
                                            Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Saved Journal text" />
-                                <Button Content="{Binding ActionLabel}" HorizontalAlignment="Left"
+                                <interactions:ExpansionButton x:Name="JournalToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" HorizontalAlignment="Left"
                                         Command="{Binding DataContext.OpenDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" Style="{DynamicResource PtjJournalActionButtonStyle}"
-                                        AutomationProperties.Name="{Binding Description}" />
+                                        AutomationProperties.Name="{Binding ActionAccessibleName}" />
                             </StackPanel>
                         </Border>
                         <ContentControl x:Name="RowJournalDetail" Content="{Binding ExpandedJournal}" Style="{StaticResource DayJournalDetailHost}" />
                         </StackPanel>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                <Setter TargetName="JournalToggle" Property="Style" Value="{DynamicResource PtjJournalCloseButtonStyle}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <StackPanel x:Name="InlineJournalSection" Margin="0,0,0,16"
                             Visibility="{Binding HasDetachedInlineJournal, Converter={StaticResource BoolVisibility}}">
+                    <!-- A new unsaved form has no saved card to toggle. Keep its guarded close action. -->
+                    <Button Content="Close Journal" HorizontalAlignment="Right" Margin="0,0,0,8"
+                            Command="{Binding CloseInlineJournalCommand}" Style="{DynamicResource PtjJournalCloseButtonStyle}"
+                            AutomationProperties.Name="Close new inline Journal; keep Day Performance open" />
                     <ContentControl x:Name="DayJournalEditor" Content="{Binding DetachedInlineJournal}" Style="{StaticResource DayJournalDetailHost}" />
                 </StackPanel>
                 <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"

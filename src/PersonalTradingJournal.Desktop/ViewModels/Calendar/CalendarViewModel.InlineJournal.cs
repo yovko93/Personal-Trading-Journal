@@ -38,7 +38,9 @@ public sealed partial class CalendarViewModel
     private async Task OpenDayJournalAsync(CalendarJournalEntry? row)
     {
         if (!_isActive || _dayJournalFactory is null || SelectedDate is not { } date
-            || (row is not null && !DayJournals.Contains(row)) || !TryCloseInlineJournal()) return;
+            || (row is not null && !DayJournals.Contains(row))) return;
+        bool closing = row?.IsExpanded == true;
+        if (!TryCloseInlineJournal() || closing) return;
         var journal = _dayJournalFactory();
         Guid? account = row is null ? SelectedAccount.Id : row.AccountId;
         if (!journal.TryOpenScope(date, account, row?.AccountLabel ?? SelectedAccount.Name)) return;

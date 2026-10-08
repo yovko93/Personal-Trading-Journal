@@ -43,7 +43,7 @@ public sealed class InlineJournalViewTests
             vm.InlineJournal!.Text = "Exact local text\n" + new string('x', 200);
             models.Add(vm);
             var review = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
-                journalDialogs: new FakeDialogService { ConfirmationResult = true });
+                journalDialogs: new FakeDialogService());
             await review.SelectDayCommand.ExecuteAsync(review.Weeks[0].Days[5]);
             await review.OpenDayJournalCommand.ExecuteAsync(review.DayJournals.Single(r => r.AccountId is null));
             reviews.Add(review);
@@ -73,7 +73,8 @@ public sealed class InlineJournalViewTests
                     Assert.Same(vm.OpenDayJournalCommand, button.Command);
                     var row = Assert.IsType<CalendarJournalEntry>(button.CommandParameter);
                     Assert.Contains(row, vm.DayJournals);
-                    Assert.Equal(row.Description, System.Windows.Automation.AutomationProperties.GetName(button));
+                    Assert.Equal(row.ActionAccessibleName, System.Windows.Automation.AutomationProperties.GetName(button));
+                    JournalExpansionAssertions.State(button, false);
                     Assert.True(button.Focusable && button.IsEnabled);
                     Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), entries).X, 1, entries.ActualWidth);
                 }
@@ -150,6 +151,7 @@ public sealed class InlineJournalViewTests
                 vm.Deactivate();
                 var reviewVm = reviews[i];
                 var reviewView = new CalendarDayDetailsView { DataContext = reviewVm };
+                FocusManager.SetIsFocusScope(reviewView, true);
                 reviewView.Measure(new Size(width, 720)); reviewView.Arrange(new Rect(0, 0, width, 720)); reviewView.UpdateLayout(); Flush();
                 var list = (ItemsControl)reviewView.FindName("DayJournalEntries");
                 var detailHosts = Descendants(list).OfType<ContentControl>().Where(c => c.Name == "RowJournalDetail").ToArray();
@@ -159,8 +161,10 @@ public sealed class InlineJournalViewTests
                 Assert.Equal(Visibility.Collapsed, ((StackPanel)reviewView.FindName("InlineJournalSection")).Visibility);
                 var containers = Enumerable.Range(0, list.Items.Count).Select(n => (FrameworkElement)list.ItemContainerGenerator.ContainerFromIndex(n)).ToArray();
                 Assert.True(expanded.TranslatePoint(new Point(0, expanded.ActualHeight), list).Y <= containers[1].TranslatePoint(new Point(), list).Y);
-                var close = Assert.Single(Descendants(expanded).OfType<Button>(), b => Equals(b.Content, "Close Journal"));
-                Assert.Same(reviewVm.CloseInlineJournalCommand, close.Command);
+                Assert.DoesNotContain(Descendants(expanded).OfType<Button>(), b => Equals(b.Content, "Close Journal"));
+                var close = Assert.Single(Descendants(list).OfType<Button>(), b => Equals(b.Content, "Close Journal"));
+                Assert.Same(reviewVm.OpenDayJournalCommand, close.Command);
+                JournalExpansionAssertions.State(close, true);
                 Assert.True(close.Focusable && close.IsEnabled);
                 Assert.DoesNotContain(Descendants(reviewView).OfType<Button>(), b => b.Content?.ToString()?.Contains("Reload") == true);
                 var refresh = Assert.Single(Descendants(reviewView).OfType<Button>(), b => Equals(b.Content, "Refresh Journals"));
@@ -175,7 +179,20 @@ public sealed class InlineJournalViewTests
                 close.BringIntoView(); Flush();
                 var reviewScroller = (ScrollViewer)reviewView.FindName("DayContentScroller");
                 Assert.InRange(close.TranslatePoint(new Point(), reviewScroller).Y, -1, reviewScroller.ViewportHeight);
-                close.Command.Execute(null); Flush();
+                var retainedJournal = reviewVm.InlineJournal!;
+                retainedJournal.ReopenReviewCommand.Execute(null); Flush();
+                string original = retainedJournal.Text;
+                retainedJournal.Text = "Unsaved close-veto text";
+                JournalExpansionAssertions.Click(close); Flush();
+                Assert.Same(retainedJournal, reviewVm.InlineJournal);
+                Assert.Equal("Unsaved close-veto text", retainedJournal.Text);
+                Assert.Equal("Close Journal", close.Content);
+                JournalExpansionAssertions.State(close, true);
+                retainedJournal.Text = original; // Change-then-revert allows guarded close without discard.
+                JournalExpansionAssertions.Click(close); Flush();
+                JournalExpansionAssertions.State(close, false);
+                Assert.Equal("Open Journal", close.Content);
+                Assert.Same(close, FocusManager.GetFocusedElement(reviewView));
                 Assert.All(detailHosts, c => Assert.Null(c.Content));
                 Assert.Equal(3, list.Items.Count);
                 reviewVm.Deactivate();

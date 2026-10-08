@@ -26,16 +26,25 @@ public sealed class JournalHistoryViewModelTests
         var row = rows.First(r => r.Item.AccountId == p21);
         await vm.OpenCommand.ExecuteAsync(row);
         Assert.Same(vm, row.Review);
+        Assert.Equal("Close review", row.ActionLabel);
         await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
         Assert.Equal(row.Item.Id, vm.Snapshot!.JournalId);
         vm.CloseViewCommand.Execute(null);
         Assert.Same(row, vm.SelectedEntry);
+        Assert.Equal("Close review", row.ActionLabel); // Close view is not Close review.
         Assert.Null(vm.Snapshot);
+        await vm.OpenCommand.ExecuteAsync(row);
+        Assert.False(row.IsExpanded);
+        Assert.Equal("Open review", row.ActionLabel);
+        Assert.Null(vm.SelectedEntry);
+        await vm.OpenCommand.ExecuteAsync(row);
         await vm.OpenCommand.ExecuteAsync(rows.First(r => r.Item.AccountId == other));
         Assert.Null(row.Review);
+        Assert.Equal("Open review", row.ActionLabel);
         Assert.Single(rows, r => r.Review is not null);
-        vm.CloseReviewCommand.Execute(null);
+        await vm.OpenCommand.ExecuteAsync(vm.SelectedEntry);
         Assert.All(rows, r => Assert.Null(r.Review));
+        Assert.All(rows, r => Assert.Equal("Open review", r.ActionLabel));
         Assert.Same(rows, vm.Entries);
         Assert.Equal(ids, vm.Entries.Select(r => r.Item.Id));
         Assert.Equal(page, vm.PageText);
@@ -413,7 +422,7 @@ public sealed class JournalHistoryViewModelTests
         Assert.Same(row, history.SelectedEntry);
         Assert.Equal(3, history.Revisions.Count);
         await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);
-        history.CloseReviewCommand.Execute(null);
+        await history.OpenCommand.ExecuteAsync(row);
         Assert.False(history.HasSelectedEntry);
         Assert.Null(history.Snapshot);
         Assert.Empty(history.Revisions);
@@ -460,7 +469,7 @@ public sealed class JournalHistoryViewModelTests
             pending = vm.OpenCommand.ExecuteAsync(row);
         }
         await Wait(started.Task);
-        vm.CloseReviewCommand.Execute(null);
+        await vm.OpenCommand.ExecuteAsync(row);
         Assert.True(token.IsCancellationRequested);
         if (snapshot) snapshotResult.SetResult(reader.Snapshots.First(r => r.JournalId == row.Item.Id));
         else revisionResult.SetResult(new([new(row.Item.Id, 1, true, JournalHistoryTestReader.Now)], 1, 1, 20));
@@ -469,8 +478,39 @@ public sealed class JournalHistoryViewModelTests
         Assert.Empty(vm.Revisions);
         Assert.Null(vm.Snapshot);
         Assert.False(vm.IsBusy);
+        Assert.False(row.IsExpanded);
+        Assert.Equal("Open review", row.ActionLabel);
         Assert.Equal("Page 2 · 11 reviews", vm.PageText);
         Assert.Equal(account, Assert.Single(vm.Entries).Item.AccountId);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task FailedReviewReadKeepsToggleExpandedUntilClosedAndRefreshReattachesOnlySelectedRow()
+    {
+        var reader = new JournalHistoryTestReader();
+        reader.Add(Day); reader.Add(Day.AddDays(-1), Guid.NewGuid());
+        var vm = new JournalHistoryViewModel(reader, _ => true);
+        await vm.ActivateAsync(null);
+        var row = vm.Entries[1];
+        reader.Revisions = (_, _, _) => throw new InvalidOperationException("Synthetic read failure");
+        await vm.OpenCommand.ExecuteAsync(row);
+        Assert.Contains("could not be loaded", vm.RevisionStatusText);
+        Assert.True(row.IsExpanded); Assert.Equal("Close review", row.ActionLabel);
+        await vm.OpenCommand.ExecuteAsync(row);
+        Assert.False(row.IsExpanded); Assert.False(vm.HasSelectedEntry);
+        reader.Revisions = null;
+        await vm.OpenCommand.ExecuteAsync(row);
+        await vm.RefreshAsync();
+        var refreshed = vm.Entries.Single(r => r.Item.Id == row.Item.Id);
+        Assert.NotSame(row, refreshed);
+        Assert.Same(refreshed, vm.SelectedEntry);
+        Assert.Single(vm.Entries, r => r.IsExpanded);
+        Assert.Equal("Close review", refreshed.ActionLabel);
+        await vm.OpenCommand.ExecuteAsync(row); // Disconnected old button cannot change selection.
+        Assert.Same(refreshed, vm.SelectedEntry);
+        await vm.OpenCommand.ExecuteAsync(refreshed);
+        Assert.False(vm.HasSelectedEntry);
         vm.Deactivate();
     }
 

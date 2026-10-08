@@ -1,8 +1,48 @@
 # Daily Journal — M14.1–M14.6
 
+## Journal row open/close toggles
+
+Saved Calendar cards have one **Open Journal / Close Journal** button. The same button opens or closes only its attached detail; opening another card restores the previous card's Open label. A declined unsaved-editor close or switch keeps the old expansion, fields and Close label. Other cards, exact identities, selected date, Account/currency filters and the existing scroller remain intact. A new unsaved Add form has no saved row yet, so it retains its own guarded Close action above the form. Save/Cancel-Draft and modal-dismissal rules are unchanged.
+
+Review History similarly uses one **Open review / Close review** action per row, retaining the distinctive open color and switching to outlined red when expanded. There is no duplicate Close review in the detail. Closing cancels pending preview/revision reads, collapses that row and any snapshot, and does not write, change the History filter/page/date/Account, or touch unsaved standalone editor contents. **Close view** still closes only a read-only revision snapshot and leaves its review expanded. Refresh reattaches the expansion to the current row identity; errors keep a closeable detail rather than a misleading Open label.
+
+Both row actions use shared Light/Dark brushes and existing hover/pressed/disabled/focus templates. Their accessible names include the action, date and Account. The UI Automation ExpandCollapse pattern reports actual ViewModel state, not an optimistic check state that could drift after a veto. Click/Enter/Space use the same command and retain focus on the surviving row action where WPF permits it. Persistence, economics, query scope and 10-row paging are unchanged.
+
+### Row-toggle verification (2026-10-08)
+
+- Baseline: clean `develop`, HEAD `12a283256210bf57ef9a470f6b28a9759a68c6b4`. Changes are Desktop presentation/commands/tests and documentation only; no journal persistence, migration, economics or import changes.
+- Focused Release: **402 passed**, zero failures/skips (Domain 54, Application 13, Infrastructure 80, Desktop 255). Same-row close/reopen, switching, dirty-close veto, load failure, refreshed row identity, pending-read cancellation, History page/scope/editor retention and separate revision Close view are covered. Existing SQLite conflict coverage now explicitly closes and reopens the row rather than treating a second Open click as reload.
+- Complete normal **parallel Release: 2,998 passed**, zero failures/skips (Domain 454, Application 529, Infrastructure 806, Desktop 1,209). The isolated Calendar native child passed **86/86**. No deadlines, concurrency settings, retries or skips were changed.
+- Release build: **zero warnings/errors**. EF: no pending model changes. `git diff --check`: passed. Synthetic render/TRX/log evidence is ignored under `artifacts/journal-row-toggles/`.
+- Inspected automated Light/Dark renders: Calendar **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**; standalone History **960 DIP / 96 DPI** and **480 DIP / 240 DPI**. Row actions remain visible, detail remains beneath its row, duplicate close controls are absent, and bottom actions remain scroll-reachable. Compiled interaction checks exercise click commands, a declined Calendar close, actual UI Automation expansion state and retained logical focus. These are automated WPF results, not live keyboard/screen-reader acceptance.
+- Remaining isolated live checks: Tab to row actions, use Enter/Space to open/close/switch, decline a dirty Calendar close, and confirm focus/scroll continuity in both themes at narrow scaling. Verify Close view leaves its review open and History page/filter unchanged. GitHub Actions must verify the user's eventual commit/push; local results are not a new CI result. No real journal was accessed and no Git writes were performed.
+
+Changed files (16 modified, two new):
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Desktop/Interactions/ExpansionButton.cs (new)
+src/PersonalTradingJournal.Desktop/Resources/Controls.xaml
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.DayJournals.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalHistoryViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalHistoryView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalPresentationResources.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalReviewView.xaml
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarDayJournalsTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalExpansionAssertions.cs (new)
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistorySqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs
+```
+
 ## In-place Calendar detail and combined Refresh
 
-Day Performance renders one expanded Journal **directly beneath its own saved card and before the next card**, with **Close Journal** in the same detail host. Other Account cards remain visible and the All accounts aggregate/order is unchanged. Open/Continue captures the exact journal ID; switching cards or closing uses the existing unsaved-editor guard. A declined switch preserves every field and the original expansion. A new unsaved Add form has no card yet and remains below the card list, above Trades; after saving it attaches to its new saved card. A retained editor whose entry is temporarily unavailable remains reachable rather than losing local text. Account moves, revision rules and scope filtering are unchanged.
+Day Performance renders one expanded Journal **directly beneath its own saved card and before the next card**, with **Close Journal** on that card's toggle. Other Account cards remain visible and the All accounts aggregate/order is unchanged. Open Journal captures the exact journal ID; switching cards or closing uses the existing unsaved-editor guard. A declined switch preserves every field and the original expansion. A new unsaved Add form has no card yet and remains below the card list, above Trades; after saving it attaches to its new saved card. A retained editor whose entry is temporarily unavailable remains reachable rather than losing local text. Account moves, revision rules and scope filtering are unchanged.
 
 Standalone Journal exposes **one Refresh** in the Review History heading (a fallback Refresh is shown only when the host has no History service). It replaces the separate Reload latest control. Before issuing any reads that would replace state, it uses the existing explicit discard/keep-editing guard; declining preserves the selected entry, text/answers, History rows/count/page and open snapshot. Confirmed Refresh loads the selected journal's exact loaded scope (or the explicitly chosen collision-recovery target) and History under its unchanged Account filter. It refreshes current text/status, counts, the opened review preview/revisions and an opened read-only snapshot. Date/filter and page remain unchanged while valid; if deletions remove the final page, paging reconciles to the last valid page. Reviews no longer on that page close without a write. Completed data remains read-only and old revision snapshots remain historical, never restored by Refresh.
 

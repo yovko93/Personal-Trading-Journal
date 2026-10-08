@@ -3,6 +3,7 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Domain.Accounts;
 
@@ -25,11 +26,17 @@ public sealed class CalendarDayJournalsTests
         {
             await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
             var rows = vm.DayJournals;
+            Assert.All(rows, r => Assert.Equal("Open Journal", r.ActionLabel));
             await vm.OpenDayJournalCommand.ExecuteAsync(rows.Single(r => r.Id == scoped.Id));
+            Assert.Equal("Close Journal", rows.Single(r => r.Id == scoped.Id).ActionLabel);
             Assert.Same(vm.InlineJournal, rows.Single(r => r.Id == scoped.Id).ExpandedJournal);
             Assert.Null(vm.DetachedInlineJournal); Assert.Null(vm.SelectedAccount.Id);
             await vm.InlineJournal!.ReopenReviewCommand.ExecuteAsync(null);
             vm.InlineJournal.Text = "Unsaved";
+            await vm.OpenDayJournalCommand.ExecuteAsync(rows.Single(r => r.Id == scoped.Id));
+            Assert.Equal("Unsaved", vm.InlineJournal.Text);
+            Assert.True(rows.Single(r => r.Id == scoped.Id).IsExpanded);
+            Assert.Equal("Close Journal", rows.Single(r => r.Id == scoped.Id).ActionLabel);
             await vm.OpenDayJournalCommand.ExecuteAsync(rows.Single(r => r.Id == global.Id));
             Assert.Equal(scoped.Id, vm.InlineJournal.JournalId);
             await db.Repository.UpdateAsync(new(scoped.Id, scoped.Revision, "Concurrent", false, ReopenCompleted: true));
@@ -42,9 +49,40 @@ public sealed class CalendarDayJournalsTests
             await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.Id == global.Id));
             Assert.Equal(global.Id, vm.InlineJournal!.JournalId);
             Assert.Single(vm.DayJournals, r => r.ExpandedJournal is not null);
-            vm.CloseInlineJournalCommand.Execute(null);
+            Assert.Equal("Open Journal", vm.DayJournals.Single(r => r.Id == scoped.Id).ActionLabel);
+            await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.Id == global.Id));
             Assert.All(vm.DayJournals, r => Assert.Null(r.ExpandedJournal));
+            Assert.All(vm.DayJournals, r => Assert.Equal("Open Journal", r.ActionLabel));
+            Assert.Null(vm.InlineJournal);
+            await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.Id == global.Id));
+            Assert.Equal(global.Id, vm.InlineJournal!.JournalId);
             Assert.Equal(2, vm.DayJournals.Count); Assert.Equal(Date, vm.SelectedDate);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Fact]
+    public async Task FailedInlineReadRetainsCloseToggleAndClosingDoesNotReopenOrWrite()
+    {
+        var repo = new FakeDailyJournalRepository();
+        var vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
+            journalDialogs: new FakeDialogService());
+        try
+        {
+            var cell = vm.Weeks[0].Days[5];
+            await repo.CreateAsync(new(cell.Date, null, "Saved text", false));
+            await vm.SelectDayCommand.ExecuteAsync(cell);
+            var row = Assert.Single(vm.DayJournals);
+            repo.Read = (_, _, _) => throw new InvalidOperationException("Synthetic read failure");
+            await vm.OpenDayJournalCommand.ExecuteAsync(row);
+            Assert.NotNull(vm.InlineJournal!.ErrorMessage);
+            Assert.True(row.IsExpanded); Assert.Equal("Close Journal", row.ActionLabel);
+            await vm.OpenDayJournalCommand.ExecuteAsync(row);
+            Assert.Null(vm.InlineJournal); Assert.False(row.IsExpanded);
+            Assert.Equal("Open Journal", row.ActionLabel);
+            Assert.Equal(1, repo.Writes);
+            Assert.Same(row, Assert.Single(vm.DayJournals));
+            Assert.Equal(cell.Date, vm.SelectedDate);
         }
         finally { vm.Deactivate(); }
     }

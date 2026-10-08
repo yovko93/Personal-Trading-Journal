@@ -6,9 +6,13 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**One open/close toggle per Journal row**
+
+Each Day Performance card now toggles **Open Journal / Close Journal** in place; each Review History row toggles **Open review / Close review**. Open colors remain distinct and expanded rows use the shared outlined close style. Labels and screen-reader expansion state follow the actual guarded detail, including declined closes and failed reads. Separate close buttons inside saved-row details are removed; revision **Close view** stays separate. Closing retains scope, History page and local drafts, and keeps focus on the row action where possible. See [Journal row toggles](docs/daily-journal.md#journal-row-openclose-toggles).
+
 **In-place Calendar Journal detail and one guarded Refresh**
 
-Open/Continue now expands the selected Journal immediately below its own Calendar card, with Close Journal beside that detail; other account cards remain visible. Standalone Journal has one Refresh action for its selected entry and Review History (including open read-only detail), preserving date, filter and valid page. Inline Refresh Journals also refreshes its open entry and cards; redundant Reload latest buttons are removed. Unsaved edits require the existing explicit discard decision before any user-requested refresh replaces state. Trade Retry and journal persistence are unchanged. See [presentation and refresh behavior](docs/daily-journal.md#in-place-calendar-detail-and-combined-refresh).
+Open Journal expands the selected Journal immediately below its own Calendar card, with that card's button becoming Close Journal; other account cards remain visible. Standalone Journal has one Refresh action for its selected entry and Review History (including open read-only detail), preserving date, filter and valid page. Inline Refresh Journals also refreshes its open entry and cards; redundant Reload latest buttons are removed. Unsaved edits require the existing explicit discard decision before any user-requested refresh replaces state. Trade Retry and journal persistence are unchanged. See [presentation and refresh behavior](docs/daily-journal.md#in-place-calendar-detail-and-combined-refresh).
 
 **Day Performance journals match Calendar indicators**
 

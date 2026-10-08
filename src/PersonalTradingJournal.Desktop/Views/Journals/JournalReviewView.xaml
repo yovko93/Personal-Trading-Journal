@@ -19,13 +19,8 @@
     </UserControl.Resources>
                 <StackPanel x:Name="OpenedReview" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
                 <Grid Margin="0,12,0,8">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding SelectedEntry.Description}" TextWrapping="Wrap" VerticalAlignment="Center"
                                Style="{DynamicResource JournalLabel}" />
-                    <Button x:Name="CloseOpenedReview" Grid.Column="1" Content="Close _review" Command="{Binding CloseReviewCommand}"
-                            Margin="8,0,0,0" VerticalAlignment="Top" Style="{DynamicResource JournalCloseButton}"
-                            AutomationProperties.Name="Close opened review and its revisions"
-                            ToolTip="Collapse revisions and return to this history page without changing your date, Account or editor." />
                 </Grid>
                 <Button x:Name="OpenInEditor" Content="Open in editor" Command="{Binding OpenInEditorCommand}" HorizontalAlignment="Left"
                         Style="{DynamicResource JournalEditorButton}" Margin="0,0,0,8"

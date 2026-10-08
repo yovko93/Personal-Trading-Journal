@@ -226,7 +226,9 @@ public sealed class JournalHistorySqliteTests
             Assert.Equal("local draft", vm.Text);
             Assert.Contains("Refresh required", vm.StatusText);
             await vm.History.RefreshCommand.ExecuteAsync(null);
-            await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]); // Same scope: conflict must remain protected.
+            await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]); // The same row now closes.
+            Assert.False(vm.History.HasSelectedEntry);
+            await vm.History.OpenCommand.ExecuteAsync(vm.History.Entries[0]); // Reopening must still preserve the conflict.
             await vm.History.ViewRevisionCommand.ExecuteAsync(vm.History.Revisions[^1]);
             Assert.Equal("first", vm.History.Snapshot!.Text);
             Assert.Equal("local draft", vm.Text);

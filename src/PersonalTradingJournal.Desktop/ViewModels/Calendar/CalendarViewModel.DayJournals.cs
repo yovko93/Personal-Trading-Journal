@@ -9,7 +9,18 @@ public sealed class CalendarJournalEntry(DailyJournalDetails details) : Observab
 {
     public DailyJournalDetails Details { get; } = details;
     private JournalViewModel? _expandedJournal;
-    public JournalViewModel? ExpandedJournal { get => _expandedJournal; internal set => SetProperty(ref _expandedJournal, value); }
+    public JournalViewModel? ExpandedJournal
+    {
+        get => _expandedJournal;
+        internal set
+        {
+            if (!SetProperty(ref _expandedJournal, value)) return;
+            OnPropertyChanged(nameof(IsExpanded));
+            OnPropertyChanged(nameof(ActionLabel));
+            OnPropertyChanged(nameof(ActionAccessibleName));
+        }
+    }
+    public bool IsExpanded => ExpandedJournal is not null;
     public Guid Id => Details.Entry.Id;
     public Guid? AccountId => Details.Entry.TradingAccountId;
     public string AccountLabel => Details.AccountState switch
@@ -20,7 +31,8 @@ public sealed class CalendarJournalEntry(DailyJournalDetails details) : Observab
         _ => Details.AccountName ?? "Unavailable account",
     };
     public string StateLabel => Details.Entry.IsDraft ? "Draft" : "Completed";
-    public string ActionLabel => Details.Entry.IsDraft ? "Continue Journal" : "Open Journal";
+    public string ActionLabel => IsExpanded ? "Close Journal" : "Open Journal";
+    public string ActionAccessibleName => ActionLabel + ": " + Description;
     public string Text => Details.Entry.Text;
     public string Description => $"{Details.Entry.TradingDate:yyyy-MM-dd} · {AccountLabel} · {StateLabel} · Revision {Details.Entry.Revision}";
 }

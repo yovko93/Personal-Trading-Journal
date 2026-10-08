@@ -11,7 +11,19 @@ public sealed class JournalHistoryRow(JournalHistoryItem item) : ObservableObjec
 {
     public JournalHistoryItem Item { get; } = item;
     private JournalHistoryViewModel? _review;
-    public JournalHistoryViewModel? Review { get => _review; internal set => SetProperty(ref _review, value); }
+    public JournalHistoryViewModel? Review
+    {
+        get => _review;
+        internal set
+        {
+            if (!SetProperty(ref _review, value)) return;
+            OnPropertyChanged(nameof(IsExpanded));
+            OnPropertyChanged(nameof(ActionLabel));
+            OnPropertyChanged(nameof(OpenAccessibleName));
+        }
+    }
+    public bool IsExpanded => Review is not null;
+    public string ActionLabel => IsExpanded ? "Close review" : "Open review";
     public string DateText => Item.TradingDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
     public string DisplayDate => Item.TradingDate.ToString("dd MMM yyyy", CultureInfo.CurrentCulture);
     public string RevisionText => $"Revision {Item.Revision}";
@@ -24,7 +36,7 @@ public sealed class JournalHistoryRow(JournalHistoryItem item) : ObservableObjec
         _ => Item.AccountName ?? "Account unavailable",
     };
     public string Description => $"{DateText} · {ScopeText} · {StateText} · Revision {Item.Revision}";
-    public string OpenAccessibleName => "Open review: " + Description;
+    public string OpenAccessibleName => ActionLabel + ": " + Description;
 }
 
 public sealed record JournalRevisionRow(JournalRevisionItem Item, bool IsCurrent = false)
@@ -272,7 +284,9 @@ public sealed class JournalHistoryViewModel : ObservableObject
         if (row is null || !_active || (_accountId.HasValue && row.Item.AccountId != _accountId)
             || !_entries.Any(current => ReferenceEquals(current, row)))
             return Task.CompletedTask;
+        bool closing = ReferenceEquals(_selectedEntry, row);
         ClearSelection();
+        if (closing) { Notify(); return Task.CompletedTask; }
         _selectedEntry = row;
         Notify();
         return RevisionLoadTask = LoadReviewAsync();

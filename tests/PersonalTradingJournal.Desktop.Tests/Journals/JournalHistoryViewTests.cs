@@ -100,7 +100,7 @@ public sealed class JournalHistoryViewTests
                     Assert.NotNull(text.Foreground);
                 }
                 Assert.Equal("  text 23\r\n", ((TextBox)Review(view).FindName("RevisionText")).Text);
-                var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "View revision").ToArray();
+                var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "Close review" or "View revision").ToArray();
                 Assert.Equal(23, buttons.Length);
                 Assert.All(buttons, b => { Assert.True(b.Focusable); Assert.True(b.IsEnabled); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(b))); });
                 var open = buttons.First(b => b.Content.ToString() == "Open review");
@@ -129,7 +129,7 @@ public sealed class JournalHistoryViewTests
                 Assert.All(deletes.Skip(1), b => Assert.True(b.IsEnabled));
                 Assert.All(deletes, b => { Assert.True(b.Focusable); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); });
                 Assert.Same(vm.OpenCommand, open.Command);
-                Assert.Same(vm.Entries[0], open.CommandParameter);
+                Assert.Same(vm.Entries[1], open.CommandParameter);
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
                 bitmap.Render(root);
                 Assert.Equal(width * dpi / 96, bitmap.PixelWidth);
@@ -156,6 +156,7 @@ public sealed class JournalHistoryViewTests
     private static void CheckFullPage(JournalViewModel vm, ResourceDictionary resources, string theme, int width, int dpi)
     {
         var page = new JournalView { DataContext = vm };
+        FocusManager.SetIsFocusScope(page, true);
         Assert.NotNull(vm.History!.RefreshRequested);
         var root = new Border { Resources = resources, Child = page };
         root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
@@ -178,7 +179,9 @@ public sealed class JournalHistoryViewTests
         Assert.True(answers.TranslatePoint(new Point(0, answers.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         var reviewView = Review(historyView);
         var close = (Button)reviewView.FindName("CloseRevisionView");
-        var closeReview = (Button)reviewView.FindName("CloseOpenedReview");
+        Assert.Null(reviewView.FindName("CloseOpenedReview"));
+        var closeReview = Assert.Single(Descendants(historyView).OfType<Button>(), b => Equals(b.Content, "Close review"));
+        JournalExpansionAssertions.State(closeReview, true);
         var openedReview = (StackPanel)reviewView.FindName("OpenedReview");
         // This render tree has no native PresentationSource, so IsVisible is false
         // even for its root. Check bound visibility, arranged size and reachability.
@@ -189,7 +192,7 @@ public sealed class JournalHistoryViewTests
         Assert.True(closeReview.IsEnabled);
         Assert.True(closeReview.Focusable);
         Assert.True(KeyboardNavigation.GetIsTabStop(closeReview));
-        Assert.Same(vm.History!.CloseReviewCommand, closeReview.Command);
+        Assert.Same(vm.History!.OpenCommand, closeReview.Command);
         Assert.NotSame(close.Command, closeReview.Command);
         foreach (var closeButton in new[] { close, closeReview })
         {
@@ -198,7 +201,7 @@ public sealed class JournalHistoryViewTests
             Assert.Equal(Colors.Transparent, ((SolidColorBrush)closeButton.Background).Color);
             Assert.NotNull(closeButton.Template.FindName("FocusIndicator", closeButton));
         }
-        Assert.Contains("Close opened review", AutomationProperties.GetName(closeReview));
+        Assert.Contains("Close review:", AutomationProperties.GetName(closeReview));
         Assert.InRange(closeReview.TranslatePoint(new Point(), root).X, 0, width);
         Assert.InRange(closeReview.TranslatePoint(new Point(closeReview.ActualWidth, 0), root).X, 0, width);
         closeReview.BringIntoView(); Flush(); root.UpdateLayout();
@@ -278,8 +281,11 @@ public sealed class JournalHistoryViewTests
         var account = vm.SelectedAccount;
         string pageText = vm.History.PageText;
         double openExtent = scroller.ExtentHeight;
-        vm.History.CloseReviewCommand.Execute(null);
+        JournalExpansionAssertions.Click(closeReview);
         Flush(); root.UpdateLayout();
+        JournalExpansionAssertions.State(closeReview, false);
+        Assert.Equal("Open review", closeReview.Content);
+        Assert.Same(closeReview, FocusManager.GetFocusedElement(page));
         Assert.Empty(Descendants(historyView).OfType<JournalReviewView>()); // The inline view is removed, not left as a footer.
         Assert.True(scroller.ExtentHeight < openExtent);
         Assert.Empty(vm.History.Revisions);
@@ -337,7 +343,10 @@ public sealed class JournalHistoryViewTests
         Assert.InRange(open.TranslatePoint(new Point(), root).X, 0, width);
         Assert.InRange(open.TranslatePoint(new Point(open.ActualWidth, 0), root).X, 0, width);
         Assert.True(open.Focusable && KeyboardNavigation.GetIsTabStop(open));
-        JournalButtonAssertions.States(open, "Review");
+        JournalExpansionAssertions.State(open, true);
+        var collapsed = Assert.Single(Descendants(view).OfType<Button>(), b => b.Name == "OpenReview" && ReferenceEquals(b.CommandParameter, vm.Entries[1]));
+        JournalExpansionAssertions.State(collapsed, false);
+        JournalButtonAssertions.States(collapsed, "Review");
         Assert.Equal(new Thickness(0, 0, 0, 1), row.BorderThickness);
         // Exercise the actual theme trigger, not a live pointer claim.
         var hoverKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",
