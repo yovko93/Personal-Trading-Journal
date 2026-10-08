@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.1 — Daily Review scope and evidence**
+
+M15 includes Daily Review with AI Coaching. Its first stage adds `IDailyReviewEvidenceReader`: a read-only, consistent SQLite snapshot for one explicit New York date and optional Account filter. Fully closed Trades use Calendar's closure-date attribution; open/partial Trades with activity that day are separately marked context. All accounts retains every original Account identity, including null-scoped Journals. Evidence preserves source/execution IDs, nullable costs and P&L, historical currency, classifications, Journal fields/status/revision and data-quality flags. Four batch queries avoid per-Trade reads and browse-page truncation. No UI, AI calls, generated interpretation, analysis persistence or migration is added. See [Daily Review contract and limits](docs/daily-review.md).
+
 **PR #17 — Calendar owner-close protection**
 
 Closing the main window while Calendar is active now uses Day Performance's existing combined close guard. In-progress Trade work blocks shutdown; declined Journal discard keeps the owner, day dialog, editor, all fields and selection intact. Accepted discard closes without another confirmation or a Journal write. Standalone Journal and other destinations retain their existing behavior. See the [targeted acceptance follow-up](docs/m14-acceptance.md#pr-17-calendar-owner-close-guard-follow-up).
