@@ -210,6 +210,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (CurrentDestination == NavigationDestination.Calendar)
+            return _calendarViewModel.TryCloseDayDialog();
+
         if (CurrentDestination != NavigationDestination.Journal) return true;
         if (!_journalViewModel.TryLeave()) return false;
 

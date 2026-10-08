@@ -6,9 +6,13 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**PR #17 — Calendar owner-close protection**
+
+Closing the main window while Calendar is active now uses Day Performance's existing combined close guard. In-progress Trade work blocks shutdown; declined Journal discard keeps the owner, day dialog, editor, all fields and selection intact. Accepted discard closes without another confirmation or a Journal write. Standalone Journal and other destinations retain their existing behavior. See the [targeted acceptance follow-up](docs/m14-acceptance.md#pr-17-calendar-owner-close-guard-follow-up).
+
 **M14.7 Journal acceptance — live and CI gates open**
 
-The current Journal audit passes **411 focused Release tests**, a Release build with **zero warnings/errors**, EF model consistency and the diff check. Light/Dark History and inline Calendar renders were inspected at normal and narrow/240-DPI sizes. The production app started with separate disposable Light/Dark data roots, but the Windows input/capture helper failed during initialization, so live mouse/keyboard workflows remain blocked. GitHub has **no Actions run for current `develop` commit `c7cc44f110550c9e96396bdcafa54850d9064824`**. The already-pushed branch needs a PR targeting `main` to trigger the existing workflow. See the [scenario matrix, exact evidence and remaining isolated checklist](docs/m14-acceptance.md). M14 is not yet fully interactively accepted.
+The initial 2026-10-08 Journal audit passed **411 focused Release tests**, a Release build with **zero warnings/errors**, EF model consistency and the diff check. Light/Dark History and inline Calendar renders were inspected at normal and narrow/240-DPI sizes. The production app started with separate disposable Light/Dark data roots, but the Windows input/capture helper failed during initialization, so live mouse/keyboard workflows remain blocked. At that audit, GitHub had **no Actions run for audited `develop` commit `c7cc44f110550c9e96396bdcafa54850d9064824`**. PR #17 now targets `main`; the uncommitted owner-close fix above still requires the user's commit/push before CI can verify it. See the [scenario matrix, exact evidence and remaining isolated checklist](docs/m14-acceptance.md). M14 is not yet fully interactively accepted.
 
 **Revision toggles and Calendar card deletion**
 

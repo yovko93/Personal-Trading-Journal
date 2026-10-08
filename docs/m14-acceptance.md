@@ -1,6 +1,6 @@
 # M14 Journal acceptance
 
-Audit date: **2026-10-08**. Branch: `develop`. Actual local and remote HEAD: **`c7cc44f110550c9e96396bdcafa54850d9064824`**. The worktree was clean before this audit. The production executable reports product version `1.0.0+c7cc44f110550c9e96396bdcafa54850d9064824`.
+Initial audit date: **2026-10-08**. Branch: `develop`. Local and remote HEAD at that audit: **`c7cc44f110550c9e96396bdcafa54850d9064824`**. The worktree was clean before that audit. Its production executable reported product version `1.0.0+c7cc44f110550c9e96396bdcafa54850d9064824`. The later PR #17 correction is recorded separately below; initial results and CI observations are historical, not claims about the new uncommitted fix.
 
 ## Decision and scope
 
@@ -88,3 +88,15 @@ $acceptanceRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('ptj-m147-' + [gu
 6. Repeat key flows in Light and Dark via Appearance settings. At normal and narrow supported window sizes and actual high display scaling, wheel/touchpad/keyboard-scroll through long text, revision snapshots, inline forms and Trades; reach bottom actions and horizontal columns. Record actual viewport/DPI and screenshots. Mark each live matrix cell Passed/Failed with concise observations and reproduce any defect before modifying code.
 
 M14.7 closes only after these live results and matching CI evidence are recorded. Current automated checks and startup evidence remain available while those gates are open.
+
+## PR #17 Calendar owner-close guard follow-up
+
+Baseline: clean `develop`, **`b48b05ecb82018bc59dc46f459ca168f78943d77`**. The P2 finding is confirmed in the closing call chain: `MainWindow.OnClosing()` calls `MainWindowViewModel.TryCloseWindow()`, which previously returned true for every destination except standalone Journal. Calendar deactivation releases its inline Journal without prompting, so deferred shutdown/disposal was not a substitute for a guard.
+
+The only production change is to route active Calendar owner closing through **`CalendarViewModel.TryCloseDayDialog()`**. It checks in-progress Trade work before `TryCloseInlineJournal()` and the existing `JournalViewModel.TryLeave()` discard guard. A veto returns false before releasing the editor or deactivating Calendar. Acceptance uses the existing release path once; there is no new prompt, persistence operation or early Calendar deactivation. Standalone Journal closing, navigation, other destinations, schema and economics are unchanged.
+
+Five new targeted cases cover clean closing, dirty discard veto and acceptance, in-progress Trade loading/editing, and standalone Journal closing. The native cases create the real `MainWindow` and an owned Day Performance window, then call `Window.Close()` to exercise `MainWindow.OnClosing()`. They assert both windows survive a veto, all four fields and date/month/Account/currency selections survive, and accepted dirty close prompts exactly once with zero Journal writes. The Trade test verifies that loading/editing blocks owner close before any Journal prompt. Tests use fake readers and an isolated, deadline-supervised process; the real App constructor and user's data path are never invoked. Bound ViewModels are disposed on the WPF dispatcher.
+
+Focused Release: **15/15 passed**, zero failures/skips, including the new five-case child and existing standalone close, inline Trade and combined Refresh regressions. Full parallel Release: **3,012/3,012 passed**, zero failures/skips — Domain 454, Application 529, Infrastructure 806, Desktop 1,223. The Calendar native child passed all **86** cases inside its unchanged deadline. Release build: **0 warnings/errors**. EF model consistency: **no pending changes**. Final `git diff --check`: passed. Logs and TRX are retained under ignored `artifacts/p2-owner-close/`, with build/full/focused/EF logs in `artifacts/p2-owner-close-*.log`.
+
+This is automated native-window closing evidence, not live mouse/keyboard acceptance. Remaining manual check: in an isolated app, open a dirty Calendar Journal, request application close, decline and verify both windows and all fields survive; accept on the next attempt and verify only one prompt. Repeat with inline Trade loading/editing and standalone Journal. The uncommitted correction cannot yet have a matching GitHub Actions run; the user's commit/push to PR #17 is required. No commit, push, merge or `main` modification was performed.

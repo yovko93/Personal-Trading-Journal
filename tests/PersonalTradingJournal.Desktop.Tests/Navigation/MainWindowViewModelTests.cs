@@ -1175,7 +1175,9 @@ public sealed partial class MainWindowViewModelTests
         FakeTradeDeletionStore? tradeDeletionStore = null,
         TradesViewModel? calendarEditor = null,
         JournalViewModel? journalViewModel = null,
-        IDailyJournalStatusReader? journalStatusReader = null)
+        IDailyJournalStatusReader? journalStatusReader = null,
+        IDailyJournalRepository? calendarJournalRepository = null,
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1336,7 +1338,8 @@ public sealed partial class MainWindowViewModelTests
             new FakeDialogService(), new JournalTradeContextViewModel(journalReader, new FakeTradingAccountReader()), timeProvider);
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor, journalStatusReader: journalStatusReader),
+            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor, journalStatusReader: journalStatusReader,
+                journalRepository: calendarJournalRepository, journalDialogs: calendarJournalDialogs),
             journal,
             accounts,
             instruments,
