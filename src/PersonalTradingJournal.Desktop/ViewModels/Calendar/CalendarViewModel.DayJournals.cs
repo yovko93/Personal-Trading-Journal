@@ -33,6 +33,7 @@ public sealed class CalendarJournalEntry(DailyJournalDetails details) : Observab
     public string StateLabel => Details.Entry.IsDraft ? "Draft" : "Completed";
     public string ActionLabel => IsExpanded ? "Close Journal" : "Open Journal";
     public string ActionAccessibleName => ActionLabel + ": " + Description;
+    public string DeleteAccessibleName => "Delete Journal: " + Description;
     public string Text => Details.Entry.Text;
     public string Description => $"{Details.Entry.TradingDate:yyyy-MM-dd} · {AccountLabel} · {StateLabel} · Revision {Details.Entry.Revision}";
 }
@@ -49,6 +50,7 @@ public sealed partial class CalendarViewModel
     public Task DayJournalLoadTask { get; private set; } = Task.CompletedTask;
     public IAsyncRelayCommand AddDayJournalCommand { get; private set; } = null!;
     public IAsyncRelayCommand<CalendarJournalEntry> OpenDayJournalCommand { get; private set; } = null!;
+    public IAsyncRelayCommand<CalendarJournalEntry> DeleteDayJournalCommand { get; private set; } = null!;
     public IAsyncRelayCommand RefreshDayJournalsCommand { get; private set; } = null!;
     public string DayJournalStatusMessage => IsDayJournalLoading ? "Loading day Journals…"
         : DayJournalError ?? (_dayJournalsLoaded
@@ -128,6 +130,7 @@ public sealed partial class CalendarViewModel
         OnPropertyChanged(nameof(DayJournalStatusMessage));
         AddDayJournalCommand?.NotifyCanExecuteChanged();
         OpenDayJournalCommand?.NotifyCanExecuteChanged();
+        DeleteDayJournalCommand?.NotifyCanExecuteChanged();
         RefreshDayJournalsCommand?.NotifyCanExecuteChanged();
     }
 }

@@ -39,8 +39,6 @@
             <WrapPanel Margin="0,8">
                 <Button Content="Cancel loading/saving" Command="{Binding CancelOperationCommand}" Style="{DynamicResource PtjJournalActionButtonStyle}" FontSize="16" Margin="0,0,8,4"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolVisibility}}" />
-                <Button x:Name="DeleteInlineJournal" Content="Delete Journal" Command="{Binding DeleteCommand}" Style="{DynamicResource PtjDangerButtonStyle}" FontSize="16" Margin="0,0,8,4"
-                        Visibility="{Binding IsExisting, Converter={StaticResource BoolVisibility}}" />
             </WrapPanel>
             <StackPanel x:Name="InlineForm" Visibility="{Binding IsEditorOpen, Converter={StaticResource BoolVisibility}}"
                         IsVisibleChanged="OnFormVisible" MaxWidth="760">

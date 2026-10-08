@@ -100,7 +100,7 @@ public sealed class JournalHistoryViewTests
                     Assert.NotNull(text.Foreground);
                 }
                 Assert.Equal("  text 23\r\n", ((TextBox)Review(view).FindName("RevisionText")).Text);
-                var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "Close review" or "View revision").ToArray();
+                var buttons = Descendants(view).OfType<Button>().Where(b => b.Content?.ToString() is "Open review" or "Close review" or "View revision" or "Close revision").ToArray();
                 Assert.Equal(23, buttons.Length);
                 Assert.All(buttons, b => { Assert.True(b.Focusable); Assert.True(b.IsEnabled); Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), root).X, 0, width); Assert.False(string.IsNullOrEmpty(AutomationProperties.GetName(b))); });
                 var open = buttons.First(b => b.Content.ToString() == "Open review");
@@ -108,6 +108,9 @@ public sealed class JournalHistoryViewTests
                 var revision = buttons.First(b => b.Content.ToString() == "View revision");
                 JournalButtonAssertions.States(editor, "Editor");
                 JournalButtonAssertions.States(revision, "Revision");
+                var closeRevision = Assert.Single(buttons, b => Equals(b.Content, "Close revision"));
+                JournalExpansionAssertions.State(closeRevision, true);
+                JournalExpansionAssertions.State(revision, false);
                 var actionColors = new[] { open.Background, editor.Background, revision.Background,
                     resources["PtjAccentBrush"], resources["PtjJournalSaveBrush"], resources["PtjJournalDraftBrush"], resources["PtjDangerBrush"] }
                     .Select(b => ((SolidColorBrush)b).Color).ToArray();
@@ -178,7 +181,9 @@ public sealed class JournalHistoryViewTests
         Assert.True(editor.TranslatePoint(new Point(0, editor.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         Assert.True(answers.TranslatePoint(new Point(0, answers.ActualHeight), page).Y <= history.TranslatePoint(new Point(), page).Y);
         var reviewView = Review(historyView);
-        var close = (Button)reviewView.FindName("CloseRevisionView");
+        Assert.Null(reviewView.FindName("CloseRevisionView"));
+        var close = Assert.Single(Descendants(reviewView).OfType<Button>(), b => Equals(b.Content, "Close revision"));
+        JournalExpansionAssertions.State(close, true);
         Assert.Null(reviewView.FindName("CloseOpenedReview"));
         var closeReview = Assert.Single(Descendants(historyView).OfType<Button>(), b => Equals(b.Content, "Close review"));
         JournalExpansionAssertions.State(closeReview, true);
@@ -215,7 +220,7 @@ public sealed class JournalHistoryViewTests
         });
         Assert.True(close.IsEnabled);
         Assert.True(close.Focusable);
-        Assert.Same(vm.History!.CloseViewCommand, close.Command);
+        Assert.Same(vm.History!.ViewRevisionCommand, close.Command);
         // Lists have no independent vertical viewport. Read-only text grows fully,
         // leaving one page scrollbar rather than a clipped nested 150-DIP box.
         Assert.DoesNotContain(Descendants(historyView).OfType<ScrollViewer>(), s => s.VerticalScrollBarVisibility != ScrollBarVisibility.Disabled);
@@ -268,11 +273,14 @@ public sealed class JournalHistoryViewTests
         last.BringIntoView(new Rect(0, last.ActualHeight - 20, last.ActualWidth, 20)); Flush();
         Capture(root, theme, width, dpi, "page-revision-end");
         var selected = vm.History.SelectedEntry;
-        vm.History.CloseViewCommand.Execute(null);
+        close.BringIntoView(); Flush(); root.UpdateLayout();
+        JournalExpansionAssertions.Click(close);
         Flush(); root.UpdateLayout();
         Assert.Null(vm.History.Snapshot);
         Assert.Same(selected, vm.History.SelectedEntry);
-        Assert.False(close.IsVisible);
+        Assert.Equal("View revision", close.Content);
+        JournalExpansionAssertions.State(close, false);
+        Assert.Same(close, FocusManager.GetFocusedElement(page));
         Assert.Equal(Visibility.Visible, openedReview.Visibility); // Close view leaves the review browser open.
         Assert.True(closeReview.IsEnabled);
         Assert.True(vm.IsEditorOpen);
@@ -281,6 +289,11 @@ public sealed class JournalHistoryViewTests
         var account = vm.SelectedAccount;
         string pageText = vm.History.PageText;
         double openExtent = scroller.ExtentHeight;
+        closeReview.BringIntoView(); Flush(); root.UpdateLayout();
+        // This detached render has no native PresentationSource (Focus() returns false).
+        // Model the pointer/keyboard focus transfer before invoking OnClick, then verify
+        // collapse retains that row rather than the removed revision button.
+        FocusManager.SetFocusedElement(page, closeReview);
         JournalExpansionAssertions.Click(closeReview);
         Flush(); root.UpdateLayout();
         JournalExpansionAssertions.State(closeReview, false);
@@ -320,7 +333,10 @@ public sealed class JournalHistoryViewTests
         var firstHeader = (Border)firstRow.ContentTemplate.FindName("HistoryRow", firstRow);
         var nextRow = (ContentPresenter)entries.ItemContainerGenerator.ContainerFromIndex(1);
         Assert.True(expanded.TranslatePoint(new Point(), entries).Y >= firstHeader.TranslatePoint(new Point(0, firstHeader.ActualHeight), entries).Y);
-        Assert.True(nextRow.TranslatePoint(new Point(), entries).Y >= expanded.TranslatePoint(new Point(0, expanded.ActualHeight), entries).Y);
+        double nextTop = nextRow.TranslatePoint(new Point(), entries).Y;
+        double detailBottom = expanded.TranslatePoint(new Point(0, expanded.ActualHeight), entries).Y;
+        // TransformToAncestor sums fractional DIPs: measured equal boundaries can differ by ~4.5e-13.
+        Assert.True(nextTop + 0.000001 >= detailBottom, $"width={width}; next row top={nextTop:R}; detail bottom={detailBottom:R}; arranged={expanded.IsArrangeValid}");
         Assert.Same(vm, expanded.DataContext);
         var presenter = Assert.IsType<ContentPresenter>(entries.ItemContainerGenerator.ContainerFromIndex(0));
         T Part<T>(string name) where T : FrameworkElement => (T)presenter.ContentTemplate.FindName(name, presenter);

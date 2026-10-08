@@ -8,6 +8,7 @@ public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDaily
     private readonly Dictionary<(DateOnly, Guid?), DailyJournalDetails> _entries = [];
     public Func<DateOnly, Guid?, CancellationToken, Task<DailyJournalDetails?>>? Read { get; set; }
     public int Writes { get; private set; }
+    public Func<DeleteDailyJournalCommand, CancellationToken, Task<DailyJournalWriteResult>>? Delete { get; set; }
     public Dictionary<Guid, string> AccountNames { get; } = [];
     public Task<IReadOnlyList<DailyJournalDetails>> GetDayAsync(DateOnly date, Guid? accountId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<DailyJournalDetails>>(_entries.Values.Where(j => j.Entry.TradingDate == date &&
@@ -43,6 +44,7 @@ public sealed class FakeDailyJournalRepository : IDailyJournalRepository, IDaily
     public Task<DailyJournalWriteResult> DeleteAsync(DeleteDailyJournalCommand command, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (Delete is not null) return Delete(command, cancellationToken);
         var entry = _entries.Values.Single(j => j.Entry.Id == command.JournalId).Entry;
         if (entry.Revision != command.ExpectedRevision) return Task.FromResult(new DailyJournalWriteResult(DailyJournalWriteStatus.Conflict, null));
         _entries.Remove((entry.TradingDate, entry.TradingAccountId));

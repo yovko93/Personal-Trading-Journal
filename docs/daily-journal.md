@@ -1,10 +1,48 @@
 # Daily Journal — M14.1–M14.6
 
+## Revision toggles and Calendar card deletion
+
+Each revision row has one **View revision / Close revision** button, using the shared view/outlined-close styles and actual UI Automation expansion state. The separate snapshot Close view button is removed. Close revision cancels a pending snapshot read or closes its content/error only; the review remains expanded and its exact Account, History page, revision page and any standalone editor draft are unchanged. Opening another revision resets the previous row. Closing a review or changing either page clears its snapshot and labels. Refresh reattaches an available snapshot to the current revision row; deletion of the viewed older revision closes it, while deleting a different revision retains it. Snapshots remain read-only and the latest revision remains protected from deletion.
+
+Every saved Day Performance card has **Open/Close Journal** and a red **Delete Journal** beside it, wrapping at narrow widths. The duplicate Delete inside expanded detail is removed. Deletion always targets that card's ID and saved Account, not the Calendar filter or an unsaved form Account. A collapsed card uses a temporary non-presented Journal host with the existing guarded read/delete contract; its freshly read revision must equal the displayed card revision. A stale/moved/missing card must be refreshed before deletion, never silently upgraded to authorize deleting newer data. An expanded card reuses its existing editor and loaded token. Existing confirmation identifies the New York date and Account and explicitly warns that the entry, all history and that entry's unsaved edits are permanently removed. Declining or a failed/conflicting write leaves cards and fields untouched. Deleting a different collapsed card never discards another open editor's draft.
+
+A successful deletion closes only the deleted entry's detail, reloads the day cards and Calendar indicators, and keeps the selected date and filters. Overlapping card deletes and modal/scope changes during deletion are blocked; stale disconnected actions cannot target another entry. No persistence/schema changes, currency aggregation, economics or import changes are involved. The new actions use shared Light/Dark resources, keyboard focus and exact-identity accessible names.
+
+### Revision/card verification (2026-10-08)
+
+- Baseline: clean `develop`, HEAD `9355152e039084815b7c5ffd22b0b18323dfad19`. This change is limited to Desktop commands/presentation, tests and documentation; persistence, schema and Trade economics are unchanged.
+- Focused Release: **411 passed**, zero failures/skips (Domain 54, Application 13, Infrastructure 80, Desktop 264). Coverage includes toggle/switch/close, cancelled late snapshot reads, page/refresh/deletion state, latest-revision protection, aggregate scope retention, collapsed/expanded card deletion, confirmation cancellation, stale revisions, write failure, an unrelated dirty editor, and refreshed Calendar marker counts.
+- Complete normal **parallel Release: 3,007 passed**, zero failures/skips (Domain 454, Application 529, Infrastructure 806, Desktop 1,218). The Calendar native child passed **86/86**. No deadlines, retries, skips or concurrency settings were changed. Release build: **zero warnings/errors**. EF: no pending model changes. `git diff --check`: passed.
+- Inspected isolated automated Light/Dark renders: History **960 DIP / 96 DPI** and **480 DIP / 240 DPI**; Calendar cards **1100 DIP / 96 DPI** and **480 DIP / 240 DPI**. View/Close revision styles and UI Automation expansion state are checked; card actions wrap and retain exact-identity accessible names; duplicate snapshot-close and expanded-detail-delete buttons are absent. Full detail remains scroll-reachable.
+- The detached layout test explicitly models logical focus transfer before invoking the row action: the measured detached visual has no `PresentationSource`, `IsVisible=false`, and `Focus()` returns false. It then asserts that collapsing retains focus on the surviving row, not a disconnected revision button. No production focus workaround was added. A layout boundary assertion permits only 0.000001 DIP of floating-point roundoff (measured discrepancy: 2032.5599999999995 versus 2032.56), not visible overlap.
+- Synthetic render/TRX/log evidence is ignored under `artifacts/journal-revision-card-actions/`. Remaining isolated live checks: Enter/Space and pointer toggles, screen-reader state announcements, focus/scroll continuity, and Delete confirmation/failure recovery in both themes. GitHub Actions must verify the eventual user commit/push. No real journal was accessed; no Git writes were performed.
+
+Changed files (16 modified, no new files):
+
+```text
+README.md
+docs/daily-journal.md
+docs/trading-calendar.md
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.DayJournals.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalHistoryViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/InlineJournalView.xaml
+src/PersonalTradingJournal.Desktop/Views/Journals/JournalReviewView.xaml
+tests/PersonalTradingJournal.Desktop.Tests/Journals/CalendarDayJournalsTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/InlineJournalViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalExpansionAssertions.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryRevisionActionsTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/FakeDailyJournalRepository.cs
+```
+
 ## Journal row open/close toggles
 
 Saved Calendar cards have one **Open Journal / Close Journal** button. The same button opens or closes only its attached detail; opening another card restores the previous card's Open label. A declined unsaved-editor close or switch keeps the old expansion, fields and Close label. Other cards, exact identities, selected date, Account/currency filters and the existing scroller remain intact. A new unsaved Add form has no saved row yet, so it retains its own guarded Close action above the form. Save/Cancel-Draft and modal-dismissal rules are unchanged.
 
-Review History similarly uses one **Open review / Close review** action per row, retaining the distinctive open color and switching to outlined red when expanded. There is no duplicate Close review in the detail. Closing cancels pending preview/revision reads, collapses that row and any snapshot, and does not write, change the History filter/page/date/Account, or touch unsaved standalone editor contents. **Close view** still closes only a read-only revision snapshot and leaves its review expanded. Refresh reattaches the expansion to the current row identity; errors keep a closeable detail rather than a misleading Open label.
+Review History similarly uses one **Open review / Close review** action per row, retaining the distinctive open color and switching to outlined red when expanded. There is no duplicate Close review in the detail. Closing cancels pending preview/revision reads, collapses that row and any snapshot, and does not write, change the History filter/page/date/Account, or touch unsaved standalone editor contents. The revision row's **Close revision** closes only its read-only snapshot and leaves its review expanded. Refresh reattaches the expansion to the current row identity; errors keep a closeable detail rather than a misleading Open label.
 
 Both row actions use shared Light/Dark brushes and existing hover/pressed/disabled/focus templates. Their accessible names include the action, date and Account. The UI Automation ExpandCollapse pattern reports actual ViewModel state, not an optimistic check state that could drift after a veto. Click/Enter/Space use the same command and retain focus on the surviving row action where WPF permits it. Persistence, economics, query scope and 10-row paging are unchanged.
 

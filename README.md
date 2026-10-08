@@ -6,9 +6,13 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Revision toggles and Calendar card deletion**
+
+Revision rows now toggle **View revision / Close revision**, using the existing view color and outlined close style; there is no separate Close view button. Closing a snapshot keeps its review, paging, scope and editor text intact. Day Performance cards show wrapping **Open/Close Journal + Delete Journal** actions in both collapsed and expanded states. Deletion reuses the exact Journal identity, revision check and permanent-history confirmation, preserves edits on cancellation/failure, and refreshes cards/Calendar markers only after a commit. See [behavior and verification](docs/daily-journal.md#revision-toggles-and-calendar-card-deletion).
+
 **One open/close toggle per Journal row**
 
-Each Day Performance card now toggles **Open Journal / Close Journal** in place; each Review History row toggles **Open review / Close review**. Open colors remain distinct and expanded rows use the shared outlined close style. Labels and screen-reader expansion state follow the actual guarded detail, including declined closes and failed reads. Separate close buttons inside saved-row details are removed; revision **Close view** stays separate. Closing retains scope, History page and local drafts, and keeps focus on the row action where possible. See [Journal row toggles](docs/daily-journal.md#journal-row-openclose-toggles).
+Each Day Performance card toggles **Open Journal / Close Journal** in place; each Review History row toggles **Open review / Close review**. Open colors remain distinct and expanded rows use the shared outlined close style. Labels and screen-reader expansion state follow the actual guarded detail, including declined closes and failed reads. Separate close buttons inside saved-row details are removed; revisions have their own **View revision / Close revision** row toggle. Closing retains scope, History page and local drafts, and keeps focus on the row action where possible. See [Journal row toggles](docs/daily-journal.md#journal-row-openclose-toggles).
 
 **In-place Calendar Journal detail and one guarded Refresh**
 

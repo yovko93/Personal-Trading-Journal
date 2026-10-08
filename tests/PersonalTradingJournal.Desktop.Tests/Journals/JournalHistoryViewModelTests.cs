@@ -283,8 +283,13 @@ public sealed class JournalHistoryViewModelTests
         Assert.False(vm.HasSnapshot);
         reader.Snapshot = (_, _, _) => throw new InvalidOperationException("injected");
         await vm.ViewRevisionCommand.ExecuteAsync(revision);
+        Assert.False(revision.IsExpanded);
+        Assert.Null(vm.SnapshotStatusText); // First click closes the unavailable snapshot.
+        await vm.ViewRevisionCommand.ExecuteAsync(revision);
         Assert.Contains("retry", vm.SnapshotStatusText);
         reader.Snapshot = null;
+        await vm.ViewRevisionCommand.ExecuteAsync(revision);
+        Assert.False(revision.IsExpanded);
         await vm.ViewRevisionCommand.ExecuteAsync(revision);
         Assert.True(vm.HasSnapshot);
         await vm.NextCommand.ExecuteAsync(null);
@@ -418,7 +423,7 @@ public sealed class JournalHistoryViewModelTests
         vm.NextTradingDay = "local next";
         await history.NextRevisionsCommand.ExecuteAsync(null);
         await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);
-        history.CloseViewCommand.Execute(null);
+        await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);
         Assert.Same(row, history.SelectedEntry);
         Assert.Equal(3, history.Revisions.Count);
         await history.ViewRevisionCommand.ExecuteAsync(history.Revisions[0]);

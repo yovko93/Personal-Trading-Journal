@@ -259,6 +259,135 @@ public sealed class CalendarDayJournalsTests
         finally { vm.Deactivate(); }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CardDeleteConfirmsExactScopeAndRemovesOnlyItsEntryAndIndicatorContribution(bool expanded)
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        Guid account = await AddAccount(db, "P 21");
+        var global = (await db.Repository.CreateAsync(new(Date, null, "Global", false))).Journal!.Entry;
+        var scoped = (await db.Repository.CreateAsync(new(Date, account, "Scoped"))).Journal!.Entry;
+        var dialogs = new FakeDialogService();
+        var vm = Create(db, dialogs: dialogs);
+        try
+        {
+            await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
+            var rows = vm.DayJournals;
+            var row = rows.Single(r => r.Id == scoped.Id);
+            if (expanded)
+            {
+                await vm.OpenDayJournalCommand.ExecuteAsync(row);
+                vm.InlineJournal!.Text = "Unsaved local text";
+                vm.InlineJournal.WentWell = "Unsaved answer";
+            }
+            var editor = vm.InlineJournal;
+            await vm.DeleteDayJournalCommand.ExecuteAsync(row); // Decline destructive confirmation.
+            Assert.Same(rows, vm.DayJournals); Assert.Same(editor, vm.InlineJournal);
+            Assert.Contains("P 21", dialogs.ConfirmationRequest!.Message);
+            Assert.Contains("2026-10-01", dialogs.ConfirmationRequest.Message);
+            Assert.Contains("ALL revision history", dialogs.ConfirmationRequest.Message);
+            Assert.Contains("unsaved", dialogs.ConfirmationRequest.Message);
+            Assert.True(dialogs.ConfirmationRequest.IsDestructive);
+            if (expanded) { Assert.Equal("Unsaved local text", editor!.Text); Assert.Equal("Unsaved answer", editor.WentWell); }
+            Assert.Single(await db.Repository.GetHistoryAsync(scoped.Id));
+            dialogs.ConfirmationResult = true;
+            await vm.DeleteDayJournalCommand.ExecuteAsync(row);
+            Assert.Equal(global.Id, Assert.Single(vm.DayJournals).Id);
+            Assert.Null(await db.Repository.GetAsync(Date, account));
+            Assert.Empty(await db.Repository.GetHistoryAsync(scoped.Id));
+            Assert.NotNull(await db.Repository.GetAsync(Date));
+            Assert.Equal("✓", Cell(vm).JournalIndicatorText); Assert.Equal(1, Cell(vm).JournalCount);
+            Assert.Null(vm.InlineJournal); Assert.Equal(Date, vm.SelectedDate); Assert.Null(vm.SelectedAccount.Id);
+            await vm.DeleteDayJournalCommand.ExecuteAsync(row); // Old disconnected action cannot delete another entry.
+            Assert.Equal(global.Id, Assert.Single(vm.DayJournals).Id);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StaleCardDeletePreservesNewerRevisionAndAnyLocalEditor(bool expanded)
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var saved = (await db.Repository.CreateAsync(new(Date, null, "Original"))).Journal!.Entry;
+        var vm = Create(db, dialogs: new FakeDialogService { ConfirmationResult = true });
+        try
+        {
+            await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
+            var rows = vm.DayJournals; var row = Assert.Single(rows);
+            if (expanded) { await vm.OpenDayJournalCommand.ExecuteAsync(row); vm.InlineJournal!.Text = "Keep edits"; }
+            await db.Repository.UpdateAsync(new(saved.Id, saved.Revision, "Concurrent", true));
+            await vm.DeleteDayJournalCommand.ExecuteAsync(row);
+            Assert.Same(rows, vm.DayJournals);
+            Assert.NotNull(vm.DayJournalError);
+            Assert.Contains("Refresh", vm.DayJournalError);
+            Assert.Equal("Concurrent", (await db.Repository.GetAsync(Date))!.Entry.Text);
+            Assert.Equal(2, (await db.Repository.GetHistoryAsync(saved.Id)).Count);
+            if (expanded) { Assert.Equal("Keep edits", vm.InlineJournal!.Text); Assert.True(row.IsExpanded); }
+            else Assert.Null(vm.InlineJournal);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Fact]
+    public async Task DeletingCollapsedOtherAccountKeepsExpandedDraftAndAllFourFields()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        Guid account = await AddAccount(db, "P 21");
+        await db.Repository.CreateAsync(new(Date, null, "Global"));
+        await db.Repository.CreateAsync(new(Date, account, "Other"));
+        var vm = Create(db, dialogs: new FakeDialogService { ConfirmationResult = true });
+        try
+        {
+            await vm.ActivateAsync(); await vm.SelectDayCommand.ExecuteAsync(Cell(vm));
+            await vm.OpenDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.AccountId is null));
+            var editor = vm.InlineJournal!;
+            editor.Text = "Keep text"; editor.WentWell = "Keep well"; editor.NeedsImprovement = "Keep improve"; editor.NextTradingDay = "Keep next";
+            await vm.DeleteDayJournalCommand.ExecuteAsync(vm.DayJournals.Single(r => r.AccountId == account));
+            Assert.Same(editor, vm.InlineJournal); Assert.True(editor.IsDirty);
+            Assert.Equal(new[] { "Keep text", "Keep well", "Keep improve", "Keep next" },
+                new[] { editor.Text, editor.WentWell, editor.NeedsImprovement, editor.NextTradingDay });
+            Assert.Same(editor, Assert.Single(vm.DayJournals).ExpandedJournal);
+            Assert.Equal(1, Cell(vm).JournalCount);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CardWriteFailureKeepsCardsAndFieldsWithoutRefreshingIndicators(bool expanded)
+    {
+        var repo = new FakeDailyJournalRepository();
+        var vm = await CalendarSummaryFixture.CreateAsync(journalStatusReader: repo, journalRepository: repo,
+            journalDialogs: new FakeDialogService { ConfirmationResult = true });
+        try
+        {
+            var cell = vm.Weeks[0].Days[5];
+            await repo.CreateAsync(new(cell.Date, null, "Stored"));
+            await vm.SelectDayCommand.ExecuteAsync(cell);
+            var rows = vm.DayJournals; var row = Assert.Single(rows);
+            if (expanded) { await vm.OpenDayJournalCommand.ExecuteAsync(row); vm.InlineJournal!.Text = "Retain draft"; }
+            var editor = vm.InlineJournal;
+            var statuses = vm.JournalLoadTask;
+            repo.Delete = (command, _) =>
+            {
+                Assert.Equal(row.Id, command.JournalId);
+                Assert.Equal(row.Details.Entry.Revision, command.ExpectedRevision);
+                throw new InvalidOperationException("Synthetic write failure");
+            };
+            await vm.DeleteDayJournalCommand.ExecuteAsync(row);
+            Assert.Contains("could not be deleted", vm.DayJournalError);
+            Assert.Same(rows, vm.DayJournals); Assert.Same(statuses, vm.JournalLoadTask);
+            Assert.Same(editor, vm.InlineJournal);
+            if (expanded) Assert.Equal("Retain draft", editor!.Text);
+            Assert.Equal(1, repo.Writes);
+        }
+        finally { vm.Deactivate(); }
+    }
+
     private static CalendarDayCell Cell(CalendarViewModel vm, DateOnly? date = null) => vm.Weeks.SelectMany(w => w.Days).Single(d => d.Date == (date ?? Date));
     private static CalendarViewModel Create(JournalSqliteTests.JournalTestDatabase db, IDailyJournalDayReader? reader = null,
         ITradingCalendarDayReader? trades = null, FakeDialogService? dialogs = null) => new(

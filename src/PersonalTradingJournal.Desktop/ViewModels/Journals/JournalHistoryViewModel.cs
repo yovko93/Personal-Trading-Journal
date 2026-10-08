@@ -39,12 +39,26 @@ public sealed class JournalHistoryRow(JournalHistoryItem item) : ObservableObjec
     public string OpenAccessibleName => ActionLabel + ": " + Description;
 }
 
-public sealed record JournalRevisionRow(JournalRevisionItem Item, bool IsCurrent = false)
+public sealed class JournalRevisionRow(JournalRevisionItem item, bool isCurrent = false) : ObservableObject
 {
+    public JournalRevisionItem Item { get; } = item;
+    public bool IsCurrent { get; } = isCurrent;
+    private bool _isExpanded;
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        internal set
+        {
+            if (!SetProperty(ref _isExpanded, value)) return;
+            OnPropertyChanged(nameof(ActionLabel));
+            OnPropertyChanged(nameof(ViewAccessibleName));
+        }
+    }
+    public string ActionLabel => IsExpanded ? "Close revision" : "View revision";
     public string StateText => $"Revision {Item.Revision} · {(Item.IsDraft ? "Draft" : "Completed")}";
     public string SavedAtText => TradingTimestampFormatter.FormatNewYork(Item.SavedAtUtc, "G", CultureInfo.CurrentCulture) + " · New York";
     public string Description => StateText + " · " + SavedAtText;
-    public string ViewAccessibleName => "View read-only revision: " + Description;
+    public string ViewAccessibleName => ActionLabel + " (read-only): " + Description;
     public string DeleteAccessibleName => "Delete revision: " + Description;
     public string DeleteHelp => IsCurrent ? "Current revision is protected. Older revisions can be deleted without changing this journal."
         : "Permanently delete only this revision. Current journal content and its other revisions are retained.";
@@ -334,6 +348,10 @@ public sealed class JournalHistoryViewModel : ObservableObject
     private Task ViewRevisionAsync(JournalRevisionRow? row)
     {
         if (!_active || row is null || !_revisions.Any(current => ReferenceEquals(current, row))) return Task.CompletedTask;
+        if (_viewingRevision == row.Item.Revision && HasRevisionView)
+        {
+            ClearSnapshot(); Notify(); return Task.CompletedTask;
+        }
         return SnapshotLoadTask = LoadSnapshotAsync(row.Item);
     }
 
@@ -356,7 +374,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)
         {
-            if (generation == _snapshotGeneration && _active) _snapshotError = "Revision could not be loaded. Select View revision to retry.";
+            if (generation == _snapshotGeneration && _active) _snapshotError = "Revision could not be loaded. Close and reopen this revision, or Refresh to retry.";
         }
         finally
         {
@@ -380,7 +398,11 @@ public sealed class JournalHistoryViewModel : ObservableObject
         _revisionTotal = 0;
         _revisionError = null;
     }
-    private void ClearSnapshot() { CancelSnapshot(); _snapshot = null; _snapshotError = null; _viewingRevision = null; }
+    private void ClearSnapshot()
+    {
+        CancelSnapshot(); _snapshot = null; _snapshotError = null; _viewingRevision = null;
+        foreach (var row in _revisions) row.IsExpanded = false;
+    }
     private void CancelPreview() { _previewGeneration++; _previewCancellation?.Cancel(); _previewCancellation = null; _previewLoading = false; }
     private void CancelList() { _listGeneration++; _listCancellation?.Cancel(); _listCancellation = null; _loading = false; }
     private void CancelRevisions() { _revisionGeneration++; _revisionCancellation?.Cancel(); _revisionCancellation = null; _revisionLoading = false; }
@@ -395,6 +417,7 @@ public sealed class JournalHistoryViewModel : ObservableObject
     private void Notify()
     {
         foreach (var row in _entries) row.Review = ReferenceEquals(row, _selectedEntry) ? this : null;
+        foreach (var row in _revisions) row.IsExpanded = HasRevisionView && row.Item.Revision == _viewingRevision;
         OnPropertyChanged(string.Empty);
         RefreshCommand.NotifyCanExecuteChanged(); PreviousCommand.NotifyCanExecuteChanged(); NextCommand.NotifyCanExecuteChanged();
         OpenCommand.NotifyCanExecuteChanged(); PreviousRevisionsCommand.NotifyCanExecuteChanged(); NextRevisionsCommand.NotifyCanExecuteChanged();

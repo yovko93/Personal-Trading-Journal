@@ -135,10 +135,16 @@
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="96" LineHeight="24"
                                            FontSize="16" MaxWidth="760" HorizontalAlignment="Left" Margin="0,4,0,8"
                                            Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Saved Journal text" />
-                                <interactions:ExpansionButton x:Name="JournalToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" HorizontalAlignment="Left"
+                                <WrapPanel x:Name="JournalCardActions">
+                                <interactions:ExpansionButton x:Name="JournalToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" HorizontalAlignment="Left" Margin="0,0,8,4"
                                         Command="{Binding DataContext.OpenDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}" Style="{DynamicResource PtjJournalActionButtonStyle}"
                                         AutomationProperties.Name="{Binding ActionAccessibleName}" />
+                                <Button x:Name="DeleteCardJournal" Content="Delete Journal" Margin="0,0,0,4"
+                                        Command="{Binding DataContext.DeleteDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Style="{DynamicResource PtjDangerButtonStyle}"
+                                        AutomationProperties.Name="{Binding DeleteAccessibleName}" />
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                         <ContentControl x:Name="RowJournalDetail" Content="{Binding ExpandedJournal}" Style="{StaticResource DayJournalDetailHost}" />

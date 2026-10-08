@@ -17,7 +17,9 @@ internal static class JournalExpansionAssertions
         var peer = UIElementAutomationPeer.CreatePeerForElement(toggle);
         var provider = Assert.IsAssignableFrom<IExpandCollapseProvider>(peer.GetPattern(PatternInterface.ExpandCollapse));
         Assert.Equal(expanded ? ExpandCollapseState.Expanded : ExpandCollapseState.Collapsed, provider.ExpandCollapseState);
-        Assert.StartsWith(expanded ? "Close" : "Open", AutomationProperties.GetName(button));
+        string name = AutomationProperties.GetName(button);
+        Assert.True(expanded ? name.StartsWith("Close", StringComparison.Ordinal)
+            : name.StartsWith("Open", StringComparison.Ordinal) || name.StartsWith("View", StringComparison.Ordinal));
         if (expanded)
         {
             Assert.Equal(((SolidColorBrush)button.FindResource("PtjDangerBrush")).Color, ((SolidColorBrush)button.Foreground).Color);

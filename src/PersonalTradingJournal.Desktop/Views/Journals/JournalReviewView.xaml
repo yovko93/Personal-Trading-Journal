@@ -1,6 +1,7 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.Journals.JournalReviewView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals" FontSize="16">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -61,7 +62,7 @@
                                                    Visibility="{Binding IsCurrent, Converter={StaticResource BoolVisibility}}" />
                                     </StackPanel>
                                     <WrapPanel x:Name="RevisionActions" Grid.Column="1" VerticalAlignment="Center">
-                                    <Button Content="View revision" Style="{DynamicResource JournalRevisionButton}" Margin="0,0,8,6"
+                                    <interactions:ExpansionButton x:Name="RevisionToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" Style="{DynamicResource JournalRevisionButton}" Margin="0,0,8,6"
                                             Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                             CommandParameter="{Binding}" AutomationProperties.Name="{Binding ViewAccessibleName}" />
                                     <Button Content="Delete revision" Style="{DynamicResource JournalDeleteButton}" Margin="0,0,0,6"
@@ -71,6 +72,9 @@
                                     </WrapPanel>
                                 </Grid>
                                 <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                        <Setter TargetName="RevisionToggle" Property="Style" Value="{DynamicResource JournalCloseButton}" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=journals:JournalHistoryView}}" Value="True">
                                         <Setter TargetName="RevisionActions" Property="Grid.Row" Value="1" />
                                         <Setter TargetName="RevisionActions" Property="Grid.Column" Value="0" />
@@ -81,10 +85,6 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 <StackPanel Visibility="{Binding HasRevisionView, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
-                    <Button x:Name="CloseRevisionView" Content="_Close view" Command="{Binding CloseViewCommand}"
-                            HorizontalAlignment="Left" Margin="0,0,0,8" Style="{DynamicResource JournalCloseButton}"
-                            AutomationProperties.Name="Close read-only revision view"
-                            ToolTip="Return to the selected review. Viewing and closing never saves or restores a revision." />
                     <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
                                AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>

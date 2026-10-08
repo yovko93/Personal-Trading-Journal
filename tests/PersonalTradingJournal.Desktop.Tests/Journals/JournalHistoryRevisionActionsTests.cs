@@ -8,6 +8,67 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class JournalHistoryRevisionActionsTests
 {
     [Fact]
+    public async Task RevisionToggleSwitchRefreshAndPagesKeepOnlyTheCurrentSnapshotMarked()
+    {
+        var reader = new JournalHistoryTestReader();
+        var account = Guid.NewGuid();
+        for (int i = 0; i < 11; i++) reader.Add(new DateOnly(2026, 10, 7).AddDays(-i), account, 23);
+        var vm = new JournalHistoryViewModel(reader, _ => true, new HistoryRepositoryProbe(reader));
+        await vm.ActivateAsync(null); await vm.NextCommand.ExecuteAsync(null);
+        var review = Assert.Single(vm.Entries); await vm.OpenCommand.ExecuteAsync(review);
+        await vm.NextRevisionsCommand.ExecuteAsync(null);
+        var first = vm.Revisions[0]; var second = vm.Revisions[1];
+        await vm.ViewRevisionCommand.ExecuteAsync(first);
+        Assert.Equal("Close revision", first.ActionLabel); Assert.True(first.IsExpanded);
+        await vm.ViewRevisionCommand.ExecuteAsync(second);
+        Assert.Equal("View revision", first.ActionLabel); Assert.False(first.IsExpanded);
+        Assert.Equal("Close revision", second.ActionLabel);
+        await vm.ViewRevisionCommand.ExecuteAsync(second);
+        Assert.Null(vm.Snapshot); Assert.Same(review, vm.SelectedEntry);
+        Assert.Equal("Page 2 · 11 reviews", vm.PageText);
+        Assert.Equal("Page 2 · 23 revisions", vm.RevisionPageText);
+        Assert.Equal(account, vm.SelectedEntry!.Item.AccountId);
+        Assert.All(vm.Revisions, r => Assert.False(r.IsExpanded));
+        await vm.ViewRevisionCommand.ExecuteAsync(first);
+        await vm.RefreshAsync();
+        Assert.Single(vm.Revisions, r => r.IsExpanded);
+        Assert.Equal(first.Item.Revision, vm.Snapshot!.Revision);
+        await vm.PreviousRevisionsCommand.ExecuteAsync(null);
+        Assert.Null(vm.Snapshot); Assert.All(vm.Revisions, r => Assert.False(r.IsExpanded));
+        await vm.ViewRevisionCommand.ExecuteAsync(vm.Revisions[0]);
+        var active = vm.Revisions[0];
+        await vm.OpenCommand.ExecuteAsync(vm.SelectedEntry);
+        Assert.Null(vm.Snapshot); Assert.False(active.IsExpanded);
+        await vm.PreviousCommand.ExecuteAsync(null);
+        Assert.Empty(vm.Revisions); Assert.False(vm.HasRevisionView);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task ClosingLoadingRevisionCancelsItAndLateSnapshotCannotRestoreCloseLabel()
+    {
+        var reader = new JournalHistoryTestReader();
+        reader.Add(new(2026, 10, 7), revision: 2);
+        var vm = new JournalHistoryViewModel(reader, _ => true);
+        await vm.ActivateAsync(null); await vm.OpenCommand.ExecuteAsync(vm.Entries[0]);
+        var row = vm.Revisions[0];
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<DailyJournalRevision?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        CancellationToken token = default;
+        reader.Snapshot = (_, _, ct) => { token = ct; started.SetResult(); return pending.Task; };
+        var loading = vm.ViewRevisionCommand.ExecuteAsync(row);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("Close revision", row.ActionLabel);
+        await vm.ViewRevisionCommand.ExecuteAsync(row);
+        Assert.True(token.IsCancellationRequested); Assert.False(row.IsExpanded);
+        pending.SetResult(reader.Snapshots.Single(s => s.Revision == 2));
+        await loading;
+        Assert.Null(vm.Snapshot); Assert.Equal("View revision", row.ActionLabel);
+        Assert.True(vm.HasSelectedEntry);
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task CurrentPreviewCompletesBeforeRevisionDecorationWithoutLosingRows()
     {
         var reader = new JournalHistoryTestReader();
@@ -89,6 +150,7 @@ public sealed class JournalHistoryRevisionActionsTests
         await vm.NextRevisionsCommand.ExecuteAsync(null);
         var oldest = Assert.Single(vm.Revisions);
         await vm.ViewRevisionCommand.ExecuteAsync(oldest);
+        Assert.Equal("Close revision", oldest.ActionLabel);
         await vm.DeleteRevisionCommand.ExecuteAsync(oldest);
         Assert.Empty(repository.Deletes);
         Assert.Equal(oldest.Item.Revision, vm.Snapshot!.Revision);
@@ -99,6 +161,8 @@ public sealed class JournalHistoryRevisionActionsTests
         dialogs.ConfirmationResult = true;
         await vm.DeleteRevisionCommand.ExecuteAsync(oldest);
         Assert.Null(vm.Snapshot);
+        Assert.False(oldest.IsExpanded);
+        Assert.All(vm.Revisions, r => Assert.Equal("View revision", r.ActionLabel));
         Assert.Same(list, vm.Entries);
         Assert.Equal("Page 1 · 20 revisions", vm.RevisionPageText);
         Assert.Equal(new(item.Id, 1, 21), repository.Deletes.Single());
@@ -109,6 +173,7 @@ public sealed class JournalHistoryRevisionActionsTests
         var retainedSnapshot = vm.Snapshot;
         await vm.DeleteRevisionCommand.ExecuteAsync(vm.Revisions[1]);
         Assert.Same(retainedSnapshot, vm.Snapshot); // Deleting another revision must not dismiss this view.
+        Assert.Single(vm.Revisions, r => r.IsExpanded);
         Assert.Equal("Page 1 · 19 revisions", vm.RevisionPageText);
         vm.Deactivate();
     }

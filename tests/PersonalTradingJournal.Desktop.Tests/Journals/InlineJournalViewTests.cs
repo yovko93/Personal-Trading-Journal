@@ -66,7 +66,7 @@ public sealed class InlineJournalViewTests
                 var entries = (ItemsControl)view.FindName("DayJournalEntries");
                 Assert.Equal(3, entries.Items.Count);
                 Assert.True(entries.TranslatePoint(new Point(0, entries.ActualHeight), view).Y <= section.TranslatePoint(new Point(), view).Y);
-                var openButtons = Descendants(entries).OfType<Button>().ToArray();
+                var openButtons = Descendants(entries).OfType<Button>().Where(b => b.Name == "JournalToggle").ToArray();
                 Assert.Equal(3, openButtons.Length);
                 foreach (var button in openButtons)
                 {
@@ -82,6 +82,8 @@ public sealed class InlineJournalViewTests
                 Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "P 21");
                 Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "Draft");
                 Assert.Contains(Descendants(entries).OfType<TextBlock>(), t => t.Text == "Completed");
+                CheckCardDeletes(entries, vm);
+                Assert.Null(inline.FindName("DeleteInlineJournal"));
                 entries.BringIntoView(new Rect(0, 0, entries.ActualWidth, 300)); Flush();
                 Render(view, theme, width, dpi, "journals");
                 var form = (StackPanel)inline.FindName("InlineForm");
@@ -165,6 +167,8 @@ public sealed class InlineJournalViewTests
                 var close = Assert.Single(Descendants(list).OfType<Button>(), b => Equals(b.Content, "Close Journal"));
                 Assert.Same(reviewVm.OpenDayJournalCommand, close.Command);
                 JournalExpansionAssertions.State(close, true);
+                CheckCardDeletes(list, reviewVm);
+                Assert.DoesNotContain(Descendants(expanded).OfType<Button>(), b => Equals(b.Content, "Delete Journal"));
                 Assert.True(close.Focusable && close.IsEnabled);
                 Assert.DoesNotContain(Descendants(reviewView).OfType<Button>(), b => b.Content?.ToString()?.Contains("Reload") == true);
                 var refresh = Assert.Single(Descendants(reviewView).OfType<Button>(), b => Equals(b.Content, "Refresh Journals"));
@@ -198,6 +202,26 @@ public sealed class InlineJournalViewTests
                 reviewVm.Deactivate();
             }
         }, "Inline Journal themes, layout and scrolling");
+    }
+
+    private static void CheckCardDeletes(ItemsControl entries, CalendarViewModel vm)
+    {
+        var buttons = Descendants(entries).OfType<Button>().Where(b => b.Name == "DeleteCardJournal").ToArray();
+        Assert.Equal(3, buttons.Length);
+        foreach (var button in buttons)
+        {
+            var row = Assert.IsType<CalendarJournalEntry>(button.CommandParameter);
+            Assert.Same(vm.DeleteDayJournalCommand, button.Command);
+            Assert.Equal(row.DeleteAccessibleName, System.Windows.Automation.AutomationProperties.GetName(button));
+            Assert.True(button.Focusable && button.IsEnabled);
+            Assert.Equal(((SolidColorBrush)button.FindResource("PtjDangerBrush")).Color, ((SolidColorBrush)button.Background).Color);
+            var panel = Assert.IsType<WrapPanel>(VisualTreeHelper.GetParent(button));
+            Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), panel).X, 1, panel.ActualWidth);
+            Assert.InRange(button.TranslatePoint(new Point(0, button.ActualHeight), panel).Y, 1, panel.ActualHeight);
+            var toggle = panel.Children.OfType<Button>().First();
+            bool nextLine = button.TranslatePoint(new Point(), panel).Y >= toggle.ActualHeight;
+            Assert.True(nextLine || button.TranslatePoint(new Point(), panel).X >= toggle.ActualWidth);
+        }
     }
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
