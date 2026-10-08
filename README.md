@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.2 — Daily Review statistics and data quality**
+
+`DailyReviewStatisticsCalculator.Calculate(evidence)` adds pure, deterministic Gross and strict verified-Net outcomes over the M15.1 snapshot. It reuses Dashboard/Calendar formulas, partitions by historical currency and Account, and exposes contributing Trade IDs, coverage, unknown commissions/fees and excluded open/partial activity. A complete Net total or ratio requires all closed Trades' authoritative Net and known costs; no Gross-as-Net estimate or cross-currency total is supplied. Empty and unavailable results remain distinct from genuine zero. No UI, AI generation, writes or migration are introduced. See [metric definitions and limits](docs/daily-review.md#m152-statistics-and-data-quality).
+
 **M15.1 — Daily Review scope and evidence**
 
 M15 includes Daily Review with AI Coaching. Its first stage adds `IDailyReviewEvidenceReader`: a read-only, consistent SQLite snapshot for one explicit New York date and optional Account filter. Fully closed Trades use Calendar's closure-date attribution; open/partial Trades with activity that day are separately marked context. All accounts retains every original Account identity, including null-scoped Journals. Evidence preserves source/execution IDs, nullable costs and P&L, historical currency, classifications, Journal fields/status/revision and data-quality flags. Four batch queries avoid per-Trade reads and browse-page truncation. No UI, AI calls, generated interpretation, analysis persistence or migration is added. See [Daily Review contract and limits](docs/daily-review.md).

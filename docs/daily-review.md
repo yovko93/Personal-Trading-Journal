@@ -52,7 +52,56 @@ Cancellation is checked before context creation, passed to connection/query oper
 
 No migration is required: existing Trade/browse/execution/reference records and current Journal fields already contain the evidence. No Trade economics, import rules, Journal write/revision policy, Calendar summaries or navigation change.
 
-## Verification
+## M15.2: statistics and data quality
+
+`DailyReviewStatisticsCalculator.Calculate(DailyReviewEvidence, CancellationToken)` is a pure Application calculation. It consumes the complete M15.1 snapshot; it does not issue another read, update a projection or write data. The existing Dashboard/Calendar `PnlAccumulator` was moved unchanged into an internal shared class. Thus outcome formulas and undefined states are reused rather than independently reimplemented. M15.2 adds no UI, AI calls, recommendations, generated text, analysis persistence or schema migration.
+
+### Inclusion, scope and result structure
+
+- Only `ClosedOnDate` contributes to realized metrics. The calculator validates that these facts are Closed and their closure lies in the request's existing inclusive/exclusive UTC bounds. A cross-midnight Trade contributes its entire final P&L on its New York closure date, once; both DST transitions retain M15.1's 23-/25-hour boundaries.
+- `OpenActivityOnDate` (including partial exits) and `UnavailableLifecycleActivityOnDate` are counted in separate excluded sets. No partial-exit realized P&L or open-position valuation is inferred. Closed Trades with missing economics remain in the closed denominator, not silently excluded.
+- The requested Account scope is echoed. Exact-account evidence containing another Account is rejected. All accounts aggregates compatible values by original historical pricing currency, with nested Account-ID groups retaining current names/activity and original Trade IDs. Unavailable/inactive reference names do not change economics or scope.
+- `DailyReviewStatistics.Population` gives nonmonetary counts and source-ID sets across all currencies. `Currencies` sorts by ordinal currency code; each currency has its own `Population`, `Gross`, `Net` and `Accounts`. Account groups sort by ID. There is deliberately **no all-currency monetary total** and no currency conversion.
+- Every population/known/unavailable/win/loss/break-even set exposes ordered Trade IDs and a derived count. IDs sort ascending, including arithmetic inputs, so input enumeration order cannot change results. Duplicate Trade IDs, inconsistent closed-date attribution, noncanonical currency and out-of-scope evidence fail with `ArgumentException`, rather than publishing misleading statistics.
+- Journals do not affect Trade statistics. Their exact current text, Draft/Completed state and durable revisions remain available in the source evidence; no Journal, an existing empty field, and an empty trading day retain their M15.1 meaning.
+
+### P&L basis, coverage and formulas
+
+Both `DailyReviewPnlStatistics` bundles contain the established `PnlMetrics` contract with an explicit `Basis` (Gross or Net), `Coverage` and source-ID sets. **No EffectiveNet estimate is exposed by M15.2.**
+
+| Fact | Exact definition |
+| --- | --- |
+| Closed-Trade count | Number of unique fully closed, selected-day Trades, including Trades with unknown economics |
+| Gross outcome | Authoritative GrossPnL > 0 is a win, < 0 is a loss, == 0 is break-even; null is unavailable, never break-even |
+| Gross realized total | Sum of authoritative GrossPnL, only when every closed Trade has usable Gross |
+| Strict Net outcome/total | Use authoritative NetPnL only with usable Gross, known nonnegative TotalCosts, at least one execution and no unknown commission/fee component or corresponding quality flag; every closed Trade must qualify for a complete total |
+| Known subtotal | Sum of eligible known amounts only, explicitly paired with partial coverage; null when no eligible amount exists. It is **not** the complete total |
+| Win Rate percent | 100 × known wins / **all closed Trades**, only with complete coverage for that basis; break-evens remain in the denominator |
+| Average Win | Sum of positive amounts / winning-Trade count, with complete basis coverage; no wins is unavailable |
+| Average Loss | Sum of absolute negative amounts / losing-Trade count, with complete basis coverage; a positive magnitude, no losses is unavailable |
+| Profit Factor | Sum of positive amounts / sum of absolute negative amounts, with complete basis coverage and nonzero loss magnitude |
+
+No losses with positive profit yields `NoLosses` and null Profit Factor, not infinity. All break-even Trades yield genuine zero total and 0% Win Rate, but unavailable averages and `AllBreakEven` Profit Factor. Losses with no wins produce a defined zero Profit Factor. Empty populations yield `Empty` coverage, null amounts/rates/averages and `NoTrades` states; an entirely empty day has no currency groups. A currency with only open/incomplete-lifecycle context still exists but its realized metrics are Empty. Coverage distinguishes Empty, Complete, Partial and Unavailable.
+
+Missing/unsupported projection and unknown-Gross flags make both bases unavailable for that Trade. Missing executions or unknown cost components make Net unavailable even if an inconsistent projection contains numeric Net. An otherwise usable authoritative Gross remains available despite unknown costs or missing executions. Unknown Net never falls back to Gross. For normal supported evidence, Gross and strict Net agree with Calendar; Calendar's separately labeled EffectiveNet estimate is intentionally not equivalent.
+
+### Quality and traceability
+
+`Population.UnknownCommissions` and `UnknownFees` count distinct Trades across that population (including context); a Trade can appear in both. Empty execution lists imply both unknown components. `ClosedUnknownCosts` is the **union** of closed Trades missing either component or usable TotalCosts, not the sum of those two counts. Metric `Unavailable` sets also identify missing Gross/Net or unsupported projections. `SourceQuality` preserves each nonempty M15.1 quality flag with its source IDs. Quality flags are evidence limitations, never inferred rule violations.
+
+All totals and ratios trace to `Known` IDs; wins/profits/average wins to `Wins`; losses/loss magnitudes/average losses to `Losses`; denominator to `Population.Closed`. Each complete currency total includes all of that currency's Account groups. No monetary statistic aggregates different currencies. Source journals/revisions remain on the input snapshot, not copied into unrelated statistics.
+
+Arithmetic uses .NET decimal and the shared checked sums without presentation rounding. Decimal's finite scale/precision still applies to addition/division. Overflow (including a loss magnitude outside decimal's range or an unrepresentable ratio) throws `OverflowException`; no partial result, saturated amount or fabricated zero is returned. Cancellation is checked at input enumeration and group/metric processing and throws without a result. Consumers must handle cancellation, invalid evidence and overflow explicitly.
+
+The calculator adds no new reads and cannot change the source snapshot. Existing source limits remain: current-state evidence, not historical as-of valuation; no durable Trade revision token; prompt-size policies and reproducible AI evidence storage belong to later milestones.
+
+### M15.2 verification
+
+Focused calculator regressions cover signed/zero outcomes, strict-Net coverage, +100/-40/0/+20 formulas and provenance, unknown components even with inconsistent numeric Net, null/unsupported economics, context-only/empty days, currencies/Accounts, deterministic input order, precision, overflow, invalid scope/duplicates and cancellation. Isolated migrated SQLite tests compare both bases and contributing Trade IDs against Calendar across both DST changes, cross-midnight and exact-boundary closures, mixed Accounts/currencies and unknown costs. The existing 75-Trade read-only-connection test also calculates statistics while retaining its four-SELECT/no-write assertions.
+
+Local verification on `develop`, baseline `d2b0277494447829a807f951213a1a198c2a669a`: focused **94/94 passed** (13 Domain, 61 Application, 20 Infrastructure, including shared Dashboard/Calendar regressions). Complete parallel Release **3,046/3,046 passed**, zero failures/skips (454 Domain, 551 Application, 818 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed. Logs/TRX are under ignored `artifacts/m152/` and `artifacts/m152-*.log`. No real journal, UI/AI acceptance or matching GitHub Actions verification is involved; these are local automated results.
+
+## M15.1 verification
 
 Baseline: clean `develop`, `b04ba12a0fef2a7c28cdd5a19e4ed0ebe586b429`. Focused Release: **15/15 passed**, zero failures/skips (5 Application, 10 Infrastructure). Tests use isolated migrated SQLite databases and cover:
 

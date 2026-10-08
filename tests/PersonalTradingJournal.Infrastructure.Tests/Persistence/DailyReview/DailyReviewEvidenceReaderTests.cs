@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.Instruments;
@@ -25,6 +26,57 @@ public sealed class DailyReviewEvidenceReaderTests
     private static readonly DateOnly Day = new(2026, 10, 8);
     private static readonly DateTimeOffset Close = new(2026, 10, 8, 16, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Audit = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData(2026, 3, 8)]
+    [InlineData(2026, 11, 1)]
+    public async Task StatisticsReuseCalendarMetricsAndScopeWithoutEstimatingUnknownNet(int year, int month, int day)
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var (account, instrument) = await References(db);
+        var (other, _) = await References(db, "Inactive", false);
+        var query = new DailyReviewQuery(new(year, month, day));
+        var first = TradeFact(account, instrument, query.FromUtc, 100); // Opens on previous NY date.
+        var last = TradeFact(account, instrument, query.BeforeUtc.AddTicks(-1), -40, commission: 5);
+        var zero = TradeFact(other, instrument, query.FromUtc.AddHours(2), 0);
+        var unknown = TradeFact(other, instrument, query.FromUtc.AddHours(3), -285, fees: null, currency: "EUR");
+        var partial = TradeFact(account, instrument, query.FromUtc.AddHours(4), exitQuantity: 1);
+        var nextDay = TradeFact(account, instrument, query.BeforeUtc, 200);
+        await Add(db, first, last, zero, unknown, partial, nextDay);
+
+        foreach (Guid? scope in new Guid?[] { null, account, other })
+        {
+            var evidence = await Reader(db).GetAsync(new(query.Date, scope));
+            var stats = DailyReviewStatisticsCalculator.Calculate(evidence);
+            var calendar = await db.ServiceProvider.GetRequiredService<ITradingCalendarDayReader>()
+                .GetAsync(new(query.Date, scope));
+            Assert.Equal(calendar.ClosedTradeCount, stats.Population.Closed.Count);
+            Assert.Equal(calendar.Trades.Select(t => t.Id).Order(), stats.Population.Closed.TradeIds);
+            Assert.DoesNotContain(nextDay.Id, stats.Population.Closed.TradeIds);
+            foreach (var currency in stats.Currencies)
+            {
+                var expected = calendar.Currencies.Single(c => c.Currency == currency.Currency).Metrics;
+                Assert.Equal(expected.Gross, currency.Gross.Metrics);
+                Assert.Equal(expected.Net, currency.Net.Metrics);
+                Assert.Equal(currency.Population.Closed.Count, currency.Accounts.Sum(a => a.Population.Closed.Count));
+                Assert.All(currency.Accounts, group => Assert.All(group.Population.Closed.TradeIds,
+                    id => Assert.Equal(group.Account.Id, evidence.Trades.Single(t => t.TradeId == id).Account.Id)));
+            }
+        }
+        var all = DailyReviewStatisticsCalculator.Calculate(await Reader(db).GetAsync(query));
+        Assert.Equal(4, all.Population.Closed.Count);
+        Assert.Equal(partial.Id, Assert.Single(all.Population.ExcludedOpenActivity.TradeIds));
+        Assert.Equal(60m, all.Currencies.Single(c => c.Currency == "USD").Gross.Metrics.Total);
+        Assert.Equal(55m, all.Currencies.Single(c => c.Currency == "USD").Net.Metrics.Total);
+        var eur = all.Currencies.Single(c => c.Currency == "EUR");
+        Assert.Equal(-285m, eur.Gross.Metrics.Total);
+        Assert.Null(eur.Net.Metrics.Total);
+        Assert.Equal(MetricCoverageStatus.Unavailable, eur.Net.Metrics.Coverage.Status);
+        Assert.Equal(unknown.Id, Assert.Single(eur.Net.Unavailable.TradeIds));
+        var next = DailyReviewStatisticsCalculator.Calculate(await Reader(db).GetAsync(new(query.Date.AddDays(1))));
+        Assert.DoesNotContain(first.Id, next.Population.Closed.TradeIds);
+        Assert.Equal(nextDay.Id, Assert.Single(next.Population.Closed.TradeIds));
+    }
 
     [Fact]
     public async Task AllAccountsRetainsEveryIdentityAndExactScopeExcludesNullJournals()
@@ -238,6 +290,9 @@ public sealed class DailyReviewEvidenceReaderTests
         var reader = await ObservedReader(db, observer);
         var result = await reader.GetAsync(new(Day));
         Assert.Equal(75, result.Trades.Count);
+        var statistics = DailyReviewStatisticsCalculator.Calculate(result);
+        Assert.Equal(75, statistics.Population.Closed.Count);
+        Assert.Equal(result.Trades.Sum(t => t.Facts!.GrossPnL), Assert.Single(statistics.Currencies).Gross.Metrics.Total);
         Assert.Equal(result.Trades.Select(t => t.TradeId).Order(), result.Trades.Select(t => t.TradeId));
         Assert.Equal(4, observer.Sql.Count); Assert.False(observer.Tracked);
         Assert.All(observer.Sql, sql => Assert.StartsWith("SELECT", sql));
