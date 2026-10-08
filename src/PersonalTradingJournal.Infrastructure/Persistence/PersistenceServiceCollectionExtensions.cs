@@ -5,6 +5,8 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.DailyReview;
+using PersonalTradingJournal.Application.DailyReview.Coaching;
+using PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 using PersonalTradingJournal.Application.Common.Storage;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Journals;
@@ -85,6 +87,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingCalendarReader, TradingCalendarReader>();
         services.AddTransient<ITradingCalendarDayReader, TradingCalendarDayReader>();
         services.AddTransient<IDailyReviewEvidenceReader, DailyReviewEvidenceReader>();
+        services.AddTransient<ICoachingAnalysisRepository, CoachingAnalysisRepository>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();
         services.AddTransient<ITradovateImportStore, TradovateImportStore>();

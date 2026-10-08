@@ -18,6 +18,8 @@ public static class CoachingServiceCollectionExtensions
         services.AddSingleton<ICoachingProvider>(s => s.GetRequiredService<OpenAiCoachingProvider>());
         services.AddTransient(s => new DailyCoachingGenerationService(s.GetRequiredService<ICoachingProvider>(),
             s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
+        services.AddTransient(s => new GenerateAndSaveCoachingService(s.GetRequiredService<DailyCoachingGenerationService>(),
+            s.GetRequiredService<ICoachingAnalysisRepository>(), TimeProvider.System));
         return services;
     }
 

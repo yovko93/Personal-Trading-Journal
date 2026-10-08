@@ -62,6 +62,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TopstepImportedRowRecord),
             typeof(DailyJournalRecord),
             typeof(DailyJournalRevisionRecord),
+            typeof(CoachingAnalysisRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 

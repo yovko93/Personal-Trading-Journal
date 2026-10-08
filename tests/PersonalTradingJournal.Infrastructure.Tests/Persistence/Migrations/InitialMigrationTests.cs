@@ -24,6 +24,7 @@ public sealed partial class InitialMigrationTests
     private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
     private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
     private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
+    private const string CoachingAnalysisMigrationId = "20261008195353_AddCoachingAnalysisSnapshots";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -32,6 +33,12 @@ public sealed partial class InitialMigrationTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedApplicationColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
+            ["CoachingAnalyses"] =
+            [
+                "Id", "ReviewDate", "ScopeKind", "AccountId", "AccountDisplayName", "GeneratedAtUtc",
+                "Provider", "Model", "EvidenceContractVersion", "ResponseContractVersion", "PacketId",
+                "EvidenceJson", "ResponseJson", "MetadataJson",
+            ],
             ["DailyJournals"] =
             [
                 "Id", "TradingDate", "TradingAccountId", "Text", "IsDraft", "Revision",
@@ -109,7 +116,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -121,7 +128,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(8L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(9L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -190,7 +197,7 @@ public sealed partial class InitialMigrationTests
             string[] previousTables = ReadTableNames(connection);
             string[] previousSchema = ReadNonJournalSchema(connection);
 
-            context.Database.Migrate();
+            context.GetService<IMigrator>().Migrate(DailyReviewMigrationId);
 
             Assert.Equal(DailyReviewMigrationId, context.Database.GetAppliedMigrations().Last());
             Assert.Equal(previousTables.Concat(["DailyJournals", "DailyJournalRevisions"])
@@ -512,7 +519,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -600,6 +607,7 @@ public sealed partial class InitialMigrationTests
             ("DailyJournals", "CreatedAtUtc"),
             ("DailyJournals", "UpdatedAtUtc"),
             ("DailyJournalRevisions", "SavedAtUtc"),
+            ("CoachingAnalyses", "GeneratedAtUtc"),
         ];
 
         foreach ((string table, string column) in timestampColumns)

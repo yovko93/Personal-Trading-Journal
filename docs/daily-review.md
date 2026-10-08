@@ -213,6 +213,59 @@ Automated tests use fake providers and in-memory HTTP handlers only: explicit in
 
 Local verification on clean-start `develop`, baseline `71343e118f0b2c10b5a1945219d03930af058693`: focused **132/132 passed** (13 Domain, 75 Application, 44 Infrastructure). Complete parallel Release **3,131/3,131 passed**, zero failures/skips (454 Domain, 604 Application, 850 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. Tracked/new-file whitespace checks passed. Logs/TRX remain in ignored `artifacts/m154/` and `artifacts/m154-*.log`. The first build caught one nullable assertion in a new test, corrected before these passing runs. Live provider availability/billing, future UI consent and GitHub Actions acceptance remain unverified, separate gates. No Desktop interactive acceptance is claimed.
 
+## M15.5: saved analyses and source snapshots
+
+### Explicit generation and atomic storage
+
+Future manual generation callers use `GenerateAndSaveCoachingService.GenerateAsync(packet, cancellationToken)`. It calls the M15.4 generator once, captures the successful completion time in UTC, revalidates the structured response against that exact immutable packet, and commits through `ICoachingAnalysisRepository`. It returns **Saved** only after commit, with the saved analysis identity. M15.4's lower-level generation result alone is not a storage acknowledgement. Nothing is generated/saved by registration, startup, local source reads, editing or history browsing.
+
+Failed, refused, cancelled, timed-out, oversized and invalid generations do not reach the repository. `CoachingAnalysisSnapshot.Create` accepts only Success with a response and provider identity; it rechecks contract/version/fingerprint/citations and freezes the response as JSON before any write. A caller cannot mutate a response list after creation to change the pending snapshot. Missing provider identity or inconsistent metadata is not a saveable success.
+
+The new independent **CoachingAnalyses** table contains response and evidence in the same row, committed in one explicit SQLite transaction. Failure/cancellation after insertion but before commit rolls back the whole record. There is no update API. A duplicate analysis ID cannot overwrite history; separate explicit generations can have identical evidence fingerprints and distinct analysis IDs. No automatic retry, retention, analysis cascade or source write occurs. Storage failure returns StorageFailed with no purported saved review; it never automatically repeats the paid generation. Cancellation racing with commit can have an uncertain caller outcome: inspect history before requesting another generation. Once commit is acknowledged, later cancellation does not retroactively undo that save.
+
+### Immutable historical contract
+
+`SavedCoachingAnalysis` contains:
+
+- `Summary`: stable analysis ID, explicit New York ReviewDate, `Scope.Kind` (**AllAccounts** or **ExactAccount**) and original nullable AccountId, available snapshot Account display name, GeneratedAtUtc, provider and model.
+- EvidenceContractVersion, ResponseContractVersion and the M15.3 PacketId fingerprint.
+- **EvidenceJson**: exactly the `packet.Json` string supplied to the provider. No regeneration, rounding, filtering or recalculation on save/read. It contains original Trade/execution IDs and facts, account/reference metadata, contributing IDs, calculated statistics/coverage, missing-data flags, currencies and current-at-generation Journal text, answers, Draft/Completed state, identity and durable revision.
+- **ResponseJson**: the validated structured coaching object serialized in the response contract format, not a raw HTTP envelope.
+- **Metadata**: allowlisted provider/model, client/request/response IDs and available input/cached-input/output/total token counts. Missing usage remains null/unknown. API keys, HTTP bodies, provider error messages, retry diagnostics and arbitrary generation messages are not fields in this saved contract. Monetary cost remains unknown; no unverified pricing is introduced.
+
+The summary name is copied from the evidence, never resolved from mutable Accounts after generation. An exact-account packet with no named source retains its original ID and a null display name (name not supplied), rather than inventing a current/historical name. AllAccounts is labeled “All accounts”; original per-record Account names/identities and activity/availability states remain in its evidence. An AllAccounts **analysis** summarizes every included Account plus null-scoped Journals; it is not the distinct null-scoped Journal entry.
+
+Historical consumers must read the stored, versioned JSON. Loading never queries current Trades/Journals/Accounts, rebuilds statistics or runs today's packet builder/validator to replace historical meanings. JSON is returned intact so future readers can choose the appropriate version decoder; unsupported future versions must be identified explicitly, not interpreted as the current contract. No M15.5 UI/renderer is added. Saved prose remains untrusted AI output; valid source references do not prove its claims.
+
+### Read, paging and deletion
+
+`ICoachingAnalysisRepository` supplies:
+
+- `SaveAsync(CoachingAnalysisSnapshot)`: immutable validated write boundary; returns only a committed analysis.
+- `GetAsync(id)`: one complete saved snapshot, or null if absent/deleted. No source joins or writes.
+- `BrowseAsync(CoachingAnalysisHistoryQuery)`: exact review date and explicit analysis scope. AllAccounts selects **only aggregate analyses**, not a mixture with individually generated analyses. ExactAccount selects only that original ID, including unavailable/deleted Accounts. Default 20 rows, allowed page size 1–100, positive overflow-checked page; out-of-range pages return empty Items with the accurate TotalCount. Order: GeneratedAtUtc descending, then analysis ID ascending. Count/page use one deferred SQLite read transaction; summary queries exclude JSON payloads. HasPrevious/HasNext accompany the immutable page.
+- `DeleteAsync(id)`: one atomic permanent logical deletion; true if removed, false if missing. The future UI must confirm the exact analysis before calling. Other analyses, Trades, Journals and their revisions are untouched.
+
+All operations accept cancellation. The composite date/scope/account/time/ID index supports bounded database paging, not per-account page merging or per-source reads. There are **no foreign keys to mutable source records**, so renaming/deactivating/deleting a source or Account cannot cascade to or retarget an analysis. The database scope constraint rejects inconsistent kind/account combinations.
+
+### Migration and sensitive local information
+
+Additive migration `20261008195353_AddCoachingAnalysisSnapshots` creates only CoachingAnalyses, its scope constraint and history index. It changes no Trade/Journal/import columns or economics. Downgrade drops analysis history but leaves existing source tables/data intact; normal startup uses the established migration initializer. No real database was accessed during implementation.
+
+The local SQLite database now retains **copies of financial facts, account names, Journal prose/answers and AI coaching**. These remain after source edits or deletion until the user explicitly deletes that analysis. No additional encryption or automatic redaction is introduced: protect the data directory and backups with OS permissions/encryption appropriate to sensitive data. Do not put secrets in Journal text; exact evidence snapshots necessarily preserve source content, including any secrets a user wrote there. Provider credentials are never intentionally included in metadata or logs.
+
+Analysis deletion is not forensic secure erasure: SQLite pages/WAL, exported files and backups may retain older content. There is no automatic retention or backup erasure. Request/token metadata is informational and does not establish verified monetary cost. Prompt/version management beyond the existing evidence/response contracts remains M20; saved analyses do not contain the raw HTTP request/instruction envelope.
+
+### M15.5 verification
+
+Tests use fake generation and isolated migrated SQLite databases, including source edits/deletes, exact/aggregate scopes, separate currencies and unknown Net, original names/revisions/status, deterministic bounded paging, read-only connections, duplicate-ID protection, single-analysis deletion, invalid/failed generation rejection, and injected post-insert failures/cancellation proving rollback. Migration tests check the additive table/constraint, no source foreign keys, round-trip upgrade/downgrade and model consistency. No paid provider or live UI acceptance is claimed.
+
+Local results on clean-start `develop`, HEAD `e02c0a0e8deaaf8864b48e925b1ff4f80d01794b`: **208/208 focused tests passed** (13 Domain, 116 Application, 79 Infrastructure); final complete parallel Release **3,180/3,180 passed**, zero failures/skips (454 Domain, 645 Application, 858 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. Tracked/new-file whitespace checks passed. The milestone adds 49 tests. Results are local, not GitHub Actions or interactive acceptance.
+
+The first full run had 3,175 passes and five failures: four outdated migration/schema inventory assertions, updated to include the ninth migration/new record, and the unchanged `JournalViewTests.CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts` child exceeding VSTest's 30-second inactivity bound. Breadcrumbs showed ongoing rendering and “assertions completed” at **30.269 s**, not a stalled analysis storage operation. That case passed isolated (reported test duration **9 s**) and in the final parallel run (assertions **14.315 s**, child process **18.731 s**). No WPF code, coverage, retries or deadlines were changed; this does not establish that the pre-existing timing variance is resolved. Earlier migration-stage tests are now explicitly pinned to their intended historical migration rather than implicitly migrating to the latest schema.
+
+TRX/logs and the first WPF timeout's phase trace/dump remain under ignored `artifacts/m155/` (`full`, `journal-diagnostic`, `focused-verified`, `full-final`) and `artifacts/m155-*.log`. A new GitHub run must test the user's eventual commit/push; live provider, future UI/history rendering and consent remain unverified.
+
 ## M15.1 verification
 
 Baseline: clean `develop`, `b04ba12a0fef2a7c28cdd5a19e4ed0ebe586b429`. Focused Release: **15/15 passed**, zero failures/skips (5 Application, 10 Infrastructure). Tests use isolated migrated SQLite databases and cover:
