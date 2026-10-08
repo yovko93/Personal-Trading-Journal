@@ -1,0 +1,33 @@
+using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.DailyReview.Coaching;
+
+namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
+
+public static class CoachingServiceCollectionExtensions
+{
+    /// <summary>Registration is inert: no credential access or network request until GenerateAsync.
+    /// Dedicated HttpClient has no logging/retry middleware and never follows redirects with evidence.</summary>
+    public static IServiceCollection AddDailyCoaching(this IServiceCollection services)
+    {
+        services.AddSingleton(new OpenAiCoachingOptions());
+        services.AddSingleton(new CoachingGenerationOptions());
+        services.AddSingleton<Transport>();
+        services.AddSingleton<OpenAiCoachingProvider>(s => new(s.GetRequiredService<Transport>().Client,
+            s.GetRequiredService<OpenAiCoachingOptions>(),
+            () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")));
+        services.AddSingleton<ICoachingProvider>(s => s.GetRequiredService<OpenAiCoachingProvider>());
+        services.AddTransient(s => new DailyCoachingGenerationService(s.GetRequiredService<ICoachingProvider>(),
+            s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
+        return services;
+    }
+
+    private sealed class Transport : IDisposable
+    {
+        public HttpClient Client { get; } = new(new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, UseCookies = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        }) { Timeout = Timeout.InfiniteTimeSpan };
+
+        public void Dispose() => Client.Dispose();
+    }
+}

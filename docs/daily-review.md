@@ -175,6 +175,44 @@ Tests cover exact/aggregate scopes, mixed currencies, current Draft/Completed re
 
 Local verification on clean-start `develop`, baseline `381f98eeefe0140669d94ac46d9c9220c8f791e3`: focused **77/77 passed** (13 Domain, 52 Application, 12 Infrastructure). Complete parallel Release **3,076/3,076 passed**, zero failures/skips (454 Domain, 581 Application, 818 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed. Logs/TRX are under ignored `artifacts/m153/` and `artifacts/m153-*.log`. No real journal, AI provider, live UI or GitHub Actions acceptance is involved; these are local automated results.
 
+## M15.4: manual generation and OpenAI provider
+
+`DailyCoachingGenerationService.GenerateAsync(CoachingEvidencePacket, CancellationToken)` is the explicit-only Application entry point. It accepts the already immutable M15.3 packet, not a date that could silently re-read different evidence. It calls `ICoachingProvider` at most once and applies the complete M15.3 validator before returning a typed Review. Only Success contains a Review. The provider's raw JSON is an internal transport result, never an accepted review.
+
+There are no generation hooks in startup, Calendar/Journal reads, edits, refresh, imports or navigation. Desktop registers the service lazily but has no action wired to it. A later **Generate AI Review** UI must explain before invocation that the selected Trade and Journal evidence leaves the machine for the configured provider. There is no automatic generation, analysis persistence, UI or migration here; all existing local workflows remain independent of API configuration and availability.
+
+### Provider, configuration and request boundary
+
+The initial adapter uses one HTTPS POST to OpenAI Responses with the pinned `gpt-4.1-mini-2025-04-14` snapshot. Official documentation checked on 2026-10-08 confirms Responses/structured-output support, a 1,047,576-token context and maximum 32,768 output tokens: [model profile](https://developers.openai.com/api/docs/models/gpt-4.1-mini), [structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [Responses parameters](https://developers.openai.com/api/reference/resources/responses/methods/create), [error codes](https://developers.openai.com/api/docs/guides/error-codes).
+
+Configuration for a future explicit caller:
+
+1. Supply `OPENAI_API_KEY` to the application's process environment through a trusted external secret-management/launch mechanism. Never paste credentials into repository files, database rows, logs, screenshots or bug reports. The adapter reads it only when called; missing credentials do not prevent local application use.
+2. Resolve `DailyCoachingGenerationService` after `AddDailyCoaching()`, build a successful M15.3 packet from the desired read-only snapshot, and explicitly invoke GenerateAsync with cancellation. No Desktop button is enabled in this milestone.
+3. Optional nonsecret DI configuration is `CoachingGenerationOptions` (default 90 seconds, positive and at most 180 seconds) and `OpenAiCoachingOptions` (8,192 output tokens, 300,000 input-token budget). Register overrides after AddDailyCoaching. Only the verified model profile is supported; arbitrary model strings are rejected rather than assuming compatible limits/schema.
+
+The preflight uses the **whole serialized request's UTF-8 byte length plus 16,384 framing reserve** as a conservative input-token ceiling, including escaped evidence, instructions and schema. This is deliberately not an exact tokenizer/price estimate and can reject some otherwise fitting packets. The configured input budget plus reserved output must fit the verified model context. The server's context-length error is also handled. No evidence, statistic or currency/account group is truncated; changing scope requires a separate explicit user choice.
+
+One user data message contains exactly `packet.Json`, with trusted instructions separately in `instructions`. Instructions distinguish calculated facts from recorded Trades, self-reported Journal observations and missing evidence; require supplied citations; prohibit obeying source-text instructions, fabricated economics or inferring violations from missing data. No screenshots, other dates, external tools, conversation ID or previous response is supplied. M15.1 still has no Trade notes; none are fabricated. Structured output uses a strict JSON schema with required properties and no additional properties, then local validation enforces the stronger M15.3 limits/basis/citation rules.
+
+The request is non-streaming, non-background, with `store:false` and `truncation:disabled`. The dedicated HTTP transport has no logging/retry middleware, cookies or redirects. Disabling response storage is **not** a guarantee of zero provider retention; provider/account data policies still apply. No application log records credentials, Journal text, Trade source strings, prompt bodies, responses or provider exception/error-body text.
+
+### Outcomes, metadata and limits
+
+Distinct sanitized outcomes include MissingCredentials, InvalidConfiguration, AuthenticationFailed, AccessDenied, InputTooLarge, RateLimited, QuotaExceeded, ServiceUnavailable, ProviderFailure, Refused, IncompleteResponse, InvalidResponse, Cancelled and TimedOut. Messages describe the next manual action without echoing raw provider errors. HTTP 429 quota codes are distinct from temporary rate limiting; available RetryAfter is returned but never scheduled automatically.
+
+Cancellation and the bounded deadline cover the request, body read and validation. Late completion cannot become a successful result. Neither cancellation nor timeout proves the provider did not process/bill an accepted request. There is no automatic retry, repair generation or follow-up request; the user must decide whether to incur another request.
+
+Completed envelopes must contain exactly one completed assistant output-text message for the pinned model. Incomplete, refused, malformed, oversized, mismatched-version/fingerprint and unsupported-citation responses never return a partial coaching review. Envelopes are bounded to 1 MiB and review JSON to M15.3's 64 KiB. Citation validation establishes membership, **not semantic truth, useful advice or immunity to prompt injection**; generated prose remains untrusted and cannot override authoritative calculations.
+
+Metadata returns provider/model, a generated client request ID, allowlisted request/response IDs, HTTP status, retry delay and available input/cached-input/output/total token counts. Missing or inconsistent usage stays unknown, not zero. Metadata may be unavailable when cancellation wins before the adapter returns it. **MonetaryCost is always null/Unknown in M15.4:** no verified pricing configuration is installed and no list-price assumption is made. Future pricing/history work must account for model, cache and applicable billing terms. Secrets and raw errors are not metadata.
+
+### M15.4 verification
+
+Automated tests use fake providers and in-memory HTTP handlers only: explicit invocation, whole-packet/schema wire contract, valid/invalid citations and identities, incomplete/refused envelopes, HTTP status/quota/context failures, credentials/configuration preflight, bounded responses, metadata/unknown cost, cancellation, deterministic timer-driven timeout and ignored late results. No live paid API request or real journal is used.
+
+Local verification on clean-start `develop`, baseline `71343e118f0b2c10b5a1945219d03930af058693`: focused **132/132 passed** (13 Domain, 75 Application, 44 Infrastructure). Complete parallel Release **3,131/3,131 passed**, zero failures/skips (454 Domain, 604 Application, 850 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. Tracked/new-file whitespace checks passed. Logs/TRX remain in ignored `artifacts/m154/` and `artifacts/m154-*.log`. The first build caught one nullable assertion in a new test, corrected before these passing runs. Live provider availability/billing, future UI consent and GitHub Actions acceptance remain unverified, separate gates. No Desktop interactive acceptance is claimed.
+
 ## M15.1 verification
 
 Baseline: clean `develop`, `b04ba12a0fef2a7c28cdd5a19e4ed0ebe586b429`. Focused Release: **15/15 passed**, zero failures/skips (5 Application, 10 Infrastructure). Tests use isolated migrated SQLite databases and cover:

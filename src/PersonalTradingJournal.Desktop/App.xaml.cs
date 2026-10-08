@@ -26,6 +26,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -66,6 +67,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddDailyCoaching();
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddSingleton<ISystemThemeProvider, WindowsSystemThemeProvider>();
             builder.Services.AddSingleton<IThemeService>(services => new ThemeService(
