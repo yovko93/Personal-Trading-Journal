@@ -9,6 +9,7 @@ public sealed record TradingCalendarDayCurrency(string Currency, ClosedTradeMetr
 public sealed record CalendarAssignedMistake(Guid Id, string? Name, bool? IsActive);
 public sealed record CalendarTradeClassification(Guid? SetupId, string? SetupName, bool? IsSetupActive,
     IReadOnlyList<CalendarAssignedMistake> Mistakes);
+public sealed record CalendarTradeReferenceState(bool? AccountIsActive, bool? InstrumentIsActive);
 
 /// <summary>Complete date-scoped closed Trade rows and M12 metrics over those same rows.</summary>
 public sealed record TradingCalendarDayDetails(DateOnly Date, IReadOnlyList<TradeListItem> Trades,
@@ -16,6 +17,10 @@ public sealed record TradingCalendarDayDetails(DateOnly Date, IReadOnlyList<Trad
 {
     public IReadOnlyDictionary<Guid, CalendarTradeClassification> Classifications { get; init; } =
         new Dictionary<Guid, CalendarTradeClassification>();
+
+    /// <summary>Current reference availability; null activity means the historical reference is unavailable.</summary>
+    public IReadOnlyDictionary<Guid, CalendarTradeReferenceState> References { get; init; } =
+        new Dictionary<Guid, CalendarTradeReferenceState>();
 
     public int ClosedTradeCount => Trades.Count;
 

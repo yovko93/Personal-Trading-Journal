@@ -11,7 +11,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Migrations;
 
-public sealed class InitialMigrationTests
+public sealed partial class InitialMigrationTests
 {
     private const string InitialMigrationId = "20260908122839_InitialCreate";
     private const string RemoveStrategiesMigrationId = "20260914212911_RemoveStrategies";
@@ -22,6 +22,8 @@ public sealed class InitialMigrationTests
     private const string FillAllocationsMigrationId =
         "20260925214352_AddTradovateFillAllocations";
     private const string TopstepImportMigrationId = "20260928201843_AddTopstepImportPersistence";
+    private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
+    private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -30,6 +32,15 @@ public sealed class InitialMigrationTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedApplicationColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
+            ["DailyJournals"] =
+            [
+                "Id", "TradingDate", "TradingAccountId", "Text", "IsDraft", "Revision",
+                "CreatedAtUtc", "UpdatedAtUtc", "NeedsImprovement", "NextTradingDay", "WentWell",
+            ],
+            ["DailyJournalRevisions"] =
+            [
+                "JournalId", "Revision", "Text", "IsDraft", "SavedAtUtc", "NeedsImprovement", "NextTradingDay", "WentWell",
+            ],
             ["Instruments"] =
             [
                 "Id", "Symbol", "DisplayName", "AssetClass", "Exchange", "Currency",
@@ -97,7 +108,8 @@ public sealed class InitialMigrationTests
 
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
+                    DailyJournalsMigrationId, DailyReviewMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -109,7 +121,7 @@ public sealed class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(6L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(8L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -117,18 +129,21 @@ public sealed class InitialMigrationTests
                 IReadOnlyList<ColumnDefinition> columns = ReadColumns(connection, tableName);
                 Assert.Equal(expectedColumns, columns.Select(column => column.Name));
 
-                string keyName = tableName switch
+                string[] keyNames = tableName switch
                 {
-                    "TradeBrowse" => "TradeId",
-                    "TradovateImportedExecutions" => "TradeExecutionId",
-                    _ => "Id",
+                    "TradeBrowse" => ["TradeId"],
+                    "TradovateImportedExecutions" => ["TradeExecutionId"],
+                    "DailyJournalRevisions" => ["JournalId", "Revision"],
+                    _ => ["Id"],
                 };
-                ColumnDefinition id = Assert.Single(
-                    columns,
-                    column => column.Name == keyName);
-                Assert.Equal("TEXT", id.StoreType);
-                Assert.True(id.IsPrimaryKey);
-                Assert.Null(id.DefaultValue);
+                Assert.Equal(keyNames, columns.Where(column => column.IsPrimaryKey)
+                    .Select(column => column.Name));
+                foreach (string keyName in keyNames)
+                {
+                    ColumnDefinition key = Assert.Single(columns, column => column.Name == keyName);
+                    Assert.Equal(keyName == "Revision" ? "INTEGER" : "TEXT", key.StoreType);
+                    Assert.Null(key.DefaultValue);
+                }
                 Assert.Equal(0L, ReadRowCount(connection, tableName));
             }
 
@@ -145,6 +160,82 @@ public sealed class InitialMigrationTests
             AssertForeignKeys(connection);
             AssertBusinessUniqueIndexes(connection);
         });
+    }
+
+    [Fact]
+    public void DailyJournalMigrationUpAndDownPreserveExistingTradeDataAndSchema()
+    {
+        RunWithMigratedDatabase((_, options) =>
+        {
+            Guid tradeId = Guid.NewGuid();
+            using (var seedContext = new JournalDbContext(options))
+            {
+                AddTradeGraph(seedContext, tradeId);
+                TradeExecutionRecord execution = CreateExecution(Guid.NewGuid(), tradeId, sequence: 1);
+                execution.Quantity = 0.12345678m;
+                execution.Price = -37.63m;
+                execution.Commission = null;
+                execution.Fees = 0.0000000001m;
+                seedContext.TradeExecutions.Add(execution);
+                seedContext.SaveChanges();
+            }
+
+            using var context = new JournalDbContext(options);
+            TradeRecord expectedTrade = context.Trades.AsNoTracking().Single();
+            TradeExecutionRecord expectedExecution = context.TradeExecutions.AsNoTracking().Single();
+            TradingAccountRecord expectedAccount = context.TradingAccounts.AsNoTracking().Single();
+            InstrumentRecord expectedInstrument = context.Instruments.AsNoTracking().Single();
+            var connection = (SqliteConnection)context.Database.GetDbConnection();
+            connection.Open();
+            string[] previousTables = ReadTableNames(connection);
+            string[] previousSchema = ReadNonJournalSchema(connection);
+
+            context.Database.Migrate();
+
+            Assert.Equal(DailyReviewMigrationId, context.Database.GetAppliedMigrations().Last());
+            Assert.Equal(previousTables.Concat(["DailyJournals", "DailyJournalRevisions"])
+                .OrderBy(name => name, StringComparer.Ordinal), ReadTableNames(connection));
+            Assert.Equal(previousSchema, ReadNonJournalSchema(connection));
+            AssertExistingTradeData();
+
+            Guid journalId = Guid.NewGuid();
+            context.DailyJournals.Add(new DailyJournalRecord
+            {
+                Id = journalId,
+                TradingDate = new DateOnly(2026, 10, 4),
+                TradingAccountId = expectedAccount.Id,
+                Text = "A journal added after upgrading an existing database.",
+                IsDraft = true,
+                Revision = 1,
+                CreatedAtUtc = CreatedAtUtc,
+                UpdatedAtUtc = CreatedAtUtc,
+            });
+            context.DailyJournalRevisions.Add(new DailyJournalRevisionRecord
+            {
+                JournalId = journalId,
+                Revision = 1,
+                Text = "A journal added after upgrading an existing database.",
+                IsDraft = true,
+                SavedAtUtc = CreatedAtUtc,
+            });
+            context.SaveChanges();
+
+            context.GetService<IMigrator>().Migrate(TopstepImportMigrationId);
+
+            Assert.Equal(TopstepImportMigrationId, context.Database.GetAppliedMigrations().Last());
+            Assert.Equal(previousTables, ReadTableNames(connection));
+            Assert.Equal(previousSchema, ReadNonJournalSchema(connection));
+            AssertExistingTradeData();
+
+            void AssertExistingTradeData()
+            {
+                using var verification = new JournalDbContext(options);
+                Assert.Equivalent(expectedTrade, verification.Trades.AsNoTracking().Single(), strict: true);
+                Assert.Equivalent(expectedExecution, verification.TradeExecutions.AsNoTracking().Single(), strict: true);
+                Assert.Equivalent(expectedAccount, verification.TradingAccounts.AsNoTracking().Single(), strict: true);
+                Assert.Equivalent(expectedInstrument, verification.Instruments.AsNoTracking().Single(), strict: true);
+            }
+        }, TopstepImportMigrationId);
     }
 
     [Fact]
@@ -420,7 +511,8 @@ public sealed class InitialMigrationTests
             using var readContext = new JournalDbContext(options);
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
-                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId],
+                    TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
+                    DailyJournalsMigrationId, DailyReviewMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -505,6 +597,9 @@ public sealed class InitialMigrationTests
             ("TradeBrowse", "ClosedAtUtc"),
             ("TradovateImportedExecutions", "ImportedAtUtc"),
             ("TopstepImportedRows", "ImportedAtUtc"),
+            ("DailyJournals", "CreatedAtUtc"),
+            ("DailyJournals", "UpdatedAtUtc"),
+            ("DailyJournalRevisions", "SavedAtUtc"),
         ];
 
         foreach ((string table, string column) in timestampColumns)
@@ -551,7 +646,9 @@ public sealed class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(10, foreignKeys.Count);
+        Assert.Equal(12, foreignKeys.Count);
+        AssertForeignKey(foreignKeys, "DailyJournals", "TradingAccountId", "TradingAccounts", "RESTRICT");
+        AssertForeignKey(foreignKeys, "DailyJournalRevisions", "JournalId", "DailyJournals", "RESTRICT");
         AssertForeignKey(foreignKeys, "TopstepImportedRows", "TradeId", "Trades", "CASCADE");
         AssertForeignKey(foreignKeys, "Trades", "TradingAccountId", "TradingAccounts", "RESTRICT");
         AssertForeignKey(foreignKeys, "Trades", "InstrumentId", "Instruments", "RESTRICT");
@@ -597,7 +694,11 @@ public sealed class InitialMigrationTests
             .Where(index => index.IsUnique && index.Origin != "pk")
             .ToList();
 
-        Assert.Equal(5, uniqueIndexes.Count);
+        Assert.Equal(7, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.Table == "DailyJournals" &&
+            index.Columns.SequenceEqual(["TradingDate", "TradingAccountId"]));
+        Assert.Contains(uniqueIndexes, index => index.Table == "DailyJournals" &&
+            index.Columns.SequenceEqual(["TradingDate"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "TopstepImportedRows" && index.Columns.SequenceEqual(["TradingAccountIdAtImport", "SourceId"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "TopstepImportedRows" && index.Columns.SequenceEqual(["TradeId"]));
         Assert.Contains(
@@ -762,6 +863,27 @@ public sealed class InitialMigrationTests
         return names.ToArray();
     }
 
+    private static string[] ReadNonJournalSchema(SqliteConnection connection)
+    {
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT sql FROM sqlite_master
+            WHERE type IN ('table', 'index') AND name NOT LIKE 'sqlite_%'
+                AND tbl_name NOT IN ('__EFMigrationsHistory', '__EFMigrationsLock',
+                    'DailyJournals', 'DailyJournalRevisions')
+            ORDER BY type, name;
+            """;
+
+        using SqliteDataReader reader = command.ExecuteReader();
+        var definitions = new List<string>();
+        while (reader.Read())
+        {
+            definitions.Add(reader.GetString(0));
+        }
+
+        return definitions.ToArray();
+    }
+
     private static IReadOnlyList<ColumnDefinition> ReadColumns(
         SqliteConnection connection,
         string tableName)
@@ -778,7 +900,7 @@ public sealed class InitialMigrationTests
                 reader.GetString(2),
                 IsRequired: reader.GetInt64(3) == 1,
                 DefaultValue: reader.IsDBNull(4) ? null : reader.GetValue(4).ToString(),
-                IsPrimaryKey: reader.GetInt64(5) == 1));
+                IsPrimaryKey: reader.GetInt64(5) > 0));
         }
 
         return columns;

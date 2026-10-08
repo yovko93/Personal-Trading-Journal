@@ -243,8 +243,10 @@ public sealed class CalendarDayPerformanceChartTests
     }
     private static void Draw(FrameworkElement chart, int dpi = 96)
     {
-        chart.Measure(new(chart.Width, chart.Height)); chart.Arrange(new(0, 0, chart.Width, chart.Height)); chart.UpdateLayout();
-        new RenderTargetBitmap((int)chart.Width * dpi / 96, (int)chart.Height * dpi / 96, dpi, dpi, PixelFormats.Pbgra32).Render(chart);
+        using (TestDoubles.CalendarStaTest.Timing("chart layout"))
+        { chart.Measure(new(chart.Width, chart.Height)); chart.Arrange(new(0, 0, chart.Width, chart.Height)); chart.UpdateLayout(); }
+        using (TestDoubles.CalendarStaTest.Timing("chart bitmap render"))
+            new RenderTargetBitmap((int)chart.Width * dpi / 96, (int)chart.Height * dpi / 96, dpi, dpi, PixelFormats.Pbgra32).Render(chart);
     }
     private static void Render(DayPerformanceChart chart, string theme, int width, int dpi)
     {
@@ -292,6 +294,7 @@ public sealed class CalendarDayPerformanceChartTests
     }
     private static void Pump()
     {
+        using var timing = TestDoubles.CalendarStaTest.Timing("chart dispatcher pump");
         var frame = new System.Windows.Threading.DispatcherFrame();
         System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background,
             new Action(() => frame.Continue = false)); System.Windows.Threading.Dispatcher.PushFrame(frame);

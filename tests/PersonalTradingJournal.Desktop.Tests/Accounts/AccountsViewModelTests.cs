@@ -424,6 +424,7 @@ public sealed class AccountsViewModelTests
         Assert.Equal(0, deletionStore.DeleteCallCount);
         Assert.NotNull(dialog.InformationRequest);
         Assert.Equal("Cannot delete account", dialog.InformationRequest.Title);
+        Assert.Contains("trades or daily journals", dialog.InformationRequest.Message);
         Assert.Contains("Deactivate it instead", dialog.InformationRequest.Message);
         Assert.Null(viewModel.ActionErrorMessage);
     }

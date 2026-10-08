@@ -216,6 +216,9 @@
             <TextBlock Text="{Binding ErrorMessage}" Margin="12,0,0,0" MaxWidth="400"
                        VerticalAlignment="Center" Foreground="{DynamicResource PtjWarningBrush}"
                        TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+            <TextBlock Text="{Binding JournalErrorMessage}" Margin="12,0,0,0" MaxWidth="400"
+                       VerticalAlignment="Center" Foreground="{DynamicResource PtjWarningBrush}"
+                       TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
             <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="12,0,0,0"
                     AutomationProperties.Name="Refresh Calendar month and selected day"
                     Style="{DynamicResource PtjSecondaryButtonStyle}" />
@@ -270,6 +273,7 @@
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto" />
                                                     <RowDefinition Height="*" />
+                                                    <RowDefinition Height="Auto" />
                                                 </Grid.RowDefinitions>
                                                 <Border x:Name="DateFocusMarker" Width="36" Height="36" CornerRadius="18"
                                                         HorizontalAlignment="Center" Background="Transparent"
@@ -316,6 +320,11 @@
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </Border>
+                                                <TextBlock x:Name="DayJournalIndicator" Grid.Row="2" Text="{Binding JournalIndicatorText}"
+                                                           Visibility="{Binding HasJournal, Converter={StaticResource BoolVisibility}}"
+                                                           Margin="0,4,0,0" FontSize="11" TextAlignment="Center"
+                                                           Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                                                           AutomationProperties.Name="{Binding JournalAccessibleDescription}" />
                                             </Grid>
                                         </calendar:CalendarDayHost>
                                     </DataTemplate>

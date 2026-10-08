@@ -1,0 +1,144 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Journals.JournalTradeContextView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+             xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
+             FontSize="16" AutomationProperties.Name="Read-only Journal Trade context"
+             AutomationProperties.ItemStatus="{Binding StatusText}">
+    <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="JournalPresentationResources.xaml" /></ResourceDictionary.MergedDictionaries>
+        <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <converters:PnLOutcomeConverter x:Key="PnlOutcome" />
+        <Style x:Key="ContextAmount" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Amount, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Positive}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Amount, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Negative}">
+                    <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ContextCellText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <Style x:Key="ContextHeaderText" TargetType="TextBlock" BasedOn="{StaticResource ContextCellText}">
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextMutedBrush}" />
+        </Style>
+        <Style x:Key="ContextRow" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="7" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+            <Setter Property="Focusable" Value="True" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Amount, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Positive}">
+                    <Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Amount, Converter={StaticResource PnlOutcome}}" Value="{x:Static converters:PnLOutcome.Negative}">
+                    <Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" />
+                </DataTrigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </ResourceDictionary>
+    </UserControl.Resources>
+    <Border Style="{DynamicResource PtjCardStyle}">
+        <StackPanel>
+            <TextBlock Text="Trade context" Style="{DynamicResource JournalHeading}" />
+            <TextBlock Text="{Binding ScopeLabel}" TextWrapping="Wrap" Margin="0,4"
+                       Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+            <WrapPanel Margin="0,4,0,8">
+                <TextBlock x:Name="ContextCount" Text="{Binding CountText}" VerticalAlignment="Center" Margin="0,0,16,4"
+                           Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                <Button x:Name="RefreshContext" Content="Refresh Trades" Command="{Binding RefreshCommand}" Margin="0,0,8,4"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Refresh Journal Trade context"
+                        ToolTip="Reload closed Trades only. Unsaved journal text is not changed." />
+                <Button x:Name="CancelContext" Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,0,0,4"
+                        Visibility="{Binding IsLoading, Converter={StaticResource BoolVisibility}}"
+                        Style="{DynamicResource JournalButton}" AutomationProperties.Name="Cancel Trade context loading" />
+            </WrapPanel>
+            <TextBlock x:Name="ContextStatus" Text="{Binding StatusText}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock x:Name="ContextError" Text="{Binding ErrorMessage}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
+            <TextBlock x:Name="ContextEmpty" Text="No closed Trades for this date and account scope. You can still save a Journal entry."
+                       TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolVisibility}}" />
+            <ItemsControl x:Name="ContextSummaries" ItemsSource="{Binding Summaries}" Margin="0,8">
+                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate><DataTemplate>
+                    <StackPanel Margin="0,0,20,8" AutomationProperties.Name="{Binding Description}" ToolTip="{Binding Description}">
+                        <TextBlock Text="{Binding AmountText}" FontWeight="SemiBold" Style="{StaticResource ContextAmount}" />
+                        <TextBlock Text="{Binding TradeCountText}" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+                        <TextBlock Text="Estimated" FontSize="12" Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                                   Visibility="{Binding Metrics.EffectiveNet.IsEstimated, Converter={StaticResource BoolVisibility}}" />
+                    </StackPanel>
+                </DataTemplate></ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <ScrollViewer x:Name="ContextScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          Visibility="{Binding HasResult, Converter={StaticResource BoolVisibility}}"
+                          interactions:NestedTableWheelRouting.ForwardVerticalWheel="True"
+                          AutomationProperties.Name="Closed Trades, read-only; scroll horizontally for more columns">
+                <StackPanel x:Name="ContextTable" MinWidth="1010" Width="{Binding ViewportWidth, ElementName=ContextScroller}"
+                            Grid.IsSharedSizeScope="True">
+                    <Grid x:Name="ContextHeader" Margin="8,0,8,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="132" /><ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="JournalTradeAccount" MinWidth="100" MaxWidth="160" />
+                            <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="1.2*" MinWidth="160" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Time (New York)" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="1" Text="Instrument" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="2" Text="Account" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="3" Text="Net P&amp;L" TextAlignment="Center" Margin="8,0" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="4" Text="Size" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="5" Text="Direction" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="6" Text="Setup" Style="{StaticResource ContextHeaderText}" />
+                        <TextBlock Grid.Column="7" Text="Trading Mistakes" Style="{StaticResource ContextHeaderText}" />
+                    </Grid>
+                    <ItemsControl x:Name="ContextRows" ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <journals:JournalTradeContextRow Style="{StaticResource ContextRow}">
+                                <Grid x:Name="ContextRowGrid">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="132" /><ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="JournalTradeAccount" MinWidth="100" MaxWidth="160" />
+                                        <ColumnDefinition Width="150" /><ColumnDefinition Width="56" /><ColumnDefinition Width="96" />
+                                        <ColumnDefinition Width="*" MinWidth="140" /><ColumnDefinition Width="1.2*" MinWidth="160" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding ClosingTime}" ToolTip="{Binding ClosingTimeDescription}"
+                                               AutomationProperties.Name="{Binding ClosingTimeDescription}" Style="{StaticResource ContextCellText}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding InstrumentText}" ToolTip="{Binding InstrumentText}" Style="{StaticResource ContextCellText}" />
+                                    <TextBlock Grid.Column="2" Text="{Binding AccountText}" ToolTip="{Binding AccountText}"
+                                               MaxWidth="152" HorizontalAlignment="Left" Style="{StaticResource ContextCellText}" />
+                                    <StackPanel Grid.Column="3" Margin="8,0" ToolTip="{Binding NetDescription}" AutomationProperties.HelpText="{Binding NetDescription}">
+                                        <TextBlock Text="{Binding AmountText}" TextAlignment="Center" Style="{StaticResource ContextAmount}" />
+                                        <TextBlock Text="Estimated" TextAlignment="Center" FontSize="12" Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                                                   Visibility="{Binding IsEstimated, Converter={StaticResource BoolVisibility}}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="4" Text="{Binding SizeText}" Style="{StaticResource ContextCellText}" />
+                                    <TextBlock Grid.Column="5" Text="{Binding Trade.Direction}" Style="{StaticResource ContextCellText}" />
+                                    <TextBlock Grid.Column="6" Text="{Binding SetupText}" ToolTip="{Binding SetupText}" Style="{StaticResource ContextCellText}" />
+                                    <TextBlock Grid.Column="7" Text="{Binding MistakesText}" ToolTip="{Binding MistakesText}" Style="{StaticResource ContextCellText}" />
+                                </Grid>
+                            </journals:JournalTradeContextRow>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </StackPanel>
+    </Border>
+</UserControl>

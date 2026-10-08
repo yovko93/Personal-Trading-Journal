@@ -9,9 +9,16 @@ using PersonalTradingJournal.Desktop.Formatting;
 namespace PersonalTradingJournal.Desktop.ViewModels.Calendar;
 
 /// <summary>Formatting only, over the selected day's authoritative browse row.</summary>
-public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTradeClassification? classification = null) : ObservableObject
+public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTradeClassification? classification = null,
+    CalendarTradeReferenceState? references = null) : ObservableObject
 {
     public TradeListItem Trade { get; } = trade;
+    public string AccountText => references is null ? Trade.TradingAccountName
+        : references.AccountIsActive is null ? "Unavailable Account"
+        : ReferenceName(Trade.TradingAccountName, references.AccountIsActive, "Account");
+    public string InstrumentText => references is null ? Trade.InstrumentSymbol
+        : references.InstrumentIsActive is null ? "Unavailable Instrument"
+        : ReferenceName(Trade.InstrumentSymbol, references.InstrumentIsActive, "Instrument");
     public string ClosingTime => Trade.ClosedAtUtc is { } closed
         ? TradingTimePolicy.ConvertUtcToTradingTime(closed).ToString("HH:mm:ss.FFFFFFF", CultureInfo.CurrentCulture) : "—";
     public string ClosingTimeDescription => Trade.ClosedAtUtc is { } closed
@@ -34,6 +41,6 @@ public sealed class CalendarTradePresentation(TradeListItem trade, CalendarTrade
     public string NetDescription => $"{(Amount is { } value ? value.ToString(CultureInfo.CurrentCulture) : "P&L unavailable")} {Trade.Currency}. " +
         (IsEstimated ? "Estimated Net — commission/fees unknown; Gross is used."
             : Amount.HasValue ? "Verified Net P&L." : "Gross and Net economics unavailable.");
-    public string AccessibleName => $"{ClosingTimeDescription}; {Trade.InstrumentSymbol}; {Trade.TradingAccountName}; " +
+    public string AccessibleName => $"{ClosingTimeDescription}; {InstrumentText}; {AccountText}; " +
         $"{Trade.Direction}; Size {SizeText}; {NetDescription}; Setup: {SetupText}; Trading Mistakes: {MistakesText}";
 }

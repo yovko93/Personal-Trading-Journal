@@ -17,6 +17,122 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsDraft")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NeedsImprovement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("NextTradingDay")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TradingAccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("TradingDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WentWell")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TradingAccountId");
+
+                    b.HasIndex("TradingDate")
+                        .IsUnique()
+                        .HasFilter("\"TradingAccountId\" IS NULL");
+
+                    b.HasIndex("TradingDate", "TradingAccountId")
+                        .IsUnique()
+                        .HasFilter("\"TradingAccountId\" IS NOT NULL");
+
+                    b.ToTable("DailyJournals", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DailyJournals_Revision", "\"Revision\" >= 1");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRevisionRecord", b =>
+                {
+                    b.Property<Guid>("JournalId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDraft")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NeedsImprovement")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("NextTradingDay")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<DateTime>("SavedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WentWell")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100000)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.HasKey("JournalId", "Revision");
+
+                    b.ToTable("DailyJournalRevisions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DailyJournalRevisions_Revision", "\"Revision\" >= 1");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.InstrumentRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -504,6 +620,23 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TradovateImportedExecutions", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingAccountRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRevisionRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", null)
+                        .WithMany()
+                        .HasForeignKey("JournalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TopstepImportedRowRecord", b =>

@@ -9,6 +9,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -21,6 +22,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly CalendarViewModel _calendarViewModel;
+    private readonly JournalViewModel _journalViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
@@ -41,6 +43,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     public MainWindowViewModel(
         DashboardViewModel dashboardViewModel,
         CalendarViewModel calendarViewModel,
+        JournalViewModel journalViewModel,
         AccountsViewModel accountsViewModel,
         InstrumentsViewModel instrumentsViewModel,
         ImportViewModel importViewModel,
@@ -53,6 +56,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
+        ArgumentNullException.ThrowIfNull(journalViewModel);
         ArgumentNullException.ThrowIfNull(accountsViewModel);
         ArgumentNullException.ThrowIfNull(instrumentsViewModel);
         ArgumentNullException.ThrowIfNull(importViewModel);
@@ -64,6 +68,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         _dashboardViewModel = dashboardViewModel;
         _calendarViewModel = calendarViewModel;
+        _journalViewModel = journalViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
         _importViewModel = importViewModel;
@@ -133,6 +138,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
         _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
+        _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
+        _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -201,6 +208,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand ToggleThemeCommand { get; }
 
+    public bool TryCloseWindow()
+    {
+        if (CurrentDestination == NavigationDestination.Calendar)
+            return _calendarViewModel.TryCloseDayDialog();
+
+        if (CurrentDestination != NavigationDestination.Journal) return true;
+        if (!_journalViewModel.TryLeave()) return false;
+
+        _journalViewModel.Deactivate();
+        return true;
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -210,8 +229,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
         _dashboardViewModel.OpenTradeAsync = null;
         _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
+        _calendarViewModel.OpenJournalAsync = null;
+        _journalViewModel.JournalDataCommitted -= OnJournalDataCommitted;
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
+        _journalViewModel.Deactivate();
     }
 
     private (bool Trades, bool Instruments) InvalidateTopstepChanges()
@@ -263,6 +285,21 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private Task _tradeNavigationLoad = Task.CompletedTask;
 
+    private async Task OpenCalendarJournalAsync(DateOnly date, CalendarAccountOption account)
+    {
+        if (_disposed || !_journalViewModel.TryOpenScope(date, account.Id, account.Name)) return;
+        Navigate(NavigationDestination.Journal);
+        if (!_disposed && CurrentDestination == NavigationDestination.Journal)
+        {
+            await _journalViewModel.LoadTask;
+            // Calendar Add/Continue is an explicit request to edit, unlike history browsing.
+            if (!_disposed && CurrentDestination == NavigationDestination.Journal &&
+                _journalViewModel.SelectedDate == date.ToDateTime(TimeOnly.MinValue) &&
+                _journalViewModel.SelectedAccount.Id == account.Id)
+                _journalViewModel.OpenEditorCommand.Execute(null);
+        }
+    }
+
     private async Task OpenReadOnlyTradeAsync(PersonalTradingJournal.Application.Trades.TradeListItem trade)
     {
         Navigate(NavigationDestination.Trades);
@@ -273,6 +310,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Calendar &&
+            !_calendarViewModel.TryCloseInlineJournal()) return;
+        if (destination != CurrentDestination &&
+            CurrentDestination == NavigationDestination.Journal &&
+            !_journalViewModel.TryLeave())
+            return;
+
         var changed = InvalidateTopstepChanges();
         if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
@@ -288,12 +332,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Calendar => _calendarViewModel,
+            NavigationDestination.Journal => _journalViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
             NavigationDestination.Import => _importViewModel,
@@ -306,6 +352,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Calendar)
             _ = _calendarViewModel.ActivateAsync();
+
+        if (destination == NavigationDestination.Journal)
+            _ = _journalViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Accounts)
         {
@@ -392,8 +441,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private void OnCalendarTradeCommitted(object? sender, EventArgs e)
     {
         if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnCalendarTradeCommitted(sender, e));
+            return;
+        }
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         _dashboardViewModel.OnDataCommitted();
+        _journalViewModel.TradeContext.OnDataCommitted();
         // Calendar's dedicated editor refreshes the modal after its save/reload completes.
     }
 
@@ -407,5 +462,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         _dashboardViewModel.OnDataCommitted();
         _calendarViewModel.OnDataCommitted();
+        _journalViewModel.TradeContext.OnDataCommitted();
+    }
+
+    private void OnJournalDataCommitted(object? sender, EventArgs e)
+    {
+        if (_disposed) return;
+        if (_dispatcher is not null && !_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => OnJournalDataCommitted(sender, e));
+            return;
+        }
+        _calendarViewModel.OnJournalCommitted();
     }
 }

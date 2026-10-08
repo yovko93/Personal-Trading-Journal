@@ -20,6 +20,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -123,6 +124,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
             builder.Services.AddTransient<CalendarViewModel>();
+            builder.Services.AddTransient<JournalViewModel>();
+            builder.Services.AddTransient<JournalTradeContextViewModel>();
             builder.Services.AddTransient<InstrumentsViewModel>();
             builder.Services.AddTransient<ImportViewModel>();
             builder.Services.AddTransient<TradingMistakesViewModel>();

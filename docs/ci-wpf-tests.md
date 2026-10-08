@@ -2,9 +2,9 @@
 
 ## Test execution and layout contract
 
-Calendar grid tests and modal/chart tests each use a separate supervised test process with named background STA dispatchers. This isolates WPF lifetime from unrelated Desktop tests. Each parent group shares its child-suite result; a child-suite failure therefore appears against multiple parent names. Inspect the child TRX rather than interpreting every parent failure as an independent assertion failure. No tests are skipped, retried, or globally serialized to hide failures.
+Calendar grid tests and modal/chart tests each use a separate supervised test process with named background STA dispatchers. Grid cases own and shut down their dispatchers. Native modal/chart cases share one background STA and a running dispatcher for the child lifetime. A gate outside that dispatcher admits one native action at a time, so a nested ShowDialog/PushFrame cannot execute another case. Other test collections and assemblies remain parallel. Each parent group shares its child-suite result; a child-suite failure therefore appears against multiple parent names. Inspect the child TRX rather than interpreting every parent failure as an independent assertion failure. No tests are skipped, retried, or globally serialized to hide failures.
 
-Grid STA deadlines remain **30 seconds**, modal/chart deadlines **45 seconds**, and both child-process deadlines **two minutes**. Successful and failed grid actions shut down their dispatcher before completing. The native suite preserves its existing process-owned renderer lifetime: per-case compositor teardown was measured to repeatedly slow native Window/bitmap initialization and exceed the whole-suite budget despite continuous progress. Its final native cleanup belongs to the supervised child process, not an unbounded foreground STA. A timed-out child refuses to start more STA threads, rather than accumulating stuck work. Since managed cancellation cannot safely abort a native WPF call, the supervisor terminates the child process tree and awaits exit on deadline, cancellation, or output/logging failure. The child output is streamed to artifacts immediately; complete results are not held until process exit. A native-thread snapshot is not a managed stack. VSTest's same-deadline mini-dump collector provides best-effort stack evidence; the STA and dump watchdogs can race, so a dump is not guaranteed.
+Grid STA deadlines remain **30 seconds**, modal/chart deadlines **45 seconds**, and both child-process deadlines **two minutes**. Successful and failed grid actions shut down their dispatcher before completing. The native suite retains one process-owned renderer: repeated teardown was expensive, while creating a new unshutdown dispatcher for every case accumulated native resources. Reusing its STA avoids both costs. Final native cleanup belongs to the supervised child process. A timeout poisons the host, cancels queued actions and refuses further dispatch. Since managed cancellation cannot safely abort a native WPF call, the supervisor terminates the child process tree and awaits exit on deadline, cancellation, or output/logging failure. The child output is streamed to artifacts immediately; complete results are not held until process exit. A native-thread snapshot is not a managed stack. VSTest's same-deadline mini-dump collector provides best-effort stack evidence; the STA and dump watchdogs can race, so a dump is not guaranteed.
 
 Native window layout uses the actual measured viewport. Windows can constrain a requested window width to the available desktop. Below the table's 1,048-DIP minimum, horizontal scrolling is required and Action/View must remain reachable; when the viewport fits the table, it must fill the viewport without overflow or a trailing gap. Separate measure/arrange tests of the compiled view exercise 480-, 1,044-, 1,280- and 1,900-DIP widths without native desktop constraints, including expanded content and both themes.
 
@@ -298,7 +298,215 @@ The corrected tests passed on 2026-10-04:
 
 The original failure was deliberately reproduced before correction, not retried until passing. The corrected focused cases then also passed inside both complete native runs. A new GitHub run after the user's commit/push remains required. These are automated native-WPF tests, not live application acceptance; no real journal or customer data is used. Diagnostic TRX/logs are retained under ignored `bin/ci-75-investigation/`.
 
+## M14.5 local full-suite investigation (2026-10-05)
+
+The follow-up started on `develop` at `e903e32e3be632d273b8e12816b087ada4d60be9` with a clean worktree: the prior M14.5 implementation had already been committed by the user. The earlier reported `c33b8b4` was not the checkout under test. This is a **local full-suite investigation**, not a downloaded GitHub run. No application, persistence, schema, import or economics code changed.
+
+### Journal navigation: readiness evidence, not an inferred product failure
+
+The historical controlled full run timed out in `LeavingJournalCancelsReadAndReturningIgnoresItsLateResult` while waiting five seconds for its fake repository to start. That wait precedes navigation away and token cancellation. The shell activates Journal synchronously and starts its load with `Task.Run`; the fake Account reader must finish before repository invocation. No WPF dispatcher callback is needed along that path. The old test observed only the repository signal: an earlier completed/faulted load was indistinguishable from a scheduling delay until its signal deadline.
+
+Instrumentation now records elapsed time, managed thread/context/scheduler, ThreadPool state, Account/repository entry, read tokens, pending/completed tasks and navigation state, without journal content. The normal parallel reproduction of the native failure did **not** reproduce the Journal timeout: repository entry was about **1.7 ms**, and the waiter resumed in **3.8 ms**. A later normal parallel run reached repository entry within **1.6/8.5 ms** in its two late-response cases. Therefore the exact original Journal delay remains unproven; native resource pressure is not asserted to be its established cause, and no production read/cancellation behavior was changed.
+
+The test keeps its **five-second bound**, but races readiness with completion of the actual load. If the load exits without calling the repository, it fails immediately with that state rather than waiting for a signal which can no longer arrive. Cleanup releases and drains the pending fake load even after an assertion failure. Regressions cover a late old result **and** a late old exception after navigation away/return, with a nonempty current completed revision and all review answers; 16 concurrent independent navigation flows; cancellation at the Account-reader boundary; and a completed-before-repository failure. They continue to assert the old token is cancelled and that neither obsolete outcome replaces current content, answers, state, revision or error state.
+
+### Native suite: retained per-case renderers exceeded the aggregate budget
+
+The instrumented normal parallel solution run reproduced **85 propagated Desktop failures** from the Calendar native child's unchanged **two-minute** process deadline. Domain, Application and Infrastructure passed. It was not a 45-second individual STA timeout: **79 actions started and 78 finished**, across **79 different managed STA threads**. At termination, phase diagnostics recorded roughly **90.8 seconds process CPU**, **93 native threads**, a **2,134.7 MiB working set / 2,036.7 MiB private bytes**, and about **219 MB managed memory**. ThreadPool pending work was zero with workers available. Earlier cases completed and resource usage grew across their lifetimes; the final action was cut off by the aggregate deadline. The supervisor terminated and awaited the child process tree.
+
+Native cases previously created a fresh STA/dispatcher per case but intentionally did not shut it down, avoiding costly renderer teardown. Ending those threads retained native WPF resources until process exit. The fix uses **one process-owned background STA with a running dispatcher**, reusing its renderer. A gate acquired outside the dispatcher prevents nested modal frames from executing another test action reentrantly. Only this native host's actions are ordered; unrelated collections and test assemblies retain their normal concurrency. Grid tests keep their separate per-case dispatcher cleanup. No deadline, assertion, retry or skip policy was relaxed.
+
+Before the final verification, the corrected native suite passed **85/85** in **89.1 seconds** in a focused run and **106.9 seconds** in a normal parallel solution run. Each used one STA; peak working sets were **701.0 / 691.5 MiB**, private bytes **603.3 / 591.2 MiB**, and native thread counts **42 / 43**. These are process-boundary samples, not a universal performance guarantee. The solution run's only failure was a newly added negative harness probe, described below; it was not counted as full-suite acceptance.
+
+Lifecycle regressions verify dispatcher reuse, exclusion through nested message frames, ordinary action exception/context recovery, and timeout poisoning that cancels queued/later actions without allowing them to run after the blocked action is released. Existing background-thread and process-tree cleanup checks remain. Lifetime-boundary diagnostics now include CPU, native threads, managed/native memory and ThreadPool counters alongside the existing named operation phases.
+
+### Escaping native callback diagnostics
+
+Review of the shared host found that an exception escaping its pump after startup could be lost by attempting to fault an already-completed readiness task. A negative child-process probe then exposed an additional WPF boundary: without an `Application` or dispatcher `UnhandledException` handler, the exception filter reported `RequestCatch=False`. Its queued callback entered, yet remained `Executing`, its task `WaitingForActivation`, and the dispatcher thread alive when the probe's five-second bound expired. Merely rethrowing outside `Dispatcher.Run` did not report that callback's error because the native callback boundary did not unwind the pump.
+
+The test host now captures the original unhandled exception, marks it handled **only to unwind the dispatcher**, requests shutdown, and rethrows the captured exception outside the native callback boundary. A throw-only probe recorded the original error after pump exit, but the test host still remained alive until the probe expired. The post-startup fatal path therefore calls `Environment.FailFast` with that original exception: this is confined to the supervised test child and ensures a dead dispatcher cannot masquerade as a later timeout. The corrected negative probe terminated non-timeout in **2.94 seconds**, with `Test host process crashed`, the original exception/callback stack and confirmed process cleanup. Startup failures still reach the waiting case; unexpected normal pump exit also fails explicitly. Ordinary action exceptions still return directly to their owning test. Production WPF exception behavior is unchanged.
+
+Evidence is retained under ignored `artifacts/m14-5-failures/` (instrumented reproduction, focused/native traces and subsequent full runs). All data is synthetic. No real journal was accessed. Automated WPF tests do not establish live UI acceptance, and a new GitHub run after the user's commit/push remains necessary.
+
+### Final local verification
+
+| Check (2026-10-05) | Result |
+| --- | --- |
+| Focused Journal/navigation, process supervision, native harness, modal/chart and grid tests; two .NET-reported CPUs, process-local `DPIUNAWARE`, 1,044-DIP native-window cap on the hidden sandbox desktop | **280/280 passed**, no skips, including the 16 concurrent Journal flows and late-success/late-error cases. These process settings do not change system display scaling or physically pin CPU affinity. |
+| Child suites in that constrained run | **85/85 native**, one shared STA, about **82.4 seconds**, peak sampled working set **364.9 MiB**; **36/36 grid**. Existing deadlines unchanged. |
+| Complete Release solution suite, fresh normal process settings and normal assembly concurrency | **2,810/2,810 passed**, no failures/skips: Domain **444**, Application **516**, Infrastructure **775**, Desktop **1,075**. No `-m:1` or global xUnit serialization. |
+| Native/grid children in that full run | **85/85 native**, **36/36 grid**. Native: one STA, **118.6 seconds**, peak **686.5 MiB working set / 592.4 MiB private bytes**, **43 native threads**. This passed the unchanged 120-second bound but leaves little margin; hosted CI performance is still unverified. |
+| Journal race evidence in the final full run | Both late-response cases and 16 concurrent flows passed. First repository entries at **8.3/18.0 ms**, observed by the test at **13.1/50.7 ms**; neither old success nor old error replaced the fresh completed revision. |
+| Release build / EF model consistency / `git diff --check` | Passed; **zero build warnings/errors**, no pending model changes. EF uses the existing in-memory design-time factory. |
+| GitHub Actions / live WPF application verification | **Not performed.** A new run after the user's commit/push and the existing isolated interactive checklist remain required. No claim of green CI or live M14.5 acceptance. |
+
+## M14.5 CI check and native timing follow-up (2026-10-05)
+
+The checkout and remote `develop` both pointed to **`ba91aeba12d5e6834297f24cc15bdd3e4bbc61d0`**, with a clean local worktree. The user had committed the prior eight-file dispatcher/Journal correction. GitHub's repository-wide Actions API returned **no run for this exact SHA**, including non-PR events; the narrower commit/PR endpoint also returned none. The latest run was [CI #77](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/37210548636), successful at **`9fbbc9220f742ceda1debfdd93715d55a7a36667`**, an earlier M13 merge to `main`. Its downloaded job `111460673793` checked out that SHA and passed Domain 400, Application 516, Infrastructure 724 and Desktop 889—not the M14.5 suites. The latest `develop` PR run was #76 at `f724b49f2a14943e29aa063acad2efd07a428cfb`, also before this fix. Neither verifies current code.
+
+The workflow triggers on pushes to `main` and pull requests targeting `main`, not standalone `develop` pushes. Thus the dispatcher fix **is pushed**, but still needs a matching PR-triggered run. No workflow, branch, commit, PR or run was modified. The GitHub CLI was unavailable and direct shell network access was blocked; the read-only GitHub connector supplied the run/ref/job evidence.
+
+### Measured work before the small diagnostic-path correction
+
+`PTJ_CALENDAR_TIMINGS=1` enables test-only stopwatch scopes. They append operation/countable-duration JSON records to `calendar-timings.jsonl` in the supervised child's existing diagnostic directory and to captured output. It is off by default; it changes no dispatcher priority, rendering mode, deadline, fixture data or assertion. Existing phase timestamps continue to identify exclusive action duration and queueing; per-case elapsed/TRX durations must not be added as wall time because queued cases overlap.
+
+The instrumented native suite passed **86/86 cases (85 STA actions) in 75.738 seconds**, versus the previous full-load run's 118.6 seconds. A reporting correction: the earlier local sections/report counted 85 STA actions as native test cases; the retained native TRX also includes one pure-calculation case and records **86**, with no added or removed case in this follow-up. These runs have different competing workloads; that difference is **not an optimization result**. The before-change measurement separates:
+
+| Work | Observed time / sample |
+| --- | --- |
+| Process startup, discovery and preparation before first STA action | 2.949 s from supervisor start to first STA-start breadcrumb |
+| Exclusive native test actions | 70.133 s across 85 actions on one STA |
+| Remaining in-process orchestration, between-action work and diagnostics | About 2.261 s, excluding startup/actions/exit; not a hidden fixed wait |
+| Final action completion to supervised process exit | 0.395 s |
+| Fixture creation/activation | 0.342 s across 61 calls; outside or nested within actions, not additive to the wall-time partition |
+| Fresh theme resource loading | 5.600 s across 85 calls; mutable WPF dictionaries remain independent, not shared across tests |
+| Modal dispatcher pumps | 6.566 s across 257 calls; includes queued WPF work, not deliberate sleeping |
+| Chart layout / bitmap rendering / chart pumps | 2.367 s / 0.202 s / 0.925 s across 21 / 21 / 16 calls |
+| Initial-owned-modal theory, 12 cases: owner Show/layout | 5.778 s |
+| Same theory: modal opening, interaction and return | 8.955 s, **including** nested day-read/layout 0.580 s, inline View/layout 0.878 s and dialog Close 2.103 s |
+| Same theory: owner Close | 1.202 s |
+| Same theory: obsolete panel-width comparison | **0.612 s** across 12 calls, nested inside modal interaction |
+
+Scopes are inclusive where nested; the category rows are **not** a second additive wall-time partition. This sample shows real layout/window lifecycle work rather than a stuck application phase or a large synthetic wait. No new Journal-start failure occurred and its original cause remains unproven.
+
+### Minimal correction and preserved coverage
+
+`InitialOwnedPanelFitsTableAtDesktopWidthAndWrapsWithoutLosingAction` previously set `DayPanel.MaxWidth` to the obsolete 1,000-DIP cap, pumped/relaid out, restored the real cap, then pumped/relaid out again in **every** case. The resulting before-width numbers were used only in an optional screenshot report. It also scrolled to the table solely for a `Render` helper which immediately returned when capture was disabled.
+
+These historical comparison layouts and screenshot-only scrolling now run only when `PTJ_CALENDAR_RENDER_DIRECTORY` is set. The cap is restored in `finally` in that diagnostic branch. All initial viewport, horizontal access, Account/Net widths, header alignment, inline View, close, focus and other assertions remain unconditional and unchanged. Ordinary acceptance now measures the actual initial table without first forcing an old-size/re-expand cycle. Required scrolling used by assertions is retained. No rendering coverage, theory case, activation/focus gate or edit-protection assertion was removed. No new regression test is needed for an optional diagnostic-only branch; both normal and capture-enabled existing theory paths are verified below.
+
+Only the measured 0.612-second comparison and its extra screenshot preparation are identified as avoidable work. This is a small reduction, not an explanation of all variation in suite time. Fresh resource loading, actual window/modal lifecycle, layout, bitmap rendering and dispatcher pumping needed by interaction assertions remain. Shared-STA ownership, external gate against nested-frame reentry, fatal-error reporting, timeout poisoning, 30-/45-second case deadlines and the **120-second aggregate deadline** are unchanged. No production, schema, economics or M14.6 work is included.
+
+Evidence is retained in ignored `artifacts/m14-5-performance/`. A matching GitHub run and live UI acceptance remain separate from these automated local checks.
+
+### Full-load reproduction and redundant probe startup
+
+The first complete parallel Release run after that small correction **failed**: Domain 444, Application 516 and Infrastructure 775 passed; Desktop passed 990 and propagated **85 failures** from one native aggregate timeout (2,725 passed / 85 failed overall). The native child started at `16:55:38.626Z`, reached its first STA at `16:55:51.783Z` (**13.157 s startup**, versus 2.949 s isolated), and was terminated at the unchanged 120-second boundary. It had finished **77** actions and started its 78th, `JournalActionClosesProtectedModalBeforeNavigatingAndVetoKeepsTradeDraft`, less than half a second before termination. There was no 45-second action timeout. Journal navigation regressions passed. This failure is retained in `full-release/`; it is not replaced with a claim that the screenshot-path change solved contention.
+
+The trace also exposed six separate VSTest children for healthy harness probes. Their aggregate process lifetimes were **52.50 s**, versus **1.536 s** of measured STA action lifetimes (including their minor coordination overhead):
+
+| Healthy probe | Child lifetime |
+| --- | ---: |
+| Successful action / dispatcher shutdown | 13.12 s |
+| Assertion failure / cleanup | 5.54 s |
+| Action-thrown TimeoutException classification | 10.06 s |
+| Native dispatcher reuse | 10.36 s |
+| Nested-frame reentry exclusion | 6.33 s |
+| Native action exception / context recovery | 7.10 s |
+
+These repeated runtime/discovery lifetimes overlap the native suite; their sum is not wall time saved from that suite. The native renderer retained a bounded working set, and actions continued progressing. This demonstrates avoidable probe-process startup load, not a new product hang.
+
+The six non-destructive probes now share one `calendar-sta-healthy` supervised child through a single lazy result. They still execute as six separately reported xUnit cases with unchanged assertions; the parent cases consume the same child result, as the existing native/grid gates already do. The **entire group keeps a 30-second process deadline**, not six accumulated deadlines, and per-action bounds remain unchanged. The explicit allowlist excludes both poisoning probes, the fatal callback probe and the Application-lifetime composite: each still gets its own child because it intentionally changes terminal process-global state. The real native suite remains separately isolated with its **120-second** deadline. Unrelated tests/assemblies retain normal concurrency; no global serialization, retry, sleep, skip or production change is introduced. Existing reuse, nested-frame, exception/context recovery, poisoning and fatal probes exercise the new grouping; no assertion or case was dropped.
+
+### Journal queue-delay reproduction after grouping
+
+The next normal parallel run (`full-release-grouped/`) passed the native child **86/86 in 102.092 s** (17.908 s headroom). The healthy probe group passed **6/6 in 9.789 s**, versus six process lifetimes totalling 52.50 s before grouping. This reduces five process startups, not test assertions. That run nevertheless remained **not green: 2,809 passed / one failed**. `ConcurrentJournalNavigationsKeepFreshStateWhenCancelledReadsFinishLate` timed out in `WaitForJournalPhaseAsync`, original line 296, while waiting for its fake repository.
+
+The newly available trace identifies the delayed flow precisely:
+
+```text
+parallel navigation 15, before navigation: poolThreads=17, busyWorkers=14, pending=26
+0.140 ms after navigation: load=WaitingForActivation, loading=True, pending=28
+8460.836 ms waiter: signal=WaitingForActivation, load=WaitingForActivation,
+calls=0, loading=True, error=<none>, poolThreads=18, busyWorkers=11, pending=47
+```
+
+Neither the Account-reader nor repository-entry breadcrumb appeared for that flow before timeout. Other flows recorded all **17** existing workers busy while work queued. The five-second timer's continuation itself was only observed at 8.46 seconds. Thus this reproduction fails before read invocation, not after cancellation or because the application accepted a stale response. Some other flows entered their first fake promptly but were delayed on return loads. The trace demonstrates shared test-host scheduling contention; it does not identify the exact unrelated test holding each worker or retroactively prove the original historical timeout's precise event sequence.
+
+The three reader-race cases (the two late-success/error theory cases and the 16-flow concurrent case) now share one separately supervised **30-second** `journal-navigation-races` child. This isolates their ThreadPool from unrelated synthetic WPF work while the real production activation/read/cancellation path remains unchanged. All **16 flows still run concurrently**, their **five-second** operation guards and old/fresh-state assertions remain, and other test assemblies/collections still execute normally in parallel. This adds one child while healthy-probe grouping removes five. No global worker-pool settings, sleeps, retries or broader serialization were added. Account-boundary and early-failure diagnostic cases remain in the ordinary host. The child TRX must report the three cases; passing parent names alone are not evidence of their assertions.
+
+### Follow-up verification
+
+| Check | Result |
+| --- | --- |
+| First correction, before healthy-probe grouping and Journal isolation: harness/process probes, Journal navigation regressions, grid and native tests; two .NET-reported CPUs, process-local 96-DPI mode and 1,044-DIP native-window cap | **280/280 passed**, no skips; includes 16 concurrent Journal navigation flows, late success/error handling, fatal child reporting, timeout poisoning and nested-frame exclusion. |
+| Isolated children in that first run | **86/86 native cases / 85 STA actions**, **72.550 s**, **47.450 s headroom**; **36/36 grid**. Historical-width comparison scopes absent with capture disabled. |
+| Existing initial-owned-panel theory with capture enabled in a fresh constrained native test host | **12/12 passed**, 18 s reported test duration. All 12 historical comparisons and both Light/Dark, normal/narrow/high-DPI bitmap outputs exercised; no live interaction claimed. |
+| Final constrained run after both process changes (`constrained-final/`), same two-CPU/process-local DPI/width settings | **280/280 passed**, no skips. Child TRX: native **86/86**, grid **36/36**, healthy probes **6/6**, Journal races **3/3**. Native **73.484 s**, **46.516 s headroom**; grid 28.074 s; healthy probes 3.473 s; Journal races 3.461 s. These are observed process lifetimes, not a guarantee under full load. |
+| Final normal parallel full Release run (`full-release-final/`) | **Failed: 2,725 passed / 85 propagated failures / zero skips**. Domain **444/444**, Application **516/516**, Infrastructure **775/775**, Desktop **990/1,075**. The native child reached its 120-second aggregate deadline; no individual action deadline expired. |
+| Other child suites in that final full run | Grid **36/36 in 71.955 s**, healthy probes **6/6 in 12.410 s**, Journal races **3/3 in 13.278 s**; fatal/poisoning/Application-lifetime probes passed. Child cleanup was confirmed. |
+| Release build / EF model consistency / `git diff --check` | Passed; zero build warnings/errors, no pending model changes, no whitespace errors. EF uses the existing in-memory design-time factory; no real journal accessed. |
+| GitHub / live UI | No matching GitHub run; earlier CI #77 does not verify M14.5. No live UI acceptance performed. |
+
+### Remaining full-load blocker
+
+The final native process started at `17:13:30.821Z`; its first STA action began at `17:13:41.855Z` (**11.034 s startup**). **77 actions finished and the 78th started**. Its final phase was again `JournalActionClosesProtectedModalBeforeNavigatingAndVetoKeepsTradeDraft`, entering `test action` at `17:15:30.362Z`, only about 0.3 seconds before the supervisor deadline fired. This does **not** establish that the Journal modal action hung. The last lifetime sample had **101.406 s process CPU**, **34 native threads**, about **483.0 MiB working set / 372.7 MiB private bytes**, one shared STA, and zero pending ThreadPool work. The renderer-lifetime correction remains effective, but the whole workload still lacks reliable aggregate headroom under concurrent assembly load. The native process was terminated and its tree cleanup confirmed, so it produced no completed native TRX; the parent failures are one shared suite result, not 85 distinct assertion failures.
+
+The earlier grouped full run's 102.092-second native pass is useful evidence, not proof of a stable performance fix. The final run supersedes it for acceptance: **M14.5 automated acceptance is not green**. The measured redundant startup and diagnostic work were reduced, and the observed Journal scheduling failure is isolated without changing its race assertions, but the remaining native full-load budget exhaustion is unresolved. No further speculative production/harness change, deadline increase, retry, skipped case or global serialization was made to obtain a green result. Further work needs full-load per-operation profiling to distinguish the remaining layout/window cost from concurrent renderer/CPU contention; a matching Windows CI run is also still required. No M14.6 work was started.
+
+## M14.5 bounded Desktop fan-out (2026-10-05)
+
+The actual checkout was **`dd683873f5b8d2709b1784955c9b3477c5bb15a0`**, `develop`, initially clean: the user had committed all ten preceding files. The remote `develop` ref matched, but the repository-wide Actions query for this exact pushed SHA returned **zero runs**. No Git writes or real journal access were performed. This follow-up does not turn the older CI #77 result into M14.5 verification.
+
+### Controlled comparisons before correction
+
+All runs below used the same Release binaries, eight reported logical CPUs, ordinary Windows/DPI settings, all 86 native cases and their unchanged deadlines. `PTJ_CALENDAR_TIMINGS=1` was enabled. The full baseline ran all four assemblies in parallel. The two workload comparisons excluded only unrelated tests **for diagnosis**, not from final acceptance or CI. The native child was not run concurrently with a separate experiment. Process sampling at one-second intervals recorded assembly module, CPU, working/private memory and thread counts; Windows CIM command-line inspection was denied, so loaded test modules and existing child PID breadcrumbs identified the processes. No machine-wide scheduling or display setting was changed.
+
+| Workload | Native process wall seconds | Headroom to 120 s | Completed STA actions | Sum action wall / process CPU seconds | Peak action-boundary working set MiB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native only | 75.512 | 44.488 | 85 | 70.298 / 75.828 | 652.953 |
+| Native + all 775 Infrastructure tests | 88.462 | 31.538 | 85 | 81.666 / 84.047 | 642.250 |
+| All Desktop tests, no other assembly | 98.419 | 21.581 | 85 | 89.806 / 91.922 | 707.789 |
+| Complete parallel Release baseline | timed out at 120 | none | 84 | 104.205 / 97.453 (completed actions only) | 650.727 |
+| Complete parallel Release, bounded Desktop collections | 97.707 | 22.293 | 85 | 86.258 / 87.984 | 728.957 |
+| Corrected focused harness run, isolated native child | 80.779 | 39.221 | 85 | 73.857 / 80.453 | 624.984 |
+| Corrected complete parallel Release with CI diagnostics | 102.859 | 17.141 | 85 | 90.253 / 94.750 | 680.672 |
+
+85 STA actions plus the pure calculation case are **86 tests**. CPU includes the native renderer and other threads in that child, so it can exceed wall time; wall minus process CPU is **not** a scheduling-wait measurement. Boundary memory and one-second peak samples differ. The baseline completed 84 actions in this reproduction, versus 77 in the prior run; that variance is retained rather than selecting a favourable result.
+
+[Raw per-action timings](ci-evidence/m14-5-native-load.csv) preserve UTC starts, exact wall/CPU durations, memory samples and observed occurrence order. Occurrences are not invented theory-parameter identifiers. Full phase/JSONL/supervisor logs, TRX and sampled process data remain in ignored `artifacts/m145-load/`. The four baseline/comparison directories are `baseline-full`, `native-isolated`, `native-infrastructure`, `desktop-only`; `bounded-full-built` is the first corrected full run. An attempted `bounded-full` measurement was cancelled because it started before a build completed, locking copy destinations; it is excluded from timing/acceptance evidence. A subsequent completed build had zero warnings/errors before corrected verification.
+
+### Where the time went
+
+Same operations and counts (seconds; nested scopes are inclusive and must not be summed):
+
+| Operation | Count | Native only | Native + Infrastructure | Desktop only | Full baseline | Bounded full |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Process startup to first STA | 1 | 2.855 | 3.704 | 3.959 | 8.741 | 6.901 |
+| Initial owned-panel owner Show/layout | 12 | 5.901 | 9.595 | 10.624 | 13.965 | 10.102 |
+| Initial owned-panel modal interaction/return | 12 | 7.996 | 11.024 | 12.670 | 14.367 | 11.891 |
+| Initial owned-panel close cleanup (dialog + owner) | 12 + 12 | 3.169 | 3.669 | 4.022 | 4.417 | 3.887 |
+| All theme resource loading | 85 | 6.333 | 7.978 | 8.320 | 10.537 | 8.679 |
+| All modal dispatcher pumps | 221 | 6.335 | 7.246 | 8.336 | 8.875 | 7.686 |
+| Chart layout / bitmap rendering | 21 / 21 | 2.024 / 0.202 | 2.639 / 0.258 | 1.776 / 0.325 | 3.582 / 0.346 | 2.964 / 0.414 |
+| Fixture creation/activation | 61 | 0.501 | 0.939 | 1.317 | 2.325 | 1.014 |
+
+The competing workload is **combined Desktop fan-out and Infrastructure CPU**, not a single stalled modal action. Infrastructure alone added about 12.95 seconds to the native lifetime; other Desktop work added about 22.91 seconds without Infrastructure. These are ablations, not additive estimates of saved wall time. In the Desktop-only trace, the main Desktop host consumed **92.09 CPU seconds**, the concurrent grid child **45.23 CPU seconds**, in addition to native **99.12 CPU seconds**; independent Journal/resource/probe children also overlapped. Infrastructure consumed **141.95 CPU seconds** in the paired run. Domain/Application finished quickly and were not the sustained load. The full baseline also failed `JournalTradeContextTests.CancelOrDeactivateRejectsLateSuccess(true)` at reader readiness; the Desktop-only run failed `RefreshClearsOldRowsImmediatelyAndErrorsRemainSeparateFromEmpty` at the same readiness boundary. Neither assertion failure establishes stale production data. Their assertions were preserved, not separately retried or isolated away in this change.
+
+### Small execution-layout correction
+
+`Desktop.Tests/AssemblyInfo.cs` caps **Desktop xUnit collection concurrency at two**, rather than automatically multiplying WPF renderer/native-child work by the runner's processor count. This is not global serialization: two Desktop collections can run together; Domain, Application and Infrastructure retain their existing concurrency and still overlap Desktop; explicitly concurrent test operations (including 16 Journal flows and import races) are unchanged. No test is excluded and no test method/assertion, 120-second aggregate bound, per-operation deadline, process cleanup, fatal callback or timeout poisoning rule changes. The existing external native action gate still prevents nested-frame reentry.
+
+The only other harness code change adds opt-in timing for that gate, dispatcher readiness and the interval from posting a dispatcher operation to its execution. In the corrected full run, **85 scheduled waits totalled 102.669 ms, maximum 15.971 ms**; readiness totalled 0.501 ms. Gate waits totalled 31.483 seconds, maximum 2.749 seconds, overlapping the other native class's active work. They are intentional serialization of the one shared STA, not an extra 31-second wall-time penalty. Idempotent disposal avoids double-reporting a queued timing scope during cancellation/exception cleanup. No production dispatcher or ThreadPool setting changed.
+
+### Verification
+
+The first corrected complete parallel Release run passed **2,810/2,810**, zero failures/skips: Domain **444**, Application **516**, Infrastructure **775**, Desktop **1,075**. The native child passed **86/86 in 97.707 seconds**, leaving **22.293 seconds**; grid **36/36 in 24.987 seconds**; Journal race child **3/3**. Healthy, fatal, poison and nested-frame harness regressions passed with unchanged assertions. Native memory remained bounded; the improvement is concurrency control, not a claimed new memory reduction.
+
+Final verification on the same code:
+
+| Check | Result |
+| --- | --- |
+| Focused harness/process, Calendar native/grid and Journal/navigation regressions (`bounded-focused`) | **280/280 passed**, no skips. Native **86/86 in 80.779 s**, **39.221 s headroom**; grid **36/36 in 20.421 s**; Journal race child **3/3 in 3.374 s**. Ordinary eight-CPU/DPI settings, not a machine-wide CPU constraint. |
+| Second complete parallel Release run, with the workflow's `--blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini --diag` (`bounded-ci-full`) | **2,810/2,810 passed**, zero failures/skips, same 444/516/775/1,075 project counts. Native **86/86 in 102.859 s**, **17.141 s headroom**; grid **36/36 in 26.452 s**; Journal races **3/3 in 7.722 s**. This is local CI-command-equivalent evidence, **not GitHub Actions**. |
+| Release build | Passed, **zero warnings/errors**. |
+| EF model consistency | No pending changes, using the existing in-memory design-time factory. |
+| `git diff --check` | Passed. |
+| Production/schema/real data/live UI | None changed/accessed; no live UI verification performed. |
+
+The second full run checks diagnostic-collector overhead after the first green run, not a retry of a failed assertion. Both full runs keep normal solution-level parallel execution. Raw per-action CSV includes both corrected full runs and the focused run. The demonstrated local native-budget blocker is resolved in these measurements; **hosted CI verification is still outstanding**. No claim is made that unbounded processor-count-driven fan-out is safe, or that one machine's headroom predicts every runner.
+
+Local timings are observations, not a guarantee on a hosted runner. Matching GitHub Actions and live application acceptance remain separate gates; no M14.6 work is included.
+
 ## Reproduce without changing Windows display settings
+
+### M14.6 prerequisite check (2026-10-05)
+
+Actual clean `develop` HEAD was `91a634c31c903bb18b9223d8f9fe788f042206a7`, containing the preceding Desktop concurrency correction. The GitHub Actions API query for this exact `head_sha` returned **total_count: 0**; latest green run #77 tests the older M13 `main` merge. Thus the two preceding local green parallel runs do **not** establish hosted M14.5 acceptance. No matching failure was found to investigate before implementing M14.6. This workflow runs for pushes to `main` and PRs targeting `main`, not standalone `develop` pushes; only the user's Git writes can trigger verification of the new changes.
+
+M14.6 adds a separate supervised Journal-history render child (one compiled-view scenario covering both themes, normal and narrow/high-DPI), reusing existing background STA lifecycle and deadlines. It does not alter native/grid budgets, the two-collection Desktop cap, assertions or isolation. Local results and remaining live history checks are recorded in [Daily Journal](daily-journal.md#m146-automated-verification-and-manual-follow-up). A matching new GitHub Actions result remains required.
+
+Final local workflow-command-equivalent parallel Release run: **2,838/2,838 passed**, zero failures/skips (444/529/779/1,086 by project), with TRX, blame collector and diagnostics enabled. Native child **86/86**, started **19:35:58.3951908 UTC**, exited **19:37:33.2026613 UTC**: **94.807 s**, **25.193 s** headroom against its unchanged 120 s bound. Grid **36/36**, **40.120 s** process wall time. Raw logs/TRX remain under ignored `artifacts/m146-full-release`; focused **233/233** passed, build had zero warnings/errors, EF/diff checks passed. A final exact-SHA GitHub lookup still returned zero runs. These are local results only, not hosted CI or live UI acceptance.
 
 Use a fresh PowerShell process in the repository on Windows:
 
@@ -315,8 +523,33 @@ The direct-host variable runs the actual native cases instead of the parent gate
 
 ## Artifacts and verification gate
 
+### Calendar grid deadline follow-up, 2026-10-06
+
+The Journal correction started on clean `develop` at `f73b8fb9cd53821c3cf50420f04b8cfe880039ba`. The prior Journal refinement run had 36 propagated grid failures from one `calendar-grid` child reaching its unchanged 120-second aggregate bound. Its last completed action ended at `12:52:04.710Z`; the next `HitTestingScopesDateHoverToMarkerNotDailyWeeklyOrEmptyCellAreas` action entered at `12:52:05.212Z`, approximately 1.3 seconds before the deadline. This does not show that that action stalled. The last completed boundary reported 91.484 process CPU seconds, about 166.6 MiB working set and zero pending ThreadPool work. Process cleanup was confirmed. Native passed separately in 118.812 seconds; none of these failures were Journal assertions.
+
+The unchanged Calendar cases were measured separately before the current Journal build, then in the final full parallel run. No scheduling, resources, dispatcher lifetime, assertions or budgets were changed. Existing opt-in timing was enabled; historical raw logs were retained.
+
+| Measurement | Previous failed full run | Isolated unchanged grid | Current parallel Release |
+| --- | ---: | ---: | ---: |
+| Completed grid actions/cases | 31 before termination | 36/36 | 36/36 |
+| Grid supervisor wall seconds | 120-second deadline | 21.792 | 35.454 |
+| Grid headroom seconds | none | 98.208 | 84.546 |
+| Compiled-grid four-case action elapsed sum | 16.080 | 3.150 | — |
+| Those cases: Measure seconds | 3.470 | 1.050 | — |
+| Those cases: UpdateLayout seconds | 7.830 | 0.970 | — |
+| Those cases: RenderTargetBitmap.Render seconds | 0.810 | 0.160 | — |
+| Day-selection four-case action elapsed sum | 23.520 | 4.840 | — |
+| Monthly-header eight-case action elapsed sum | 17.090 | 2.740 | — |
+| Native full-run cases / wall seconds | 86/86 / 118.812 | not run here | 86/86 / 77.743 |
+
+Rounded phase sums are inclusive observations, not additive estimates of scheduling delay. The slowdown spans several groups and layout phases; no single blocked application operation or accumulating grid-memory defect was demonstrated. Full-load scheduling sensitivity remains plausible, not a newly proven exact cause. The current grid's final boundary reported 38.047 process CPU seconds and about 175.9 MiB working set; multi-threaded CPU is not wall time or time waiting for work. The earlier failing schedule was not reproduced, so no speculative Calendar/harness fix was made.
+
+Raw old phases/supervision: ignored `artifacts/journal-ui-refinement/full-release-final/calendar-grid-20261006-125005-9134f102124f45bc8d31821408e5cc8b`. Isolated: `artifacts/journal-layout-fix/grid-isolated-before/calendar-grid-20261006-143327-4e81e9b4fd35439a937e06ecdd276d3c`. Current full grid: `artifacts/journal-layout-fix/full-release/calendar-grid-20261006-144106-35ae349590554f3ba845fae33a3f5420`; native: `calendar-native-20261006-144143-270060e416a84729830510ed824840d6` in that full-run directory. Logs retain phase records, supervision and child TRX where completed.
+
+Current complete parallel Release passed **2,852/2,852**, zero failures/skips (444 Domain, 529 Application, 783 Infrastructure, 1,096 Desktop). Build had zero warnings/errors; EF/diff checks passed. This is a green local run, not permanent resolution of earlier deadline variance or green GitHub Actions. A matching new PR workflow after the user's Git writes remains required. Live UI acceptance is separate and was not performed.
+
 The workflow sets `PTJ_TEST_RESULTS_DIRECTORY`, enables TRX and VSTest diagnostic logging, and uploads `windows-test-results` even after a test failure. Unique `calendar-grid-*` and `calendar-native-*` folders contain the child TRX, `stdout.log`, `stderr.log`, `process-supervision.log`, `calendar-sta-phases.log`, any dump/sequence files, and `calendar-layout.txt` for native cases (actual screen/work area, window, DPI, viewport, extent and columns). Synthetic diagnostics do not log Account names, Trade IDs or customer rows. The complete child output remains in artifacts; parent exceptions contain only a bounded tail and its location.
 
 The outer Test step has a three-minute per-case VSTest hang collector and a ten-minute step bound so an unrelated stuck test can produce diagnostics and reach artifact upload without waiting indefinitely. These are fallback safety limits, not an increase of the original 30-/45-second Calendar deadlines and not retries. A collected mini dump may provide a stack where available; phase logs remain useful if dump collection fails or the host exits first.
 
-A passing local reproduction/full suite is not a passing GitHub run. The user must commit/push these changes to the PR branch, let a new Windows CI run test that new head/merge tree, and verify all project suites plus **36 grid** and **80 modal/chart** child cases. If it fails, inspect the first unfinished phase and its dump before attributing the original cause. Rerunning run 70 would only retest the old tree.
+A passing local reproduction/full suite is not a passing GitHub run. The user must commit/push these changes to a PR targeting `main`, let a new Windows CI run test that head/merge tree, and verify all project suites plus the current **36 grid** and **86 modal/chart child cases (85 STA actions)**. If it fails, inspect the first unfinished phase, lifetime counters, opt-in timing records and any dump before attributing the cause. Rerunning an older workflow run would only retest its old tree.

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, M9 added Trading Setup and Trading Mistake classification, and the Desktop Theme System added persisted System/Dark/Light appearance. Most other product workflows remain intentionally unimplemented.
+`PersonalTradingJournal.Desktop` contains the Windows WPF presentation layer and the application's composition root. M4 established the shell, M5 added Accounts and Instruments, M6–M8 completed manual Trade capture, browsing, closure, and screenshots, M9 added Trading Setup and Trading Mistake classification, and the Desktop Theme System added persisted System/Dark/Light appearance. Later milestones added CSV import, Dashboard analytics, Calendar review and the M14.2 daily Journal editor. Remaining placeholder destinations are intentionally unimplemented.
 
 This document explains how to extend the Desktop layer without moving trading logic or persistence access into the UI.
 
@@ -16,7 +16,7 @@ This document explains how to extend the Desktop layer without moving trading lo
 
 The window defaults to `1280x800`, has a minimum size of `1000x650`, retains native Windows chrome, and uses a fixed 252-pixel sidebar. The sidebar and page content support intentional vertical scrolling, while horizontal overflow is disabled. The sidebar itself does not collapse or get replaced at smaller supported sizes; only its four feature groups can be collapsed independently.
 
-`MainWindow.xaml.cs` is intentionally limited to constructor injection, `InitializeComponent()`, and `DataContext` assignment. It contains no event handlers, navigation routing, or business logic.
+`MainWindow.xaml.cs` handles constructor injection, `InitializeComponent()`, `DataContext` assignment and the native window-close hook. `OnClosing` delegates to `MainWindowViewModel.TryCloseWindow()`, allowing the Journal editor to protect unsaved text or an in-progress save. It contains no persistence or trading logic; navigation routing remains in the shell ViewModel.
 
 ## MVVM Boundary
 
@@ -34,7 +34,7 @@ MainWindow
                       -> View
 ```
 
-`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, Trades, Trading Setups, Trading Mistakes, and Settings keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
+`MainWindowViewModel` owns shell presentation state only. Accounts, Instruments, Trades, Journal, Trading Setups, Trading Mistakes, and Settings keep feature presentation behavior in their own ViewModels while Domain rules and persistence access remain behind Application-layer boundaries and use cases.
 
 ## Navigation
 
@@ -68,7 +68,9 @@ There is intentionally no `NavigationService` or `INavigationService`. `MainWind
 
 Repeated navigation to the current destination is ignored. This preserves the current content instance and its current transient state, and avoids unnecessary View recreation.
 
-`MainWindowViewModel` retains the injected Dashboard, Calendar, Trades, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances; Calendar rereads its selected month on re-entry, while the existing retained feature lists/reference caches keep their established loading behavior. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Dashboard, Calendar, Settings, placeholders, and same-destination clicks keep their existing behavior.
+`MainWindowViewModel` retains the injected Dashboard, Calendar, Trades, Journal, Import, Accounts, Instruments, Trading Setups, Trading Mistakes, and Settings ViewModels for the main-window lifetime. Navigating away and returning reuses those exact feature instances; Calendar rereads its selected month on re-entry, while the existing retained feature lists/reference caches keep their established loading behavior. Entering Accounts, Instruments, Setups, Mistakes, Trades, or Import from another destination explicitly resets feature-local transient presentation state: open detail/edit/create surfaces, unsaved drafts, selected import files, generated previews, validation state, and operation feedback do not reappear on re-entry. Journal resets to today's New York date and All accounts on accepted departure/re-entry, clears its editor and History pages/selections, and reloads that exact entry. Its discard guard runs before departure; a veto preserves all state. Dashboard, Calendar, Settings, placeholders, and same-destination clicks keep their existing behavior.
+
+Before navigating away from Journal, the shell calls `JournalViewModel.TryLeave()`. Dirty text requires discard confirmation; declining keeps both the Journal page and its draft. The same guard runs before window close. While Save is in progress, both transitions are blocked until it finishes or cancellation completes. Successful departure deactivates Journal and cancels its outstanding read. Clicking the already-selected Journal destination does not reload or discard text.
 
 ## ViewModel-to-View Mapping
 
@@ -76,7 +78,9 @@ Repeated navigation to the current destination is ignored. This preserves the cu
 
 ```text
 DashboardViewModel   -> DashboardView
+CalendarViewModel    -> CalendarView
 TradesViewModel      -> TradesView
+JournalViewModel     -> JournalView
 AccountsViewModel    -> AccountsView
 InstrumentsViewModel -> InstrumentsView
 ImportViewModel      -> ImportView
@@ -90,9 +94,25 @@ WPF resolves these mappings from the runtime type of `CurrentContentViewModel`. 
 
 ## Placeholder Policy
 
-Nine destinations—Dashboard, Calendar, Trades, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining 10 destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
+Ten destinations—Dashboard, Calendar, Trades, Journal, Import, Accounts, Instruments, Setups, Mistakes, and Settings—have concrete content. The remaining nine destinations share `PlaceholderViewModel` and `PlaceholderView`. This avoids empty feature-specific View/ViewModel pairs that would contain no state or behavior.
 
 Replace a placeholder only when its destination gains real presentation state and an Application use case. Until then, placeholder content is an accurate representation of product status, not missing architecture.
+
+## Journal Editor, Daily Review, Calendar Integration and History (M14.2–M14.6)
+
+The Journal page edits one explicit New York date and exact Account scope through `IDailyJournalRepository`. The date defaults to today in New York; All accounts is its own entry, and inactive Accounts remain selectable with inactive labels. Days without Trades are valid. Unavailable Account selections keep their original IDs and a visible unavailable state, with writes blocked.
+
+The page defaults to compact saved-entry content and expanded Review History. Top-level **Add Journal** or a saved draft's **Continue Journal** explicitly opens the multiline form. The freeform field is 120 DIPs high and the three answer fields are 72 DIPs high, with internal scrolling. Standalone and inline editors have one **Save Journal / Cancel** row below all fields and no Complete review button. Save or **Ctrl+S** sends exact text and all answers together as Completed. Journal text requires a Unicode letter or digit; answers are optional. An inline field message explains a rejected completion and preserves edits. Answers-only historical Completed entries remain readable. Success closes the form; failures/cancellation/conflicts retain it and every local value with Reload recovery. Cancel saves exact fields as Draft and closes only after success, without a discard prompt. An exactly empty new form closes without a write; errors/conflicts retain fields. Other navigation/close paths keep their discard guards. Accepted standalone departure/re-entry resets to today in New York and All accounts with the editor and History selections/pages reset; a veto preserves all state. Inline Calendar scope never resets to today. Previously Completed reviews stay compact/read-only until **Reopen review** commits a draft revision and opens the form; stored completion history remains intact. All write actions share submission/concurrency guards; over-limit content stays visible with writes blocked. There is no autosave. Calendar uses Draft or a check mark with an accessible Completed label, never altering financial data.
+
+M14.6 adds **Review History** below the selected entry/editor. All accounts aggregates all account scopes plus null-scoped entries; an individual Account filters exactly. Entry pages contain 10 rows, ordered by New York date descending then ID, with count/filter/paging in SQL. Open review expands beneath its own row without changing the History filter, page, count, order or editor scope. Open in editor explicitly selects the row's original date/Account through the unsaved-change guard. Creation, the selected-day card and Calendar indicators keep exact-scope semantics. Revision pages contain up to 20 rows; View revision reads one immutable snapshot with New York audit time and explicit UTC-4/UTC-5. Viewing never saves/restores or replaces local drafts. Cancellation/generation checks reject stale responses, and Close view/Close review stay distinct. Add/Continue use mint/teal accents; Open review, Open in editor and View revision use distinct amber/slate/sky styles. The opened row also reads exact-scope current content for compact previews. Confirmed red Delete revision removes an older snapshot only; the current revision is protected, root content/token stay unchanged, and remaining numbers may have gaps. See [Daily Journal](daily-journal.md#review-history-m146).
+
+Date/Account changes and explicit reload require confirmation before discarding dirty text or answers. Failed or cancelled operations retain every local value. A conflict, duplicate creation or missing entry preserves local content and blocks another write until a successful explicit reload; no automatic overwrite or merge occurs. Asynchronous reads capture scope and reject obsolete results, and write operations are single-flight. The ViewModel uses Application contracts and the Desktop dialog service without accessing EF Core or Trade data.
+
+The view uses shared semantic Light/Dark brushes, form controls and calendar styling. Its date picker accepts culture-aware input and blocks Save while input is invalid or differs from the committed selected date. Labels, automation names, status/error live regions and keyboard access describe the scope and operation. Tab moves out of the multiline field; Ctrl+S invokes Save. Wrapping scope/action controls and vertical scrolling keep the page reachable at narrower sizes. These implementation details do not establish interactive visual or accessibility acceptance.
+
+Calendar Day Performance offers **Add Journal**, **Continue Journal** or **Open Journal**, based on a bounded exact-scope status read. It opens an inline Journal between chart and Trades without closing the modal or changing navigation. A separate `JournalViewModel` reuses the existing revisioned commands and protects the standalone page's retained draft; it does not load duplicate Trade context or Review History. Save collapses the form, while failures preserve all fields. Cancel saves Draft before closing its form; Close Journal retains its unsaved-change guard. Both leave Day Performance open; modal closing protects both Journal and Trade edits. Calendar month, date and filters stay unchanged. Compact Draft/Completed markers use the current Account, not currency, and committed Journal changes refresh only status. Calendar grid cells never display Journal text or answers. See [Daily Journal](daily-journal.md) for persistence and concurrency contracts.
+
+M14.3 adds `JournalTradeContextViewModel` and a read-only panel below the editor. The existing Calendar day reader supplies date/Account-filtered closed Trades and separate-currency metrics; existing Calendar presentation supplies time, peak Size, Effective Net and historical classifications. Its own cancellable, generation-guarded read state refreshes after committed Trade/import changes without reloading or discarding journal text. Refresh Trades works independently of Save/Reload latest. Empty/error context remains distinct from the editable Journal. Rows are keyboard-focusable with complete accessible descriptions, shared Light/Dark outcome styling, wrapping/tooltips and narrow-table horizontal scrolling; vertical wheel input reaches the page. The panel has no View/Edit action.
 
 ## Dashboard Status
 
@@ -283,6 +303,7 @@ Keyboard focus and active selection are independent visual states: focus has a v
 - `InstrumentsViewModel` depends on instrument-specific list/detail reads and create, update, delete, and active-lifecycle use cases plus the Desktop dialog boundary.
 - `TradingSetupsViewModel` and `TradingMistakesViewModel` depend on purpose-specific Application catalog readers and create/detail/update/delete/lifecycle use cases.
 - `TradesViewModel` depends on purpose-specific Application readers and use cases for Trade capture/browsing/correction/closure/deletion, Setup classification, Trading Mistake associations, and screenshots, plus the Desktop dialog boundary for destructive confirmation.
+- `JournalViewModel` depends on `IDailyJournalRepository`, `ITradingAccountReader`, the Desktop dialog boundary and an optional `TimeProvider`; it edits one date/Account scope and does not read or alter Trades.
 - `ImportViewModel` orchestrates the Application import contracts, read-only preview builder, and `ImportTradovateTradesUseCase` after dialog approval; it neither resolves a database context nor calls an Infrastructure write store directly.
 - `SettingsViewModel` depends only on Desktop theme and settings abstractions; it contains no trading or persistence-database behavior.
 - Feature data must be exposed through meaningful Application boundaries rather than concrete Infrastructure stores.
@@ -327,7 +348,7 @@ Do not introduce a navigation service unless a real cross-feature navigation req
 
 `PersonalTradingJournal.Desktop.Tests` targets `net10.0-windows` and covers presentation behavior at the ViewModel level. It uses real Application use cases with hand-written test readers and stores to exercise reference/list loading, catalog create/view/edit/lifecycle/delete behavior, Trade capture/browsing/paging/sorting/correction/closure/deletion, Setup classification, Trading Mistake assignment/removal, screenshots, authoritative reloads, retained navigation instances with clean re-entry state, safe feedback, cancellation, operation gating, and state isolation. Focused tests also cover Windows theme detection, preferred/effective theme behavior, header and Settings synchronization, local settings behavior, project-owned static/dynamic resource resolution, and Dark/Light key parity.
 
-These are not WPF UI tests: they do not instantiate the visual tree or replace visual acceptance for XAML layout, styling, scrolling appearance, or keyboard focus visuals.
+ViewModel tests do not instantiate the visual tree. Separate compiled WPF tests cover resources, layout, routed interactions and native modal lifetime in supervised isolated processes. Neither category replaces live pointer, keyboard, screen-reader or display-scaling acceptance. M14.5's Calendar Journal launch/marker checks, passing local full-suite follow-up and remaining CI/live acceptance limits are recorded in [Daily Journal verification](daily-journal.md#m145-automated-verification-and-manual-follow-up).
 
 ## Notebook vs Journal
 
@@ -340,7 +361,7 @@ Notebook is a top-level destination intended for free-form market notes and know
 - session observations; and
 - contextual market notes.
 
-Journal is distinct: it will focus on trading-day and trade-review workflows. Notebook functionality is not implemented yet; only its place in the shell's navigation and information architecture exists. No Notebook domain or persistence design has been chosen.
+Journal is distinct: it provides text, read-only Trade context and three Daily Review questions with explicit completion/reopening for one New York date and Account scope. Notebook functionality is not implemented yet; only its place in the shell's navigation and information architecture exists. No Notebook domain or persistence design has been chosen.
 
 ## Deferred Decisions
 
@@ -353,8 +374,9 @@ The following are intentionally not implemented:
 - a chart library;
 - Dashboard analytics and data loading;
 - Setup/Mistake performance analytics or trade-quality scoring;
-- a keyboard shortcut system.
+- a general keyboard shortcut system beyond existing feature shortcuts such as Journal's Ctrl+S;
+- Journal autosave and restoration of historical revisions.
 
 ## Next Milestone
 
-M10's import implementation is present. Final interactive sign-off remains open as recorded in [M10 acceptance](m10-acceptance.md); no subsequent milestone is selected here.
+The Journal editor, Trade context, Daily Review completion, Calendar launch and paged Review History are implemented with explicit revisioned writes and read-only history browsing. Implementation and historical test results do not establish Journal interactive acceptance. Earlier milestone acceptance gates, including [M10 acceptance](m10-acceptance.md), remain governed by their own records.

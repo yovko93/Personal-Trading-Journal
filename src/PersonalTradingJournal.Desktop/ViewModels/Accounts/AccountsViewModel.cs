@@ -28,7 +28,7 @@ public sealed class AccountsViewModel : ObservableObject
         "Account was deleted, but the list could not be refreshed.";
     private const string DeleteBlockedTitle = "Cannot delete account";
     private const string DeleteBlockedMessage =
-        "This account is used by existing trades and cannot be deleted. " +
+        "This account is used by existing trades or daily journals and cannot be deleted. " +
         "Deactivate it instead to preserve historical data.";
 
     private readonly ITradingAccountReader _accountReader;

@@ -4,9 +4,24 @@
     xmlns:calendar="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
     xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
     xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+    xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
     AutomationProperties.Name="Calendar day performance">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <Style x:Key="DayJournalDetailHost" TargetType="ContentControl">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value><DataTemplate>
+                    <StackPanel Margin="0,0,0,16">
+                        <journals:InlineJournalView />
+                    </StackPanel>
+                </DataTemplate></Setter.Value>
+            </Setter>
+            <Style.Triggers><Trigger Property="Content" Value="{x:Null}">
+                <Setter Property="ContentTemplate" Value="{x:Null}" />
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Trigger></Style.Triggers>
+        </Style>
         <converters:PnLOutcomeConverter x:Key="PnlOutcome" />
         <Style x:Key="CalendarTradeAmountStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
@@ -92,14 +107,62 @@
                            Visibility="{Binding IsSelectedDayEmpty, Converter={StaticResource BoolVisibility}}" />
                 <StackPanel Margin="0,12,0,20" HorizontalAlignment="Center">
                     <TextBlock Text="Day Journal" TextAlignment="Center" Style="{DynamicResource PtjSectionTitleTextStyle}" />
-                    <TextBlock Text="Coming later — journal storage and editing are not available."
+                    <TextBlock Text="{Binding DayJournalStatusMessage}"
                                TextWrapping="Wrap" TextAlignment="Center" Margin="0,8"
-                               Foreground="{DynamicResource PtjTextSecondaryBrush}" />
-                    <Button Content="Add Journal" IsEnabled="False" HorizontalAlignment="Center"
-                            ToolTip="Coming later" ToolTipService.ShowOnDisabled="True"
-                            AutomationProperties.Name="Add Journal — coming later"
-                            AutomationProperties.HelpText="Journal storage and editing are not available."
-                            Style="{DynamicResource PtjButtonStyle}" />
+                               Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
+                    <WrapPanel HorizontalAlignment="Center">
+                        <Button x:Name="DayJournalAction" Content="Add Journal" Margin="0,0,8,4"
+                                Command="{Binding AddDayJournalCommand}" AutomationProperties.Name="Add Journal"
+                                AutomationProperties.HelpText="Create a Journal for this New York date. Choose its Account inside the form; an occupied scope cannot be overwritten."
+                                Style="{DynamicResource PtjPrimaryButtonStyle}" />
+                        <Button Content="Refresh Journals" Command="{Binding RefreshDayJournalsCommand}" Margin="0,0,0,4"
+                                Style="{DynamicResource PtjJournalActionButtonStyle}" AutomationProperties.Name="Refresh day Journals" />
+                    </WrapPanel>
+                </StackPanel>
+                <ItemsControl x:Name="DayJournalEntries" ItemsSource="{Binding DayJournals}" Margin="0,0,0,12"
+                              AutomationProperties.Name="Journals for selected New York date and Account filter">
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <StackPanel>
+                        <Border Padding="12" Margin="0,0,0,10" CornerRadius="6" BorderThickness="1"
+                                Background="{DynamicResource PtjJournalReviewSurfaceBrush}" BorderBrush="{DynamicResource PtjJournalReviewBorderBrush}"
+                                AutomationProperties.Name="{Binding Description}">
+                            <StackPanel>
+                                <WrapPanel>
+                                    <TextBlock Text="{Binding AccountLabel}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,4"
+                                               Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding StateLabel}" FontSize="16" Margin="0,0,0,4" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+                                </WrapPanel>
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="96" LineHeight="24"
+                                           FontSize="16" MaxWidth="760" HorizontalAlignment="Left" Margin="0,4,0,8"
+                                           Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Saved Journal text" />
+                                <WrapPanel x:Name="JournalCardActions">
+                                <interactions:ExpansionButton x:Name="JournalToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" HorizontalAlignment="Left" Margin="0,0,8,4"
+                                        Command="{Binding DataContext.OpenDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Style="{DynamicResource PtjJournalActionButtonStyle}"
+                                        AutomationProperties.Name="{Binding ActionAccessibleName}" />
+                                <Button x:Name="DeleteCardJournal" Content="Delete Journal" Margin="0,0,0,4"
+                                        Command="{Binding DataContext.DeleteDayJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" Style="{DynamicResource PtjDangerButtonStyle}"
+                                        AutomationProperties.Name="{Binding DeleteAccessibleName}" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                        <ContentControl x:Name="RowJournalDetail" Content="{Binding ExpandedJournal}" Style="{StaticResource DayJournalDetailHost}" />
+                        </StackPanel>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                <Setter TargetName="JournalToggle" Property="Style" Value="{DynamicResource PtjJournalCloseButtonStyle}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel x:Name="InlineJournalSection" Margin="0,0,0,16"
+                            Visibility="{Binding HasDetachedInlineJournal, Converter={StaticResource BoolVisibility}}">
+                    <!-- A new unsaved form has no saved card to toggle. Keep its guarded close action. -->
+                    <Button Content="Close Journal" HorizontalAlignment="Right" Margin="0,0,0,8"
+                            Command="{Binding CloseInlineJournalCommand}" Style="{DynamicResource PtjJournalCloseButtonStyle}"
+                            AutomationProperties.Name="Close new inline Journal; keep Day Performance open" />
+                    <ContentControl x:Name="DayJournalEditor" Content="{Binding DetachedInlineJournal}" Style="{StaticResource DayJournalDetailHost}" />
                 </StackPanel>
                 <ScrollViewer x:Name="DayTradesScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                               interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">

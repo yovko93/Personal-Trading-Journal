@@ -1,6 +1,7 @@
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.Instruments;
+using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Imports.Tradovate;
 using PersonalTradingJournal.Application.Imports.Topstep;
 using PersonalTradingJournal.Infrastructure.Imports.Topstep;
@@ -22,6 +23,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
 using PersonalTradingJournal.Desktop.ViewModels.Calendar;
 using PersonalTradingJournal.Desktop.ViewModels.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Import;
+using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
@@ -32,7 +34,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
-public sealed class MainWindowViewModelTests
+public sealed partial class MainWindowViewModelTests
 {
     [Fact]
     public void NavigationDestinationsContainNineteenEntries() =>
@@ -863,6 +865,7 @@ public sealed class MainWindowViewModelTests
     [InlineData(NavigationDestination.Trades)]
     [InlineData(NavigationDestination.Instruments)]
     [InlineData(NavigationDestination.Calendar)]
+    [InlineData(NavigationDestination.Journal)]
     public async Task BackgroundCommitNotificationRefreshesOnOwningWpfDispatcher(NavigationDestination destination)
     {
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -883,6 +886,8 @@ public sealed class MainWindowViewModelTests
                     main.NavigateCommand.Execute(destination);
                     if (destination == NavigationDestination.Calendar)
                         await Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel).LoadTask;
+                    if (destination == NavigationDestination.Journal)
+                        await Task.WhenAll(fixture.Journal.LoadTask, fixture.Journal.TradeContext.LoadTask);
                     var refreshed = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
                     if (destination == NavigationDestination.Trades)
                     {
@@ -901,6 +906,16 @@ public sealed class MainWindowViewModelTests
                         fixture.Instruments.PropertyChanged += (_, e) =>
                         {
                             if (e.PropertyName == nameof(fixture.Instruments.Instruments))
+                                refreshed.TrySetResult(Environment.CurrentManagedThreadId);
+                        };
+                    }
+                    else if (destination == NavigationDestination.Journal)
+                    {
+                        fixture.Journal.OpenEditorCommand.Execute(null);
+                        fixture.Journal.Text = "A draft on the owning dispatcher.";
+                        fixture.Journal.TradeContext.PropertyChanged += (_, e) =>
+                        {
+                            if (e.PropertyName == nameof(fixture.Journal.TradeContext.Rows) && fixture.Journal.TradeContext.HasResult)
                                 refreshed.TrySetResult(Environment.CurrentManagedThreadId);
                         };
                     }
@@ -1158,7 +1173,11 @@ public sealed class MainWindowViewModelTests
         ITradingCalendarDayReader? calendarDayReader = null,
         ITradingCalendarReader? calendarReader = null,
         FakeTradeDeletionStore? tradeDeletionStore = null,
-        TradesViewModel? calendarEditor = null)
+        TradesViewModel? calendarEditor = null,
+        JournalViewModel? journalViewModel = null,
+        IDailyJournalStatusReader? journalStatusReader = null,
+        IDailyJournalRepository? calendarJournalRepository = null,
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1313,9 +1332,15 @@ public sealed class MainWindowViewModelTests
             new FakeTradeScreenshotDeleteConfirmation(),
             deleteTradeUseCase: tradeDeletionStore is null ? null : new DeleteTradeUseCase(tradeDeletionStore, tradeScreenshotFileStorage),
             dialogService: new FakeDialogService { ConfirmationResult = true });
+        var journalReader = new FakeTradingCalendarDayReader();
+        var journalRepository = new NavigationJournalRepository();
+        var journal = journalViewModel ?? new JournalViewModel(journalRepository, new FakeTradingAccountReader(),
+            new FakeDialogService(), new JournalTradeContextViewModel(journalReader, new FakeTradingAccountReader()), timeProvider);
         var main = new MainWindowViewModel(
             dashboard,
-            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor),
+            new CalendarViewModel(calendarReader ?? new EmptyCalendarReader(), timeProvider, calendarDayReader ?? new FakeTradingCalendarDayReader(), new FakeTradingAccountReader(), tradeEditor: calendarEditor, journalStatusReader: journalStatusReader,
+                journalRepository: calendarJournalRepository, journalDialogs: calendarJournalDialogs),
+            journal,
             accounts,
             instruments,
             import,
@@ -1346,7 +1371,10 @@ public sealed class MainWindowViewModelTests
             tradeScreenshotReader,
             themeService,
             settingsStore,
-            dashboardReader);
+            dashboardReader,
+            journal,
+            journalReader,
+            journalRepository);
     }
 
     private static TradeDetail CreateTradeDetail(TradeListItem listItem)
@@ -1396,7 +1424,10 @@ public sealed class MainWindowViewModelTests
         FakeTradeScreenshotReader TradeScreenshotReader,
         FakeThemeService ThemeService,
         FakeDesktopSettingsStore SettingsStore,
-        FakeDashboardAnalyticsReader DashboardReader);
+        FakeDashboardAnalyticsReader DashboardReader,
+        JournalViewModel Journal,
+        FakeTradingCalendarDayReader JournalReader,
+        NavigationJournalRepository JournalRepository);
 
     private sealed class NeverCalledTradovateCsvParser : ITradovateCsvParser
     {

@@ -67,7 +67,7 @@ public sealed class TradingAccountDeletionStore : ITradingAccountDeletionStore
             })
         {
             throw new TradingAccountDeleteBlockedException(
-                "The trading account is referenced by existing trades.",
+                "The trading account is referenced by existing trades or daily journals.",
                 exception);
         }
     }

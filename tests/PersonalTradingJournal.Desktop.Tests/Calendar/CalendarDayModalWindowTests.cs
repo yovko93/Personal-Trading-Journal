@@ -51,13 +51,16 @@ public sealed partial class CalendarDayModalTests
         {
             var dispatcher = Dispatcher.CurrentDispatcher;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
-            var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
+            CalendarView view;
+            using (CalendarStaTest.Timing("Calendar view construction and resources"))
+                view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
             var owner = new Window { Content = view, Width = width, Height = 920, ShowInTaskbar = false };
             ApplyRunnerWindowConstraint(owner);
             Exception? failure = null;
             try
             {
-                owner.Show(); Pump(); owner.UpdateLayout();
+                using (CalendarStaTest.Timing("owner show and initial layout"))
+                { owner.Show(); Pump(); owner.UpdateLayout(); }
                 var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
                 using var focus = new CalendarFocusProbe(owner, cell, $"InitialOwnedPanel/{theme}/{width}/{dpi}/{longName}");
                 dispatcher.BeginInvoke(new Action(async () =>
@@ -66,16 +69,29 @@ public sealed partial class CalendarDayModalTests
                     {
                         var dialog = view.DayDialog!;
                         focus.ObserveDialog(dialog);
-                        await vm.DayLoadTask; dialog.UpdateLayout();
+                        using (CalendarStaTest.Timing("day read and dialog layout"))
+                        { await vm.DayLoadTask; dialog.UpdateLayout(); }
                         var panel = (Border)dialog.FindName("DayPanel");
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
                         var header = (Grid)content.FindName("DayTradesHeader");
                         var table = (StackPanel)content.FindName("DayTradesTable");
                         var scroll = (ScrollViewer)content.FindName("DayTradesScroller");
-                        double initialCap = panel.MaxWidth;
-                        panel.MaxWidth = 1000; Pump(); dialog.UpdateLayout();
-                        double beforeViewport = scroll.ViewportWidth, beforeTable = table.ActualWidth;
-                        panel.MaxWidth = initialCap; Pump(); dialog.UpdateLayout();
+                        string? renderDirectory = Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY");
+                        double? beforeViewport = null, beforeTable = null;
+                        // The obsolete width is only a before/after screenshot diagnostic.
+                        // Normal acceptance must test the actual initial viewport without
+                        // forcing two extra layouts or screenshot-only scrolling first.
+                        if (renderDirectory is { Length: > 0 })
+                        {
+                            using var comparison = CalendarStaTest.Timing("historical width comparison");
+                            double initialCap = panel.MaxWidth;
+                            try
+                            {
+                                panel.MaxWidth = 1000; Pump(); dialog.UpdateLayout();
+                                beforeViewport = scroll.ViewportWidth; beforeTable = table.ActualWidth;
+                            }
+                            finally { panel.MaxWidth = initialCap; Pump(); dialog.UpdateLayout(); }
+                        }
                         Assert.Equal(0, scroll.HorizontalOffset);
                         var grid = Descendants(content).OfType<Grid>().Single(g => g.Name == "DayTradeRow");
                         WriteLayoutDiagnostics(owner, header, scroll, [grid], $"Owned: {theme}/{width}/{dpi}/{longName}");
@@ -116,30 +132,32 @@ public sealed partial class CalendarDayModalTests
                         string measured = $"Owner={owner.ActualWidth:F2}; client={dialog.ActualWidth:F2}; panel={panel.ActualWidth:F2}; " +
                             $"viewport before={beforeViewport:F2}, after={scroll.ViewportWidth:F2}; table before={beforeTable:F2}, after={table.ActualWidth:F2}; " +
                             $"Action fits={actionFits}; trailing gap={gap:F2}; columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
-                        await vm.ViewTradeCommand.ExecuteAsync(row); Pump(); dialog.UpdateLayout();
+                        using (CalendarStaTest.Timing("inline view and layout"))
+                        { await vm.ViewTradeCommand.ExecuteAsync(row); Pump(); dialog.UpdateLayout(); }
                         Assert.True(Assert.Single(vm.DayTrades).IsExpanded);
                         Assert.Same(editor, Descendants(content).OfType<CalendarInlineTradeView>().Single().DataContext);
-                        if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_RENDER_DIRECTORY") is { Length: > 0 } output)
+                        if (renderDirectory is { Length: > 0 } output)
                         {
                             Directory.CreateDirectory(output);
                             File.WriteAllText(System.IO.Path.Combine(output, $"modal-width-{theme}-{width}-{dpi}-{longName}.txt"), measured);
+                            var page = (ScrollViewer)content.FindName("DayContentScroller");
+                            page.ScrollToVerticalOffset(header.TransformToAncestor(page).Transform(new Point()).Y - 12); Pump();
+                            Render(dialog, $"initial-{theme}-{longName}", width, dpi);
                         }
-                        var page = (ScrollViewer)content.FindName("DayContentScroller");
-                        page.ScrollToVerticalOffset(header.TransformToAncestor(page).Transform(new Point()).Y - 12); Pump();
-                        Render(dialog, $"initial-{theme}-{longName}", width, dpi);
                         focus.Capture("before dialog.Close");
-                        dialog.Close();
+                        using (CalendarStaTest.Timing("dialog close")) dialog.Close();
                     }
                     catch (Exception exception) { failure = exception; view.DayDialog?.Close(); }
                 }));
-                cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
+                using (CalendarStaTest.Timing("modal open interaction and return"))
+                    cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
                 focus.Capture("ShowDialog returned");
                 Pump(); if (failure is not null) throw failure;
                 Assert.Null(view.DayDialog);
                 focus.VerifyRestored();
                 Assert.True(cell.IsKeyboardFocused);
             }
-            finally { owner.Close(); }
+            finally { using (CalendarStaTest.Timing("owner close")) owner.Close(); }
         });
     }
 

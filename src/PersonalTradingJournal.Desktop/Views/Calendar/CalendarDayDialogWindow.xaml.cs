@@ -19,6 +19,7 @@ public partial class CalendarDayDialogWindow : Window
         };
     }
     private void OnClose(object sender, RoutedEventArgs e) => Close();
+
     private void OnDialogMouseDown(object sender, MouseButtonEventArgs e)
     {
         // A sibling of DayPanel, not an ancestor: content, scrollbars and popups never use this route.

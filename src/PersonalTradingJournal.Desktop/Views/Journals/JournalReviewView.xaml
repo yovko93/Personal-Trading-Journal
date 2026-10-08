@@ -1,0 +1,107 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Journals.JournalReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+             xmlns:journals="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals" FontSize="16">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="JournalPresentationResources.xaml" /></ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <Style x:Key="SnapshotText" TargetType="TextBox" BasedOn="{StaticResource JournalTextBox}">
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Margin" Value="0,6,0,12" />
+        </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+                <StackPanel x:Name="OpenedReview" Visibility="{Binding HasSelectedEntry, Converter={StaticResource BoolVisibility}}">
+                <Grid Margin="0,12,0,8">
+                    <TextBlock Text="{Binding SelectedEntry.Description}" TextWrapping="Wrap" VerticalAlignment="Center"
+                               Style="{DynamicResource JournalLabel}" />
+                </Grid>
+                <Button x:Name="OpenInEditor" Content="Open in editor" Command="{Binding OpenInEditorCommand}" HorizontalAlignment="Left"
+                        Style="{DynamicResource JournalEditorButton}" Margin="0,0,0,8"
+                        ToolTip="Select this review's exact date and Account for editing or deletion. Unsaved editor changes remain protected." />
+                <TextBlock Text="{Binding PreviewStatus}" Style="{DynamicResource JournalCaption}" AutomationProperties.LiveSetting="Polite" />
+                <ItemsControl x:Name="CurrentPreviews" ItemsSource="{Binding Previews}" MaxWidth="760" HorizontalAlignment="Left" Margin="0,4,0,8">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Label}" Style="{DynamicResource JournalLabel}" />
+                                <TextBlock x:Name="PreviewText" Text="{Binding Text}" Style="{DynamicResource JournalBody}"
+                                           MaxHeight="72" TextTrimming="CharacterEllipsis" TextWrapping="Wrap"
+                                           AutomationProperties.HelpText="Current content preview. Open in editor or View revision for full text." />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding DeleteStatus}" Style="{DynamicResource JournalBody}" AutomationProperties.LiveSetting="Assertive" />
+                <TextBlock Text="{Binding RevisionStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
+                           AutomationProperties.LiveSetting="Polite" />
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Content="Previous revisions" Command="{Binding PreviousRevisionsCommand}" Margin="0,0,8,8"
+                            Style="{DynamicResource JournalButton}" />
+                    <Button Content="Next revisions" Command="{Binding NextRevisionsCommand}" Margin="0,0,8,8"
+                            Style="{DynamicResource JournalButton}" />
+                    <TextBlock Text="{Binding RevisionPageText}" Style="{DynamicResource JournalCaption}" VerticalAlignment="Center" />
+                </WrapPanel>
+                    <ItemsControl x:Name="HistoryRevisions" ItemsSource="{Binding Revisions}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,6,0,0">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                    <StackPanel Margin="0,0,8,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding StateText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}" />
+                                        <TextBlock Text="{Binding SavedAtText}" TextWrapping="Wrap" Style="{DynamicResource JournalCaption}" />
+                                        <TextBlock Text="Current revision — protected" Style="{DynamicResource JournalCaption}"
+                                                   Visibility="{Binding IsCurrent, Converter={StaticResource BoolVisibility}}" />
+                                    </StackPanel>
+                                    <WrapPanel x:Name="RevisionActions" Grid.Column="1" VerticalAlignment="Center">
+                                    <interactions:ExpansionButton x:Name="RevisionToggle" Content="{Binding ActionLabel}" IsExpanded="{Binding IsExpanded, Mode=OneWay}" Style="{DynamicResource JournalRevisionButton}" Margin="0,0,8,6"
+                                            Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding ViewAccessibleName}" />
+                                    <Button Content="Delete revision" Style="{DynamicResource JournalDeleteButton}" Margin="0,0,0,6"
+                                            Command="{Binding DataContext.DeleteRevisionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" ToolTip="{Binding DeleteHelp}" ToolTipService.ShowOnDisabled="True"
+                                            AutomationProperties.HelpText="{Binding DeleteHelp}" AutomationProperties.Name="{Binding DeleteAccessibleName}" />
+                                    </WrapPanel>
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                        <Setter TargetName="RevisionToggle" Property="Style" Value="{DynamicResource JournalCloseButton}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsCompact, RelativeSource={RelativeSource AncestorType=journals:JournalHistoryView}}" Value="True">
+                                        <Setter TargetName="RevisionActions" Property="Grid.Row" Value="1" />
+                                        <Setter TargetName="RevisionActions" Property="Grid.Column" Value="0" />
+                                        <Setter TargetName="RevisionActions" Property="Grid.ColumnSpan" Value="2" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                <StackPanel Visibility="{Binding HasRevisionView, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
+                    <TextBlock Text="{Binding SnapshotStatusText}" TextWrapping="Wrap" Style="{DynamicResource JournalBody}"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+                <StackPanel Visibility="{Binding HasSnapshot, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0" MaxWidth="760">
+                    <TextBlock Text="{Binding SnapshotDescription}" TextWrapping="Wrap" Style="{DynamicResource JournalLabel}" />
+                    <TextBlock Text="Journal text (read-only)" Style="{DynamicResource JournalBody}" />
+                    <TextBox x:Name="RevisionText" Text="{Binding Snapshot.Text, Mode=OneWay}" Style="{StaticResource SnapshotText}"
+                             AutomationProperties.Name="Revision journal text, read-only" />
+                    <TextBlock Text="What went well?" Style="{DynamicResource JournalBody}" />
+                    <TextBox x:Name="RevisionWentWell" Text="{Binding Snapshot.Review.WentWell, Mode=OneWay}" Style="{StaticResource SnapshotText}"
+                             AutomationProperties.Name="Revision what went well, read-only" />
+                    <TextBlock Text="What needs improvement?" Style="{DynamicResource JournalBody}" />
+                    <TextBox x:Name="RevisionNeedsImprovement" Text="{Binding Snapshot.Review.NeedsImprovement, Mode=OneWay}" Style="{StaticResource SnapshotText}"
+                             AutomationProperties.Name="Revision what needs improvement, read-only" />
+                    <TextBlock Text="What will I do differently next trading day?" Style="{DynamicResource JournalBody}" />
+                    <TextBox x:Name="RevisionNextTradingDay" Text="{Binding Snapshot.Review.NextTradingDay, Mode=OneWay}" Style="{StaticResource SnapshotText}"
+                             AutomationProperties.Name="Revision next trading day, read-only" />
+                </StackPanel>
+                </StackPanel>
+</UserControl>
