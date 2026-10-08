@@ -101,6 +101,80 @@ Focused calculator regressions cover signed/zero outcomes, strict-Net coverage, 
 
 Local verification on `develop`, baseline `d2b0277494447829a807f951213a1a198c2a669a`: focused **94/94 passed** (13 Domain, 61 Application, 20 Infrastructure, including shared Dashboard/Calendar regressions). Complete parallel Release **3,046/3,046 passed**, zero failures/skips (454 Domain, 551 Application, 818 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed. Logs/TRX are under ignored `artifacts/m152/` and `artifacts/m152-*.log`. No real journal, UI/AI acceptance or matching GitHub Actions verification is involved; these are local automated results.
 
+## M15.3: coaching evidence and response contract
+
+This milestone defines a provider-independent input/output boundary only. `CoachingEvidencePacketBuilder.Build(evidence, cancellationToken)` consumes one M15.1 snapshot and computes M15.2 statistics from the same defensively copied records. It does not accept separately supplied statistics that could describe a different population. It makes no provider calls, produces no coaching, persists no analysis, and adds no UI or database/schema changes.
+
+### Immutable, scoped packet
+
+A successful `CoachingPacketBuildResult` has status `Ready` and a `CoachingEvidencePacket`. Its get-only properties include `ContractVersion`, `PacketId`, typed `Content`, complete wire `Json`, and `Utf8ByteCount`. Every nested collection is a defensive read-only copy (including executions, classifications and calculated source-ID sets); mutating a caller's input lists cannot change a constructed packet. Strings/scalar source records remain unchanged.
+
+The initial version is **daily-coaching.v1**, shared by packet and response. JSON uses camelCase properties, string enums, explicit nulls, exact decimal serialization and original dates/UTC instants. Packet identity is lowercase SHA-256 over the UTF-8 JSON object containing `contractVersion` and `content`, before adding `packetId` to the final envelope. It is a deterministic content fingerprint, **not** authentication or a persisted analysis ID. No build-time timestamp is injected. Identical evidence, regardless of input list order/current culture, produces identical packet JSON and fingerprint; content/revision changes produce a different fingerprint. This is initial contract identification, not the comprehensive prompt/model/version management reserved for M20.
+
+Content has clearly separated sections:
+
+- **Query:** the exact New York date, requested Account scope and existing DST-safe UTC bounds. Exact Account accepts only matching Trades/Journals. All accounts retains all original Account IDs and the distinct null-scoped Journals; no monetary currencies are merged.
+- **CalculatedFacts:** the complete M15.2 result, including Gross/strict-Net basis, denominators, coverage, known versus unavailable sets, Account/currency groups, excluded open/partial activity and contributing Trade IDs. Unknown Net is never estimated here.
+- **RecordedTradeFacts:** full supplied M15.1 Trade facts, source/execution IDs, historical pricing currency, nullable costs and economics, classifications, audit instants, inclusion reasons and quality flags. These are recorded facts, not AI instructions or independently verified market data.
+- **UntrustedJournalObservations:** current exact Journal text and three answers, saved Account identity, Journal ID, durable revision, Draft/Completed state and audit timestamps. User-written explanations are observations, not verified trading facts. No Journal is an absent item, not an empty synthetic Journal.
+- **MissingOrUncertainData:** explicit no-Trade/no-closed-Trade/no-Journal states, missing Journal scopes among Accounts represented by Trades plus the requested scope, empty/whitespace field names for each existing Journal, the lack of supplied Trade notes and the existing absence of durable Trade revisions. Under All accounts the null scope is checked independently. This is not a census of Accounts with no records in the snapshot. Unknown costs/Net and excluded lifecycle activity remain explicit in CalculatedFacts and per-Trade quality.
+- **Sources:** an ordered citation catalog linking each accepted source identifier to its kind and available Account/currency/Trade/execution/Journal/revision identity.
+
+Trade/Journal rows sort by Trade ID and null-first Account ID/Journal ID respectively; child execution/classification ordering follows M15.1. Source catalog sorts ordinally. Duplicate Trade/execution/Journal IDs, duplicate Journal scopes on the selected date, invalid revisions, wrong dates and foreign exact-Account records are rejected, not silently filtered.
+
+### Source trust and size bounds
+
+The packet's fixed `ContentHandling` text identifies all source strings as **untrusted data**, never instructions: Journal text/answers, reference names, broker strings and any future Trade notes. JSON serialization escapes source text so it cannot introduce packet properties. M15.1 has no Trade-note field, so v1 explicitly says `tradeNotesSupplied: false`; it does not pretend notes were inspected or fabricate them. Later provider integration must place source content only in a data role, maintain a trusted instruction boundary, and must not obey instructions embedded in evidence. Labeling/escaping alone does not guarantee prompt-injection resistance.
+
+Version 1 limits:
+
+| Boundary | Limit |
+| --- | ---: |
+| Complete packet, including version/fingerprint/envelope | 262,144 escaped UTF-8 bytes (256 KiB) |
+| Trades / executions / Journals / assigned Mistakes | 500 / 5,000 / 100 / 5,000 |
+| Response JSON | 65,536 UTF-8 bytes (64 KiB) |
+| Each response section list | 12 items |
+| Each summary/observation/suggestion/uncertainty text | Nonblank, at most 1,000 UTF-16 code units |
+| Citations per item | 1–16 distinct supplied source IDs |
+| Response JSON nesting | 48 levels |
+
+Record limits are preflight limits, not a promise that those counts fit the byte limit. A bounded serializer measures the actual escaped JSON, not a character estimate or model tokenizer estimate. `TooLarge` returns no packet and a clear explanation: no records, fields, statistics or citations were dropped/truncated. `InvalidEvidence` and `CalculationOverflow` also return no packet; cancellation throws without a partial result. Required input programmer arguments are not optional. All four outcomes are distinct from a valid empty-day packet.
+
+No evidence is silently narrowed to fit: a future caller must explain the failure or explicitly obtain a different supported Account/date request. Provider-specific context/token budgets, transport overhead, request-size limits and output reservations still require validation in later milestones. This byte limit does not guarantee fit in any particular model. The upstream M15.1 reader remains complete/unbounded for its selected date; packet limits do not alter reader/database semantics.
+
+### Structured response and citation validation
+
+`CoachingResponseValidator.Validate(json, packet, cancellationToken)` returns `IsValid`, a frozen typed `Response` only on success, and non-source-content error messages on failure. The required JSON shape is:
+
+| Field | Shape / purpose |
+| --- | --- |
+| contractVersion | Exactly daily-coaching.v1 |
+| packetId | Exactly the supplied packet fingerprint |
+| daySummary | One concise `{text, sourceIds}` statement |
+| executionObservations | Array of `{basis, text, sourceIds}` observations |
+| behaviorObservations | Same observation shape |
+| improvementSuggestions | Array of actionable proposed `{text, sourceIds}` statements |
+| uncertainties | Array of `{text, sourceIds}` statements |
+
+Observation basis is one of `CalculatedFact`, `RecordedTradeFact`, `UserWrittenJournalObservation`. Each observation's citations must **all** match its declared basis: calculated catalog items, Trade/execution items, or Journal items respectively. To contrast a calculation with a user's explanation, provide separate correctly labeled observations. Summary, suggestions and uncertainties may cite any supplied source kind. All items require citations, even advice, so their stated rationale remains traceable. Lists may be empty when evidence is insufficient; the contract does not force fabricated observations or suggestions. An empty day can cite `calculated:day` for absent evidence.
+
+Catalog identifiers are exact, ordinal/case-sensitive strings:
+
+- `calculated:day` — scoped population/statistics (no cross-currency total).
+- `calculated:currency:{escapedCurrency}` and `calculated:currency:{escapedCurrency}:account:{accountIdN}` — explicit currency and optional exact Account metric groups, with their contributing Trade IDs.
+- `trade:{tradeIdN}` and `execution:{executionIdN}` — recorded Trade/lifecycle facts.
+- `journal:{journalIdN}:revision:{revision}` — current user-written fields at that exact durable revision.
+
+The validator rejects unknown sources (including omitted, foreign or older Journal revisions), wrong packet/version, blank/oversized text, null/missing sections/items, duplicate citations, excess counts, malformed/deep/oversized JSON, duplicate property names, extra properties and integer/unknown enum values. It does not query the database to resolve a citation: only evidence actually supplied in this packet is valid. Thus a response for an earlier source snapshot cannot be attached to a newer packet merely because Trade IDs still exist.
+
+**Passing validation proves structure and source membership, not that the cited material entails the wording.** It cannot verify whether prose invents profit, misreads a partial subtotal, attributes behavior correctly, contradicts an uncertainty, obeys an injected instruction or offers useful/actionable advice. Response text remains proposed, untrusted AI output. Future generation/presentation must preserve calculated facts as authoritative, make uncertainties visible and handle these semantic limits explicitly. No generated text is produced in M15.3. Neither a packet hash nor Trade audit timestamps restore old source content; future saved analyses must retain their actual evidence as required for reproducibility.
+
+### M15.3 verification
+
+Tests cover exact/aggregate scopes, mixed currencies, current Draft/Completed revisions, unknown costs, empty days, excluded open activity, absent/empty Journal fields, defensive immutability, deterministic ordering/culture, malicious source strings kept as data, record/wire limits, calculation overflow, response source/basis validation, response version/fingerprint, malformed/duplicate/extra properties and cancellation. The existing isolated migrated SQLite scope test now constructs packets from both aggregate and exact-account reads.
+
+Local verification on clean-start `develop`, baseline `381f98eeefe0140669d94ac46d9c9220c8f791e3`: focused **77/77 passed** (13 Domain, 52 Application, 12 Infrastructure). Complete parallel Release **3,076/3,076 passed**, zero failures/skips (454 Domain, 581 Application, 818 Infrastructure, 1,223 Desktop). Release build: **zero warnings/errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed. Logs/TRX are under ignored `artifacts/m153/` and `artifacts/m153-*.log`. No real journal, AI provider, live UI or GitHub Actions acceptance is involved; these are local automated results.
+
 ## M15.1 verification
 
 Baseline: clean `develop`, `b04ba12a0fef2a7c28cdd5a19e4ed0ebe586b429`. Focused Release: **15/15 passed**, zero failures/skips (5 Application, 10 Infrastructure). Tests use isolated migrated SQLite databases and cover:

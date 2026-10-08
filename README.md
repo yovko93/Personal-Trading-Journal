@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.3 — AI Coaching evidence and response contract**
+
+`CoachingEvidencePacketBuilder` creates an immutable, versioned daily packet from M15.1 evidence and M15.2 calculations, preserving currency/Account boundaries, source IDs, Journal revisions and explicit missing-data states. Calculated facts, recorded Trades and untrusted user-written Journal observations remain separate. Complete packets are capped at 256 KiB of escaped UTF-8 JSON; oversized evidence is rejected without truncation. A structured response validator checks version, packet fingerprint, bounded sections and valid source citations without claiming to prove the prose true. No provider call, UI, generated coaching, analysis storage or database change is added. See [coaching boundary and limitations](docs/daily-review.md#m153-coaching-evidence-and-response-contract).
+
 **M15.2 — Daily Review statistics and data quality**
 
 `DailyReviewStatisticsCalculator.Calculate(evidence)` adds pure, deterministic Gross and strict verified-Net outcomes over the M15.1 snapshot. It reuses Dashboard/Calendar formulas, partitions by historical currency and Account, and exposes contributing Trade IDs, coverage, unknown commissions/fees and excluded open/partial activity. A complete Net total or ratio requires all closed Trades' authoritative Net and known costs; no Gross-as-Net estimate or cross-currency total is supplied. Empty and unavailable results remain distinct from genuine zero. No UI, AI generation, writes or migration are introduced. See [metric definitions and limits](docs/daily-review.md#m152-statistics-and-data-quality).

@@ -7,6 +7,7 @@ using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
 using PersonalTradingJournal.Application.DailyReview;
+using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Application.Trades;
@@ -95,6 +96,12 @@ public sealed class DailyReviewEvidenceReaderTests
         await journals.CreateAsync(new(Day.AddDays(-1), null, "Other day", false));
         var reader = Reader(db);
         var all = await reader.GetAsync(new(Day));
+        var coaching = CoachingEvidencePacketBuilder.Build(all);
+        Assert.Equal(CoachingPacketBuildStatus.Ready, coaching.Status);
+        Assert.Equal(all.Journals.Select(j => (j.JournalId, j.Revision)),
+            coaching.Packet!.Content.UntrustedJournalObservations.Select(j => (j.JournalId, j.Revision)));
+        Assert.Equal(all.Trades.Select(t => t.TradeId).Order(),
+            coaching.Packet.Content.CalculatedFacts.Population.Closed.TradeIds);
         Assert.Equal(new[] { a.Id, b.Id }.Order(), all.Trades.Select(t => t.TradeId));
         Assert.Equal(3, all.Journals.Count);
         Assert.Equal(global.Id, all.Journals[0].JournalId);
@@ -109,6 +116,9 @@ public sealed class DailyReviewEvidenceReaderTests
         Assert.Equal(a.Id, Assert.Single(exact.Trades).TradeId);
         Assert.Equal(scoped.Id, Assert.Single(exact.Journals).JournalId);
         Assert.Equal(p21, exact.Journals[0].TradingAccountId);
+        var exactPacket = CoachingEvidencePacketBuilder.Build(exact);
+        Assert.Equal(CoachingPacketBuildStatus.Ready, exactPacket.Status);
+        Assert.Equal(p21, Assert.Single(exactPacket.Packet!.Content.UntrustedJournalObservations).TradingAccountId);
         Assert.Equal("P 21", exact.Journals[0].AccountName);
         var unknownScope = await reader.GetAsync(new(Day, Guid.NewGuid()));
         Assert.Empty(unknownScope.Trades); Assert.Empty(unknownScope.Journals);
