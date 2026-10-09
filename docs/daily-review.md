@@ -1,5 +1,48 @@
 # Daily Review with AI Coaching — M15
 
+## Groq input-budget correction — 2026-10-09
+
+**M15.8 is not started.** Baseline: clean `develop`, `ce09b3331c827868925a02ec04ae89e1001bc90b`. Reproduction uses only synthetic evidence: 02 Oct 2026, one exact synthetic Account, two closed USD Trades, two executions each, unknown commissions/fees/strict Net, no Journals. No real journal, credentials or live Groq request was accessed. This proves the local failure mechanism, not the exact token count of the user's private records.
+
+### Measured cause and correction
+
+The previous adapter tokenized the entire HTTP body, including the JSON-string encoding of an already serialized evidence packet. That transport escaping is decoded by the API before message content reaches the model. It overcounted the two-Trade request: **9,610 wire tokens + 961 margin + 512 reserve = 11,083**, versus the previous 5,500-input limit. Its wire breakdown is 289 escaped-instruction tokens, 8,888 escaped-evidence tokens, 357 schema tokens and 76 residual framing tokens (including token-boundary effects). The corrected message/schema counts below are measured independently and conservatively summed.
+
+Counting decoded content alone was necessary but not sufficient: full evidence and the retained safety allowances still exceed 5,500. Preflight now counts each decoded message and the strict schema once, plus the remaining request envelope (roles, schema wrapper, options) separately. It retains the **10% margin and 512-token reserve**. The HTTP messages, source packet, schema, fingerprint and validation contract are unchanged; no wire/packet version bump or migration is necessary. Saved v1 analyses remain readable, and new snapshots retain the exact supplied packet JSON.
+
+| Component, two-Trade fixture | Estimated tokens |
+| --- | ---: |
+| Instructions | 273 |
+| Strict response schema | 357 |
+| Complete evidence packet | 4,820 |
+| Request framing | 83 |
+| 10% safety margin (rounded upward) | 554 |
+| Additional framing/tokenizer reserve | 512 |
+| **Total after correction** | **6,599** |
+
+Within the evidence, independently measured JSON subtrees contribute: calculated statistics **2,672**, recorded Trade facts including all four executions **930**, source catalog **890**, query **78**, content-handling instructions **87**, missing-data markers **85**, empty Journal array **1**, plus packet/property framing. Subtree counts are diagnostic, not exactly additive across tokenizer boundaries. The largest legitimate cost is statistics with repeated contributing IDs, not the 630-token instructions/schema or execution detail. Nothing was deduplicated, compressed or omitted.
+
+The [Groq Free-plan limits](https://console.groq.com/docs/rate-limits), checked 2026-10-09, list **8,000 tokens/minute** for this model. Its [model context](https://console.groq.com/docs/models) is much larger, **131,072 tokens**; context is not the Free-tier throughput allowance. PTJ changes its profile from **5,500 input + 2,000 output (7,500 total)** to **6,800 input + 1,000 output (7,800 total)**. The combined cap remains below the published 8,000 limit. Input includes the above reserve; output includes reasoning. This allocation enables the measured two-Trade request without removing evidence, but reduces room for generated prose/reasoning. A length-limited answer remains an explicit failure and never saves. Actual organization limits, concurrent use and Groq's Harmony accounting can differ; offline o200k-base estimates are not provider-reported or billed usage.
+
+| Synthetic case | Corrected input estimate | Outcome at 6,800 |
+| --- | ---: | --- |
+| Empty packet (adapter accounting only) | 1,909 | Fits; Desktop's existing no-usable-evidence guard still sends nothing |
+| Two closed Trades, exact Account/USD, unknown costs, no Journals | 6,599 | One fake HTTP request; validated and atomically saved |
+| Two Trades, two Accounts and currencies | 7,834 | No HTTP, no save; boundaries preserved |
+| 31 closed Trades | 52,263 | No HTTP, no save |
+| 4,000 numbered synthetic Journal observations | 27,511 | No HTTP, no save |
+
+Larger or more complex two-Trade days may still exceed this profile. The reported private 31-Trade day is not claimed fixed. A local rejection now reports numeric estimated input/limit, explicitly says no request was sent/no truncation, and explains that a complete day may need a supported higher-budget provider explicitly selected in Settings. It does **not** advise narrowing a date/exact Account further, split requests, retry, or fall back automatically. Provider-side context errors have a separate generic limits message and do not falsely claim no request was sent.
+
+### Verification and remaining gates
+
+Numeric preflight diagnostics are transient metadata only, not token-usage billing and not persisted into analysis metadata. Tests retain only synthetic fixtures; no request/source text, key or response is written to diagnostic output. New regressions compare the entire decoded outgoing packet with the saved/reloaded snapshot, exercise inclusive input-budget boundaries, wrong packet identity/citations, incomplete output and cancellation before/during transport. Existing Desktop empty/blank-evidence and explicit-only guards remain covered. Fake HTTP is not evidence of real model access, quota, complete output within 1,000 tokens, or live UI acceptance. Matching GitHub CI requires the user's commit/push; no Git writes or M15.8 acceptance occur here.
+
+- **333 focused Daily Review tests passed:** Domain 13, Application 128, Infrastructure 98, Desktop 94.
+- **3,358 full parallel Release tests passed:** Domain 454, Application 657, Infrastructure 905, Desktop 1,342; zero failures/skips. Release build: **0 warnings/errors**. EF reports no pending model changes; tracked/new-file whitespace checks pass.
+- Numeric TRX output and isolated renders are in ignored `artifacts/groq-budget/`; initial pre-fix measurements are in `artifacts/groq-budget-measure.log`. Light/Dark budget-message renders inspected at 960 × 760 DIP/96 DPI and 480 × 760 DIP/240 DPI: wrapping message, reachable content, no horizontal overflow. No live interaction/provider test was performed.
+- Changed files: `README.md`, `docs/daily-review.md`; Application `DailyReview/Coaching/CoachingGeneration.cs`; Infrastructure `DailyReview/Coaching/GroqCoachingOptions.cs` and `GroqCoachingProvider.cs`; Desktop tests `DailyReview/DailyReviewViewTests.cs`; Infrastructure tests `Persistence/DailyReview/GroqCoachingProviderTests.cs` and new `GroqInputBudgetTests.cs`.
+
 ## Simplified evidence presentation
 
 This presentation-only M15.7 refinement **does not start M15.8 acceptance**. Removed from both current and saved Daily Review views:
@@ -16,7 +59,7 @@ Nothing is removed from the underlying evidence: complete Trade/execution facts,
 
 ### Separate input-budget limitation
 
-The reported 31-Trade day shows **“Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.”** This error is deliberately unchanged and visible. Limits apply to the complete request, not the number of on-screen rows, and a Trade count alone does not establish whether a packet fits. Removing UI details does not shrink provider evidence, increase budgets or bypass preflight. No rows/text/statistics are silently dropped. An explicitly narrower Account scope may fit; otherwise generation remains blocked pending a separate, evidence-based budget task. This refinement does not reproduce that private dataset or claim that its generation succeeds.
+The reported 31-Trade day remains an input-budget limitation. Limits apply to complete evidence, not on-screen rows; removing UI details does not shrink the packet or permit truncation. The subsequent **Groq input-budget correction** above fixes transport-escaping overcounting and changes the bounded profile/message, but its synthetic 31-Trade case still exceeds the limit. The private dataset has not been reproduced and its generation is not claimed successful.
 
 Automated checks use synthetic data only. Live keyboard/pointer/screen-reader and physical monitor DPI, live provider requests, and matching GitHub Actions remain separate acceptance gates.
 
@@ -82,7 +125,7 @@ Settings → AI Coaching now selects **Groq** or **OpenAI**. A new installation 
 
 The dedicated Groq adapter posts to `https://api.groq.com/openai/v1/chat/completions` with `openai/gpt-oss-120b`, two system/user messages, the **unchanged complete packet** as user content, `response_format.json_schema.strict:true`, `max_completion_tokens`, low reasoning effort, one choice and no streaming/tools. It shares trusted evidence instructions and response schema, not the OpenAI Responses payload. Groq documents [strict schema support](https://console.groq.com/docs/structured-outputs) for this model; account access is separate and was not live-confirmed. Instructions retain Gross/strict-Net/currency/Account boundaries and treat all source text as untrusted. Every response still passes the M15.3 identity, structure, basis and source-reference validator before atomic save. Valid citations do not prove that generated prose is factually correct.
 
-**Free-tier budget:** the documented [base limits](https://console.groq.com/docs/rate-limits) are 30 requests/minute, 1,000/day, 8,000 tokens/minute and 200,000/day for this model; actual organization limits and other clients' usage can differ. The [model](https://console.groq.com/docs/model/openai/gpt-oss-120b) supports a 131,072-token context, but PTJ deliberately uses a smaller profile: **5,500 estimated input tokens (including safety reserve) and 2,000 completion tokens**, with a maximum combined configured budget of 7,500. The packaged offline o200k-base tokenizer counts the entire escaped wire request including schema, adds 10% plus 512 tokens for framing, and rejects overflow without truncation. This is a conservative estimate, not Groq's exact Harmony accounting or a guarantee of available organization TPM. Completion includes reasoning; length-limited output is rejected, not shown as a completed review. No live token-count request, vocabulary download, automatic splitting, retry or model/provider fallback occurs. Monetary cost remains **unknown**.
+**Free-tier budget (corrected):** the documented [base limits](https://console.groq.com/docs/rate-limits) are 30 requests/minute, 1,000/day, 8,000 tokens/minute and 200,000/day for this model; actual organization limits and other clients' usage can differ. PTJ now uses **6,800 estimated input tokens (including safety reserve) and 1,000 completion tokens**, capped at 7,800 combined. The packaged offline o200k-base tokenizer counts decoded messages, complete schema and remaining request framing once, then adds 10% plus 512 tokens. It does not count outer HTTP string escaping as model input. See the measured correction above. This is not Groq's exact Harmony accounting or a guarantee of available organization TPM. Completion includes reasoning; length-limited output is rejected, not shown as a completed review. No live token-count request, vocabulary download, automatic splitting, retry or model/provider fallback occurs. Monetary cost remains **unknown**.
 
 Groq requires a complete single assistant choice with matching model and successful finish reason. Refusal, content filtering, incomplete output, malformed/oversized envelopes, invalid citations and packet mismatch never save. Bounded allowlisted errors distinguish credentials, permission/model access, quota/plan, rate limits, input size, request/schema and service failures; unknown codes remain unknown. Retry-After is displayed where available but never schedules another request. The existing bounded provider deadline/cancellation and secret-free diagnostics apply.
 

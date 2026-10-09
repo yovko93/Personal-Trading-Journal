@@ -46,7 +46,7 @@ public sealed class GroqCoachingProviderTests
             Assert.Equal(2, body["messages"]!.AsArray().Count);
             Assert.True(body["response_format"]!["json_schema"]!["strict"]!.GetValue<bool>());
             Assert.False(body["response_format"]!["json_schema"]!["schema"]!["additionalProperties"]!.GetValue<bool>());
-            Assert.Equal(2000, body["max_completion_tokens"]!.GetValue<int>());
+            Assert.Equal(1000, body["max_completion_tokens"]!.GetValue<int>());
             Assert.Null(body["input"]); Assert.Null(body["text"]); Assert.Null(body["tools"]);
             Assert.False(body["stream"]!.GetValue<bool>()); Assert.Equal(1, body["n"]!.GetValue<int>());
             return Response(200, Envelope(packet).ToJsonString());

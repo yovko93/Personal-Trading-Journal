@@ -36,9 +36,12 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
                     name = "daily_coaching_v1", strict = true, schema = OpenAiCoachingContract.Schema() } },
                 max_completion_tokens = options.MaximumOutputTokens, reasoning_effort = "low", stream = false, n = 1,
             });
-            // Entire escaped request incl. schema + 10% and 512 framing reserve. Conservative estimate,
-            // not a promise about Groq's Harmony framing or organization-wide remaining TPM.
-            if (Math.Ceiling(Tokenizer.Value.CountTokens(body) * 1.1) + 512 > options.InputTokenBudget)
+            // HTTP JSON escaping is transport, not model input. Count decoded message content and
+            // schema once, plus the complete remaining request framing, 10% and 512 tokens.
+            // This remains an estimate, not Groq's Harmony accounting or remaining organization TPM.
+            var budget = MeasureInput(body);
+            metadata = metadata with { InputBudget = budget };
+            if (budget.EstimatedInputTokens > options.InputTokenBudget)
                 return Reply(CoachingGenerationStatus.InputTooLarge);
             cancellationToken.ThrowIfCancellationRequested();
             using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.groq.com/openai/v1/chat/completions");
@@ -91,6 +94,23 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
         catch (HttpRequestException) { return Reply(CoachingGenerationStatus.ServiceUnavailable); }
         catch (IOException) { return Reply(CoachingGenerationStatus.ServiceUnavailable); }
         catch (Exception) { return Reply(CoachingGenerationStatus.InvalidResponse); }
+    }
+
+    private CoachingInputBudget MeasureInput(string body)
+    {
+        var request = System.Text.Json.Nodes.JsonNode.Parse(body)!;
+        var messages = request["messages"]!;
+        int instructions = Tokenizer.Value.CountTokens(messages[0]!["content"]!.GetValue<string>());
+        int evidence = Tokenizer.Value.CountTokens(messages[1]!["content"]!.GetValue<string>());
+        var schema = request["response_format"]!["json_schema"]!;
+        int schemaTokens = Tokenizer.Value.CountTokens(schema["schema"]!.ToJsonString());
+        messages[0]!["content"] = "";
+        messages[1]!["content"] = "";
+        schema["schema"] = null;
+        int framing = Tokenizer.Value.CountTokens(request.ToJsonString());
+        int total = instructions + evidence + schemaTokens + framing;
+        return new(instructions, schemaTokens, evidence, framing, (int)Math.Ceiling(total * .1),
+            512, options.InputTokenBudget, options.MaximumOutputTokens);
     }
 
     private static CoachingTokenUsage? GroqUsage(JsonElement root)

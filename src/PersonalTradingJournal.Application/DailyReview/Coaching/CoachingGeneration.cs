@@ -12,13 +12,20 @@ public enum CoachingGenerationPhase { CredentialResolution, EvidencePreflight, H
 public sealed record CoachingTokenUsage(long? InputTokens, long? CachedInputTokens,
     long? OutputTokens, long? TotalTokens);
 
+/// <summary>Local estimate, not billed usage. Numeric diagnostics only; no source text or secrets.</summary>
+public sealed record CoachingInputBudget(int InstructionTokens, int SchemaTokens, int EvidenceTokens,
+    int FramingTokens, int SafetyMarginTokens, int ReserveTokens, int InputLimit, int OutputLimit)
+{
+    public int EstimatedInputTokens => InstructionTokens + SchemaTokens + EvidenceTokens + FramingTokens + SafetyMarginTokens + ReserveTokens;
+}
+
 /// <summary>Only allowlisted operational fields; never prompts, source text or error bodies.
 /// Null usage/cost means unknown, not zero. No verified pricing configuration is installed in M15.4.</summary>
 public sealed record CoachingRequestMetadata(string Provider, string Model, string ClientRequestId,
     string? RequestId = null, string? ResponseId = null, CoachingTokenUsage? Usage = null,
     int? HttpStatus = null, TimeSpan? RetryAfter = null,
     CoachingGenerationPhase Phase = CoachingGenerationPhase.CredentialResolution,
-    string? ErrorCode = null, string? ErrorType = null)
+    string? ErrorCode = null, string? ErrorType = null, CoachingInputBudget? InputBudget = null)
 {
     public decimal? MonetaryCost => null;
     public string CostStatus => "Unknown: no verified pricing configuration.";
@@ -107,7 +114,9 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
             CoachingGenerationStatus.AccessDenied => "The selected provider denied this request. Check the safe error code and the account's API/model permissions. Unknown codes do not establish the cause.",
             CoachingGenerationStatus.ModelUnavailable => "The configured model is unavailable to this request. Ask the provider account owner to verify access to the model in the safe diagnostics; the response does not distinguish a missing model from denied access.",
             CoachingGenerationStatus.InvalidRequest => "The provider rejected the request or structured-output schema. Report the safe diagnostics; changing billing or retrying is not a confirmed remedy.",
-            CoachingGenerationStatus.InputTooLarge => "Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.",
+            CoachingGenerationStatus.InputTooLarge when metadata?.InputBudget is { } budget && metadata.Phase == CoachingGenerationPhase.EvidencePreflight =>
+                $"Complete evidence exceeds the configured input budget: estimated {budget.EstimatedInputTokens:N0} input tokens, limit {budget.InputLimit:N0} (including instructions, schema and safety reserve). No request was sent; nothing was truncated. This provider profile cannot fit the complete day. Configure a supported higher-budget provider in Settings and explicitly generate again if appropriate; there is no automatic fallback.",
+            CoachingGenerationStatus.InputTooLarge => "Complete evidence exceeds the configured input budget. Nothing was truncated. Check the selected provider's supported limits; a complete day may require a higher-budget provider selected explicitly in Settings.",
             CoachingGenerationStatus.RateLimited => "The provider rate-limited this request. Respect RetryAfter before manually generating again.",
             CoachingGenerationStatus.QuotaExceeded => "Check the provider's billing balance and project/organization limits before generating again.",
             CoachingGenerationStatus.ServiceUnavailable => "Check the network or provider availability before manually generating again.",

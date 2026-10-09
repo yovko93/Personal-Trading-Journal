@@ -218,12 +218,21 @@ public sealed class DailyReviewViewTests
             new PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderReply(
                 inputLimit ? PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationStatus.InputTooLarge :
                     PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationStatus.ModelUnavailable, null,
-                new("OpenAI", "gpt-4.1-mini-2025-04-14", "12345678123412341234123456781234", RequestId: "req_synthetic", HttpStatus: 403,
-                    Phase: PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationPhase.HttpResponse,
-                    ErrorCode: "model_not_found", ErrorType: "invalid_request_error"))) };
+                inputLimit ? new("Groq", "openai/gpt-oss-120b", "12345678123412341234123456781234",
+                    Phase: PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationPhase.EvidencePreflight,
+                    InputBudget: new(273, 357, 46333, 83, 4705, 512, 6800, 1000)) :
+                    new("OpenAI", "gpt-4.1-mini-2025-04-14", "12345678123412341234123456781234", RequestId: "req_synthetic", HttpStatus: 403,
+                        Phase: PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationPhase.HttpResponse,
+                        ErrorCode: "model_not_found", ErrorType: "invalid_request_error"))) };
         var f = DailyReviewGenerationTests.Ready(provider);
         await f.Vm.ActivateAsync(); await f.Vm.GenerateCommand.ExecuteAsync(null);
-        if (inputLimit) Assert.Equal("Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.", f.Vm.GenerationMessage);
+        if (inputLimit)
+        {
+            Assert.Contains($"{52263:N0}", f.Vm.GenerationMessage);
+            Assert.Contains($"{6800:N0}", f.Vm.GenerationMessage);
+            Assert.Contains("No request was sent", f.Vm.GenerationMessage);
+            Assert.DoesNotContain("narrower", f.Vm.GenerationMessage);
+        }
         await CalendarStaTest.RunAsync(() =>
         {
             var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };

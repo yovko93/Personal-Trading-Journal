@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.7 follow-up — Groq input preflight correction (not M15.8 acceptance)**
+
+An isolated two-closed-Trade/no-Journal reproduction showed that tokenizing the outer escaped HTTP JSON inflated the estimate to **11,083** tokens. Groq preflight now counts decoded messages, the complete strict schema and request framing once, retaining a 10% margin plus 512-token reserve: **6,599** tokens for that same unchanged packet. The Free-plan profile is now **6,800 input / 1,000 completion**, bounded to 7,800 combined; the lower completion allowance can still produce a rejected incomplete response. No evidence or citations are dropped, and the packet/wire contract remains v1.
+
+Fake HTTP plus migrated disposable SQLite verifies complete validation and one atomic saved snapshot for the two-Trade case. The synthetic 31-Trade day, long Journal and multi-account/currency case remain over budget and send/save nothing. Local rejection now reports numeric estimate/limit and explains explicit higher-budget provider selection without recommending impossible further scope narrowing. No automatic fallback or retry. This is not a guarantee that every two-Trade day fits, nor that an organization's remaining Groq quota is sufficient. See [measurements and remaining limits](docs/daily-review.md#groq-input-budget-correction--2026-10-09). No live Groq request or real-journal access was used.
+
+Verification: **333 focused Daily Review tests** and **3,358 full parallel Release tests passed**, zero failures/skips. Release build: **0 warnings/errors**; EF model consistency and whitespace checks passed. Updated budget-message renders inspected in Light/Dark at 960 DIP/96 DPI and 480 DIP/240 DPI. Live provider/UI and matching GitHub CI remain unverified.
+
 **M15.7 follow-up — simplified Daily Review (not M15.8 acceptance)**
 
 Daily Review no longer displays raw Source details expanders, JSON/evidence dumps, technical identifier lists or their selectable copy fields, or the Contributing Trades and activity section/per-Trade rows. It retains concise Account/currency calculations, relevant coverage and unavailable-Net messages, Journal observations, AI interpretation, and saved analysis history. Saved citations use human-readable labels and focused Open current Trade/Journal links through the existing guarded navigation. Saved values remain historical, even if current sources change or disappear.
@@ -38,7 +46,7 @@ Verification: **327 focused tests**, **6 final WPF layout cases**, and **3,328 f
 
 Choose **Groq** or **OpenAI** in Settings → AI Coaching. New configurations default to Groq; existing users retain OpenAI and saved choices persist. Each provider has its own masked, DPAPI CurrentUser key and development fallback (`GROQ_API_KEY` / `OPENAI_API_KEY`), outside SQLite and backups. There is no cross-provider fallback or automatic generation. Daily Review names the recipient before an explicit Generate click; Groq Free tier has limits and upgraded accounts may be billed.
 
-Groq uses its dedicated Chat Completions protocol with `openai/gpt-oss-120b` and strict JSON schema. Conservative offline preflight budgets 5,500 input / 2,000 completion tokens; oversized evidence is rejected whole. Existing validation and atomic snapshot history preserve exact evidence, provider/model and usage, including after provider switching/key removal. No Groq credential was present during implementation, so no live Groq request was made. See [setup, limits, tests and remaining M15.8 gates](docs/daily-review.md#groq-provider-follow-up).
+Groq uses its dedicated Chat Completions protocol with `openai/gpt-oss-120b` and strict JSON schema. Offline preflight now budgets 6,800 input / 1,000 completion tokens, counting decoded content rather than outer HTTP escaping; oversized evidence is rejected whole. Existing validation and atomic snapshot history preserve exact evidence, provider/model and usage, including after provider switching/key removal. No live Groq request was made. See [setup, limits, tests and remaining M15.8 gates](docs/daily-review.md#groq-provider-follow-up).
 
 **M15.7 — Explicit manual AI generation**
 
