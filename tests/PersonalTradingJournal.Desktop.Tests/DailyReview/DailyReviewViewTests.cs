@@ -13,6 +13,87 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class DailyReviewViewTests
 {
     [Fact]
+    public async Task CompactEvidenceDefaultsToSummariesAndKeyboardExpandableCopyableExactSources()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        var f = new ReviewFixture();
+        f.Reader.Handler = (q, _) => Task.FromResult(ReviewFixture.Evidence(q));
+        await f.Vm.ActivateAsync();
+        Guid? opened = null;
+        f.Vm.OpenTradeAsync = id => { opened = id; return Task.CompletedTask; };
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+            {
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme); app.Resources = resources;
+                var view = new DailyReviewView { DataContext = f.Vm };
+                var root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var scroll = (ScrollViewer)view.FindName("ReviewScroll");
+                var trades = Assert.Single(Descendants(view).OfType<Expander>(), e => Equals(e.Header, "Contributing Trades and activity"));
+                Assert.False(trades.IsExpanded);
+                Assert.True(trades.Focusable);
+                Assert.Contains("Trades", AutomationProperties.GetName(trades));
+                Assert.DoesNotContain(Descendants(view).OfType<Expander>(), e => Equals(e.Header, "Contributing sources"));
+                var calculations = Descendants(view).OfType<Expander>().Where(e => e.DataContext is PersonalTradingJournal.Desktop.ViewModels.DailyReview.ReviewMetricRow).ToArray();
+                Assert.Equal(2, calculations.Length);
+                Assert.Equal(2, calculations.Select(e => e.Header).Distinct().Count());
+                Assert.All(calculations, e => Assert.False(e.IsExpanded));
+                Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("ClosedOnDate") || t.Text.Contains("UnknownNetPnL") || t.Text.Contains("Account null"));
+                var firstMetric = calculations[0];
+                scroll.ScrollToVerticalOffset(firstMetric.TranslatePoint(new Point(), scroll).Y - 170); Flush(); root.UpdateLayout();
+                Render(root, theme, width, dpi, "compact-evidence");
+                var peer = new System.Windows.Automation.Peers.ExpanderAutomationPeer(trades);
+                var pattern = (System.Windows.Automation.Provider.IExpandCollapseProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.ExpandCollapse)!;
+                pattern.Expand(); Flush(); root.UpdateLayout();
+                Assert.Equal(ExpandCollapseState.Expanded, pattern.ExpandCollapseState);
+                var open = Descendants(trades).OfType<Button>().First(b => Equals(b.Content, "Open Trade"));
+                Assert.True(open.IsEnabled && open.Focusable);
+                open.Command!.Execute(open.CommandParameter);
+                Assert.Equal(((PersonalTradingJournal.Desktop.ViewModels.DailyReview.ReviewTradeRow)open.CommandParameter).Id, opened);
+                Assert.InRange(open.TranslatePoint(new Point(open.ActualWidth, 0), view).X, 0, width);
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset + trades.TranslatePoint(new Point(), scroll).Y); Flush(); root.UpdateLayout();
+                Render(root, theme, width, dpi, "expanded-trades");
+                var detail = Descendants(trades).OfType<Expander>().First(e => Equals(e.Header, "Source details · Trade and executions"));
+                Assert.False(detail.IsExpanded);
+                detail.IsExpanded = true; Flush(); root.UpdateLayout();
+                var exact = (TextBox)detail.Content;
+                Assert.True(exact.IsReadOnly && exact.Focusable);
+                Assert.Equal(ScrollBarVisibility.Disabled, exact.VerticalScrollBarVisibility);
+                exact.SelectAll(); Assert.Equal(exact.Text, exact.SelectedText);
+                Assert.Contains(opened!.Value.ToString(), exact.SelectedText);
+                Assert.Contains("executions", exact.SelectedText);
+                Assert.Equal(0, scroll.ScrollableWidth);
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset + detail.TranslatePoint(new Point(), scroll).Y); Flush(); root.UpdateLayout();
+                Render(root, theme, width, dpi, "exact-trade");
+                var textViewport = Assert.Single(Descendants(exact).OfType<ScrollViewer>());
+                Assert.True(PersonalTradingJournal.Desktop.Interactions.NestedTableWheelRouting.GetForwardVerticalWheel(textViewport));
+                double start = scroll.VerticalOffset;
+                scroll.RaiseEvent(new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.MouseWheelEvent });
+                Flush(); root.UpdateLayout();
+                double step = scroll.VerticalOffset - start;
+                Assert.True(step > 0);
+                scroll.ScrollToVerticalOffset(start); Flush(); root.UpdateLayout();
+                var wheel = new System.Windows.Input.MouseWheelEventArgs(System.Windows.Input.Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                textViewport.RaiseEvent(wheel); Flush(); root.UpdateLayout();
+                Assert.True(wheel.Handled);
+                Assert.Equal(start + step, scroll.VerticalOffset);
+                detail.IsExpanded = false;
+                pattern.Collapse(); Flush(); root.UpdateLayout();
+                Assert.Equal(ExpandCollapseState.Collapsed, pattern.ExpandCollapseState);
+                scroll.ScrollToEnd(); Flush(); root.UpdateLayout();
+                Assert.InRange(scroll.VerticalOffset, scroll.ScrollableHeight - 1, scroll.ScrollableHeight + 1);
+                Assert.Single(Descendants(view).OfType<ScrollViewer>(), s => s.ScrollableHeight > 0);
+                root.Child = null;
+            }
+            f.Vm.Deactivate();
+        }, shutdownDispatcher: false);
+        Assert.Empty(f.History.Items);
+    }
+
+    [Fact]
     public async Task LoadingCancellationIsOnlyVisibleWhileCancellableAndJournalOnlyDayHasNoTradeOutcome()
     {
         if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
@@ -269,13 +350,13 @@ public sealed class DailyReviewViewTests
                 Assert.Contains("All accounts", ((TextBlock)view.FindName("SelectedScopeHeading")).Text);
                 Assert.Contains("2 closed Trades", ((TextBlock)view.FindName("ScopeCounts")).Text);
                 Assert.Contains("3 Journal entries", ((TextBlock)view.FindName("ScopeCounts")).Text);
-                Assert.Contains("Known Net coverage: 1/2", ((TextBlock)view.FindName("ScopeCoverage")).Text);
+                Assert.Contains("Some Net results are unavailable", ((TextBlock)view.FindName("ScopeCoverage")).Text);
                 var toolbar = (WrapPanel)view.FindName("ScopeToolbar");
                 var summary = (Border)view.FindName("ScopeSummary");
                 Assert.True(toolbar.TranslatePoint(new Point(0, toolbar.ActualHeight), view).Y <= summary.TranslatePoint(new Point(), view).Y);
                 Assert.True(((Button)view.FindName("GenerateReview")).TranslatePoint(new Point(), view).Y < 760);
-                Assert.All(Descendants(view).OfType<Expander>().Where(e => Equals(e.Header, "Journal source details")), e => Assert.False(e.IsExpanded));
-                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("Completed · Revision 3"));
+                Assert.All(Descendants(view).OfType<Expander>().Where(e => Equals(e.Header, "Source details · Journal")), e => Assert.False(e.IsExpanded));
+                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("All accounts · Completed"));
                 Assert.All(buttons, b =>
                 {
                     Assert.True(b.Focusable);
@@ -284,7 +365,7 @@ public sealed class DailyReviewViewTests
                 });
                 var text = Descendants(view).OfType<TextBlock>().Select(t => t.Text).ToArray();
                 Assert.Contains("Saved snapshot · NOT current records", text);
-                Assert.Contains(text, t => t.Contains("Net coverage 0/1"));
+                Assert.Contains(text, t => t.Contains("commissions missing for 1 Trade"));
                 Assert.Contains(text, t => t.Contains("All accounts · aggregate analysis"));
                 var bodies = Descendants(view).OfType<TextBlock>().Where(t => ReferenceEquals(t.Style, view.Resources["ReviewBody"])).ToArray();
                 Assert.True(bodies.Length > 20);
@@ -301,13 +382,17 @@ public sealed class DailyReviewViewTests
                 scroll.ScrollToVerticalOffset(scroll.VerticalOffset + observations.TranslatePoint(new Point(), scroll).Y);
                 Flush(); root.UpdateLayout();
                 Render(root, theme, width, dpi, "journals");
-                var sourceHelp = Descendants(view).OfType<Expander>().First(e => Equals(e.Header, "Journal source details"));
+                var sourceHelp = Descendants(view).OfType<Expander>().First(e => Equals(e.Header, "Source details · Journal"));
                 var peer = new System.Windows.Automation.Peers.ExpanderAutomationPeer(sourceHelp);
                 var expand = (System.Windows.Automation.Provider.IExpandCollapseProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.ExpandCollapse)!;
                 Assert.Equal(ExpandCollapseState.Collapsed, expand.ExpandCollapseState);
                 expand.Expand(); Flush(); root.UpdateLayout();
                 Assert.Equal(ExpandCollapseState.Expanded, expand.ExpandCollapseState);
-                Assert.Contains("Journal ", ((TextBlock)sourceHelp.Content).Text);
+                var exactJournal = (TextBox)sourceHelp.Content;
+                Assert.True(exactJournal.IsReadOnly && exactJournal.Focusable);
+                exactJournal.SelectAll();
+                Assert.Equal(exactJournal.Text, exactJournal.SelectedText);
+                Assert.Contains("journalId", exactJournal.SelectedText);
                 expand.Collapse();
                 scroll.ScrollToVerticalOffset(scroll.VerticalOffset + ((ItemsControl)view.FindName("AnalysisHistory")).TranslatePoint(new Point(), scroll).Y);
                 Flush(); root.UpdateLayout();

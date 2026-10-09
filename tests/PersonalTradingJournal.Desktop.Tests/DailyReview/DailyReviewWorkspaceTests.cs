@@ -19,11 +19,12 @@ public sealed class DailyReviewWorkspaceTests
         var evidence = new DailyReviewEvidence(new(ReviewFixture.Day), [], [journal]);
         var display = new ReviewEvidencePresentation(evidence, DailyReviewStatisticsCalculator.Calculate(evidence));
         Assert.Equal("No closed trades · 1 Journal entries (user-written observations)", display.Counts);
-        Assert.Contains("Known Net coverage: 0/0", display.CoverageSummary);
+        Assert.Empty(display.CoverageSummary);
         Assert.Contains("do not imply a trading result", display.EmptyText);
         var row = Assert.Single(display.Journals);
         Assert.Contains("All accounts", row.Heading);
-        Assert.Contains("Revision 3", row.Heading);
+        Assert.DoesNotContain("Revision", row.Heading);
+        Assert.Contains("revision 3", row.Identity);
         Assert.DoesNotContain("null", row.Heading);
         Assert.DoesNotContain(journal.JournalId.ToString(), row.Heading);
         Assert.Contains(journal.JournalId.ToString(), row.Identity);
@@ -124,10 +125,12 @@ public sealed class DailyReviewWorkspaceTests
         var f = new ReviewFixture();
         f.Reader.Handler = (q, _) => Task.FromResult(ReviewFixture.Evidence(q));
         await f.Vm.ActivateAsync();
-        var usd = f.Vm.Current!.Metrics.Single(m => m.Label == "USD · all included accounts");
+        var usd = f.Vm.Current!.Metrics.Single(m => m.Currency == "USD");
         Assert.Null(usd.Net.Metrics.Total);
         Assert.Contains("Net: Unavailable (USD)", usd.Values);
-        Assert.Contains("Net coverage 0/1", usd.Coverage);
+        Assert.Contains("commissions missing for 1 Trade", usd.Coverage);
+        Assert.Contains("No partial total", usd.Coverage);
+        Assert.Equal(2, f.Vm.Current.Metrics.Count);
         Assert.Equal(2, f.Vm.Current.Metrics.Select(m => m.Currency).Distinct().Count());
         Assert.Equal(3, f.Vm.Current.Journals.Count);
         Assert.Contains(f.Vm.Accounts, a => a.Label.Contains("inactive"));
@@ -187,8 +190,9 @@ public sealed class DailyReviewWorkspaceTests
         Assert.Equal(3, f.Vm.Snapshot.Evidence.Journals.Count);
         Assert.All(f.Vm.Snapshot.Evidence.Journals, j => Assert.False(j.CanNavigate));
         Assert.Contains("input 10", f.Vm.Snapshot.Metadata);
-        Assert.Contains("saved", f.Vm.Snapshot.Statements[0].Text);
-        Assert.Contains("calculated:day", f.Vm.Snapshot.Statements[0].Text);
+        Assert.Equal("Saved day summary from supplied evidence.", f.Vm.Snapshot.Statements[0].Text);
+        Assert.Contains("calculated:day", f.Vm.Snapshot.Statements[0].SourceDetails);
+        Assert.DoesNotContain("calculated:day", f.Vm.Snapshot.Statements[0].Text);
         Assert.Contains("missingOrUncertainData", f.Vm.Snapshot.CompleteEvidence);
         Assert.Contains("Unavailable (USD)", f.Vm.Snapshot.Evidence.Metrics.First(m => m.Currency == "USD").Values);
     }
@@ -317,8 +321,8 @@ public sealed class DailyReviewWorkspaceTests
             Facts = closed.Facts! with { Status = TradeStatus.Open, ClosedAtUtc = null, GrossPnL = null, NetPnL = null } };
         selected = selected with { Trades = [open] };
         model = new(selected, DailyReviewStatisticsCalculator.Calculate(selected));
-        Assert.Contains("Closed Trades: 0", model.Summary);
-        Assert.Contains("Excluded open/partial activity: 1", model.Summary);
+        Assert.Contains("No closed trades", model.Summary);
+        Assert.Contains("1 open/partial Trades excluded", model.CoverageSummary);
         Assert.Null(model.Metrics[0].Net.Metrics.Total);
         Assert.Contains("Unavailable", model.Metrics[0].Values);
     }
