@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Accounts — Delete All Trades (not M15.8 acceptance)**
+
+Each Account's overflow menu offers **Delete All Trades** immediately before the separate Account **Delete** action. The destructive confirmation names the exact Account and current Trade count, explains attachment removal and re-import, and defaults to Cancel. The Account, Journals, shared classification definitions and saved AI evidence snapshots remain intact. Historical links to deleted Trades report an unavailable source; re-import creates new identities rather than redirecting those links.
+
+Confirmation is invalidated by changes to the Account or its complete Trade-owned graph. SQLite reserves the writer before rechecking and deletes the confirmed graph atomically; a concurrent import committed first requires fresh confirmation, while a writer queued afterward is not swept into deletion. Screenshot files are cleaned only after commit, with explicit warnings for incomplete cleanup. See [Account UI behavior](docs/desktop-ui.md#accounts-feature) and [bulk deletion ownership and limitations](docs/persistence.md#account-scoped-trade-hard-delete). No schema or economics changes, real-journal access, or provider calls are involved.
+
+Verification: **1,134 focused tests** passed. The first full parallel Release run had **3,387 passed / 1 failed**: unchanged `DailyJournalRepositoryTests.ConcurrentCreatesKeepOneEntryAndOneInitialRevision(accountScoped: true)` reached `CreateAsync` with its 20-second token already cancelled, before SQLite access. Both Journal concurrency cases then passed alongside all ten new deletion persistence cases (**12/12**); a second unchanged full parallel run passed **3,388/3,388**, zero failures/skips. This does not establish the cause or resolution of the intermittent scheduling failure. Release build: **0 warnings/errors**; EF model consistency and whitespace checks passed. Automated Light/Dark menu/dialog renders inspected at 960 DIP/96 DPI and 480 DIP/240 DPI. Live mouse/keyboard, physical-monitor DPI, screen-reader and matching GitHub CI acceptance remain unverified.
+
 **M15.7 follow-up — Groq input preflight correction (not M15.8 acceptance)**
 
 An isolated two-closed-Trade/no-Journal reproduction showed that tokenizing the outer escaped HTTP JSON inflated the estimate to **11,083** tokens. Groq preflight now counts decoded messages, the complete strict schema and request framing once, retaining a 10% margin plus 512-token reserve: **6,599** tokens for that same unchanged packet. The Free-plan profile is now **6,800 input / 1,000 completion**, bounded to 7,800 combined; the lower completion allowance can still produce a rejected incomplete response. No evidence or citations are dropped, and the packet/wire contract remains v1.

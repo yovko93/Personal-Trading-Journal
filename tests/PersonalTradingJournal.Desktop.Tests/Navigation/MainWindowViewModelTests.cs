@@ -1165,6 +1165,27 @@ public sealed partial class MainWindowViewModelTests
         }
     }
 
+    [Fact]
+    public async Task AccountBulkDeletionInvalidatesTradesAndRefreshesActiveAnalyticsOnlyAfterCommit()
+    {
+        var deletion = new Accounts.AccountBulkDeletionTests.Store();
+        var fixture = CreateFixture(accountTradeDeletion: new(deletion, new FakeTradeScreenshotFileStorage()));
+        using var main = fixture.Main;
+        await fixture.Trades.EnsureLoadedAsync();
+        int initialTradeReads = fixture.TradeListReader.CallCount;
+        await fixture.Dashboard.ActivateAsync();
+        int initialDashboardReads = fixture.DashboardReader.Queries.Count;
+        await fixture.Accounts.DeleteAllTradesCommand.ExecuteAsync(deletion.Account);
+        await fixture.Dashboard.LoadTask;
+        Assert.True(fixture.DashboardReader.Queries.Count > initialDashboardReads);
+        await fixture.Trades.EnsureLoadedAsync();
+        Assert.True(fixture.TradeListReader.CallCount > initialTradeReads);
+        initialDashboardReads = fixture.DashboardReader.Queries.Count;
+        deletion.Status = AccountTradeDeletionStatus.Changed;
+        await fixture.Accounts.DeleteAllTradesCommand.ExecuteAsync(deletion.Account);
+        Assert.Equal(initialDashboardReads, fixture.DashboardReader.Queries.Count);
+    }
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
         AppTheme? effectiveTheme = null,
@@ -1178,7 +1199,8 @@ public sealed partial class MainWindowViewModelTests
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? calendarJournalRepository = null,
         PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null,
-        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null)
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null,
+        DeleteAccountTradesUseCase? accountTradeDeletion = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1246,7 +1268,7 @@ public sealed partial class MainWindowViewModelTests
             new DeleteTradingAccountUseCase(
                 accountStore,
                 new FakeTradingAccountDeletionStore()),
-            new FakeDialogService());
+            new FakeDialogService { ConfirmationResult = accountTradeDeletion is not null }, accountTradeDeletion);
         var instruments = new InstrumentsViewModel(
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),

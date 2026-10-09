@@ -3,6 +3,24 @@ namespace PersonalTradingJournal.Desktop.Tests.Accounts;
 public sealed class AccountsViewXamlTests
 {
     [Fact]
+    public void BothAccountMenusPlaceDistinctBulkDeletionImmediatelyBeforeAccountDeletion()
+    {
+        var document = System.Xml.Linq.XDocument.Parse(File.ReadAllText(GetAccountsViewPath()));
+        System.Xml.Linq.XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var menus = document.Descendants(ns + "ContextMenu").ToArray();
+        Assert.Equal(2, menus.Length);
+        foreach (var menu in menus)
+        {
+            var actions = menu.Elements(ns + "MenuItem").ToArray();
+            Assert.Equal("Delete All Trades", (string?)actions[^2].Attribute("Header"));
+            Assert.Equal("Delete", (string?)actions[^1].Attribute("Header"));
+            Assert.Contains("DeleteAllTradesCommand", (string?)actions[^2].Attribute("Command"));
+            Assert.NotEqual((string?)actions[^1].Attribute("Style"), (string?)actions[^2].Attribute("Style"));
+            Assert.Equal((string?)actions[^1].Attribute("CommandParameter"), (string?)actions[^2].Attribute("CommandParameter"));
+        }
+    }
+
+    [Fact]
     public void AccountActionsUseSharedResourcesAndValidPopupBindingPaths()
     {
         string xaml = File.ReadAllText(GetAccountsViewPath());

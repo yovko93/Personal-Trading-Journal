@@ -6,6 +6,11 @@
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <converters:TradingAccountTypeDisplayConverter x:Key="AccountTypeDisplayConverter" />
+        <Style x:Key="AccountBulkDeleteMenuItemStyle" TargetType="{x:Type MenuItem}"
+               BasedOn="{StaticResource PtjDeleteMenuItemStyle}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="ToolTip" Value="Delete this Account's Trades and their attachments; keep the Account and Journals." />
+        </Style>
 
         <Style x:Key="AccountColumnHeaderStyle"
                TargetType="{x:Type TextBlock}"
@@ -368,6 +373,17 @@
                                     </MenuItem.Style>
                                 </MenuItem>
                                 <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                <MenuItem Command="{Binding Tag.DeleteAllTradesCommand}"
+                                          CommandParameter="{Binding Tag.SelectedAccount.Id}"
+                                          Header="Delete All Trades"
+                                          AutomationProperties.Name="Delete all Trades from this Account"
+                                          Style="{StaticResource AccountBulkDeleteMenuItemStyle}">
+                                    <MenuItem.Icon>
+                                        <Viewbox><Path Data="{StaticResource PtjIconTrades}" Fill="{x:Null}"
+                                            Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                            StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                                 <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                           CommandParameter="{Binding Tag.SelectedAccount.Id}"
                                           Header="Delete"
@@ -729,6 +745,17 @@
                                                             </MenuItem.Style>
                                                         </MenuItem>
                                                         <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                                        <MenuItem Command="{Binding Tag.DeleteAllTradesCommand}"
+                                                                  CommandParameter="{Binding DataContext.Id}"
+                                                                  Header="Delete All Trades"
+                                                                  AutomationProperties.Name="Delete all Trades from this Account"
+                                                                  Style="{StaticResource AccountBulkDeleteMenuItemStyle}">
+                                                            <MenuItem.Icon>
+                                                                <Viewbox><Path Data="{StaticResource PtjIconTrades}" Fill="{x:Null}"
+                                                                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                    StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
                                                         <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                                                   CommandParameter="{Binding DataContext.Id}"
                                                                   Header="Delete"

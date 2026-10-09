@@ -109,6 +109,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<CloseManualTradeUseCase>();
             builder.Services.AddTransient<UpdateTradeUseCase>();
             builder.Services.AddTransient<DeleteTradeUseCase>();
+            builder.Services.AddTransient<DeleteAccountTradesUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<ITradovateCsvParser, TradovateCsvParser>();

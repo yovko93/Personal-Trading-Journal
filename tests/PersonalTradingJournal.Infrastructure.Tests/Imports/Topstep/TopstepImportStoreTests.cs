@@ -20,6 +20,23 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Imports.Topstep;
 
 public sealed class TopstepImportStoreTests
 {
+    [Fact]
+    public async Task AccountBulkDeleteRejectsCommittedImportThenRemovesProvenanceAndAllowsReplay()
+    {
+        await using Fixture f = await Fixture.Create(proposal: true);
+        var deletion = f.Database.ServiceProvider.GetRequiredService<PersonalTradingJournal.Application.Trades.IAccountTradeDeletionStore>();
+        var empty = (await deletion.PrepareAsync(f.AccountId))!;
+        Assert.Equal(TopstepImportStatus.Imported, (await f.Import(await f.Preview(Csv()), Csv())).Status);
+        Assert.Equal(PersonalTradingJournal.Application.Trades.AccountTradeDeletionStatus.Changed, (await deletion.DeleteAsync(empty)).Status);
+        await f.AssertCounts(1, 1);
+        var plan = (await deletion.PrepareAsync(f.AccountId))!;
+        Assert.Equal(PersonalTradingJournal.Application.Trades.AccountTradeDeletionStatus.Deleted, (await deletion.DeleteAsync(plan)).Status);
+        await f.AssertCounts(0, 1);
+        Assert.Equal(TopstepImportStatus.Imported, (await f.Import(await f.Preview(Csv()), Csv())).Status);
+        Assert.Equal(TopstepImportStatus.NoChanges, (await f.Import(await f.Preview(Csv()), Csv())).Status);
+        await f.AssertCounts(1, 1);
+    }
+
     private static readonly DateTimeOffset ImportedAt = new(2026, 10, 1, 0, 0, 0, TimeSpan.Zero);
     private static string Csv(params string[] rows) => TopstepCsvFixtures.WithRows(rows.Length == 0 ? [TopstepCsvFixtures.Row] : rows);
     private static TopstepImportConfirmation Review(TopstepImportPreview preview) => new(preview.SnapshotFingerprint, preview.CreationProposals.Select(r => r.CanonicalSymbol).ToArray());

@@ -82,6 +82,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradeStore, TradeStore>();
         services.AddTransient<ITradeMutationStore, TradeMutationStore>();
         services.AddTransient<ITradeDeletionStore, TradeDeletionStore>();
+        services.AddTransient<IAccountTradeDeletionStore, AccountTradeDeletionStore>();
         services.AddTransient<ITradeListReader, TradeListReader>();
         services.AddTransient<IDashboardAnalyticsReader, DashboardAnalyticsReader>();
         services.AddTransient<ITradingCalendarReader, TradingCalendarReader>();
