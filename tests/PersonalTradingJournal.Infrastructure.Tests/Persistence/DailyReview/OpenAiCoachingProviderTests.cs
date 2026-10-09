@@ -67,6 +67,7 @@ public sealed class OpenAiCoachingProviderTests
         var result = await new DailyCoachingGenerationService(provider, new(), TimeProvider.System).GenerateAsync(packet);
         Assert.Equal(CoachingGenerationStatus.Success, result.Status);
         Assert.NotNull(result.Review);
+        Assert.Equal(CoachingGenerationPhase.ResponseValidation, result.Metadata!.Phase);
         Assert.Equal("req_test", result.Metadata!.RequestId);
         Assert.Equal("resp_test", result.Metadata.ResponseId);
         Assert.Equal(new CoachingTokenUsage(20, 5, 10, 30), result.Metadata.Usage);
@@ -77,7 +78,7 @@ public sealed class OpenAiCoachingProviderTests
     [Theory]
     [InlineData(401, "", CoachingGenerationStatus.AuthenticationFailed)]
     [InlineData(403, "", CoachingGenerationStatus.AccessDenied)]
-    [InlineData(404, "", CoachingGenerationStatus.AccessDenied)]
+    [InlineData(404, "", CoachingGenerationStatus.ProviderFailure)]
     [InlineData(413, "", CoachingGenerationStatus.InputTooLarge)]
     [InlineData(429, "rate_limit_exceeded", CoachingGenerationStatus.RateLimited)]
     [InlineData(429, "insufficient_quota", CoachingGenerationStatus.QuotaExceeded)]
@@ -99,6 +100,52 @@ public sealed class OpenAiCoachingProviderTests
         Assert.DoesNotContain(FakeKey, result.Message);
         Assert.DoesNotContain("private text", result.ToString());
         Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData(403, "invalid_api_key", "authentication_error", CoachingGenerationStatus.AuthenticationFailed)]
+    [InlineData(403, "insufficient_permissions", "permission_error", CoachingGenerationStatus.AccessDenied)]
+    [InlineData(404, "permission_denied", "permission_error", CoachingGenerationStatus.AccessDenied)]
+    [InlineData(403, "model_not_found", "invalid_request_error", CoachingGenerationStatus.ModelUnavailable)]
+    [InlineData(404, "model_not_found", "invalid_request_error", CoachingGenerationStatus.ModelUnavailable)]
+    [InlineData(403, "insufficient_quota", "insufficient_quota", CoachingGenerationStatus.QuotaExceeded)]
+    [InlineData(404, "invalid_json_schema", "invalid_request_error", CoachingGenerationStatus.InvalidRequest)]
+    [InlineData(400, null, "invalid_request_error", CoachingGenerationStatus.InvalidRequest)]
+    [InlineData(429, null, "insufficient_quota", CoachingGenerationStatus.QuotaExceeded)]
+    [InlineData(503, "server_is_overloaded", "service_unavailable_error", CoachingGenerationStatus.ServiceUnavailable)]
+    [InlineData(404, "unrecognized-private-code", "unrecognized-private-type", CoachingGenerationStatus.ProviderFailure)]
+    public async Task RejectionsReadBoundedCodesBeforeClassifyingAndExposeOnlyAllowlistedDiagnostics(
+        int status, string? code, string? type, CoachingGenerationStatus expected)
+    {
+        var handler = new Handler((_, _) => Task.FromResult(Response(status, JsonSerializer.Serialize(new
+        { error = new { code, type, message = FakeKey + " private Journal contents", param = "private" } }))));
+        using var client = new HttpClient(handler);
+        var result = await new DailyCoachingGenerationService(new OpenAiCoachingProvider(client, new(), () => FakeKey), new(), TimeProvider.System).GenerateAsync(Packet());
+        Assert.Equal(expected, result.Status);
+        Assert.Equal(CoachingGenerationPhase.HttpResponse, result.Metadata!.Phase);
+        Assert.Equal(CoachingSafeDiagnostics.Code(code), result.Metadata.ErrorCode);
+        Assert.Equal(CoachingSafeDiagnostics.Type(type), result.Metadata.ErrorType);
+        string diagnostics = CoachingSafeDiagnostics.Format(result.Metadata);
+        Assert.Contains($"HTTP: {status}", diagnostics);
+        Assert.Contains("req_test", diagnostics);
+        Assert.DoesNotContain("private", diagnostics);
+        Assert.DoesNotContain(FakeKey, diagnostics);
+        Assert.DoesNotContain("unrecognized", diagnostics);
+        Assert.Equal(1, handler.Calls); Assert.Null(result.Review);
+    }
+
+    [Theory]
+    [InlineData(403, "html", CoachingGenerationStatus.AccessDenied)]
+    [InlineData(404, "oversized", CoachingGenerationStatus.ProviderFailure)]
+    [InlineData(429, "array", CoachingGenerationStatus.RateLimited)]
+    public async Task MalformedOrOversizedRejectionKeepsHttpEvidenceAndUnknownCode(int status, string bodyKind, CoachingGenerationStatus expected)
+    {
+        string body = bodyKind == "oversized" ? new string('x', 65_537) : bodyKind == "array" ? "[]" : "<html>private text</html>";
+        using var client = new HttpClient(new Handler((_, _) => Task.FromResult(Response(status, body))));
+        var result = await new OpenAiCoachingProvider(client, new(), () => FakeKey).GenerateAsync(Packet(), default);
+        Assert.Equal(expected, result.Status);
+        Assert.Equal(status, result.Metadata!.HttpStatus);
+        Assert.Contains("error.code: unknown", CoachingSafeDiagnostics.Format(result.Metadata));
     }
 
     [Theory]
@@ -137,6 +184,8 @@ public sealed class OpenAiCoachingProviderTests
         Assert.Equal(expected, result.Status);
         Assert.Null(result.Review);
         Assert.Equal(1, handler.Calls);
+        Assert.Equal(problem is "citation" or "identity" ? CoachingGenerationPhase.ResponseValidation
+            : CoachingGenerationPhase.ProviderResponseValidation, result.Metadata!.Phase);
     }
 
     [Theory]

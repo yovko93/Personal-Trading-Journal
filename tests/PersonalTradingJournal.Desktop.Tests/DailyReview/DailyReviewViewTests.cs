@@ -17,6 +17,40 @@ public sealed class DailyReviewViewTests
         TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));
 
     [Fact]
+    public async Task SanitizedRejectionDiagnosticsAreReadableWithoutLosingExistingWorkspace()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        var provider = new DailyReviewGenerationTests.Provider { Handler = (_, _) => Task.FromResult(
+            new PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderReply(
+                PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationStatus.ModelUnavailable, null,
+                new("OpenAI", "gpt-4.1-mini-2025-04-14", "12345678123412341234123456781234", RequestId: "req_synthetic", HttpStatus: 403,
+                    Phase: PersonalTradingJournal.Application.DailyReview.Coaching.CoachingGenerationPhase.HttpResponse,
+                    ErrorCode: "model_not_found", ErrorType: "invalid_request_error"))) };
+        var f = DailyReviewGenerationTests.Ready(provider);
+        await f.Vm.ActivateAsync(); await f.Vm.GenerateCommand.ExecuteAsync(null);
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+            {
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme); app.Resources = resources;
+                var view = new DailyReviewView { DataContext = f.Vm };
+                var root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var diagnostic = Assert.Single(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("error.code: model_not_found"));
+                Assert.Equal(TextWrapping.Wrap, diagnostic.TextWrapping);
+                Assert.True(diagnostic.ActualWidth > 100 && diagnostic.ActualHeight > 0);
+                Assert.InRange(diagnostic.TranslatePoint(new Point(diagnostic.ActualWidth, 0), view).X, 0, width);
+                Assert.Equal(0, ((ScrollViewer)view.FindName("ReviewScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "rejection"); root.Child = null;
+            }
+            Assert.NotNull(f.Vm.Current); Assert.Empty(f.History.Items); f.Vm.Deactivate();
+        }, shutdownDispatcher: false);
+        Assert.Equal(1, provider.Calls);
+    }
+
+    [Fact]
     public async Task AiSettingsMaskedEntryActionsAndMissingCredentialLinkWorkAcrossThemesAndDpi()
     {
         if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }

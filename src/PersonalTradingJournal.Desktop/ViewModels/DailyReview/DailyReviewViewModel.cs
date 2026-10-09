@@ -113,6 +113,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     public bool IsLoading => _loading;
     public bool IsGenerating => _generating;
     public string? GenerationMessage { get; private set; }
+    public string? GenerationDiagnostics { get; private set; }
     public string GenerationAvailability => SelectedAccount.IsHistorical
         ? "Generation is unavailable for historical/deleted Accounts. Saved snapshots remain readable." : "";
     public IAsyncRelayCommand GenerateCommand { get; }
@@ -170,7 +171,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     {
         if (!fromGeneration)
         {
-            if (!_generating) GenerationMessage = null;
+            if (!_generating) { GenerationMessage = null; GenerationDiagnostics = null; }
             CancelGeneration();
         }
         CancelLoad();
@@ -257,6 +258,7 @@ public sealed class DailyReviewViewModel : ObservableObject
         long version = ++_requestVersion;
         using var cancellation = new CancellationTokenSource();
         _generationRequest = cancellation; _generating = true;
+        GenerationDiagnostics = null;
         GenerationMessage = $"Reading current evidence for {query.Date:yyyy-MM-dd} · {SelectedAccount.Label}…";
         Notify();
         bool IsCurrent() => _active && version == _requestVersion && !cancellation.IsCancellationRequested &&
@@ -296,6 +298,7 @@ public sealed class DailyReviewViewModel : ObservableObject
             Notify();
             var result = await Task.Run(() => _generator!.GenerateAsync(prepared.Packet, cancellation.Token), cancellation.Token);
             if (!IsCurrent()) return;
+            GenerationDiagnostics = CoachingSafeDiagnostics.Format(result.Diagnostics);
             // Orchestration messages are allowlisted; raw provider/DB exception text is never displayed.
             if (result.Status != SavedCoachingGenerationStatus.Saved || result.Analysis is null)
             {

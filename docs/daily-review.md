@@ -2,6 +2,24 @@
 
 ## M15.7: Manual AI generation
 
+### Generation rejection investigation — 2026-10-09
+
+One explicitly authorized live request used the saved Settings DPAPI credential, a disposable migrated SQLite database with synthetic Trade/Journal evidence, and the actual DailyReviewViewModel Generate command. No real journal was read or sent. Evidence preflight succeeded; historical-scope discovery had no error. The provider rejected the request before structured-response parsing, citation validation or atomic saving:
+
+- Phase: `HttpResponse`; HTTP **403**; allowlisted `error.code`: **model_not_found**; `error.type`: **invalid_request_error**.
+- Configured model: `gpt-4.1-mini-2025-04-14`.
+- Client request ID: `c56796923916440b94c6fe355ef97190`.
+- Server `x-request-id`: `req_0f46a5f012224f44840bd801082f138a`.
+- Saved/displayed analysis: **none**; history rows: **0**. No automatic retry or second live request was made.
+
+The confirmed product defect was classification: 403/404 previously returned AccessDenied without inspecting the provider code. Non-success bodies are now bounded to 64 KiB, JSON depth 16, and only a closed allowlist of code/type values is extracted. Model unavailability, authentication, permission, quota, rate limit, context size, invalid request/schema and service failures have distinct outcomes. Unknown or malformed details remain explicitly unknown; an unknown 404 is not assumed to be an access denial. The UI exposes only phase, HTTP status, allowlisted code/type, configured model and validated request IDs. It never exposes error.message, raw bodies, prompts, source text, credentials or responses. The same safe phase metadata distinguishes provider-envelope validation, response validation, snapshot validation and atomic-save failures. No diagnostic schema or source-data change was required.
+
+**External configuration gate:** the live evidence establishes model rejection, not which project setting caused it. The project's permissions and model-access settings were not inspected or changed. In the OpenAI Platform project that owns the saved key, ask its owner to verify access to the pinned model and the key's Responses write/model-request permission, together with the user's project role. The official [RBAC documentation](https://developers.openai.com/api/docs/guides/rbac) lists model-request permission for `/v1/responses`; the [model documentation](https://developers.openai.com/api/docs/models/gpt-4.1-mini) lists the pinned snapshot. If access cannot be enabled, provide the safe server request ID above to the project owner/OpenAI support. Replace the key in Settings only if needed. There is no evidence that changing billing, switching models or weakening the response validator would resolve this rejection. A subsequent explicit user-generated request is required to verify corrected access; this investigation does not claim live generation success.
+
+Historical Account discovery is separate: it succeeded against the isolated live dataset, and fake failure regressions demonstrate that discovery errors do not block current evidence/generation for available exact or aggregate scopes. The separately reported discovery error was not reproduced; the real journal was deliberately not inspected.
+
+Automated HTTP tests cover the observed 403 and distinct 404 codes, unknown/malformed/oversized errors, safe diagnostics and no retries. An isolated SQLite flow uses Settings credentials, the provider adapter with fake HTTP, validation, atomic saving and the Generate command: a valid response saves and opens exactly one snapshot; rejected responses and invalid citations save none. Compiled Light/Dark normal and narrow/240-DPI renders verify wrapping diagnostics while current evidence remains visible. These are automated renders and command-path tests, not live mouse/keyboard acceptance. Live successful provider generation, interactive UI acceptance and GitHub Actions for the eventual commit remain separate gates.
+
 Only **Generate AI Review** invokes the existing `GenerateAndSaveCoachingService`. A visible disclosure beside the action says that the selected Trade facts and Journal text go to OpenAI and may incur usage charges. Loading, Refresh, navigation, reopening, committed-data notifications and history browsing never start a provider request.
 
 The click captures the New York date and exact Account ID (or All accounts aggregate scope), rechecks current Account availability, reads fresh evidence, and builds one immutable M15.3 packet with M15.2 calculated facts. Only that packet is submitted, validated and saved through M15.4/M15.5. No UI calculation replaces the authoritative statistics. Trades alone or meaningful content in any of a Journal's four fields can support a request. Zero Trade evidence plus absent/whitespace-only Journal content sends nothing. Open/incomplete Trade facts remain explicitly uncertain/excluded from realized statistics; the UI does not invent missing Net. Invalid or oversized packets are not truncated.
@@ -21,6 +39,27 @@ Historical/deleted Account options remain browseable but cannot generate. If an 
 ### Configuration and acceptance limits
 
 Use **Settings → AI Coaching** as described below. M15.4's existing `gpt-4.1-mini-2025-04-14` profile, input limits and 90-second provider timeout are unchanged; no provider/model or pricing configuration UI is added. Local Trade/Journal workflows work without a credential or network.
+
+### Rejection follow-up verification and changed files
+
+Baseline: `develop` at `0dd725313d2bb7fbaa2bc7b2236aa699c66ddae4`, clean before this investigation. Focused Release: **287/287 passed** (13 Domain, 122 Application, 66 Infrastructure, 86 Desktop). Complete parallel Release: **3,288/3,288 passed** (454 Domain, 651 Application, 873 Infrastructure, 1,310 Desktop), zero failures/skips. Release build: **zero warnings/errors**. EF: **no pending model changes**. Tracked and new-file whitespace checks passed. All four rejection renders were inspected (Light/Dark, 960 DIP/96 DPI and 480 DIP/240 DPI). Logs, TRX and synthetic renders remain under ignored `artifacts/ai-rejection/` and `artifacts/ai-rejection-*.log`; the authorized request's safe summary is `artifacts/ai-diagnostic-safe.log`. The initial focused run exposed an existing metadata reference-identity assertion; it now compares all metadata fields including the deliberately advanced validation phase. No test retries or weakened response validation were introduced.
+
+Exact changed files:
+
+- `README.md`
+- `docs/daily-review.md`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingGeneration.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingSafeDiagnostics.cs` (new)
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/GenerateAndSaveCoachingService.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingProvider.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/CoachingGenerationTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/SavedCoachingAnalysisTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/OpenAiCoachingProviderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewGenerationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
 
 ### Settings — AI Coaching credentials
 
@@ -378,7 +417,7 @@ The request is non-streaming, non-background, with `store:false` and `truncation
 
 ### Outcomes, metadata and limits
 
-Distinct sanitized outcomes include MissingCredentials, InvalidConfiguration, AuthenticationFailed, AccessDenied, InputTooLarge, RateLimited, QuotaExceeded, ServiceUnavailable, ProviderFailure, Refused, IncompleteResponse, InvalidResponse, Cancelled and TimedOut. Messages describe the next manual action without echoing raw provider errors. HTTP 429 quota codes are distinct from temporary rate limiting; available RetryAfter is returned but never scheduled automatically.
+Distinct sanitized outcomes include MissingCredentials, InvalidConfiguration, AuthenticationFailed, AccessDenied, ModelUnavailable, InvalidRequest, InputTooLarge, RateLimited, QuotaExceeded, ServiceUnavailable, ProviderFailure, Refused, IncompleteResponse, InvalidResponse, Cancelled and TimedOut. Messages describe the next manual action without echoing raw provider errors. Known allowlisted error codes take precedence over generic HTTP status classification; unknown codes remain unknown. HTTP 429 quota codes are distinct from temporary rate limiting; available RetryAfter is returned but never scheduled automatically.
 
 Cancellation and the bounded deadline cover the request, body read and validation. Late completion cannot become a successful result. Neither cancellation nor timeout proves the provider did not process/bill an accepted request. There is no automatic retry, repair generation or follow-up request; the user must decide whether to incur another request.
 

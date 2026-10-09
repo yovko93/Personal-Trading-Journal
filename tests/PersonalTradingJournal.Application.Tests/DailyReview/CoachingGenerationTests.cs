@@ -33,7 +33,8 @@ public sealed class CoachingGenerationTests
         var result = await service.GenerateAsync(packet);
         Assert.Equal(CoachingGenerationStatus.Success, result.Status);
         Assert.NotNull(result.Review);
-        Assert.Same(metadata, result.Metadata);
+        Assert.Equal(metadata with { Phase = CoachingGenerationPhase.ResponseValidation }, result.Metadata);
+
         Assert.Null(result.Metadata!.MonetaryCost);
         Assert.Equal(17, result.Metadata.Usage!.TotalTokens);
         Assert.Equal(1, provider.Calls);

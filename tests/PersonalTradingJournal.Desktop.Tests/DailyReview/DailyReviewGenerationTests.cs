@@ -7,6 +7,23 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class DailyReviewGenerationTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HistoricalDiscoveryFailureDoesNotBlockCurrentEvidenceOrExplicitGeneration(bool exact)
+    {
+        var provider = new Provider(); var f = Ready(provider);
+        f.History.ScopeHandler = (_, _) => throw new IOException("private discovery details");
+        await f.Vm.ActivateAsync();
+        if (exact) { f.Vm.SelectedAccount = f.Vm.Accounts.Single(a => a.Id == ReviewFixture.AccountId); await f.Vm.LoadTask; }
+        Assert.NotNull(f.Vm.ScopeError); Assert.Null(f.Vm.CurrentError); Assert.NotNull(f.Vm.Current);
+        Assert.True(f.Vm.GenerateCommand.CanExecute(null));
+        await f.Vm.GenerateCommand.ExecuteAsync(null);
+        Assert.Equal(1, provider.Calls); Assert.Equal(1, f.History.Writes); Assert.NotNull(f.Vm.Snapshot);
+        Assert.Contains("Phase: Saved", f.Vm.GenerationDiagnostics);
+        Assert.DoesNotContain("private", f.Vm.GenerationDiagnostics);
+        f.Vm.Deactivate();
+    }
+    [Theory]
     [InlineData("trades")]
     [InlineData("journal")]
     [InlineData("both")]

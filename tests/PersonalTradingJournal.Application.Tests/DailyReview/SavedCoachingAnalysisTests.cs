@@ -82,6 +82,7 @@ public sealed class SavedCoachingAnalysisTests
         Assert.Equal(0, provider.Calls);
         var result = await service.GenerateAsync(packet);
         Assert.Equal(SavedCoachingGenerationStatus.Saved, result.Status);
+        Assert.Equal(CoachingGenerationPhase.Saved, result.Diagnostics!.Phase);
         Assert.Equal(1, provider.Calls);
         Assert.Equal(1, repository.Writes);
         Assert.Same(repository.Snapshot!.Analysis, result.Analysis);
@@ -113,6 +114,7 @@ public sealed class SavedCoachingAnalysisTests
         var result = await new GenerateAndSaveCoachingService(new(provider, new(), TimeProvider.System), repository, new Clock())
             .GenerateAsync(packet);
         Assert.Equal(cancel ? SavedCoachingGenerationStatus.Cancelled : SavedCoachingGenerationStatus.StorageFailed, result.Status);
+        Assert.Equal(CoachingGenerationPhase.AtomicSave, result.Diagnostics!.Phase);
         Assert.Null(result.Analysis);
         Assert.DoesNotContain("Private evidence", result.Message);
         Assert.Equal(1, provider.Calls);

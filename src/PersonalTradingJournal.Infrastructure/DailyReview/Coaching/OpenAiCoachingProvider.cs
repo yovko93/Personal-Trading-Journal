@@ -28,6 +28,7 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
             if (string.IsNullOrWhiteSpace(key)) return Reply(CoachingGenerationStatus.MissingCredentials);
             if (key.Any(char.IsWhiteSpace) || key.Any(c => c < 33 || c > 126))
                 return Reply(CoachingGenerationStatus.AuthenticationFailed);
+            metadata = metadata with { Phase = CoachingGenerationPhase.EvidencePreflight };
             string body = OpenAiCoachingContract.RequestJson(packet, options);
             // Conservative local ceiling: request UTF-8 bytes (including schema and escaped data)
             // plus 16K framing reserve. Not a tokenizer count; server context rejection is also handled.
@@ -37,32 +38,33 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
             request.Headers.Add("X-Client-Request-Id", metadata.ClientRequestId);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+            metadata = metadata with { Phase = CoachingGenerationPhase.HttpRequest };
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             metadata = metadata with
             {
                 HttpStatus = (int)response.StatusCode,
+                Phase = CoachingGenerationPhase.HttpResponse,
                 RequestId = response.Headers.TryGetValues("x-request-id", out var values)
                     ? SafeId(values.FirstOrDefault(), "req_", key) : null,
                 RetryAfter = RetryDelay(response),
             };
-            if (response.StatusCode is HttpStatusCode.Unauthorized) return Reply(CoachingGenerationStatus.AuthenticationFailed);
-            if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound) return Reply(CoachingGenerationStatus.AccessDenied);
-            if ((int)response.StatusCode >= 500) return Reply(CoachingGenerationStatus.ServiceUnavailable);
-            if (response.StatusCode == HttpStatusCode.RequestEntityTooLarge) return Reply(CoachingGenerationStatus.InputTooLarge);
-
+            if (!response.IsSuccessStatusCode)
+            {
+                try
+                {
+                    using var rejected = JsonDocument.Parse(await ReadBounded(response.Content, cancellationToken, 65_536), new() { MaxDepth = 16 });
+                    if (rejected.RootElement.ValueKind == JsonValueKind.Object && rejected.RootElement.TryGetProperty("error", out var error))
+                        metadata = metadata with { ErrorCode = CoachingSafeDiagnostics.Code(String(error, "code")),
+                            ErrorType = CoachingSafeDiagnostics.Type(String(error, "type")) };
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException)
+                { /* Preserve HTTP status; malformed/oversized/unreadable error details remain unknown. */ }
+                return Reply(ClassifyFailure((int)response.StatusCode, metadata.ErrorCode, metadata.ErrorType));
+            }
+            metadata = metadata with { Phase = CoachingGenerationPhase.ProviderResponseValidation };
             byte[] bytes = await ReadBounded(response.Content, cancellationToken);
             using var document = JsonDocument.Parse(bytes, new() { MaxDepth = 64 });
             var root = document.RootElement;
-            if (!response.IsSuccessStatusCode)
-            {
-                string? code = root.TryGetProperty("error", out var error) ? String(error, "code") : null;
-                if (code is "context_length_exceeded" or "input_too_large") return Reply(CoachingGenerationStatus.InputTooLarge);
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                    return Reply(code is "insufficient_quota" or "credit_balance_exhausted" or "organization_spend_limit_exceeded"
-                        or "project_spend_limit_exceeded" or "organization_usage_limit_exceeded"
-                        ? CoachingGenerationStatus.QuotaExceeded : CoachingGenerationStatus.RateLimited);
-                return Reply(CoachingGenerationStatus.ProviderFailure);
-            }
             metadata = metadata with { ResponseId = SafeId(String(root, "id"), "resp_", key), Usage = Usage(root) };
             if (String(root, "model") != options.Model) return Reply(CoachingGenerationStatus.InvalidResponse);
             string? status = String(root, "status");
@@ -98,9 +100,33 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         }
     }
 
-    private static async Task<byte[]> ReadBounded(HttpContent content, CancellationToken token)
+    private static CoachingGenerationStatus ClassifyFailure(int status, string? code, string? type) => code switch
     {
-        if (content.Headers.ContentLength > MaximumEnvelopeBytes) throw new InvalidDataException("Envelope exceeds limit.");
+        "invalid_api_key" or "invalid_authentication" => CoachingGenerationStatus.AuthenticationFailed,
+        "model_not_found" or "model_not_available" => CoachingGenerationStatus.ModelUnavailable,
+        "permission_denied" or "insufficient_permissions" => CoachingGenerationStatus.AccessDenied,
+        "insufficient_quota" or "credit_balance_exhausted" or "organization_spend_limit_exceeded" or
+        "project_spend_limit_exceeded" or "organization_usage_limit_exceeded" => CoachingGenerationStatus.QuotaExceeded,
+        "context_length_exceeded" or "input_too_large" => CoachingGenerationStatus.InputTooLarge,
+        "rate_limit_exceeded" => CoachingGenerationStatus.RateLimited,
+        "invalid_json_schema" or "invalid_request" or "invalid_request_error" or "unsupported_parameter" or "invalid_value" => CoachingGenerationStatus.InvalidRequest,
+        "server_error" or "server_is_overloaded" => CoachingGenerationStatus.ServiceUnavailable,
+        _ => status switch
+        {
+            401 => CoachingGenerationStatus.AuthenticationFailed,
+            403 => CoachingGenerationStatus.AccessDenied,
+            413 => CoachingGenerationStatus.InputTooLarge,
+            429 when type == "insufficient_quota" => CoachingGenerationStatus.QuotaExceeded,
+            429 => CoachingGenerationStatus.RateLimited,
+            400 or 422 when type == "invalid_request_error" => CoachingGenerationStatus.InvalidRequest,
+            >= 500 => CoachingGenerationStatus.ServiceUnavailable,
+            _ => CoachingGenerationStatus.ProviderFailure,
+        },
+    };
+
+    private static async Task<byte[]> ReadBounded(HttpContent content, CancellationToken token, int maximumBytes = MaximumEnvelopeBytes)
+    {
+        if (content.Headers.ContentLength > maximumBytes) throw new InvalidDataException("Envelope exceeds limit.");
         await using var stream = await content.ReadAsStreamAsync(token);
         using var buffer = new MemoryStream();
         byte[] chunk = new byte[8192];
@@ -108,7 +134,7 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         {
             int read = await stream.ReadAsync(chunk, token);
             if (read == 0) return buffer.ToArray();
-            if (buffer.Length + read > MaximumEnvelopeBytes) throw new InvalidDataException("Envelope exceeds limit.");
+            if (buffer.Length + read > maximumBytes) throw new InvalidDataException("Envelope exceeds limit.");
             buffer.Write(chunk, 0, read);
         }
     }

@@ -128,6 +128,7 @@
                                  AutomationProperties.Name="AI review generation in progress" />
                     <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationAvailability}" />
                     <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationMessage}" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationDiagnostics}" TextWrapping="Wrap" />
                     <Button Content="Configure AI in Settings" Command="{Binding ConfigureAiCommand}" HorizontalAlignment="Left"
                             Margin="0,8,0,0" AutomationProperties.Name="Configure AI in Settings">
                         <Button.Style>

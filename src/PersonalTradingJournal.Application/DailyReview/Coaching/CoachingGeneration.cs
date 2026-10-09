@@ -4,8 +4,10 @@ public enum CoachingGenerationStatus
 {
     Success, MissingCredentials, InvalidConfiguration, AuthenticationFailed, AccessDenied,
     InputTooLarge, RateLimited, QuotaExceeded, ServiceUnavailable, ProviderFailure,
-    Refused, IncompleteResponse, InvalidResponse, Cancelled, TimedOut,
+    Refused, IncompleteResponse, InvalidResponse, Cancelled, TimedOut, ModelUnavailable, InvalidRequest,
 }
+
+public enum CoachingGenerationPhase { CredentialResolution, EvidencePreflight, HttpRequest, HttpResponse, ProviderResponseValidation, ResponseValidation, SnapshotValidation, AtomicSave, Saved }
 
 public sealed record CoachingTokenUsage(long? InputTokens, long? CachedInputTokens,
     long? OutputTokens, long? TotalTokens);
@@ -14,7 +16,9 @@ public sealed record CoachingTokenUsage(long? InputTokens, long? CachedInputToke
 /// Null usage/cost means unknown, not zero. No verified pricing configuration is installed in M15.4.</summary>
 public sealed record CoachingRequestMetadata(string Provider, string Model, string ClientRequestId,
     string? RequestId = null, string? ResponseId = null, CoachingTokenUsage? Usage = null,
-    int? HttpStatus = null, TimeSpan? RetryAfter = null)
+    int? HttpStatus = null, TimeSpan? RetryAfter = null,
+    CoachingGenerationPhase Phase = CoachingGenerationPhase.CredentialResolution,
+    string? ErrorCode = null, string? ErrorType = null)
 {
     public decimal? MonetaryCost => null;
     public string CostStatus => "Unknown: no verified pricing configuration.";
@@ -70,6 +74,7 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
             metadata = reply.Metadata;
             linked.Token.ThrowIfCancellationRequested();
             if (reply.Status != CoachingGenerationStatus.Success) return Result(reply.Status, metadata);
+            metadata = metadata is null ? null : metadata with { Phase = CoachingGenerationPhase.ResponseValidation };
             if (reply.ResponseJson is null) return Result(CoachingGenerationStatus.InvalidResponse, metadata);
             var validation = CoachingResponseValidator.Validate(reply.ResponseJson, packet, linked.Token);
             linked.Token.ThrowIfCancellationRequested();
@@ -96,7 +101,9 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
             CoachingGenerationStatus.MissingCredentials => "Configure AI in Settings. The OpenAI key is missing or its saved storage cannot be read.",
             CoachingGenerationStatus.InvalidConfiguration => "Check the supported model, input/output budget and positive timeout (at most 180 seconds).",
             CoachingGenerationStatus.AuthenticationFailed => "The provider rejected the credential. Check or replace the API key.",
-            CoachingGenerationStatus.AccessDenied => "Check API project permissions and access to the configured model.",
+            CoachingGenerationStatus.AccessDenied => "The provider denied this request. Check the safe error code before changing configuration; verify the project's Responses write/model-request permissions if permission denial is indicated. Unknown codes do not establish the cause.",
+            CoachingGenerationStatus.ModelUnavailable => "The configured model is unavailable to this request. Ask the project owner to verify access to gpt-4.1-mini-2025-04-14; the response does not distinguish a missing model from denied access.",
+            CoachingGenerationStatus.InvalidRequest => "The provider rejected the request or structured-output schema. Report the safe diagnostics; changing billing or retrying is not a confirmed remedy.",
             CoachingGenerationStatus.InputTooLarge => "Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.",
             CoachingGenerationStatus.RateLimited => "The provider rate-limited this request. Respect RetryAfter before manually generating again.",
             CoachingGenerationStatus.QuotaExceeded => "Check the provider's billing balance and project/organization limits before generating again.",

@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
@@ -14,6 +18,61 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 
 public sealed class DailyReviewSqliteTests
 {
+    [Theory]
+    [InlineData(200, false)]
+    [InlineData(200, true)]
+    [InlineData(403, false)]
+    [InlineData(404, false)]
+    public async Task SettingsCredentialThroughGenerateCommandValidatesSavesAndDisplaysOnlySuccessfulResponse(int status, bool invalidCitation)
+    {
+        await using var database = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        await database.Repository.CreateAsync(new(ReviewFixture.Day, null, "Synthetic journal for HTTP boundary test."));
+        using var secret = new Settings.CoachingCredentialsTests.SecretFixture();
+        using var settings = Settings.CoachingCredentialsTests.Settings(secret.Store);
+        using var handler = new SyntheticHttpHandler(); using var client = new HttpClient(handler);
+        var reader = database.Provider.GetRequiredService<IDailyReviewEvidenceReader>();
+        var packet = CoachingEvidencePacketBuilder.Build(await reader.GetAsync(new(ReviewFixture.Day))).Packet!;
+        handler.Response = status != 200
+            ? JsonSerializer.Serialize(new { error = new { code = "model_not_found", type = "invalid_request_error", message = "private raw text" } })
+            : JsonSerializer.Serialize(new { id = "resp_synthetic", model = OpenAiCoachingOptions.SupportedModel, status = "completed",
+                output = new[] { new { type = "message", role = "assistant", status = "completed", content = new[] { new { type = "output_text",
+                    text = DailyReviewGenerationTests.Provider.Json(packet, source: invalidCitation ? "not-supplied" : "calculated:day") } } } } });
+        handler.Status = status;
+        var repository = database.Provider.GetRequiredService<ICoachingAnalysisRepository>();
+        var vm = new DailyReviewViewModel(reader, repository, database.Provider.GetRequiredService<ITradingAccountReader>(),
+            new FakeDialogService(), new FixedTimeProvider(), new(new(new OpenAiCoachingProvider(client, new(), secret.Store.Resolve), new(), TimeProvider.System),
+                repository, TimeProvider.System), secret.Store);
+        settings.SaveKey("synthetic-integration-key");
+        Assert.Equal(0, handler.Calls);
+        vm.SelectedDate = ReviewFixture.Day.ToDateTime(TimeOnly.MinValue);
+        try
+        {
+            await vm.ActivateAsync(); Assert.Equal(0, handler.Calls);
+            await vm.GenerateCommand.ExecuteAsync(null);
+            Assert.Equal(1, handler.Calls); Assert.True(handler.KeyMatched);
+            bool saved = status == 200 && !invalidCitation;
+            await using var db = await database.ContextFactory.CreateDbContextAsync();
+            Assert.Equal(saved ? 1 : 0, await db.CoachingAnalyses.CountAsync());
+            Assert.Equal(saved, vm.Snapshot is not null);
+            Assert.Contains($"HTTP: {status}", vm.GenerationDiagnostics);
+            Assert.Contains(saved ? "Phase: Saved" : status == 200 ? "Phase: ResponseValidation" : "error.code: model_not_found", vm.GenerationDiagnostics);
+            Assert.DoesNotContain("private", vm.GenerationDiagnostics);
+            if (saved) Assert.Equal(packet.Json, (await repository.GetAsync(Assert.Single(vm.Analyses).Source.Id))!.EvidenceJson);
+            else Assert.Empty(vm.Analyses);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    private sealed class SyntheticHttpHandler : HttpMessageHandler
+    {
+        internal int Status; internal string Response = ""; internal int Calls; internal bool KeyMatched;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Calls++; KeyMatched = request.Headers.Authorization?.Parameter == "synthetic-integration-key";
+            var response = new HttpResponseMessage((HttpStatusCode)Status) { Content = new StringContent(Response) };
+            response.Headers.Add("x-request-id", "req_synthetic"); return Task.FromResult(response);
+        }
+    }
     [Fact]
     public async Task ExplicitGenerationAtomicallySavesOneSnapshotAndFailureLeavesDatabaseUnchanged()
     {
