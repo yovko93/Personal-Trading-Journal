@@ -1,5 +1,23 @@
 # Daily Review with AI Coaching — M15
 
+## Daily Review presentation refinement
+
+The page relies on the shell's Daily Review heading, without repeating it. A compact wrapping toolbar selects the New York date and Account, with secondary Today and Refresh actions. Immediately below, the summary identifies the date (for example **04 Oct 2026 · New York**) and exact selected scope, closed Trade count, user-written Journal count, known-Net coverage, unknown commissions/fees and excluded activity. A Journal-only or empty day says **No closed trades**; observations never imply a trading outcome. Native date entry retains culture-aware parsing; displayed scope and source dates use readable day/month/year labels.
+
+Generate AI Review is the primary action within the summary. Its visible disclosure names the selected provider receiving this scope's Trade facts and Journal text, only on an explicit click. **Privacy, provider limits and charges** expands the existing full disclosure: Groq Free-tier limits/upgraded billing or OpenAI charges, and the fact that local cancellation cannot guarantee no charge. No generation, provider, pricing, validation or save behavior changes. Cancel loading and Cancel generation are absent while idle, and appear only while their respective commands can cancel.
+
+Current calculated facts, user-written Journal observations, saved AI history and generated interpretation are separate sections. Coverage/unknown Net are not collapsed into help. Journal cards retain their original identity and navigation while showing human-readable Account, Draft/Completed and revision labels; **Journal source details** exposes IDs and internal scope information on demand. Inactive/unavailable Account labels remain visible. Prose is limited to 780 DIPs; data rows use available width. One vertical page scroll surface keeps long evidence and snapshots reachable.
+
+Acceptance uses synthetic evidence and compiled WPF renders, not the real journal. Live pointer/keyboard, screen-reader behavior, actual monitor scaling, live-provider generation and a matching GitHub Actions run are separate M15.8 gates; automated render checks do not complete them.
+
+Verification (2026-10-09):
+
+- Focused Daily Review: **314 passed** (13 Domain, 128 Application, 87 Infrastructure, 86 Desktop), zero failures/skips. Includes 7 isolated compiled WPF cases, summary counts/coverage, Journal-only state, hidden idle cancellation, cancellable loading/generation, stale cancellation, provider disclosure, source-detail automation expansion and scrolling.
+- Full parallel Release: **3,330 passed** (454 Domain, 657 Application, 894 Infrastructure, 1,325 Desktop), zero failures/skips. The final readable progress-date strings and additional Journal source-detail render/automation assertions were subsequently verified by rerunning all 314 focused tests.
+- Release build: **0 warnings / 0 errors**. EF: no pending model changes. `git diff --check`: passed. No schema, query, provider or persistence changes.
+- Automated Light/Dark renders generated at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**. Inspected summary, expanded generation disclosure, Journal cards and saved interpretation. Controls wrap, long prose is bounded, and the page has one vertical scrolling surface with no horizontal overflow at tested sizes. Render files and TRX evidence are under ignored `artifacts/review-presentation/`.
+- No live UI or provider request performed. No real journal accessed. These seven uncommitted files cannot yet have a matching GitHub Actions run; the user must commit/push and obtain a run for that exact commit before CI acceptance.
+
 ## M15.7: Manual AI generation
 
 ### Groq provider follow-up
@@ -79,7 +97,7 @@ Historical Account discovery is separate: it succeeded against the isolated live
 
 Automated HTTP tests cover the observed 403 and distinct 404 codes, unknown/malformed/oversized errors, safe diagnostics and no retries. An isolated SQLite flow uses Settings credentials, the provider adapter with fake HTTP, validation, atomic saving and the Generate command: a valid response saves and opens exactly one snapshot; rejected responses and invalid citations save none. Compiled Light/Dark normal and narrow/240-DPI renders verify wrapping diagnostics while current evidence remains visible. These are automated renders and command-path tests, not live mouse/keyboard acceptance. Live successful provider generation, interactive UI acceptance and GitHub Actions for the eventual commit remain separate gates.
 
-Only **Generate AI Review** invokes the existing `GenerateAndSaveCoachingService`. A visible disclosure beside the action says that the selected Trade facts and Journal text go to OpenAI and may incur usage charges. Loading, Refresh, navigation, reopening, committed-data notifications and history browsing never start a provider request.
+Only **Generate AI Review** invokes the existing `GenerateAndSaveCoachingService`. A visible disclosure beside the action names the selected provider receiving the Trade facts and Journal text; expandable privacy help explains limits, possible charges and local cancellation. Loading, Refresh, navigation, reopening, committed-data notifications and history browsing never start a provider request.
 
 The click captures the New York date and exact Account ID (or All accounts aggregate scope), rechecks current Account availability, reads fresh evidence, and builds one immutable M15.3 packet with M15.2 calculated facts. Only that packet is submitted, validated and saved through M15.4/M15.5. No UI calculation replaces the authoritative statistics. Trades alone or meaningful content in any of a Journal's four fields can support a request. Zero Trade evidence plus absent/whitespace-only Journal content sends nothing. Open/incomplete Trade facts remain explicitly uncertain/excluded from realized statistics; the UI does not invent missing Net. Invalid or oversized packets are not truncated.
 

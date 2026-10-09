@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
+using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.DailyReview;
@@ -17,7 +18,7 @@ public static class ReviewDisplay
     public static string Amount(decimal? value, string currency) => value is { } amount
         ? $"{amount:N2} {currency}" : $"Unavailable ({currency})";
     public static string Time(DateTimeOffset value) => TradingTimestampFormatter.FormatNewYork(value,
-        "g", CultureInfo.CurrentCulture) + " · New York";
+        "dd MMM yyyy HH:mm", CultureInfo.CurrentCulture) + " · New York";
     public static string Account(DailyReviewReference reference) =>
         $"{reference.Name ?? "Unavailable account"}{(reference.IsActive == false ? " (inactive)" : "")} · {reference.Id}";
     public static string Scope(CoachingAnalysisSummary item) => item.Scope.AccountId is { } id
@@ -50,8 +51,10 @@ public sealed record ReviewTradeRow(DailyReviewTradeEvidence Source, bool CanNav
 
 public sealed record ReviewJournalRow(DailyReviewJournalEvidence Source, bool CanNavigate = false)
 {
-    public string Heading => $"{Source.TradingDate:dd MMM yyyy} · {(Source.TradingAccountId is null ? "All accounts journal (distinct scope)" : Source.AccountName ?? "Unavailable account")} · {Source.AccountState} · {(Source.IsDraft ? "Draft" : "Completed")}";
-    public string Identity => $"Journal {Source.JournalId} · Account {Source.TradingAccountId?.ToString() ?? "null (All accounts)"} · revision {Source.Revision}";
+    public string AccountLabel => (Source.TradingAccountId is null ? "All accounts" : Source.AccountName ?? "Unavailable account") +
+        (Source.AccountState == DailyJournalAccountState.Inactive ? " (inactive)" : Source.AccountState == DailyJournalAccountState.Unavailable ? " (unavailable)" : "");
+    public string Heading => $"{Source.TradingDate:dd MMM yyyy} · New York · {AccountLabel} · {(Source.IsDraft ? "Draft" : "Completed")} · Revision {Source.Revision}";
+    public string Identity => $"Journal {Source.JournalId} · Account {Source.TradingAccountId?.ToString() ?? "null (All accounts)"} · {Source.AccountState} · revision {Source.Revision}";
     public IReadOnlyList<ReviewText> Fields => [new("Journal text", Field(Source.Text)),
         new("What went well?", Field(Source.Answers.WentWell)), new("What needs improvement?", Field(Source.Answers.NeedsImprovement)),
         new("Next trading day", Field(Source.Answers.NextTradingDay))];
@@ -61,6 +64,11 @@ public sealed record ReviewJournalRow(DailyReviewJournalEvidence Source, bool Ca
 /// <summary>Presentation only. Historical statistics are supplied from the snapshot, never recalculated.</summary>
 public sealed class ReviewEvidencePresentation(DailyReviewEvidence evidence, DailyReviewStatistics statistics, bool canNavigate = false)
 {
+    public string Counts => (statistics.Population.Closed.Count == 0 ? "No closed trades" : $"{statistics.Population.Closed.Count} closed Trades") +
+        $" · {evidence.Journals.Count} Journal entries (user-written observations)";
+    public string CoverageSummary => $"Known Net coverage: {statistics.Currencies.Sum(c => c.Net.Known.Count)}/{statistics.Population.Closed.Count} closed Trades. " +
+        $"Unknown commissions: {statistics.Population.UnknownCommissions.Count}; unknown fees: {statistics.Population.UnknownFees.Count} (including activity). " +
+        $"Excluded open/partial: {statistics.Population.ExcludedOpenActivity.Count}; unavailable lifecycle: {statistics.Population.ExcludedUnavailableLifecycle.Count}.";
     public string Summary => $"{evidence.Query.Date:dd MMM yyyy} New York · Closed Trades: {statistics.Population.Closed.Count} · " +
         $"Excluded open/partial activity: {statistics.Population.ExcludedOpenActivity.Count} · Unavailable lifecycle: {statistics.Population.ExcludedUnavailableLifecycle.Count}";
     public string EmptyText => evidence.Trades.Count == 0 && evidence.Journals.Count == 0
@@ -78,7 +86,7 @@ public sealed record ReviewAnalysisRow(CoachingAnalysisSummary Source)
 {
     public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {Source.Provider} / {Source.Model}";
     public string Scope => ReviewDisplay.Scope(Source);
-    public string Identity => $"Analysis {Source.Id} · {Source.ReviewDate:yyyy-MM-dd}";
+    public string Identity => $"Analysis {Source.Id} · {Source.ReviewDate:dd MMM yyyy} · New York";
 }
 
 public sealed class ReviewSnapshot

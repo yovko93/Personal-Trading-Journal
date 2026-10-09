@@ -13,6 +13,15 @@
             <Setter Property="FontSize" Value="16" />
             <Setter Property="TextWrapping" Value="Wrap" />
             <Setter Property="Margin" Value="0,3" />
+            <Setter Property="LineHeight" Value="24" />
+        </Style>
+        <Style x:Key="Prose" TargetType="TextBlock" BasedOn="{StaticResource ReviewBody}">
+            <Setter Property="MaxWidth" Value="780" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+        </Style>
+        <Style x:Key="CancellableAction" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+            <Setter Property="Visibility" Value="Collapsed" />
+            <Style.Triggers><Trigger Property="IsEnabled" Value="True"><Setter Property="Visibility" Value="Visible" /></Trigger></Style.Triggers>
         </Style>
         <Style x:Key="ReviewDateStyle" TargetType="DatePicker">
             <Setter Property="CalendarStyle" Value="{StaticResource RangeCalendar}" />
@@ -37,7 +46,7 @@
             </Style.Triggers>
         </Style>
         <DataTemplate DataType="{x:Type vm:ReviewText}">
-            <StackPanel Margin="0,6,0,12" MaxWidth="900" HorizontalAlignment="Left">
+            <StackPanel Margin="0,6,0,12" MaxWidth="780" HorizontalAlignment="Left">
                 <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Heading}" FontWeight="SemiBold" />
                 <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Text}" />
             </StackPanel>
@@ -75,24 +84,28 @@
                         </Border>
                     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                 </Expander>
-                <Expander Foreground="{DynamicResource PtjTextPrimaryBrush}" Header="Journal observations" IsExpanded="True" Margin="0,10">
+                <TextBlock Text="Journal observations · user-written" Style="{StaticResource Heading}" />
+                <Border Style="{DynamicResource PtjCardStyle}" Margin="0,4,0,12">
                     <StackPanel>
                         <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding JournalEmptyText}" />
                         <ItemsControl ItemsSource="{Binding Journals}"><ItemsControl.ItemTemplate><DataTemplate>
                             <Border Style="{DynamicResource PtjCardStyle}" Margin="0,6">
                                 <StackPanel>
                                     <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Heading}" FontWeight="SemiBold" />
-                                    <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Identity}" />
                                     <ItemsControl ItemsSource="{Binding Fields}" />
                                     <Button Style="{DynamicResource PtjButtonStyle}" Content="Open current Journal" HorizontalAlignment="Left"
                                             Visibility="{Binding CanNavigate, Converter={StaticResource BoolVisibility}}"
                                             Command="{Binding DataContext.OpenJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding Identity}" />
+                                            CommandParameter="{Binding}" AutomationProperties.Name="{Binding Heading, StringFormat=Open current Journal: {0}}" AutomationProperties.HelpText="{Binding Identity}" />
+                                    <Expander Header="Journal source details" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,8,0,0"
+                                              AutomationProperties.Name="Journal technical identity and account state">
+                                        <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Identity}" />
+                                    </Expander>
                                 </StackPanel>
                             </Border>
                         </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
                     </StackPanel>
-                </Expander>
+                </Border>
             </StackPanel>
         </DataTemplate>
         </ResourceDictionary>
@@ -101,28 +114,36 @@
                   AutomationProperties.Name="Daily Review workspace" PanningMode="VerticalOnly">
         <ScrollViewer.Resources><Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" /></ScrollViewer.Resources>
         <StackPanel Margin="16">
-            <TextBlock Text="Daily Review" Style="{StaticResource PtjPageTitleTextStyle}" />
-            <WrapPanel Margin="0,12">
+            <WrapPanel x:Name="ScopeToolbar" Margin="0,0,0,8" KeyboardNavigation.TabNavigation="Continue">
                 <StackPanel Margin="0,0,12,8"><Label Foreground="{DynamicResource PtjTextPrimaryBrush}" Content="Date (New York)" Target="{Binding ElementName=ReviewDate}" />
                     <DatePicker x:Name="ReviewDate" Width="175" Style="{StaticResource ReviewDateStyle}" SelectedDate="{Binding SelectedDate}" DateValidationError="OnDateValidationError" AutomationProperties.Name="Review date in New York" /></StackPanel>
                 <StackPanel Margin="0,0,12,8"><Label Foreground="{DynamicResource PtjTextPrimaryBrush}" Content="Account" Target="{Binding ElementName=ReviewAccount}" />
                     <ComboBox x:Name="ReviewAccount" Width="240" Style="{DynamicResource PtjComboBoxStyle}" MaxDropDownHeight="320" ItemsSource="{Binding Accounts}" DisplayMemberPath="Label"
                               SelectedItem="{Binding SelectedAccount}" ToolTip="{Binding SelectedAccount.Label}" AutomationProperties.Name="Daily Review Account scope" /></StackPanel>
-                <Button Style="{DynamicResource PtjButtonStyle}" Content="Today" Command="{Binding TodayCommand}" Margin="0,20,8,8" />
-                <Button Style="{DynamicResource PtjButtonStyle}" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,20,8,8" />
-                <Button Style="{DynamicResource PtjButtonStyle}" Content="Cancel loading" Command="{Binding CancelLoadCommand}" Margin="0,20,8,8" />
+                <WrapPanel VerticalAlignment="Bottom" Margin="0,0,0,8">
+                    <Button Style="{DynamicResource PtjButtonStyle}" Content="Today" Command="{Binding TodayCommand}" Margin="0,0,8,0" />
+                    <Button Style="{DynamicResource PtjButtonStyle}" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,0" />
+                </WrapPanel>
+                <Button x:Name="CancelLoading" Style="{StaticResource CancellableAction}" Content="Cancel loading" Command="{Binding CancelLoadCommand}" VerticalAlignment="Bottom" Margin="0,0,0,8" />
             </WrapPanel>
             <TextBlock Text="{Binding LoadingText}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />
-            <Border Style="{DynamicResource PtjCardStyle}" Margin="0,0,0,12">
+            <Border x:Name="ScopeSummary" Style="{DynamicResource PtjCardStyle}" Margin="0,0,0,12">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding ProviderDisclosure}" />
+                    <TextBlock x:Name="SelectedScopeHeading" Style="{StaticResource Heading}" Margin="0,0,0,8" Text="{Binding ScopeHeading}" />
+                    <TextBlock x:Name="ScopeCounts" Style="{StaticResource ReviewBody}" FontWeight="SemiBold" Text="{Binding Current.Counts}" />
+                    <TextBlock x:Name="ScopeCoverage" Style="{StaticResource Prose}" Text="{Binding Current.CoverageSummary}" />
                     <WrapPanel>
                         <Button x:Name="GenerateReview" Content="Generate AI Review" Command="{Binding GenerateCommand}"
                                 Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,8,8,8"
                                 AutomationProperties.Name="Generate AI Review for selected New York date and Account scope" />
                         <Button x:Name="CancelGeneration" Content="Cancel generation" Command="{Binding CancelGenerationCommand}"
-                                Style="{DynamicResource PtjButtonStyle}" Margin="0,8,0,8" />
+                                Style="{StaticResource CancellableAction}" Margin="0,8,0,8" />
                     </WrapPanel>
+                    <TextBlock x:Name="ProviderSummary" Style="{StaticResource Prose}" Text="{Binding ProviderSummary}" />
+                    <Expander x:Name="GenerationHelp" Header="Privacy, provider limits and charges" Margin="0,8"
+                              Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="AI transmission, limits, charges and local cancellation details">
+                        <TextBlock Style="{StaticResource Prose}" Text="{Binding ProviderDisclosure}" />
+                    </Expander>
                     <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
                                  Visibility="{Binding IsGenerating, Converter={StaticResource BoolVisibility}}"
                                  AutomationProperties.Name="AI review generation in progress" />
@@ -152,7 +173,7 @@
                 <Button Content="Next historical Accounts" Style="{DynamicResource PtjButtonStyle}" Command="{Binding NextHistoricalAccountsCommand}" Margin="0,0,8,8" />
             </WrapPanel>
             <TextBlock Text="Current daily evidence · calculated facts" Style="{StaticResource Heading}" />
-            <TextBlock Style="{StaticResource ReviewBody}" Text="Fully closed Trades use their New York closure date. Net totals require known commissions and fees for every included Trade; estimates are not substituted." />
+            <TextBlock Style="{StaticResource Prose}" Text="Fully closed Trades use their New York closure date. Net totals require known commissions and fees for every included Trade; estimates are not substituted." />
             <TextBlock Text="{Binding CurrentError}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />
             <ContentControl Content="{Binding Current}" HorizontalContentAlignment="Stretch" />
             <Separator Margin="0,20" />
@@ -181,11 +202,12 @@
             <ContentControl x:Name="SavedSnapshot" Content="{Binding Snapshot}" HorizontalContentAlignment="Stretch">
                 <ContentControl.ContentTemplate><DataTemplate>
                     <Border Style="{DynamicResource PtjCardStyle}"><StackPanel>
-                        <TextBlock Text="Saved snapshot · NOT current records" Style="{StaticResource Heading}" />
+                        <TextBlock Text="Generated analysis · AI interpretation" Style="{StaticResource Heading}" />
+                        <TextBlock Text="Saved snapshot · NOT current records" Style="{StaticResource ReviewBody}" FontWeight="SemiBold" />
                         <Button Style="{DynamicResource PtjButtonStyle}" Content="Close saved analysis" HorizontalAlignment="Left" Margin="0,6"
                                 Command="{Binding DataContext.CloseAnalysisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
                         <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Heading}" FontWeight="SemiBold" /><TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Metadata}" />
-                        <TextBlock Style="{StaticResource ReviewBody}" Text="AI output is not authoritative. Citations identify supplied evidence, not proof that a claim is correct. Sources below remain as saved even after edits or deletion." />
+                        <TextBlock Style="{StaticResource Prose}" Text="AI output is not authoritative. Citations identify supplied evidence, not proof that a claim is correct. Sources below remain as saved even after edits or deletion." />
                         <ItemsControl ItemsSource="{Binding Statements}" />
                         <TextBlock Text="Evidence used at generation" Style="{StaticResource Heading}" />
                         <ContentControl Content="{Binding Evidence}" HorizontalContentAlignment="Stretch" />

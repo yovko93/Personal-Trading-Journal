@@ -38,6 +38,14 @@ public sealed class DailyReviewViewModel : ObservableObject
     public bool NeedsAiConfiguration { get; private set; }
     public Action? OpenAiSettings { get; set; }
     public IRelayCommand ConfigureAiCommand { get; }
+    public string ScopeHeading => SelectedDate is { } date
+        ? $"{date:dd MMM yyyy} · New York · {SelectedAccount.Label}" : "Select a New York date";
+    public string ProviderSummary => (_credentials as ICoachingConfiguration)?.SelectedProvider switch
+    {
+        CoachingProviderKind.Groq => "Only Generate sends this scope's Trade facts and Journal text to Groq.",
+        CoachingProviderKind.Unavailable => "Choose an AI provider in Settings before generating. Nothing is sent automatically.",
+        _ => "Only Generate sends this scope's Trade facts and Journal text to OpenAI.",
+    };
     public string ProviderDisclosure => (_credentials as ICoachingConfiguration)?.SelectedProvider switch
     {
         CoachingProviderKind.Groq => "Generate sends the selected Trade facts and Journal text to Groq. Groq Free tier has limits; usage may be billed if your account is upgraded. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
@@ -267,7 +275,7 @@ public sealed class DailyReviewViewModel : ObservableObject
         using var cancellation = new CancellationTokenSource();
         _generationRequest = cancellation; _generating = true;
         GenerationDiagnostics = null;
-        GenerationMessage = $"Reading current evidence for {query.Date:yyyy-MM-dd} · {SelectedAccount.Label}…";
+        GenerationMessage = $"Reading current evidence for {query.Date:dd MMM yyyy} · New York · {SelectedAccount.Label}…";
         Notify();
         bool IsCurrent() => _active && version == _requestVersion && !cancellation.IsCancellationRequested &&
             SelectedDate == query.Date.ToDateTime(TimeOnly.MinValue) && SelectedAccount.Id == query.TradingAccountId;
@@ -302,7 +310,7 @@ public sealed class DailyReviewViewModel : ObservableObject
                 }
                 return;
             }
-            GenerationMessage = $"Generating, validating and saving review for {query.Date:yyyy-MM-dd}…";
+            GenerationMessage = $"Generating, validating and saving review for {query.Date:dd MMM yyyy} · New York…";
             Notify();
             var result = await Task.Run(() => generator.GenerateAsync(prepared.Packet, cancellation.Token), cancellation.Token);
             if (!IsCurrent()) return;
@@ -434,7 +442,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     {
         if (row is null || !Analyses.Contains(row) || !_active || _deleting) return;
         if (!_dialogs.Confirm(new("Delete saved AI analysis?",
-            $"Permanently delete analysis {row.Source.Id} for {row.Source.ReviewDate:yyyy-MM-dd} New York?\n{row.Scope}\n{row.Heading}\nOnly this saved response and evidence snapshot are removed. Trades and Journals are unchanged.",
+            $"Permanently delete analysis {row.Source.Id} for {row.Source.ReviewDate:dd MMM yyyy} New York?\n{row.Scope}\n{row.Heading}\nOnly this saved response and evidence snapshot are removed. Trades and Journals are unchanged.",
             "Delete analysis", isDestructive: true))) return;
         long generation = _generation;
         _deleting = true; DeleteAnalysisCommand.NotifyCanExecuteChanged();

@@ -6,6 +6,12 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.7 follow-up — Daily Review presentation**
+
+Daily Review keeps the shell's single heading and starts with a wrapping New York date/Account toolbar, selected-scope summary, and primary Generate action. Closed Trade and Journal counts are separate; known-Net coverage, unknown costs and excluded activity remain visible. Journal-only days explicitly say **No closed trades**. The visible disclosure names the selected provider; expandable privacy help retains provider limits, possible charges and local-cancellation limitations. Cancel actions appear only while their operation can be cancelled. Calculated evidence, user-written Journal observations, AI interpretation and saved history have separate headings. Journal cards show readable account/status/revision labels, with source IDs in optional technical details; prose has a bounded reading width. Queries, generation safeguards, snapshots and stored data are unchanged. See [presentation verification](docs/daily-review.md#daily-review-presentation-refinement).
+
+Presentation verification: **314 focused tests passed**, **3,330 full parallel Release tests passed**, zero failures/skips. Release build: zero warnings/errors; EF consistency and diff check passed. Automated Light/Dark renders inspected at 960 DIP/96 DPI and 480 DIP/240 DPI. Live UI, provider and matching GitHub Actions acceptance remain open.
+
 **M15.7 follow-up — selectable Groq AI Coaching**
 
 Verification: **327 focused tests**, **6 final WPF layout cases**, and **3,328 full parallel Release tests passed**, with no failures/skips. Release build: zero warnings/errors; EF consistency and tracked/new-file whitespace checks passed. Light/Dark normal and narrow/240-DPI renders inspected. Live Groq, interactive UI and GitHub CI remain unverified.

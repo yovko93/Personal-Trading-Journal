@@ -13,6 +13,24 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class DailyReviewWorkspaceTests
 {
     [Fact]
+    public void JournalOnlySummaryDoesNotInventTradeResultsAndKeepsIdentityInTechnicalDetails()
+    {
+        var journal = ReviewFixture.Journal(null, "All accounts", ReviewFixture.Day);
+        var evidence = new DailyReviewEvidence(new(ReviewFixture.Day), [], [journal]);
+        var display = new ReviewEvidencePresentation(evidence, DailyReviewStatisticsCalculator.Calculate(evidence));
+        Assert.Equal("No closed trades · 1 Journal entries (user-written observations)", display.Counts);
+        Assert.Contains("Known Net coverage: 0/0", display.CoverageSummary);
+        Assert.Contains("do not imply a trading result", display.EmptyText);
+        var row = Assert.Single(display.Journals);
+        Assert.Contains("All accounts", row.Heading);
+        Assert.Contains("Revision 3", row.Heading);
+        Assert.DoesNotContain("null", row.Heading);
+        Assert.DoesNotContain(journal.JournalId.ToString(), row.Heading);
+        Assert.Contains(journal.JournalId.ToString(), row.Identity);
+        Assert.Empty(display.Metrics);
+    }
+
+    [Fact]
     public async Task HistoricalPagesAreBoundedPreserveSelectedScopeAndRemainAvailableWhenCurrentEvidenceFails()
     {
         var f = new ReviewFixture();

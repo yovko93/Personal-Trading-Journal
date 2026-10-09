@@ -13,6 +13,63 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class DailyReviewViewTests
 {
     [Fact]
+    public async Task LoadingCancellationIsOnlyVisibleWhileCancellableAndJournalOnlyDayHasNoTradeOutcome()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        var pending = new TaskCompletionSource<PersonalTradingJournal.Application.DailyReview.DailyReviewEvidence>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var f = new ReviewFixture();
+        f.Reader.Handler = (_, _) => { started.TrySetResult(); return pending.Task; };
+        Task load = Task.CompletedTask;
+        DailyReviewView view = null!;
+        Border root = null!;
+        static Task OnUi(Action action) => CalendarStaTest.RunAsync(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+            action();
+        }, shutdownDispatcher: false);
+        await OnUi(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            app.Resources = CalendarViewLayoutTests.SharedThemeResources("Dark");
+            load = f.Vm.ActivateAsync();
+            view = new DailyReviewView { DataContext = f.Vm };
+            root = new Border { Child = view };
+            root.Measure(new Size(480, 760)); root.Arrange(new Rect(0, 0, 480, 760)); root.UpdateLayout(); Flush();
+        });
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await OnUi(() =>
+        {
+            Flush(); root.UpdateLayout();
+            var cancel = (Button)view.FindName("CancelLoading");
+            Assert.Equal(Visibility.Visible, cancel.Visibility);
+            Assert.True(cancel.IsEnabled && cancel.Focusable);
+            cancel.Command!.Execute(null); Flush();
+            Assert.Equal(Visibility.Collapsed, cancel.Visibility);
+        });
+        var evidence = new PersonalTradingJournal.Application.DailyReview.DailyReviewEvidence(new(ReviewFixture.Day), [],
+            [ReviewFixture.Journal(null, "All accounts", ReviewFixture.Day)]);
+        pending.SetResult(evidence);
+        await load.WaitAsync(TimeSpan.FromSeconds(10));
+        await OnUi(() =>
+        {
+            Assert.Null(f.Vm.Current); // Cancelled evidence cannot populate the new summary.
+            f.Reader.Handler = (_, _) => Task.FromResult(evidence);
+            load = f.Vm.RefreshCommand.ExecuteAsync(null);
+        });
+        await load;
+        await OnUi(() =>
+        {
+            Flush(); root.UpdateLayout();
+            Assert.StartsWith("No closed trades", ((TextBlock)view.FindName("ScopeCounts")).Text);
+            Assert.Equal(Visibility.Collapsed, ((Button)view.FindName("CancelLoading")).Visibility);
+            Assert.Equal(0, ((ScrollViewer)view.FindName("ReviewScroll")).ScrollableWidth);
+            Render(root, "Dark", 480, 240, "journal-only");
+            f.Vm.Deactivate(); root.Child = null;
+        });
+    }
+
+    [Fact]
     public async Task ProviderSelectionAndDisclosureWrapAcrossThemesWithoutSendingOrRevealingKeys()
     {
         if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
@@ -54,6 +111,10 @@ public sealed class DailyReviewViewTests
                 Render(root, theme, width, dpi, "provider-settings"); root.Child = null;
                 var workspace = new DailyReviewView { DataContext = review }; root.Child = workspace;
                 root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                Assert.Contains("Groq", ((TextBlock)workspace.FindName("ProviderSummary")).Text);
+                var help = (Expander)workspace.FindName("GenerationHelp");
+                Assert.False(help.IsExpanded);
+                help.IsExpanded = true; Flush(); root.UpdateLayout();
                 Assert.Contains(Descendants(workspace).OfType<TextBlock>(), t => t.Text.Contains("Groq Free tier"));
                 Assert.Equal(0, ((ScrollViewer)workspace.FindName("ReviewScroll")).ScrollableWidth);
                 Render(root, theme, width, dpi, "groq-disclosure"); root.Child = null;
@@ -200,8 +261,21 @@ public sealed class DailyReviewViewTests
                 Assert.Contains(buttons, b => Equals(b.Content, "Delete analysis") && b.IsEnabled);
                 Assert.Contains(buttons, b => Equals(b.Content, "Next historical Accounts") && b.IsEnabled);
                 Assert.Contains(buttons, b => Equals(b.Content, "Generate AI Review") && !b.IsEnabled);
-                Assert.Contains(buttons, b => Equals(b.Content, "Cancel generation") && !b.IsEnabled);
-                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("OpenAI and may incur usage charges"));
+                Assert.Equal(Visibility.Collapsed, ((Button)view.FindName("CancelGeneration")).Visibility);
+                Assert.Equal(Visibility.Collapsed, ((Button)view.FindName("CancelLoading")).Visibility);
+                Assert.Contains("OpenAI", ((TextBlock)view.FindName("ProviderSummary")).Text);
+                Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text == "Daily Review");
+                Assert.Contains("08 Oct 2026", ((TextBlock)view.FindName("SelectedScopeHeading")).Text);
+                Assert.Contains("All accounts", ((TextBlock)view.FindName("SelectedScopeHeading")).Text);
+                Assert.Contains("2 closed Trades", ((TextBlock)view.FindName("ScopeCounts")).Text);
+                Assert.Contains("3 Journal entries", ((TextBlock)view.FindName("ScopeCounts")).Text);
+                Assert.Contains("Known Net coverage: 1/2", ((TextBlock)view.FindName("ScopeCoverage")).Text);
+                var toolbar = (WrapPanel)view.FindName("ScopeToolbar");
+                var summary = (Border)view.FindName("ScopeSummary");
+                Assert.True(toolbar.TranslatePoint(new Point(0, toolbar.ActualHeight), view).Y <= summary.TranslatePoint(new Point(), view).Y);
+                Assert.True(((Button)view.FindName("GenerateReview")).TranslatePoint(new Point(), view).Y < 760);
+                Assert.All(Descendants(view).OfType<Expander>().Where(e => Equals(e.Header, "Journal source details")), e => Assert.False(e.IsExpanded));
+                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("Completed · Revision 3"));
                 Assert.All(buttons, b =>
                 {
                     Assert.True(b.Focusable);
@@ -223,6 +297,18 @@ public sealed class DailyReviewViewTests
                 Assert.All(Descendants(view).OfType<Expander>(), e =>
                     Assert.Equal(((SolidColorBrush)resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)e.Foreground).Color));
                 Render(root, theme, width, dpi, "current");
+                var observations = Descendants(view).OfType<TextBlock>().First(t => t.Text == "Journal observations · user-written");
+                scroll.ScrollToVerticalOffset(scroll.VerticalOffset + observations.TranslatePoint(new Point(), scroll).Y);
+                Flush(); root.UpdateLayout();
+                Render(root, theme, width, dpi, "journals");
+                var sourceHelp = Descendants(view).OfType<Expander>().First(e => Equals(e.Header, "Journal source details"));
+                var peer = new System.Windows.Automation.Peers.ExpanderAutomationPeer(sourceHelp);
+                var expand = (System.Windows.Automation.Provider.IExpandCollapseProvider)peer.GetPattern(System.Windows.Automation.Peers.PatternInterface.ExpandCollapse)!;
+                Assert.Equal(ExpandCollapseState.Collapsed, expand.ExpandCollapseState);
+                expand.Expand(); Flush(); root.UpdateLayout();
+                Assert.Equal(ExpandCollapseState.Expanded, expand.ExpandCollapseState);
+                Assert.Contains("Journal ", ((TextBlock)sourceHelp.Content).Text);
+                expand.Collapse();
                 scroll.ScrollToVerticalOffset(scroll.VerticalOffset + ((ItemsControl)view.FindName("AnalysisHistory")).TranslatePoint(new Point(), scroll).Y);
                 Flush(); root.UpdateLayout();
                 Render(root, theme, width, dpi, "history");
@@ -328,6 +414,7 @@ public sealed class DailyReviewViewTests
                 var cancel = (Button)view.FindName("CancelGeneration");
                 Assert.True(generate.IsEnabled && generate.Focusable);
                 Assert.False(cancel.IsEnabled);
+                Assert.Equal(Visibility.Collapsed, cancel.Visibility);
                 Assert.Contains("selected New York date", AutomationProperties.GetName(generate));
                 Assert.Same(f.Vm.GenerateCommand, generate.Command);
                 Assert.Equal(0, provider.Calls);
@@ -342,7 +429,11 @@ public sealed class DailyReviewViewTests
                 var cancel = (Button)view.FindName("CancelGeneration");
                 Assert.False(generate.IsEnabled);
                 Assert.True(cancel.IsEnabled && cancel.Focusable);
+                Assert.Equal(Visibility.Visible, cancel.Visibility);
                 Assert.True(Assert.Single(Descendants(view).OfType<ProgressBar>()).IsIndeterminate);
+                var help = (Expander)view.FindName("GenerationHelp");
+                Assert.False(help.IsExpanded);
+                help.IsExpanded = true; Flush(); root.UpdateLayout();
                 Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("OpenAI and may incur usage charges"));
                 foreach (var button in new[] { generate, cancel })
                     Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
@@ -358,6 +449,7 @@ public sealed class DailyReviewViewTests
                 Assert.Empty(f.History.Items);
                 Assert.True(((Button)view.FindName("GenerateReview")).IsEnabled);
                 Assert.False(((Button)view.FindName("CancelGeneration")).IsEnabled);
+                Assert.Equal(Visibility.Collapsed, ((Button)view.FindName("CancelGeneration")).Visibility);
                 f.Vm.Deactivate();
                 root.Child = null;
             });
