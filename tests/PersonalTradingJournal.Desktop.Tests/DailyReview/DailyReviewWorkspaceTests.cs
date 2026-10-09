@@ -399,13 +399,14 @@ internal sealed class ReviewFixture
     internal static DailyReviewJournalEvidence Journal(Guid? account, string name, DateOnly date) => new(Guid.NewGuid(), date, account, name,
         account is null ? DailyJournalAccountState.AllAccounts : DailyJournalAccountState.Active,
         "Original journal text — remain patient.", new("Followed the plan", "", "Wait for confirmation"), account == AccountId, 3, Now, Now);
-    internal static SavedCoachingAnalysis Saved(DailyReviewEvidence? evidence = null)
+    internal static SavedCoachingAnalysis Saved(DailyReviewEvidence? evidence = null, bool citeAll = false)
     {
         var result = CoachingEvidencePacketBuilder.Build(evidence ?? new(new(Day), [], []));
         Assert.Equal(CoachingPacketBuildStatus.Ready, result.Status);
         var packet = result.Packet!;
         return CoachingAnalysisSnapshot.Create(packet, new(CoachingGenerationStatus.Success,
-            new(packet.ContractVersion, packet.PacketId, new("Saved day summary from supplied evidence.", ["calculated:day"]), [], [], [], []),
+            new(packet.ContractVersion, packet.PacketId, new("Saved day summary from supplied evidence.",
+                citeAll ? packet.Content.Sources.Select(s => s.Id).ToArray() : ["calculated:day"]), [], [], [], []),
             new("Fake", "test-model", "client-test", "req_test", "resp_test", new(10, 0, 5, 15)), "Not displayed"), Now).Analysis;
     }
     internal sealed class EvidenceReaderFake : IDailyReviewEvidenceReader

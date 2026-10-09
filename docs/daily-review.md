@@ -1,6 +1,35 @@
 # Daily Review with AI Coaching — M15
 
-## Concise evidence and Source details
+## Simplified evidence presentation
+
+This presentation-only M15.7 refinement **does not start M15.8 acceptance**. Removed from both current and saved Daily Review views:
+
+- All raw **Source details** expanders: account calculations, Trade/execution facts, day provenance, Journal identities, saved citations, analysis/generation records and the original packet.
+- JSON displays, technical identifier lists and their read-only select/copy controls. Raw request diagnostics are no longer rendered; sanitized actionable generation errors remain visible.
+- **Contributing Trades and activity**, its per-Trade rows and list-level Open Trade controls.
+
+The page keeps one concise calculated summary per Account and currency, applicable coverage/missing-cost warnings and strict **Unavailable** Net states, user-written Journal observations, AI interpretation, and paged saved analysis history. Empty and Journal-only days still explicitly say **No closed trades**. Current evidence and historical snapshots remain visually distinct.
+
+Each saved AI statement retains readable citations resolved solely from its saved packet: day/currency/account calculations, instrument/account/closure or execution time for Trades, and date/account/status/revision for Journals. **Open current Trade** and **Open current Journal** links appear directly at relevant citations and reuse existing navigation commands/unsaved-edit guards. These open current records, not a restored snapshot. A missing Trade follows the existing not-found view; Journal navigation opens the exact saved date/account scope (which may now have no entry). Source edits/deletion never replace the displayed saved evidence. Calculated citations identify the saved summaries, without implying a navigable Trade or Journal.
+
+Nothing is removed from the underlying evidence: complete Trade/execution facts, Trade/Journal identities, original accounts and currencies, Journal status/revision/text, statistics/coverage/contributing IDs, uncertainty markers and source references remain in the immutable packet and saved snapshot. Queries, calculations, persistence/schema, response validation, provider requests and Trade/Journal writes are unchanged.
+
+### Separate input-budget limitation
+
+The reported 31-Trade day shows **“Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.”** This error is deliberately unchanged and visible. Limits apply to the complete request, not the number of on-screen rows, and a Trade count alone does not establish whether a packet fits. Removing UI details does not shrink provider evidence, increase budgets or bypass preflight. No rows/text/statistics are silently dropped. An explicitly narrower Account scope may fit; otherwise generation remains blocked pending a separate, evidence-based budget task. This refinement does not reproduce that private dataset or claim that its generation succeeds.
+
+Automated checks use synthetic data only. Live keyboard/pointer/screen-reader and physical monitor DPI, live provider requests, and matching GitHub Actions remain separate acceptance gates.
+
+### Simplification verification — 2026-10-09
+
+- **322 focused tests passed:** Domain 13, Application 128, Infrastructure 87, Desktop 94. Citation tests cover all source kinds, exact Trade/Journal identities and Account scopes, unchanged packet JSON, current-record not-found navigation and the standalone Journal unsaved-change veto. Existing statistics, provider, budget, validation, saved-versus-current and paging regressions remain green.
+- **3,347 full parallel Release tests passed**, zero failures/skips: Domain 454, Application 657, Infrastructure 894, Desktop 1,342. Release build: **0 warnings/errors**; EF reports no pending model changes; `git diff --check` passes.
+- Compiled WPF checks cover empty/populated All-accounts days, saved historical analysis and source links, applicable missing-cost messages, absence of raw detail/Trade-list controls, tab-focusable named actions, scroll reachability and no horizontal overflow. Light/Dark renders inspected at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**. The exact configured-input-budget error is asserted visible; technical request IDs are not displayed.
+- Logs/TRX and synthetic renders are under ignored `artifacts/review-simple/`. Baseline: clean `develop`, `432a2ded1bccdae1d6a392538451042d3d1c1695`. No provider call or real-journal access; no commit/push. These local results are not a matching GitHub Actions run or live UI acceptance, and **M15.8 remains not started**.
+
+## Earlier concise evidence and Source details (superseded presentation)
+
+The layout described in this historical implementation record is superseded by **Simplified evidence presentation** above; its raw detail/Trade-list controls are no longer present.
 
 This M15.7 follow-up does not begin M15.8 acceptance. The normal reading path contains one summary per **Account and currency**, using the existing account statistics without recalculation. Currency-wide totals are no longer duplicated as extra cards; the complete statistics, including those totals, remain in day provenance.
 
@@ -28,7 +57,7 @@ The page relies on the shell's Daily Review heading, without repeating it. A com
 
 Generate AI Review is the primary action within the summary. Its visible disclosure names the selected provider receiving this scope's Trade facts and Journal text, only on an explicit click. **Privacy, provider limits and charges** expands the existing full disclosure: Groq Free-tier limits/upgraded billing or OpenAI charges, and the fact that local cancellation cannot guarantee no charge. No generation, provider, pricing, validation or save behavior changes. Cancel loading and Cancel generation are absent while idle, and appear only while their respective commands can cancel.
 
-Current calculated facts, user-written Journal observations, saved AI history and generated interpretation are separate sections. Applicable coverage warnings and unknown Net are not collapsed into help. Journal cards retain their original identity and navigation while showing human-readable Account and Draft/Completed labels; **Source details · Journal** exposes revisions, IDs and internal scope information on demand. Inactive/unavailable Account labels remain visible. Prose is limited to 780 DIPs; data rows use available width. One vertical page scroll surface keeps long evidence and snapshots reachable.
+Current calculated facts, user-written Journal observations, saved AI history and generated interpretation are separate sections. Applicable coverage warnings and unknown Net are not collapsed into help. Journal cards retain their original identity and navigation internally while showing human-readable Account and Draft/Completed labels; raw Journal detail controls were removed in the simplified presentation. Inactive/unavailable Account labels remain visible. Prose is limited to 780 DIPs; summaries use available width. One vertical page scroll surface keeps observations and saved analyses reachable.
 
 Acceptance uses synthetic evidence and compiled WPF renders, not the real journal. Live pointer/keyboard, screen-reader behavior, actual monitor scaling, live-provider generation and a matching GitHub Actions run are separate M15.8 gates; automated render checks do not complete them.
 

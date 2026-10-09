@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.7 follow-up — simplified Daily Review (not M15.8 acceptance)**
+
+Daily Review no longer displays raw Source details expanders, JSON/evidence dumps, technical identifier lists or their selectable copy fields, or the Contributing Trades and activity section/per-Trade rows. It retains concise Account/currency calculations, relevant coverage and unavailable-Net messages, Journal observations, AI interpretation, and saved analysis history. Saved citations use human-readable labels and focused Open current Trade/Journal links through the existing guarded navigation. Saved values remain historical, even if current sources change or disappear.
+
+This is presentation only: complete evidence packets, identifiers, statistics, snapshots, validation and provider input are unchanged. The reported 31-Trade day's **“Complete evidence exceeds the configured input budget”** remains a separate limitation; hiding evidence on screen does not reduce the request or permit truncation. See [current presentation and verification](docs/daily-review.md#simplified-evidence-presentation).
+
+Verification: **322 focused tests** and **3,347 full parallel Release tests passed**, zero failures/skips. Release build: zero warnings/errors; EF model consistency and whitespace checks passed. Automated Light/Dark renders inspected at 960 DIP/96 DPI and 480 DIP/240 DPI, including empty/populated days, saved citations and reachable actions. Live interaction, screen-reader/physical-DPI, provider and matching GitHub CI remain unverified; no real journal was accessed.
+
 **Tradovate Import — bound preview timestamp fix**
 
 Tradovate preview's New York period timestamps now render correctly in the compiled WPF view. The display formatter normalizes offset-bearing instants before applying New York presentation; source timestamps, reconstruction, economics and strict canonical-UTC rules are unchanged. A display binding previously threw `ArgumentException` and was obscured by the generic preview error. Unexpected preview failures now clear confirmation state and show a bounded `TVP-<stage>-<category>` support code without raw exception text, file paths, account identity or CSV contents. Preview remains read-only; only explicit confirmed import can write. See the [reproduction and verification](docs/tradovate-csv-import.md#bound-wpf-preview-failure--2026-10-09). This is an Import correction, not M15.8 acceptance.

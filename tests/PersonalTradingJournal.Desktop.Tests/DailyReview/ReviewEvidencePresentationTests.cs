@@ -7,7 +7,38 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class ReviewEvidencePresentationTests
 {
     [Fact]
-    public void OneSummaryPerAccountCurrencyRetainsCompleteStatisticsAndEverySourceOnDemand()
+    public void ReadableCitationsRetainSavedIdentityAndExactScopeWithoutChangingTheSnapshot()
+    {
+        var evidence = ReviewFixture.Evidence(new(ReviewFixture.Day));
+        var saved = ReviewFixture.Saved(evidence, citeAll: true);
+        var snapshot = ReviewSnapshot.Read(saved);
+        var packet = PersonalTradingJournal.Application.DailyReview.Coaching.CoachingEvidencePacketBuilder.Build(evidence).Packet!;
+        var citations = snapshot.Statements.SelectMany(s => s.Citations).ToArray();
+        Assert.Equal(packet.Content.Sources.Count, citations.Length);
+        Assert.Equal(packet.Json, saved.EvidenceJson);
+        Assert.All(citations, c =>
+        {
+            Assert.StartsWith("Saved", c.Label);
+            Assert.DoesNotContain("calculated:", c.Label);
+            Assert.DoesNotContain("AccountStatistics", c.Label);
+            Assert.DoesNotContain("null", c.Label);
+            foreach (var trade in evidence.Trades) Assert.DoesNotContain(trade.TradeId.ToString(), c.Label);
+        });
+        foreach (var trade in evidence.Trades)
+        {
+            var targets = citations.Where(c => c.Trade?.Id == trade.TradeId).ToArray();
+            Assert.Equal(1 + trade.Executions.Count, targets.Length);
+            Assert.All(targets, c => Assert.Equal(trade.Account.Id, c.Trade!.Source.Account.Id));
+            Assert.Contains(targets, c => c.Label.Contains("Execution"));
+        }
+        Assert.Equal(evidence.Journals.Select(j => (j.JournalId, j.TradingAccountId, j.Revision)).OrderBy(j => j.JournalId),
+            citations.Where(c => c.HasJournal).Select(c => (c.Journal!.Source.JournalId, c.Journal.Source.TradingAccountId, c.Journal.Source.Revision)).OrderBy(j => j.JournalId));
+        Assert.Contains(citations, c => c.Label.Contains("USD summary"));
+        Assert.Contains(citations, c => c.Label.Contains("EUR summary"));
+    }
+
+    [Fact]
+    public void OneSummaryPerAccountCurrencyRetainsCompleteStatisticsAndEverySourceInternally()
     {
         var evidence = ReviewFixture.Evidence(new(ReviewFixture.Day));
         var statistics = DailyReviewStatisticsCalculator.Calculate(evidence);

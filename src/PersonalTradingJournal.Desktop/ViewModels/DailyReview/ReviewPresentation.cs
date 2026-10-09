@@ -14,6 +14,13 @@ public sealed record ReviewAccount(Guid? Id, string Label, bool IsHistorical = f
 public sealed record ReviewText(string Heading, string Text, string? SourceDetails = null)
 {
     public bool HasSourceDetails => SourceDetails is not null;
+    public IReadOnlyList<ReviewCitation> Citations { get; init; } = [];
+}
+
+public sealed record ReviewCitation(string Label, ReviewTradeRow? Trade = null, ReviewJournalRow? Journal = null)
+{
+    public bool HasTrade => Trade is not null;
+    public bool HasJournal => Journal is not null;
 }
 
 public static class ReviewDisplay
@@ -166,7 +173,39 @@ public sealed class ReviewSnapshot
             return $"{source.Id} — {source.Kind}; Account {source.AccountId?.ToString() ?? "aggregate/null scope"}; " +
                 $"currency {source.Currency ?? "not monetary"}; Trade {source.TradeId}; Journal {source.JournalId}; revision {source.Revision}. See saved evidence below.";
         }));
-        ReviewText Statement(string label, CoachingStatement s) => new(label, s.Text, Citations(s.SourceIds));
+        ReviewCitation Citation(string id)
+        {
+            var source = content.Sources.SingleOrDefault(s => s.Id == id)
+                ?? throw new InvalidDataException("A saved citation is unavailable.");
+            if (source.Kind is CoachingSourceKind.Trade or CoachingSourceKind.Execution)
+            {
+                var trade = content.RecordedTradeFacts.SingleOrDefault(t => t.TradeId == source.TradeId)
+                    ?? throw new InvalidDataException("A saved Trade citation is unavailable.");
+                var row = new ReviewTradeRow(trade, CanNavigate: true);
+                string context = source.Kind == CoachingSourceKind.Execution
+                    ? "Execution · " + ReviewDisplay.Time(trade.Executions.Single(e => e.Id == source.ExecutionId).ExecutedAtUtc)
+                    : row.Context;
+                return new($"Saved source: {row.Heading} · {trade.PricingCurrency} · {context}", Trade: row);
+            }
+            if (source.Kind == CoachingSourceKind.Journal)
+            {
+                var journal = content.UntrustedJournalObservations.SingleOrDefault(j => j.JournalId == source.JournalId)
+                    ?? throw new InvalidDataException("A saved Journal citation is unavailable.");
+                var row = new ReviewJournalRow(journal, CanNavigate: true);
+                return new($"Saved Journal: {row.Heading} · revision {source.Revision}", Journal: row);
+            }
+            string scope = source.Kind switch
+            {
+                CoachingSourceKind.DayStatistics => "day summary",
+                CoachingSourceKind.CurrencyStatistics => $"{source.Currency} summary",
+                CoachingSourceKind.AccountStatistics => $"{content.CalculatedFacts.Currencies.SelectMany(c => c.Accounts)
+                    .First(a => a.Account.Id == source.AccountId).Account.Name ?? "Unavailable account"} · {source.Currency}",
+                _ => throw new InvalidDataException("A saved citation kind is unavailable."),
+            };
+            return new($"Saved calculation: {scope} · {content.Query.Date:dd MMM yyyy} · New York");
+        }
+        ReviewText Statement(string label, CoachingStatement s) => new(label, s.Text, Citations(s.SourceIds))
+        { Citations = s.SourceIds.Select(Citation).ToArray() };
         static string Basis(CoachingObservationBasis basis) => basis switch
         {
             CoachingObservationBasis.CalculatedFact => "calculated facts",

@@ -1,5 +1,6 @@
 using PersonalTradingJournal.Desktop.Navigation;
 using PersonalTradingJournal.Desktop.Tests.DailyReview;
+using PersonalTradingJournal.Desktop.ViewModels.DailyReview;
 
 namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
@@ -53,8 +54,10 @@ public sealed partial class MainWindowViewModelTests
         f.Main.NavigateCommand.Execute(NavigationDestination.DailyReview);
         await review.Vm.LoadTask;
         Assert.Same(review.Vm, f.Main.CurrentContentViewModel);
-        Guid sourceId = Guid.NewGuid();
-        await review.Vm.OpenTradeAsync!(sourceId);
+        var citation = ReviewSnapshot.Read(ReviewFixture.Saved(ReviewFixture.Evidence(new(ReviewFixture.Day)), citeAll: true))
+            .Statements.SelectMany(s => s.Citations).First(c => c.HasTrade);
+        Guid sourceId = citation.Trade!.Id;
+        await review.Vm.OpenTradeCommand.ExecuteAsync(citation.Trade);
         Assert.Equal(NavigationDestination.Trades, f.Main.CurrentDestination);
         Assert.True(f.Trades.IsTradeDetailNotFound);
         Assert.True(f.Trades.IsTradeDetailVisible);
@@ -71,7 +74,9 @@ public sealed partial class MainWindowViewModelTests
         var f = CreateFixture(dailyReview: review.Vm);
         f.Main.NavigateCommand.Execute(NavigationDestination.DailyReview);
         await review.Vm.LoadTask;
-        await review.Vm.OpenJournalAsync!(ReviewFixture.Journal(null, "All accounts", ReviewFixture.Day));
+        var journals = ReviewSnapshot.Read(ReviewFixture.Saved(ReviewFixture.Evidence(new(ReviewFixture.Day)), citeAll: true))
+            .Statements.SelectMany(s => s.Citations).Where(c => c.HasJournal).Select(c => c.Journal!).ToArray();
+        await review.Vm.OpenJournalCommand.ExecuteAsync(journals.Single(j => j.Source.TradingAccountId is null));
         Assert.Equal(NavigationDestination.Journal, f.Main.CurrentDestination);
         Assert.Equal(ReviewFixture.Day.ToDateTime(TimeOnly.MinValue), f.Journal.SelectedDate);
         Assert.Null(f.Journal.SelectedAccount.Id);
@@ -81,7 +86,7 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(NavigationDestination.Journal, f.Main.CurrentDestination);
         Assert.Contains("Unsaved journal", f.Journal.Text);
         // Targeting another account also goes through the same editor's unsaved guard.
-        await review.Vm.OpenJournalAsync!(ReviewFixture.Journal(ReviewFixture.AccountId, "P 21", ReviewFixture.Day));
+        await review.Vm.OpenJournalCommand.ExecuteAsync(journals.Single(j => j.Source.TradingAccountId == ReviewFixture.AccountId));
         Assert.Null(f.Journal.SelectedAccount.Id);
         Assert.Contains("Unsaved journal", f.Journal.Text);
         f.Main.Dispose();
