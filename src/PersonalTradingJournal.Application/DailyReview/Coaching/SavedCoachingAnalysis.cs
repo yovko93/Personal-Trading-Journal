@@ -108,9 +108,36 @@ public sealed record CoachingAnalysisHistoryPage(IReadOnlyList<CoachingAnalysisS
 
 public interface ICoachingAnalysisRepository
 {
+    /// <summary>Unavailable exact-account scopes with saved analyses on this date. Names come from
+    /// the newest saved analysis (generation descending, ID ascending), never a same-name Account.</summary>
+    Task<HistoricalCoachingAccountPage> BrowseHistoricalAccountsAsync(HistoricalCoachingAccountQuery query,
+        CancellationToken cancellationToken = default);
     Task<SavedCoachingAnalysis> SaveAsync(CoachingAnalysisSnapshot snapshot, CancellationToken cancellationToken = default);
     Task<SavedCoachingAnalysis?> GetAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CoachingAnalysisHistoryPage> BrowseAsync(CoachingAnalysisHistoryQuery query, CancellationToken cancellationToken = default);
     /// <summary>Permanent deletion of this analysis only. Future UI must obtain confirmation first.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+}
+
+public sealed record HistoricalCoachingAccount(Guid AccountId, string? SavedAccountName);
+
+public sealed record HistoricalCoachingAccountQuery
+{
+    public HistoricalCoachingAccountQuery(DateOnly reviewDate, int page = 1, int pageSize = 25)
+    {
+        if (page < 1 || pageSize is < 1 or > 100 || (long)(page - 1) * pageSize > int.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(page), "Use a positive page and page size 1–100.");
+        ReviewDate = reviewDate; Page = page; PageSize = pageSize;
+    }
+    public DateOnly ReviewDate { get; }
+    public int Page { get; }
+    public int PageSize { get; }
+    public int Offset => (Page - 1) * PageSize;
+}
+
+public sealed record HistoricalCoachingAccountPage(IReadOnlyList<HistoricalCoachingAccount> Items,
+    int TotalCount, int Page, int PageSize)
+{
+    public bool HasPrevious => Page > 1;
+    public bool HasNext => (long)Page * PageSize < TotalCount;
 }

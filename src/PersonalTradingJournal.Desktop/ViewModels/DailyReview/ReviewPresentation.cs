@@ -9,7 +9,7 @@ using PersonalTradingJournal.Desktop.Formatting;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.DailyReview;
 
-public sealed record ReviewAccount(Guid? Id, string Label);
+public sealed record ReviewAccount(Guid? Id, string Label, bool IsHistorical = false);
 public sealed record ReviewText(string Heading, string Text);
 
 public static class ReviewDisplay

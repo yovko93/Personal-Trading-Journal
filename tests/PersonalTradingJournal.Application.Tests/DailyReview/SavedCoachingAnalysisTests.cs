@@ -137,6 +137,7 @@ public sealed class SavedCoachingAnalysisTests
     }
     private sealed class FakeRepository : ICoachingAnalysisRepository
     {
+        public Task<HistoricalCoachingAccountPage> BrowseHistoricalAccountsAsync(HistoricalCoachingAccountQuery query, CancellationToken token) => throw new NotSupportedException();
         public Exception? Failure { get; init; }
         public int Writes { get; private set; }
         public CoachingAnalysisSnapshot? Snapshot { get; private set; }

@@ -107,13 +107,19 @@
                     <DatePicker x:Name="ReviewDate" Width="175" Style="{StaticResource ReviewDateStyle}" SelectedDate="{Binding SelectedDate}" DateValidationError="OnDateValidationError" AutomationProperties.Name="Review date in New York" /></StackPanel>
                 <StackPanel Margin="0,0,12,8"><Label Foreground="{DynamicResource PtjTextPrimaryBrush}" Content="Account" Target="{Binding ElementName=ReviewAccount}" />
                     <ComboBox x:Name="ReviewAccount" Width="240" Style="{DynamicResource PtjComboBoxStyle}" MaxDropDownHeight="320" ItemsSource="{Binding Accounts}" DisplayMemberPath="Label"
-                              SelectedItem="{Binding SelectedAccount}" AutomationProperties.Name="Daily Review Account scope" /></StackPanel>
+                              SelectedItem="{Binding SelectedAccount}" ToolTip="{Binding SelectedAccount.Label}" AutomationProperties.Name="Daily Review Account scope" /></StackPanel>
                 <Button Style="{DynamicResource PtjButtonStyle}" Content="Today" Command="{Binding TodayCommand}" Margin="0,20,8,8" />
                 <Button Style="{DynamicResource PtjButtonStyle}" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,20,8,8" />
                 <Button Style="{DynamicResource PtjButtonStyle}" Content="Cancel loading" Command="{Binding CancelLoadCommand}" Margin="0,20,8,8" />
             </WrapPanel>
             <TextBlock Text="{Binding LoadingText}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />
             <TextBlock Text="{Binding AccountNotice}" Style="{StaticResource Message}" />
+            <TextBlock Text="{Binding HistoricalAccountsLabel}" Style="{StaticResource Message}" />
+            <TextBlock Text="{Binding ScopeError}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />
+            <WrapPanel Visibility="{Binding ShowHistoricalAccountPaging, Converter={StaticResource BoolVisibility}}">
+                <Button Content="Previous historical Accounts" Style="{DynamicResource PtjButtonStyle}" Command="{Binding PreviousHistoricalAccountsCommand}" Margin="0,0,8,8" />
+                <Button Content="Next historical Accounts" Style="{DynamicResource PtjButtonStyle}" Command="{Binding NextHistoricalAccountsCommand}" Margin="0,0,8,8" />
+            </WrapPanel>
             <TextBlock Text="Current daily evidence · calculated facts" Style="{StaticResource Heading}" />
             <TextBlock Style="{StaticResource ReviewBody}" Text="Fully closed Trades use their New York closure date. Net totals require known commissions and fees for every included Trade; estimates are not substituted." />
             <TextBlock Text="{Binding CurrentError}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />

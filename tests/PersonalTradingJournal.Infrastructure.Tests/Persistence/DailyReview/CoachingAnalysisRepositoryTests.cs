@@ -19,6 +19,60 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.DailyReview;
 
 public sealed class CoachingAnalysisRepositoryTests
 {
+    [Fact]
+    public async Task HistoricalDiscoveryPagesDistinctMissingIdentitiesByDateWithoutReadingSnapshots()
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync();
+        var repository = Repository(db);
+        var live = new TradingAccount("Live inactive", TradingAccountType.Personal, null, null, "USD", 0m, Now);
+        live.Deactivate(Now.AddHours(1));
+        await db.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(live);
+        await repository.SaveAsync(Snapshot(EmptyPacket(live.Id)));
+        await repository.SaveAsync(Snapshot(EmptyPacket()));
+        await repository.SaveAsync(Snapshot(EmptyPacket(Guid.NewGuid(), Day.AddDays(-1))));
+        var ids = Enumerable.Range(0, 27).Select(_ => Guid.NewGuid()).OrderBy(id => id.ToString(), StringComparer.Ordinal).ToArray();
+        foreach (var id in ids) await repository.SaveAsync(Snapshot(EmptyPacket(id)));
+        var journals = db.ServiceProvider.GetRequiredService<IDailyJournalRepository>();
+        var named = new TradingAccount("Saved original", TradingAccountType.Personal, null, null, "USD", 0m, Now);
+        await db.ServiceProvider.GetRequiredService<ITradingAccountStore>().AddAsync(named);
+        var journal = (await journals.CreateAsync(new(Day, named.Id, "Named source"))).Journal!.Entry;
+        var packet = CoachingEvidencePacketBuilder.Build(await db.ServiceProvider.GetRequiredService<IDailyReviewEvidenceReader>()
+            .GetAsync(new(Day, named.Id))).Packet!;
+        await repository.SaveAsync(Snapshot(packet, Now.AddMinutes(1)));
+        await repository.SaveAsync(Snapshot(EmptyPacket(named.Id), Now)); // Older missing name must not win.
+        await journals.DeleteAsync(new(journal.Id, journal.Revision));
+        await using (var context = await db.ContextFactory.CreateDbContextAsync())
+            await context.TradingAccounts.Where(a => a.Id == named.Id).ExecuteDeleteAsync();
+
+        var commands = new ReadCommands();
+        var readOnly = new CoachingAnalysisRepository(await Factory.Create(db, commands, readOnly: true));
+        var first = await readOnly.BrowseHistoricalAccountsAsync(new(Day));
+        var second = await readOnly.BrowseHistoricalAccountsAsync(new(Day, 2));
+        Assert.Equal(28, first.TotalCount);
+        Assert.Equal(25, first.Items.Count);
+        Assert.True(first.HasNext);
+        Assert.Equal(3, second.Items.Count);
+        Assert.True(second.HasPrevious);
+        Assert.False(second.HasNext);
+        var all = first.Items.Concat(second.Items).ToArray();
+        Assert.Equal(ids.Append(named.Id).OrderBy(id => id.ToString(), StringComparer.Ordinal), all.Select(a => a.AccountId));
+        Assert.Equal("Saved original", all.Single(a => a.AccountId == named.Id).SavedAccountName);
+        Assert.All(all.Where(a => a.AccountId != named.Id), a => Assert.Null(a.SavedAccountName));
+        Assert.Equal(4, commands.Sql.Count); // Count + bounded scalar projection per page.
+        Assert.All(commands.Sql, sql =>
+        {
+            Assert.StartsWith("SELECT", sql.TrimStart(), StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("EvidenceJson", sql);
+            Assert.DoesNotContain("ResponseJson", sql);
+            Assert.DoesNotContain("MetadataJson", sql);
+        });
+        Assert.Empty((await readOnly.BrowseHistoricalAccountsAsync(new(Day.AddDays(1)))).Items);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            readOnly.BrowseHistoricalAccountsAsync(new(Day), new CancellationToken(true)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalCoachingAccountQuery(Day, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new HistoricalCoachingAccountQuery(Day, 1, 101));
+    }
+
     private static readonly DateOnly Day = new(2026, 10, 8);
     private static readonly DateTimeOffset Now = new(2026, 10, 8, 20, 0, 0, TimeSpan.Zero);
     private static CoachingAnalysisSnapshot Snapshot(CoachingEvidencePacket packet, DateTimeOffset? time = null) =>

@@ -21,18 +21,21 @@ public sealed class DailyReviewViewTests
     {
         if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
         var f = new ReviewFixture();
+        var historicalId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        f.History.ScopeHandler = (q, _) => Task.FromResult(new PersonalTradingJournal.Application.DailyReview.Coaching.HistoricalCoachingAccountPage(
+            [new(historicalId, "P 21 saved name")], 26, q.Page, q.PageSize));
         f.Reader.Handler = (q, _) => Task.FromResult(ReviewFixture.Evidence(q));
         f.History.Items.Add(ReviewFixture.Saved(ReviewFixture.Evidence(new(ReviewFixture.Day))));
         await f.Vm.ActivateAsync();
         await f.Vm.OpenAnalysisCommand.ExecuteAsync(f.Vm.Analyses.Single());
         await CalendarStaTest.RunAsync(() =>
         {
-            _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
             {
                 using var phase = CalendarStaTest.Phase($"Daily Review {theme} {width} DIP / {dpi} DPI");
                 var resources = CalendarViewLayoutTests.SharedThemeResources(theme);
-                System.Windows.Application.Current.Resources = resources;
+                app.Resources = resources;
                 var view = new DailyReviewView { DataContext = f.Vm };
                 var root = new Border { Resources = resources, Child = view };
                 root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
@@ -43,6 +46,11 @@ public sealed class DailyReviewViewTests
                 var account = (ComboBox)view.FindName("ReviewAccount");
                 Assert.Equal(f.Vm.SelectedDate, date.SelectedDate);
                 Assert.Equal(f.Vm.SelectedAccount, account.SelectedItem);
+                var historical = Assert.Single(account.Items.Cast<PersonalTradingJournal.Desktop.ViewModels.DailyReview.ReviewAccount>(), a => a.Id == historicalId);
+                Assert.Contains("P 21 saved name", historical.Label);
+                Assert.Contains(historicalId.ToString(), historical.Label);
+                Assert.Contains("historical / unavailable", historical.Label);
+                Assert.Equal(f.Vm.SelectedAccount.Label, account.ToolTip);
                 Assert.Contains("New York", AutomationProperties.GetName(date));
                 Assert.True(account.Focusable && date.Focusable);
                 Assert.True(scroll.ScrollableHeight > 0);
@@ -50,6 +58,7 @@ public sealed class DailyReviewViewTests
                 var buttons = Descendants(view).OfType<Button>().Where(b => b.Visibility == Visibility.Visible && b.Content is string && b.Command is not null).ToArray();
                 Assert.Contains(buttons, b => Equals(b.Content, "Open saved analysis") && b.IsEnabled);
                 Assert.Contains(buttons, b => Equals(b.Content, "Delete analysis") && b.IsEnabled);
+                Assert.Contains(buttons, b => Equals(b.Content, "Next historical Accounts") && b.IsEnabled);
                 Assert.DoesNotContain(buttons, b => b.Content.ToString()!.Contains("Generate", StringComparison.OrdinalIgnoreCase));
                 Assert.All(buttons, b =>
                 {
@@ -84,7 +93,63 @@ public sealed class DailyReviewViewTests
                 Assert.Single(Descendants(view).OfType<ScrollViewer>(), s => s.ScrollableHeight > 0);
                 root.Child = null;
             }
-        });
+        }, shutdownDispatcher: false);
+    }
+
+    [Fact]
+    public async Task CompiledSelectorOpensHistoricalIdentityAndKeepsFullLabelReadableInBothThemes()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        var f = new ReviewFixture();
+        f.Accounts.Items = [];
+        f.History.ScopeHandler = (q, _) => Task.FromResult(new PersonalTradingJournal.Application.DailyReview.Coaching.HistoricalCoachingAccountPage(
+            [new(ReviewFixture.AccountId, "P 21")], 1, q.Page, q.PageSize));
+        f.History.Items.Add(ReviewFixture.Saved(new(new(ReviewFixture.Day, ReviewFixture.AccountId), [],
+            [ReviewFixture.Journal(ReviewFixture.AccountId, "P 21", ReviewFixture.Day)])));
+        await f.Vm.ActivateAsync();
+        static Task OnUi(Action action) => CalendarStaTest.RunAsync(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+            action();
+        }, shutdownDispatcher: false);
+        foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+        {
+            DailyReviewView view = null!;
+            Border root = null!;
+            await OnUi(() =>
+            {
+                var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                app.Resources = resources;
+                view = new DailyReviewView { DataContext = f.Vm };
+                root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var account = (ComboBox)view.FindName("ReviewAccount");
+                account.SetCurrentValue(ComboBox.SelectedItemProperty, f.Vm.Accounts.Single(a => a.Id == ReviewFixture.AccountId));
+            });
+            await f.Vm.LoadTask;
+            Task open = Task.CompletedTask;
+            await OnUi(() => open = f.Vm.OpenAnalysisCommand.ExecuteAsync(f.Vm.Analyses.Single()));
+            await open;
+            await OnUi(() =>
+            {
+                Flush(); root.UpdateLayout();
+                Assert.Equal(ReviewFixture.AccountId, f.Vm.SelectedAccount.Id);
+                Assert.Empty(f.Vm.Current!.Journals);
+                Assert.Equal("P 21", Assert.Single(f.Vm.Snapshot!.Evidence.Journals).Source.AccountName);
+                var account = (ComboBox)view.FindName("ReviewAccount");
+                Assert.Contains(ReviewFixture.AccountId.ToString(), account.ToolTip.ToString());
+                var notice = Assert.Single(Descendants(view).OfType<TextBlock>(), t => t.Text == f.Vm.AccountNotice);
+                Assert.True(notice.ActualWidth <= width);
+                Assert.Equal(TextWrapping.Wrap, notice.TextWrapping);
+                Assert.Contains("historical / unavailable", notice.Text);
+                Assert.Equal(0, ((ScrollViewer)view.FindName("ReviewScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "historical");
+                root.Child = null;
+            });
+        }
+        await OnUi(f.Vm.Deactivate);
     }
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);

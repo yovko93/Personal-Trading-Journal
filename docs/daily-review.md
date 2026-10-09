@@ -8,7 +8,7 @@ The Daily Review menu now opens a read-only local workspace, initially **today i
 
 - Current evidence uses `IDailyReviewEvidenceReader` and `DailyReviewStatisticsCalculator` unchanged. Fully closed Trades use their New York closure day; cross-midnight Trades are not split, and DST uses the established boundaries. Open/partial and unavailable-lifecycle activity are separately counted as excluded context.
 - Currency-level and per-account rows show closed count, Gross, strict Net, known Gross wins/losses/break-even, cost completeness and contributing IDs. Total/coverage use M15.2 populations; no partial subtotal is presented as a total, no Gross-as-Net estimate is substituted, and no currency conversion or cross-currency money total exists. Display rounds amounts to two decimals only; complete Trade facts and saved evidence retain the exact decimal values.
-- All accounts current evidence includes each account's records plus the distinct null-scoped Journal. Exact account selection retains only its records. Inactive accounts remain selectable. A selected account that disappears remains explicitly unavailable, never silently changes to All accounts, and can still read its saved history. The selector lists current persisted accounts (including inactive) and retains an unavailable current selection; discovery of already-deleted account scopes after restarting is not yet a separate history-browser feature.
+- All accounts current evidence includes each account's records plus the distinct null-scoped Journal. Exact account selection retains only its records. Inactive accounts remain selectable. A selected account that disappears remains explicitly unavailable, never silently changes to All accounts, and can still read its saved history. The selector also discovers historical/deleted Account identities with analyses on the selected date, including after restart; see the follow-up below.
 - Current Trade and Journal sections keep IDs, original Account, timestamps, Journal state/revision, exact text and answers. No Journal entry is distinct from an existing empty field. Trade detail navigation reads the chosen ID independently of list paging. Journal navigation uses the exact date/account with the existing unsaved-editor guard. These actions say **Open current**; saved sources have no misleading live-source navigation button.
 - History is ten analyses per page, filtered by date and **analysis scope**, ordered by stored generation UTC descending then ID. All accounts history contains aggregate analyses only, not a relabeled mixture of exact-account analyses. Page changes do not change current date/account evidence. A page emptied by deletion is reconciled to the last valid page.
 - Opening a row loads its saved record once, not once per cited source. The version-aware Desktop decoder renders stored statistics, Trades, Journal content, response sections and citation catalog without rebuilding calculations or querying today's sources. A complete saved-evidence expander retains execution details, source identifiers and missing-data markers. Unsupported/damaged snapshots show an actionable error rather than substitute current data. Citation membership/labels do not prove the AI's wording correct.
@@ -23,6 +23,44 @@ A single vertical scroller contains wrapping cards, focusable date/account contr
 
 Automated synthetic renders and isolated SQLite/VM tests are distinct from live interaction. Remaining manual checks: in a disposable data directory, use mouse and Tab/Enter/Alt+Down to select dates/accounts, scroll/expand all saved evidence, open current sources and decline a dirty Journal navigation prompt, confirm/cancel one-analysis deletion, and check actual monitor scaling/screen-reader announcements in both themes. No live UI or GitHub Actions acceptance is implied by local tests; a run must include the user's eventual commit of these changes. No real journal or paid API was used.
 
+### Historical Account scope discovery
+
+The original selector loaded only persisted Accounts and could retain an unavailable selection only in memory. After restart, a deleted ID was missing from the selector; All accounts history intentionally selects aggregate analyses only, so it could not reveal that exact-account history. The snapshot itself remained readable in persistence.
+
+For the selected New York review date, the Account selector now includes **saved name · original Account ID (historical / unavailable)** options. Choose that option, then Open saved analysis. Names come from that scope's newest saved analysis (generation UTC descending, analysis ID ascending on ties); absent saved names are explicitly “Name not supplied”. A same-name replacement has its own ID and does not inherit history. Inactive persisted Accounts continue to use the ordinary selector entry.
+
+`BrowseHistoricalAccountsAsync(HistoricalCoachingAccountQuery)` performs a count and bounded scalar page in one read transaction: exact-account analyses on that review date whose original Account ID is absent from Accounts, grouped by ID, sorted by ID ascending. Default 25 scopes per page, valid size 1–100. Evidence, response and metadata JSON are not read. The existing date/scope/account index is reused; no migration or snapshot mutation is needed. Previous/Next historical Accounts browse these pages independently of the ten-row analysis history and retain a selected historical ID even if it is outside the discovery page.
+
+Date changes reset discovery to page one; Refresh and committed-data reloads rediscover scopes. Cancellation and separate generation checks reject stale discovery pages. Discovery and current-evidence failures have independent recovery messages: a current Trade/Journal read failure cannot hide saved Account options. Unavailable current scopes keep their original ID and show empty/error current evidence as appropriate while snapshots remain accessible. No Account is recreated, no source is retargeted, and no provider call is made.
+
+Follow-up verification and remaining manual checks are recorded below. In an isolated app, select a deleted scope by date with keyboard/mouse, open its snapshot, and distinguish it from a same-name replacement and aggregate analysis. Check actual monitor scaling and screen-reader reading of the full label. Local automated verification does not establish live interaction or GitHub Actions acceptance.
+
+Follow-up verification (2026-10-09):
+
+- Branch `develop`, unchanged HEAD `46be768d41e04e162d1c6958aece124670999ab3`; initial worktree clean, final 12 modified tracked files. No commit/push/merge or real-journal access.
+- Focused DailyReview Release: **208 passed**, zero failures/skips — Domain 13, Application 116, Infrastructure 52, Desktop 27.
+- Complete parallel Release: **3,208 passed**, zero failures/skips — Domain 454, Application 645, Infrastructure 859, Desktop 1,250 (2 m 54 s). Existing test isolation/deadlines retained.
+- Release build: zero warnings/errors; EF model consistency: no pending changes; `git diff --check` passed.
+- Isolated migrated SQLite regression saves original exact and aggregate snapshots, deletes the source Journal/Account, creates a same-name replacement, disposes/recreates services and a fresh workspace, selects the historical option and opens its original snapshot. Exact, replacement and aggregate histories remain separate.
+- Additional coverage: 28 unavailable scopes paged 25/3, duplicate analyses per scope, latest saved name, live/inactive exclusion, read-only count/page queries without JSON, cancellation, date changes, late discovery, paging without losing selected snapshot, discovery errors and current-evidence failures.
+- Compiled WPF ComboBox selection opens the correct snapshot; full unavailable labels wrap and history paging buttons stay reachable. Light/Dark automated PNGs inspected at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**. These are automated renders, not live mouse/keyboard or actual-monitor verification.
+- During test development, the new selection test exposed a missing dispatcher synchronization context in its test setup; the test now uses the existing shared STA host with a WPF synchronization context and awaits commands outside its action. No production dispatcher behavior, assertion, deadline or retry policy was changed.
+- Evidence: ignored `artifacts/m156-scopes/`, `artifacts/m156-scopes-*.log`. Live UI/assistive technology and GitHub Actions on the eventual user commit remain unverified.
+
+Follow-up changed files:
+
+- `README.md`, `docs/daily-review.md`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/SavedCoachingAnalysis.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingAnalysisRepository.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/SavedCoachingAnalysisTests.cs` (repository fake contract)
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/CoachingAnalysisRepositoryTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+
 ### M15.6 verification
 
 Baseline and final HEAD: `4d80b975e32cec51cdf38da4b139f063e0f3a38b`, branch `develop`. The initial worktree was clean. No commit, push, merge, schema or economics changes were made.
@@ -32,7 +70,7 @@ Baseline and final HEAD: `4d80b975e32cec51cdf38da4b139f063e0f3a38b`, branch `dev
 - Release build: **0 warnings, 0 errors**. EF: **no pending model changes**. `git diff --check` and new-file whitespace checks passed (Git's LF-to-CRLF notices are not whitespace errors).
 - Automated WPF: compiled bindings, shared foreground brushes (including template/expander content), wrapping, control reachability, snapshot separation and end-of-page scrolling passed. Synthetic current/history/snapshot PNGs were generated in both themes at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**; representative current/history/snapshot renders were visually inspected across both themes/sizes. The initial renders exposed default black/unwrapped template text; explicit shared styles fixed it and assertions now guard it. These are RenderTargetBitmap layouts, not live mouse/keyboard or real-monitor DPI acceptance.
 - Early focused runs caught the new callback cleanup being placed in the wrong lifecycle method and a test incorrectly requiring a native DatePicker template button to be independently focusable. Cleanup is now in Dispose; keyboard assertions target actual workspace commands, with DatePicker/Account focusability checked separately. Final focused/full runs are green.
-- Logs/TRX/PNG evidence remains in ignored `artifacts/m156/` and `artifacts/m156-*.log`. No GitHub Actions run can cover these uncommitted changes; CI must test the user's eventual commit/push. Live UI, real monitor scaling, assistive technology and already-deleted-account scope discovery after restart remain outside verified acceptance. Existing selected unavailable accounts retain exact scope and readable history; a dedicated orphan-scope browser was not added.
+- Original logs/TRX/PNG evidence remains in ignored `artifacts/m156/` and `artifacts/m156-*.log`. The original restart-discovery limitation is resolved by the follow-up above. Live UI, real monitor scaling and assistive technology remain separate from automated tests; CI must test the user's eventual commit/push.
 
 Changed files (7 existing, 8 new):
 

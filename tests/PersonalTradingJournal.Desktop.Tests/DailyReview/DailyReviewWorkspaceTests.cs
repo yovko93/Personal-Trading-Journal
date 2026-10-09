@@ -12,6 +12,77 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 
 public sealed class DailyReviewWorkspaceTests
 {
+    [Fact]
+    public async Task HistoricalPagesAreBoundedPreserveSelectedScopeAndRemainAvailableWhenCurrentEvidenceFails()
+    {
+        var f = new ReviewFixture();
+        var ids = Enumerable.Range(0, 26).Select(_ => Guid.NewGuid()).ToArray();
+        var queries = new List<HistoricalCoachingAccountQuery>();
+        f.History.ScopeHandler = (q, _) =>
+        {
+            lock (queries) queries.Add(q);
+            return Task.FromResult(new HistoricalCoachingAccountPage(
+                ids.Skip(q.Offset).Take(q.PageSize).Select(id => new HistoricalCoachingAccount(id, "P 21")).ToArray(),
+                ids.Length, q.Page, q.PageSize));
+        };
+        f.Reader.Handler = (_, _) => throw new IOException("Current source failure");
+        var saved = ReviewFixture.Saved(new(new(ReviewFixture.Day, ids[0]), [], []));
+        f.History.Items.Add(saved);
+        await f.Vm.ActivateAsync();
+        Assert.Contains("Current evidence could not", f.Vm.CurrentError);
+        Assert.Null(f.Vm.ScopeError);
+        Assert.True(f.Vm.ShowHistoricalAccountPaging);
+        Assert.Equal(25, f.Vm.Accounts.Count(a => a.IsHistorical));
+        f.Vm.SelectedAccount = f.Vm.Accounts.Single(a => a.Id == ids[0]);
+        await f.Vm.LoadTask;
+        await f.Vm.OpenAnalysisCommand.ExecuteAsync(f.Vm.Analyses.Single());
+        var snapshot = f.Vm.Snapshot;
+        await f.Vm.NextHistoricalAccountsCommand.ExecuteAsync(null);
+        Assert.Same(snapshot, f.Vm.Snapshot); // Discovery paging does not replace the open history/current selection.
+        Assert.Equal(ids[0], f.Vm.SelectedAccount.Id);
+        Assert.Contains(f.Vm.Accounts, a => a.Id == ids[25]);
+        Assert.Equal(2, f.Vm.Accounts.Count(a => a.IsHistorical)); // Page + retained selected ID.
+        Assert.False(f.Vm.NextHistoricalAccountsCommand.CanExecute(null));
+        Assert.True(f.Vm.PreviousHistoricalAccountsCommand.CanExecute(null));
+        Assert.All(queries, q => Assert.Equal(25, q.PageSize));
+        f.Vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task LateDiscoveryCannotReplaceNewDateAndErrorsAreRecoverableWithoutChangingScope()
+    {
+        var f = new ReviewFixture();
+        var started = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var pending = new TaskCompletionSource<HistoricalCoachingAccountPage>(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.History.ScopeHandler = (q, token) =>
+        {
+            if (q.ReviewDate == ReviewFixture.Day) { started.TrySetResult(token); return pending.Task; }
+            return Task.FromResult(new HistoricalCoachingAccountPage([new(ReviewFixture.OtherId, "Correct date")], 1, 1, 25));
+        };
+        var first = f.Vm.ActivateAsync();
+        var cancelled = await started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        f.Vm.SelectedDate = ReviewFixture.Day.AddDays(1).ToDateTime(TimeOnly.MinValue);
+        await f.Vm.LoadTask;
+        Assert.True(cancelled.IsCancellationRequested);
+        pending.SetResult(new([new(Guid.NewGuid(), "Stale date")], 1, 1, 25));
+        await first;
+        Assert.DoesNotContain(f.Vm.Accounts, a => a.Label.Contains("Stale date"));
+        var selected = f.Vm.Accounts.Single(a => a.Id == ReviewFixture.OtherId);
+        f.Vm.SelectedAccount = selected;
+        await f.Vm.LoadTask;
+        f.History.ScopeHandler = (_, _) => throw new IOException("private diagnostics");
+        await f.Vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Contains("Refresh to retry", f.Vm.ScopeError);
+        Assert.DoesNotContain("private", f.Vm.ScopeError);
+        Assert.Equal(selected.Id, f.Vm.SelectedAccount.Id);
+        f.History.ScopeHandler = (q, _) => Task.FromResult(new HistoricalCoachingAccountPage([], 0, q.Page, q.PageSize));
+        await f.Vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.ScopeError);
+        Assert.Equal(selected.Id, f.Vm.SelectedAccount.Id);
+        Assert.Contains("unavailable", f.Vm.AccountNotice);
+        f.Vm.Deactivate();
+    }
+
     [Theory]
     [InlineData("2026-03-08T04:59:00Z", "2026-03-07")]
     [InlineData("2026-03-08T07:00:00Z", "2026-03-08")]
@@ -328,6 +399,9 @@ internal sealed class ReviewFixture
     }
     internal sealed class HistoryFake : ICoachingAnalysisRepository
     {
+        internal Func<HistoricalCoachingAccountQuery, CancellationToken, Task<HistoricalCoachingAccountPage>>? ScopeHandler;
+        public Task<HistoricalCoachingAccountPage> BrowseHistoricalAccountsAsync(HistoricalCoachingAccountQuery query, CancellationToken token = default) =>
+            ScopeHandler?.Invoke(query, token) ?? Task.FromResult(new HistoricalCoachingAccountPage([], 0, query.Page, query.PageSize));
         internal List<SavedCoachingAnalysis> Items { get; } = [];
         internal List<CoachingAnalysisHistoryQuery> Queries { get; } = [];
         internal int Writes, Deletes;

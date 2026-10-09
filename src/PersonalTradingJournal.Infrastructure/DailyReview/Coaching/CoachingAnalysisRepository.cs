@@ -9,6 +9,27 @@ namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
 public sealed class CoachingAnalysisRepository(IDbContextFactory<JournalDbContext> factory) : ICoachingAnalysisRepository
 {
+    public async Task<HistoricalCoachingAccountPage> BrowseHistoricalAccountsAsync(HistoricalCoachingAccountQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
+        await using var enlisted = await db.Database.UseTransactionAsync(transaction, cancellationToken);
+        // Use the existing date/scope/account index and Account PK. Only bounded identity/name
+        // projections leave SQLite; evidence, response and metadata JSON are never loaded here.
+        var groups = db.CoachingAnalyses.AsNoTracking().Where(r => r.ReviewDate == query.ReviewDate &&
+            r.ScopeKind == (int)CoachingAnalysisScopeKind.ExactAccount && r.AccountId != null &&
+            !db.TradingAccounts.Any(a => a.Id == r.AccountId)).GroupBy(r => r.AccountId);
+        int total = await groups.CountAsync(cancellationToken);
+        var items = await groups.OrderBy(g => g.Key).Skip(query.Offset).Take(query.PageSize)
+            .Select(g => new HistoricalCoachingAccount(g.Key!.Value,
+                g.OrderByDescending(r => r.GeneratedAtUtc).ThenBy(r => r.Id).Select(r => r.AccountDisplayName).FirstOrDefault()))
+            .ToArrayAsync(cancellationToken);
+        return new(Array.AsReadOnly(items), total, query.Page, query.PageSize);
+    }
+
     public async Task<SavedCoachingAnalysis> SaveAsync(CoachingAnalysisSnapshot snapshot, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
