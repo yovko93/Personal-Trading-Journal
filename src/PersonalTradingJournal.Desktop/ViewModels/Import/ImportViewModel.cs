@@ -512,6 +512,7 @@ public sealed partial class ImportViewModel : ObservableObject
         ClearImportResult();
         WorkflowErrorMessage = null;
         Phase = ImportWorkflowPhase.PreparingPreview;
+        string diagnosticStage = "INSTRUMENTS";
         try
         {
             TradovateInstrumentResolutionResult resolution =
@@ -525,6 +526,7 @@ public sealed partial class ImportViewModel : ObservableObject
             }
 
             _instrumentResolution = resolution;
+            diagnosticStage = "ANALYSIS-DISPLAY";
             RefreshAnalysisPresentation(resolution);
             if (!resolution.IsReadyForPreview)
             {
@@ -535,6 +537,7 @@ public sealed partial class ImportViewModel : ObservableObject
                 return;
             }
 
+            diagnosticStage = "ACCOUNT-PREPARATION";
             TradovateImportPreparationResult preparation =
                 await _preparationService.PrepareAsync(
                     _reconstruction!,
@@ -549,16 +552,21 @@ public sealed partial class ImportViewModel : ObservableObject
                 return;
             }
 
+            diagnosticStage = "PROJECTION";
             TradovateImportPreview preview = _previewBuilder.Build(
                 SelectedFileName!,
                 _parseResult!,
                 _reconstruction!,
                 preparation);
-            _preview = preview;
+            var instruments = preview.Instruments.Select(ToInstrumentItem).ToArray();
+            var trades = preview.Trades.Select(ToTradeItem).ToArray();
+            var diagnostics = preview.Diagnostics.Select(ToDiagnosticItem).ToArray();
+            diagnosticStage = "PREVIEW-DISPLAY";
             PreviewSummary = preview.Summary;
-            Instruments = preview.Instruments.Select(ToInstrumentItem).ToArray();
-            Trades = preview.Trades.Select(ToTradeItem).ToArray();
-            Diagnostics = preview.Diagnostics.Select(ToDiagnosticItem).ToArray();
+            Instruments = instruments;
+            Trades = trades;
+            Diagnostics = diagnostics;
+            _preview = preview;
             Phase = preview.IsReadyForConfirmation
                 ? ImportWorkflowPhase.PreviewReady
                 : preparation.Status == TradovateImportPreparationStatus.RequiresUserInput
@@ -572,11 +580,25 @@ public sealed partial class ImportViewModel : ObservableObject
                 Phase = ImportWorkflowPhase.FileAnalyzed;
             }
         }
-        catch
+        catch (Exception exception)
         {
-            if (version == _workflowVersion)
+            if (version == _workflowVersion && previewVersion == _previewVersion &&
+                SelectedAccount?.Id == accountId)
             {
-                WorkflowErrorMessage = "The import preview could not be built.";
+                InvalidatePreview();
+                // Bounded, allowlisted code only: never expose exception messages, source data,
+                // paths or account identity. WPF bindings can throw synchronously during publication.
+                string category = exception switch
+                {
+                    ArgumentException => "ARGUMENT",
+                    OverflowException => "OVERFLOW",
+                    System.Data.Common.DbException => "DATABASE",
+                    System.IO.IOException => "IO",
+                    InvalidOperationException => "STATE",
+                    _ => "UNEXPECTED",
+                };
+                WorkflowErrorMessage = "The import preview could not be built. No data was imported. " +
+                    $"Report diagnostic TVP-{diagnosticStage}-{category} when requesting help.";
                 Phase = ImportWorkflowPhase.Failed;
             }
         }

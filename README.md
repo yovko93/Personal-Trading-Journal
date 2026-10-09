@@ -6,6 +6,12 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Tradovate Import — bound preview timestamp fix**
+
+Tradovate preview's New York period timestamps now render correctly in the compiled WPF view. The display formatter normalizes offset-bearing instants before applying New York presentation; source timestamps, reconstruction, economics and strict canonical-UTC rules are unchanged. A display binding previously threw `ArgumentException` and was obscured by the generic preview error. Unexpected preview failures now clear confirmation state and show a bounded `TVP-<stage>-<category>` support code without raw exception text, file paths, account identity or CSV contents. Preview remains read-only; only explicit confirmed import can write. See the [reproduction and verification](docs/tradovate-csv-import.md#bound-wpf-preview-failure--2026-10-09). This is an Import correction, not M15.8 acceptance.
+
+Verification: **567 focused Import/timestamp tests passed**, the final strengthened bound-WPF regression passed, and **3,345 full parallel Release tests passed**, zero failures/skips. Release build: zero warnings/errors; EF model consistency and tracked/new-file whitespace checks passed. The supplied 342-row file reaches a valid 99-Trade preview in an isolated bound WPF window without importing. Automated Light/Dark regression coverage is not manual UI or GitHub Actions acceptance; the real journal was not accessed.
+
 **M15.7 follow-up — concise Daily Review evidence**
 
 The default evidence view now shows one summary per Account and currency: closed Trade count, Gross, complete Net or **Unavailable**, and Gross-based win/loss/break-even counts. Missing-cost explanations appear only where needed; zero-only coverage commentary and inapplicable currency warnings are hidden. The contributing Trade list starts collapsed, with compact instrument/direction/New York closure/Gross/Net rows and Open Trade navigation when expanded. Copyable, read-only **Source details** retain every Trade/execution fact, Journal revision, ID, coverage set, currency aggregate and saved citation. Account calculation details have scope-specific labels; complete day provenance has a separate purpose. Generate disclosure and safeguards are unchanged. This is a presentation refinement, **not the start of M15.8 acceptance**; see [evidence presentation notes](docs/daily-review.md#concise-evidence-and-source-details).

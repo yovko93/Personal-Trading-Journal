@@ -19,5 +19,7 @@ public static class TradingTimestampFormatter
     }
 
     public static string FormatNewYork(DateTimeOffset timestamp, string clockFormat, CultureInfo culture) =>
-        Format(TradingTimePolicy.ConvertUtcToTradingTime(timestamp), clockFormat, culture);
+        // Display bindings accept both canonical UTC and already-projected offsets (e.g. Import).
+        // Normalize the instant, not its wall clock; the Application UTC-only contract stays strict.
+        Format(TradingTimePolicy.ConvertUtcToTradingTime(timestamp.ToUniversalTime()), clockFormat, culture);
 }

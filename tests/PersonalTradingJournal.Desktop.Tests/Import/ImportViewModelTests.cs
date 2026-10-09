@@ -15,6 +15,39 @@ namespace PersonalTradingJournal.Desktop.Tests.Import;
 public sealed class ImportViewModelTests
 {
     [Theory]
+    [InlineData("INSTRUMENTS", "DATABASE")]
+    [InlineData("ACCOUNT-PREPARATION", "STATE")]
+    [InlineData("PREVIEW-DISPLAY", "ARGUMENT")]
+    public async Task UnexpectedPreviewFailureHasBoundedSafeStageCodeAndCannotBeConfirmed(string stage, string category)
+    {
+        const string sensitive = "private CSV contents; C:\\private\\source.csv; account-secret";
+        Fixture fixture = CreateFixture(
+            instrumentPreviewException: stage == "INSTRUMENTS" ? new Microsoft.Data.Sqlite.SqliteException(sensitive, 1) : null,
+            accountPreparationException: stage == "ACCOUNT-PREPARATION" ? new InvalidOperationException(sensitive) : null);
+        var vm = fixture.ViewModel;
+        await vm.EnsureLoadedAsync();
+        await vm.SelectCsvCommand.ExecuteAsync(null);
+        vm.SelectedAccount = Assert.Single(vm.Accounts);
+        vm.PropertyChanged += (_, args) =>
+        {
+            if (stage == "PREVIEW-DISPLAY" && args.PropertyName == nameof(vm.PreviewSummary) && vm.PreviewSummary is not null)
+                throw new ArgumentException(sensitive);
+        };
+        await vm.BuildPreviewCommand.ExecuteAsync(null);
+        Assert.Equal(ImportWorkflowPhase.Failed, vm.Phase);
+        Assert.Contains($"TVP-{stage}-{category}", vm.WorkflowErrorMessage);
+        Assert.DoesNotContain(sensitive, vm.WorkflowErrorMessage);
+        Assert.Contains("No data was imported", vm.WorkflowErrorMessage);
+        Assert.Null(vm.PreviewSummary);
+        Assert.Empty(vm.Trades);
+        Assert.False(vm.HasPreview);
+        Assert.False(vm.ConfirmImportCommand.CanExecute(null));
+        await vm.ConfirmImportCommand.ExecuteAsync(null);
+        Assert.Equal(0, fixture.ImportStore.CallCount);
+        Assert.Null(fixture.Dialog.ConfirmationRequest);
+    }
+
+    [Theory]
     [InlineData(9, "UTC-4")]
     [InlineData(12, "UTC-5")]
     public async Task TradovateCandidateTimesLabelActualOffsetWithoutChangingPreview(int month, string offset)
@@ -632,7 +665,9 @@ public sealed class ImportViewModelTests
         bool invalidCsv = false,
         bool useExistingInstrument = false,
         bool isInstrumentActive = true,
-        bool instrumentAppearsOnPreview = false)
+        bool instrumentAppearsOnPreview = false,
+        Exception? instrumentPreviewException = null,
+        Exception? accountPreparationException = null)
     {
         Guid accountId = Guid.NewGuid();
         var accountReader = new FakeTradingAccountReader();
@@ -663,6 +698,7 @@ public sealed class ImportViewModelTests
                 DateTimeOffset.Parse("2026-01-01T00:00:00Z"),
                 DateTimeOffset.Parse("2026-01-01T00:00:00Z"))
             : null;
+        if (accountPreparationException is not null) accountReader.EnqueueDetailException(accountPreparationException);
         for (int index = 0; index < 5; index++)
         {
             accountReader.EnqueueDetailResult(accountDetails);
@@ -687,6 +723,7 @@ public sealed class ImportViewModelTests
                 ? [existingInstrument]
                 : [];
         instrumentReader.EnqueueResult(initialInstruments);
+        if (instrumentPreviewException is not null) instrumentReader.EnqueueException(instrumentPreviewException);
         for (int index = 0; index < 4; index++)
         {
             instrumentReader.EnqueueResult(previewInstruments);
