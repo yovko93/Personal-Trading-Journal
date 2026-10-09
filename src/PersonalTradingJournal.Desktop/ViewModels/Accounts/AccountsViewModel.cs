@@ -40,6 +40,8 @@ public sealed class AccountsViewModel : ObservableObject
     private readonly DeleteTradingAccountUseCase _deleteTradingAccountUseCase;
     private readonly IDialogService _dialogService;
     private readonly DeleteAccountTradesUseCase? _deleteAccountTrades;
+    private readonly ITradingAccountBalanceReader? _balanceReader;
+    private long _dataVersion;
     public event EventHandler? TradeDataCommitted;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<AccountListItem> _accounts = [];
@@ -85,7 +87,8 @@ public sealed class AccountsViewModel : ObservableObject
         UpdateTradingAccountUseCase updateTradingAccountUseCase,
         DeleteTradingAccountUseCase deleteTradingAccountUseCase,
         IDialogService dialogService,
-        DeleteAccountTradesUseCase? deleteAccountTrades = null)
+        DeleteAccountTradesUseCase? deleteAccountTrades = null,
+        ITradingAccountBalanceReader? balanceReader = null)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(createTradingAccountUseCase);
@@ -103,6 +106,7 @@ public sealed class AccountsViewModel : ObservableObject
         _deleteTradingAccountUseCase = deleteTradingAccountUseCase;
         _dialogService = dialogService;
         _deleteAccountTrades = deleteAccountTrades;
+        _balanceReader = balanceReader;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
@@ -521,6 +525,13 @@ public sealed class AccountsViewModel : ObservableObject
     public async Task EnsureLoadedAsync()
     {
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
+    }
+
+    public void InvalidateBalances(bool refreshNow)
+    {
+        _dataVersion++;
+        _hasLoadedSuccessfully = false;
+        if (refreshNow) _ = EnsureLoadedAsync();
     }
 
     public void ResetTransientState()
@@ -1188,8 +1199,16 @@ public sealed class AccountsViewModel : ObservableObject
 
             try
             {
-                IReadOnlyList<AccountListItem> accounts =
-                    await _accountReader.GetAllAsync(cancellationToken);
+                IReadOnlyList<AccountListItem> accounts;
+                long version;
+                do
+                {
+                    version = _dataVersion;
+                    accounts = _balanceReader is null
+                        ? await _accountReader.GetAllAsync(cancellationToken)
+                        : await _balanceReader.GetAllWithBalancesAsync(cancellationToken);
+                    // A committed write during the read invalidates the entire snapshot.
+                } while (version != _dataVersion);
 
                 Accounts = accounts;
                 if (SelectedAccount is not null &&

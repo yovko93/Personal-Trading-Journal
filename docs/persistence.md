@@ -172,6 +172,12 @@ Only after commit does the Application use the existing opaque-key screenshot st
 
 Regression coverage uses migrated disposable SQLite: other-account isolation, zero/missing Accounts, stale graph changes, writer ordering, triggered rollback after child deletion, real synthetic attachment cleanup/shared keys, retained Journals/snapshots, and Tradovate/Topstep replay. No production journal or customer CSV is used.
 
+### Account Current Balance Read Model
+
+`ITradingAccountBalanceReader.GetAllWithBalancesAsync` is the Accounts-only enriched read. `TradingAccountReader` takes one deferred SQLite read transaction and executes three batched SELECTs: ordered Accounts; Trade account/currency and Domain-derived browse status/Gross (left join to expose a missing projection); and individually recorded execution commissions/fees for closed, matching-currency Trades. No per-Account or per-Trade query, database sum-to-floating-point conversion, write, or migration is used. Lightweight `ITradingAccountReader.GetAllAsync` remains unchanged for selectors.
+
+`AccountCurrentBalanceCalculator` groups by exact Account and uses checked decimal arithmetic, deterministic Trade/execution ordering, and original Trade pricing currency. It deducts each known cost independently, retains unknown component and affected-Trade counts, excludes open/partially closed activity and other currencies, and preserves nullable stored costs. It does not substitute Calendar Effective Net or change strict Net. Rounding to two decimals happens only in Desktop presentation. Missing Starting Balance, incomplete required Trade facts and overflow yield explicit unavailable states for that Account without failing the other rows. Coherent snapshot reads and Desktop invalidation generations prevent a late pre-commit result from becoming the current displayed balance.
+
 ### Trade List Reader
 
 `TradeListReader` implements `ITradeListReader.GetPageAsync(...)` for explicit `TradeListQuery` values. Desktop requests fixed 20-row pages. A fresh no-tracking context joins `TradeBrowse` with canonical Trade, Account, and Instrument rows, executes a server-side `COUNT`, applies the selected `ORDER BY`, and then applies `Skip` and `Take` before materialization. It returns `TradeListPage` with the requested page metadata and total count; Infrastructure never silently clamps a requested page.

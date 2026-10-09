@@ -52,6 +52,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
+        services.AddTransient<ITradingAccountBalanceReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountStore, TradingAccountStore>();
         services.AddTransient<IDailyJournalRepository, DailyJournalRepository>();
         services.AddTransient<IDailyJournalRevisionWriter, DailyJournalRepository>();

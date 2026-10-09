@@ -10,4 +10,7 @@ public sealed record AccountListItem(
     string? ExternalAccountId,
     string Currency,
     decimal? StartingBalance,
-    bool IsActive);
+    bool IsActive)
+{
+    public AccountCurrentBalance? CurrentBalance { get; init; }
+}

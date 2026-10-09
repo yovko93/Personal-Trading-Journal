@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Accounts — calculated Current Balance (not M15.8 acceptance)**
+
+The Accounts table now places **Current Balance** immediately after Starting Balance: **Starting Balance + closed-Trade Gross P&L in that Account's currency − every recorded commission/fee component attributable to those Trades**. Missing costs still produce a numeric **Estimated** balance, with visible unknown-cost counts and an accessible explanation; they are never stored or described as known zero. Green/red/neutral compares the result with Starting Balance and does not remove the Estimated label.
+
+Only fully closed Trade lifecycles contribute, including their allocated entry and exit costs. Open/partial activity and other currencies are excluded, with no FX conversion. This differs from Calendar's Gross-only fallback estimate and does not change existing economics. It is a Trade-based calculation, not a broker balance; unrecorded deposits, withdrawals, payouts and adjustments are excluded. Missing Starting Balance, incomplete Gross/projection data or decimal overflow explicitly shows Unavailable. Three batched snapshot queries serve all Accounts; Trade writes/imports/bulk deletion and Account edits invalidate/reload balances. See [Account balance semantics](docs/desktop-ui.md#current-balance) and [read path](docs/persistence.md#account-current-balance-read-model).
+
+Verification: **815 focused tests** and **3,414 full parallel Release tests passed**, zero failures/skips. Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Isolated SQLite verifies three SELECTs for 22 Accounts, exact stored costs, currency edits, account isolation and deletion refresh. Automated Light/Dark renders inspected at 1280 DIP/96 DPI and 480 DIP/240 DPI, with aligned headers, explicit estimates, accessible descriptions and horizontally reachable actions. Live keyboard/screen-reader/physical-DPI and matching GitHub Actions remain unverified. No real journal was accessed; M15.8 was not started.
+
 **Accounts — Delete All Trades (not M15.8 acceptance)**
 
 Each Account's overflow menu offers **Delete All Trades** immediately before the separate Account **Delete** action. The destructive confirmation names the exact Account and current Trade count, explains attachment removal and re-import, and defaults to Cancel. The Account, Journals, shared classification definitions and saved AI evidence snapshots remain intact. Historical links to deleted Trades report an unavailable source; re-import creates new identities rather than redirecting those links.

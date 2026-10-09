@@ -494,6 +494,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         _dashboardViewModel.OnDataCommitted();
+        _accountsViewModel.InvalidateBalances(CurrentDestination == NavigationDestination.Accounts);
         _journalViewModel.TradeContext.OnDataCommitted();
         // Calendar's dedicated editor refreshes the modal after its save/reload completes.
         _dailyReviewViewModel?.OnDataCommitted();
@@ -513,6 +514,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _dispatcher.BeginInvoke(() => OnTradeDataCommitted(sender, e));
             return;
         }
+        _accountsViewModel.InvalidateBalances(CurrentDestination == NavigationDestination.Accounts && sender != _accountsViewModel);
         _dashboardViewModel.OnDataCommitted();
         _calendarViewModel.OnDataCommitted();
         _journalViewModel.TradeContext.OnDataCommitted();
