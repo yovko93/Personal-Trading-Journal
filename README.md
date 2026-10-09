@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Shared page header — presentation refinement (not M15.8 acceptance)**
+
+Every destination uses the same content-centered title in `MainWindow.xaml`, independent of the right-hand theme toggle. A compact rounded teal wash, subtle border and short accent rule use Light/Dark resources; the 24-DIP title remains readable and wraps rather than shrinking or overlapping the toggle. Equal side slots preserve centering when the toggle's size changes. The shell title is exposed as a level-one accessible heading; no additional page headings, navigation, data or generation behavior were introduced.
+
+Compiled-shell checks cover all navigation destinations, centered geometry, long-title wrapping, theme changes, accessible names, toggle command binding and at least 4.5:1 title contrast. Automated shell renders use fake services (no application startup or journal access) at 1280/1600 DIP and 96 DPI, plus the 1000-DIP minimum-width layout at 240 DPI. These checks are not live mouse/keyboard, screen-reader, physical-monitor DPI or GitHub Actions acceptance.
+
+Verification: **12 focused checks** and the **1,378-test complete Desktop Release suite passed**, zero failures/skips. Solution Release build: **0 warnings/errors**; tracked/new-file whitespace checks passed. Light/Dark renders inspected; title contrast is **5.97:1 / 6.20:1**. Domain/Application/Infrastructure suites were not rerun for this shell-only presentation change.
+
 **Accounts — calculated Current Balance (not M15.8 acceptance)**
 
 The Accounts table now places **Current Balance** immediately after Starting Balance: **Starting Balance + closed-Trade Gross P&L in that Account's currency − every recorded commission/fee component attributable to those Trades**. Missing costs still produce a numeric **Estimated** balance, with visible unknown-cost counts and an accessible explanation; they are never stored or described as known zero. Green/red/neutral compares the result with Starting Balance and does not remove the Estimated label.

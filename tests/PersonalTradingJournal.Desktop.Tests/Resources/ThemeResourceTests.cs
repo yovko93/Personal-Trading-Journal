@@ -23,7 +23,8 @@ public sealed class ThemeResourceTests
                 ("PtjSidebarTextBrush", "PtjSidebarBrush"), ("PtjSidebarMutedBrush", "PtjSidebarBrush"),
                 ("PtjSidebarSelectedTextBrush", "PtjSidebarSelectionBrush"),
                 ("PtjTextPrimaryBrush", "PtjSurfaceBrush"), ("PtjTextMutedBrush", "PtjSurfaceBrush"),
-                ("PtjOnAccentBrush", "PtjAccentBrush") })
+                ("PtjOnAccentBrush", "PtjAccentBrush"),
+                ("PtjAccentBrush", "PtjPageHeaderSurfaceBrush") })
             {
                 double a = Luminance(Color(foreground)), b = Luminance(Color(background));
                 Assert.True((Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05) >= 4.5, $"{path}: {foreground}/{background}");
