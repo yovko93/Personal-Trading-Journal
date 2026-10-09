@@ -67,6 +67,10 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddSingleton(new ProtectedCoachingCredentials(applicationPaths.CoachingCredentialsPath,
+                () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")));
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.ICoachingCredentials>(
+                s => s.GetRequiredService<ProtectedCoachingCredentials>());
             builder.Services.AddDailyCoaching();
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddSingleton<ISystemThemeProvider, WindowsSystemThemeProvider>();

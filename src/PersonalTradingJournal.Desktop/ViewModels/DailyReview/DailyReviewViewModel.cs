@@ -34,13 +34,19 @@ public sealed class DailyReviewViewModel : ObservableObject
     private CancellationTokenSource? _generationRequest;
     private long _requestVersion;
     private bool _generating;
+    private readonly ICoachingCredentials? _credentials;
+    public bool NeedsAiConfiguration { get; private set; }
+    public Action? OpenAiSettings { get; set; }
+    public IRelayCommand ConfigureAiCommand { get; }
 
     public DailyReviewViewModel(IDailyReviewEvidenceReader reader, ICoachingAnalysisRepository history,
         ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
-        GenerateAndSaveCoachingService? generator = null)
+        GenerateAndSaveCoachingService? generator = null, ICoachingCredentials? credentials = null)
     {
         _reader = reader; _history = history; _accounts = accounts; _dialogs = dialogs; _clock = clock;
         _generator = generator;
+        _credentials = credentials;
+        ConfigureAiCommand = new RelayCommand(() => OpenAiSettings?.Invoke());
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, CanGenerate);
         CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsGenerating && _generationRequest?.IsCancellationRequested == false);
         _date = Today.ToDateTime(TimeOnly.MinValue);
@@ -134,7 +140,12 @@ public sealed class DailyReviewViewModel : ObservableObject
     public IAsyncRelayCommand<ReviewTradeRow> OpenTradeCommand { get; }
     public IAsyncRelayCommand<ReviewJournalRow> OpenJournalCommand { get; }
 
-    public Task ActivateAsync() { _active = true; return LoadTask = StartLoadAsync(false); }
+    public Task ActivateAsync()
+    {
+        _active = true;
+        NeedsAiConfiguration = _credentials?.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
+        return LoadTask = StartLoadAsync(false);
+    }
     public void Deactivate() { _active = false; CancelGeneration(); CancelLoad(); }
     public void OnDataCommitted() { if (_active) LoadTask = StartLoadAsync(false); }
 
@@ -287,7 +298,10 @@ public sealed class DailyReviewViewModel : ObservableObject
             if (!IsCurrent()) return;
             // Orchestration messages are allowlisted; raw provider/DB exception text is never displayed.
             if (result.Status != SavedCoachingGenerationStatus.Saved || result.Analysis is null)
-            { GenerationMessage = result.Message; return; }
+            {
+                NeedsAiConfiguration = _credentials?.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
+                GenerationMessage = result.Message; return;
+            }
             GenerationMessage = "Review saved. Loading matching history and saved evidence…";
             _page = 1;
             await (LoadTask = StartLoadAsync(true, fromGeneration: true));

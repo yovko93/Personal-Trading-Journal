@@ -5,6 +5,19 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed partial class MainWindowViewModelTests
 {
+    [Fact]
+    public async Task ConfigureAiRoutesToSettingsWithoutGenerating()
+    {
+        var provider = new DailyReviewGenerationTests.Provider();
+        var review = DailyReviewGenerationTests.Ready(provider);
+        var f = CreateFixture(dailyReview: review.Vm);
+        f.Main.NavigateCommand.Execute(NavigationDestination.DailyReview);
+        await review.Vm.LoadTask;
+        review.Vm.ConfigureAiCommand.Execute(null);
+        Assert.Equal(NavigationDestination.Settings, f.Main.CurrentDestination);
+        Assert.Equal(0, provider.Calls);
+        f.Main.Dispose();
+    }
     [Theory]
     [InlineData("close")]
     [InlineData("navigate")]

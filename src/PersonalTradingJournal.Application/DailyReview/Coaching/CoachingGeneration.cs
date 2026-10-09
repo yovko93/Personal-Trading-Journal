@@ -93,7 +93,7 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
     private static CoachingGenerationResult Result(CoachingGenerationStatus status, CoachingRequestMetadata? metadata = null) =>
         new(status, null, metadata, status switch
         {
-            CoachingGenerationStatus.MissingCredentials => "Set OPENAI_API_KEY securely for this process before generating.",
+            CoachingGenerationStatus.MissingCredentials => "Configure AI in Settings. The OpenAI key is missing or its saved storage cannot be read.",
             CoachingGenerationStatus.InvalidConfiguration => "Check the supported model, input/output budget and positive timeout (at most 180 seconds).",
             CoachingGenerationStatus.AuthenticationFailed => "The provider rejected the credential. Check or replace the API key.",
             CoachingGenerationStatus.AccessDenied => "Check API project permissions and access to the configured model.",

@@ -22,7 +22,9 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!options.IsValid) return Reply(CoachingGenerationStatus.InvalidConfiguration);
-            string? key = credentialAccessor();
+            string? key;
+            try { key = credentialAccessor(); }
+            catch (CoachingCredentialException) { return Reply(CoachingGenerationStatus.MissingCredentials); }
             if (string.IsNullOrWhiteSpace(key)) return Reply(CoachingGenerationStatus.MissingCredentials);
             if (key.Any(char.IsWhiteSpace) || key.Any(c => c < 33 || c > 126))
                 return Reply(CoachingGenerationStatus.AuthenticationFailed);

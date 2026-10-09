@@ -17,6 +17,60 @@ public sealed class DailyReviewViewTests
         TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));
 
     [Fact]
+    public async Task AiSettingsMaskedEntryActionsAndMissingCredentialLinkWorkAcrossThemesAndDpi()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        using var secret = new Settings.CoachingCredentialsTests.SecretFixture();
+        using var vm = Settings.CoachingCredentialsTests.Settings(secret.Store);
+        var f = new ReviewFixture();
+        var review = new PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel(
+            f.Reader, f.History, f.Accounts, f.Dialogs, TimeProvider.System, credentials: secret.Store);
+        await review.ActivateAsync();
+        int navigated = 0;
+        review.OpenAiSettings = () => navigated++;
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+            {
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme); app.Resources = resources;
+                var view = new PersonalTradingJournal.Desktop.Views.Settings.SettingsView { DataContext = vm };
+                var root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var entry = (PasswordBox)view.FindName("ApiKeyEntry");
+                Assert.True(entry.Focusable && entry.ActualWidth > 100);
+                Assert.Contains("masked", AutomationProperties.GetName(entry));
+                Assert.Equal(string.Empty, entry.Password);
+                entry.Password = "synthetic-layout-key";
+                ((Button)view.FindName("SaveApiKey")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Flush(); root.UpdateLayout();
+                Assert.Equal(string.Empty, entry.Password);
+                Assert.Equal(PersonalTradingJournal.Application.DailyReview.Coaching.CoachingCredentialSource.Saved, vm.CredentialSource);
+                Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("synthetic-layout-key"));
+                var buttons = Descendants(view).OfType<Button>().Where(b => b.Content is string).ToArray();
+                Assert.Contains(buttons, b => Equals(b.Content, "Remove saved key") && b.IsEnabled);
+                Assert.All(buttons, b => Assert.InRange(b.TranslatePoint(new Point(b.ActualWidth, 0), view).X, 0, width));
+                Assert.Equal(0, ((ScrollViewer)view.FindName("SettingsScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "ai-settings");
+                root.Child = null;
+                vm.RemoveKeyCommand.Execute(null);
+                var reviewView = new DailyReviewView { DataContext = review };
+                root.Child = reviewView;
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var configure = Assert.Single(Descendants(reviewView).OfType<Button>(), b => Equals(b.Content, "Configure AI in Settings"));
+                Assert.Equal(Visibility.Visible, configure.Visibility);
+                Assert.True(configure.IsEnabled && configure.Focusable);
+                configure.Command!.Execute(null);
+                root.Child = null;
+            }
+            review.Deactivate();
+        }, shutdownDispatcher: false);
+        Assert.Equal(4, navigated);
+        Assert.Empty(f.History.Items);
+    }
+
+    [Fact]
     public async Task CompiledWorkspaceSupportsBothThemesNarrowHighDpiAndReachableSavedEvidenceWithoutGeneration()
     {
         if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }

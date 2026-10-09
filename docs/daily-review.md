@@ -20,7 +20,47 @@ Historical/deleted Account options remain browseable but cannot generate. If an 
 
 ### Configuration and acceptance limits
 
-Set `OPENAI_API_KEY` securely for the Desktop process before launching it. Never put it in the repository, journal database, screenshots or diagnostics. M15.4's existing `gpt-4.1-mini-2025-04-14` profile, input limits and 90-second provider timeout are unchanged; this milestone adds no provider/model or pricing configuration UI. Local Trade/Journal workflows work without a credential or network.
+Use **Settings → AI Coaching** as described below. M15.4's existing `gpt-4.1-mini-2025-04-14` profile, input limits and 90-second provider timeout are unchanged; no provider/model or pricing configuration UI is added. Local Trade/Journal workflows work without a credential or network.
+
+### Settings — AI Coaching credentials
+
+- Enter your own key in the masked field and choose **Save / Replace key**. The field is cleared after submission and on leaving Settings; stored keys are never loaded into the field. Only configuration status and active source are displayed. Saving performs local validation/storage, **not an authentication test or paid provider call**. Daily Review links to Settings when no usable local credential is available.
+- Windows DPAPI `CurrentUser` protects the bytes at `%LOCALAPPDATA%\PersonalTradingJournal.Secrets\openai.dpapi`. This separate app-specific directory is outside `PersonalTradingJournal` journal data, SQLite, settings JSON, logs, screenshots and backups. A uniquely named same-directory temporary contains ciphertext only; it is flushed before atomic replacement, with best-effort ciphertext temporary cleanup on failure. The previous active file survives a failed replacement.
+- M16 backup/export/restore must **exclude this secrets directory and all its temporary files**. Keys are not portable application data: enter them again on another computer/Windows user. Isolated runs place their secrets under the explicitly isolated root, never the real LocalAppData root. No application-owned key is built in.
+- Each explicit generation resolves the saved key again; no restart or cached credential is required. Only absence of the saved file permits `OPENAI_API_KEY` as a development fallback. **Remove saved key** removes local storage, not the provider-side key; Settings explicitly reports whether the environment fallback is now active. Remove that environment variable separately to leave no active credential.
+- Corrupt, inaccessible, oversized or undecryptable saved storage reports a safe replace/remove message and blocks fallback/provider submission. Validation and storage failures expose no key, raw exception or path diagnostic. Existing evidence, statistics and saved analyses are unaffected.
+- DPAPI protects a local secret at rest, not against malware running as the same Windows user, an unlocked compromised machine, process-memory inspection or a credential the user pastes into Journal content. Keep the Windows account/device secure. The provider needs a transient plaintext credential in memory to authenticate; do not include it in screenshots, logs, support bundles or bug reports. [Official authentication guidance](https://developers.openai.com/api/reference/overview#authentication) treats API keys as secrets; this Desktop application uses only the user's own key, never a shared embedded application credential.
+
+Automated coverage uses synthetic keys in disposable directories, actual CurrentUser DPAPI, and in-memory HTTP handlers: save/replace/restart/remove, precedence/fallback, unreadable storage, failed replacement, no plaintext at rest, sanitized errors, immediate rotation on the same provider, zero provider calls from Settings, navigation, and compiled Light/Dark 960-DIP / 480-DIP-at-240-DPI layouts. Live provider authentication, another Windows user/computer, interactive screen-reader/keyboard operation and GitHub Actions for the eventual commit remain separate checks.
+
+Credential Settings follow-up changed files (no schema, economics, provider model or evidence changes):
+
+Final local verification on 2026-10-09, based on develop `e87d63fde3c40dd020f56b29f0dac874332a5f1a` plus this uncommitted follow-up:
+
+- Focused Release: **288 passed** (Domain 13, Application 116, Infrastructure 52, Desktop 107); no failures/skips.
+- Complete parallel Release: **3,259 passed** (Domain 454, Application 645, Infrastructure 859, Desktop 1,301); no failures/skips. Desktop elapsed 3m13s; existing isolation/deadlines/concurrency configuration unchanged.
+- Release build: **0 warnings, 0 errors**. EF model consistency: no pending changes. `git diff --check` and new-file whitespace checks: clean.
+- All four compiled Settings renders inspected (Light/Dark, 960 DIP/96 DPI, 480 DIP/240 DPI): readable status/actions/disclosure and masked entry, no clipping. Automated save click clears input. These are RenderTargetBitmap checks, not live mouse/keyboard or physical-monitor acceptance.
+- Evidence: ignored `artifacts/ai-settings/` and `artifacts/ai-settings-*.log`. Initial new-test issues (PasswordBox internal scroll viewer and off-dispatcher teardown) were corrected in the test; no retry/deadline/production interaction workaround. No real journal, real credential, paid call or schema migration. GitHub Actions cannot verify uncommitted work; the user's eventual commit/push requires its own matching CI result.
+
+Files:
+
+- `README.md`, `docs/daily-review.md`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/ICoachingCredentials.cs` (new local credential boundary), `CoachingGeneration.cs` (sanitized Settings guidance)
+- `src/PersonalTradingJournal.Desktop/Settings/ProtectedCoachingCredentials.cs` (new DPAPI store)
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Settings/SettingsViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Settings/SettingsView.xaml`, `SettingsView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Infrastructure/Storage/LocalApplicationPaths.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingServiceCollectionExtensions.cs`, `OpenAiCoachingProvider.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Settings/CoachingCredentialsTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowDailyReviewTests.cs`
+
+Remaining isolated manual checks: navigate from Daily Review to Settings with no key; keyboard-enter a disposable synthetic key, save/replace/remove it, and confirm masking, clearing and source messages in both themes. Check real keyboard focus, screen-reader status announcements, narrow scrolling and actual monitor scaling. Do not click Generate with a real key without explicitly accepting provider transmission/charges. A second Windows user or computer should reconfigure its own key, not restore the encrypted file. M16 must retain the exclusion above. DPAPI is not protection from software already running as the same Windows user.
 
 Automated verification uses fake providers and isolated SQLite only. Live paid-provider behavior, actual mouse/keyboard/assistive-technology operation and GitHub Actions for the user's eventual commit are separate acceptance gates. No real journal or paid API is used during implementation.
 
@@ -326,7 +366,7 @@ The initial adapter uses one HTTPS POST to OpenAI Responses with the pinned `gpt
 
 Configuration for a future explicit caller:
 
-1. Supply `OPENAI_API_KEY` to the application's process environment through a trusted external secret-management/launch mechanism. Never paste credentials into repository files, database rows, logs, screenshots or bug reports. The adapter reads it only when called; missing credentials do not prevent local application use.
+1. In Desktop use **Settings → AI Coaching** (protected saved key first); `OPENAI_API_KEY` remains a development fallback when no saved key exists. A service-only host defaults to that environment source unless it registers `ICoachingCredentials`. Never paste credentials into repository files, database rows, logs, screenshots or bug reports. The adapter resolves the credential only when explicitly called; missing credentials do not prevent local application use.
 2. Resolve `DailyCoachingGenerationService` after `AddDailyCoaching()`, build a successful M15.3 packet from the desired read-only snapshot, and explicitly invoke GenerateAsync with cancellation. No Desktop button is enabled in this milestone.
 3. Optional nonsecret DI configuration is `CoachingGenerationOptions` (default 90 seconds, positive and at most 180 seconds) and `OpenAiCoachingOptions` (8,192 output tokens, 300,000 input-token budget). Register overrides after AddDailyCoaching. Only the verified model profile is supported; arbitrary model strings are rejected rather than assuming compatible limits/schema.
 

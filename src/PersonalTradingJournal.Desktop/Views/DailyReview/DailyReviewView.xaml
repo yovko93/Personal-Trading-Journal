@@ -128,6 +128,19 @@
                                  AutomationProperties.Name="AI review generation in progress" />
                     <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationAvailability}" />
                     <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationMessage}" AutomationProperties.LiveSetting="Polite" />
+                    <Button Content="Configure AI in Settings" Command="{Binding ConfigureAiCommand}" HorizontalAlignment="Left"
+                            Margin="0,8,0,0" AutomationProperties.Name="Configure AI in Settings">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding NeedsAiConfiguration}" Value="True">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
             </Border>
             <TextBlock Text="{Binding AccountNotice}" Style="{StaticResource Message}" />

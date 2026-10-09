@@ -147,6 +147,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _dailyReviewViewModel.OpenTradeAsync = OpenReviewTradeAsync;
             _dailyReviewViewModel.OpenJournalAsync = OpenReviewJournalAsync;
+            _dailyReviewViewModel.OpenAiSettings = () => Navigate(NavigationDestination.Settings);
         }
     }
 
@@ -252,6 +253,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             _dailyReviewViewModel.OpenTradeAsync = null;
             _dailyReviewViewModel.OpenJournalAsync = null;
+            _dailyReviewViewModel.OpenAiSettings = null;
         }
     }
 

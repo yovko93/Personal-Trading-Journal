@@ -16,6 +16,7 @@ public sealed class LocalApplicationPaths : IApplicationPaths
         ArgumentException.ThrowIfNullOrWhiteSpace(localApplicationDataDirectory);
 
         DataDirectory = Path.Combine(localApplicationDataDirectory, ApplicationDirectoryName);
+        CoachingCredentialsPath = Path.Combine(localApplicationDataDirectory, "PersonalTradingJournal.Secrets", "openai.dpapi");
         DatabasePath = Path.Combine(DataDirectory, "journal.db");
         SettingsPath = Path.Combine(DataDirectory, "settings.json");
         ScreenshotsDirectory = Path.Combine(DataDirectory, "screenshots");
@@ -24,6 +25,9 @@ public sealed class LocalApplicationPaths : IApplicationPaths
     }
 
     public string DataDirectory { get; }
+
+    // Deliberately not part of IApplicationPaths or the data directory: never back up/export/restore secrets.
+    public string CoachingCredentialsPath { get; }
 
     public string DatabasePath { get; }
 

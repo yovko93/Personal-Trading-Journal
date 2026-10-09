@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
 
 namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
@@ -12,9 +13,10 @@ public static class CoachingServiceCollectionExtensions
         services.AddSingleton(new OpenAiCoachingOptions());
         services.AddSingleton(new CoachingGenerationOptions());
         services.AddSingleton<Transport>();
+        services.TryAddSingleton<ICoachingCredentials, EnvironmentCredentials>();
         services.AddSingleton<OpenAiCoachingProvider>(s => new(s.GetRequiredService<Transport>().Client,
             s.GetRequiredService<OpenAiCoachingOptions>(),
-            () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")));
+            () => s.GetRequiredService<ICoachingCredentials>().Resolve()));
         services.AddSingleton<ICoachingProvider>(s => s.GetRequiredService<OpenAiCoachingProvider>());
         services.AddTransient(s => new DailyCoachingGenerationService(s.GetRequiredService<ICoachingProvider>(),
             s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
@@ -31,5 +33,12 @@ public static class CoachingServiceCollectionExtensions
         }) { Timeout = Timeout.InfiniteTimeSpan };
 
         public void Dispose() => Client.Dispose();
+    }
+
+    private sealed class EnvironmentCredentials : ICoachingCredentials
+    {
+        public string? Resolve() => Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+        public CoachingCredentialSource GetSource() => string.IsNullOrWhiteSpace(Resolve())
+            ? CoachingCredentialSource.None : CoachingCredentialSource.Environment;
     }
 }

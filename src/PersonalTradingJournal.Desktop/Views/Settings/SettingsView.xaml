@@ -7,7 +7,7 @@
              d:DesignHeight="450"
              d:DesignWidth="800"
              mc:Ignorable="d">
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+    <ScrollViewer x:Name="SettingsScroll" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
         <ScrollViewer.Resources>
             <Style TargetType="{x:Type ScrollBar}"
@@ -15,7 +15,31 @@
         </ScrollViewer.Resources>
 
         <StackPanel MaxWidth="720"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Stretch">
+            <Border Style="{StaticResource PtjCardStyle}" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="AI Coaching" Style="{StaticResource PtjSectionTitleTextStyle}" />
+                    <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
+                               Text="Use your own OpenAI API key. Saving or removing it stays local and never generates a review." />
+                    <Label Content="OpenAI API key" Target="{Binding ElementName=ApiKeyEntry}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <PasswordBox x:Name="ApiKeyEntry" MaxLength="4096" MinHeight="36" Padding="8"
+                                 FontSize="16" Background="{DynamicResource PtjSurfaceBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1"
+                                 AutomationProperties.Name="New OpenAI API key, masked" />
+                    <WrapPanel Margin="0,12,0,8">
+                        <Button x:Name="SaveApiKey" Content="Save / Replace key" Click="SaveKeyClick"
+                                Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" />
+                        <Button Content="Remove saved key" Command="{Binding RemoveKeyCommand}"
+                                Style="{StaticResource PtjButtonStyle}" Margin="0,0,0,8" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Text="{Binding CredentialMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Style="{StaticResource PtjBodyTextStyle}" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Protected for this Windows user with DPAPI, outside journal data and backups. Enter it again on another computer. The stored key is never displayed. Only Generate AI Review sends Trade facts and Journal text to OpenAI and may incur charges." />
+                </StackPanel>
+            </Border>
             <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
                        Text="Appearance" />
             <TextBlock Margin="0,4,0,20"
