@@ -2,6 +2,65 @@
 
 ## M15.7: Manual AI generation
 
+### Groq provider follow-up
+
+Settings → AI Coaching now selects **Groq** or **OpenAI**. A new installation with no existing OpenAI configuration defaults to Groq. Existing installations (settings/database file or an existing OpenAI credential source) retain OpenAI; a saved provider choice always wins. The nonsecret choice is persisted atomically in `%LOCALAPPDATA%\PersonalTradingJournal.Secrets\provider.txt`. An unreadable/unknown preference requires an explicit selection, never an automatic provider switch. Opening Settings, selecting a provider, saving/replacing/removing a key, browsing or refreshing still makes **no provider request**.
+
+1. Choose the provider, enter **your own** key in its masked field, and Save / Replace. Switching provider clears unsubmitted key text to avoid saving it under the wrong provider.
+2. Groq uses `groq.dpapi` and `GROQ_API_KEY`; OpenAI retains `openai.dpapi` and `OPENAI_API_KEY`. Each has independent DPAPI CurrentUser saved-key precedence and environment fallback only when its own saved file is absent. Neither missing credentials nor a failed request tries the other provider. Removal affects only the selected provider and reports any newly exposed environment fallback.
+3. Both secret files live outside SQLite and the journal data directory and must stay excluded from M16 backup/export/restore. Re-enter keys on another computer/Windows user. No key is embedded in the app, redisplayed, or logged.
+4. Return to Daily Review, check the provider-specific disclosure, select the date/Account, and explicitly choose Generate AI Review. Groq receives the selected Trade facts and Journal text, not OpenAI despite the model ID's `openai/` prefix. Groq Free tier has limits; upgraded accounts may incur charges. OpenAI retains its usage-charge warning. Cancellation cannot guarantee an accepted request was not billed.
+
+The dedicated Groq adapter posts to `https://api.groq.com/openai/v1/chat/completions` with `openai/gpt-oss-120b`, two system/user messages, the **unchanged complete packet** as user content, `response_format.json_schema.strict:true`, `max_completion_tokens`, low reasoning effort, one choice and no streaming/tools. It shares trusted evidence instructions and response schema, not the OpenAI Responses payload. Groq documents [strict schema support](https://console.groq.com/docs/structured-outputs) for this model; account access is separate and was not live-confirmed. Instructions retain Gross/strict-Net/currency/Account boundaries and treat all source text as untrusted. Every response still passes the M15.3 identity, structure, basis and source-reference validator before atomic save. Valid citations do not prove that generated prose is factually correct.
+
+**Free-tier budget:** the documented [base limits](https://console.groq.com/docs/rate-limits) are 30 requests/minute, 1,000/day, 8,000 tokens/minute and 200,000/day for this model; actual organization limits and other clients' usage can differ. The [model](https://console.groq.com/docs/model/openai/gpt-oss-120b) supports a 131,072-token context, but PTJ deliberately uses a smaller profile: **5,500 estimated input tokens (including safety reserve) and 2,000 completion tokens**, with a maximum combined configured budget of 7,500. The packaged offline o200k-base tokenizer counts the entire escaped wire request including schema, adds 10% plus 512 tokens for framing, and rejects overflow without truncation. This is a conservative estimate, not Groq's exact Harmony accounting or a guarantee of available organization TPM. Completion includes reasoning; length-limited output is rejected, not shown as a completed review. No live token-count request, vocabulary download, automatic splitting, retry or model/provider fallback occurs. Monetary cost remains **unknown**.
+
+Groq requires a complete single assistant choice with matching model and successful finish reason. Refusal, content filtering, incomplete output, malformed/oversized envelopes, invalid citations and packet mismatch never save. Bounded allowlisted errors distinguish credentials, permission/model access, quota/plan, rate limits, input size, request/schema and service failures; unknown codes remain unknown. Retry-After is displayed where available but never schedules another request. The existing bounded provider deadline/cancellation and secret-free diagnostics apply.
+
+The selected provider route is captured at Generate click, **before** asynchronous evidence loading. Double submissions remain blocked; navigation/cancellation rejects late results. The successful saved record contains the actual Groq/OpenAI provider, model, usage and exact evidence/validated response. Model metadata permits a single nonempty namespace/model pair; other identifiers retain their existing restrictions. No migration, Trade/Journal economics or historical snapshot rewrite is needed. A saved analysis remains readable after changing providers, removing keys or deleting mutable sources.
+
+The tokenizer uses packaged Microsoft.ML.Tokenizers/O200kBase 2.0.0, with Microsoft.Bcl.Memory explicitly pinned to patched 10.0.11 rather than its vulnerable transitive minimum. No security warning is suppressed. Automated tests use only synthetic credentials, fake HTTP and disposable migrated SQLite.
+
+**Live/M15.8 gates:** neither a saved Groq key file nor a GROQ_API_KEY fallback was present during this task; **zero live Groq requests were made**. Model access, Free-plan acceptance and a real validated Groq result remain unverified. The earlier OpenAI model-access rejection below remains unresolved externally; adding Groq does not alter or bypass it. Use a disposable data root and synthetic evidence for a separately approved/manual live test after configuring Groq. Verify both providers' disclosure, key rotation/removal, keyboard focus, narrow scrolling and screen-reader feedback. Automated RenderTargetBitmap checks are not live interaction. These uncommitted changes require the user's commit/push and a matching GitHub Actions run before CI acceptance.
+
+### Groq verification — 2026-10-09
+
+Clean-start baseline: `develop` at `e8c8f086cc81cd9edea36f1ffae15a05885df864`. Focused Release **327/327 passed** (13 Domain, 128 Application, 87 Infrastructure, 99 Desktop). Final styled WPF layout suite **6/6 passed**. Complete parallel Release **3,328/3,328 passed** (454 Domain, 657 Application, 894 Infrastructure, 1,323 Desktop), zero failures/skips; both the pre-style-correction run and final styled build passed. Release build: **zero warnings/errors**. EF: **no pending model changes**. Tracked and new-file whitespace checks passed. Logs/TRX and synthetic renders are ignored under `artifacts/groq/` and `artifacts/groq-*.log`.
+
+Coverage includes strict Chat Completions wire format, exact packet/citation validation, rate/plan/model/schema failures, whole-packet oversize rejection, independent saved/environment key sources, corruption and failed selection persistence, legacy/default/restart selection, captured routing during evidence loading, double-click suppression, cancellation, atomic SQLite save and historical display after switching/removing keys. No real journal or live provider was used. Initial verification caught a vulnerable tokenizer transitive minimum (pinned to a patched version), a new test's off-dispatcher cleanup (moved onto its owning dispatcher), and an unthemed selector in the Dark render (now uses the shared theme style with a regression assertion). No retry, skip, relaxed validation or deadline increase was used.
+
+Settings and Daily Review disclosure were rendered in Light/Dark at 960 DIP/96 DPI and 480 DIP/240 DPI, with wrapping controls and reachable scroll content. These are automated WPF renders, not live mouse/keyboard/assistive-technology acceptance. Live Groq access/generation and matching GitHub CI remain open as described above. Worktree: 19 modified and 8 new files; no commit, push, merge, schema migration or changes to Trade/Journal data.
+
+### Groq changed files
+
+- `Directory.Packages.props`
+- `README.md`
+- `docs/daily-review.md`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingGeneration.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingSafeDiagnostics.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/GenerateAndSaveCoachingService.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/SavedCoachingAnalysis.cs`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Settings/SettingsViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Settings/SettingsView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Settings/SettingsView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj`
+- `src/PersonalTradingJournal.Infrastructure/Storage/LocalApplicationPaths.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/SavedCoachingAnalysisTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/ICoachingConfiguration.cs`
+- `src/PersonalTradingJournal.Desktop/Settings/CoachingConfiguration.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingOptions.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/SelectedCoachingProvider.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/GroqWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Settings/CoachingProviderSelectionTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/GroqCoachingProviderTests.cs`
+
 ### Generation rejection investigation — 2026-10-09
 
 One explicitly authorized live request used the saved Settings DPAPI credential, a disposable migrated SQLite database with synthetic Trade/Journal evidence, and the actual DailyReviewViewModel Generate command. No real journal was read or sent. Evidence preflight succeeded; historical-scope discovery had no error. The provider rejected the request before structured-response parsing, citation validation or atomic saving:
@@ -66,7 +125,7 @@ Exact changed files:
 - Enter your own key in the masked field and choose **Save / Replace key**. The field is cleared after submission and on leaving Settings; stored keys are never loaded into the field. Only configuration status and active source are displayed. Saving performs local validation/storage, **not an authentication test or paid provider call**. Daily Review links to Settings when no usable local credential is available.
 - Windows DPAPI `CurrentUser` protects the bytes at `%LOCALAPPDATA%\PersonalTradingJournal.Secrets\openai.dpapi`. This separate app-specific directory is outside `PersonalTradingJournal` journal data, SQLite, settings JSON, logs, screenshots and backups. A uniquely named same-directory temporary contains ciphertext only; it is flushed before atomic replacement, with best-effort ciphertext temporary cleanup on failure. The previous active file survives a failed replacement.
 - M16 backup/export/restore must **exclude this secrets directory and all its temporary files**. Keys are not portable application data: enter them again on another computer/Windows user. Isolated runs place their secrets under the explicitly isolated root, never the real LocalAppData root. No application-owned key is built in.
-- Each explicit generation resolves the saved key again; no restart or cached credential is required. Only absence of the saved file permits `OPENAI_API_KEY` as a development fallback. **Remove saved key** removes local storage, not the provider-side key; Settings explicitly reports whether the environment fallback is now active. Remove that environment variable separately to leave no active credential.
+- Each explicit generation resolves the selected provider's saved key again; no restart or cached credential is required. Only absence of that provider's saved file permits its `OPENAI_API_KEY` or `GROQ_API_KEY` development fallback. **Remove saved key** removes only the selected provider's local storage, not the provider-side key; Settings explicitly reports whether its environment fallback is now active. Remove that environment variable separately to leave no active credential.
 - Corrupt, inaccessible, oversized or undecryptable saved storage reports a safe replace/remove message and blocks fallback/provider submission. Validation and storage failures expose no key, raw exception or path diagnostic. Existing evidence, statistics and saved analyses are unaffected.
 - DPAPI protects a local secret at rest, not against malware running as the same Windows user, an unlocked compromised machine, process-memory inspection or a credential the user pastes into Journal content. Keep the Windows account/device secure. The provider needs a transient plaintext credential in memory to authenticate; do not include it in screenshots, logs, support bundles or bug reports. [Official authentication guidance](https://developers.openai.com/api/reference/overview#authentication) treats API keys as secrets; this Desktop application uses only the user's own key, never a shared embedded application credential.
 

@@ -12,6 +12,8 @@ public sealed record SavedCoachingGenerationResult(SavedCoachingGenerationStatus
 public sealed class GenerateAndSaveCoachingService(DailyCoachingGenerationService generator,
     ICoachingAnalysisRepository repository, TimeProvider clock)
 {
+    public GenerateAndSaveCoachingService Capture() => new(generator.Capture(), repository, clock);
+
     public async Task<SavedCoachingGenerationResult> GenerateAsync(CoachingEvidencePacket packet,
         CancellationToken cancellationToken = default)
     {

@@ -18,4 +18,5 @@ public partial class SettingsView : UserControl
         try { (DataContext as SettingsViewModel)?.SaveKey(ApiKeyEntry.Password); }
         finally { ApiKeyEntry.Clear(); }
     }
+    private void ProviderSelectionChanged(object sender, SelectionChangedEventArgs e) => ApiKeyEntry?.Clear();
 }

@@ -20,12 +20,17 @@
                 <StackPanel>
                     <TextBlock Text="AI Coaching" Style="{StaticResource PtjSectionTitleTextStyle}" />
                     <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
-                               Text="Use your own OpenAI API key. Saving or removing it stays local and never generates a review." />
-                    <Label Content="OpenAI API key" Target="{Binding ElementName=ApiKeyEntry}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                               Text="Choose who receives your evidence. Each provider has its own key. Switching providers or saving a key never generates a review; there is no automatic fallback." />
+                    <Label Content="AI provider" Target="{Binding ElementName=ProviderSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding AvailableProviders}" SelectedItem="{Binding SelectedProvider}"
+                              Style="{DynamicResource PtjComboBoxStyle}"
+                              SelectionChanged="ProviderSelectionChanged" MinHeight="36" Margin="0,0,0,12"
+                              AutomationProperties.Name="AI Coaching provider" />
+                    <Label Content="{Binding ApiKeyLabel}" Target="{Binding ElementName=ApiKeyEntry}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <PasswordBox x:Name="ApiKeyEntry" MaxLength="4096" MinHeight="36" Padding="8"
                                  FontSize="16" Background="{DynamicResource PtjSurfaceBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
                                  BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1"
-                                 AutomationProperties.Name="New OpenAI API key, masked" />
+                                 AutomationProperties.Name="{Binding ApiKeyLabel, StringFormat='New {0}, masked'}" />
                     <WrapPanel Margin="0,12,0,8">
                         <Button x:Name="SaveApiKey" Content="Save / Replace key" Click="SaveKeyClick"
                                 Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" />
@@ -37,7 +42,7 @@
                     <TextBlock Text="{Binding CredentialMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
                                Style="{StaticResource PtjBodyTextStyle}" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource PtjSecondaryTextStyle}"
-                               Text="Protected for this Windows user with DPAPI, outside journal data and backups. Enter it again on another computer. The stored key is never displayed. Only Generate AI Review sends Trade facts and Journal text to OpenAI and may incur charges." />
+                               Text="Keys are protected for this Windows user with DPAPI, outside journal data and backups. Enter them again on another computer. Stored keys are never displayed. Generate AI Review sends Trade facts and Journal text to the selected provider. Groq Free tier has limits and upgraded accounts may be billed; OpenAI usage may incur charges." />
                 </StackPanel>
             </Border>
             <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"

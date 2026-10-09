@@ -18,12 +18,31 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     private bool _isSaving;
     private string? _saveErrorMessage;
     private readonly ProtectedCoachingCredentials? _credentials;
+    private readonly CoachingConfiguration? _configuration;
+    private ProtectedCoachingCredentials? ActiveStore => _configuration is null ? _credentials :
+        SelectedProvider == CoachingProviderKind.Unavailable ? null : _configuration.StoreFor(SelectedProvider);
+    public IReadOnlyList<CoachingProviderKind> AvailableProviders { get; } = [CoachingProviderKind.Groq, CoachingProviderKind.OpenAI];
+    public CoachingProviderKind SelectedProvider
+    {
+        get => _configuration?.SelectedProvider ?? CoachingProviderKind.OpenAI;
+        set
+        {
+            if (_configuration is null || value == SelectedProvider) return;
+            CredentialMessage = _configuration.Select(value) ? "Provider selected. No request was sent; its own credential source is shown below."
+                : "Provider choice could not be saved. Check local Settings storage; generation is not switched.";
+            OnPropertyChanged(); OnPropertyChanged(nameof(ApiKeyLabel)); OnPropertyChanged(nameof(CredentialMessage));
+            RefreshCredentialStatus();
+        }
+    }
+    public string ApiKeyLabel => $"{SelectedProvider} API key";
     public CoachingCredentialSource CredentialSource { get; private set; }
     public string? CredentialMessage { get; private set; }
-    public string CredentialStatus => CredentialSource switch
+    public string CredentialStatus => SelectedProvider == CoachingProviderKind.Unavailable
+        ? "Provider preference cannot be read. Select Groq or OpenAI explicitly to recover; no fallback request will be sent."
+        : CredentialSource switch
     {
         CoachingCredentialSource.Saved => "Configured · source: saved Settings key (this Windows user).",
-        CoachingCredentialSource.Environment => "Configured · source: OPENAI_API_KEY environment fallback. No saved key.",
+        CoachingCredentialSource.Environment => $"Configured · source: {(SelectedProvider == CoachingProviderKind.Groq ? "GROQ_API_KEY" : "OPENAI_API_KEY")} environment fallback. No saved key.",
         CoachingCredentialSource.Unreadable => "Saved key cannot be read. Replace or remove it in Settings. Environment fallback is not used while saved storage is unreadable.",
         _ => "Not configured · no saved key or environment fallback.",
     };
@@ -32,7 +51,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
 
     public void RefreshCredentialStatus()
     {
-        CredentialSource = _credentials?.GetSource() ?? CoachingCredentialSource.None;
+        CredentialSource = _configuration?.GetSource() ?? _credentials?.GetSource() ?? CoachingCredentialSource.None;
         OnPropertyChanged(nameof(CredentialSource)); OnPropertyChanged(nameof(CredentialStatus));
         OnPropertyChanged(nameof(CanRemoveKey)); RemoveKeyCommand.NotifyCanExecuteChanged();
     }
@@ -40,16 +59,16 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     // The PasswordBox hands over only the new input; no stored key is ever returned to the view.
     public void SaveKey(string key)
     {
-        CredentialMessage = _credentials?.Save(key) == true
-            ? "Key saved locally. It will be used on your next explicit generation; it has not been tested with OpenAI."
+        CredentialMessage = ActiveStore?.Save(key) == true
+            ? $"Key saved locally for {SelectedProvider}. It will be used on your next explicit generation; it has not been tested with the provider."
             : "Key was not saved. Enter a nonempty key without spaces (up to 4096 characters), or check local storage access.";
         OnPropertyChanged(nameof(CredentialMessage)); RefreshCredentialStatus();
     }
 
     private void RemoveKey()
     {
-        CredentialMessage = _credentials?.Remove() == true
-            ? "Saved key removed. The active source is shown below. This does not revoke the key at OpenAI."
+        CredentialMessage = ActiveStore?.Remove() == true
+            ? $"Saved key removed for {SelectedProvider}. The active source is shown below. This does not revoke the key at the provider."
             : "The saved key could not be removed. Check local storage access and try again.";
         OnPropertyChanged(nameof(CredentialMessage)); RefreshCredentialStatus();
     }
@@ -58,7 +77,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         IThemeService themeService,
         IDesktopSettingsStore settingsStore,
         ILogger<SettingsViewModel> logger,
-        ProtectedCoachingCredentials? credentials = null)
+        ProtectedCoachingCredentials? credentials = null, CoachingConfiguration? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(themeService);
         ArgumentNullException.ThrowIfNull(settingsStore);
@@ -68,6 +87,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         _settingsStore = settingsStore;
         _logger = logger;
         _credentials = credentials;
+        _configuration = configuration;
         RemoveKeyCommand = new RelayCommand(RemoveKey, () => CanRemoveKey);
         RefreshCredentialStatus();
         _selectedTheme = themeService.PreferredTheme;

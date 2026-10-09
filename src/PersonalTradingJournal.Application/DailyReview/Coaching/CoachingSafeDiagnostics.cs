@@ -10,7 +10,8 @@ public static class CoachingSafeDiagnostics
         "insufficient_quota" or "credit_balance_exhausted" or "organization_spend_limit_exceeded" or
         "project_spend_limit_exceeded" or "organization_usage_limit_exceeded" or "rate_limit_exceeded" or
         "invalid_json_schema" or "invalid_request" or "invalid_request_error" or "unsupported_parameter" or
-        "invalid_value" or "server_error" or "server_is_overloaded" or "country_region_territory_not_supported" => value,
+        "invalid_value" or "server_error" or "server_is_overloaded" or "country_region_territory_not_supported" or
+        "model_permission_blocked" or "model_permission_denied" or "billing_hard_limit_reached" or "json_validate_failed" => value,
         _ => "unknown",
     };
     public static string Type(string? value) => value switch
@@ -26,7 +27,10 @@ public static class CoachingSafeDiagnostics
         string client = Guid.TryParseExact(metadata.ClientRequestId, "N", out _) ? metadata.ClientRequestId : "unknown";
         string request = metadata.RequestId is { Length: > 4 and <= 128 } id && id.StartsWith("req_", StringComparison.Ordinal)
             && id.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-') ? id : "unknown";
-        string model = metadata.Model == "gpt-4.1-mini-2025-04-14" ? metadata.Model : "unknown";
-        return $"Phase: {phase} · HTTP: {(metadata.HttpStatus is >= 100 and <= 599 ? metadata.HttpStatus.ToString() : "not received")} · error.code: {Code(metadata.ErrorCode)} · error.type: {Type(metadata.ErrorType)} · Model: {model} · Client request: {client} · Server request: {request}";
+        string model = metadata.Model is "gpt-4.1-mini-2025-04-14" or "openai/gpt-oss-120b" ? metadata.Model : "unknown";
+        string provider = metadata.Provider is "OpenAI" or "Groq" ? metadata.Provider : "unknown";
+        string retry = metadata.RetryAfter is { } delay && delay > TimeSpan.Zero
+            ? $" · Retry after: {Math.Ceiling(delay.TotalSeconds):0} seconds (manual only)" : "";
+        return $"Phase: {phase} · HTTP: {(metadata.HttpStatus is >= 100 and <= 599 ? metadata.HttpStatus.ToString() : "not received")} · error.code: {Code(metadata.ErrorCode)} · error.type: {Type(metadata.ErrorType)} · Provider: {provider} · Model: {model} · Client request: {client} · Server request: {request}{retry}";
     }
 }

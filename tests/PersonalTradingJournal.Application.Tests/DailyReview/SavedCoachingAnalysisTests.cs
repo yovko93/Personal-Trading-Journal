@@ -12,6 +12,23 @@ public sealed class SavedCoachingAnalysisTests
         new(packet.ContractVersion, packet.PacketId, new("No records.", new[] { "calculated:day" }), [], [], [], []),
         new("Fake", "test-model", "client-test", "req_test", "resp_test", new(10, 0, 5, 15)), "Not persisted");
 
+    [Theory]
+    [InlineData("openai/gpt-oss-120b", true)]
+    [InlineData("gpt-4.1-mini-2025-04-14", true)]
+    [InlineData("/model", false)]
+    [InlineData("namespace/", false)]
+    [InlineData("namespace/model/extra", false)]
+    [InlineData("namespace/private text", false)]
+    public void OnlyModelMetadataAcceptsOneNonemptyNamespace(string model, bool valid)
+    {
+        var packet = Packet(); var good = Good(packet);
+        var result = good with { Metadata = good.Metadata! with { Provider = "Groq", Model = model } };
+        if (valid) Assert.Equal(model, CoachingAnalysisSnapshot.Create(packet, result, Now).Analysis.Summary.Model);
+        else Assert.Throws<ArgumentException>(() => CoachingAnalysisSnapshot.Create(packet, result, Now));
+        Assert.Throws<ArgumentException>(() => CoachingAnalysisSnapshot.Create(packet,
+            good with { Metadata = good.Metadata! with { Provider = "provider/invalid" } }, Now));
+    }
+
     [Fact]
     public void SnapshotCopiesExactPacketValidatedResponseAndAllowlistedMetadata()
     {

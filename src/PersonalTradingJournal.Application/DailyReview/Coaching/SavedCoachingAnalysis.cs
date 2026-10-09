@@ -56,7 +56,12 @@ public sealed class CoachingAnalysisSnapshot
         var metadata = generation.Metadata;
         static bool Identifier(string? value, int maximum) => value is { Length: > 0 } && value.Length <= maximum &&
             value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':');
-        if (!Identifier(metadata.Provider, 64) || !Identifier(metadata.Model, 128) ||
+        // Some providers use one namespaced model ID (e.g. openai/gpt-oss-120b).
+        // Only the model field accepts a slash; neither component may be empty.
+        static bool ModelIdentifier(string? value) => Identifier(value, 128) ||
+            value is { Length: <= 128 } && value.Split('/') is [var owner, var model] &&
+            Identifier(owner, 128) && Identifier(model, 128);
+        if (!Identifier(metadata.Provider, 64) || !ModelIdentifier(metadata.Model) ||
             !Identifier(metadata.ClientRequestId, 128) ||
             metadata.RequestId is not null && !Identifier(metadata.RequestId, 128) ||
             metadata.ResponseId is not null && !Identifier(metadata.ResponseId, 128))

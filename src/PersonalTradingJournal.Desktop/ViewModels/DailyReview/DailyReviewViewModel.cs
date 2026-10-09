@@ -38,6 +38,12 @@ public sealed class DailyReviewViewModel : ObservableObject
     public bool NeedsAiConfiguration { get; private set; }
     public Action? OpenAiSettings { get; set; }
     public IRelayCommand ConfigureAiCommand { get; }
+    public string ProviderDisclosure => (_credentials as ICoachingConfiguration)?.SelectedProvider switch
+    {
+        CoachingProviderKind.Groq => "Generate sends the selected Trade facts and Journal text to Groq. Groq Free tier has limits; usage may be billed if your account is upgraded. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
+        CoachingProviderKind.Unavailable => "AI provider configuration cannot be read. Choose a provider in Settings before generating. No fallback provider will be used.",
+        _ => "Generate sends the selected Trade facts and Journal text to OpenAI and may incur usage charges. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
+    };
 
     public DailyReviewViewModel(IDailyReviewEvidenceReader reader, ICoachingAnalysisRepository history,
         ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
@@ -144,6 +150,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     public Task ActivateAsync()
     {
         _active = true;
+        OnPropertyChanged(nameof(ProviderDisclosure));
         NeedsAiConfiguration = _credentials?.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
         return LoadTask = StartLoadAsync(false);
     }
@@ -254,6 +261,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     {
         // Enforce the gate here too: ICommand.ExecuteAsync can be invoked without CanExecute.
         if (!CanGenerate()) return;
+        var generator = _generator!.Capture();
         var query = new DailyReviewQuery(DateOnly.FromDateTime(SelectedDate!.Value), SelectedAccount.Id);
         long version = ++_requestVersion;
         using var cancellation = new CancellationTokenSource();
@@ -296,7 +304,7 @@ public sealed class DailyReviewViewModel : ObservableObject
             }
             GenerationMessage = $"Generating, validating and saving review for {query.Date:yyyy-MM-dd}…";
             Notify();
-            var result = await Task.Run(() => _generator!.GenerateAsync(prepared.Packet, cancellation.Token), cancellation.Token);
+            var result = await Task.Run(() => generator.GenerateAsync(prepared.Packet, cancellation.Token), cancellation.Token);
             if (!IsCurrent()) return;
             GenerationDiagnostics = CoachingSafeDiagnostics.Format(result.Diagnostics);
             // Orchestration messages are allowlisted; raw provider/DB exception text is never displayed.

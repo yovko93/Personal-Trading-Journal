@@ -67,10 +67,14 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
-            builder.Services.AddSingleton(new ProtectedCoachingCredentials(applicationPaths.CoachingCredentialsPath,
-                () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")));
+            builder.Services.AddSingleton(new CoachingConfiguration(applicationPaths.CoachingProviderPath,
+                new(applicationPaths.CoachingCredentialsPath, () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
+                new(applicationPaths.GroqCredentialsPath, () => Environment.GetEnvironmentVariable("GROQ_API_KEY")),
+                File.Exists(applicationPaths.SettingsPath) || File.Exists(applicationPaths.DatabasePath)));
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.ICoachingConfiguration>(
+                s => s.GetRequiredService<CoachingConfiguration>());
             builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.ICoachingCredentials>(
-                s => s.GetRequiredService<ProtectedCoachingCredentials>());
+                s => s.GetRequiredService<CoachingConfiguration>());
             builder.Services.AddDailyCoaching();
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddSingleton<ISystemThemeProvider, WindowsSystemThemeProvider>();

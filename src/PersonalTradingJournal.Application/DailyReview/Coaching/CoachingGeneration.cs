@@ -34,6 +34,8 @@ public sealed record CoachingProviderReply(CoachingGenerationStatus Status, stri
 
 public interface ICoachingProvider
 {
+    // Capture routing at explicit click time, before asynchronous evidence loading.
+    ICoachingProvider Capture() => this;
     Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken);
 }
 
@@ -53,6 +55,7 @@ public sealed record CoachingGenerationOptions
 public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
     CoachingGenerationOptions options, TimeProvider timeProvider)
 {
+    public DailyCoachingGenerationService Capture() => new(provider.Capture(), options, timeProvider);
     public async Task<CoachingGenerationResult> GenerateAsync(CoachingEvidencePacket packet,
         CancellationToken cancellationToken = default)
     {
@@ -98,11 +101,11 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
     private static CoachingGenerationResult Result(CoachingGenerationStatus status, CoachingRequestMetadata? metadata = null) =>
         new(status, null, metadata, status switch
         {
-            CoachingGenerationStatus.MissingCredentials => "Configure AI in Settings. The OpenAI key is missing or its saved storage cannot be read.",
+            CoachingGenerationStatus.MissingCredentials => "Configure AI in Settings. The selected provider's key is missing or its saved storage cannot be read.",
             CoachingGenerationStatus.InvalidConfiguration => "Check the supported model, input/output budget and positive timeout (at most 180 seconds).",
             CoachingGenerationStatus.AuthenticationFailed => "The provider rejected the credential. Check or replace the API key.",
-            CoachingGenerationStatus.AccessDenied => "The provider denied this request. Check the safe error code before changing configuration; verify the project's Responses write/model-request permissions if permission denial is indicated. Unknown codes do not establish the cause.",
-            CoachingGenerationStatus.ModelUnavailable => "The configured model is unavailable to this request. Ask the project owner to verify access to gpt-4.1-mini-2025-04-14; the response does not distinguish a missing model from denied access.",
+            CoachingGenerationStatus.AccessDenied => "The selected provider denied this request. Check the safe error code and the account's API/model permissions. Unknown codes do not establish the cause.",
+            CoachingGenerationStatus.ModelUnavailable => "The configured model is unavailable to this request. Ask the provider account owner to verify access to the model in the safe diagnostics; the response does not distinguish a missing model from denied access.",
             CoachingGenerationStatus.InvalidRequest => "The provider rejected the request or structured-output schema. Report the safe diagnostics; changing billing or retrying is not a confirmed remedy.",
             CoachingGenerationStatus.InputTooLarge => "Complete evidence exceeds the configured input budget. Select an explicit narrower scope; nothing was truncated.",
             CoachingGenerationStatus.RateLimited => "The provider rate-limited this request. Respect RetryAfter before manually generating again.",

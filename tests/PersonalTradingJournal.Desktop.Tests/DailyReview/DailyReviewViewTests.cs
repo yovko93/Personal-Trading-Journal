@@ -12,6 +12,58 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 
 public sealed class DailyReviewViewTests
 {
+    [Fact]
+    public async Task ProviderSelectionAndDisclosureWrapAcrossThemesWithoutSendingOrRevealingKeys()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        using var secret = new Settings.CoachingCredentialsTests.SecretFixture();
+        var config = new PersonalTradingJournal.Desktop.Settings.CoachingConfiguration(secret.Paths.CoachingProviderPath, secret.Store,
+            new(secret.Paths.GroqCredentialsPath, () => null), false);
+        using var settings = Settings.CoachingProviderSelectionTests.Settings(config);
+        var f = new ReviewFixture();
+        var review = new PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel(
+            f.Reader, f.History, f.Accounts, f.Dialogs, TimeProvider.System, credentials: config);
+        await review.ActivateAsync();
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+            {
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme); app.Resources = resources;
+                var view = new PersonalTradingJournal.Desktop.Views.Settings.SettingsView { DataContext = settings };
+                var root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var selector = (ComboBox)view.FindName("ProviderSelector");
+                Assert.Same(resources["PtjComboBoxStyle"], selector.Style);
+                var key = (PasswordBox)view.FindName("ApiKeyEntry");
+                foreach (var provider in settings.AvailableProviders)
+                {
+                    selector.SelectedItem = provider; Flush();
+                    Assert.Equal(provider, config.SelectedProvider);
+                    Assert.Contains(provider.ToString(), AutomationProperties.GetName(key));
+                    key.Password = "synthetic-unsubmitted";
+                    selector.SelectedItem = provider == PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderKind.Groq
+                        ? PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderKind.OpenAI
+                        : PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderKind.Groq;
+                    Flush(); Assert.Empty(key.Password);
+                }
+                selector.SelectedItem = PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderKind.Groq; Flush();
+                Assert.True(selector.Focusable && selector.ActualWidth > 100);
+                Assert.Equal(0, ((ScrollViewer)view.FindName("SettingsScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "provider-settings"); root.Child = null;
+                var workspace = new DailyReviewView { DataContext = review }; root.Child = workspace;
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                Assert.Contains(Descendants(workspace).OfType<TextBlock>(), t => t.Text.Contains("Groq Free tier"));
+                Assert.Equal(0, ((ScrollViewer)workspace.FindName("ReviewScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "groq-disclosure"); root.Child = null;
+            }
+            review.Deactivate();
+        }, shutdownDispatcher: false);
+        Assert.Empty(f.History.Items);
+        Assert.False(File.Exists(secret.Paths.GroqCredentialsPath));
+        Assert.False(File.Exists(secret.Paths.CoachingCredentialsPath));
+    }
     private static readonly Lazy<Task> Host = new(() => IsolatedTestProcess.RunSuiteAsync(
         typeof(DailyReviewViewTests), "daily-review-layout", "PTJ_DAILY_REVIEW_TEST_HOST",
         TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));

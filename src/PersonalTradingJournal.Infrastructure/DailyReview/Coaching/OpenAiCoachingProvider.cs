@@ -100,20 +100,21 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         }
     }
 
-    private static CoachingGenerationStatus ClassifyFailure(int status, string? code, string? type) => code switch
+    internal static CoachingGenerationStatus ClassifyFailure(int status, string? code, string? type) => code switch
     {
         "invalid_api_key" or "invalid_authentication" => CoachingGenerationStatus.AuthenticationFailed,
         "model_not_found" or "model_not_available" => CoachingGenerationStatus.ModelUnavailable,
-        "permission_denied" or "insufficient_permissions" => CoachingGenerationStatus.AccessDenied,
+        "permission_denied" or "insufficient_permissions" or "model_permission_blocked" or "model_permission_denied" => CoachingGenerationStatus.AccessDenied,
         "insufficient_quota" or "credit_balance_exhausted" or "organization_spend_limit_exceeded" or
-        "project_spend_limit_exceeded" or "organization_usage_limit_exceeded" => CoachingGenerationStatus.QuotaExceeded,
+        "project_spend_limit_exceeded" or "organization_usage_limit_exceeded" or "billing_hard_limit_reached" => CoachingGenerationStatus.QuotaExceeded,
         "context_length_exceeded" or "input_too_large" => CoachingGenerationStatus.InputTooLarge,
         "rate_limit_exceeded" => CoachingGenerationStatus.RateLimited,
-        "invalid_json_schema" or "invalid_request" or "invalid_request_error" or "unsupported_parameter" or "invalid_value" => CoachingGenerationStatus.InvalidRequest,
+        "invalid_json_schema" or "invalid_request" or "invalid_request_error" or "unsupported_parameter" or "invalid_value" or "json_validate_failed" => CoachingGenerationStatus.InvalidRequest,
         "server_error" or "server_is_overloaded" => CoachingGenerationStatus.ServiceUnavailable,
         _ => status switch
         {
             401 => CoachingGenerationStatus.AuthenticationFailed,
+            402 => CoachingGenerationStatus.QuotaExceeded,
             403 => CoachingGenerationStatus.AccessDenied,
             413 => CoachingGenerationStatus.InputTooLarge,
             429 when type == "insufficient_quota" => CoachingGenerationStatus.QuotaExceeded,
@@ -124,7 +125,7 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         },
     };
 
-    private static async Task<byte[]> ReadBounded(HttpContent content, CancellationToken token, int maximumBytes = MaximumEnvelopeBytes)
+    internal static async Task<byte[]> ReadBounded(HttpContent content, CancellationToken token, int maximumBytes = MaximumEnvelopeBytes)
     {
         if (content.Headers.ContentLength > maximumBytes) throw new InvalidDataException("Envelope exceeds limit.");
         await using var stream = await content.ReadAsStreamAsync(token);
@@ -139,14 +140,14 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
         }
     }
 
-    private static string? String(JsonElement item, string property) =>
+    internal static string? String(JsonElement item, string property) =>
         item.ValueKind == JsonValueKind.Object && item.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() : null;
-    private static string? SafeId(string? value, string prefix, string key) =>
+    internal static string? SafeId(string? value, string prefix, string key) =>
         value is { Length: <= 128 } && value.StartsWith(prefix, StringComparison.Ordinal) &&
         !value.Contains(key, StringComparison.Ordinal) && value.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-')
             ? value : null;
-    private static TimeSpan? RetryDelay(HttpResponseMessage response)
+    internal static TimeSpan? RetryDelay(HttpResponseMessage response)
     {
         var value = response.Headers.RetryAfter;
         var delay = value?.Delta ?? (value?.Date is { } date ? date - DateTimeOffset.UtcNow : (TimeSpan?)null);
