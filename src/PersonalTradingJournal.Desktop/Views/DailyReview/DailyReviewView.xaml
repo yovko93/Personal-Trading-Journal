@@ -113,6 +113,23 @@
                 <Button Style="{DynamicResource PtjButtonStyle}" Content="Cancel loading" Command="{Binding CancelLoadCommand}" Margin="0,20,8,8" />
             </WrapPanel>
             <TextBlock Text="{Binding LoadingText}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />
+            <Border Style="{DynamicResource PtjCardStyle}" Margin="0,0,0,12">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource ReviewBody}" Text="Generate sends the selected Trade facts and Journal text to OpenAI and may incur usage charges. Only an explicit click sends a request. Cancelling locally may not prevent charges." />
+                    <WrapPanel>
+                        <Button x:Name="GenerateReview" Content="Generate AI Review" Command="{Binding GenerateCommand}"
+                                Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,8,8,8"
+                                AutomationProperties.Name="Generate AI Review for selected New York date and Account scope" />
+                        <Button x:Name="CancelGeneration" Content="Cancel generation" Command="{Binding CancelGenerationCommand}"
+                                Style="{DynamicResource PtjButtonStyle}" Margin="0,8,0,8" />
+                    </WrapPanel>
+                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
+                                 Visibility="{Binding IsGenerating, Converter={StaticResource BoolVisibility}}"
+                                 AutomationProperties.Name="AI review generation in progress" />
+                    <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationAvailability}" />
+                    <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationMessage}" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+            </Border>
             <TextBlock Text="{Binding AccountNotice}" Style="{StaticResource Message}" />
             <TextBlock Text="{Binding HistoricalAccountsLabel}" Style="{StaticResource Message}" />
             <TextBlock Text="{Binding ScopeError}" Style="{StaticResource Message}" AutomationProperties.LiveSetting="Polite" />

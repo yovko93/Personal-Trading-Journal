@@ -8,7 +8,7 @@ using PersonalTradingJournal.Desktop.Dialogs;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.DailyReview;
 
-/// <summary>Local reads and explicit single-analysis deletion only. No generation/provider dependency.</summary>
+/// <summary>Local browsing plus explicit-only generation through the validated atomic-save boundary.</summary>
 public sealed class DailyReviewViewModel : ObservableObject
 {
     private readonly IDailyReviewEvidenceReader _reader;
@@ -30,11 +30,19 @@ public sealed class DailyReviewViewModel : ObservableObject
     private CancellationTokenSource? _scopeRead;
     private long _scopeGeneration;
     private bool _scopeLoading;
+    private readonly GenerateAndSaveCoachingService? _generator;
+    private CancellationTokenSource? _generationRequest;
+    private long _requestVersion;
+    private bool _generating;
 
     public DailyReviewViewModel(IDailyReviewEvidenceReader reader, ICoachingAnalysisRepository history,
-        ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock)
+        ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
+        GenerateAndSaveCoachingService? generator = null)
     {
         _reader = reader; _history = history; _accounts = accounts; _dialogs = dialogs; _clock = clock;
+        _generator = generator;
+        GenerateCommand = new AsyncRelayCommand(GenerateAsync, CanGenerate);
+        CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsGenerating && _generationRequest?.IsCancellationRequested == false);
         _date = Today.ToDateTime(TimeOnly.MinValue);
         RefreshCommand = new AsyncRelayCommand(() => StartLoadAsync(false), AsyncRelayCommandOptions.AllowConcurrentExecutions);
         TodayCommand = new RelayCommand(() => SelectedDate = Today.ToDateTime(TimeOnly.MinValue));
@@ -97,10 +105,16 @@ public sealed class DailyReviewViewModel : ObservableObject
     public bool ShowHistoricalAccountPaging => _scopePage?.TotalCount > 25;
     public Task ScopeLoadTask { get; private set; } = Task.CompletedTask;
     public bool IsLoading => _loading;
+    public bool IsGenerating => _generating;
+    public string? GenerationMessage { get; private set; }
+    public string GenerationAvailability => SelectedAccount.IsHistorical
+        ? "Generation is unavailable for historical/deleted Accounts. Saved snapshots remain readable." : "";
+    public IAsyncRelayCommand GenerateCommand { get; }
+    public IRelayCommand CancelGenerationCommand { get; }
     public string LoadingText => IsLoading ? "Loading selected day…" : "";
     public string HistoryLabel => $"Saved AI analysis history · {_historyPage?.TotalCount.ToString() ?? "—"} analyses · page {_page}";
     public string HistoryEmptyText => !IsLoading && HistoryError is null && _historyPage?.TotalCount == 0
-        ? "No saved AI analyses for this date and analysis scope. This workspace does not generate reviews." : "";
+        ? "No saved AI analyses for this date and analysis scope." : "";
     public string HistoryScope => SelectedAccount.Id is null
         ? "All accounts history contains aggregate analyses only. Select an account for its exact-account analyses."
         : "Exact-account analysis history. Original scope and names are retained in each snapshot.";
@@ -121,7 +135,7 @@ public sealed class DailyReviewViewModel : ObservableObject
     public IAsyncRelayCommand<ReviewJournalRow> OpenJournalCommand { get; }
 
     public Task ActivateAsync() { _active = true; return LoadTask = StartLoadAsync(false); }
-    public void Deactivate() { _active = false; CancelLoad(); }
+    public void Deactivate() { _active = false; CancelGeneration(); CancelLoad(); }
     public void OnDataCommitted() { if (_active) LoadTask = StartLoadAsync(false); }
 
     private void CancelLoad()
@@ -141,8 +155,13 @@ public sealed class DailyReviewViewModel : ObservableObject
         return LoadTask = StartLoadAsync(true);
     }
 
-    private async Task StartLoadAsync(bool historyOnly)
+    private async Task StartLoadAsync(bool historyOnly, bool fromGeneration = false)
     {
+        if (!fromGeneration)
+        {
+            if (!_generating) GenerationMessage = null;
+            CancelGeneration();
+        }
         CancelLoad();
         if (!historyOnly) Current = null;
         Analyses = []; _historyPage = null; HistoryError = null;
@@ -203,6 +222,94 @@ public sealed class DailyReviewViewModel : ObservableObject
         finally
         {
             if (generation == _generation) { _read = null; _loading = false; Notify(); }
+        }
+    }
+
+    private bool CanGenerate() => _active && _generator is not null && !_generating && !_loading &&
+        !_scopeLoading && SelectedDate.HasValue && !SelectedAccount.IsHistorical &&
+        (SelectedAccount.Id is null || _liveAccounts.Any(a => a.Id == SelectedAccount.Id));
+
+    private void CancelGeneration()
+    {
+        if (_generationRequest is null || _generationRequest.IsCancellationRequested) return;
+        _requestVersion++;
+        _generationRequest.Cancel();
+        GenerationMessage = "Generation cancelled locally. An accepted request may still be charged. If cancellation coincided with saving, check the original date/scope history. No automatic retry.";
+        Notify();
+    }
+
+    private async Task GenerateAsync()
+    {
+        // Enforce the gate here too: ICommand.ExecuteAsync can be invoked without CanExecute.
+        if (!CanGenerate()) return;
+        var query = new DailyReviewQuery(DateOnly.FromDateTime(SelectedDate!.Value), SelectedAccount.Id);
+        long version = ++_requestVersion;
+        using var cancellation = new CancellationTokenSource();
+        _generationRequest = cancellation; _generating = true;
+        GenerationMessage = $"Reading current evidence for {query.Date:yyyy-MM-dd} · {SelectedAccount.Label}…";
+        Notify();
+        bool IsCurrent() => _active && version == _requestVersion && !cancellation.IsCancellationRequested &&
+            SelectedDate == query.Date.ToDateTime(TimeOnly.MinValue) && SelectedAccount.Id == query.TradingAccountId;
+        try
+        {
+            var prepared = await Task.Run(async () =>
+            {
+                // Revalidate availability at click time, not only from a potentially stale selector.
+                if (query.TradingAccountId is { } id &&
+                    !(await _accounts.GetAllAsync(cancellation.Token)).Any(a => a.Id == id))
+                    return (Packet: (CoachingEvidencePacket?)null, Message: "The Account is no longer available. Refresh to browse its historical snapshots; nothing was sent.", AccountUnavailable: true);
+                var evidence = await _reader.GetAsync(query, cancellation.Token);
+                if (evidence.Query != query)
+                    return (Packet: (CoachingEvidencePacket?)null, Message: "Evidence did not match the requested date/scope. Refresh before generating; nothing was sent.", AccountUnavailable: false);
+                if (evidence.Trades.Count == 0 && !evidence.Journals.Any(j =>
+                    new[] { j.Text, j.Answers.WentWell, j.Answers.NeedsImprovement, j.Answers.NextTradingDay }
+                        .Any(t => !string.IsNullOrWhiteSpace(t))))
+                    return (Packet: (CoachingEvidencePacket?)null, Message: "No usable Trade or Journal evidence for this date and scope. Nothing was sent.", AccountUnavailable: false);
+                var built = CoachingEvidencePacketBuilder.Build(evidence, cancellation.Token);
+                return (built.Packet, Message: built.Status == CoachingPacketBuildStatus.TooLarge
+                    ? "Complete evidence is too large. Choose a narrower Account scope; nothing was truncated or sent."
+                    : "Evidence could not be validated or calculated. Refresh and check source records; nothing was sent.", AccountUnavailable: false);
+            }, cancellation.Token);
+            if (!IsCurrent()) return;
+            if (prepared.Packet is null)
+            {
+                GenerationMessage = prepared.Message;
+                if (prepared.AccountUnavailable)
+                {
+                    _liveAccounts = _liveAccounts.Where(a => a.Id != query.TradingAccountId).ToArray();
+                    RebuildAccounts();
+                }
+                return;
+            }
+            GenerationMessage = $"Generating, validating and saving review for {query.Date:yyyy-MM-dd}…";
+            Notify();
+            var result = await Task.Run(() => _generator!.GenerateAsync(prepared.Packet, cancellation.Token), cancellation.Token);
+            if (!IsCurrent()) return;
+            // Orchestration messages are allowlisted; raw provider/DB exception text is never displayed.
+            if (result.Status != SavedCoachingGenerationStatus.Saved || result.Analysis is null)
+            { GenerationMessage = result.Message; return; }
+            GenerationMessage = "Review saved. Loading matching history and saved evidence…";
+            _page = 1;
+            await (LoadTask = StartLoadAsync(true, fromGeneration: true));
+            if (!IsCurrent()) return;
+            try
+            {
+                var snapshot = await Task.Run(() => ReviewSnapshot.Read(result.Analysis), cancellation.Token);
+                if (!IsCurrent()) return;
+                Snapshot = snapshot;
+                GenerationMessage = "AI review saved and opened. Monetary cost unknown: no verified pricing configuration.";
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+            catch (Exception)
+            { if (IsCurrent()) GenerationMessage = "The review was saved but could not be displayed. Refresh history to reopen it; do not regenerate automatically."; }
+        }
+        catch (OperationCanceledException)
+        { if (IsCurrent()) GenerationMessage = "Generation cancelled. No automatic retry; an accepted request may still be charged."; }
+        catch (Exception)
+        { if (IsCurrent()) GenerationMessage = "Current evidence could not be prepared. Refresh and try again; no automatic retry was made."; }
+        finally
+        {
+            _generationRequest = null; _generating = false; Notify();
         }
     }
 
@@ -325,5 +432,6 @@ public sealed class DailyReviewViewModel : ObservableObject
         OnPropertyChanged(string.Empty);
         PreviousCommand?.NotifyCanExecuteChanged(); NextCommand?.NotifyCanExecuteChanged(); CancelLoadCommand?.NotifyCanExecuteChanged();
         PreviousHistoricalAccountsCommand?.NotifyCanExecuteChanged(); NextHistoricalAccountsCommand?.NotifyCanExecuteChanged();
+        GenerateCommand?.NotifyCanExecuteChanged(); CancelGenerationCommand?.NotifyCanExecuteChanged();
     }
 }

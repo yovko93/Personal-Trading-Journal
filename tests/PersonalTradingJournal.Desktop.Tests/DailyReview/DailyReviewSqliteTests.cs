@@ -15,6 +15,36 @@ namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 public sealed class DailyReviewSqliteTests
 {
     [Fact]
+    public async Task ExplicitGenerationAtomicallySavesOneSnapshotAndFailureLeavesDatabaseUnchanged()
+    {
+        await using var database = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        await database.Repository.CreateAsync(new(ReviewFixture.Day, null, "Journal-only day, no Trades."));
+        var provider = new DailyReviewGenerationTests.Provider();
+        var repository = database.Provider.GetRequiredService<ICoachingAnalysisRepository>();
+        var vm = new DailyReviewViewModel(database.Provider.GetRequiredService<IDailyReviewEvidenceReader>(),
+            repository, database.Provider.GetRequiredService<ITradingAccountReader>(), new FakeDialogService(),
+            new FixedTimeProvider(), new(new(provider, new(), TimeProvider.System), repository, TimeProvider.System));
+        vm.SelectedDate = ReviewFixture.Day.ToDateTime(TimeOnly.MinValue);
+        try
+        {
+            await vm.ActivateAsync();
+            await vm.GenerateCommand.ExecuteAsync(null);
+            var saved = await repository.GetAsync(Assert.Single(vm.Analyses).Source.Id);
+            Assert.NotNull(saved);
+            Assert.Equal(provider.Packet!.Json, saved.EvidenceJson);
+            Assert.Equal("Journal-only day, no Trades.", Assert.Single(vm.Snapshot!.Evidence.Journals).Source.Text);
+            provider.Handler = (_, _) => Task.FromResult(new CoachingProviderReply(CoachingGenerationStatus.RateLimited, null, null));
+            await vm.GenerateCommand.ExecuteAsync(null);
+            await using var db = await database.ContextFactory.CreateDbContextAsync();
+            Assert.Single(await db.CoachingAnalyses.AsNoTracking().ToArrayAsync());
+            Assert.Single(await db.DailyJournals.AsNoTracking().ToArrayAsync());
+            Assert.Empty(await db.Trades.AsNoTracking().ToArrayAsync());
+            Assert.Equal(2, provider.Calls);
+        }
+        finally { vm.Deactivate(); }
+    }
+
+    [Fact]
     public async Task RestartDiscoversDeletedScopeBySavedNameAndIdWithoutSubstitutingSameNameAccountOrAggregate()
     {
         await using var database = await JournalSqliteTests.JournalTestDatabase.CreateAsync();

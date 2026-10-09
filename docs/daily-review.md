@@ -1,8 +1,57 @@
 # Daily Review with AI Coaching — M15
 
+## M15.7: Manual AI generation
+
+Only **Generate AI Review** invokes the existing `GenerateAndSaveCoachingService`. A visible disclosure beside the action says that the selected Trade facts and Journal text go to OpenAI and may incur usage charges. Loading, Refresh, navigation, reopening, committed-data notifications and history browsing never start a provider request.
+
+The click captures the New York date and exact Account ID (or All accounts aggregate scope), rechecks current Account availability, reads fresh evidence, and builds one immutable M15.3 packet with M15.2 calculated facts. Only that packet is submitted, validated and saved through M15.4/M15.5. No UI calculation replaces the authoritative statistics. Trades alone or meaningful content in any of a Journal's four fields can support a request. Zero Trade evidence plus absent/whitespace-only Journal content sends nothing. Open/incomplete Trade facts remain explicitly uncertain/excluded from realized statistics; the UI does not invent missing Net. Invalid or oversized packets are not truncated.
+
+Historical/deleted Account options remain browseable but cannot generate. If an Account disappears after selector loading, click-time revalidation sends nothing and marks the selection unavailable without changing its ID. Inactive persisted Accounts are still available scopes. All accounts continues to generate an aggregate analysis, distinct from an exact-account analysis and from a null-scoped Journal.
+
+### Request lifecycle and results
+
+- One in-flight operation per workspace, guarded both by command availability and its execution body. Double execution cannot create a second provider call.
+- Progress reports evidence preparation, then generation/validation/storage. **Cancel generation** cancels the linked operation. Changing date/scope, Refresh/history-page reload, committed-data reload, leaving the destination or accepted main-window closing also cancels. Other navigation guards retain their existing behavior.
+- A request version, captured date/scope and active-state check reject late completions, including a switch away and back. A new request is unavailable until the cancelled operation unwinds. No automatic retry is added.
+- Local cancellation terminates the synchronous request connection through the existing adapter. It is not a guarantee of no provider processing or charge. The [official cancellation guidance](https://developers.openai.com/api/docs/guides/background#limits) distinguishes synchronous connection termination from background-response cancellation; this implementation does not enable background mode.
+- Only atomic **Saved** success refreshes the captured scope's history to page one and opens the saved response/evidence/citations. A later selection is never changed to show an older request. Token metadata remains nullable; cost is explicitly unknown because no verified pricing configuration is installed.
+- Database failure reports that saving was not confirmed, never shows the generated response as a saved analysis, and warns against another potentially billable generation before checking history. Cancellation racing a commit may leave the already committed snapshot at the original scope; Refresh that scope to reconcile. This does not alter the existing atomic repository semantics.
+- Missing credentials, invalid configuration/authentication/access, oversized input, rate limit/quota, service/provider failure, refusal, incomplete/invalid output, timeout, cancellation and storage failure retain their distinct sanitized orchestration messages. Current statistics and existing history are not replaced on generation failure. Raw exception strings, HTTP bodies, prompts, source text and provider output are not logged by the UI.
+
+### Configuration and acceptance limits
+
+Set `OPENAI_API_KEY` securely for the Desktop process before launching it. Never put it in the repository, journal database, screenshots or diagnostics. M15.4's existing `gpt-4.1-mini-2025-04-14` profile, input limits and 90-second provider timeout are unchanged; this milestone adds no provider/model or pricing configuration UI. Local Trade/Journal workflows work without a credential or network.
+
+Automated verification uses fake providers and isolated SQLite only. Live paid-provider behavior, actual mouse/keyboard/assistive-technology operation and GitHub Actions for the user's eventual commit are separate acceptance gates. No real journal or paid API is used during implementation.
+
+Remaining isolated live checks: launch with a disposable data directory; inspect the disclosure and Generate/Cancel keyboard focus in both themes; cancel a request and change date/scope while it is pending; confirm a saved snapshot opens with its original evidence and citations. A live provider request requires the user's own credential and explicit acceptance of charges. Check a missing-key launch separately. Verify actual monitor scaling and screen-reader progress announcements. Cancellation/commit races require checking history, not blindly generating again.
+
+M15.7 changed files:
+
+- `README.md`, `docs/daily-review.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewGenerationTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowDailyReviewTests.cs`
+
+### M15.7 verification
+
+- Baseline/final HEAD `a064a73ed655fb992a46075056cbf09ed7de5df1`, branch `develop`. Initial worktree clean; final 9 modified tracked files and 1 new test file, none staged. No commit, push or merge.
+- Final focused Release: **247/247 passed** — Domain 13, Application 116, Infrastructure 52, Desktop 66; zero failures/skips.
+- Final complete parallel Release: **3,247/3,247 passed** — Domain 454, Application 645, Infrastructure 859, Desktop 1,289; zero failures/skips, Desktop 2 m 28 s. An earlier full run also passed before a final small fix clearing a previous success message when changing selection; the final run includes that regression assertion. No harness deadline or coverage was weakened.
+- Release build **0 warnings / 0 errors**; EF **no pending model changes**; `git diff --check` and new-file whitespace check passed.
+- New fake-provider coverage includes Trade-only/Journal-only/combined evidence, fresh immutable packet and exact scope, no automatic calls, double execution, every provider failure enum, actual controlled timeout, malformed output/identity/citations, failed storage, empty/blank/oversized/read-failed preflight, unavailable Accounts, late responses after cancellation/date/scope/Refresh/navigation/close, and unchanged existing evidence/history on failure.
+- Migrated SQLite flow saves one validated snapshot from an explicit Journal-only request, opens the original saved evidence and confirms a later rate-limit failure creates no additional row or source changes.
+- Compiled WPF tests exercise bound Generate/Cancel commands, disclosure, busy/disabled states, accessible names/focusability and no horizontal overflow. Light/Dark automated generation renders inspected at **960 × 760 DIP / 96 DPI** and **480 × 760 DIP / 240 DPI**. Native monitor scaling, real pointer/keyboard use and screen-reader announcements are not claimed.
+- Evidence: ignored `artifacts/m157/` and `artifacts/m157-*.log`. No paid request, credential access, real journal or schema change. GitHub Actions must verify the user's eventual commit; local results are not CI acceptance.
+
 ## M15.6: Desktop workspace
 
-The Daily Review menu now opens a read-only local workspace, initially **today in America/New_York** and **All accounts**. Its date is a calendar date, not a converted machine-local midnight. Today explicitly selects the current New York date. Navigation away cancels pending reads; returning preserves the selected date, account and history page, then reloads. There is **no Generate button, provider dependency, automatic generation or paid request**. No migration or persistence/economics change accompanies this UI.
+The Daily Review menu opens local current evidence and saved history, initially **today in America/New_York** and **All accounts**. Its date is a calendar date, not a converted machine-local midnight. Today explicitly selects the current New York date. Navigation away cancels pending reads; returning preserves the selected date, account and history page, then reloads. Browsing never generates or makes paid requests; M15.7 adds the separate explicit action documented above. No migration or source persistence/economics change accompanies this UI.
 
 ### Current evidence versus history
 

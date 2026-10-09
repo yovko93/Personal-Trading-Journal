@@ -97,8 +97,7 @@ public sealed class DailyReviewWorkspaceTests
         Assert.Contains("No Trade or Journal", f.Vm.Current!.EmptyText);
         Assert.Contains("No saved AI", f.Vm.HistoryEmptyText);
         Assert.Equal(0, f.History.Writes);
-        Assert.DoesNotContain(typeof(DailyReviewViewModel).GetConstructors().Single().GetParameters(),
-            p => p.ParameterType.Name.Contains("Generat") || p.ParameterType.Name == nameof(ICoachingProvider));
+        Assert.False(f.Vm.GenerateCommand.CanExecute(null)); // No configured orchestration in this read-only fixture.
     }
 
     [Fact]
@@ -348,7 +347,9 @@ internal sealed class ReviewFixture
     internal static readonly Guid AccountId = Guid.Parse("11111111-1111-1111-1111-111111111111");
     internal static readonly Guid OtherId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     internal static readonly DateTimeOffset Now = new(2026, 10, 8, 15, 0, 0, TimeSpan.Zero);
-    internal ReviewFixture(DateTimeOffset? now = null) => Vm = new(Reader, History, Accounts, Dialogs, new Clock(now ?? Now));
+    internal ReviewFixture(DateTimeOffset? now = null, ICoachingProvider? provider = null, TimeProvider? generationClock = null) =>
+        Vm = new(Reader, History, Accounts, Dialogs, new Clock(now ?? Now), provider is null ? null :
+            new GenerateAndSaveCoachingService(new(provider, new(), generationClock ?? TimeProvider.System), History, new Clock(now ?? Now)));
     internal EvidenceReaderFake Reader { get; } = new();
     internal HistoryFake History { get; } = new();
     internal AccountsFake Accounts { get; } = new();
@@ -406,9 +407,15 @@ internal sealed class ReviewFixture
         internal List<CoachingAnalysisHistoryQuery> Queries { get; } = [];
         internal int Writes, Deletes;
         internal bool FailBrowse, FailDelete;
+        internal bool FailSave { get; set; }
         internal Func<Guid, CancellationToken, Task<SavedCoachingAnalysis?>>? GetHandler;
         internal Func<CoachingAnalysisHistoryQuery, CancellationToken, Task<CoachingAnalysisHistoryPage>>? BrowseHandler;
-        public Task<SavedCoachingAnalysis> SaveAsync(CoachingAnalysisSnapshot snapshot, CancellationToken token = default) { Writes++; throw new NotSupportedException(); }
+        public Task<SavedCoachingAnalysis> SaveAsync(CoachingAnalysisSnapshot snapshot, CancellationToken token = default)
+        {
+            token.ThrowIfCancellationRequested();
+            if (FailSave) throw new IOException("private database payload");
+            Writes++; Items.Add(snapshot.Analysis); return Task.FromResult(snapshot.Analysis);
+        }
         public Task<SavedCoachingAnalysis?> GetAsync(Guid id, CancellationToken token = default) => GetHandler?.Invoke(id, token) ?? Task.FromResult(Items.SingleOrDefault(a => a.Summary.Id == id));
         public Task<CoachingAnalysisHistoryPage> BrowseAsync(CoachingAnalysisHistoryQuery q, CancellationToken token = default)
         {

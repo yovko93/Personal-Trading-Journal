@@ -218,6 +218,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (CurrentDestination == NavigationDestination.DailyReview)
+        {
+            _dailyReviewViewModel?.Deactivate();
+            return true;
+        }
         if (CurrentDestination == NavigationDestination.Calendar)
             return _calendarViewModel.TryCloseDayDialog();
 

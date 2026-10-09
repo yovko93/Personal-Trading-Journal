@@ -5,6 +5,33 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed partial class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData("close")]
+    [InlineData("navigate")]
+    [InlineData("dispose")]
+    public async Task LeavingDailyReviewCancelsGenerationAndRejectsLateSuccess(string action)
+    {
+        var pending = new TaskCompletionSource<PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderReply>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new DailyReviewGenerationTests.Provider { Handler = (_, _) => pending.Task };
+        var review = DailyReviewGenerationTests.Ready(provider);
+        var f = CreateFixture(dailyReview: review.Vm);
+        f.Main.NavigateCommand.Execute(NavigationDestination.DailyReview);
+        await review.Vm.LoadTask;
+        var request = review.Vm.GenerateCommand.ExecuteAsync(null);
+        var token = await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        if (action == "close") Assert.True(f.Main.TryCloseWindow()); // MainWindow.OnClosing delegates here.
+        else if (action == "navigate") f.Main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        else f.Main.Dispose();
+        await request.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(token.IsCancellationRequested);
+        pending.SetResult(DailyReviewGenerationTests.Provider.Success(provider.Packet!));
+        Assert.Equal(0, review.History.Writes);
+        Assert.Null(review.Vm.Snapshot);
+        Assert.False(review.Vm.GenerateCommand.CanExecute(null));
+        if (action != "dispose") f.Main.Dispose();
+    }
+
     [Fact]
     public async Task DailyReviewNavigationUsesWorkspaceAndTradeIdentityIndependentOfPaging()
     {

@@ -59,7 +59,9 @@ public sealed class DailyReviewViewTests
                 Assert.Contains(buttons, b => Equals(b.Content, "Open saved analysis") && b.IsEnabled);
                 Assert.Contains(buttons, b => Equals(b.Content, "Delete analysis") && b.IsEnabled);
                 Assert.Contains(buttons, b => Equals(b.Content, "Next historical Accounts") && b.IsEnabled);
-                Assert.DoesNotContain(buttons, b => b.Content.ToString()!.Contains("Generate", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(buttons, b => Equals(b.Content, "Generate AI Review") && !b.IsEnabled);
+                Assert.Contains(buttons, b => Equals(b.Content, "Cancel generation") && !b.IsEnabled);
+                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("OpenAI and may incur usage charges"));
                 Assert.All(buttons, b =>
                 {
                     Assert.True(b.Focusable);
@@ -153,6 +155,75 @@ public sealed class DailyReviewViewTests
     }
 
     private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+
+    [Fact]
+    public async Task CompiledGenerateAndCancelBindingsAreExplicitAccessibleAndResponsiveAcrossThemes()
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_DAILY_REVIEW_TEST_HOST") != "1") { await Host.Value; return; }
+        static Task OnUi(Action action) => CalendarStaTest.RunAsync(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
+            action();
+        }, shutdownDispatcher: false);
+        foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
+        {
+            var pending = new TaskCompletionSource<PersonalTradingJournal.Application.DailyReview.Coaching.CoachingProviderReply>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var provider = new DailyReviewGenerationTests.Provider { Handler = (_, _) => pending.Task };
+            var f = DailyReviewGenerationTests.Ready(provider);
+            await f.Vm.ActivateAsync();
+            Border root = null!;
+            DailyReviewView view = null!;
+            Task generation = Task.CompletedTask;
+            await OnUi(() =>
+            {
+                var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                var resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                app.Resources = resources;
+                view = new DailyReviewView { DataContext = f.Vm };
+                root = new Border { Resources = resources, Child = view };
+                root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+                root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
+                var generate = (Button)view.FindName("GenerateReview");
+                var cancel = (Button)view.FindName("CancelGeneration");
+                Assert.True(generate.IsEnabled && generate.Focusable);
+                Assert.False(cancel.IsEnabled);
+                Assert.Contains("selected New York date", AutomationProperties.GetName(generate));
+                Assert.Same(f.Vm.GenerateCommand, generate.Command);
+                Assert.Equal(0, provider.Calls);
+                generate.Command.Execute(null);
+                generation = f.Vm.GenerateCommand.ExecutionTask!;
+            });
+            await provider.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await OnUi(() =>
+            {
+                Flush(); root.UpdateLayout();
+                var generate = (Button)view.FindName("GenerateReview");
+                var cancel = (Button)view.FindName("CancelGeneration");
+                Assert.False(generate.IsEnabled);
+                Assert.True(cancel.IsEnabled && cancel.Focusable);
+                Assert.True(Assert.Single(Descendants(view).OfType<ProgressBar>()).IsIndeterminate);
+                Assert.Contains(Descendants(view).OfType<TextBlock>(), t => t.Text.Contains("OpenAI and may incur usage charges"));
+                foreach (var button in new[] { generate, cancel })
+                    Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
+                Assert.Equal(0, ((ScrollViewer)view.FindName("ReviewScroll")).ScrollableWidth);
+                Render(root, theme, width, dpi, "generation");
+                cancel.Command!.Execute(null);
+            });
+            await generation.WaitAsync(TimeSpan.FromSeconds(10));
+            pending.SetResult(DailyReviewGenerationTests.Provider.Success(provider.Packet!));
+            await OnUi(() =>
+            {
+                Flush(); root.UpdateLayout();
+                Assert.Empty(f.History.Items);
+                Assert.True(((Button)view.FindName("GenerateReview")).IsEnabled);
+                Assert.False(((Button)view.FindName("CancelGeneration")).IsEnabled);
+                f.Vm.Deactivate();
+                root.Child = null;
+            });
+        }
+    }
+
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
