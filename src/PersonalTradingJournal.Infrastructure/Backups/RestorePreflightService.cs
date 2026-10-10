@@ -15,9 +15,11 @@ public sealed class RestorePreflightService : IRestorePreflightService
 {
     private readonly Action<RestorePreflightPhase, string?>? hook;
     private readonly PreflightLimits limits;
+    private readonly Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary>? capture;
     public RestorePreflightService() : this(null, new()) { }
-    internal RestorePreflightService(Action<RestorePreflightPhase, string?>? hook, PreflightLimits limits)
-    { this.hook = hook; this.limits = limits; }
+    internal RestorePreflightService(Action<RestorePreflightPhase, string?>? hook, PreflightLimits limits,
+        Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary>? capture = null)
+    { this.hook = hook; this.limits = limits; this.capture = capture; }
 
     public Task<RestorePreflightResult> InspectAsync(string archivePath, string stagingParentDirectory, CancellationToken cancellationToken = default) =>
         Task.Run(() => Inspect(archivePath, stagingParentDirectory, cancellationToken), CancellationToken.None);
@@ -89,75 +91,10 @@ public sealed class RestorePreflightService : IRestorePreflightService
                 staged.Add(payload.Path, target);
                 if (payload.Kind == BackupFileKind.Preferences) ValidatePreferences(target);
             }
-            Check(RestorePreflightPhase.Database);
-            // M16.2 produces rollback-mode standalone files. A WAL-mode header could create sidecars on a read-only open.
-            using (var header = File.OpenRead(staged[BackupArchiveContract.DatabasePath]))
-            {
-                Span<byte> bytes = stackalloc byte[100];
-                if (header.Read(bytes) != bytes.Length || !bytes[..16].SequenceEqual("SQLite format 3\0"u8) || bytes[18] != 1 || bytes[19] != 1)
-                    throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
-            }
-            using (var database = new SqliteConnection(new SqliteConnectionStringBuilder
-            { DataSource = staged[BackupArchiveContract.DatabasePath], Mode = SqliteOpenMode.ReadOnly,
-                Cache = SqliteCacheMode.Private, Pooling = false, DefaultTimeout = 2 }.ToString()))
-            {
-                database.Open();
-                var watch = Stopwatch.StartNew(); int callbacks = 0;
-                SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_LENGTH, 16 * 1024 * 1024);
-                SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_SQL_LENGTH, 1024 * 1024);
-                SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_ATTACHED, 0);
-                SQLitePCL.raw.sqlite3_progress_handler(database.Handle, limits.DatabaseProgressInterval, _ =>
-                    token.IsCancellationRequested || ++callbacks > limits.DatabaseProgressCallbacks || watch.Elapsed.TotalSeconds > limits.DatabaseSeconds ? 1 : 0, null);
-                Execute(database, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-4096;");
-                using (var command = database.CreateCommand())
-                {
-                    command.CommandText = "PRAGMA integrity_check(1);";
-                    using var rows = command.ExecuteReader();
-                    if (!rows.Read() || rows.GetString(0) != "ok" || rows.Read()) throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
-                }
-                using (var command = database.CreateCommand())
-                {
-                    command.CommandText = "PRAGMA foreign_key_check;";
-                    using var rows = command.ExecuteReader();
-                    if (rows.Read()) throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
-                }
-                // Bound materialized schema strings before the shared exact-schema comparer reads them.
-                using (var command = database.CreateCommand())
-                {
-                    command.CommandText = "SELECT COUNT(*), COALESCE(SUM(length(CAST(sql AS BLOB))),0), COALESCE(MAX(length(name)+length(tbl_name)),0) FROM sqlite_schema;";
-                    using var rows = command.ExecuteReader();
-                    if (!rows.Read() || rows.GetInt64(0) > 4096 || rows.GetInt64(1) > 4 * 1024 * 1024 || rows.GetInt64(2) > 512)
-                        throw new PreflightFailure(BackupValidationCode.LimitExceeded);
-                }
-                var migrations = SqliteDatabaseSnapshotService.ValidateSchema(database, token);
-                if (!manifest.DatabaseSchema.AppliedMigrations.SequenceEqual(migrations)) throw new PreflightFailure(BackupValidationCode.UnsupportedDatabaseSchema);
-                Check(RestorePreflightPhase.Attachments);
-                var expected = payloads.Where(p => p.Kind == BackupFileKind.Screenshot).Select(p => p.Path).ToHashSet(StringComparer.Ordinal);
-                var actual = new HashSet<string>(StringComparer.Ordinal);
-                using (var command = database.CreateCommand())
-                {
-                    command.CommandText = "SELECT DISTINCT StorageKey COLLATE BINARY FROM TradeScreenshots LIMIT 100001;";
-                    using var rows = command.ExecuteReader();
-                    while (rows.Read())
-                    {
-                        token.ThrowIfCancellationRequested();
-                        string key = rows.GetString(0);
-                        if (!BackupManifestValidator.IsPortableScreenshotKey(key)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
-                        actual.Add(BackupArchiveContract.ScreenshotsPrefix + key);
-                        if (actual.Count > limits.Files - 2) throw new PreflightFailure(BackupValidationCode.LimitExceeded);
-                    }
-                }
-                if (!expected.SetEquals(actual)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
-                Check(RestorePreflightPhase.Summary);
-                long Count(string table) { token.ThrowIfCancellationRequested(); using var command = database.CreateCommand();
-                    command.CommandText = "SELECT COUNT(*) FROM " + table; return (long)command.ExecuteScalar()!; }
-                var summary = new RestorePreflightSummary(manifest.CreatedAtUtc, manifest.ArchiveVersion, known[^1], known.Length,
-                    Count("TradingAccounts"), Count("Trades"), Count("DailyJournals"), Count("DailyJournalRevisions"), Count("CoachingAnalyses"),
-                    Count("TradeScreenshots"), expected.Count, payloads.Sum(p => p.SizeBytes), file.Length, archiveHash,
-                    [RestorePreflightWarning.UnencryptedSensitiveData, RestorePreflightWarning.AiCredentialsExcluded, RestorePreflightWarning.RevalidationRequired]);
-                token.ThrowIfCancellationRequested();
-                result = new(id, phase, null, compatibility, summary);
-            }
+            var summary = VerifyStaged(manifest, staged, file.Length, archiveHash, Check, token);
+            capture?.Invoke(manifest, staged, summary);
+            token.ThrowIfCancellationRequested();
+            result = new(id, phase, null, compatibility, summary);
         }
         catch (OperationCanceledException) { result = new(id, phase, BackupValidationCode.Cancelled, compatibility); }
         catch (PreflightFailure e) { result = new(id, phase, e.Code, compatibility); }
@@ -180,6 +117,81 @@ public sealed class RestorePreflightService : IRestorePreflightService
             result = result with { CleanupFailed = failed };
         }
         return result;
+    }
+
+    internal RestorePreflightSummary VerifyStaged(BackupManifest manifest, IReadOnlyDictionary<string, string> staged, long archiveBytes,
+        string archiveHash, Action<RestorePreflightPhase> check, CancellationToken token)
+    {
+        var payloads = manifest.Files;
+        check(RestorePreflightPhase.Database);
+        // M16.2 produces rollback-mode standalone files. A WAL-mode header could create sidecars on a read-only open.
+        using (var header = File.OpenRead(staged[BackupArchiveContract.DatabasePath]))
+        {
+            Span<byte> bytes = stackalloc byte[100];
+            if (header.Read(bytes) != bytes.Length || !bytes[..16].SequenceEqual("SQLite format 3\0"u8) || bytes[18] != 1 || bytes[19] != 1)
+                throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
+        }
+        using (var database = new SqliteConnection(new SqliteConnectionStringBuilder
+        { DataSource = staged[BackupArchiveContract.DatabasePath], Mode = SqliteOpenMode.ReadOnly,
+            Cache = SqliteCacheMode.Private, Pooling = false, DefaultTimeout = 2 }.ToString()))
+        {
+            database.Open();
+            var watch = Stopwatch.StartNew(); int callbacks = 0;
+            SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_LENGTH, 16 * 1024 * 1024);
+            SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_SQL_LENGTH, 1024 * 1024);
+            SQLitePCL.raw.sqlite3_limit(database.Handle, SQLitePCL.raw.SQLITE_LIMIT_ATTACHED, 0);
+            SQLitePCL.raw.sqlite3_progress_handler(database.Handle, limits.DatabaseProgressInterval, _ =>
+                token.IsCancellationRequested || ++callbacks > limits.DatabaseProgressCallbacks || watch.Elapsed.TotalSeconds > limits.DatabaseSeconds ? 1 : 0, null);
+            Execute(database, "PRAGMA query_only=ON; PRAGMA trusted_schema=OFF; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-4096;");
+            using (var command = database.CreateCommand())
+            {
+                command.CommandText = "PRAGMA integrity_check(1);";
+                using var rows = command.ExecuteReader();
+                if (!rows.Read() || rows.GetString(0) != "ok" || rows.Read()) throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
+            }
+            using (var command = database.CreateCommand())
+            {
+                command.CommandText = "PRAGMA foreign_key_check;";
+                using var rows = command.ExecuteReader();
+                if (rows.Read()) throw new PreflightFailure(BackupValidationCode.DatabaseIntegrityFailed);
+            }
+            // Bound materialized schema strings before the shared exact-schema comparer reads them.
+            using (var command = database.CreateCommand())
+            {
+                command.CommandText = "SELECT COUNT(*), COALESCE(SUM(length(CAST(sql AS BLOB))),0), COALESCE(MAX(length(name)+length(tbl_name)),0) FROM sqlite_schema;";
+                using var rows = command.ExecuteReader();
+                if (!rows.Read() || rows.GetInt64(0) > 4096 || rows.GetInt64(1) > 4 * 1024 * 1024 || rows.GetInt64(2) > 512)
+                    throw new PreflightFailure(BackupValidationCode.LimitExceeded);
+            }
+            var migrations = SqliteDatabaseSnapshotService.ValidateSchema(database, token);
+            if (!manifest.DatabaseSchema.AppliedMigrations.SequenceEqual(migrations)) throw new PreflightFailure(BackupValidationCode.UnsupportedDatabaseSchema);
+            check(RestorePreflightPhase.Attachments);
+            var expected = payloads.Where(p => p.Kind == BackupFileKind.Screenshot).Select(p => p.Path).ToHashSet(StringComparer.Ordinal);
+            var actual = new HashSet<string>(StringComparer.Ordinal);
+            using (var command = database.CreateCommand())
+            {
+                command.CommandText = "SELECT DISTINCT StorageKey COLLATE BINARY FROM TradeScreenshots LIMIT 100001;";
+                using var rows = command.ExecuteReader();
+                while (rows.Read())
+                {
+                    token.ThrowIfCancellationRequested();
+                    string key = rows.GetString(0);
+                    if (!BackupManifestValidator.IsPortableScreenshotKey(key)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
+                    actual.Add(BackupArchiveContract.ScreenshotsPrefix + key);
+                    if (actual.Count > limits.Files - 2) throw new PreflightFailure(BackupValidationCode.LimitExceeded);
+                }
+            }
+            if (!expected.SetEquals(actual)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
+            check(RestorePreflightPhase.Summary);
+            long Count(string table) { token.ThrowIfCancellationRequested(); using var command = database.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM " + table; return (long)command.ExecuteScalar()!; }
+            var summary = new RestorePreflightSummary(manifest.CreatedAtUtc, manifest.ArchiveVersion, migrations[^1], migrations.Length,
+                Count("TradingAccounts"), Count("Trades"), Count("DailyJournals"), Count("DailyJournalRevisions"), Count("CoachingAnalyses"),
+                Count("TradeScreenshots"), expected.Count, payloads.Sum(p => p.SizeBytes), archiveBytes, archiveHash,
+                [RestorePreflightWarning.UnencryptedSensitiveData, RestorePreflightWarning.AiCredentialsExcluded, RestorePreflightWarning.RevalidationRequired]);
+            token.ThrowIfCancellationRequested();
+            return summary;
+        }
     }
 
     private static void Execute(SqliteConnection db, string sql) { using var command = db.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery(); }

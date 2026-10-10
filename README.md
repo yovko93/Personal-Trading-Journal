@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.5 — Recovery-protected offline restore**
+
+`IJournalRestoreService` restores only current-schema archives during **exclusive offline maintenance**. Running Desktop/persistence sessions block it; interrupted-restore state blocks normal startup before settings/database use. The service pins and revalidates the confirmed archive fingerprint, stages and rehashes its data, creates and verifies a complete **unencrypted recovery archive**, then performs a durable-marker-protected directory switch. SQLite itself checkpoints/closes WAL/SHM state; the service never blindly deletes sidecars. Success requires reopened integrity/FK/schema checks, file hashes, screenshot relationships and matching record counts.
+
+Before replacement, cancellation preserves the original logical dataset. Once replacement starts, cancellation cannot abandon a mixed set: the operation verifies completion or recovers the original; an unresolved failure leaves normal startup blocked for explicit `RecoverInterruptedAsync`. The recovery archive, original directory (including prior logs/backups/orphans), and failure evidence remain retained—no automatic deletion. Local recovery locations are returned to the caller but excluded from diagnostic `ToString`. DPAPI credentials/provider configuration stay outside the dataset and are untouched. No restore UI, older-schema migration or live-journal acceptance is added. See [procedure, cancellation and crash limits](docs/backup-restore.md#m165--recovery-protected-offline-restore).
+
+M16.5 local verification: **200 focused checks passed** (163 Infrastructure, including 40 new restore cases; 37 Application contracts). The **complete parallel Release suite passed 3,622/3,622**, zero failures/skips (Domain 454, Application 710, Infrastructure 1,078, Desktop 1,380). Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Tests use isolated synthetic journals and deterministic interruption/fault injection. Actual process-kill/power-loss recovery, hardware durability, large-volume capacity, live recovery UI and matching GitHub CI remain unverified; no production journal or provider was accessed.
+
 **M16.4 — Read-only restore preflight**
 
 `IRestorePreflightService.InspectAsync` inspects an explicitly selected archive without opening the installed journal. It bounds ZIP/ZIP64 metadata and decompression, rejects unsafe/link/duplicate/case-colliding entries, verifies the exact manifest inventory, sizes, SHA-256 and CRC, then checks an independently staged read-only SQLite database for integrity, foreign keys, exact current schema and screenshot-reference equality. The result contains safe counts, creation/version information, an archive fingerprint and clear **unencrypted / AI credentials excluded** warnings—not Journal text, paths or permission to restore.

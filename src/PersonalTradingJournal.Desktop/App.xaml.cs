@@ -42,10 +42,13 @@ namespace PersonalTradingJournal.Desktop;
 public partial class App : System.Windows.Application
 {
     private readonly IHost _host;
+    private readonly PersonalTradingJournal.Infrastructure.Backups.JournalDataSession _dataSession;
 
     public App()
     {
         var applicationPaths = DesktopApplicationPaths.FromArguments(Environment.GetCommandLineArgs().Skip(1).ToArray());
+        // Block maintenance/interrupted restore before creating data folders, logging, loading settings or migrating.
+        _dataSession = new(applicationPaths);
         applicationPaths.EnsureDirectoriesExist();
 
         Log.Logger = new LoggerConfiguration()
@@ -154,6 +157,7 @@ public partial class App : System.Windows.Application
         {
             Log.Fatal(exception, "Application host configuration failed");
             Log.CloseAndFlush();
+            _dataSession.Dispose();
             throw;
         }
     }
@@ -219,6 +223,7 @@ public partial class App : System.Windows.Application
             }
             finally
             {
+                _dataSession.Dispose();
                 base.OnExit(e);
             }
         }

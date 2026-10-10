@@ -49,11 +49,16 @@ public static class PersistenceServiceCollectionExtensions
             ForeignKeys = true,
         }.ToString();
 
-        services.AddDbContextFactory<JournalDbContext>(options =>
-            options.UseSqlite(connectionString));
+        services.AddSingleton<JournalDataSession>(_ => new JournalDataSession(applicationPaths));
+        services.AddDbContextFactory<JournalDbContext>((provider, options) =>
+        {
+            var session = provider.GetRequiredService<JournalDataSession>();
+            options.UseSqlite(connectionString).AddInterceptors(new JournalSessionConnectionInterceptor(session));
+        });
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));
         services.AddTransient<IRestorePreflightService, RestorePreflightService>();
+        services.AddTransient<IJournalRestoreService>(_ => new JournalRestoreService(applicationPaths));
         services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
             provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();
