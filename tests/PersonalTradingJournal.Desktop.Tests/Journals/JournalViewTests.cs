@@ -20,6 +20,11 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
 public sealed class JournalViewTests
 {
+    // Owned only by this test's STA and released before that dispatcher shuts down.
+    // The application shares styles between page instances too; reparsing the same
+    // resource XML for all 23 detached views adds work unrelated to their assertions.
+    private readonly Dictionary<string, ResourceDictionary> _themes = new();
+
     [Fact]
     public async Task CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts()
     {
@@ -44,21 +49,31 @@ public sealed class JournalViewTests
             // One Application and STA for this supervised child, matching production BAML's
             // application-level StaticResource lookup without polluting the main test host.
             _ = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            for (int i = 0; i < cases.Length; i++)
+            try
             {
-                var (theme, width, dpi) = cases[i];
-                CheckLayout(editors[i], text, theme, width, dpi);
-                CheckReviewLayout(reviews[i].Draft, theme, width, dpi, completed: false);
-                CheckReviewLayout(reviews[i].Completed, theme, width, dpi, completed: true);
-                CheckLongSavedNotes(longNotes[i], longText, theme, width, dpi);
+                for (int i = 0; i < cases.Length; i++)
+                {
+                    var (theme, width, dpi) = cases[i];
+                    CheckLayout(editors[i], text, theme, width, dpi);
+                    CheckReviewLayout(reviews[i].Draft, theme, width, dpi, completed: false);
+                    CheckReviewLayout(reviews[i].Completed, theme, width, dpi, completed: true);
+                    CheckLongSavedNotes(longNotes[i], longText, theme, width, dpi);
+                }
+                CheckDateInput(dateEditors[0], dialogs, "en-US");
+                CheckDateInput(dateEditors[1], dialogs, "bg-BG");
+                CheckEmptyAndValidation(empty);
+                Assert.Equal(2, _themes.Count);
+                Assert.NotSame(_themes["Light"], _themes["Dark"]);
             }
-            CheckDateInput(dateEditors[0], dialogs, "en-US");
-            CheckDateInput(dateEditors[1], dialogs, "bg-BG");
-            CheckEmptyAndValidation(empty);
+            finally
+            {
+                using (CalendarStaTest.Phase("Journal fixture cleanup"))
+                using (CalendarStaTest.Timing("Journal fixture cleanup")) _themes.Clear();
+            }
         });
     }
 
-    private static void CheckReviewLayout(JournalViewModel vm, string theme, int width, int dpi, bool completed)
+    private void CheckReviewLayout(JournalViewModel vm, string theme, int width, int dpi, bool completed)
     {
         using var phase = CalendarStaTest.Phase($"Daily Review {theme} {width} DIP / {dpi} DPI completed={completed}");
         Assert.False(vm.IsEditorOpen);
@@ -168,7 +183,7 @@ public sealed class JournalViewTests
         vm.Deactivate();
     }
 
-    private static void CheckLayout(JournalViewModel vm, string text, string theme, int width, int dpi)
+    private void CheckLayout(JournalViewModel vm, string text, string theme, int width, int dpi)
     {
         using (CalendarStaTest.Phase("Journal construction and layout"))
         {
@@ -276,8 +291,10 @@ public sealed class JournalViewTests
         }
     }
 
-    private static void CheckDateInput(JournalViewModel vm, FakeDialogService dialogs, string culture)
+    private void CheckDateInput(JournalViewModel vm, FakeDialogService dialogs, string culture)
     {
+        using var phase = CalendarStaTest.Phase("Journal date input " + culture);
+        using var timing = CalendarStaTest.Timing("Journal date input " + culture);
         vm.OpenEditorCommand.Execute(null);
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
         var (view, _) = Layout(vm, "Light", 960);
@@ -314,8 +331,10 @@ public sealed class JournalViewTests
         vm.Deactivate();
     }
 
-    private static void CheckEmptyAndValidation(JournalViewModel vm)
+    private void CheckEmptyAndValidation(JournalViewModel vm)
     {
+        using var phase = CalendarStaTest.Phase("Journal empty and validation");
+        using var timing = CalendarStaTest.Timing("Journal empty and validation");
         Assert.True(vm.ShowEmptyReview);
         foreach (var (theme, width, dpi) in new[] { ("Light", 960, 96), ("Dark", 960, 96), ("Light", 480, 240), ("Dark", 480, 240) })
         {
@@ -342,8 +361,12 @@ public sealed class JournalViewTests
         Assert.True(((TextBlock)view.FindName("JournalTextError")).TranslatePoint(new Point(), view).Y >= editor.TranslatePoint(new Point(0, editor.ActualHeight), view).Y);
         Assert.False(vm.IsExisting);
         Assert.True(vm.IsEditorOpen);
-        editor.Text = new string('x', DailyJournalEntry.MaximumTextLength + 1);
-        Flush();
+        using (CalendarStaTest.Phase("Journal oversized text binding and layout"))
+        using (CalendarStaTest.Timing("Journal oversized text binding and layout"))
+        {
+            editor.Text = new string('x', DailyJournalEntry.MaximumTextLength + 1);
+            Flush();
+        }
         Assert.Equal(DailyJournalEntry.MaximumTextLength + 1, vm.Text.Length);
         Assert.False(((Button)view.FindName("SaveJournal")).IsEnabled);
         Assert.Contains("kept", ((TextBlock)view.FindName("JournalError")).Text);
@@ -352,7 +375,7 @@ public sealed class JournalViewTests
         vm.Deactivate();
     }
 
-    private static void CheckLongSavedNotes(JournalViewModel vm, string text, string theme, int width, int dpi)
+    private void CheckLongSavedNotes(JournalViewModel vm, string text, string theme, int width, int dpi)
     {
         var (view, root) = Layout(vm, theme, width);
         var note = Assert.Single(Descendants((StackPanel)view.FindName("SavedJournalContent")).OfType<TextBlock>(), t => t.Text == text);
@@ -377,21 +400,42 @@ public sealed class JournalViewTests
         return vm;
     }
 
-    private static (JournalView View, Border Root) Layout(JournalViewModel vm, string theme, int width)
+    private (JournalView View, Border Root) Layout(JournalViewModel vm, string theme, int width)
     {
-        ResourceDictionary resources = CalendarViewLayoutTests.SharedThemeResources(theme);
-        System.Windows.Application.Current.Resources = resources;
-        var view = new JournalView { DataContext = vm };
+        ResourceDictionary resources;
+        using (CalendarStaTest.Phase("Journal resources " + theme))
+        using (CalendarStaTest.Timing("Journal resources " + theme))
+        {
+            if (!_themes.TryGetValue(theme, out resources!))
+            {
+                resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                _themes.Add(theme, resources);
+            }
+            if (!ReferenceEquals(System.Windows.Application.Current.Resources, resources))
+                System.Windows.Application.Current.Resources = resources;
+        }
+        JournalView view;
+        using (CalendarStaTest.Phase("Journal view construction"))
+        using (CalendarStaTest.Timing("Journal view construction"))
+            view = new JournalView { DataContext = vm };
         var root = new Border { Resources = resources, Child = view };
         root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
-        root.Measure(new Size(width, 720));
-        root.Arrange(new Rect(0, 0, width, 720));
-        root.UpdateLayout();
+        using (CalendarStaTest.Phase("Journal Measure"))
+        using (CalendarStaTest.Timing("Journal Measure")) root.Measure(new Size(width, 720));
+        using (CalendarStaTest.Phase("Journal Arrange"))
+        using (CalendarStaTest.Timing("Journal Arrange")) root.Arrange(new Rect(0, 0, width, 720));
+        using (CalendarStaTest.Phase("Journal UpdateLayout"))
+        using (CalendarStaTest.Timing("Journal UpdateLayout")) root.UpdateLayout();
         Flush();
         return (view, root);
     }
 
-    private static void Flush() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+    private static void Flush()
+    {
+        using (CalendarStaTest.Phase("Journal dispatcher flush"))
+        using (CalendarStaTest.Timing("Journal dispatcher flush"))
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
+    }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
     {
@@ -406,6 +450,7 @@ public sealed class JournalViewTests
     private static void Render(Border root, string theme, int width, int dpi, string variant = "")
     {
         using (CalendarStaTest.Phase("Journal RenderTargetBitmap"))
+        using (CalendarStaTest.Timing("Journal RenderTargetBitmap"))
         {
             var bitmap = new RenderTargetBitmap(width * dpi / 96, 720 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
             bitmap.Render(root);
