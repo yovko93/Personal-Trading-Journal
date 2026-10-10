@@ -802,7 +802,24 @@ public sealed class CalendarViewLayoutTests
         });
     }
 
+    // The native child has one process-owned STA, like the application's UI thread.
+    // Its unchanged styles may be shared by windows; never share WPF resources across
+    // dispatchers or cache them for the grid/other tests that tear down their STA.
+    [ThreadStatic] private static Dictionary<string, ResourceDictionary>? _nativeThemeResources;
+
     internal static ResourceDictionary SharedThemeResources(string theme)
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_CALENDAR_MODAL_TEST_HOST") != "1")
+            return LoadThemeResources(theme);
+        if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            throw new InvalidOperationException("Native theme resources require their owning STA.");
+        _nativeThemeResources ??= new(StringComparer.Ordinal);
+        if (!_nativeThemeResources.TryGetValue(theme, out var resources))
+            _nativeThemeResources.Add(theme, resources = LoadThemeResources(theme));
+        return resources;
+    }
+
+    private static ResourceDictionary LoadThemeResources(string theme)
     {
         using var timing = CalendarStaTest.Timing("theme resource loading");
         // Detached component hosts have no Application.Resources: flatten the unchanged shared

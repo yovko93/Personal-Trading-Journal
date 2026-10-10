@@ -6,6 +6,10 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.7a — Native full-load verification**
+
+The final complete parallel Release run passed **3,697/3,697**, zero failures/skips. Calendar native passed **87/87 in 73.249 seconds** with **46.751 seconds** left in its unchanged 120-second budget; grid passed **36/36**. Under the deliberately overlapping backup/export and Settings workload, native elapsed changed **102.199 → 98.945 seconds** and redundant theme preparation **85 loads / 10.24 seconds → two loads / 0.49 seconds**. Only the native test child's STA-owned theme dictionaries are reused; all assertions, process isolation, deadlines, concurrency and the Journal harness correction remain intact. Release build has **0 warnings/errors**; EF and whitespace checks passed. See [measured phases, intermediate regression correction and remaining variability](docs/ci-wpf-tests.md#m167a--calendar-native-full-load-deadline-2026-10-10). The prior M16.7 failure below is historical; matching GitHub CI and live restore/picker/restart acceptance remain open. M16.8 is not started.
+
 **M16.7 — Settings → Data & Backups**
 
 Settings now offers explicit **Create Backup**, **Export Data**, and **Restore Backup** actions. Backups include the database and referenced screenshots; exports contain JSON, four CSVs and screenshot **metadata only**, and cannot be restored as backups. Both are **unencrypted** and exclude AI API keys. Busy/cancel status prevents overlapping operations and keeps Settings open until a safe outcome.

@@ -1,5 +1,62 @@
 # Windows WPF test diagnostics
 
+## M16.7a — Calendar native full-load deadline (2026-10-10)
+
+Started on clean `develop`, `4232c32834fbd97fb91c57c733ff36c88174d416`, with M16.1–M16.7 and the M16.6a Journal correction already committed by the user. Only test-resource preparation and its regression change; no product, backup/restore, schema, navigation or economic behavior changes. M16.8 is not started.
+
+### What the failed run actually shows
+
+M16.7's initial complete run passed 3,696 tests; its final run had 3,611 passing tests and 85 propagated failures from one `calendar-native` aggregate timeout. The failed child's **65 started actions all completed**, the last in **0.513 s**, before process termination at **120.136 s**. No unfinished 45-second action or failed interaction assertion appears in its phase log. The supervisor confirmed process-tree cleanup. The first parent name is not the location of a stalled action.
+
+Pairing actual `STA started`/`STA finished` UTC records (rather than using the per-case stopwatch, which includes waiting behind the other native test class) gives **78.373 s** of action work for 85 actions in the passing run versus **97.688 s** for only 65 in the failed run. Process startup to first STA was **4.246 → 6.930 s**. Comparable groups slowed broadly: 12 initial-owned-panel actions **21.99 → 27.37 s**, 12 responsive-column actions **9.39 → 16.28 s**, four window-control actions **10.01 → 13.08 s**, and six backdrop actions **8.72 → 11.67 s**. Thus cumulative work and intervening overhead exhausted the aggregate budget; the logs do not support a single hung action. They do not identify the exact OS scheduling/rendering wait, and the original run did not enable fine-grained resource/dispatcher timings.
+
+The passing native child started about 105 seconds into the overall run; the failed child started near the beginning and overlapped Infrastructure and new Settings children. M16.6a had 1,117 Infrastructure and 1,380 Desktop tests; M16.7 retained those and added 35 Desktop cases. New Settings/maintenance render and startup checks launch three supervised child processes; owner-close coverage launches another. Picker choices and confirmation are fakes, **not real native file dialogs**. The real isolated backup/export/restore test adds work against a disposable SQLite dataset. No evidence shows that a picker waits for user input or that backup code locks Calendar's fake readers.
+
+### Targeted measurement and correction
+
+Before repeating the full suite, the unchanged native child was measured alongside **all 199 backup/export/preflight/restore Infrastructure tests**, 37 contract tests and all 35 M16.7 Desktop tests. The existing one-second process sampler and `PTJ_CALENDAR_TIMINGS=1` were used; no affinity, scheduling priority, concurrency cap or deadline changed. This baseline passed 357 tests: native **86/86 in 102.199 s**, with **17.801 s** headroom. Infrastructure consumed about **208.22 sampled CPU seconds**; the native testhost **112.06**, the parent Desktop host **14.97**, with additional short-lived UI children. CPU time includes helper/renderer threads and is not wall time; subtracting it from wall time does not measure a wait.
+
+The supported avoidable cost was **85 repeated parses of unchanged shared theme resources, 10.24 s**. `CalendarViewLayoutTests.SharedThemeResources` now retains one Light and one Dark dictionary **only in the native child, on its owning STA via thread-local storage**. All other callers, including the grid's short-lived dispatchers, still receive fresh dictionaries. No Application-wide/cross-thread WPF resource cache is added. Child process exit owns final resource cleanup, as it already owns the native renderer. Existing tests do not mutate the shared dictionaries; every compiled view, window, bitmap, interaction and assertion still runs.
+
+The new native regression requires same-theme reuse, distinct Light/Dark dictionaries/styles/colors, usable styles on the owning STA, shared-style use by two controls, and rejection of background-thread access. An intermediate run passed all 86 existing native cases in **90.149 s**, but this new regression incorrectly required a sealed Style to retain a dispatcher. WPF had detached it (`Dispatcher == null`). The assertion was corrected to check access and require ownership for **unsealed** styles; that intermediate failed result is retained, not counted as acceptance. This does not weaken any pre-existing assertion.
+
+All original 120-second aggregate and 30/45-second operation bounds, supervisor cleanup, fatal-exception handling, timeout poisoning, nested-frame exclusion, two concurrent Desktop collections and parallel solution execution remain unchanged. No retry, skip, arbitrary sleep, global serialization or production change is used.
+
+Raw phase, timing JSONL, process samples, per-action CSV, supervision and TRX evidence remains under ignored `artifacts/m145-load/m167a-{baseline-load,reuse-load,final-focused,final-full}/`. The original passing/failed M16.7 logs remain in `artifacts/m167-{full,final-full}/`. The measurement script initially invoked through Windows PowerShell 5 could not use `ProcessStartInfo.ArgumentList` and started no tests; it was then run in the existing PowerShell 7 shell. No test result was retried by that correction.
+
+### Measured before/after under the same targeted competing workload
+
+| Measurement (seconds unless stated) | Baseline | Final correction |
+| --- | ---: | ---: |
+| Native child / remaining to 120 s | 102.199 / 17.801 | 98.945 / 21.055 |
+| Cases / completed STA actions | 86 / 85 | 87 / 86 (one added regression) |
+| Startup to first STA | 5.739 | 8.739 |
+| Sum of action wall time | 85.673 | 77.572 |
+| Gaps between actions (fixtures/scheduling/runner work) | 9.589 | 11.474 |
+| Sum of process CPU changes within action boundaries | 103.344 | 91.609 |
+| Resource loads / total time | 85 / 10.24 | 2 / 0.49 |
+| Owner Show + initial layout, 12 | 14.47 | 13.92 |
+| Modal interaction/return, 12 | 6.95 | 6.85 |
+| Dispatcher pumps, 221 | 8.48 | 9.25 |
+| Chart layout / bitmap, 21 each | 0.96 / 0.33 | 0.95 / 0.34 |
+| Dialog + owner close, 12 each | 0.59 + 1.23 | 0.59 + 0.97 |
+| Fixture activation, 61 | 1.83 | 1.72 |
+| Dispatcher scheduled wait total / maximum | 0.330 / 0.092 | 0.165 / 0.046 |
+| Intentional native action gate wait, overlapping active work | 28.065 | 23.897 |
+| Peak action-boundary working set, MiB | 736.57 | 833.16 |
+
+The final targeted run passed **358/358** (37 Application, 199 Infrastructure, 122 Desktop including all 35 new M16.7 cases). Native **87/87** passed; no failures/skips. This is not an isolated-only pass. The 9.75-second reduction in resource preparation is directly measured; the smaller 3.254-second whole-child improvement also includes increased startup/inter-action time. Timings are inclusive scopes, not additive components. Gate waits overlap the other native class's action; they preserve nested-frame exclusion and are **not** extra idle time. Dispatcher readiness totals below 1 ms and short post-to-execution waits do not support changing priority or that safety gate. No reduction in peak memory is claimed. The comparable sampled Infrastructure work was **208.22 → 202.94 CPU seconds**; all 199 cases remained present. Scheduling/order and unrelated machine activity are not held perfectly constant, so this does not prove a single OS-level cause for the original timeout.
+
+### Final verification and limits
+
+The **final complete parallel Release suite passed 3,697/3,697**, zero failures/skips: Domain **454**, Application **710**, Infrastructure **1,117**, Desktop **1,416**. This includes all **51** previously selected M16.7/Settings/resource checks and the preserved Journal editor regression (**11.338 s**). The native child passed **87/87** in **73.249 s**, **46.751 s headroom**; grid passed **36/36** in **38.122 s**. All cleanup/timeout/fatal/nested-frame regressions still passed. There was one final full-suite run, not a retry loop.
+
+The final native child started at **20:04:58.619 UTC** and exited at **20:06:11.868 UTC**; it started after Infrastructure completed, unlike the failed M16.7 schedule. Its 86 actions totalled **64.211 s**, process CPU changes **84.719 s**, with two resource parses **0.39 s**, 221 dispatcher pumps **7.94 s**, and 21 chart layout/bitmap pairs **1.05 / 0.29 s**. That final full-run margin is not a controlled estimate of the fix's effect. The earlier deliberately overlapping targeted workload establishes the narrower measured improvement; execution-order/host variability remains a risk, not a guarantee of every future runner's headroom.
+
+Release build: **0 warnings/errors** (`artifacts/m145-load/m167a-final-build.log`). EF model consistency: **no pending changes**, existing in-memory design-time factory. `git diff --check`: passed. Exact changed files: `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarViewLayoutTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalRunnerTests.cs`, `README.md`, `docs/ci-wpf-tests.md`, `docs/backup-restore.md`. HEAD remains `4232c32834fbd97fb91c57c733ff36c88174d416`, branch `develop`; five modified files, no commit/push/merge. No production journal, provider calls or new feature work was involved.
+
+**Local automated acceptance is green on this final run.** Live restore/picker/restart acceptance and GitHub Actions verifying these exact uncommitted changes remain open. A new matching PR workflow after the user's commit/push is required; an earlier green commit is not verification. The supported correction removes repeated resource work, not a claim to have identified every Windows scheduling delay or eliminated all future timing variance. M16.8 has not started.
+
 ## Test execution and layout contract
 
 Calendar grid tests and modal/chart tests each use a separate supervised test process with named background STA dispatchers. Grid cases own and shut down their dispatchers. Native modal/chart cases share one background STA and a running dispatcher for the child lifetime. A gate outside that dispatcher admits one native action at a time, so a nested ShowDialog/PushFrame cannot execute another case. Other test collections and assemblies remain parallel. Each parent group shares its child-suite result; a child-suite failure therefore appears against multiple parent names. Inspect the child TRX rather than interpreting every parent failure as an independent assertion failure. No tests are skipped, retried, or globally serialized to hide failures.

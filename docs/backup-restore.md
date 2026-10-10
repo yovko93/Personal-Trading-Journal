@@ -1,5 +1,9 @@
 # Backup and restore — M16
 
+## M16.7a — Native-suite follow-up
+
+Final local parallel Release: **3,697/3,697 passed**, zero failures/skips, including all 51 M16.7/Settings/resource checks. Native **87/87 in 73.249 seconds** (46.751 seconds headroom), grid **36/36**. The test-only correction reuses the native child's STA-owned Light/Dark dictionaries rather than parsing the same resources 85 times. Targeted Calendar + backup/export + Settings overlap passed **358/358**; native changed **102.199 → 98.945 seconds**, resource preparation **10.24 → 0.49 seconds**. No backup/restore/product behavior, assertions, isolation, deadlines, Journal harness or concurrency setting changed. Build **0 warnings/errors**, EF and whitespace checks passed. The M16.7 failure retained below is superseded by this final local result, not erased. See [timings, evidence and residual variability](ci-wpf-tests.md#m167a--calendar-native-full-load-deadline-2026-10-10). Live restore, native pickers, actual restart/relaunch and matching GitHub Actions remain unverified; no production data was accessed or M16.8 work started.
+
 ## M16.7 — Desktop Data & Backups
 
 Baseline: clean `develop`, `d842cbf7bbf5749653fdc5c06c78bc6738a9370b`, including the committed M16.1–M16.6 services and M16.6a Journal STA resource-reuse correction. No persistence/schema, import, Trade economics, archive format, validation policy or deadline change is introduced here.
