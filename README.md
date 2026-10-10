@@ -6,6 +6,20 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M15.8 — Daily Review + AI Coaching acceptance audit (2026-10-09)**
+
+Local automated acceptance covers isolated synthetic evidence, strict Net/currency boundaries, explicit fake-Groq generation, validation/atomic history, cancellation and failures, historical Account discovery, guarded source navigation, and Light/Dark layouts. Two new compiled-shell integration cases prove that a source revision during generation either leaves the captured saved snapshot immutable or cancels with no history row when the application receives a committed-change notification. No reproducible product defect was found; no production code, schema, economics, budgets or provider behavior changed. The centered shared title and Account Current Balance are preserved. M16 is not started.
+
+| Acceptance area | Observed result / evidence | Remaining gate |
+| --- | --- | --- |
+| Evidence, generation, saved history and navigation | **363 focused tests and 3,425 full parallel Release tests passed**, zero failures/skips; migrated disposable SQLite, synthetic Settings credentials and fake HTTP only. See the [full evidence matrix](docs/daily-review.md#m158-acceptance-audit--2026-10-09). | Live and exact-commit CI gates below remain separate. |
+| Shared header, scope/coverage, saved citations, responsive layouts | Automated renders inspected in Light/Dark: 1280 DIP/96 DPI and minimum shell 1000 DIP/240 DPI; page checks also cover 480 DIP/240 DPI. Centering, scroll reachability, commands and accessible names asserted. Release build: **0 warnings/errors**; EF reports no pending model changes; tracked/new-file whitespace checks passed. | Physical DPI, screen reader and actual keyboard/mouse workflow are not implied by rendering tests. |
+| Live isolated Desktop workflow | **Blocked**: computer-use helper initialization failed with a Windows sandbox setup error; no live input performed. | Follow the [isolated Windows checklist](docs/daily-review.md#remaining-isolated-windows-checklist) in a working desktop session. |
+| Live Groq | **Unverified: 0 external provider calls, 0 paid requests.** No real key or journal was accessed. | User must explicitly initiate any single synthetic live test; no automatic request or fallback is authorized by this audit. |
+| GitHub Actions | No matching PR-triggered run returned for baseline `30ccd18a23707bccc7c8bb998c68e1a641395c31`; the new test/docs are uncommitted and have no matching run. | User commits/pushes `develop` and opens/updates a PR targeting `main`, then verifies that exact SHA. Existing triggers are unchanged. |
+
+**M15 is not fully live/CI accepted.** Groq's complete-evidence input budget and incomplete-output rejection remain in force: the measured two-Trade fixture fits, but the synthetic 31-Trade day still cannot generate with this profile. No evidence is dropped to claim acceptance. The earlier status entries below are historical implementation records; this matrix is the current acceptance status.
+
 **Shared page header — presentation refinement (not M15.8 acceptance)**
 
 Every destination uses the same content-centered title in `MainWindow.xaml`, independent of the right-hand theme toggle. A compact rounded teal wash, subtle border and short accent rule use Light/Dark resources; the 24-DIP title remains readable and wraps rather than shrinking or overlapping the toggle. Equal side slots preserve centering when the toggle's size changes. The shell title is exposed as a level-one accessible heading; no additional page headings, navigation, data or generation behavior were introduced.
