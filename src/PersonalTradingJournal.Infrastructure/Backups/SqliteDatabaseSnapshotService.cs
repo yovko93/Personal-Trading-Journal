@@ -193,7 +193,7 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
         return result;
     }
 
-    private static void EnsureNoLinks(string path)
+    internal static void EnsureNoLinks(string path)
     {
         for (string? current = path; current is not null; current = Path.GetDirectoryName(current))
             if (Path.Exists(current) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)

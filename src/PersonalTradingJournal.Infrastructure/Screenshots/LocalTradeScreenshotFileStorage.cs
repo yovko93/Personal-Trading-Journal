@@ -121,6 +121,7 @@ public sealed class LocalTradeScreenshotFileStorage : ITradeScreenshotFileStorag
         string filePath = ResolveStoragePath(storageKey);
         cancellationToken.ThrowIfCancellationRequested();
 
+        using var captureLease = ScreenshotCaptureLease.Acquire(_screenshotsDirectory, cancellationToken);
         try
         {
             File.Delete(filePath);
@@ -165,7 +166,7 @@ public sealed class LocalTradeScreenshotFileStorage : ITradeScreenshotFileStorag
         return normalizedExtension;
     }
 
-    private string ResolveStoragePath(string storageKey)
+    internal string ResolveStoragePath(string storageKey)
     {
         if (string.IsNullOrWhiteSpace(storageKey))
         {

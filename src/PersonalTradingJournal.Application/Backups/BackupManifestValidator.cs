@@ -108,4 +108,8 @@ public static class BackupManifestValidator
             new[] { ".png", ".jpg", ".jpeg", ".webp" }.Any(extension => file.Path.EndsWith(extension, StringComparison.Ordinal)),
         _ => false
     };
+
+    public static bool IsPortableScreenshotKey(string? key) => key is not null &&
+        SafePath(BackupArchiveContract.ScreenshotsPrefix + key) &&
+        AllowedPath(new(BackupArchiveContract.ScreenshotsPrefix + key, BackupFileKind.Screenshot, 1, ""));
 }

@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.3 — Complete screenshot-aware backup creation**
+
+`IBackupArchiveService.CreateAsync` explicitly creates a new **unencrypted** `.ptjbackup` from the M16.2 validated SQLite snapshot and every distinct screenshot key read from that snapshot. A cross-process screenshot-deletion barrier protects capture; files use bounded streaming/SHA-256, stable read handles, private current-user staging and portable-path/link/case-collision checks. Optional appearance preferences contain only the validated Theme. Credentials, provider selection, logs, temporary files, original CSVs and unreferenced screenshots are excluded and untouched.
+
+Publication occurs only after rereading the completed archive's manifest and every payload, verifying sizes/hashes and binding the screenshot inventory to the validated database. No existing output is replaced; failure/cancellation does not publish a complete-looking archive, and cleanup failures are explicit. This is not a restore service or Desktop backup UI. Native SQLite cancellation limits remain; a long capture can defer screenshot cleanup after a successful database deletion, which remains explicitly reported by existing deletion workflows. See [M16.3 consistency, verification and limitations](docs/backup-restore.md#m163--screenshot-packaging-and-integrity-verification).
+
+Verification: **127 focused cases passed** (including 45 new archive cases); the final **complete parallel Release suite passed 3,530/3,530**, zero failures/skips. Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. All fixtures are disposable and synthetic; no production journal, provider key or live AI request was involved. Multi-gigabyte capacity, separate-process/session races, crash recovery and matching GitHub CI remain unverified. Earlier milestone results below are historical.
+
 **M16.2 — Consistent standalone SQLite staging**
 
 Infrastructure now provides an explicit database-only snapshot service using **Microsoft.Data.Sqlite 10.0.11's backup facility**, separate read-only source/read-write staging connections, and unique operation-owned output. It includes committed WAL data without copying a live `.db` file or checkpointing the source. Success requires `integrity_check`, `foreign_key_check`, exact current migration/schema validation, a closed standalone file and its M16.1 size/SHA-256 inventory. Failed/cancelled output is cleaned; cleanup failure is reported honestly. Existing completed outputs are never overwritten.
