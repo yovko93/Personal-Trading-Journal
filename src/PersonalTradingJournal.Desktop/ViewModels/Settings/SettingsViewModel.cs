@@ -77,7 +77,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         IThemeService themeService,
         IDesktopSettingsStore settingsStore,
         ILogger<SettingsViewModel> logger,
-        ProtectedCoachingCredentials? credentials = null, CoachingConfiguration? configuration = null)
+        ProtectedCoachingCredentials? credentials = null, CoachingConfiguration? configuration = null,
+        DataBackupsViewModel? dataBackups = null)
     {
         ArgumentNullException.ThrowIfNull(themeService);
         ArgumentNullException.ThrowIfNull(settingsStore);
@@ -88,6 +89,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         _logger = logger;
         _credentials = credentials;
         _configuration = configuration;
+        DataBackups = dataBackups;
         RemoveKeyCommand = new RelayCommand(RemoveKey, () => CanRemoveKey);
         RefreshCredentialStatus();
         _selectedTheme = themeService.PreferredTheme;
@@ -99,6 +101,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     }
 
     public IReadOnlyList<AppTheme> AvailableThemes { get; }
+    public DataBackupsViewModel? DataBackups { get; }
 
     public AppTheme SelectedTheme
     {

@@ -1,5 +1,79 @@
 # Backup and restore — M16
 
+## M16.7 — Desktop Data & Backups
+
+Baseline: clean `develop`, `d842cbf7bbf5749653fdc5c06c78bc6738a9370b`, including the committed M16.1–M16.6 services and M16.6a Journal STA resource-reuse correction. No persistence/schema, import, Trade economics, archive format, validation policy or deadline change is introduced here.
+
+### User workflow
+
+Open **Settings → Data & Backups**. Operations are explicit; loading Settings does not create a backup, export, provider request or restore.
+
+1. **Create Backup…** selects a new `.ptjbackup` destination. The archive contains the database, referenced Trade screenshots, Journal revisions and saved AI snapshots. It is **unencrypted**, contains sensitive data, and excludes AI API keys. An existing destination is never overwritten. Completion is shown only after the service reports successful verification/publication with no cleanup failure; the completed path is selectable for copying.
+2. **Export Data…** selects a parent folder. A uniquely named `PTJ-export-<UTC timestamp>-<identifier>` directory is created there, containing `journal.json`, four CSVs and `export-manifest.json`. Screenshots are **metadata only**. This unencrypted output is **not a restorable backup**. The exact JSON/CSV semantics and spreadsheet precautions below still apply. No incomplete directory is presented as a completed export.
+3. **Choose Backup to Restore…** runs M16.4 read-only preflight. The page shows UTC creation time, archive/current-schema compatibility, Account/Trade/Journal/revision/analysis/screenshot counts, sizes, and confidentiality/credential/revalidation warnings. Unsupported, damaged, cancelled or cleanup-incomplete inspections never enable replacement. Choosing another file clears the prior preview immediately.
+4. **Restore Backup…** is red and requires an explicit confirmation identifying the checked backup date and record counts. Declining writes nothing. The full report remains on the page; the confirmation is concise so its actions remain reachable at high DPI. Confirmation queues an offline handoff, **not** a successful restore.
+5. The normal application closes through its existing guarded main-window path, synchronously disposes the host/logging and normal-session leases, then launches a new executable in maintenance mode. The helper waits up to 30 seconds for the old process to exit; if it does not, no replacement is invoked. The same isolation arguments, exact selected archive and confirmed fingerprint are retained. Launch failure reports that no restore started; restart the ordinary app and retry Settings. No automatic retry occurs.
+6. **Offline Data Maintenance** has no normal DI host, data-bound views, credentials/settings store, logger or migration initializer. It calls the existing M16.5 service, which rechecks the archive fingerprint, establishes exclusive access against all app instances, retains/verifies a complete recovery archive, switches the dataset through durable recovery state, and verifies the installed result. Another app/connection can block maintenance; it cannot be bypassed from this UI.
+7. Read the final result and copy the **retained recovery archive** and **retained operation directory** locations. `Restored`, `RecoveredOriginal`, cancellation, rejection and unresolved recovery are different messages. A recovery of the original is not labelled a successful incoming restore. When safe, **Open journal in fresh app** launches normal startup with the same data root, rebuilding all services, projections/caches and screenshot references. The maintenance window cannot display old Trades, Journals, Calendar indicators or AI analyses because it never creates those views.
+
+### Cancellation, blocked startup and privacy
+
+Backup/export/preflight share one busy gate: duplicate clicks and other data operations are rejected while work is active. Navigation and main-window closing are blocked until completion; **Cancel operation** requests the service's existing safe cancellation. Native SQLite copying and some filesystem calls cannot be interrupted immediately. A publication that already completed can legitimately win a late cancellation; the UI follows the service result, not a guessed cancellation outcome. Cleanup failures are explicitly reported and never promoted to successful output.
+
+In maintenance, closing/X/Escape is blocked while work is active. Cancel before the first dataset switch preserves the original. After replacement starts, M16.5 completes verification/recovery instead of abandoning a mixed dataset. The UI says to wait; it never kills the maintenance process to cancel it. Close is available after the operation settles. Operating-system termination and power loss remain covered only by the existing recoverable protocol, not a promise of atomic filesystem replacement.
+
+When the startup lease detects an interrupted restore or active maintenance, **only the recovery window appears**, before data folders/logging/settings/migrations or the normal host. **Recover interrupted restore** is explicit. Close other instances, check permissions/free space, preserve all retained files, and try recovery; never remove the state marker to bypass it. Unresolved/corrupt recovery keeps normal use disabled. A fresh normal process always applies the startup gate again, even after the maintenance window permits reopening. This window uses the Windows/system theme without reading possibly unverified installed preferences; the reopened app loads the verified dataset's theme normally.
+
+ViewModels orchestrate existing services; they do not parse ZIP/SQLite, copy files, delete sidecars, repeat hash/schema validation or implement their own rollback. Native file/folder pickers live in the Desktop interaction adapter. Local output/recovery paths are displayed only as requested, copyable handoff locations; exceptions and contents are not logged or echoed into status messages. No AI request is involved and keys remain outside portable datasets.
+
+### Acceptance evidence and remaining checks
+
+**Local verification, 2026-10-10:** focused backup contracts/services passed **37 Application + 199 Infrastructure** cases; final Desktop focus passed **51/51** (35 new cases). An initial parallel Release run passed **3,696/3,696**. After the final concise-confirmation/height-check refinement, the final parallel run finished **3,611 passed, 85 failed, zero skipped**: Domain **454/454**, Application **710/710**, Infrastructure **1,117/1,117**, Desktop **1,330 passed / 85 failed**. All 35 new M16.7 tests passed in that final run. **Full-suite acceptance remains open; the earlier green run does not override the final failure.**
+
+The 85 failures propagate one existing `calendar-native` child **120-second aggregate timeout**, first surfaced by `CalendarDayPerformanceChartTests.AxisShowsClockSecondsWhilePointDetailsRetainExplicitOffset(Light, 9, 8, 04:00:00, UTC-4, 96)`. This is not an assertion at that individual case. Initial child elapsed **89.779 s**, 86/86 cases, 85 completed STA actions; final child elapsed **120.136 s**, 65/65 started actions completed before termination, last `InlineExecutionBindingRendersExplicitOffsetInBothThemes` action **0.513 s**. Last child CPU **109.297 s**, working set **396.4 MiB**, pending thread-pool work **0**. No individual stalled action is demonstrated. Final native work began alongside Infrastructure/new Desktop work, whereas the first run's native child began about 105 seconds into the overall run; concurrency/order is a measured difference, not a proven root cause. The three new layout child processes passed in **9.641 / 14.135 / 12.542 s**. No retry, timeout increase, skipped coverage or unrelated harness edit was used. The preserved M16.6a Journal test passed in **11.430 s**. Investigating the remaining aggregate native-suite scheduling/resource risk is a separate acceptance gate.
+
+Release build passed with **0 warnings / 0 errors**; EF reported **no pending model changes**; tracked and new-file whitespace checks passed. Ignored evidence: `artifacts/m167-focused/`, `m167-confirmation-focused/`, `m167-full/`, `m167-final-full/` (TRX, child phase logs and process supervision), and `m167-final-build.log`. No production data or provider call was used. Branch and HEAD remain `develop` / `d842cbf7bbf5749653fdc5c06c78bc6738a9370b`; all changes are uncommitted.
+
+All automated verification uses synthetic temporary roots. New tests cover explicit invocation, successful output, invalid/incompatible archives, cancellation and late completion, duplicate clicks, confirmation decline, exact archive/fingerprint handoff, sanitized errors, maintenance waiting/failure outcomes, retained paths, blocked startup with a real recovery marker, actual main-window close/navigation veto, and a real SQLite backup/export/preflight/restore/fresh-read flow. The latter proves replacement is blocked while the original normal session is still alive, then succeeds after disposal and retains a recovery archive.
+
+Compiled Settings and maintenance renders cover Light/Dark at **760 DIP / 96 DPI** and **400 DIP / 240 DPI**. Automated checks verify reachable buttons, wrapping, scrolling, destructive styling, named actions, live status, hidden idle cancellation, close veto during maintenance, and bounded confirmation content height. Twelve PNGs are retained in ignored `artifacts/m167-renders/`; representative Settings/restore/maintenance images were visually inspected. This is automated WPF rendering/window testing, **not manual interaction with the running product**.
+
+Remaining isolated Windows checklist:
+
+- Launch the built Desktop executable with `--isolated-data-root <absolute disposable parent>`; never use the production directory. Create synthetic data only.
+- In both themes, exercise native save/folder/open pickers by mouse and keyboard; verify Tab order/focus, wheel/touchpad scrolling and cancellation at a narrow window and actual 240-DPI display setting.
+- Create a backup, change synthetic data, inspect and confirm restore; observe real parent-process exit, maintenance startup, retained recovery paths and fresh application reopening. Verify the restored data and an unchanged synthetic credential sentinel.
+- Keep a second isolated app open and verify maintenance blocks. Exercise an intentionally interrupted synthetic restore and the recovery-only startup actions; preserve recovery artifacts. Do not force-terminate a restore of valuable data.
+
+Live native picker/keyboard/mouse, actual cross-process handoff/relaunch, OS termination/power-loss and physical disk-full behavior remain unverified. Existing service fault-injection coverage is not a substitute for those scenarios. Matching GitHub Actions for these uncommitted changes is also outstanding; no Git writes or workflow changes are performed.
+
+### M16.7 changed files
+
+Seven existing files changed and thirteen new files; no Application/Domain/Infrastructure or Journal harness code changed:
+
+```text
+README.md
+docs/backup-restore.md
+src/PersonalTradingJournal.Desktop/App.xaml.cs
+src/PersonalTradingJournal.Desktop/DataManagement/IDataBackupInteraction.cs
+src/PersonalTradingJournal.Desktop/DataManagement/MaintenanceLaunch.cs
+src/PersonalTradingJournal.Desktop/DataManagement/WpfDataBackupInteraction.cs
+src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Settings/SettingsViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Settings/DataBackupsViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Settings/MaintenanceViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Settings/SettingsView.xaml
+src/PersonalTradingJournal.Desktop/Views/Settings/DataBackupsView.xaml
+src/PersonalTradingJournal.Desktop/Views/Settings/DataBackupsView.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/Settings/MaintenanceWindow.xaml
+src/PersonalTradingJournal.Desktop/Views/Settings/MaintenanceWindow.xaml.cs
+tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Navigation/DataBackupsOwnerCloseTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsFlowTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsLayoutTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsTests.cs
+```
+
 ## M16.6 — portable logical export
 
 Baseline: clean `develop`, `35957a60fd66f69165408bcec5ccddde519a2504`, containing M16.1–M16.5. `IPortableExportService.CreateAsync(absoluteDestinationDirectory, cancellationToken)` is explicit and read-only with respect to the source journal. Registration/resolution does nothing. There is no Desktop export UI, import of exported data, provider request, or schema change.
@@ -68,7 +142,7 @@ Initial M16.6 Release build: **0 warnings/errors**. EF model consistency: no pen
 
 The sole initial failure was `JournalViewTests.CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts`, surfaced at its `OnSta` call (then line 42). The `journal-editor` child hit the unchanged **30-second STA action deadline**, then VSTest's 30-second inactivity hang collection aborted the child. Breadcrumbs continued through the theme/size renders; the last completed `Journal RenderTargetBitmap` breadcrumb was at **25.928 seconds**, with timeout at **30.052 seconds**, process CPU **28.328 seconds**, working set about **157 MiB**, and no queued thread-pool work. The timeout's last phase label does **not** prove an individual bitmap call hung. This existing fake-repository WPF test does not call export. A separate single-case diagnostic run passed **1/1 in 10 seconds** without concurrent assemblies; that isolated result did not establish its exact cause or make the full suite green.
 
-**M16.6a follow-up:** the complete parallel Release suite now passes **3,661/3,661**, zero failures/skips (454 Domain, 710 Application, 1,117 Infrastructure, 1,380 Desktop). All **39 export tests** also passed concurrently with the affected Journal test (**40/40 focused**). Instrumentation demonstrated repeated shared-resource parsing, not an export/SQLite defect. Test-local Light/Dark resource reuse reduced parsing from 23 to two loads while retaining 23 compiled views, 28 renders, all existing assertions and the 30-second deadline. Journal STA time under export overlap changed **11.777 → 8.714 seconds**; full parallel load **19.710 → 13.366 seconds**, leaving **16.634 seconds**. The instrumented baseline full run was already green, so this fixes measured avoidable work without claiming a conclusive reproduction of the original timeout. See [complete measurements and remaining risk](ci-wpf-tests.md#m166a--journal-editor-sta-deadline-investigation-2026-10-10). Final Release build has **zero warnings/errors**, EF reports no pending model changes, and whitespace checks pass. Production/export code and M16.1–M16.6 behavior remain unchanged; M16.7 is not started.
+**M16.6a follow-up:** the complete parallel Release suite now passes **3,661/3,661**, zero failures/skips (454 Domain, 710 Application, 1,117 Infrastructure, 1,380 Desktop). All **39 export tests** also passed concurrently with the affected Journal test (**40/40 focused**). Instrumentation demonstrated repeated shared-resource parsing, not an export/SQLite defect. Test-local Light/Dark resource reuse reduced parsing from 23 to two loads while retaining 23 compiled views, 28 renders, all existing assertions and the 30-second deadline. Journal STA time under export overlap changed **11.777 → 8.714 seconds**; full parallel load **19.710 → 13.366 seconds**, leaving **16.634 seconds**. The instrumented baseline full run was already green, so this fixes measured avoidable work without claiming a conclusive reproduction of the original timeout. See [complete measurements and remaining risk](ci-wpf-tests.md#m166a--journal-editor-sta-deadline-investigation-2026-10-10). Final Release build has **zero warnings/errors**, EF reports no pending model changes, and whitespace checks pass. Production/export code and M16.1–M16.6 behavior remain unchanged; At that checkpoint M16.7 had not started; the Desktop workflow is now documented above.
 
 Raw logs/TRX: ignored `artifacts/m166-*`; failing child diagnostics/dump: ignored `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/TestResults/journal-editor-20261010-153101-b57eb7781a5e4631a1ed729d482c496c/`. Actual power-loss publication/cleanup, physical storage exhaustion, multi-gigabyte exports and spreadsheet-program-specific behavior remain unverified. There is no Desktop export UI/live interaction or matching GitHub CI claim. No production journal, credentials or provider was accessed.
 
@@ -366,7 +440,7 @@ Portable v1 is **not encrypted** and SHA-256 provides corruption detection, **no
 
 ## Remaining M16 work and verification
 
-Remaining work after M16.6: Desktop backup/restore/export confirmation/progress/cancellation/unsaved guards and a user-facing offline recovery launch path; explicitly supported older-schema staged upgrades if required; isolated live end-to-end acceptance, actual process termination/power-loss, physical disk-full and large-volume verification. M16.5 supplies the current-schema Infrastructure restore/recovery protocol and M16.6 supplies logical export, not acceptance of those remaining workflows.
+M16.7 supplies the Desktop workflow and offline recovery launch path described above. Remaining work: isolated live end-to-end acceptance (including native pickers and actual handoff/relaunch), actual process termination/power-loss, physical disk-full and large-volume verification, and matching GitHub Actions. Older-schema staged upgrades are not supported; they require a separate explicit compatibility policy. Local automated coverage is not acceptance of those remaining live scenarios.
 
 M16.1 tests use only synthetic in-memory manifests: pinned JSON round-trip/strictness, schema lineage, UTC, hash syntax, empty-journal database requirement, unsafe/duplicate/excluded entries, size/count/path/overflow bounds and cancellation. They do not read a real database or create an archive. **37 focused cases passed; all 710 Application Release tests passed**, zero failures/skips. Solution Release build: **0 warnings/errors**. EF model consistency: no pending changes (design-time SQLite `:memory:` context). Tracked/new-file whitespace checks passed. Local logs/TRX are ignored under `artifacts/m161*`. The full multi-project suite was not rerun for these unconnected contracts; archive creation, capacity/performance, filesystem/SQLite snapshot races, actual restore, live UI and matching GitHub CI remain unverified by design.
 

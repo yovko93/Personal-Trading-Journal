@@ -33,6 +33,10 @@ using PersonalTradingJournal.Infrastructure.Storage;
 using Serilog;
 using System.IO;
 using System.Windows;
+using PersonalTradingJournal.Application.Backups;
+using PersonalTradingJournal.Desktop.DataManagement;
+using PersonalTradingJournal.Desktop.Views.Settings;
+using PersonalTradingJournal.Infrastructure.Backups;
 
 namespace PersonalTradingJournal.Desktop;
 
@@ -41,14 +45,24 @@ namespace PersonalTradingJournal.Desktop;
 /// </summary>
 public partial class App : System.Windows.Application
 {
-    private readonly IHost _host;
-    private readonly PersonalTradingJournal.Infrastructure.Backups.JournalDataSession _dataSession;
+    private readonly IHost? _host;
+    private readonly JournalDataSession? _dataSession;
+    private readonly LocalApplicationPaths _paths;
+    private readonly MaintenanceLaunch _launch;
+    private JournalRestoreRequest? _pendingRestore;
+    private ThemeService? _maintenanceTheme;
 
-    public App()
+    public App() : this(Environment.GetCommandLineArgs().Skip(1).ToArray()) { }
+
+    internal App(string[] arguments)
     {
-        var applicationPaths = DesktopApplicationPaths.FromArguments(Environment.GetCommandLineArgs().Skip(1).ToArray());
+        _launch = MaintenanceLaunch.Parse(arguments);
+        var applicationPaths = _paths = DesktopApplicationPaths.FromArguments(_launch.NormalArguments);
+        // Maintenance has no normal host, settings store, logger, migration or DB session.
+        if (_launch.Restore is not null) return;
         // Block maintenance/interrupted restore before creating data folders, logging, loading settings or migrating.
-        _dataSession = new(applicationPaths);
+        try { _dataSession = new(applicationPaths); }
+        catch (JournalMaintenanceException) { return; } // A recovery-only window replaces normal startup.
         applicationPaths.EnsureDirectoriesExist();
 
         Log.Logger = new LoggerConfiguration()
@@ -146,6 +160,11 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
             builder.Services.AddTransient<SettingsViewModel>();
+            builder.Services.AddSingleton<IDataBackupInteraction, WpfDataBackupInteraction>();
+            builder.Services.AddTransient(s => new DataBackupsViewModel(
+                s.GetRequiredService<IBackupArchiveService>(), s.GetRequiredService<IPortableExportService>(),
+                s.GetRequiredService<IRestorePreflightService>(), s.GetRequiredService<IDataBackupInteraction>(),
+                s.GetRequiredService<IDialogService>(), Path.GetTempPath()));
             builder.Services.AddTransient<TradesViewModel>();
             builder.Services.AddTransient<MainWindowViewModel>();
             builder.Services.AddTransient<MainWindow>();
@@ -165,6 +184,12 @@ public partial class App : System.Windows.Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        if (_host is null)
+        {
+            ShowMaintenanceWindow();
+            return;
+        }
 
         Log.Information("Application starting");
 
@@ -200,13 +225,42 @@ public partial class App : System.Windows.Application
         }
     }
 
-    protected override async void OnExit(ExitEventArgs e)
+    internal void ShowMaintenanceWindow()
+    {
+        if (_host is not null) throw new InvalidOperationException("Maintenance cannot run beneath a normal application host.");
+        _maintenanceTheme = new ThemeService(Resources, new WindowsSystemThemeProvider(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WindowsSystemThemeProvider>.Instance));
+        var vm = new MaintenanceViewModel(new JournalRestoreService(_paths),
+            token => MaintenanceLaunch.WaitForParentAsync(_launch.ParentId, token),
+            () => { MaintenanceLaunch.Start(_launch.NormalArguments); Shutdown(); });
+        var window = new MaintenanceWindow { DataContext = vm };
+        MainWindow = window;
+        if (_launch.Restore is { } request)
+        {
+            RoutedEventHandler? start = null;
+            start = async (_, _) => { window.Loaded -= start; await vm.RunAsync(request); };
+            window.Loaded += start;
+        }
+        window.Show();
+    }
+
+    public bool RequestOfflineRestore(JournalRestoreRequest request)
+    {
+        if (_host is null || MainWindow is not { IsVisible: true } window || _pendingRestore is not null) return false;
+        _pendingRestore = request;
+        window.Close(); // MainWindow.OnClosing retains the existing guarded path.
+        if (window.IsVisible) { _pendingRestore = null; return false; }
+        return true;
+    }
+
+    protected override void OnExit(ExitEventArgs e)
     {
         Log.Information("Application stopping");
 
         try
         {
-            await _host.StopAsync();
+            // WPF cannot await async-void OnExit. Finish disposal before launching maintenance.
+            _host?.StopAsync(TimeSpan.FromSeconds(5)).GetAwaiter().GetResult();
             Log.Information("Application stopped");
         }
         catch (Exception exception)
@@ -215,15 +269,25 @@ public partial class App : System.Windows.Application
         }
         finally
         {
-            _host.Dispose();
+            _host?.Dispose();
 
             try
             {
-                await Log.CloseAndFlushAsync();
+                Log.CloseAndFlush();
             }
             finally
             {
-                _dataSession.Dispose();
+                _dataSession?.Dispose();
+                _maintenanceTheme?.Dispose();
+                if (_pendingRestore is { } request)
+                {
+                    try { MaintenanceLaunch.Start(MaintenanceLaunch.RestoreArguments(_launch.NormalArguments, request, Environment.ProcessId)); }
+                    catch (Exception)
+                    {
+                        MessageBox.Show("Offline maintenance could not be launched. No restore was started. Start Personal Trading Journal again and retry from Settings.",
+                            "Restore not started", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
                 base.OnExit(e);
             }
         }
