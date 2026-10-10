@@ -59,6 +59,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));
         services.AddTransient<IRestorePreflightService, RestorePreflightService>();
         services.AddTransient<IJournalRestoreService>(_ => new JournalRestoreService(applicationPaths));
+        services.AddTransient<IPortableExportService>(provider => new PortableExportService(applicationPaths,
+            provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
             provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();

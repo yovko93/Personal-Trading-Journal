@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.6 — Portable logical JSON/CSV export**
+
+`IPortableExportService` creates a new export directory from one isolated, integrity/FK/schema-validated SQLite snapshot. Version-1 `journal.json` preserves Accounts, Instruments, Trades/Executions, classifications, screenshot metadata, Journal entries/revisions, import provenance and immutable saved AI evidence/response/metadata. Four UTF-8 CSVs provide Accounts, Trades, Executions and current Journals; a manifest records fields, row counts, sizes and SHA-256. Stable IDs, exact decimal strings, nullable costs, UTC instants and explicit New York dates remain intact. No Net, balance, FX or source identity is recalculated/substituted.
+
+Exports are **sensitive, unencrypted, and not restorable backups**. Screenshots are **metadata only**—no image bytes or binary-integrity claim. JSON keeps exact text; CSV quotes fields and prefixes nonempty free text with an apostrophe for spreadsheet display, without altering numeric cells. This is not universally safe across spreadsheet programs or after re-saving; use JSON for exact interchange. Credentials, SQLite, settings, logs and caches are excluded. Output streams through private staging, has bounded field/output limits, and publishes only as a complete new directory; cancellation/failure never overwrites an existing export. No Desktop UI, AI request or production-journal acceptance is added. See [format, field dictionary, CSV precautions and limits](docs/backup-restore.md#m166--portable-logical-export).
+
+M16.6 verification: **199 focused backup/export tests passed**, including **39 new export cases**. Release build: **0 warnings/errors**; EF and tracked/new-file whitespace checks passed. The complete parallel Release run is **not green: 3,660 passed, 1 failed**. The existing Journal editor layout child exceeded its 30-second STA deadline; its isolated diagnostic run subsequently passed, which does not erase the full-run failure. All 1,117 Infrastructure tests passed. See the detailed evidence and remaining acceptance limits in the export documentation; no deadline, retry policy or Desktop code was changed.
+
 **M16.5 — Recovery-protected offline restore**
 
 `IJournalRestoreService` restores only current-schema archives during **exclusive offline maintenance**. Running Desktop/persistence sessions block it; interrupted-restore state blocks normal startup before settings/database use. The service pins and revalidates the confirmed archive fingerprint, stages and rehashes its data, creates and verifies a complete **unencrypted recovery archive**, then performs a durable-marker-protected directory switch. SQLite itself checkpoints/closes WAL/SHM state; the service never blindly deletes sidecars. Success requires reopened integrity/FK/schema checks, file hashes, screenshot relationships and matching record counts.
