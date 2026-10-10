@@ -156,7 +156,7 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
     private static object? Scalar(SqliteConnection connection, string sql, CancellationToken token)
     { token.ThrowIfCancellationRequested(); using var command = connection.CreateCommand(); command.CommandText = sql; return command.ExecuteScalar(); }
 
-    private static ImmutableArray<string> ValidateSchema(SqliteConnection snapshot, CancellationToken token)
+    internal static ImmutableArray<string> ValidateSchema(SqliteConnection snapshot, CancellationToken token)
     {
         // Construct the trusted schema from shipped migrations in memory, never from the installed source or manifest claims.
         using var reference = new SqliteConnection("Data Source=:memory:;Pooling=False;Default Timeout=2");
@@ -166,9 +166,14 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
         var applied = ImmutableArray.CreateBuilder<string>();
         using (var command = snapshot.CreateCommand())
         {
-            command.CommandText = "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId LIMIT 1025;";
+            command.CommandText = "SELECT CASE WHEN length(MigrationId) <= 160 THEN MigrationId ELSE NULL END FROM __EFMigrationsHistory ORDER BY MigrationId LIMIT 1025;";
             using var rows = command.ExecuteReader();
-            while (rows.Read()) { token.ThrowIfCancellationRequested(); applied.Add(rows.GetString(0)); }
+            while (rows.Read())
+            {
+                token.ThrowIfCancellationRequested();
+                if (rows.IsDBNull(0)) throw new SnapshotFailure(DatabaseSnapshotStatus.IncompatibleSchema);
+                applied.Add(rows.GetString(0));
+            }
         }
         // Capture only the current schema; M16.1 older-prefix restore migration remains a later workflow.
         if (!known.SequenceEqual(applied)) throw new SnapshotFailure(DatabaseSnapshotStatus.IncompatibleSchema);
@@ -200,6 +205,6 @@ public sealed class SqliteDatabaseSnapshotService : IDatabaseSnapshotService
                 throw new IOException("Linked storage is not supported for snapshot staging.");
     }
 
-    private sealed class SnapshotFailure(DatabaseSnapshotStatus status) : Exception
+    internal sealed class SnapshotFailure(DatabaseSnapshotStatus status) : Exception
     { public DatabaseSnapshotStatus Status { get; } = status; }
 }

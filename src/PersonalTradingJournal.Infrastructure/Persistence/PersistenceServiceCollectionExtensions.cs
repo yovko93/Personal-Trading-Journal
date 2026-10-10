@@ -53,6 +53,7 @@ public static class PersistenceServiceCollectionExtensions
             options.UseSqlite(connectionString));
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));
+        services.AddTransient<IRestorePreflightService, RestorePreflightService>();
         services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
             provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();

@@ -376,7 +376,7 @@ public sealed class BackupArchiveTests
         Assert.Equal(SHA256.HashData(expected), await SHA256.HashDataAsync(input));
     }
 
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         internal string Root { get; } = Path.Combine(Path.GetTempPath(), "ptj-archive-test-" + Guid.NewGuid().ToString("N"));
         internal LocalApplicationPaths Paths { get; }

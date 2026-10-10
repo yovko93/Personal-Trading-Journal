@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.4 — Read-only restore preflight**
+
+`IRestorePreflightService.InspectAsync` inspects an explicitly selected archive without opening the installed journal. It bounds ZIP/ZIP64 metadata and decompression, rejects unsafe/link/duplicate/case-colliding entries, verifies the exact manifest inventory, sizes, SHA-256 and CRC, then checks an independently staged read-only SQLite database for integrity, foreign keys, exact current schema and screenshot-reference equality. The result contains safe counts, creation/version information, an archive fingerprint and clear **unencrypted / AI credentials excluded** warnings—not Journal text, paths or permission to restore.
+
+Private staging is removed on success, rejection and cancellation; incomplete cleanup is explicitly reported. Only the exact current schema passes M16.4. Known older migration prefixes return **staged migration required**, without applying a migration; unknown/future versions are rejected. M16.5 must revalidate and compare the archive fingerprint, obtain confirmation and preserve a verified recovery copy before any replacement. No replacement, Desktop UI, schema migration, credential/provider access or production-journal access is introduced. See [preflight safety, compatibility and remaining gates](docs/backup-restore.md#m164--read-only-restore-preflight).
+
+Verification: **157 focused checks passed**, including **52 new preflight cases**. The complete parallel Release suite passed **3,582/3,582**, zero failures/skips (Domain 454, Application 710, Infrastructure 1,038, Desktop 1,380). Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Synthetic data only. Large-archive capacity, crash cleanup, actual restore and matching GitHub CI are not claimed.
+
 **M16.3 — Complete screenshot-aware backup creation**
 
 `IBackupArchiveService.CreateAsync` explicitly creates a new **unencrypted** `.ptjbackup` from the M16.2 validated SQLite snapshot and every distinct screenshot key read from that snapshot. A cross-process screenshot-deletion barrier protects capture; files use bounded streaming/SHA-256, stable read handles, private current-user staging and portable-path/link/case-collision checks. Optional appearance preferences contain only the validated Theme. Credentials, provider selection, logs, temporary files, original CSVs and unreferenced screenshots are excluded and untouched.

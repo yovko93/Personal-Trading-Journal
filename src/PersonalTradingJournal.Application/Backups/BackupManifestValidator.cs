@@ -112,4 +112,6 @@ public static class BackupManifestValidator
     public static bool IsPortableScreenshotKey(string? key) => key is not null &&
         SafePath(BackupArchiveContract.ScreenshotsPrefix + key) &&
         AllowedPath(new(BackupArchiveContract.ScreenshotsPrefix + key, BackupFileKind.Screenshot, 1, ""));
+
+    public static bool IsSafeRelativePath(string? path) => SafePath(path);
 }

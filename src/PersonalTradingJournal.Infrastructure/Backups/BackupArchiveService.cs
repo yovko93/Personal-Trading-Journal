@@ -284,7 +284,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
                 throw new Failure(BackupValidationCode.UnsafePath);
     }
 
-    private static void CreatePrivateDirectory(string path)
+    internal static void CreatePrivateDirectory(string path)
     {
         if (OperatingSystem.IsWindows())
         {
