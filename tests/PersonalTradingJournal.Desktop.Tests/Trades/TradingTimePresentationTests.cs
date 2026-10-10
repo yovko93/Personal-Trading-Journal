@@ -48,6 +48,24 @@ public sealed class TradingTimePresentationTests
         Assert.Throws<NotSupportedException>(() => converter.ConvertBack("2026-09-28 05:10:03 UTC-4", typeof(DateTimeOffset), null, CultureInfo.InvariantCulture));
     }
 
+    [Theory]
+    [InlineData("2026-09-28T05:10:03-04:00", "2026-09-28 05:10:03 UTC-4")]
+    [InlineData("2026-12-28T05:10:03-05:00", "2026-12-28 05:10:03 UTC-5")]
+    [InlineData("2026-11-01T01:30:00-04:00", "2026-11-01 01:30:00 UTC-4")]
+    [InlineData("2026-11-01T01:30:00-05:00", "2026-11-01 01:30:00 UTC-5")]
+    [InlineData("2026-09-28T14:40:03+05:30", "2026-09-28 05:10:03 UTC-4")]
+    public void OffsetBearingPreviewTimestampsRetainTheirInstant(string source, string expected)
+    {
+        var timestamp = DateTimeOffset.Parse(source, CultureInfo.InvariantCulture);
+        var converter = new TradingTimestampConverter();
+        Assert.Equal(expected, converter.Convert(timestamp, typeof(string), "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+        Assert.Equal(converter.Convert(timestamp.ToUniversalTime(), typeof(string), null, CultureInfo.InvariantCulture),
+            converter.Convert(timestamp, typeof(string), null, CultureInfo.InvariantCulture));
+        // Only presentation accepts an offset-bearing input; canonical application validation is unchanged.
+        Assert.Throws<ArgumentException>(() =>
+            PersonalTradingJournal.Application.Common.Time.TradingTimePolicy.ConvertUtcToTradingTime(timestamp));
+    }
+
     [Fact]
     public void OffsetBearingUiBindingsUseSharedFormatterNotBareNumericOffsets()
     {

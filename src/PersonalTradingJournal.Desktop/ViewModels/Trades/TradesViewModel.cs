@@ -2676,7 +2676,9 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     private bool CanShowTradeDetail(TradeListItem? item) =>
-        item is not null &&
+        item is not null && CanLoadTradeDetail;
+
+    private bool CanLoadTradeDetail =>
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsTradeMistakesLoading &&
@@ -2698,6 +2700,20 @@ public sealed class TradesViewModel : ObservableObject
             return;
         }
 
+        await LoadTradeDetailByIdAsync(item.Id, cancellationToken);
+    }
+
+    /// <summary>Read-only source navigation independent of Trades-list paging. The existing detail reader
+    /// handles deleted Trades explicitly; no synthetic browse row is manufactured.</summary>
+    public Task ShowTradeByIdAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (id == Guid.Empty) throw new ArgumentException("A Trade ID is required.", nameof(id));
+        return CanLoadTradeDetail ? LoadTradeDetailByIdAsync(id, cancellationToken) : Task.CompletedTask;
+    }
+
+    private async Task LoadTradeDetailByIdAsync(Guid id, CancellationToken cancellationToken)
+    {
+
         OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = true;
         SelectedTradeDetail = null;
@@ -2713,7 +2729,7 @@ public sealed class TradesViewModel : ObservableObject
         try
         {
             TradeDetail? detail = await _tradeDetailReader.GetByIdAsync(
-                item.Id,
+                id,
                 cancellationToken);
 
             if (detail is null)

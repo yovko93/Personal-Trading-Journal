@@ -465,8 +465,10 @@ public sealed class TradovateImportStoreTests
         Assert.Equal(4, await context.TradovateImportedExecutions.CountAsync());
     }
 
-    [Fact]
-    public async Task DeletingImportedTradeCascadesIdentitiesAndAllowsReimport()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeletingImportedTradeCascadesIdentitiesAndAllowsReimport(bool bulk)
     {
         await using ReaderTestDatabase database = await ReaderTestDatabase.CreateAsync();
         Guid accountId = await SeedAccountAsync(database);
@@ -478,13 +480,22 @@ public sealed class TradovateImportStoreTests
 
         ITradeDeletionStore deletionStore = database.ServiceProvider
             .GetRequiredService<ITradeDeletionStore>();
-        Assert.NotNull(await deletionStore.DeleteAsync(first.ImportedTradeIds[0]));
+        if (bulk)
+        {
+            var all = database.ServiceProvider.GetRequiredService<IAccountTradeDeletionStore>();
+            Assert.Equal(AccountTradeDeletionStatus.Deleted, (await all.DeleteAsync((await all.PrepareAsync(accountId))!)).Status);
+            Assert.Null(await database.ServiceProvider.GetRequiredService<ITradeDetailReader>().GetByIdAsync(first.ImportedTradeIds[0]));
+        }
+        else Assert.NotNull(await deletionStore.DeleteAsync(first.ImportedTradeIds[0]));
 
         TradovateImportResult reimport = await store.ImportAsync(
             new TradovateImportRequest(preparation, ImportedAt.AddMinutes(1)));
 
         Assert.Equal(TradovateImportStatus.Imported, reimport.Status);
         Assert.Equal(0, reimport.CreatedInstrumentCount);
+        Assert.NotEqual(first.ImportedTradeIds[0], reimport.ImportedTradeIds[0]);
+        Assert.Equal(TradovateImportStatus.NoChanges, (await store.ImportAsync(
+            new TradovateImportRequest(preparation, ImportedAt.AddMinutes(2)))).Status);
         await using JournalDbContext context =
             await database.ContextFactory.CreateDbContextAsync();
         Assert.Equal(1, await context.Trades.CountAsync());

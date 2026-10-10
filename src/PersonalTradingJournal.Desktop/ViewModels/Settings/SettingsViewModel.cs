@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PersonalTradingJournal.Desktop.Settings;
 using PersonalTradingJournal.Desktop.Theming;
+using PersonalTradingJournal.Application.DailyReview.Coaching;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Settings;
 
@@ -16,11 +17,67 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     private AppTheme _selectedTheme;
     private bool _isSaving;
     private string? _saveErrorMessage;
+    private readonly ProtectedCoachingCredentials? _credentials;
+    private readonly CoachingConfiguration? _configuration;
+    private ProtectedCoachingCredentials? ActiveStore => _configuration is null ? _credentials :
+        SelectedProvider == CoachingProviderKind.Unavailable ? null : _configuration.StoreFor(SelectedProvider);
+    public IReadOnlyList<CoachingProviderKind> AvailableProviders { get; } = [CoachingProviderKind.Groq, CoachingProviderKind.OpenAI];
+    public CoachingProviderKind SelectedProvider
+    {
+        get => _configuration?.SelectedProvider ?? CoachingProviderKind.OpenAI;
+        set
+        {
+            if (_configuration is null || value == SelectedProvider) return;
+            CredentialMessage = _configuration.Select(value) ? "Provider selected. No request was sent; its own credential source is shown below."
+                : "Provider choice could not be saved. Check local Settings storage; generation is not switched.";
+            OnPropertyChanged(); OnPropertyChanged(nameof(ApiKeyLabel)); OnPropertyChanged(nameof(CredentialMessage));
+            RefreshCredentialStatus();
+        }
+    }
+    public string ApiKeyLabel => $"{SelectedProvider} API key";
+    public CoachingCredentialSource CredentialSource { get; private set; }
+    public string? CredentialMessage { get; private set; }
+    public string CredentialStatus => SelectedProvider == CoachingProviderKind.Unavailable
+        ? "Provider preference cannot be read. Select Groq or OpenAI explicitly to recover; no fallback request will be sent."
+        : CredentialSource switch
+    {
+        CoachingCredentialSource.Saved => "Configured · source: saved Settings key (this Windows user).",
+        CoachingCredentialSource.Environment => $"Configured · source: {(SelectedProvider == CoachingProviderKind.Groq ? "GROQ_API_KEY" : "OPENAI_API_KEY")} environment fallback. No saved key.",
+        CoachingCredentialSource.Unreadable => "Saved key cannot be read. Replace or remove it in Settings. Environment fallback is not used while saved storage is unreadable.",
+        _ => "Not configured · no saved key or environment fallback.",
+    };
+    public bool CanRemoveKey => CredentialSource is CoachingCredentialSource.Saved or CoachingCredentialSource.Unreadable;
+    public IRelayCommand RemoveKeyCommand { get; }
+
+    public void RefreshCredentialStatus()
+    {
+        CredentialSource = _configuration?.GetSource() ?? _credentials?.GetSource() ?? CoachingCredentialSource.None;
+        OnPropertyChanged(nameof(CredentialSource)); OnPropertyChanged(nameof(CredentialStatus));
+        OnPropertyChanged(nameof(CanRemoveKey)); RemoveKeyCommand.NotifyCanExecuteChanged();
+    }
+
+    // The PasswordBox hands over only the new input; no stored key is ever returned to the view.
+    public void SaveKey(string key)
+    {
+        CredentialMessage = ActiveStore?.Save(key) == true
+            ? $"Key saved locally for {SelectedProvider}. It will be used on your next explicit generation; it has not been tested with the provider."
+            : "Key was not saved. Enter a nonempty key without spaces (up to 4096 characters), or check local storage access.";
+        OnPropertyChanged(nameof(CredentialMessage)); RefreshCredentialStatus();
+    }
+
+    private void RemoveKey()
+    {
+        CredentialMessage = ActiveStore?.Remove() == true
+            ? $"Saved key removed for {SelectedProvider}. The active source is shown below. This does not revoke the key at the provider."
+            : "The saved key could not be removed. Check local storage access and try again.";
+        OnPropertyChanged(nameof(CredentialMessage)); RefreshCredentialStatus();
+    }
 
     public SettingsViewModel(
         IThemeService themeService,
         IDesktopSettingsStore settingsStore,
-        ILogger<SettingsViewModel> logger)
+        ILogger<SettingsViewModel> logger,
+        ProtectedCoachingCredentials? credentials = null, CoachingConfiguration? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(themeService);
         ArgumentNullException.ThrowIfNull(settingsStore);
@@ -29,6 +86,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         _themeService = themeService;
         _settingsStore = settingsStore;
         _logger = logger;
+        _credentials = credentials;
+        _configuration = configuration;
+        RemoveKeyCommand = new RelayCommand(RemoveKey, () => CanRemoveKey);
+        RefreshCredentialStatus();
         _selectedTheme = themeService.PreferredTheme;
         AvailableThemes = Enum.GetValues<AppTheme>();
         ChangeThemeCommand = new AsyncRelayCommand<AppTheme>(

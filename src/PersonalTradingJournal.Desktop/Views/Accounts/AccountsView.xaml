@@ -6,6 +6,12 @@
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <converters:TradingAccountTypeDisplayConverter x:Key="AccountTypeDisplayConverter" />
+        <converters:AccountBalanceDisplayConverter x:Key="AccountBalanceDisplayConverter" />
+        <Style x:Key="AccountBulkDeleteMenuItemStyle" TargetType="{x:Type MenuItem}"
+               BasedOn="{StaticResource PtjDeleteMenuItemStyle}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="ToolTip" Value="Delete this Account's Trades and their attachments; keep the Account and Journals." />
+        </Style>
 
         <Style x:Key="AccountColumnHeaderStyle"
                TargetType="{x:Type TextBlock}"
@@ -57,6 +63,9 @@
                     Content="Add Account"
                     Style="{StaticResource PtjPrimaryButtonStyle}" />
         </Grid>
+
+        <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Style="{StaticResource PtjSecondaryTextStyle}"
+                   Text="Current Balance is Trade-based, not a broker balance. It excludes unrecorded deposits, withdrawals, payouts and other adjustments." />
 
         <Border Margin="0,16,0,0">
             <Border.Style>
@@ -368,6 +377,17 @@
                                     </MenuItem.Style>
                                 </MenuItem>
                                 <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                <MenuItem Command="{Binding Tag.DeleteAllTradesCommand}"
+                                          CommandParameter="{Binding Tag.SelectedAccount.Id}"
+                                          Header="Delete All Trades"
+                                          AutomationProperties.Name="Delete all Trades from this Account"
+                                          Style="{StaticResource AccountBulkDeleteMenuItemStyle}">
+                                    <MenuItem.Icon>
+                                        <Viewbox><Path Data="{StaticResource PtjIconTrades}" Fill="{x:Null}"
+                                            Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                            StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox>
+                                    </MenuItem.Icon>
+                                </MenuItem>
                                 <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                           CommandParameter="{Binding Tag.SelectedAccount.Id}"
                                           Header="Delete"
@@ -546,7 +566,10 @@
                            Text="No trading accounts yet." />
             </Border>
 
-            <Grid>
+            <ScrollViewer x:Name="AccountTableScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          HorizontalContentAlignment="Stretch" PanningMode="HorizontalOnly"
+                          interactions:NestedTableWheelRouting.ForwardVerticalWheel="True">
+            <Grid MinWidth="1120" Width="{Binding ViewportWidth, ElementName=AccountTableScroll}">
                 <Grid.Style>
                     <Style TargetType="{x:Type Grid}">
                         <Setter Property="Visibility" Value="Collapsed" />
@@ -563,13 +586,14 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Margin="16,0,16,8">
+                <Grid Margin="17,0,17,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="1.5*" />
                         <ColumnDefinition Width="1.2*" />
                         <ColumnDefinition Width="1.1*" />
                         <ColumnDefinition Width="0.65*" />
                         <ColumnDefinition Width="1.3*" />
+                        <ColumnDefinition Width="2.2*" />
                         <ColumnDefinition Width="0.75*" />
                         <ColumnDefinition Width="2.2*" />
                     </Grid.ColumnDefinitions>
@@ -593,8 +617,13 @@
                     <TextBlock Grid.Column="5"
                                HorizontalAlignment="Right"
                                Style="{StaticResource AccountColumnHeaderStyle}"
-                               Text="Status" />
+                               Text="Current Balance"
+                               ToolTip="Trade-based calculation, not a broker balance. Fully closed Trades in the Account currency only; excludes unrecorded deposits, withdrawals, payouts and other adjustments." />
                     <TextBlock Grid.Column="6"
+                               HorizontalAlignment="Right"
+                               Style="{StaticResource AccountColumnHeaderStyle}"
+                               Text="Status" />
+                    <TextBlock Grid.Column="7"
                                HorizontalAlignment="Right"
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Actions" />
@@ -616,6 +645,7 @@
                                             <ColumnDefinition Width="1.1*" />
                                             <ColumnDefinition Width="0.65*" />
                                             <ColumnDefinition Width="1.3*" />
+                                            <ColumnDefinition Width="2.2*" />
                                             <ColumnDefinition Width="0.75*" />
                                             <ColumnDefinition Width="2.2*" />
                                         </Grid.ColumnDefinitions>
@@ -637,7 +667,23 @@
                                                    HorizontalAlignment="Right"
                                                    Style="{StaticResource AccountCellTextStyle}"
                                                    Text="{Binding StartingBalance, StringFormat={}{0:N2}, TargetNullValue=—}" />
-                                        <TextBlock Grid.Column="5"
+                                        <StackPanel Grid.Column="5" Margin="12,0,12,0" DataContext="{Binding Converter={StaticResource AccountBalanceDisplayConverter}}">
+                                            <TextBlock x:Name="CurrentBalanceValue" Text="{Binding ValueText}" TextWrapping="Wrap" TextAlignment="Right"
+                                                       Focusable="True" AutomationProperties.Name="{Binding Description}"
+                                                       ToolTip="{Binding Description}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+                                                        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Comparison}" Value="1"><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger>
+                                                            <DataTrigger Binding="{Binding Comparison}" Value="-1"><Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" /></DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding SupportingText}" TextWrapping="Wrap" TextAlignment="Right" Style="{StaticResource PtjCaptionTextStyle}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="6"
                                                    HorizontalAlignment="Right">
                                             <TextBlock.Style>
                                                 <Style TargetType="{x:Type TextBlock}"
@@ -654,7 +700,7 @@
                                             </TextBlock.Style>
                                         </TextBlock>
 
-                                        <StackPanel Grid.Column="6"
+                                        <StackPanel Grid.Column="7"
                                                     Margin="8,0,0,0"
                                                     HorizontalAlignment="Right"
                                                     Orientation="Horizontal">
@@ -729,6 +775,17 @@
                                                             </MenuItem.Style>
                                                         </MenuItem>
                                                         <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
+                                                        <MenuItem Command="{Binding Tag.DeleteAllTradesCommand}"
+                                                                  CommandParameter="{Binding DataContext.Id}"
+                                                                  Header="Delete All Trades"
+                                                                  AutomationProperties.Name="Delete all Trades from this Account"
+                                                                  Style="{StaticResource AccountBulkDeleteMenuItemStyle}">
+                                                            <MenuItem.Icon>
+                                                                <Viewbox><Path Data="{StaticResource PtjIconTrades}" Fill="{x:Null}"
+                                                                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                    StrokeLineJoin="Round" StrokeThickness="1.8" /></Viewbox>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
                                                         <MenuItem Command="{Binding Tag.DeleteAccountCommand}"
                                                                   CommandParameter="{Binding DataContext.Id}"
                                                                   Header="Delete"
@@ -754,6 +811,7 @@
                         </ItemsControl.ItemTemplate>
                 </ItemsControl>
             </Grid>
+            </ScrollViewer>
         </Grid>
         </StackPanel>
     </ScrollViewer>

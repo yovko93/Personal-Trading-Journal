@@ -23,6 +23,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly DashboardViewModel _dashboardViewModel;
     private readonly CalendarViewModel _calendarViewModel;
     private readonly JournalViewModel _journalViewModel;
+    private readonly PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? _dailyReviewViewModel;
     private readonly InstrumentsViewModel _instrumentsViewModel;
     private readonly ImportViewModel _importViewModel;
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
@@ -52,7 +53,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         TradesViewModel tradesViewModel,
         SettingsViewModel settingsViewModel,
         IThemeService themeService,
-        TopstepImportChangeTracker? topstepChanges = null)
+        TopstepImportChangeTracker? topstepChanges = null,
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReviewViewModel = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
@@ -69,6 +71,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _dashboardViewModel = dashboardViewModel;
         _calendarViewModel = calendarViewModel;
         _journalViewModel = journalViewModel;
+        _dailyReviewViewModel = dailyReviewViewModel;
         _accountsViewModel = accountsViewModel;
         _instrumentsViewModel = instrumentsViewModel;
         _importViewModel = importViewModel;
@@ -136,10 +139,17 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.ImportCommitted += OnImportCommitted;
         _importViewModel.TopstepImportCommitted += OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
+        _accountsViewModel.TradeDataCommitted += OnAccountTradesDeleted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
         _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
         _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
+        if (_dailyReviewViewModel is not null)
+        {
+            _dailyReviewViewModel.OpenTradeAsync = OpenReviewTradeAsync;
+            _dailyReviewViewModel.OpenJournalAsync = OpenReviewJournalAsync;
+            _dailyReviewViewModel.OpenAiSettings = () => Navigate(NavigationDestination.Settings);
+        }
     }
 
     public string ApplicationTitle => "Personal Trading Journal";
@@ -210,6 +220,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (CurrentDestination == NavigationDestination.DailyReview)
+        {
+            _dailyReviewViewModel?.Deactivate();
+            return true;
+        }
         if (CurrentDestination == NavigationDestination.Calendar)
             return _calendarViewModel.TryCloseDayDialog();
 
@@ -227,6 +242,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _importViewModel.ImportCommitted -= OnImportCommitted;
         _importViewModel.TopstepImportCommitted -= OnTopstepImportCommitted;
         _tradesViewModel.TradeDataCommitted -= OnTradeDataCommitted;
+        _accountsViewModel.TradeDataCommitted -= OnAccountTradesDeleted;
         _dashboardViewModel.OpenTradeAsync = null;
         _calendarViewModel.TradeDataCommitted -= OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = null;
@@ -234,6 +250,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _dashboardViewModel.Deactivate();
         _calendarViewModel.Deactivate();
         _journalViewModel.Deactivate();
+        _dailyReviewViewModel?.Deactivate();
+        if (_dailyReviewViewModel is not null)
+        {
+            _dailyReviewViewModel.OpenTradeAsync = null;
+            _dailyReviewViewModel.OpenJournalAsync = null;
+            _dailyReviewViewModel.OpenAiSettings = null;
+        }
     }
 
     private (bool Trades, bool Instruments) InvalidateTopstepChanges()
@@ -285,6 +308,24 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private Task _tradeNavigationLoad = Task.CompletedTask;
 
+    private async Task OpenReviewTradeAsync(Guid id)
+    {
+        if (_disposed) return;
+        Navigate(NavigationDestination.Trades);
+        await _tradeNavigationLoad;
+        if (!_disposed && CurrentDestination == NavigationDestination.Trades)
+            await _tradesViewModel.ShowTradeByIdAsync(id);
+    }
+
+    private async Task OpenReviewJournalAsync(PersonalTradingJournal.Application.DailyReview.DailyReviewJournalEvidence journal)
+    {
+        if (_disposed || !_journalViewModel.TryOpenScope(journal.TradingDate, journal.TradingAccountId,
+            journal.AccountName ?? "Unavailable account")) return;
+        Navigate(NavigationDestination.Journal);
+        if (!_disposed && CurrentDestination == NavigationDestination.Journal)
+            await _journalViewModel.LoadTask;
+    }
+
     private async Task OpenCalendarJournalAsync(DateOnly date, CalendarAccountOption account)
     {
         if (_disposed || !_journalViewModel.TryOpenScope(date, account.Id, account.Name)) return;
@@ -333,6 +374,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
+        if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
@@ -340,6 +382,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Dashboard => _dashboardViewModel,
             NavigationDestination.Calendar => _calendarViewModel,
             NavigationDestination.Journal => _journalViewModel,
+            NavigationDestination.DailyReview when _dailyReviewViewModel is not null => _dailyReviewViewModel,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
             NavigationDestination.Import => _importViewModel,
@@ -355,6 +398,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Journal)
             _ = _journalViewModel.ActivateAsync();
+
+        if (destination == NavigationDestination.DailyReview && _dailyReviewViewModel is not null)
+            _ = _dailyReviewViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Accounts)
         {
@@ -448,8 +494,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
         _dashboardViewModel.OnDataCommitted();
+        _accountsViewModel.InvalidateBalances(CurrentDestination == NavigationDestination.Accounts);
         _journalViewModel.TradeContext.OnDataCommitted();
         // Calendar's dedicated editor refreshes the modal after its save/reload completes.
+        _dailyReviewViewModel?.OnDataCommitted();
+    }
+
+    private void OnAccountTradesDeleted(object? sender, EventArgs e)
+    {
+        _tradesViewModel.InvalidateLoadedDataAfterExternalImport();
+        OnTradeDataCommitted(sender, e);
     }
 
     private void OnTradeDataCommitted(object? sender, EventArgs e)
@@ -460,9 +514,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _dispatcher.BeginInvoke(() => OnTradeDataCommitted(sender, e));
             return;
         }
+        _accountsViewModel.InvalidateBalances(CurrentDestination == NavigationDestination.Accounts && sender != _accountsViewModel);
         _dashboardViewModel.OnDataCommitted();
         _calendarViewModel.OnDataCommitted();
         _journalViewModel.TradeContext.OnDataCommitted();
+        _dailyReviewViewModel?.OnDataCommitted();
     }
 
     private void OnJournalDataCommitted(object? sender, EventArgs e)
@@ -474,5 +530,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
         _calendarViewModel.OnJournalCommitted();
+        _dailyReviewViewModel?.OnDataCommitted();
     }
 }

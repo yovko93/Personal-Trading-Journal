@@ -43,7 +43,7 @@ public sealed partial class InitialMigrationTests
             connection.Open();
             string[] priorSchema = ReadNonJournalSchema(connection);
 
-            context.Database.Migrate();
+            context.GetService<IMigrator>().Migrate(DailyReviewMigrationId);
 
             Assert.Equal(DailyReviewMigrationId, context.Database.GetAppliedMigrations().Last());
             Assert.Equal(priorSchema, ReadNonJournalSchema(connection));

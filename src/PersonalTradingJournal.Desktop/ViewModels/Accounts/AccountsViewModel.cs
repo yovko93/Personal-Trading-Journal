@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Accounts;
+using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Domain.Accounts;
 using System.Globalization;
@@ -38,6 +39,10 @@ public sealed class AccountsViewModel : ObservableObject
     private readonly UpdateTradingAccountUseCase _updateTradingAccountUseCase;
     private readonly DeleteTradingAccountUseCase _deleteTradingAccountUseCase;
     private readonly IDialogService _dialogService;
+    private readonly DeleteAccountTradesUseCase? _deleteAccountTrades;
+    private readonly ITradingAccountBalanceReader? _balanceReader;
+    private long _dataVersion;
+    public event EventHandler? TradeDataCommitted;
     private readonly SemaphoreSlim _loadGate = new(1, 1);
     private IReadOnlyList<AccountListItem> _accounts = [];
     private string _accountName = string.Empty;
@@ -81,7 +86,9 @@ public sealed class AccountsViewModel : ObservableObject
         GetTradingAccountDetailsUseCase getTradingAccountDetailsUseCase,
         UpdateTradingAccountUseCase updateTradingAccountUseCase,
         DeleteTradingAccountUseCase deleteTradingAccountUseCase,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        DeleteAccountTradesUseCase? deleteAccountTrades = null,
+        ITradingAccountBalanceReader? balanceReader = null)
     {
         ArgumentNullException.ThrowIfNull(accountReader);
         ArgumentNullException.ThrowIfNull(createTradingAccountUseCase);
@@ -98,6 +105,8 @@ public sealed class AccountsViewModel : ObservableObject
         _updateTradingAccountUseCase = updateTradingAccountUseCase;
         _deleteTradingAccountUseCase = deleteTradingAccountUseCase;
         _dialogService = dialogService;
+        _deleteAccountTrades = deleteAccountTrades;
+        _balanceReader = balanceReader;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowCreateFormCommand = new RelayCommand(ShowCreateForm, CanShowCreateForm);
         CancelCreateCommand = new RelayCommand(CancelCreate, CanCancelCreate);
@@ -114,6 +123,8 @@ public sealed class AccountsViewModel : ObservableObject
         CancelEditCommand = new RelayCommand(CancelEdit, CanCancelEdit);
         SaveChangesCommand = new AsyncRelayCommand(SaveChangesAsync, CanSaveChanges);
         DeleteAccountCommand = new AsyncRelayCommand<Guid>(DeleteAccountAsync, CanUseAccountAction);
+        DeleteAllTradesCommand = new AsyncRelayCommand<Guid>(DeleteAllTradesAsync,
+            id => _deleteAccountTrades is not null && CanUseAccountAction(id));
     }
 
     public IReadOnlyList<AccountListItem> Accounts
@@ -509,10 +520,18 @@ public sealed class AccountsViewModel : ObservableObject
     public IAsyncRelayCommand SaveChangesCommand { get; }
 
     public IAsyncRelayCommand<Guid> DeleteAccountCommand { get; }
+    public IAsyncRelayCommand<Guid> DeleteAllTradesCommand { get; }
 
     public async Task EnsureLoadedAsync()
     {
         _ = await LoadAsync(forceRefresh: false, CancellationToken.None);
+    }
+
+    public void InvalidateBalances(bool refreshNow)
+    {
+        _dataVersion++;
+        _hasLoadedSuccessfully = false;
+        if (refreshNow) _ = EnsureLoadedAsync();
     }
 
     public void ResetTransientState()
@@ -884,6 +903,55 @@ public sealed class AccountsViewModel : ObservableObject
         }
     }
 
+    private async Task DeleteAllTradesAsync(Guid accountId, CancellationToken token)
+    {
+        if (_deleteAccountTrades is null || !CanUseAccountAction(accountId)) return;
+        IsDeleting = true; // Includes preparation and the confirmation's nested message loop.
+        ActionErrorMessage = null;
+        AccountTradeDeletionResult? committed = null;
+        try
+        {
+            var plan = await _deleteAccountTrades.PrepareAsync(accountId, token);
+            if (plan is null) { ActionErrorMessage = "Account no longer exists. Refresh the list."; return; }
+            if (plan.TradeCount == 0)
+            {
+                _dialogService.ShowInformation(new("No Trades to delete", $"Account \"{plan.AccountName}\" has 0 Trades. Nothing was changed."));
+                return;
+            }
+            if (!_dialogService.Confirm(new("Delete all Trades?",
+                $"Permanently delete all {plan.TradeCount:N0} Trades from Account \"{plan.AccountName}\"?\n\n" +
+                "This removes their executions, classifications/mistake assignments and screenshot attachments. " +
+                "Import provenance is removed, so importing the same source rows again can recreate these Trades.\n\n" +
+                "The Account, Journals, classification definitions and saved AI review snapshots are kept. " +
+                "Snapshot links to deleted Trades will be unavailable. This cannot be undone.",
+                "Delete All Trades", isDestructive: true))) return;
+            var result = await _deleteAccountTrades.ExecuteAsync(plan, token);
+            if (result.Status != AccountTradeDeletionStatus.Deleted)
+            {
+                ActionErrorMessage = "The Account or its Trades changed after confirmation was prepared. Nothing was deleted. Refresh and confirm again.";
+                return;
+            }
+            // Notify only after the database commit, including a file-cleanup warning outcome.
+            committed = result;
+            TradeDataCommitted?.Invoke(this, EventArgs.Empty);
+            _dialogService.ShowInformation(new("Trades deleted",
+                $"{result.DeletedCount:N0} Trades deleted from \"{plan.AccountName}\". The Account and Journals were kept." +
+                (result.FailedFileCleanupCount > 0
+                    ? $" {result.FailedFileCleanupCount:N0} attachment files could not be removed and may remain on disk. Database deletion committed; file cleanup is incomplete."
+                    : " Trade-owned attachment cleanup completed.")));
+            if (!await LoadAsync(forceRefresh: true, CancellationToken.None))
+                ErrorMessage = "Trades were deleted, but Accounts could not be refreshed. Refresh the list.";
+        }
+        catch (OperationCanceledException) { ActionErrorMessage = "Deletion cancelled. Refresh to verify the current Trade count."; }
+        catch (Exception)
+        {
+            ActionErrorMessage = committed is null
+                ? "Trades could not be deleted. Refresh and try again; no attachment cleanup was performed before database commit."
+                : $"Trades were deleted, but the display could not be refreshed. Refresh before taking another action. Attachment files not removed: {committed.FailedFileCleanupCount:N0}.";
+        }
+        finally { IsDeleting = false; }
+    }
+
     private async Task DeleteAccountAsync(
         Guid accountId,
         CancellationToken cancellationToken)
@@ -1107,6 +1175,7 @@ public sealed class AccountsViewModel : ObservableObject
         CancelEditCommand.NotifyCanExecuteChanged();
         SaveChangesCommand.NotifyCanExecuteChanged();
         DeleteAccountCommand.NotifyCanExecuteChanged();
+        DeleteAllTradesCommand.NotifyCanExecuteChanged();
     }
 
     private async Task<bool> LoadAsync(
@@ -1130,8 +1199,16 @@ public sealed class AccountsViewModel : ObservableObject
 
             try
             {
-                IReadOnlyList<AccountListItem> accounts =
-                    await _accountReader.GetAllAsync(cancellationToken);
+                IReadOnlyList<AccountListItem> accounts;
+                long version;
+                do
+                {
+                    version = _dataVersion;
+                    accounts = _balanceReader is null
+                        ? await _accountReader.GetAllAsync(cancellationToken)
+                        : await _balanceReader.GetAllWithBalancesAsync(cancellationToken);
+                    // A committed write during the read invalidates the entire snapshot.
+                } while (version != _dataVersion);
 
                 Accounts = accounts;
                 if (SelectedAccount is not null &&

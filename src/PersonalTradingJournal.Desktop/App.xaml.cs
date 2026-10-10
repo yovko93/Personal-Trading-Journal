@@ -26,6 +26,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Setups;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Imports.Tradovate;
 using PersonalTradingJournal.Infrastructure.Storage;
@@ -66,6 +67,15 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddSingleton(new CoachingConfiguration(applicationPaths.CoachingProviderPath,
+                new(applicationPaths.CoachingCredentialsPath, () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
+                new(applicationPaths.GroqCredentialsPath, () => Environment.GetEnvironmentVariable("GROQ_API_KEY")),
+                File.Exists(applicationPaths.SettingsPath) || File.Exists(applicationPaths.DatabasePath)));
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.ICoachingConfiguration>(
+                s => s.GetRequiredService<CoachingConfiguration>());
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.ICoachingCredentials>(
+                s => s.GetRequiredService<CoachingConfiguration>());
+            builder.Services.AddDailyCoaching();
             builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
             builder.Services.AddSingleton<ISystemThemeProvider, WindowsSystemThemeProvider>();
             builder.Services.AddSingleton<IThemeService>(services => new ThemeService(
@@ -99,6 +109,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<CloseManualTradeUseCase>();
             builder.Services.AddTransient<UpdateTradeUseCase>();
             builder.Services.AddTransient<DeleteTradeUseCase>();
+            builder.Services.AddTransient<DeleteAccountTradesUseCase>();
             builder.Services.AddTransient<AddTradeScreenshotUseCase>();
             builder.Services.AddTransient<DeleteTradeScreenshotUseCase>();
             builder.Services.AddTransient<ITradovateCsvParser, TradovateCsvParser>();
@@ -123,6 +134,7 @@ public partial class App : System.Windows.Application
                 WpfTradeScreenshotDeleteConfirmation>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
+            builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel>();
             builder.Services.AddTransient<CalendarViewModel>();
             builder.Services.AddTransient<JournalViewModel>();
             builder.Services.AddTransient<JournalTradeContextViewModel>();

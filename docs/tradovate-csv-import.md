@@ -1,5 +1,23 @@
 # Tradovate CSV Import
 
+## Bound WPF preview failure — 2026-10-09
+
+The reported generic preview error was reproduced with the supplied 342-row, 13-column export in an isolated migrated SQLite database and the actual compiled `ImportView`. No production journal was opened, the source file was read without modification, and the full CSV is not a repository fixture.
+
+**Proven cause:** parsing, reconstruction, Instrument resolution, Account preparation and preview projection all succeeded. Publishing `PreviewSummary` on the WPF dispatcher synchronously evaluated the period-start/end bindings. Those values already carry their New York offset. `TradingTimestampConverter.Convert` called `TradingTimestampFormatter.FormatNewYork`, which passed the offset-bearing value directly to `TradingTimePolicy.ConvertUtcToTradingTime` / `ConvertUtcToLocal`. The latter correctly requires canonical UTC and threw `System.ArgumentException` (nonzero UTC offset). `BuildPreviewAsync` caught that display exception as the generic error, before publishing Trade rows. A ViewModel-only test had no bound converter and therefore passed.
+
+One ordinary matched-fill row is sufficient to trigger this display failure; it is not dependent on account identity/type, unusual CSV fields, contract rollover, or existing Trade data. Both an empty Instrument catalog and an existing compatible MNQ reproduced it. The sanitized regression uses two synthetic matched rows (summer MNQU6 and winter MNQZ6) to cover both offsets and independent contract streams without including customer rows or identities.
+
+**Correction:** normalize the `DateTimeOffset` instant to UTC at the presentation boundary before projecting it to New York. This preserves instants, wall-clock display, summer/winter/repeated-hour offsets, and the strict UTC-only Application contract. No parser, reconstruction, source P&L, time policy, ambiguity, deduplication or persistence rule changes. Preview projections are prepared before publication; an unexpected failure clears preview/confirmation state.
+
+Unexpected Tradovate preview failures now show a bounded `TVP-<stage>-<category>` diagnostic. Stages identify `INSTRUMENTS`, `ANALYSIS-DISPLAY`, `ACCOUNT-PREPARATION`, `PROJECTION`, or `PREVIEW-DISPLAY`; categories are allowlisted `ARGUMENT`, `OVERFLOW`, `DATABASE`, `IO`, `STATE`, or `UNEXPECTED`. Report that code and the attempted operation when requesting help. The message does not expose exception messages, stacks, raw CSV, file paths or account identifiers. Expected blocking diagnostics still use their established actionable row/symbol context. No new raw-error logging is introduced.
+
+**Supplied-file result:** after the fix, the actual bound WPF preview reaches `PreviewReady` with **342 valid rows, zero rejected rows, 532 reconstructed fills and 99 Trade candidates**. Both proposed-MNQ and existing-MNQ scenarios pass. Preview leaves zero persisted Trades/executions and creates no Instruments (the existing-MNQ scenario starts and ends with its single synthetic Instrument). Source-completeness and unavailable-cost warnings remain; a valid preview is not a claim that the export contains all broker activity. Confirmation was never invoked for the supplied file.
+
+The compiled WPF regression exercises the real CSV/parser/reconstructor/readers/commands and period bindings in Light and Dark, existing/proposed Instruments, declined confirmation, and injected display failure with no writes. Formatter tests also cover both occurrences of a repeated New York autumn hour and another input offset. Instrument/account/display failures have sanitized diagnostic and no-confirmation regressions. Automated window exercise is not manual mouse/keyboard acceptance; production-database behavior and a matching GitHub Actions run remain unverified. M15.8 has not begun.
+
+Verification: **567 focused tests passed** (Application 169, Infrastructure 283, Desktop 115); the final strengthened bound-WPF regression separately passed. **3,345 full parallel Release tests passed** (Domain 454, Application 657, Infrastructure 894, Desktop 1,340), zero failures/skips. Final Release build: zero warnings/errors; EF reports no pending model changes; `git diff --check` and the new-file whitespace check passed. Only synthetic rows belong to the repository test fixture; the supplied CSV and reproduction probe are not staged or committed.
+
 M10 implements a reviewed Tradovate matched-fills import from file selection through atomic persistence and duplicate replay. Its scope includes all seven stages:
 
 | Stage | Responsibility |

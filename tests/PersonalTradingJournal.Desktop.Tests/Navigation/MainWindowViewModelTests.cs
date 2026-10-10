@@ -703,6 +703,7 @@ public sealed partial class MainWindowViewModelTests
     {
         var changes = new TopstepImportChangeTracker();
         ViewModelFixture fixture = CreateFixture(topstepChanges: changes);
+        await fixture.Accounts.EnsureLoadedAsync();
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Trades);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Import);
@@ -725,6 +726,8 @@ public sealed partial class MainWindowViewModelTests
         fixture.Main.NavigateCommand.Execute(NavigationDestination.Instruments);
         Assert.Equal(expectedTradeReads, fixture.TradeListReader.CallCount);
         Assert.Equal(expectedInstrumentReads, fixture.InstrumentReader.CallCount);
+        await fixture.Accounts.EnsureLoadedAsync();
+        Assert.Equal(expectedTradeReads + 1, fixture.AccountReader.CallCount); // Import also reads Account references once.
     }
 
     [Theory]
@@ -1049,6 +1052,7 @@ public sealed partial class MainWindowViewModelTests
         var dayReader = new FakeTradingCalendarDayReader();
         var fixture = CreateFixture(calendarReader: monthReader, calendarDayReader: dayReader,
             tradeDeletionStore: deletion);
+        await fixture.Accounts.EnsureLoadedAsync();
         using var main = fixture.Main;
         main.NavigateCommand.Execute(NavigationDestination.Trades);
         await fixture.Trades.EnsureLoadedAsync();
@@ -1075,6 +1079,8 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(!cancel, calendar.IsSelectedDayEmpty);
         if (cancel) Assert.Equal(row.Id, Assert.Single(calendar.DayTrades).Trade.Id);
         else Assert.Empty(calendar.DayTrades);
+        await fixture.Accounts.EnsureLoadedAsync();
+        Assert.Equal(cancel ? 1 : 2, fixture.AccountReader.CallCount);
     }
 
     private sealed class CommitCalendarReader : ITradingCalendarReader
@@ -1165,6 +1171,54 @@ public sealed partial class MainWindowViewModelTests
         }
     }
 
+    [Fact]
+    public async Task AccountBulkDeletionInvalidatesTradesAndRefreshesActiveAnalyticsOnlyAfterCommit()
+    {
+        var deletion = new Accounts.AccountBulkDeletionTests.Store();
+        var fixture = CreateFixture(accountTradeDeletion: new(deletion, new FakeTradeScreenshotFileStorage()));
+        using var main = fixture.Main;
+        await fixture.Accounts.EnsureLoadedAsync();
+        await fixture.Trades.EnsureLoadedAsync();
+        int initialTradeReads = fixture.TradeListReader.CallCount;
+        await fixture.Dashboard.ActivateAsync();
+        int initialDashboardReads = fixture.DashboardReader.Queries.Count;
+        await fixture.Accounts.DeleteAllTradesCommand.ExecuteAsync(deletion.Account);
+        await fixture.Dashboard.LoadTask;
+        Assert.Equal(2, fixture.AccountReader.CallCount);
+        Assert.True(fixture.DashboardReader.Queries.Count > initialDashboardReads);
+        await fixture.Trades.EnsureLoadedAsync();
+        Assert.True(fixture.TradeListReader.CallCount > initialTradeReads);
+        initialDashboardReads = fixture.DashboardReader.Queries.Count;
+        deletion.Status = AccountTradeDeletionStatus.Changed;
+        await fixture.Accounts.DeleteAllTradesCommand.ExecuteAsync(deletion.Account);
+        Assert.Equal(initialDashboardReads, fixture.DashboardReader.Queries.Count);
+        Assert.Equal(2, fixture.AccountReader.CallCount);
+    }
+
+    [Theory]
+    [InlineData("Trades")]
+    [InlineData("Calendar")]
+    [InlineData("Tradovate")]
+    public async Task CommittedNotificationRefreshesVisibleAccountBalancesWithoutNavigation(string source)
+    {
+        var fixture = CreateFixture();
+        using var main = fixture.Main;
+        main.NavigateCommand.Execute(NavigationDestination.Calendar);
+        var calendar = Assert.IsType<CalendarViewModel>(main.CurrentContentViewModel);
+        main.NavigateCommand.Execute(NavigationDestination.Accounts);
+        await fixture.Accounts.EnsureLoadedAsync();
+        int before = fixture.AccountReader.CallCount;
+        object publisher = source == "Trades" ? fixture.Trades : source == "Calendar" ? calendar : fixture.Import;
+        string eventName = source == "Tradovate" ? "ImportCommitted" : "TradeDataCommitted";
+        // Exercise the actual shell event subscription without inventing a second import/write workflow.
+        var handler = Assert.IsAssignableFrom<Delegate>(publisher.GetType().GetField(eventName,
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(publisher));
+        handler.DynamicInvoke(publisher, source == "Tradovate" ? new ImportCommittedEventArgs(1, 0) : EventArgs.Empty);
+        await fixture.Accounts.EnsureLoadedAsync();
+        Assert.Equal(before + 1, fixture.AccountReader.CallCount);
+        Assert.Equal(NavigationDestination.Accounts, main.CurrentDestination);
+    }
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
         AppTheme? effectiveTheme = null,
@@ -1177,7 +1231,9 @@ public sealed partial class MainWindowViewModelTests
         JournalViewModel? journalViewModel = null,
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? calendarJournalRepository = null,
-        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null)
+        PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null,
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null,
+        DeleteAccountTradesUseCase? accountTradeDeletion = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1245,7 +1301,7 @@ public sealed partial class MainWindowViewModelTests
             new DeleteTradingAccountUseCase(
                 accountStore,
                 new FakeTradingAccountDeletionStore()),
-            new FakeDialogService());
+            new FakeDialogService { ConfirmationResult = accountTradeDeletion is not null }, accountTradeDeletion);
         var instruments = new InstrumentsViewModel(
             instrumentReader,
             new CreateInstrumentUseCase(instrumentStore, timeProvider),
@@ -1349,7 +1405,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges);
+            topstepChanges, dailyReview);
 
         return new ViewModelFixture(
             main,

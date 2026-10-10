@@ -7,7 +7,7 @@
              d:DesignHeight="450"
              d:DesignWidth="800"
              mc:Ignorable="d">
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+    <ScrollViewer x:Name="SettingsScroll" HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto">
         <ScrollViewer.Resources>
             <Style TargetType="{x:Type ScrollBar}"
@@ -15,7 +15,36 @@
         </ScrollViewer.Resources>
 
         <StackPanel MaxWidth="720"
-                    HorizontalAlignment="Left">
+                    HorizontalAlignment="Stretch">
+            <Border Style="{StaticResource PtjCardStyle}" Margin="0,0,0,20">
+                <StackPanel>
+                    <TextBlock Text="AI Coaching" Style="{StaticResource PtjSectionTitleTextStyle}" />
+                    <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
+                               Text="Choose who receives your evidence. Each provider has its own key. Switching providers or saving a key never generates a review; there is no automatic fallback." />
+                    <Label Content="AI provider" Target="{Binding ElementName=ProviderSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding AvailableProviders}" SelectedItem="{Binding SelectedProvider}"
+                              Style="{DynamicResource PtjComboBoxStyle}"
+                              SelectionChanged="ProviderSelectionChanged" MinHeight="36" Margin="0,0,0,12"
+                              AutomationProperties.Name="AI Coaching provider" />
+                    <Label Content="{Binding ApiKeyLabel}" Target="{Binding ElementName=ApiKeyEntry}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <PasswordBox x:Name="ApiKeyEntry" MaxLength="4096" MinHeight="36" Padding="8"
+                                 FontSize="16" Background="{DynamicResource PtjSurfaceBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                 BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1"
+                                 AutomationProperties.Name="{Binding ApiKeyLabel, StringFormat='New {0}, masked'}" />
+                    <WrapPanel Margin="0,12,0,8">
+                        <Button x:Name="SaveApiKey" Content="Save / Replace key" Click="SaveKeyClick"
+                                Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" />
+                        <Button Content="Remove saved key" Command="{Binding RemoveKeyCommand}"
+                                Style="{StaticResource PtjButtonStyle}" Margin="0,0,0,8" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding CredentialStatus}" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Text="{Binding CredentialMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
+                               Style="{StaticResource PtjBodyTextStyle}" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource PtjSecondaryTextStyle}"
+                               Text="Keys are protected for this Windows user with DPAPI, outside journal data and backups. Enter them again on another computer. Stored keys are never displayed. Generate AI Review sends Trade facts and Journal text to the selected provider. Groq Free tier has limits and upgraded accounts may be billed; OpenAI usage may incur charges." />
+                </StackPanel>
+            </Border>
             <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"
                        Text="Appearance" />
             <TextBlock Margin="0,4,0,20"

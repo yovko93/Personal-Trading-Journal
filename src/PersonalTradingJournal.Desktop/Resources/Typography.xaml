@@ -9,6 +9,13 @@
         <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
     </Style>
 
+    <Style x:Key="PtjShellPageTitleTextStyle" TargetType="{x:Type TextBlock}"
+           BasedOn="{StaticResource PtjPageTitleTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />
+        <Setter Property="TextAlignment" Value="Center" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
     <Style x:Key="PtjSectionTitleTextStyle" TargetType="{x:Type TextBlock}">
         <Setter Property="FontFamily" Value="{StaticResource PtjFontFamily}" />
         <Setter Property="FontSize" Value="16" />

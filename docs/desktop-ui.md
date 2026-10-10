@@ -145,11 +145,35 @@ Blocked results retain the analysis and relevant recovery information but disabl
 
 ## Accounts Feature
 
+### Current Balance
+
+The table places Current Balance directly after Starting Balance. For each exact Account, across all recorded history, its formula is:
+
+`Starting Balance + sum(fully closed Trade Gross in Account currency) - sum(each recorded commission and fee component on those Trades)`
+
+Gross comes from the existing Domain-derived projection. A fully closed lifecycle contributes its allocated entry and exit costs, including existing import/reversal allocations; the view does not prorate, multiply or allocate them again. Open Trades, including partially exited positions, contribute neither Gross nor costs until fully closed. Other-currency closed Trades are excluded with a visible count, never converted or combined. No date filter or timezone rebasing is introduced.
+
+When any included execution commission or fee is unknown, the numeric result is prefixed **Estimated** in every color. Visible supporting text reports affected Trades and missing commission/fee entry counts (not monetary amounts). The focusable value's accessible name and tooltip explain coverage and exclusions. Known components are deducted even when another component is missing. This is deliberately not Calendar's Effective Net fallback, which uses Gross when strict Net is unavailable; neither strict Net nor Calendar economics changes. With all costs known there is no Estimated prefix. Above/below/equal to Starting Balance uses the theme's green/red/neutral text respectively.
+
+No Trades means exactly Starting Balance. A missing Starting Balance is not silently assumed zero. Missing required Gross/projection/execution facts and arithmetic overflow report an explicit Unavailable reason rather than a partial numeric total. A page-level note identifies this as a Trade-based calculation, not a broker balance, excluding unrecorded deposits, withdrawals, payouts and other broker adjustments.
+
+Trade create/edit/close/delete, committed Tradovate/Topstep imports, and Delete All Trades invalidate the read; visible Accounts refresh immediately and inactive Accounts refresh on return. An invalidation during a pending read discards that snapshot and rereads. Account currency/Starting Balance edits use the existing authoritative reload. Read failures expose Refresh without replacing missing data with zero. Only Accounts requests the balance-enriched batch; Account selectors remain lightweight.
+
+The table shares a finite viewport/minimum width for headers and rows so wrapping coverage cannot resize only one row's columns. At narrow widths the table scrolls horizontally, with normal vertical wheel gestures forwarded to the page; keyboard focus can bring the Current Balance or row actions into view. Automated Light/Dark checks cover alignment, value colors/Estimated text, accessible names, and scroll reachability at 1280 DIP/96 DPI and 480 DIP/240 DPI. Physical DPI, screen-reader output and live keyboard/mouse interaction remain separate manual checks.
+
+### Account Management
+
 Accounts performs a lazy initial load on first navigation and provides an explicit Refresh command. Its inline Add Account form captures name, account type, provider, external account ID, currency, and optional Starting Balance. Account Type defaults to Personal as a presentation convenience, and creation is coordinated by `CreateTradingAccountUseCase`.
 
-Each persisted row displays active or inactive status and offers View, Edit, and a compact overflow menu. The detail panel shows the complete persisted account metadata and audit timestamps. Edit reuses the shared form language for Name, Account Type, Provider, External Account ID, Currency, and optional Starting Balance; it cannot change identity, creation time, or historical Trades. Starting Balance remains reference data, and there is no Current Balance field.
+Each persisted row displays active or inactive status and offers View, Edit, and a compact overflow menu. The detail panel shows the complete persisted account metadata and audit timestamps. Edit reuses the shared form language for Name, Account Type, Provider, External Account ID, Currency, and optional Starting Balance; it cannot change identity, creation time, or historical Trades. Starting Balance remains reference data; Current Balance is calculated for the table, never an editable or stored field.
 
-The overflow menu shows only the applicable Activate or Deactivate action plus Danger-styled Delete. Delete requires the shared safe-default confirmation. Unused accounts are hard deleted; an account referenced by any Trade is preserved and an information dialog recommends Deactivate instead. Successful writes refresh the authoritative list, while local detail/list state prevents a completed update or delete from appearing stale if that refresh fails.
+The overflow menu shows the applicable Activate or Deactivate action, then **Delete All Trades**, immediately followed by **Delete**. Both destructive actions use danger coloring; bulk Trade deletion has a distinct Trade icon and emphasized label, while Account deletion retains its trash icon. Account Delete remains independently guarded: unused accounts are hard deleted; references from Trades or Journals prevent deletion rather than cascading into those records.
+
+Delete All Trades prepares a read-only confirmation for the exact Account, showing its name and Trade count. Zero Trades reports that nothing changed. The safe-default Cancel button writes nothing. Confirmation explains permanent deletion of Trade-owned executions, classifications/mistake assignments and screenshots, removal of import provenance (the same source can subsequently be re-imported), and preservation of the Account, Journals, catalog definitions and saved AI snapshots. A changed Account or Trade graph stops deletion with a refresh-and-confirm-again message; the operation disables overlapping Account actions, including while the confirmation is open.
+
+After commit, Account data reloads, cached Trades are invalidated, and the existing committed-Trade notifications refresh active Dashboard, Calendar, Journal Trade context and Daily Review current evidence; inactive pages refresh on activation. Historical snapshots retain their original evidence and unavailable-source handling for deleted Trade IDs. File cleanup is post-commit and may leave orphan files on failure; the completion dialog reports the failed cleanup count instead of claiming those files were removed. Successful writes refresh the authoritative list, while local detail/list state prevents a completed Account update or delete from appearing stale if that refresh fails.
+
+Automated bulk-deletion layout checks cover the compiled row menu and shared confirmation in Light/Dark at 960 DIP/96 DPI and 480 DIP/240 DPI: exact Account binding, adjacent menu actions, reachable nonoverlapping buttons, logical keyboard focus on Cancel and danger styling. Automated renders are not live mouse/keyboard, screen-reader or physical-monitor DPI acceptance.
 
 ## Instruments Feature
 
