@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.2 — Consistent standalone SQLite staging**
+
+Infrastructure now provides an explicit database-only snapshot service using **Microsoft.Data.Sqlite 10.0.11's backup facility**, separate read-only source/read-write staging connections, and unique operation-owned output. It includes committed WAL data without copying a live `.db` file or checkpointing the source. Success requires `integrity_check`, `foreign_key_check`, exact current migration/schema validation, a closed standalone file and its M16.1 size/SHA-256 inventory. Failed/cancelled output is cleaned; cleanup failure is reported honestly. Existing completed outputs are never overwritten.
+
+The synchronous native copy and executing SQLite checks cannot be interrupted by a cancellation token. Cancellation is checked before/after and before publication; busy commands are bounded, but there is no hard whole-copy deadline and rollback-journal writers may be blocked. No raw source data/exception text is logged. See [snapshot lifecycle, failure outcomes and limits](docs/backup-restore.md#m162--consistent-sqlite-snapshot-2026-10-10). No archive, restore, UI, source migration or credential access is added; screenshot inventory and cross-file consistency remain M16.3.
+
+Verification: **23 isolated snapshot tests + 37 M16.1 contract tests passed**; the **full parallel Release suite passed 3,485/3,485**, zero failures/skips. Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. WAL/concurrent-writer, source immutability, independent reopening, invalid/incomplete DB, cancellation and cleanup paths use synthetic data only. Disk-full error mapping is injected, not physical disk exhaustion. Large-file performance, crash recovery, live UI and matching GitHub CI are not claimed.
+
 **M16.1 — Backup inventory and versioned archive contract**
 
 Portable backup v1 is defined as a consistent SQLite snapshot (all relationships, import provenance, Journal revisions and saved AI evidence), every referenced screenshot, and optional allowlisted appearance preferences. It excludes logs, caches/temp files, prior backups, original CSV inputs and the entire separate AI credential/provider-selection store. DPAPI `CurrentUser` keys do not transfer to another Windows user/computer; the user must configure them again. Archives are explicitly **unencrypted sensitive data**, not sanitized exports.

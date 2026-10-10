@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.Backups;
+using PersonalTradingJournal.Infrastructure.Backups;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
@@ -50,6 +52,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddDbContextFactory<JournalDbContext>(options =>
             options.UseSqlite(connectionString));
         services.AddTransient<JournalDatabaseInitializer>();
+        services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));
         services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountBalanceReader, TradingAccountReader>();

@@ -293,6 +293,12 @@ src/PersonalTradingJournal.Application/Backups/*
 !tests/PersonalTradingJournal.Application.Tests/Backups/
 tests/PersonalTradingJournal.Application.Tests/Backups/*
 !tests/PersonalTradingJournal.Application.Tests/Backups/*.cs
+!src/PersonalTradingJournal.Infrastructure/Backups/
+src/PersonalTradingJournal.Infrastructure/Backups/*
+!src/PersonalTradingJournal.Infrastructure/Backups/*.cs
+!tests/PersonalTradingJournal.Infrastructure.Tests/Backups/
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/*
+!tests/PersonalTradingJournal.Infrastructure.Tests/Backups/*.cs
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/
