@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.1 — Backup inventory and versioned archive contract**
+
+Portable backup v1 is defined as a consistent SQLite snapshot (all relationships, import provenance, Journal revisions and saved AI evidence), every referenced screenshot, and optional allowlisted appearance preferences. It excludes logs, caches/temp files, prior backups, original CSV inputs and the entire separate AI credential/provider-selection store. DPAPI `CurrentUser` keys do not transfer to another Windows user/computer; the user must configure them again. Archives are explicitly **unencrypted sensitive data**, not sanitized exports.
+
+Application contracts and a pure, cancellation-aware manifest validator define UTC creation, ordered EF schema identity, relative allowlisted paths, byte/SHA-256 inventory, bounded sizes/counts, duplicate/unsafe-path rejection and safe failure codes. A valid manifest is **not** a validated/restorable archive. [Backup and restore documentation](docs/backup-restore.md) inventories the actual storage and specifies future consistent SQLite capture, screenshot mutation coordination, full staged verification and recovery-before-replacement. No archive creation, restore, UI, migration, credential access or installed-journal modification is implemented here. Earlier milestone status records below remain historical.
+
+Verification: **37 focused contract tests** and the **710-test complete Application Release suite passed**, zero failures/skips. Solution Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Tests use synthetic in-memory manifests only. The full multi-project suite was not rerun for this unconnected contract-only feature. Archive creation/restore and live/CI acceptance are not claimed. Narrow source-only `.gitignore` exceptions keep the new backup contracts/tests visible without including backup artifacts.
+
 **M15.8 — Daily Review + AI Coaching acceptance audit (2026-10-09)**
 
 Local automated acceptance covers isolated synthetic evidence, strict Net/currency boundaries, explicit fake-Groq generation, validation/atomic history, cancellation and failures, historical Account discovery, guarded source navigation, and Light/Dark layouts. Two new compiled-shell integration cases prove that a source revision during generation either leaves the captured saved snapshot immutable or cancels with no history row when the application receives a committed-change notification. No reproducible product defect was found; no production code, schema, economics, budgets or provider behavior changed. The centered shared title and Account Current Balance are preserved. M16 is not started.

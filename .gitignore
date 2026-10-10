@@ -286,6 +286,13 @@ Generated_Code/
 # because we have git ;-)
 _UpgradeReport_Files/
 Backup*/
+# Backup contracts/tests are source, not Visual Studio upgrade backups.
+!src/PersonalTradingJournal.Application/Backups/
+src/PersonalTradingJournal.Application/Backups/*
+!src/PersonalTradingJournal.Application/Backups/*.cs
+!tests/PersonalTradingJournal.Application.Tests/Backups/
+tests/PersonalTradingJournal.Application.Tests/Backups/*
+!tests/PersonalTradingJournal.Application.Tests/Backups/*.cs
 UpgradeLog*.XML
 UpgradeLog*.htm
 ServiceFabricBackup/
