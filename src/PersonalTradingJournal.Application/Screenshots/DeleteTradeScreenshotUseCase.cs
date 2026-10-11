@@ -49,6 +49,10 @@ public sealed class DeleteTradeScreenshotUseCase
                 $"Trade '{command.TradeId}'.");
         }
 
+        // A legacy shared key can still belong to another Trade (including a pinned Playbook example).
+        if (!deletionInfo.DeletePhysicalFile)
+            return new DeleteTradeScreenshotResult(FileCleanupSucceeded: true);
+
         try
         {
             await _fileStorage.DeleteIfExistsAsync(

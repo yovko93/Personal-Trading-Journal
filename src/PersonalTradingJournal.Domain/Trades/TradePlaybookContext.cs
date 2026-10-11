@@ -4,14 +4,25 @@ namespace PersonalTradingJournal.Domain.Trades;
 
 /// <summary>
 /// Frozen, user-selected context. Neither this snapshot nor Trade.TradingSetupId proves adherence.
-/// M17.1 defines the value only; existing Trade classification does not capture or persist it.
+    /// Existing Trade classification does not automatically capture this value.
 /// </summary>
 public sealed class TradePlaybookContext
 {
     private TradePlaybookContext(Trade trade, TradingSetupPlaybookRevision revision, DateTimeOffset capturedAtUtc)
+        : this(trade.Id, trade.OpenedAtUtc, revision, capturedAtUtc)
     {
-        TradeId = trade.Id;
-        TradeOpenedAtUtc = trade.OpenedAtUtc;
+    }
+
+    private TradePlaybookContext(Guid tradeId, DateTimeOffset openedAtUtc,
+        TradingSetupPlaybookRevision revision, DateTimeOffset capturedAtUtc)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        if (tradeId == Guid.Empty) throw new ArgumentException("A Trade identity is required.", nameof(tradeId));
+        if (openedAtUtc.Offset != TimeSpan.Zero || capturedAtUtc.Offset != TimeSpan.Zero ||
+            capturedAtUtc < openedAtUtc || capturedAtUtc < revision.RecordedAtUtc)
+            throw new ArgumentException("Frozen context requires valid UTC chronology.");
+        TradeId = tradeId;
+        TradeOpenedAtUtc = openedAtUtc;
         Definition = revision;
         CapturedAtUtc = capturedAtUtc;
     }
@@ -22,6 +33,10 @@ public sealed class TradePlaybookContext
     public TradingSetupPlaybookRevision Definition { get; }
     public DateTimeOffset CapturedAtUtc { get; }
     public bool IsRetrospective => CapturedAtUtc > TradeOpenedAtUtc;
+
+    public static TradePlaybookContext Rehydrate(Guid tradeId, DateTimeOffset openedAtUtc,
+        TradingSetupPlaybookRevision revision, DateTimeOffset capturedAtUtc) =>
+        new(tradeId, openedAtUtc, revision, capturedAtUtc);
 
     public static TradePlaybookContext Capture(Trade trade, TradingSetup setup,
         TradingSetupPlaybookRevision revision, DateTimeOffset capturedAtUtc)

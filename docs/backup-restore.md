@@ -1,5 +1,19 @@
 # Backup and restore — M16
 
+## M17.2 — Playbook schema and backup compatibility
+
+The current schema now includes additive migration **`20261011154034_AddPlaybookHistory`**. Complete version-1 backup archives automatically include `PlaybookRevisions`, `PlaybookExamples`, and `TradePlaybookContexts` in the consistent SQLite snapshot. Immutable revision triggers, restrictive example references and frozen context JSON are part of the database; the image inventory still comes exclusively from that staged database's `TradeScreenshots` rows. A Playbook pin prevents removing its referenced screenshot/owning Trade, so no separate external file inventory is omitted. Existing empty-image compatibility and hash/size/capacity checks remain unchanged.
+
+**Pre-M17 archives are not restorable by this build.** They have a recognized older migration prefix, and preflight reports that a supported staged upgrade is required; it never applies migrations or replaces installed data. Offline restore still demands exact current schema and revalidates immediately before use. Archive format version remains 1 because its manifest/schema compatibility mechanism already distinguishes migration sets. Normal additive upgrade of an installed pre-M17 database is supported; that does not imply archive restore support. Preserve old archives unchanged pending an explicit staged-upgrade milestone.
+
+Recovery archives made by this version contain the current Playbook data and pins as well as all previous journal data. They remain **unencrypted**, contain sensitive user-authored guidance and annotations, and exclude AI credentials. No new absolute paths or secrets are added to the manifest.
+
+The logical export contract advances to **version 2**, adding three JSON-only tables without changing existing fields or the four CSVs: `playbookRevisions` (Setup ID, revision, contract version, frozen Setup name/description, all five guidance fields and recorded UTC time), `playbookExamples` (Setup/revision/example ID, position, annotation and nullable source Trade/screenshot IDs), and `tradePlaybookContexts` (Trade ID, contract version, Setup/revision, opening/capture UTC times and exact `definitionJson`). Ordering is Setup/revision, Setup/revision/position, and Trade ID respectively. Screenshot binaries remain excluded; exports are still **not restorable backups**. Existing version-1 exports are unchanged. The archive format itself remains version 1; archive and logical-export versions are independent.
+
+Synthetic regression evidence includes current-schema backup/preflight/verified offline restore with guidance, examples, frozen context and image bytes, plus retained recovery data and explicit rejection of an actual pre-M17-schema archive. Live restore and matching GitHub Actions for the uncommitted M17.2 changes are not claimed.
+
+M17.2 final local verification: **223 focused tests** and **3,768/3,768 complete parallel Release tests** passed, zero failures/skips; Release build has **0 warnings/errors**, EF model consistency and whitespace checks pass. The exact [changed-file inventory and evidence](playbook.md#exact-m172-changed-files) includes the version-2 logical-export extension and unchanged completeness assertion. Tests used disposable synthetic datasets only.
+
 ## Pre-M17 — PR #19 backup review corrections (2026-10-11)
 
 Baseline: clean `develop`, `913c4c5f6a20f8d9373999632992dca45b62671f`; the M16.8 live acceptance notes were already committed. Both open PR findings were inspected. No production journal, provider, credential, or prior acceptance dataset is used by the regressions. No M17 work, Git writes, migration, format-version change or screenshot admission change is included.

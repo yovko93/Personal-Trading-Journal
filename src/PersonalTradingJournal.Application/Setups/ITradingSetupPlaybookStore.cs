@@ -2,7 +2,7 @@ using PersonalTradingJournal.Domain.Setups;
 
 namespace PersonalTradingJournal.Application.Setups;
 
-/// <summary>Future persistence boundary; M17.1 provides no implementation or registration.</summary>
+/// <summary>Append-only persistence boundary for owned Setup guidance.</summary>
 public interface ITradingSetupPlaybookStore
 {
     Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid tradingSetupId, CancellationToken cancellationToken = default);

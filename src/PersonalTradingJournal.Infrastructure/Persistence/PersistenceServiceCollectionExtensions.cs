@@ -80,6 +80,10 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IInstrumentDeletionStore, InstrumentDeletionStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
+        services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
+        services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
+        services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
+        services.AddTransient<SaveTradingSetupPlaybookUseCase>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
         services.AddTransient<ITradingSetupDeletionStore, TradingSetupDeletionStore>();
         services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();

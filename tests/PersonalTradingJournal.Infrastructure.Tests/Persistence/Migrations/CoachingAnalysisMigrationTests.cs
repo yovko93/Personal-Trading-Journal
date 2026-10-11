@@ -25,7 +25,7 @@ public sealed partial class InitialMigrationTests
             var connection = (SqliteConnection)context.Database.GetDbConnection();
             connection.Open();
             var before = ReadTableNames(connection);
-            context.Database.Migrate();
+            context.GetService<IMigrator>().Migrate(CoachingAnalysisMigrationId);
             Assert.Equal(CoachingAnalysisMigrationId, context.Database.GetAppliedMigrations().Last());
             Assert.Equal(before.Append("CoachingAnalyses").Order(StringComparer.Ordinal), ReadTableNames(connection));
             Assert.Empty(ReadForeignKeys(connection, "CoachingAnalyses"));

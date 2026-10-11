@@ -25,6 +25,7 @@ public sealed partial class InitialMigrationTests
     private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
     private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
     private const string CoachingAnalysisMigrationId = "20261008195353_AddCoachingAnalysisSnapshots";
+    private const string PlaybookMigrationId = "20261011154034_AddPlaybookHistory";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -33,6 +34,19 @@ public sealed partial class InitialMigrationTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedApplicationColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
+            ["PlaybookRevisions"] =
+            [
+                "TradingSetupId", "Revision", "ContractVersion", "SetupName", "SetupDescription", "MarketContext",
+                "EntryConditions", "Confirmations", "Invalidation", "ExecutionGuidance", "RecordedAtUtc",
+            ],
+            ["PlaybookExamples"] =
+            [
+                "TradingSetupId", "Revision", "ExampleId", "Position", "Annotation", "SourceTradeId", "SourceScreenshotId",
+            ],
+            ["TradePlaybookContexts"] =
+            [
+                "TradeId", "ContractVersion", "TradingSetupId", "Revision", "TradeOpenedAtUtc", "CapturedAtUtc", "DefinitionJson",
+            ],
             ["CoachingAnalyses"] =
             [
                 "Id", "ReviewDate", "ScopeKind", "AccountId", "AccountDisplayName", "GeneratedAtUtc",
@@ -116,7 +130,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -128,7 +142,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(9L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(10L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -138,7 +152,9 @@ public sealed partial class InitialMigrationTests
 
                 string[] keyNames = tableName switch
                 {
-                    "TradeBrowse" => ["TradeId"],
+                    "TradeBrowse" or "TradePlaybookContexts" => ["TradeId"],
+                    "PlaybookRevisions" => ["TradingSetupId", "Revision"],
+                    "PlaybookExamples" => ["TradingSetupId", "Revision", "ExampleId"],
                     "TradovateImportedExecutions" => ["TradeExecutionId"],
                     "DailyJournalRevisions" => ["JournalId", "Revision"],
                     _ => ["Id"],
@@ -519,7 +535,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -654,7 +670,14 @@ public sealed partial class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(12, foreignKeys.Count);
+        Assert.Equal(19, foreignKeys.Count); // Composite revision keys each have two columns.
+        AssertForeignKey(foreignKeys, "PlaybookRevisions", "TradingSetupId", "TradingSetups", "RESTRICT");
+        AssertForeignKey(foreignKeys, "PlaybookExamples", "SourceScreenshotId", "TradeScreenshots", "RESTRICT");
+        AssertForeignKey(foreignKeys, "TradePlaybookContexts", "TradeId", "Trades", "CASCADE");
+        foreach (string table in new[] { "PlaybookExamples", "TradePlaybookContexts" })
+            foreach (string column in new[] { "TradingSetupId", "Revision" })
+                Assert.Contains(foreignKeys, f => f.DependentTable == table && f.DependentColumn == column &&
+                    f.PrincipalTable == "PlaybookRevisions" && f.PrincipalColumn == column && f.OnDelete == "RESTRICT");
         AssertForeignKey(foreignKeys, "DailyJournals", "TradingAccountId", "TradingAccounts", "RESTRICT");
         AssertForeignKey(foreignKeys, "DailyJournalRevisions", "JournalId", "DailyJournals", "RESTRICT");
         AssertForeignKey(foreignKeys, "TopstepImportedRows", "TradeId", "Trades", "CASCADE");
@@ -681,7 +704,7 @@ public sealed partial class InitialMigrationTests
         ForeignKeyDefinition[] cascades = foreignKeys
             .Where(foreignKey => foreignKey.OnDelete == "CASCADE")
             .ToArray();
-        Assert.Equal(4, cascades.Length);
+        Assert.Equal(5, cascades.Length);
         Assert.Contains(cascades, cascade =>
             cascade.DependentTable == "TradeExecutions" &&
             cascade.DependentColumn == "TradeId");
@@ -702,7 +725,9 @@ public sealed partial class InitialMigrationTests
             .Where(index => index.IsUnique && index.Origin != "pk")
             .ToList();
 
-        Assert.Equal(7, uniqueIndexes.Count);
+        Assert.Equal(8, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.Table == "PlaybookExamples" &&
+            index.Columns.SequenceEqual(["TradingSetupId", "Revision", "Position"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "DailyJournals" &&
             index.Columns.SequenceEqual(["TradingDate", "TradingAccountId"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "DailyJournals" &&

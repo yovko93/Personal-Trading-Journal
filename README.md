@@ -6,6 +6,16 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M17.2 — Playbook persistence and frozen Trade context**
+
+The additive `AddPlaybookHistory` migration persists owned Setup guidance revisions, ordered example annotations/provenance, and complete frozen Trade-context values. Existing Setups need no guidance; existing Trades/classifications/screenshots are not rewritten. Explicit guidance saves use a SQLite writer transaction with expected-revision and owner-state checks; immutable-history triggers prohibit rewriting/deleting revisions and reusing their numbers. Historical reads are bounded and work after Setup rename/archive. Repository/DI wiring is available; no Desktop authoring, Trade-linking command, automatic rule checking or AI integration is added.
+
+Logical export advances to **version 2**, adding the three Playbook tables to JSON while retaining existing fields, four CSVs and screenshot-metadata-only semantics. This preserves the complete logical-table export invariant; exports are still unencrypted and not restorable backups.
+
+Example screenshots retain their existing Trade ownership. **A persisted Playbook reference pins the screenshot and blocks its or its owning Trade's deletion**, including bulk Account deletion, before file cleanup. Removing an example from a newer revision does not release its historical reference. Frozen Trade context is not verified adherence. Complete backups include the new tables and retained images; **pre-M17 archives remain recognized but non-restorable in this build pending a supported staged upgrade**. See [Playbook persistence, retention and limits](docs/playbook.md#m172--sqlite-persistence-and-historical-snapshots) and [backup compatibility](docs/backup-restore.md#m172--playbook-schema-and-backup-compatibility).
+
+M17.2 verification: **223 focused tests passed** (80 Application + 143 Infrastructure); final complete parallel Release suite **3,768/3,768**, zero failures/skips (467 Domain, 719 Application, 1,166 Infrastructure, 1,416 Desktop). Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Includes 35 new cases, restart/concurrency/rollback, pre-M17 database migration, pinned/shared-image safety, export v2, and synthetic backup/preflight/offline restore. See the [exact 34-file inventory and verification notes](docs/playbook.md#exact-m172-changed-files). No production journal or provider access; no live UI acceptance or matching CI run for these uncommitted changes is claimed.
+
 **M17.1 — Playbook Domain/Application foundation**
 
 Playbook now has immutable, version-1 guidance and revision contracts owned by the existing **Trading Setup** identity. Strategy was previously removed; no competing catalog is created. Guidance covers market context, entry conditions, confirmations, invalidation, execution guidance and optional annotated examples. Existing Setup activation controls new authoring/capture; historical values remain frozen. A Trade-context contract preserves the full selected definition and distinguishes retrospective capture; neither a Setup link nor a snapshot proves the plan was followed.

@@ -1,10 +1,91 @@
-# Playbook — M17.1 Domain/Application foundation
+# Playbook — Domain, Application and persistence
 
-## Scope and existing catalog
+## M17.2 — SQLite persistence and historical snapshots
+
+M17.1 below records the initial contract milestone. M17.2 implements its persistence boundary with additive migration **`20261011154034_AddPlaybookHistory`**. No existing table, Setup classification, Trade execution, screenshot key or economics is rewritten. Existing Setups remain fully usable without guidance. Strategy is not recreated.
+
+### Storage and concurrency
+
+- `PlaybookRevisions`: immutable full guidance and frozen Setup name/description, UTC recording time, contract version 1; composite primary key `(TradingSetupId, Revision)`. The latest revision is the current guidance, so no mutable duplicate of the guidance can drift from its history.
+- `PlaybookExamples`: ordered annotation and original source Trade/screenshot identities, keyed by Setup/revision/example ID. Stable example identity can recur in later revisions, with independently frozen annotations. A unique position index preserves ordering and the existing 12-example limit.
+- `TradePlaybookContexts`: one insert-only capture per Trade, contract version, original opening/capture instants and the **complete versioned definition JSON**, including all guidance and examples. Reads deserialize this saved value; they never substitute the current Setup or current guidance. A composite foreign key also verifies the referenced definition exists.
+
+`TradingSetupPlaybookStore` implements authoring plus a separate bounded history reader (descending revision, exclusive cursor, limits 1–100; examples loaded in a batch). `TradePlaybookContextStore` supplies insert/read repository operations only. All are DI-wired, as is `SaveTradingSetupPlaybookUseCase`. No Desktop authoring or Trade-linking command calls them yet, and no legacy Trade receives an automatic capture.
+
+Append obtains SQLite's **BEGIN IMMEDIATE writer reservation before reading** the owner/latest revision. It checks expected revision, active/existing Setup, owner audit time and frozen name/description, monotonic revision time and example screenshot ownership. Guidance and examples commit together. Stale expected revisions or owner state return false; invalid example provenance is a clear failure; no partial revision is left. The next committed revision is exactly previous + 1. SQLite triggers reject revision/example UPDATE or DELETE, so removing the latest revision cannot reset numbering. There is deliberately no revision-deletion API.
+
+Trade-context insertion independently rechecks actual Trade classification, opening instant and expected audit timestamp, active Setup, and byte-equivalent canonical content of the persisted definition. It refuses a second capture or a fabricated definition. Cancellation is observed before commit; cancellation/error after EF changes but before commit rolls back. After the final cancellation check, commit is non-cancellable and success is returned if committed. SQLite's synchronous writer-lock acquisition follows its connection timeout; cancellation cannot interrupt that call itself. There are no automatic retries.
+
+### Ownership, archiving and retention
+
+Archiving continues to mean `TradingSetup.IsActive == false`. It prevents new guidance/captures but never blocks historical reading. Reactivation continues existing numbering. A Setup with Playbook history cannot be hard-deleted; archive it instead. Original name, description, guidance and annotations remain frozen even if the Setup is renamed or Trade classification is changed/cleared.
+
+Screenshot **metadata** is pinned through a restrictive foreign key from every historical example to the existing `TradeScreenshots` row. A pinned screenshot cannot be removed, nor can its owning Trade be deleted (including Delete All Trades); these operations fail before any database or physical-file deletion. Existing images are not copied or reassigned to a competing storage system. Newer revisions that omit an example do not release the older revision's reference. There is no history/media purge operation in M17.2. A future retention feature must explicitly preserve the historical image or explain loss before releasing a pin; it must not silently cascade.
+
+Single-screenshot/Trade cleanup also respects surviving case-insensitive shared storage keys in legacy databases: deleting an unpinned alias does not remove another owner's image. Bulk deletion already had this shared-key check, now also checks Playbook pins and includes newly captured context in its confirmation fingerprint. A fresh context invalidates an older bulk-delete plan.
+
+Text-only source Trade IDs are provenance, not a claim that the Trade still exists. Screenshot-backed examples verify their source ownership when saved. These checks do not read, decode or certify image content, detect external edits, or recreate already-missing files; the existing complete backup process still rejects missing referenced files. Context is Trade-owned and cascades only when that Trade is legitimately deleted; the Setup's definition history remains. **Neither the link nor the frozen value proves the plan was followed.** No rule evaluation or AI prompt changes are introduced.
+
+### Compatibility and limits
+
+Current-schema complete backups preserve all three tables, SQLite triggers/FKs and referenced image files. M16's existing read-only preflight and recovery-protected restore remain intact. A pre-M17 archive has a known older migration prefix: it is recognized as requiring a staged upgrade but **cannot be restored by this build**. No restore-time migration is attempted. Normal additive migration of an existing installed database is supported and tested separately from archive restore. Keep older archives unchanged until a supported staged-upgrade workflow exists.
+
+Portable logical export is now **version 2**, extending the explicit M16.6 allowlist with `playbookRevisions`, `playbookExamples` and `tradePlaybookContexts` JSON tables. Original identities, ordering, guidance/annotations, UTC instants and the exact frozen `definitionJson` are exported; four CSV files and existing field semantics are unchanged. Playbook detail is JSON-only; screenshots remain metadata-only. Exports are unencrypted and are not restorable backups. Existing version-1 export files are not modified.
+
+Repository insertion freezes an already-selected/classified Trade; atomic integration with a future classification/edit command and append-only context corrections remain later work. M17.2 deliberately exposes no context replacement/edit UI. No paid provider, production journal or live UI acceptance is involved.
+
+### Verification
+
+Synthetic migrated-SQLite tests cover service recreation/restart, same-number concurrent edits, owner changes at equal timestamps, rollback during example insertion, cancellation after SaveChanges/before commit, archive/reactivation, deterministic history cursors, immutable database guards, forged/stale context, context ownership/cascade, pinned/shared-key deletion safety (including Unicode aliases), and upgrading populated pre-M17 data. Backup → preflight → offline restore checks the frozen values and referenced file with a retained recovery archive. A separately constructed real pre-M17 schema archive is rejected without migrating the installed synthetic data.
+
+Final local verification on 2026-10-11: **223 focused cases passed** (80 Application + 143 Infrastructure). Complete parallel Release: **3,768/3,768 passed**, zero failures/skips: Domain 467, Application 719, Infrastructure 1,166, Desktop 1,416. There are **35 new cases** (34 SQLite/integration + one Application cleanup regression). Release build: **0 warnings/errors**; in-memory design-time EF model consistency and tracked/new-file whitespace checks passed. Evidence is in ignored `artifacts/m172-focused-app`, `artifacts/m172-focused-infra-verified`, and `artifacts/m172-full-final`.
+
+An initial full run exposed five Infrastructure failures: four fixed schema/migration expectations that needed the additive tables, and the logical-export completeness invariant. Expectations now assert the new keys/FKs/indexes explicitly; the prior coaching-only migration test targets its own migration. The export invariant was preserved by implementing version 2, not removing its assertion. The initial Desktop suite passed; no harness deadlines, concurrency or coverage were relaxed. No production data, live UI/provider calls or Git writes occurred. Matching GitHub CI must run after the user's commit/push; local tests are not CI acceptance.
+
+### Exact M17.2 changed files
+
+Paths are relative to the repository; the starting worktree was clean at `86c4d511efc7452f3e00869db89cc099e0daad2f` on `develop`.
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Screenshots/DeleteTradeScreenshotUseCase.cs`
+- `src/PersonalTradingJournal.Application/Screenshots/TradeScreenshotDeletionInfo.cs`
+- `src/PersonalTradingJournal.Application/Setups/ITradingSetupPlaybookHistoryReader.cs`
+- `src/PersonalTradingJournal.Application/Setups/ITradingSetupPlaybookStore.cs`
+- `src/PersonalTradingJournal.Application/Trades/ITradePlaybookContextStore.cs`
+- `src/PersonalTradingJournal.Domain/Setups/TradingSetupPlaybookRevision.cs`
+- `src/PersonalTradingJournal.Domain/Trades/TradePlaybookContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/PlaybookRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Mapping/PlaybookPersistenceMapper.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011154034_AddPlaybookHistory.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011154034_AddPlaybookHistory.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/PlaybookRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/TradeScreenshotDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/TradingSetupDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/TradingSetupPlaybookStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/AccountTradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradePlaybookContextStore.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Screenshots/DeleteTradeScreenshotUseCaseTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/CoachingAnalysisMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+
+## M17.1 foundation — original scope and existing catalog
 
 Playbook extends **Trading Setup**, the existing repeatable-pattern catalog. Strategy was deliberately removed in `RemoveStrategies`; it is not a current parent entity and is not reintroduced. A Playbook is an owned definition for a Setup, not a competing catalog with another name, identity or lifecycle. Existing Setups without a Playbook remain valid. Existing `Trade.TradingSetupId` remains mutable classification metadata; no existing Trade or import is backfilled or reinterpreted.
 
-M17.1 adds immutable Domain values and an Application authoring policy with a future persistence interface. There is **no store implementation, dependency-injection registration, schema migration, Desktop UI, automatic rule evaluation or AI prompt change**. These definitions are not yet saved by the running app. Current Setup/Trade editors and screenshot storage remain unchanged.
+M17.1 introduced immutable Domain values and an Application authoring policy, without persistence or UI. M17.2 above now implements the repository, DI and migration; current Setup/Trade editors still do not author or capture Playbook content. Desktop authoring, automatic rule evaluation and AI changes remain outside both milestones.
 
 ## Version 1 contract and validation
 
@@ -32,7 +113,7 @@ Future integration must capture and persist context with an explicit Trade actio
 
 The existing `TradeScreenshot` remains Trade-owned metadata with a storage key; file lifecycle belongs to the existing screenshot services. `PlaybookExample.FromScreenshot` copies its authoritative Trade/screenshot identities plus a separate annotation. It does not read/copy images, take ownership of the storage key, validate image bytes or promise an image remains available after Trade/screenshot deletion. Text annotations survive in frozen values; unresolved provenance must be shown as unavailable, never redirected to a different source.
 
-Durable example-image retention requires a later explicit, independently owned media copy with integrity metadata and backup/delete rules, before any UI promises immutable image examples. This is intentionally not implemented through another reference to a Trade-owned file. No local paths or binary data are part of M17.1 values.
+M17.1 provided provenance only. M17.2 now retains referenced images by pinning their existing screenshot rows and preventing deletion, as documented above; it does not create an independently owned image copy or freeze externally modified bytes. Allowing a source Trade/image to be deleted while preserving its historical image would require a later explicit media-copy/retention design with integrity and backup rules. No local paths or binary data are part of the Domain values.
 
 ## Synthetic NQ example (illustration, not a trading recommendation)
 
@@ -53,4 +134,4 @@ Focused Release tests cover required/bounded fields, defensive copies, stable ex
 
 Local verification on 2026-10-11: **106 Domain + 79 Application focused cases passed**, including **13 + 8 new cases**. Complete Domain/Application Release suites: **467 + 718 = 1,185 passed**, zero failures/skips. Solution Release build: **0 warnings/errors**. The complete Infrastructure/Desktop suite was not rerun for this Domain/Application-only milestone. Tracked and new-file whitespace checks pass.
 
-Persistence/migration, transactional Trade capture, image retention, UI/accessibility, automatic checks and AI integration remain outside M17.1. No Desktop/live acceptance or matching GitHub CI is claimed. The current contracts must receive persistence round-trip and race tests when implementations are introduced.
+Persistence/migration and retention were outside M17.1; M17.2 now implements and tests them above. Transactional integration with future Trade-linking commands, UI/accessibility, automatic checks and AI integration remain later work. No Desktop/live acceptance or matching GitHub CI is claimed for this service milestone.

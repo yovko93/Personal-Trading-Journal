@@ -33,6 +33,15 @@ public sealed class TradingSetupPlaybookRevision
     public static TradingSetupPlaybookRevision Create(TradingSetup setup, PlaybookGuidance guidance,
         DateTimeOffset recordedAtUtc) => new(setup, 1, guidance, recordedAtUtc);
 
+    /// <summary>Reads frozen metadata without consulting the current Setup's name or active state.</summary>
+    public static TradingSetupPlaybookRevision Rehydrate(Guid setupId, int revision, string setupName,
+        string? setupDescription, PlaybookGuidance guidance, DateTimeOffset recordedAtUtc)
+    {
+        if (revision < 1) throw new ArgumentOutOfRangeException(nameof(revision));
+        return new(TradingSetup.Rehydrate(setupId, setupName, setupDescription, true,
+            recordedAtUtc, recordedAtUtc), revision, guidance, recordedAtUtc);
+    }
+
     public TradingSetupPlaybookRevision Revise(TradingSetup setup, int expectedRevision,
         PlaybookGuidance guidance, DateTimeOffset recordedAtUtc)
     {

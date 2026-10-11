@@ -40,6 +40,9 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         if (confirmed.TradeCount == 0) return new(AccountTradeDeletionStatus.Deleted, 0, []);
 
         var targets = db.Trades.Where(t => t.TradingAccountId == confirmed.AccountId).Select(t => t.Id);
+        var screenshotIds = db.TradeScreenshots.Where(s => targets.Contains(s.TradeId)).Select(s => s.Id);
+        if (await db.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken))
+            throw new InvalidOperationException("An Account Trade owns a screenshot retained by Playbook history. No Trades were deleted.");
         // Same ownership rules as TradeDeletionStore: restricted children first; executions,
         // browse projection and both import ledgers cascade with the Trade in the same transaction.
         await db.TradeMistakes.Where(m => targets.Contains(m.TradeId)).ExecuteDeleteAsync(cancellationToken);
@@ -66,11 +69,12 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         var browse = await db.TradeBrowse.AsNoTracking().Where(t => ids.Contains(t.TradeId)).OrderBy(t => t.TradeId).ToArrayAsync(token);
         var mistakes = await db.TradeMistakes.AsNoTracking().Where(m => ids.Contains(m.TradeId)).OrderBy(m => m.Id).ToArrayAsync(token);
         var screenshots = await db.TradeScreenshots.AsNoTracking().Where(s => ids.Contains(s.TradeId)).OrderBy(s => s.Id).ToArrayAsync(token);
+        var playbookContexts = await db.TradePlaybookContexts.AsNoTracking().Where(c => ids.Contains(c.TradeId)).OrderBy(c => c.TradeId).ToArrayAsync(token);
         var tradovate = await db.TradovateImportedExecutions.AsNoTracking().Where(e => ids.Contains(e.TradeId)).OrderBy(e => e.TradeExecutionId).ToArrayAsync(token);
         var topstep = await db.TopstepImportedRows.AsNoTracking().Where(e => ids.Contains(e.TradeId)).OrderBy(e => e.Id).ToArrayAsync(token);
         // Include full owned records, not only timestamps (several writes may share a clock tick).
         // This digest is transient confirmation state, never logged or persisted.
-        byte[] canonical = JsonSerializer.SerializeToUtf8Bytes(new { account, trades, executions, browse, mistakes, screenshots, tradovate, topstep });
+        byte[] canonical = JsonSerializer.SerializeToUtf8Bytes(new { account, trades, executions, browse, mistakes, screenshots, playbookContexts, tradovate, topstep });
         return new(new(account.Id, account.Name, trades.Length, Convert.ToHexString(SHA256.HashData(canonical))),
             screenshots.Select(s => s.StorageKey).Distinct(StringComparer.Ordinal).ToArray());
     }

@@ -24,6 +24,7 @@ public sealed class JournalDatabaseInitializerTests
     private const string DailyJournalsMigrationId = "20261004145757_AddDailyJournals";
     private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
     private const string CoachingAnalysisMigrationId = "20261008195353_AddCoachingAnalysisSnapshots";
+    private const string PlaybookMigrationId = "20261011154034_AddPlaybookHistory";
 
     [Fact]
     public async Task InitializeAsyncCreatesMigratedUsableEmptyDatabase()
@@ -54,7 +55,7 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
@@ -68,6 +69,9 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(0, await context.DailyJournals.CountAsync());
             Assert.Equal(0, await context.DailyJournalRevisions.CountAsync());
             Assert.Equal(0, await context.CoachingAnalyses.CountAsync());
+            Assert.Equal(0, await context.PlaybookRevisions.CountAsync());
+            Assert.Equal(0, await context.PlaybookExamples.CountAsync());
+            Assert.Equal(0, await context.TradePlaybookContexts.CountAsync());
 
             IProperty executedAtProperty = context.Model
                 .FindEntityType(typeof(TradeExecutionRecord))!
@@ -120,7 +124,7 @@ public sealed class JournalDatabaseInitializerTests
                 Assert.Equal(
                     [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                         TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -134,7 +138,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(9L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(10L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

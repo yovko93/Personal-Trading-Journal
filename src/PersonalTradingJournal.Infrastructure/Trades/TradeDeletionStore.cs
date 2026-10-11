@@ -1,5 +1,5 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Records;
@@ -29,6 +29,9 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
 
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = ((SqliteConnection)context.Database.GetDbConnection()).BeginTransaction(deferred: false);
+        await context.Database.UseTransactionAsync(transaction, cancellationToken);
         TradeRecord? trade = await context.Trades.SingleOrDefaultAsync(
             candidate => candidate.Id == tradeId,
             cancellationToken);
@@ -50,12 +53,15 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
         List<TradeScreenshotRecord> screenshots = await context.TradeScreenshots
             .Where(candidate => candidate.TradeId == tradeId)
             .ToListAsync(cancellationToken);
+        var screenshotIds = screenshots.Select(s => s.Id).ToArray();
+        if (await context.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken))
+            throw new InvalidOperationException("This Trade owns a screenshot retained by Playbook history and cannot be deleted.");
+        var retainedKeys = await context.TradeScreenshots.Where(s => s.TradeId != tradeId)
+            .Select(s => s.StorageKey).ToArrayAsync(cancellationToken);
         IReadOnlyList<string> storageKeys = screenshots
             .Select(screenshot => screenshot.StorageKey)
+            .Except(retainedKeys, StringComparer.OrdinalIgnoreCase)
             .ToList();
-
-        await using IDbContextTransaction transaction =
-            await context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             context.TradeMistakes.RemoveRange(mistakes);
@@ -68,7 +74,8 @@ public sealed class TradeDeletionStore : ITradeDeletionStore
 
             context.Trades.Remove(trade);
             await context.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            await transaction.CommitAsync(CancellationToken.None);
         }
         catch
         {
