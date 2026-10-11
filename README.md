@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17.7 — Playbook field validation and protected revision deletion**
+
+Guidance headings now use the shared Light/Dark accent, while body text stays neutral. Static form instructions are an information panel; unsuccessful field validation instead shows a prominent error summary, red field borders and inline explanations, with focus/scroll to the first invalid section. Correcting a field clears its error without losing text or examples. Return to current has a distinct violet action style; Delete revision remains red.
+
+An older Playbook revision can be deleted only after confirmation and an atomic current-revision/reference recheck. The current revision and revisions used by retained Trade captures or association history are protected. Numbers are never renumbered/reused; images are conservatively retained, and saved AI snapshots remain unchanged. Migration `20261011220636_AllowUnreferencedPlaybookRevisionDeletion` changes deletion guards only, preserving existing records; old-schema archive restore remains deferred. See [rules, verification and limits](docs/playbook.md#field-validation-and-protected-revision-deletion).
+
+Local verification: **159 Playbook tests + 17 migration checks passed**. The **final complete parallel Release suite passed 3,880/3,880**, zero failures/skips; Release build has **0 warnings/errors**, EF and whitespace checks pass. Light/Dark normal and narrow/240-DPI renders were inspected. An earlier run hit Calendar's unchanged 120-second aggregate deadline (86 propagated failures); that timeout remains **unresolved variability**, despite the final native child passing in **90.702 s**. No Calendar harness/deadline change was made. See the linked verification section for both runs. M17.7 has not started; automated WPF rendering is not live UI or matching GitHub Actions acceptance.
+
 **Pre-M17.7 — opt-in Save diagnostics and loaded-suite timing (12 October)**
 
 Playbook Save now verifies the exact committed revision by a separate database read before reporting success. A missing/current-view reload or post-commit verification failure retains the editor and its fields/examples with an explicit recovery message, rather than claiming a successful display. Synthetic tests reproduce that reporting defect; the user's original silent “Create guidance” incident remains **unreproduced** and is not attributed to it without live diagnostics.

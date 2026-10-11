@@ -29,6 +29,16 @@ public partial class PlaybookView : UserControl
     }
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PlaybookViewModel.ValidationAttempt))
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!IsLoaded || !ReferenceEquals(DataContext, sender)) return;
+                var first = Descendants(EditorFields).OfType<TextBox>().FirstOrDefault(b => b.DataContext is PlaybookField { IsInvalid: true });
+                (first?.Parent as FrameworkElement)?.BringIntoView(); first?.Focus();
+            });
+            return;
+        }
         if (e.PropertyName == nameof(PlaybookViewModel.IsWriting) && sender is PlaybookViewModel { IsWriting: false, IsEditing: true } editor && editor.AttachExampleCommand.IsRunning)
         {
             Dispatcher.BeginInvoke(() =>

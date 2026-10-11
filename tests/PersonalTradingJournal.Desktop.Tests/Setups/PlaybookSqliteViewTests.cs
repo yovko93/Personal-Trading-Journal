@@ -90,6 +90,23 @@ public sealed class PlaybookSqliteViewTests
                     }
                     var saveButton = (Button)view.FindName("SavePlaybook");
                     Assert.True(saveButton.IsEnabled && saveButton.IsVisible);
+                    if (revision == 1)
+                    {
+                        editors[1].SetCurrentValue(TextBox.TextProperty, "");
+                        saveButton.Focus();
+                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
+                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);
+                        window.UpdateLayout();
+                        Assert.True(vm.Fields[1].IsInvalid); Assert.True(vm.IsEditing);
+                        Assert.Same(editors[1], System.Windows.Input.FocusManager.GetFocusedElement(window));
+                        Assert.Single(vm.EditorExamples);
+                        Assert.Null(vm.DisplayedRevision);
+                        var scroll = (ScrollViewer)view.FindName("PageScroll");
+                        double y = editors[1].TransformToAncestor(scroll).Transform(new Point()).Y;
+                        Assert.InRange(y, 0, scroll.ViewportHeight - editors[1].ActualHeight + 1);
+                        editors[1].SetCurrentValue(TextBox.TextProperty, "Synthetic Entry conditions, revision 1");
+                        Assert.False(vm.Fields[1].IsInvalid);
+                    }
                     var previousTask = vm.SaveCommand.ExecutionTask;
                     ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
                     Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);

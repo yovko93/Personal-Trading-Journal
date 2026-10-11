@@ -43,10 +43,12 @@ public sealed class PlaybookViewTests
             foreach (var theme in new[] { "Light", "Dark" })
             {
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                Assert.True(Contrast((SolidColorBrush)app.Resources["PtjAccentBrush"], (SolidColorBrush)app.Resources["PtjSurfaceBrush"]) >= 4.5);
+                Assert.True(Contrast((SolidColorBrush)app.Resources["PtjDangerBrush"], (SolidColorBrush)app.Resources["PtjDangerSurfaceBrush"]) >= 4.5);
                 foreach (var (width, dpi) in new[] { (960, 96), (480, 240) })
                 {
                     var images = new ExampleImagesFake { Preview = thumbnail };
-                    var f = new PlaybookFixture(images, images); f.Seed(12); f.OpenAsync().GetAwaiter().GetResult();
+                    var f = new PlaybookFixture(images, images, deletion: new PlaybookValidationDeletionTests.Deletion()); f.Seed(12); f.OpenAsync().GetAwaiter().GetResult();
                     var view = new PlaybookView { DataContext = f.Vm };
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 650)); view.Arrange(new Rect(0, 0, width, 650)); view.UpdateLayout(); }
@@ -66,6 +68,15 @@ public sealed class PlaybookViewTests
                     Assert.True(selector.Focusable);
                     Render(view, theme, width, dpi, "current");
                     f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions[1]); Layout();
+                    var returnAction = (Button)view.FindName("ReturnToCurrent");
+                    Assert.Same(app.Resources["PtjPlaybookReturnButtonStyle"], returnAction.Style);
+                    Assert.NotNull(returnAction.FocusVisualStyle); Assert.True(returnAction.IsEnabled);
+                    var history = (ItemsControl)view.FindName("History");
+                    var deletes = Descendants(history).OfType<Button>().Where(b => Equals(b.Content, "Delete revision")).ToArray();
+                    Assert.Equal(10, deletes.Length);
+                    Assert.All(deletes, b => { Assert.Same(f.Vm.DeleteRevisionCommand, b.Command); Assert.True(b.Focusable && b.IsEnabled); Assert.Same(b.DataContext, b.CommandParameter); Assert.Same(app.Resources["PtjPlaybookRemoveButtonStyle"], b.Style); });
+                    Assert.All(Descendants(view).OfType<TextBlock>().Where(b => b.Text is "Market context" or "Entry conditions" or "Confirmations" or "Invalidation" or "Execution guidance"),
+                        b => Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)b.Foreground).Color));
                     Assert.Contains("Historical revision 11", ((TextBlock)view.FindName("Version")).Text);
                     Assert.False(((Button)view.FindName("EditGuidance")).IsEnabled);
                     Assert.Equal(Visibility.Collapsed, ((ItemsControl)view.FindName("EditorFields")).Visibility);
@@ -107,6 +118,25 @@ public sealed class PlaybookViewTests
                     scroll.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent });
                     Layout(); Assert.True(scroll.VerticalOffset > 0);
                     scroll.ScrollToTop(); Layout(); Render(view, theme, width, dpi, "editor");
+                    fields[1].Text = ""; fields[3].Text = " ";
+                    f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    Assert.Equal(Visibility.Visible, ((Border)view.FindName("ValidationSummaryPanel")).Visibility);
+                    Assert.Equal(Visibility.Visible, ((Border)view.FindName("FormGuidance")).Visibility);
+                    foreach (var invalid in new[] { fields[1], fields[3] })
+                    {
+                        Assert.True(PersonalTradingJournal.Desktop.Validation.FormValidation.GetIsInvalid(invalid));
+                        Assert.Equal("This section is required.", AutomationProperties.GetItemStatus(invalid));
+                        Assert.Contains("required", AutomationProperties.GetHelpText(invalid));
+                        var chrome = (Border)invalid.Template.FindName("TextBoxChrome", invalid);
+                        Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)chrome.BorderBrush).Color);
+                    }
+                    Assert.True(f.Vm.IsEditing); Assert.Equal("Bound edit", fields[0].Text);
+                    scroll.ScrollToTop(); Layout(); Render(view, theme, width, dpi, "validation");
+                    scroll.ScrollToVerticalOffset(scroll.VerticalOffset + fields[1].TransformToAncestor(scroll).Transform(new Point()).Y - 30); Layout();
+                    Render(view, theme, width, dpi, "validation-field");
+                    fields[1].Text = "corrected"; fields[3].Text = "corrected"; Layout();
+                    Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("ValidationSummaryPanel")).Visibility);
+                    Assert.False(PersonalTradingJournal.Desktop.Validation.FormValidation.GetIsInvalid(fields[1]));
                     f.Vm.AttachExampleCommand.ExecuteAsync(null).GetAwaiter().GetResult();
                     var example = f.Vm.EditorExamples.Last(); example.Kind = PlaybookExampleKind.Invalid;
                     example.Annotation = "NQ synthetic example: the retest failed its confirmation. Lesson: wait for the stated condition; this label does not evaluate a Trade.";
@@ -153,14 +183,14 @@ public sealed class PlaybookViewTests
                     window.DataContext = null; window.Close(); view.DataContext = null;
                     var palette = new WrapPanel { Background = (Brush)app.Resources["PtjSurfaceBrush"] };
                     foreach (var (key, label) in new[] { ("Refresh", "Refresh"), ("Archive", "Archive Setup"), ("Create", "Create guidance"),
-                        ("View", "Open full-size chart"), ("Close", "Close image"), ("Remove", "Remove example") })
+                        ("View", "Open full-size chart"), ("Return", "Return to current"), ("Close", "Close image"), ("Remove", "Remove example") })
                     {
                         var button = new Button { Content = label, Style = (Style)app.Resources[$"PtjPlaybook{key}ButtonStyle"] };
                         palette.Children.Add(button); button.ApplyTemplate();
                         Assert.True(Contrast((SolidColorBrush)button.Foreground, (SolidColorBrush)button.Background) >= 4.5, theme + ": " + key);
                         Assert.NotNull(button.Template.FindName("FocusIndicator", button));
                         Assert.True(button.Focusable);
-                        var triggers = button.Style.Triggers.OfType<Trigger>().ToArray();
+                        var triggers = (key == "Return" ? button.Style.BasedOn : button.Style).Triggers.OfType<Trigger>().ToArray();
                         Assert.Contains(triggers, t => t.Property == UIElement.IsMouseOverProperty);
                         Assert.Contains(triggers, t => t.Property == Button.IsPressedProperty);
                         Assert.Contains(triggers, t => t.Property == UIElement.IsEnabledProperty);

@@ -35,7 +35,7 @@ public sealed class PlaybookViewModelTests
     {
         var f = new PlaybookFixture(); await f.OpenAsync(); f.Edit("keep"); f.Vm.Fields[index].Text = " \r\n ";
         await f.Vm.SaveCommand.ExecuteAsync(null);
-        Assert.True(f.Vm.IsEditing); Assert.Contains(f.Vm.Fields[index].Label, f.Vm.Message);
+        Assert.True(f.Vm.IsEditing); Assert.Contains(f.Vm.Fields[index].Label, f.Vm.ValidationSummary);
         Assert.Equal("keep", f.Vm.Fields[(index + 1) % 5].Text); Assert.Empty(f.Data.Revisions);
     }
 
@@ -210,12 +210,12 @@ internal sealed class PlaybookFixture
     internal readonly TradingSetup Other = new("NQ range", null, FixedTimeProvider.FixedUtcNow.AddDays(-1));
     internal PlaybookViewModel Vm { get; }
     internal PlaybookFixture(PersonalTradingJournal.Desktop.Screenshots.IPlaybookExampleImages? images = null, IPlaybookImageStorage? storage = null,
-        PlaybookSaveDiagnostics? diagnostics = null)
+        PlaybookSaveDiagnostics? diagnostics = null, IPlaybookRevisionDeletion? deletion = null)
     {
         Data.Setups.AddRange([Setup, Other]);
         var save = new SaveTradingSetupPlaybookUseCase(Data, Data, new FixedTimeProvider());
         Vm = new(Data, Data, Data, save, new(Data, new FixedTimeProvider()), Dialogs, images,
-            storage is null ? null : new SavePlaybookExamplesUseCase(save, storage), diagnostics);
+            storage is null ? null : new SavePlaybookExamplesUseCase(save, storage), diagnostics, deletion);
     }
     internal async Task OpenAsync() { await Vm.ActivateAsync(); Vm.TrySelectSetup(Data.Row(Setup)); await Vm.LoadTask; }
     internal void Edit(string text) { Vm.EditCommand.Execute(null); foreach (var f in Vm.Fields) f.Text = text; }

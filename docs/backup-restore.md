@@ -1,5 +1,11 @@
 # Backup and restore — M16
 
+## Playbook eligible revision deletion
+
+Current schema additionally includes `20261011220636_AllowUnreferencedPlaybookRevisionDeletion`. It changes only two metadata-deletion triggers: current revisions and revisions referenced by retained Trade captures/association history remain protected; eligible older revisions can be deleted with atomic checks. Existing records and no-update guards are preserved. Revision gaps are valid and survive backup/preflight and logical export. Shared images are never deleted by that action; files with no remaining database reference are not included in a new complete archive, consistent with the existing referenced-file inventory.
+
+Archive format remains **v1** and logical export **v4**. Restore still requires exact current migration state. Archives made before this migration need the deferred supported staged-upgrade path, even though no table shape changed; installed-database migration does not imply old-archive compatibility. Existing archives, exports and immutable AI evidence snapshots remain unchanged. Recovery protection, screenshot hashes, credential exclusion and unencrypted warnings are unchanged.
+
 ## M17.5 — Trade association history
 
 Additive migration `20261011175435_AddTradePlaybookAssociations` preserves original captures and adds append-only association/removal transitions with frozen definition JSON and Trade opening/recording instants. Complete archives preserve both tables and historical image retention. Archive format remains v1; exact current migration compatibility is still required. Pre-M17.5 archives require a deferred staged-upgrade workflow and are not restored by this version.

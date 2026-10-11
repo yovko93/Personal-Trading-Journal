@@ -1,5 +1,62 @@
 # Playbook — Domain, persistence and Desktop management
 
+## Field validation and protected revision deletion
+
+This follow-up starts from clean `develop`, `4852767724453b5332808b04c498059286479bb8`, preserving the committed M17 implementation and Save readback diagnostics. It does not start M17.7 or claim to reproduce the original silent live Save incident.
+
+### Reading and validation
+
+Guidance section headings use the shared theme accent and 20-DIP hierarchy; body text remains neutral. Static requirements appear in a blue information panel. Save validates all five required sections together (meaningful text, at most 4,000 trimmed characters each), with a pinned red summary listing invalid sections, red borders that remain visible during focus/hover, and short inline messages. Required state, error/help text and live announcements are exposed through automation properties. Focus and scrolling move to the first invalid field; subsequent correction clears that field's error and the summary disappears once all fields are valid. Examples and every entered field are retained. Existing example validation and separate committed-revision readback remain mandatory before success is reported.
+
+Return to current uses the shared violet action treatment with hover/pressed/disabled/focus states. Delete revision is a separate red destructive action beside View revision. Both wrap with revision-row content at narrow widths. Deletion is unavailable while editing or another operation is active, so it cannot discard an unsaved form.
+
+### Deletion eligibility and retained references
+
+The preview checks the exact Setup/revision, then asks for destructive confirmation identifying its frozen Setup name and revision. The final operation takes a SQLite immediate writer transaction and repeats eligibility and expected-current-revision checks. A concurrent new revision produces a conflict; a newly retained reference blocks deletion; an already deleted row reports missing. No metadata change occurs on confirmation decline, cancellation before commit, or rollback. After a committed deletion the list returns to its newest page/current guidance; failure leaves the selected historical detail intact.
+
+- The current (highest numbered) revision cannot be deleted. Revisions remain immutable; successful Save still appends `current + 1`. Gaps in history are intentional and never renumbered or reused.
+- Every retained original `TradePlaybookContext` and append-only `TradePlaybookAssociation` protects its exact revision, including replaced or removed historical associations. SQLite guards and foreign keys reinforce the service check. Trades, classifications and frozen JSON are not rewritten.
+- Only eligible revision metadata and its owned example metadata are removed atomically. Physical images are **never deleted by this operation**, even if the removed revision was their last reference. Shared Trade/other-revision images therefore remain intact; an unreferenced local file can remain until a separately designed cleanup operation. Existing screenshot ownership/retention checks are unchanged.
+- Saved AI analyses contain independent immutable text-only snapshots, not a required foreign key to this catalog revision or an image file. After a source Trade is deleted, an otherwise eligible older revision may be removed without changing the saved analysis. Its saved guidance/citations still render from the snapshot; current-source navigation can correctly report unavailable.
+- Previously created backup archives and exports remain independent snapshots. New backups/export preserve the retained revision-number gaps and remaining references. No archived bytes or saved analysis are rewritten.
+
+Migration `20261011220636_AllowUnreferencedPlaybookRevisionDeletion` replaces the two blanket metadata-delete triggers with current/referenced-revision guards. It adds no tables or columns, migrates no content and preserves the no-update triggers. Existing data survives upgrade; rollback restores the stricter deletion prohibition but cannot resurrect an intentionally deleted revision. Archive v1 and logical export v4 are unchanged, but exact current-schema restore now requires this migration; older-schema archive upgrade remains deferred. See [backup compatibility](backup-restore.md#playbook-eligible-revision-deletion).
+
+### Verification and remaining acceptance
+
+Focused Release tests: **159 passed / 0 failed / 0 skipped** (22 Domain, 19 Application, 66 Infrastructure, 52 Desktop). SQLite tests cover protected current/original/removed associations, stale confirmation, a reference added after preview, concurrent duplicate deletion, transactional rollback after example removal, cancellation, restart, image retention, subsequent revision numbering, migration from the preceding schema, gap-preserving backup/preflight/export and immutable saved AI evidence. Compiled WPF tests cover both themes at 960 DIP/96 DPI and 480 DIP/240 DPI, information/error separation, accessible required/errors, field correction, focus/scroll after the actual Save button, exact revision command targets and shared action states. Existing real-SQLite Save/create/edit/readback/restart tests also pass.
+
+The separate **17 migration/initialization/integration checks pass** after updating the explicit migration inventory and count to include the new guard migration. Release build: **0 warnings/errors**. EF reports no pending model changes; tracked and new-file whitespace checks pass with repository CRLF conventions.
+
+The first parallel run (`artifacts/m145-load/playbook-validation-final`) had **3,789 passed / 91 failed / zero skipped**: five stale migration-inventory expectations (corrected above), plus 86 propagated Calendar native failures. The child hit its unchanged 120-second deadline after 80 completed actions; action 81, `BackdropAndKeyboardCloseKeepInlineDraftUntilUserCancels`, started at 22:22:49.480 UTC, about 0.69 seconds before timeout. This is not evidence of that individual action hanging. The Calendar full-load timeout remains an **unresolved failure/variability risk**, not a claimed fix or grounds to increase a deadline.
+
+After correcting the migration assertions, the final parallel run is `artifacts/m145-load/playbook-validation-corrected-final`: **3,880 passed / 0 failed / 0 skipped** (Domain 476, Application 732, Infrastructure 1,203, Desktop 1,469). Its Calendar child passed all 87 cases / 86 STA actions in **90.702 seconds**, **29.298 seconds** below the same 120-second deadline. This later pass does not erase the earlier timeout or establish its cause. Playbook/migration focused runs are retained under `artifacts/playbook-validation-focused-final` and `artifacts/playbook-migration-inventory-final`; automated renders are under `artifacts/playbook-validation-renders` (ignored artifacts, not customer data).
+
+All fixtures and screenshots are synthetic; no production journal or provider is accessed. Light/Dark normal and narrow/240-DPI heading, historical/action and first-invalid-field renders were inspected. Renders and programmatic WPF focus assertions are automated evidence, not live keyboard/mouse or screen-reader acceptance. Manual checks remaining: screen-reader announcements, focus/scroll perception, deletion confirmation and Return to current in the actual desktop. Matching GitHub Actions cannot cover these uncommitted changes yet. No deadline, concurrency, assertion or native-isolation relaxation is part of this change.
+
+### Exact changed files for this follow-up
+
+- `README.md`
+- `docs/playbook.md`
+- `docs/backup-restore.md`
+- `src/PersonalTradingJournal.Application/Setups/IPlaybookRevisionDeletion.cs`
+- `src/PersonalTradingJournal.Desktop/Resources/Controls.xaml`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011220636_AllowUnreferencedPlaybookRevisionDeletion.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011220636_AllowUnreferencedPlaybookRevisionDeletion.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/PlaybookRevisionDeletion.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookValidationDeletionTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookRevisionDeletionTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+
 ## 12 October Save diagnostics follow-up
 
 Started clean on `develop`, `434a0055591cd71dba5715baf1fee3cca34d0452`. Earlier M17 work is preserved. The original user-observed silent failure is still **not reproduced on real SQLite with synthetic data**. The compiled Save button, bound fields, image metadata, first creation, second revision, navigation and separate-process restart reads continue to pass.

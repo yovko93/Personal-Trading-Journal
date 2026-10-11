@@ -11,8 +11,15 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Setups;
 public sealed class PlaybookField(string label) : ObservableObject
 {
     private string _text = "";
+    private string _error = "";
+    private bool _validate;
     public string Label { get; } = label;
-    public string Text { get => _text; set => SetProperty(ref _text, value); }
+    public string Text { get => _text; set { if (SetProperty(ref _text, value) && _validate) Validate(); } }
+    public string Error { get => _error; private set { if (SetProperty(ref _error, value)) { OnPropertyChanged(nameof(IsInvalid)); OnPropertyChanged(nameof(HelpText)); } } }
+    public bool IsInvalid => Error.Length > 0;
+    public string HelpText => IsInvalid ? Error : "Required; up to 4,000 characters. Ctrl+S saves a new revision.";
+    public void Validate() { _validate = true; Error = string.IsNullOrWhiteSpace(Text) ? "This section is required." : Text.Trim().Length > PlaybookGuidance.MaximumFieldLength ? "Use at most 4,000 characters." : ""; }
+    public void ResetValidation() { _validate = false; Error = ""; }
 }
 
 /// <summary>Authoring host for the existing Setup catalog; never classifies a Trade.</summary>
@@ -25,6 +32,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
     private readonly TradingSetupLifecycleUseCase _lifecycle;
     private readonly IDialogService _dialogs;
     private readonly PlaybookSaveDiagnostics? _diagnostics;
+    private readonly IPlaybookRevisionDeletion? _deletion;
     private CancellationTokenSource? _read;
     private long _generation;
     private TradingSetupListItem? _selected;
@@ -41,21 +49,30 @@ public sealed partial class PlaybookViewModel : ObservableObject
         ITradingSetupPlaybookHistoryReader history, SaveTradingSetupPlaybookUseCase save,
         TradingSetupLifecycleUseCase lifecycle, IDialogService dialogs,
         IPlaybookExampleImages? exampleImages = null, SavePlaybookExamplesUseCase? saveExamples = null,
-        PlaybookSaveDiagnostics? diagnostics = null)
+        PlaybookSaveDiagnostics? diagnostics = null, IPlaybookRevisionDeletion? deletion = null)
     {
         _setups = setups; _store = store; _history = history; _save = save; _lifecycle = lifecycle; _dialogs = dialogs;
         _exampleImages = exampleImages; _saveExamples = saveExamples;
         _diagnostics = diagnostics;
+        _deletion = deletion;
         AttachExampleCommand = new AsyncRelayCommand(AttachExampleAsync, () => IsEditing && !IsBusy && EditorExamples.Count < PlaybookGuidance.MaximumExamples && _exampleImages is not null);
         RemoveExampleCommand = new RelayCommand<PlaybookExampleItem>(e => { if (e is not null) EditorExamples.Remove(e); AttachExampleCommand.NotifyCanExecuteChanged(); }, e => IsEditing && !IsBusy && e is not null);
         ViewImageCommand = new AsyncRelayCommand<PlaybookExampleItem>(ViewImageAsync, e => !IsBusy && e?.HasImage == true && _exampleImages is not null);
         Fields = new[] { "Market context", "Entry conditions", "Confirmations", "Invalidation", "Execution guidance" }
             .Select(label => new PlaybookField(label)).ToArray();
+        foreach (var field in Fields) field.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(PlaybookField.Error)) return;
+            OnPropertyChanged(nameof(ValidationSummary)); OnPropertyChanged(nameof(HasValidationErrors));
+            if (!HasValidationErrors && Message == "Save blocked by field validation. Your edits are retained.")
+                Message = "Required sections corrected. Save Playbook to create a revision.";
+        };
+        DeleteRevisionCommand = new AsyncRelayCommand<TradingSetupPlaybookRevision>(DeleteRevisionAsync, r => r is not null && !IsBusy && !IsEditing && _deletion is not null);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsWriting);
         EditCommand = new RelayCommand(BeginEdit, () => _ready && !IsBusy && !IsEditing && SelectedSetup?.IsActive == true && !IsHistorical);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditing && !IsBusy);
         CancelEditCommand = new RelayCommand(() => { if (TryLeave()) { IsEditing = false; Message = "Editing closed. No revision was saved."; } }, () => IsEditing && !IsWriting);
-        CancelOperationCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); AttachExampleCommand.Cancel(); ViewImageCommand.Cancel(); ToggleArchiveCommand?.Cancel(); }, () => IsBusy);
+        CancelOperationCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); DeleteRevisionCommand.Cancel(); AttachExampleCommand.Cancel(); ViewImageCommand.Cancel(); ToggleArchiveCommand?.Cancel(); }, () => IsBusy);
         ToggleArchiveCommand = new AsyncRelayCommand(ToggleArchiveAsync, () => SelectedSetup is not null && _ready && !IsBusy && !IsEditing);
         ViewRevisionCommand = new RelayCommand<TradingSetupPlaybookRevision>(ShowRevision, r => r is not null && !IsBusy);
         ShowCurrentCommand = new RelayCommand(() => { _historical = null; Changed(); }, () => IsHistorical && !IsBusy);
@@ -64,6 +81,10 @@ public sealed partial class PlaybookViewModel : ObservableObject
     }
 
     public IReadOnlyList<PlaybookField> Fields { get; }
+    public bool HasValidationErrors => Fields.Any(f => f.IsInvalid);
+    public string ValidationSummary => HasValidationErrors ? "Cannot save. Correct these required sections: " + string.Join(", ", Fields.Where(f => f.IsInvalid).Select(f => f.Label)) + ". Your text and examples are kept." : "";
+    public int ValidationAttempt { get; private set; }
+    public IAsyncRelayCommand<TradingSetupPlaybookRevision> DeleteRevisionCommand { get; }
     public IReadOnlyList<TradingSetupListItem> Setups { get => _catalog; private set => SetProperty(ref _catalog, value); }
     public IReadOnlyList<TradingSetupPlaybookRevision> Revisions { get => _revisions; private set => SetProperty(ref _revisions, value); }
     public TradingSetupListItem? SelectedSetup => _selected;
@@ -71,7 +92,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
     public bool IsHistorical => _historical is not null;
     public bool HasGuidance => DisplayedRevision is not null;
     public bool ShowReading => !IsEditing && HasGuidance;
-    public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); if (!value) EditorExamples.Clear(); Changed(); } }
+    public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); if (!value) { EditorExamples.Clear(); foreach (var input in Fields) input.ResetValidation(); } Changed(); } }
     public bool IsLoading { get => _loading; private set { SetProperty(ref _loading, value); Changed(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); Changed(); } }
     public bool IsBusy => IsLoading || IsWriting;
@@ -178,13 +199,13 @@ public sealed partial class PlaybookViewModel : ObservableObject
     {
         var g = _current?.Guidance;
         string[] values = g is null ? ["", "", "", "", ""] : [g.MarketContext, g.EntryConditions, g.Confirmations, g.Invalidation, g.ExecutionGuidance];
-        for (int i = 0; i < Fields.Count; i++) Fields[i].Text = values[i];
+        for (int i = 0; i < Fields.Count; i++) { Fields[i].ResetValidation(); Fields[i].Text = values[i]; }
         EditorExamples.Clear();
         foreach (var example in g?.Examples ?? []) EditorExamples.Add(new(example));
         _ = LoadReadingThumbnailsAsync(EditorExamples.ToArray());
         _exampleBaseline = EditorExamples.Select(e => e.ExampleId).ToArray();
         _baseline = values; IsEditing = true;
-        Message = "All five sections are required (up to 4,000 characters each). Attach up to 12 charts; classify each and explain its context, condition and lesson.";
+        Message = "Editing current guidance. No changes are saved until Save Playbook.";
     }
 
     private async Task SaveAsync(CancellationToken token)
@@ -200,8 +221,8 @@ public sealed partial class PlaybookViewModel : ObservableObject
             IsEditing, _ready, System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds));
         Trace(PlaybookSavePhase.Invoked, PlaybookSaveResult.Pending);
         // Snapshot the five fields and owning identity before the first await; editing is disabled during the write.
-        var invalid = Fields.FirstOrDefault(f => string.IsNullOrWhiteSpace(f.Text) || f.Text.Trim().Length > PlaybookGuidance.MaximumFieldLength);
-        if (invalid is not null) { Message = $"{invalid.Label}: enter meaningful text, up to 4,000 characters. Your text has been kept."; Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidFields); return; }
+        foreach (var field in Fields) field.Validate();
+        if (HasValidationErrors) { Message = "Save blocked by field validation. Your edits are retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidFields); return; }
         if (EditorExamples.Any(e => string.IsNullOrWhiteSpace(e.Annotation) || e.Annotation.Trim().Length > 4000 ||
             (e.PendingBytes is not null && e.Kind == PlaybookExampleKind.Unspecified)))
         { Message = "Each new chart needs Valid or Invalid and a meaningful annotation (up to 4,000 characters). Your examples and text are retained."; Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidExamples); return; }
@@ -258,6 +279,34 @@ public sealed partial class PlaybookViewModel : ObservableObject
     private static bool SameRevision(TradingSetupPlaybookRevision expected, TradingSetupPlaybookRevision actual) =>
         System.Text.Json.JsonSerializer.Serialize(expected) == System.Text.Json.JsonSerializer.Serialize(actual);
 
+    private async Task DeleteRevisionAsync(TradingSetupPlaybookRevision? revision, CancellationToken token)
+    {
+        if (revision is null || _deletion is null || IsBusy || IsEditing || revision.TradingSetupId != _selected?.Id || !Revisions.Contains(revision)) return;
+        IsWriting = true;
+        try
+        {
+            var check = await _deletion.CheckAsync(revision.TradingSetupId, revision.Revision, token);
+            if (check.Status != PlaybookRevisionDeletionStatus.Eligible) { Message = DeletionMessage(check.Status); return; }
+            if (!_dialogs.Confirm(new ConfirmationDialogRequest("Delete Playbook revision?",
+                $"Permanently delete revision {revision.Revision} for “{revision.SetupName}”? Current guidance, Trades, frozen contexts, other revisions, saved analyses and image files are retained. This cannot be undone.", "Delete revision", isDestructive: true)))
+            { Message = "Deletion cancelled. No revision was changed."; return; }
+            var result = await _deletion.DeleteAsync(revision.TradingSetupId, revision.Revision, check.CurrentRevision, token);
+            if (result != PlaybookRevisionDeletionStatus.Deleted) { Message = DeletionMessage(result); return; }
+            ResetHistory(); await LoadAsync(false);
+            Message = _ready ? $"Revision {revision.Revision} deleted. Current guidance and images retained." : "Revision deleted, but the list could not be refreshed. Refresh to reload.";
+        }
+        catch (OperationCanceledException) { Message = "Revision deletion cancelled. Refresh to check the list."; }
+        catch (Exception) { Message = "Revision could not be deleted. Nothing was reported as deleted. Refresh and try again."; }
+        finally { IsWriting = false; }
+    }
+    private static string DeletionMessage(PlaybookRevisionDeletionStatus status) => status switch
+    {
+        PlaybookRevisionDeletionStatus.CurrentRevision => "The current revision cannot be deleted. Save new guidance first.",
+        PlaybookRevisionDeletionStatus.Referenced => "This revision is retained by a Trade capture or association history and cannot be deleted.",
+        PlaybookRevisionDeletionStatus.Missing => "This revision is no longer available. Refresh the list.",
+        _ => "The Playbook changed since confirmation. Refresh the list before deleting."
+    };
+
     private async Task ToggleArchiveAsync(CancellationToken token)
     {
         if (!_dialogs.Confirm(new ConfirmationDialogRequest(ArchiveLabel + "?",
@@ -295,6 +344,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
         RefreshCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged();
         CancelEditCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged(); ToggleArchiveCommand?.NotifyCanExecuteChanged();
         ViewRevisionCommand?.NotifyCanExecuteChanged(); ShowCurrentCommand?.NotifyCanExecuteChanged(); NextPageCommand?.NotifyCanExecuteChanged(); PreviousPageCommand?.NotifyCanExecuteChanged();
+        DeleteRevisionCommand?.NotifyCanExecuteChanged();
         AttachExampleCommand?.NotifyCanExecuteChanged(); RemoveExampleCommand?.NotifyCanExecuteChanged(); ViewImageCommand?.NotifyCanExecuteChanged();
     }
 }

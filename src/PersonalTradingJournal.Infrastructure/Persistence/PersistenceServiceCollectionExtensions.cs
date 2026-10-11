@@ -82,6 +82,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
         services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
         services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
+        services.AddTransient<IPlaybookRevisionDeletion, PlaybookRevisionDeletion>();
         services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
         services.AddTransient<ITradePlaybookAssociationStore, TradePlaybookAssociationStore>();
         services.AddTransient<ConfirmTradePlaybookAssociation>();
