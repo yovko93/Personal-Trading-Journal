@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.Backups;
+using PersonalTradingJournal.Infrastructure.Backups;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Analytics;
 using PersonalTradingJournal.Application.Calendar;
@@ -47,9 +49,20 @@ public static class PersistenceServiceCollectionExtensions
             ForeignKeys = true,
         }.ToString();
 
-        services.AddDbContextFactory<JournalDbContext>(options =>
-            options.UseSqlite(connectionString));
+        services.AddSingleton<JournalDataSession>(_ => new JournalDataSession(applicationPaths));
+        services.AddDbContextFactory<JournalDbContext>((provider, options) =>
+        {
+            var session = provider.GetRequiredService<JournalDataSession>();
+            options.UseSqlite(connectionString).AddInterceptors(new JournalSessionConnectionInterceptor(session));
+        });
         services.AddTransient<JournalDatabaseInitializer>();
+        services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));
+        services.AddTransient<IRestorePreflightService, RestorePreflightService>();
+        services.AddTransient<IJournalRestoreService>(_ => new JournalRestoreService(applicationPaths));
+        services.AddTransient<IPortableExportService>(provider => new PortableExportService(applicationPaths,
+            provider.GetRequiredService<IDatabaseSnapshotService>()));
+        services.AddTransient<IBackupArchiveService>(provider => new BackupArchiveService(applicationPaths,
+            provider.GetRequiredService<IDatabaseSnapshotService>()));
         services.AddTransient<TradeBrowseProjectionReconciler>();
         services.AddTransient<ITradingAccountReader, TradingAccountReader>();
         services.AddTransient<ITradingAccountBalanceReader, TradingAccountReader>();

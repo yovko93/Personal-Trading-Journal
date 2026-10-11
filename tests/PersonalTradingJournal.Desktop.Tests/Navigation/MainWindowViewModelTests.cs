@@ -1233,7 +1233,8 @@ public sealed partial class MainWindowViewModelTests
         IDailyJournalRepository? calendarJournalRepository = null,
         PersonalTradingJournal.Desktop.Dialogs.IDialogService? calendarJournalDialogs = null,
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null,
-        DeleteAccountTradesUseCase? accountTradeDeletion = null)
+        DeleteAccountTradesUseCase? accountTradeDeletion = null,
+        DataBackupsViewModel? dataBackups = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1291,7 +1292,7 @@ public sealed partial class MainWindowViewModelTests
         var settings = new SettingsViewModel(
             themeService,
             settingsStore,
-            NullLogger<SettingsViewModel>.Instance);
+            NullLogger<SettingsViewModel>.Instance, dataBackups: dataBackups);
         var accounts = new AccountsViewModel(
             accountReader,
             new CreateTradingAccountUseCase(accountStore, timeProvider),

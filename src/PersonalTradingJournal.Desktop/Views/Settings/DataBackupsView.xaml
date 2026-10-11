@@ -1,0 +1,25 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Settings.DataBackupsView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Settings">
+ <UserControl.Resources><BooleanToVisibilityConverter x:Key="VisibleWhenTrue" /></UserControl.Resources>
+ <Border Style="{DynamicResource PtjCardStyle}">
+  <StackPanel>
+   <TextBlock Text="Data &amp; Backups" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+   <TextBlock Text="{x:Static vm:DataBackupsViewModel.BackupDisclosure}" TextWrapping="Wrap" Margin="0,12,0,8" Style="{DynamicResource PtjBodyTextStyle}" />
+   <Button x:Name="CreateBackup" Content="Create Backup…" Command="{Binding CreateBackupCommand}" HorizontalAlignment="Left" Style="{DynamicResource PtjPrimaryButtonStyle}" AutomationProperties.Name="Create unencrypted backup" />
+   <TextBlock Text="{x:Static vm:DataBackupsViewModel.ExportDisclosure}" TextWrapping="Wrap" Margin="0,20,0,8" Style="{DynamicResource PtjBodyTextStyle}" />
+   <Button x:Name="ExportData" Content="Export Data…" Command="{Binding ExportCommand}" HorizontalAlignment="Left" Style="{DynamicResource PtjButtonStyle}" AutomationProperties.Name="Export JSON and CSV data, not a backup" />
+   <TextBlock Text="Restore replaces installed journal data. First inspect a backup, then confirm. The app closes for offline maintenance; a verified recovery copy is retained before replacement." TextWrapping="Wrap" Margin="0,20,0,8" Style="{DynamicResource PtjBodyTextStyle}" />
+   <Button x:Name="InspectBackup" Content="Choose Backup to Restore…" Command="{Binding InspectCommand}" HorizontalAlignment="Left" Style="{DynamicResource PtjButtonStyle}" AutomationProperties.Name="Choose backup and run read-only restore preflight" />
+   <StackPanel x:Name="RestorePreview" Visibility="{Binding HasPreview, Converter={StaticResource VisibleWhenTrue}}" Margin="0,12,0,0">
+    <TextBlock Text="Restore preview" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+    <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" Margin="0,8,0,12" Style="{DynamicResource PtjBodyTextStyle}" AutomationProperties.Name="Restore compatibility, counts and warnings" />
+    <Button x:Name="ConfirmRestore" Content="Restore Backup…" Command="{Binding RestoreCommand}" HorizontalAlignment="Left" Style="{DynamicResource PtjDangerButtonStyle}" AutomationProperties.Name="Confirm destructive replacement and restart for offline restore" />
+   </StackPanel>
+   <ProgressBar Height="6" Margin="0,16,0,8" IsIndeterminate="{Binding IsBusy}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}" AutomationProperties.Name="Data operation in progress" />
+   <TextBlock x:Name="OperationStatus" Text="{Binding Status}" TextWrapping="Wrap" Margin="0,12,0,8" Style="{DynamicResource PtjBodyTextStyle}" AutomationProperties.LiveSetting="Polite" />
+   <Button x:Name="CancelOperation" Content="Cancel operation" Command="{Binding CancelCommand}" HorizontalAlignment="Left" Style="{DynamicResource PtjButtonStyle}" Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhenTrue}}" />
+   <TextBox Text="{Binding OutputLocation, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,8,0,0" AutomationProperties.Name="Completed output location, selectable for copying" />
+  </StackPanel>
+ </Border>
+</UserControl>

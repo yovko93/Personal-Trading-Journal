@@ -220,6 +220,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
         if (CurrentDestination == NavigationDestination.DailyReview)
         {
             _dailyReviewViewModel?.Deactivate();
@@ -351,6 +352,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination)
     {
+        if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Calendar &&
             !_calendarViewModel.TryCloseInlineJournal()) return;
         if (destination != CurrentDestination &&
