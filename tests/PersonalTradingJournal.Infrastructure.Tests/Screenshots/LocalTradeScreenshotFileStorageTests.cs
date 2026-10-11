@@ -267,7 +267,7 @@ public sealed class LocalTradeScreenshotFileStorageTests
         ITradeScreenshotFileStorage second =
             serviceProvider.GetRequiredService<ITradeScreenshotFileStorage>();
 
-        Assert.IsType<LocalTradeScreenshotFileStorage>(first);
+        Assert.IsType<RetainedScreenshotFileStorage>(first);
         Assert.Same(first, second);
         Assert.False(Directory.Exists(fixture.Paths.ScreenshotsDirectory));
     }

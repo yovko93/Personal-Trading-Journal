@@ -261,6 +261,26 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ImageFileName")
+                        .HasMaxLength(180)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ImageSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageStorageKey")
+                        .HasMaxLength(180)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("Position")
                         .HasColumnType("INTEGER");
 
@@ -271,6 +291,8 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("TradingSetupId", "Revision", "ExampleId");
+
+                    b.HasIndex("ImageStorageKey");
 
                     b.HasIndex("SourceScreenshotId");
 

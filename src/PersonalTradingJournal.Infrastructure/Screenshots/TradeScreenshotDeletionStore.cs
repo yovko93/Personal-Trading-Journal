@@ -60,7 +60,8 @@ public sealed class TradeScreenshotDeletionStore :
         // Match the other deletion paths' ordinal case-insensitive ownership rule, streaming keys.
         bool retained = false;
         await foreach (string key in context.TradeScreenshots.Where(s => s.Id != screenshotId)
-                           .Select(s => s.StorageKey).AsAsyncEnumerable().WithCancellation(cancellationToken))
+                           .Select(s => s.StorageKey).Concat(context.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
+                           .AsAsyncEnumerable().WithCancellation(cancellationToken))
         {
             if (!StringComparer.OrdinalIgnoreCase.Equals(key, record.StorageKey)) continue;
             retained = true;

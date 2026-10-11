@@ -24,6 +24,11 @@ public sealed class PlaybookExampleRecord
     public string Annotation { get; set; } = null!;
     public Guid? SourceTradeId { get; set; }
     public Guid? SourceScreenshotId { get; set; }
+    public int Kind { get; set; }
+    public string? ImageStorageKey { get; set; }
+    public string? ImageFileName { get; set; }
+    public long? ImageSizeBytes { get; set; }
+    public string? ImageSha256 { get; set; }
 }
 
 public sealed class TradePlaybookContextRecord

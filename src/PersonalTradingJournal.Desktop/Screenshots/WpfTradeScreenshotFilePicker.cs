@@ -5,7 +5,9 @@ namespace PersonalTradingJournal.Desktop.Screenshots;
 
 public sealed class WpfTradeScreenshotFilePicker : ITradeScreenshotFilePicker
 {
-    public TradeScreenshotFileSelection? Pick()
+    public TradeScreenshotFileSelection? Pick() => Pick("Select Trade Screenshot");
+
+    public TradeScreenshotFileSelection? Pick(string title)
     {
         var dialog = new OpenFileDialog
         {
@@ -16,7 +18,7 @@ public sealed class WpfTradeScreenshotFilePicker : ITradeScreenshotFilePicker
                 "JPEG files (*.jpg;*.jpeg)|*.jpg;*.jpeg|" +
                 "WebP files (*.webp)|*.webp",
             Multiselect = false,
-            Title = "Select Trade Screenshot",
+            Title = title,
         };
 
         if (dialog.ShowDialog() != true)

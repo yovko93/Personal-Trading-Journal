@@ -11,6 +11,8 @@ using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.Views.Setups;
+using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Domain.Setups;
 
 namespace PersonalTradingJournal.Desktop.Tests.Setups;
 
@@ -29,12 +31,22 @@ public sealed class PlaybookViewTests
         await CalendarStaTest.RunAsync(() =>
         {
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            byte[] chart = SyntheticChart();
+            var thumbnail = PlaybookExampleImages.Decode(chart, true);
+            Assert.InRange(thumbnail.PixelWidth, 1, 384); Assert.True(thumbnail.IsFrozen);
+            var full = PlaybookExampleImages.Decode(chart, false); Assert.Equal(800, full.PixelWidth);
+            Assert.ThrowsAny<Exception>(() => PlaybookExampleImages.Decode([1, 2, 3], true));
+            Assert.Throws<InvalidDataException>(() => PlaybookExampleImages.Decode(new byte[PlaybookExampleImage.MaximumBytes + 1], true));
+            Assert.ThrowsAny<Exception>(() => PlaybookExampleImages.Decode(SyntheticChart(8193, 1), true));
+            Assert.ThrowsAsync<InvalidDataException>(() => PlaybookExampleImages.ReadBoundedAsync(new MemoryStream(), default)).GetAwaiter().GetResult();
+            Assert.ThrowsAsync<InvalidDataException>(() => PlaybookExampleImages.ReadBoundedAsync(new MemoryStream(new byte[PlaybookExampleImage.MaximumBytes + 1]), default)).GetAwaiter().GetResult();
             foreach (var theme in new[] { "Light", "Dark" })
             {
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 foreach (var (width, dpi) in new[] { (960, 96), (480, 240) })
                 {
-                    var f = new PlaybookFixture(); f.Seed(12); f.OpenAsync().GetAwaiter().GetResult();
+                    var images = new ExampleImagesFake { Preview = thumbnail };
+                    var f = new PlaybookFixture(images, images); f.Seed(12); f.OpenAsync().GetAwaiter().GetResult();
                     var view = new PlaybookView { DataContext = f.Vm };
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 650)); view.Arrange(new Rect(0, 0, width, 650)); view.UpdateLayout(); }
@@ -87,6 +99,33 @@ public sealed class PlaybookViewTests
                     scroll.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent });
                     Layout(); Assert.True(scroll.VerticalOffset > 0);
                     scroll.ScrollToTop(); Layout(); Render(view, theme, width, dpi, "editor");
+                    f.Vm.AttachExampleCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                    var example = f.Vm.EditorExamples.Last(); example.Kind = PlaybookExampleKind.Invalid;
+                    example.Annotation = "NQ synthetic example: the retest failed its confirmation. Lesson: wait for the stated condition; this label does not evaluate a Trade.";
+                    example.Thumbnail = thumbnail;
+                    Layout(); var exampleEditor = (StackPanel)view.FindName("ExampleEditor");
+                    exampleEditor.BringIntoView(); Layout();
+                    var annotation = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<TextBox>().Last();
+                    ((Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(annotation))).BringIntoView(); Layout();
+                    Assert.True(annotation.Focusable); Assert.InRange(annotation.ActualWidth, 100, width);
+                    Assert.Contains("condition and lesson", AutomationProperties.GetName(annotation));
+                    var kind = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<ComboBox>().Last();
+                    Assert.Equal(PlaybookExampleKind.Invalid, kind.SelectedItem);
+                    var exampleButtons = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<Button>().Where(b => b.Content is "Remove example" or "Open full-size chart").ToArray();
+                    Assert.Equal(3, exampleButtons.Count(b => b.Visibility == Visibility.Visible));
+                    Assert.Single(exampleButtons, b => b.Content is "Open full-size chart" && b.Visibility == Visibility.Collapsed); // Legacy notes have no image.
+                    foreach (var button in exampleButtons.Where(b => b.Visibility == Visibility.Visible))
+                    { Assert.True(button.Focusable); Assert.InRange(button.ActualWidth, 20, width); }
+                    Render(view, theme, width, dpi, "examples");
+                    foreach (var field in f.Vm.Fields) field.Text = "Synthetic guidance";
+                    f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    Assert.False(f.Vm.IsEditing); Assert.Equal(2, f.Vm.ReadingExamples.Count);
+                    Assert.Equal(PlaybookExampleKind.Invalid, f.Vm.ReadingExamples[1].Kind);
+                    f.Vm.ReadingExamples[1].Thumbnail = thumbnail;
+                    foreach (var provenance in Descendants(view).OfType<Expander>())
+                    { Assert.Equal(((SolidColorBrush)app.Resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)provenance.Foreground).Color); Assert.Equal("Example provenance", AutomationProperties.GetName(provenance)); }
+                    var image = Descendants(view).OfType<Image>().First(i => ReferenceEquals(i.Source, thumbnail));
+                    image.BringIntoView(); Layout(); Render(view, theme, width, dpi, "saved-examples");
                     using var shell = MainWindowViewModelTests.PlaybookShell(f.Vm);
                     shell.NavigateCommand.Execute(NavigationDestination.Playbook); // Re-activation is only for this synthetic shell fixture.
                     f.Edit("owner-close guard");
@@ -110,6 +149,18 @@ public sealed class PlaybookViewTests
             var child = VisualTreeHelper.GetChild(root, i); yield return child;
             foreach (var descendant in Descendants(child)) yield return descendant;
         }
+    }
+    private static byte[] SyntheticChart(int width = 800, int height = 240)
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.DarkSlateGray, null, new Rect(0, 0, width, height));
+            for (int i = 0; i < 10; i++) dc.DrawRectangle(i % 3 == 0 ? Brushes.Coral : Brushes.LightGreen, null, new Rect(25 + i * 70, 35 + (i % 3) * 30, 28, 70));
+        }
+        var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); bitmap.Render(visual);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var output = new MemoryStream(); encoder.Save(output); return output.ToArray();
     }
     private static void Render(FrameworkElement view, string theme, int width, int dpi, string state)
     {

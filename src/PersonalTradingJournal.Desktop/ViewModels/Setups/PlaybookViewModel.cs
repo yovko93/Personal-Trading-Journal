@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Setups;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Domain.Setups;
+using PersonalTradingJournal.Desktop.Screenshots;
+using System.Collections.ObjectModel;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Setups;
 
@@ -14,7 +16,7 @@ public sealed class PlaybookField(string label) : ObservableObject
 }
 
 /// <summary>Authoring host for the existing Setup catalog; never classifies a Trade.</summary>
-public sealed class PlaybookViewModel : ObservableObject
+public sealed partial class PlaybookViewModel : ObservableObject
 {
     private readonly ITradingSetupReader _setups;
     private readonly ITradingSetupPlaybookStore _store;
@@ -36,16 +38,21 @@ public sealed class PlaybookViewModel : ObservableObject
 
     public PlaybookViewModel(ITradingSetupReader setups, ITradingSetupPlaybookStore store,
         ITradingSetupPlaybookHistoryReader history, SaveTradingSetupPlaybookUseCase save,
-        TradingSetupLifecycleUseCase lifecycle, IDialogService dialogs)
+        TradingSetupLifecycleUseCase lifecycle, IDialogService dialogs,
+        IPlaybookExampleImages? exampleImages = null, SavePlaybookExamplesUseCase? saveExamples = null)
     {
         _setups = setups; _store = store; _history = history; _save = save; _lifecycle = lifecycle; _dialogs = dialogs;
+        _exampleImages = exampleImages; _saveExamples = saveExamples;
+        AttachExampleCommand = new AsyncRelayCommand(AttachExampleAsync, () => IsEditing && !IsBusy && EditorExamples.Count < PlaybookGuidance.MaximumExamples && _exampleImages is not null);
+        RemoveExampleCommand = new RelayCommand<PlaybookExampleItem>(e => { if (e is not null) EditorExamples.Remove(e); AttachExampleCommand.NotifyCanExecuteChanged(); }, e => IsEditing && !IsBusy && e is not null);
+        ViewImageCommand = new AsyncRelayCommand<PlaybookExampleItem>(ViewImageAsync, e => !IsBusy && e?.HasImage == true && _exampleImages is not null);
         Fields = new[] { "Market context", "Entry conditions", "Confirmations", "Invalidation", "Execution guidance" }
             .Select(label => new PlaybookField(label)).ToArray();
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsWriting);
         EditCommand = new RelayCommand(BeginEdit, () => _ready && !IsBusy && !IsEditing && SelectedSetup?.IsActive == true && !IsHistorical);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditing && !IsBusy);
         CancelEditCommand = new RelayCommand(() => { if (TryLeave()) { IsEditing = false; Message = "Editing closed. No revision was saved."; } }, () => IsEditing && !IsWriting);
-        CancelOperationCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); ToggleArchiveCommand?.Cancel(); }, () => IsBusy);
+        CancelOperationCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); AttachExampleCommand.Cancel(); ViewImageCommand.Cancel(); ToggleArchiveCommand?.Cancel(); }, () => IsBusy);
         ToggleArchiveCommand = new AsyncRelayCommand(ToggleArchiveAsync, () => SelectedSetup is not null && _ready && !IsBusy && !IsEditing);
         ViewRevisionCommand = new RelayCommand<TradingSetupPlaybookRevision>(ShowRevision, r => r is not null && !IsBusy);
         ShowCurrentCommand = new RelayCommand(() => { _historical = null; Changed(); }, () => IsHistorical && !IsBusy);
@@ -61,13 +68,14 @@ public sealed class PlaybookViewModel : ObservableObject
     public bool IsHistorical => _historical is not null;
     public bool HasGuidance => DisplayedRevision is not null;
     public bool ShowReading => !IsEditing && HasGuidance;
-    public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); Changed(); } }
+    public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); if (!value) EditorExamples.Clear(); Changed(); } }
     public bool IsLoading { get => _loading; private set { SetProperty(ref _loading, value); Changed(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); Changed(); } }
     public bool IsBusy => IsLoading || IsWriting;
     public bool CanSelectSetup => !IsBusy;
     public bool CanEditFields => !IsWriting;
-    public bool HasUnsavedChanges => IsEditing && !Fields.Select(f => f.Text).SequenceEqual(_baseline);
+    public bool HasUnsavedChanges => IsEditing && (!Fields.Select(f => f.Text).SequenceEqual(_baseline) ||
+        !EditorExamples.Select(e => e.ExampleId).SequenceEqual(_exampleBaseline) || EditorExamples.Any(e => !e.IsUnchanged));
     public string Message { get => _message; private set => SetProperty(ref _message, value); }
     public string SetupState => SelectedSetup is null ? "No Setup selected" : SelectedSetup.IsActive ? "Active Setup" : "Archived Setup — reopen to edit guidance";
     public string ArchiveLabel => SelectedSetup?.IsActive == true ? "Archive Setup" : "Reopen Setup";
@@ -110,6 +118,7 @@ public sealed class PlaybookViewModel : ObservableObject
 
     public void Deactivate()
     {
+        _thumbnails?.Cancel();
         ++_generation; _read?.Cancel(); _read = null; IsLoading = false; IsEditing = false;
     }
 
@@ -167,8 +176,12 @@ public sealed class PlaybookViewModel : ObservableObject
         var g = _current?.Guidance;
         string[] values = g is null ? ["", "", "", "", ""] : [g.MarketContext, g.EntryConditions, g.Confirmations, g.Invalidation, g.ExecutionGuidance];
         for (int i = 0; i < Fields.Count; i++) Fields[i].Text = values[i];
+        EditorExamples.Clear();
+        foreach (var example in g?.Examples ?? []) EditorExamples.Add(new(example));
+        _ = LoadReadingThumbnailsAsync(EditorExamples.ToArray());
+        _exampleBaseline = EditorExamples.Select(e => e.ExampleId).ToArray();
         _baseline = values; IsEditing = true;
-        Message = "All five sections are required (up to 4,000 characters each). Existing example metadata is retained.";
+        Message = "All five sections are required (up to 4,000 characters each). Attach up to 12 charts; classify each and explain its context, condition and lesson.";
     }
 
     private async Task SaveAsync(CancellationToken token)
@@ -176,11 +189,17 @@ public sealed class PlaybookViewModel : ObservableObject
         // Snapshot the five fields and owning identity before the first await; editing is disabled during the write.
         var invalid = Fields.FirstOrDefault(f => string.IsNullOrWhiteSpace(f.Text) || f.Text.Trim().Length > PlaybookGuidance.MaximumFieldLength);
         if (invalid is not null) { Message = $"{invalid.Label}: enter meaningful text, up to 4,000 characters. Your text has been kept."; return; }
+        if (EditorExamples.Any(e => string.IsNullOrWhiteSpace(e.Annotation) || e.Annotation.Trim().Length > 4000 ||
+            (e.PendingBytes is not null && e.Kind == PlaybookExampleKind.Unspecified)))
+        { Message = "Each new chart needs Valid or Invalid and a meaningful annotation (up to 4,000 characters). Your examples and text are retained."; return; }
         IsWriting = true; Message = "Saving a new immutable revision…";
         try
         {
-            var guidance = new PlaybookGuidance(Fields[0].Text, Fields[1].Text, Fields[2].Text, Fields[3].Text, Fields[4].Text, _current?.Guidance.Examples);
-            var saved = await _save.ExecuteAsync(new(_selected!.Id, _current?.Revision ?? 0, guidance), token);
+            var guidance = new PlaybookGuidance(Fields[0].Text, Fields[1].Text, Fields[2].Text, Fields[3].Text, Fields[4].Text, EditorExamples.Select(e => e.ToDomain()));
+            var command = new SaveTradingSetupPlaybookCommand(_selected!.Id, _current?.Revision ?? 0, guidance);
+            var pending = EditorExamples.Where(e => e.PendingBytes is not null).Select(e => new NewPlaybookImage(e.ExampleId, e.FileName, e.PendingBytes!)).ToArray();
+            if (pending.Length > 0 && _saveExamples is null) throw new InvalidOperationException("Image saving is unavailable.");
+            var saved = _saveExamples is null ? await _save.ExecuteAsync(command, token) : await _saveExamples.ExecuteAsync(command, pending, token);
             _current = saved; IsEditing = false; ResetHistory();
             // A committed save is successful even if a later refresh fails.
             await LoadAsync(refreshCatalog: true);
@@ -195,6 +214,9 @@ public sealed class PlaybookViewModel : ObservableObject
         catch (ArgumentException) { Message = "Check all five sections: meaningful text, at most 4,000 characters each. Your text is retained."; }
         catch (InvalidOperationException) { Message = "The Setup or Playbook changed or was archived. Your text is retained. Copy it if needed, then Refresh to load the latest revision."; }
         catch (KeyNotFoundException) { Message = "The Setup is unavailable. Your text is retained; copy it before refreshing."; }
+        catch (PlaybookImageCleanupException) { Message = "Save failed and unused image cleanup could not finish. Your edits are retained; an unused file may remain. Try Save again."; }
+        catch (PersonalTradingJournal.Application.Screenshots.ScreenshotStagingCleanupException) { Message = "Image saving and partial-file cleanup failed. Your edits are retained; an unused partial file may remain. Check available storage and try Save again."; }
+        catch (Exception e) when (e is System.IO.IOException or System.IO.InvalidDataException) { Message = "An example image is missing, changed, unreadable, or could not be stored. Your edits are retained. Restore the image or remove that example from this revision and try again."; }
         catch (Exception) { Message = "Playbook could not be saved. Your text is retained. Try Save again or Refresh."; }
         finally { IsWriting = false; }
     }
@@ -231,9 +253,11 @@ public sealed class PlaybookViewModel : ObservableObject
 
     private void Changed()
     {
+        UpdateReadingExamples();
         foreach (string name in new[] { nameof(SelectedSetup), nameof(DisplayedRevision), nameof(IsHistorical), nameof(HasGuidance), nameof(ShowReading), nameof(IsBusy), nameof(CanSelectSetup), nameof(CanEditFields), nameof(SetupState), nameof(ArchiveLabel), nameof(EditLabel), nameof(VersionLabel), nameof(PageLabel) }) OnPropertyChanged(name);
         RefreshCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged();
         CancelEditCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged(); ToggleArchiveCommand?.NotifyCanExecuteChanged();
         ViewRevisionCommand?.NotifyCanExecuteChanged(); ShowCurrentCommand?.NotifyCanExecuteChanged(); NextPageCommand?.NotifyCanExecuteChanged(); PreviousPageCommand?.NotifyCanExecuteChanged();
+        AttachExampleCommand?.NotifyCanExecuteChanged(); RemoveExampleCommand?.NotifyCanExecuteChanged(); ViewImageCommand?.NotifyCanExecuteChanged();
     }
 }

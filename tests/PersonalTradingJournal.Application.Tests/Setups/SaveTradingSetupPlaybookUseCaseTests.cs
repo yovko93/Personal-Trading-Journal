@@ -3,7 +3,7 @@ using PersonalTradingJournal.Domain.Setups;
 
 namespace PersonalTradingJournal.Application.Tests.Setups;
 
-public sealed class SaveTradingSetupPlaybookUseCaseTests
+public sealed partial class SaveTradingSetupPlaybookUseCaseTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
     private static PlaybookGuidance Guidance() => new("context", "entry", "confirmation", "invalidation", "execution");

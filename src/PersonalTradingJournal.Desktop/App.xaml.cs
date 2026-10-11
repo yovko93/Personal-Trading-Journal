@@ -160,6 +160,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
             builder.Services.AddTransient<PlaybookViewModel>();
+            builder.Services.AddTransient<IPlaybookExampleImages, PlaybookExampleImages>();
             builder.Services.AddTransient<SettingsViewModel>();
             builder.Services.AddSingleton<IDataBackupInteraction, WpfDataBackupInteraction>();
             builder.Services.AddTransient(s => new DataBackupsViewModel(

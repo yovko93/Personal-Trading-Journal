@@ -1,5 +1,93 @@
 # Playbook — Domain, persistence and Desktop management
 
+## M17.4 — Annotated chart examples
+
+### Editor and viewing workflow
+
+Choose an active Setup, then **Create/Edit guidance → Attach chart image…**. Select a single-frame PNG, JPEG or WebP supported by the Windows image codec. Choose **Valid** or **Invalid** and write **Context, condition and lesson**: what the chart demonstrates, the confirmation (or failed condition), and what to learn. This reuses the M17.1 annotation field (meaningful, up to 4,000 characters); it does not add competing text fields or graphic overlays. Classification is explicitly **user-authored, not verified Trade adherence**. The existing five guidance sections remain required. Up to twelve examples may be saved per revision.
+
+Images are at most **8 MiB**, **8,192 pixels per side**, **16 million pixels**, and one frame. Invalid/empty/unsupported or oversized new images are rejected with a safe message before storage. Pending original bytes remain in bounded editor memory; the selected file is never modified or re-encoded. List thumbnails decode to at most 384 pixels on their longest side. **Open full-size chart** independently verifies stored bytes, decodes within the same bounds and opens a themed owned window with scrollbars, accessible annotation, Close image and Escape. Native codec execution itself is not forcibly interruptible; cancellation is checked around bounded reads/decoding. WebP availability depends on the installed Windows codec.
+
+**Save Playbook** stores new images and appends all guidance, classifications, notes and image metadata through the existing expected-revision transaction. Success closes editing and refreshes current/history. Missing/changed files, validation, conflicts, cancellation and storage failures keep all fields and pending images; Refresh remains the guarded recovery action. **Remove example** affects only the pending revision. **Cancel editing** saves nothing and uses the same explicit discard guard as Setup/history/navigation/window closing. Images count as unsaved work, including annotation/classification changes. Save/Cancel stays in the viewport; attachment brings the new classification into view, removal returns focus to Attach. Fields and actions remain scrollable/wrapping at narrow widths.
+
+Historical revisions show their exact saved classification, annotation and image reference. Legacy examples remain **Unspecified**, displayed as “Legacy example · not classified”; they are not relabeled valid automatically. Legacy source-Trade screenshot provenance remains unchanged. Missing images show a recoverable unavailable state while saved notes remain readable. No Trade linking, automatic checks, adherence claims or AI changes are included.
+
+### Persistence, retention and failure boundaries
+
+Additive migration **`20261011171154_AddPlaybookExampleImages`** adds optional file metadata and classification to `PlaybookExamples`, an indexed storage key, and an insert invariant trigger; existing immutable-update/delete triggers remain. `Kind` is 0 (legacy unspecified), 1 (valid), or 2 (invalid). Owned-image fields are storage key, original filename label, exact byte length and SHA-256. Either all image fields are absent or a complete positive-size, classified image is present. Owned images and legacy source-screenshot pins are distinct ownership modes. Existing frozen definition JSON remains contract version 1: optional default-omitted fields are backward-compatible and old canonical definitions are not rewritten.
+
+New files use the existing safe screenshot storage, random non-overwriting keys and temporary-file publication. Metadata/revision append is atomic in SQLite; the **filesystem and SQLite are not one transaction**. Save verifies frozen image size/hash under a SQLite writer reservation. On any failed/cancelled append, compensating cleanup checks both Trade and every historical Playbook reference before removing a newly stored file, using the screenshot capture lease and writer reservation. Cleanup failures are explicit and never discard editor state. Process termination between file publication and metadata commit can leave an unreferenced orphan; no destructive orphan collector is added. The database never intentionally publishes a reference before its file exists. External/manual file tampering is not prevented; read/save/backup detect missing or changed content.
+
+Every immutable revision retains its owned image. Removing an example from current guidance, archiving its Setup, or deleting an unrelated Trade does not free a historical image. Trade/screenshot/bulk-Account deletion excludes storage keys retained by owned examples, including case-insensitive aliases. Existing **source-screenshot pins** continue blocking deletion of their original screenshot/Trade. An image shared with a Trade is never physically deleted while either requires it.
+
+Backup inventory is the union of staged-database Trade screenshots and **all revision-owned image keys**, captured once per portable key. Producer and preflight compare bytes against frozen image size/hash as well as the manifest. Offline restore and recovery use this same path. Export v3 adds the five image/classification columns to JSON `playbookExamples`; images remain metadata-only in exports. No credentials or absolute paths enter the manifest. Pre-M17.4 archives are recognized older schemas but restore is deferred; installed databases migrate additively. See [backup details](backup-restore.md#m174--owned-playbook-images).
+
+### Verification and live limitations
+
+Tests use synthetic bytes and isolated migrated databases only. Domain/Application cases cover bounds, classifications, success, cancellation, stale/failed appends and compensation (including cleanup failure). SQLite cases cover exact bytes/history after removal and restart, frozen Trade context, shared-file retention through single/bulk deletion, missing/tampered files, metadata rollback, legacy migration/immutable JSON, export and backup → preflight → offline restore with a retained recovery archive. Desktop cases cover add/classify/view-target/save/remove, dirty guards, failure retention, count limits and current/historical states. Compiled WPF tests render Light/Dark at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, with required labels, keyboard-focusable actions, wrapping, decode bounds and scroll reachability.
+
+Final focused verification: **223 passed** — Domain 22, Application 15, Infrastructure 156, Desktop 30 — zero failures/skips (`artifacts/m174-final-focused`). Final complete **parallel** Release: **3,826/3,826 passed** — Domain 476, Application 726, Infrastructure 1,178, Desktop 1,446 (`artifacts/m174-final-full`); Infrastructure 3m48s, Desktop 4m42s. This includes **35 added cases**, with the existing compiled-WPF case extended rather than weakened. Release build: **0 warnings/errors** (`artifacts/m174-release-build.log`). EF reports no pending model changes; tracked and new-file whitespace checks pass.
+
+Twenty synthetic renders were generated in `artifacts/m174-renders`; normal/narrow Light/Dark example-editor and saved-example outputs were visually inspected. Rendering revealed a default-black provenance label in Dark mode and blank thumbnail space for image-less legacy notes; these were fixed with theme foreground and image visibility bindings, with regression assertions. Storage review added a controlled interleaving regression: commit Trade deletion, save a new Playbook reference to the still-existing file, then perform delayed cleanup. The production file service now rechecks both reference catalogs under the capture/writer locks and retains the image. No test assertion, deadline or isolation protection was removed. An earlier 3,825-test full run also passed, but the final result above includes that additional regression and fix.
+
+Automated rendering is not live interaction. Remaining manual checks: native image picker; actual Tab/Shift+Tab and attachment/removal focus; full-size window scrolling/Escape/Close and return focus; Windows WebP codec; screen-reader narration; touchpad/physical high-DPI behavior. No production data, provider request or Git write was used. Matching GitHub Actions remains a separate gate after the user's commit/push. Branch/HEAD remain **`develop` / `e1accad6aeaa25b159bb554fb6a8844fd278dae0`**. The initial worktree was clean (M17.1–M17.3 were already committed); final worktree contains **34 modified tracked files and 16 new files**, all uncommitted.
+
+
+### Exact M17.4 changed files
+
+Paths below are repository-relative; the starting worktree was clean. The migration, backup/export updates and deletion-retention checks are needed to preserve the newly owned images beyond the editor.
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Screenshots/ITradeScreenshotFileStorage.cs`
+- `src/PersonalTradingJournal.Application/Screenshots/ScreenshotStagingCleanupException.cs`
+- `src/PersonalTradingJournal.Application/Setups/IPlaybookImageStorage.cs`
+- `src/PersonalTradingJournal.Application/Setups/SavePlaybookExamplesUseCase.cs`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Screenshots/PlaybookExampleImages.cs`
+- `src/PersonalTradingJournal.Desktop/Screenshots/WpfTradeScreenshotFilePicker.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookExampleItem.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.Examples.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml.cs`
+- `src/PersonalTradingJournal.Domain/Setups/PlaybookExample.cs`
+- `src/PersonalTradingJournal.Domain/Setups/PlaybookExampleImage.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/BackupArchiveService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/RestorePreflightService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/PlaybookRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Mapping/PlaybookPersistenceMapper.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011171154_AddPlaybookExampleImages.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011171154_AddPlaybookExampleImages.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/PlaybookRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/LocalTradeScreenshotFileStorage.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/RetainedScreenshotFileStorage.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/TradeScreenshotDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/PlaybookImageStorage.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/TradingSetupPlaybookStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/AccountTradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeDeletionStore.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Setups/SavePlaybookExamplesTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Setups/SaveTradingSetupPlaybookUseCaseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookExampleEditorTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Domain.Tests/Setups/PlaybookExampleImageTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/PersistenceRegistrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookImagePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Screenshots/LocalTradeScreenshotFileStorageTests.cs`
+
 ## M17.3 — Desktop Playbook management
 
 The existing **Planning → Playbook** destination is now a usable page, not a placeholder. It reads the same `TradingSetup` catalog used by Trade classification and Trading Setups. Create/rename Setup identities in Trading Setups; this page adds no competing catalog. Active and archived Setups are selectable, including those without any guidance.
@@ -7,7 +95,7 @@ The existing **Planning → Playbook** destination is now a usable page, not a p
 ### Workflow and safeguards
 
 1. Select a Setup. Current guidance shows its numbered revision and five readable sections: market context, entry conditions, confirmations, invalidation and execution guidance. No guidance is a valid empty state, not a reason to disable the Setup elsewhere.
-2. Choose **Create guidance** or **Edit guidance** on an active Setup. All five fields require meaningful text, at most 4,000 characters after existing Domain normalization. No input is silently truncated. Existing example annotations and original provenance are displayed and preserved unchanged on Save; adding/annotating images is deferred to M17.4.
+2. Choose **Create guidance** or **Edit guidance** on an active Setup. All five fields require meaningful text, at most 4,000 characters after existing Domain normalization. No input is silently truncated. M17.3 preserved existing example metadata; M17.4 above adds image/annotation editing.
 3. **Save Playbook** (also Ctrl+S) calls `SaveTradingSetupPlaybookUseCase` with the revision loaded when editing began. Success appends atomically and closes editing. If the post-commit list refresh fails, the committed guidance is still shown with an explicit saved-but-refresh-failed message; a retry cannot accidentally imply the original save failed.
 4. Validation, cancellation, stale revision/archived owner, unavailable Setup and storage errors retain all five entered fields. Conflict recovery is explicit **Refresh**: copy local text if needed, then accept the existing discard confirmation to read the latest version. No automatic merge or force overwrite is offered.
 5. **Cancel editing** saves nothing and asks before discarding changed fields. Change-then-revert is clean. Setup switching, revision/page switching, Refresh, destination navigation and main-window closing use the same guard. A veto keeps selection, editor and text intact. An in-progress write blocks leaving; **Cancel operation** requests cancellation under the repository's pre-commit rules. Reads are cancelled/invalidation-tagged on deactivation so late results cannot replace a newer selection.

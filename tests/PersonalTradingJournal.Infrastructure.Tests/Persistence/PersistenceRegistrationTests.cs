@@ -303,7 +303,7 @@ public sealed class PersistenceRegistrationTests
         Assert.IsType<TradeScreenshotDeletionStore>(firstDeletionStore);
         Assert.IsType<TradeScreenshotReader>(firstReader);
         Assert.IsType<TradeScreenshotContentReader>(firstContentReader);
-        Assert.IsType<LocalTradeScreenshotFileStorage>(firstFileStorage);
+        Assert.IsType<RetainedScreenshotFileStorage>(firstFileStorage);
         Assert.NotSame(firstExistenceReader, secondExistenceReader);
         Assert.NotSame(firstStore, secondStore);
         Assert.NotSame(firstDeletionStore, secondDeletionStore);

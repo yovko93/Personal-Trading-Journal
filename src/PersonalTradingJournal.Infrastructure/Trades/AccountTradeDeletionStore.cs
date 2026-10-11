@@ -51,7 +51,8 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         if (count != confirmed.TradeCount) throw new InvalidOperationException("Trade set changed during deletion.");
         // Storage keys are normally unique GUID filenames. Protect surviving references even
         // if a legacy/imported database contains shared keys.
-        var retainedKeys = await db.TradeScreenshots.Select(s => s.StorageKey).Distinct().ToArrayAsync(cancellationToken);
+        var retainedKeys = await db.TradeScreenshots.Select(s => s.StorageKey)
+            .Concat(db.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!)).Distinct().ToArrayAsync(cancellationToken);
         var cleanup = current.StorageKeys.Except(retainedKeys, StringComparer.OrdinalIgnoreCase).ToArray();
         await transaction.CommitAsync(cancellationToken);
         return new(AccountTradeDeletionStatus.Deleted, count, cleanup);

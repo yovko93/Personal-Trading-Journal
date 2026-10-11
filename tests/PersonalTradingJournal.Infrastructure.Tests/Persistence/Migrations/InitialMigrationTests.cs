@@ -26,6 +26,7 @@ public sealed partial class InitialMigrationTests
     private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
     private const string CoachingAnalysisMigrationId = "20261008195353_AddCoachingAnalysisSnapshots";
     private const string PlaybookMigrationId = "20261011154034_AddPlaybookHistory";
+    private const string PlaybookImagesMigrationId = "20261011171154_AddPlaybookExampleImages";
 
     private static readonly DateTimeOffset CreatedAtUtc =
         new DateTimeOffset(2026, 9, 8, 12, 0, 0, TimeSpan.Zero)
@@ -42,6 +43,7 @@ public sealed partial class InitialMigrationTests
             ["PlaybookExamples"] =
             [
                 "TradingSetupId", "Revision", "ExampleId", "Position", "Annotation", "SourceTradeId", "SourceScreenshotId",
+                "ImageFileName", "ImageSha256", "ImageSizeBytes", "ImageStorageKey", "Kind",
             ],
             ["TradePlaybookContexts"] =
             [
@@ -130,7 +132,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -142,7 +144,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(10L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(11L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -535,7 +537,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();

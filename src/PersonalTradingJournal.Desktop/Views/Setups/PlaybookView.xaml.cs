@@ -29,6 +29,16 @@ public partial class PlaybookView : UserControl
     }
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PlaybookViewModel.IsWriting) && sender is PlaybookViewModel { IsWriting: false, IsEditing: true } editor && editor.AttachExampleCommand.IsRunning)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!IsLoaded || !ReferenceEquals(DataContext, editor) || !editor.IsEditing) return;
+                var classification = Descendants(ExampleRows).OfType<ComboBox>().LastOrDefault();
+                classification?.BringIntoView(); classification?.Focus();
+            });
+            return;
+        }
         if (e.PropertyName != nameof(PlaybookViewModel.IsEditing) &&
             !(e.PropertyName == nameof(PlaybookViewModel.IsWriting) && sender is PlaybookViewModel { IsWriting: false, IsEditing: false })) return;
         Dispatcher.BeginInvoke(() =>
@@ -46,6 +56,11 @@ public partial class PlaybookView : UserControl
             }
         });
     }
+    private void OnRemoveExample(object sender, RoutedEventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        if (!IsLoaded) return;
+        AttachExample.BringIntoView(); AttachExample.Focus();
+    });
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
         // Let a multiline editor consume its own scroll until it reaches an edge.

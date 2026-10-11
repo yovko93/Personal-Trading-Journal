@@ -44,6 +44,11 @@ public sealed class PlaybookExampleRecordConfiguration : IEntityTypeConfiguratio
         b.HasKey(r => new { r.TradingSetupId, r.Revision, r.ExampleId });
         b.Property(r => r.ExampleId).ValueGeneratedNever();
         b.Property(r => r.Annotation).HasMaxLength(4000).IsRequired();
+        b.Property(r => r.Kind).HasDefaultValue(0);
+        b.Property(r => r.ImageStorageKey).HasMaxLength(180);
+        b.Property(r => r.ImageFileName).HasMaxLength(180);
+        b.Property(r => r.ImageSha256).HasMaxLength(64);
+        b.HasIndex(r => r.ImageStorageKey);
         b.HasIndex(r => new { r.TradingSetupId, r.Revision, r.Position }).IsUnique();
         b.HasOne<PlaybookRevisionRecord>().WithMany().HasForeignKey(r => new { r.TradingSetupId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
         // An immutable historical reference pins the existing Trade-owned screenshot metadata/file.

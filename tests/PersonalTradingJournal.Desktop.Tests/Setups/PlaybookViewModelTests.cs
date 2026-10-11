@@ -174,10 +174,12 @@ internal sealed class PlaybookFixture
     internal readonly TradingSetup Setup = new("NQ pullback", "Existing catalog", FixedTimeProvider.FixedUtcNow.AddDays(-1));
     internal readonly TradingSetup Other = new("NQ range", null, FixedTimeProvider.FixedUtcNow.AddDays(-1));
     internal PlaybookViewModel Vm { get; }
-    internal PlaybookFixture()
+    internal PlaybookFixture(PersonalTradingJournal.Desktop.Screenshots.IPlaybookExampleImages? images = null, IPlaybookImageStorage? storage = null)
     {
         Data.Setups.AddRange([Setup, Other]);
-        Vm = new(Data, Data, Data, new(Data, Data, new FixedTimeProvider()), new(Data, new FixedTimeProvider()), Dialogs);
+        var save = new SaveTradingSetupPlaybookUseCase(Data, Data, new FixedTimeProvider());
+        Vm = new(Data, Data, Data, save, new(Data, new FixedTimeProvider()), Dialogs, images,
+            storage is null ? null : new SavePlaybookExamplesUseCase(save, storage));
     }
     internal async Task OpenAsync() { await Vm.ActivateAsync(); Vm.TrySelectSetup(Data.Row(Setup)); await Vm.LoadTask; }
     internal void Edit(string text) { Vm.EditCommand.Execute(null); foreach (var f in Vm.Fields) f.Text = text; }

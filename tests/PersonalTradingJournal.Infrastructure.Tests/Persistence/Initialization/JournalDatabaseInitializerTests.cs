@@ -25,6 +25,7 @@ public sealed class JournalDatabaseInitializerTests
     private const string DailyReviewMigrationId = "20261004165044_AddDailyJournalReviewAnswers";
     private const string CoachingAnalysisMigrationId = "20261008195353_AddCoachingAnalysisSnapshots";
     private const string PlaybookMigrationId = "20261011154034_AddPlaybookHistory";
+    private const string PlaybookImagesMigrationId = "20261011171154_AddPlaybookExampleImages";
 
     [Fact]
     public async Task InitializeAsyncCreatesMigratedUsableEmptyDatabase()
@@ -55,7 +56,7 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
@@ -124,7 +125,7 @@ public sealed class JournalDatabaseInitializerTests
                 Assert.Equal(
                     [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                         TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -138,7 +139,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(10L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(11L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

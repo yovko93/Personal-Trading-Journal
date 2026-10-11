@@ -26,7 +26,7 @@ using PersonalTradingJournal.Infrastructure.Storage;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Setups;
 
-public sealed class PlaybookPersistenceTests
+public sealed partial class PlaybookPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
     private static PlaybookGuidance Guidance(params PlaybookExample[] examples) =>
@@ -329,7 +329,7 @@ public sealed class PlaybookPersistenceTests
     }
 
     [Fact]
-    public async Task LogicalExportVersionTwoPreservesAllPlaybookFieldsAndExactFrozenDefinition()
+    public async Task LogicalExportVersionThreePreservesAllPlaybookFieldsAndExactFrozenDefinition()
     {
         await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await f.Save(g, true);
         Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
@@ -337,7 +337,7 @@ public sealed class PlaybookPersistenceTests
         string output = Path.Combine(f.Root, "export");
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(output)).Succeeded);
         using var data = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(2, data.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(3, data.RootElement.GetProperty("version").GetInt32());
         var tables = data.RootElement.GetProperty("tables");
         var revisions = tables.GetProperty("playbookRevisions");
         Assert.Equal(new[] { 1, 2 }, revisions.EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));
@@ -451,7 +451,7 @@ public sealed class PlaybookPersistenceTests
             try
             {
                 await using var db = f.Context();
-                string? target = preM17 ? db.Database.GetMigrations().Reverse().Skip(1).First() : null;
+                string? target = preM17 ? "20261008195353_AddCoachingAnalysisSnapshots" : null;
                 await db.GetService<IMigrator>().MigrateAsync(target);
                 return f;
             }

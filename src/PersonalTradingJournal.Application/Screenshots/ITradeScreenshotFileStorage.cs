@@ -18,6 +18,7 @@ public interface ITradeScreenshotFileStorage
         string storageKey,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Compensating cleanup. Production storage retains files still referenced by a Trade or any Playbook revision.</summary>
     Task DeleteIfExistsAsync(
         string storageKey,
         CancellationToken cancellationToken = default);

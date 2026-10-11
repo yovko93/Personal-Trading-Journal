@@ -66,16 +66,22 @@
                     <TextBlock Text="{Binding DisplayedRevision.Guidance.Invalidation}" Style="{StaticResource Body}" Margin="0,4,0,16" />
                     <TextBlock Text="Execution guidance" Style="{StaticResource SectionHeading}" />
                     <TextBlock Text="{Binding DisplayedRevision.Guidance.ExecutionGuidance}" Style="{StaticResource Body}" Margin="0,4,0,16" />
-                        <ItemsControl ItemsSource="{Binding DisplayedRevision.Guidance.Examples}">
+                        <ItemsControl ItemsSource="{Binding ReadingExamples}">
                             <ItemsControl.ItemTemplate><DataTemplate>
                                 <StackPanel Margin="0,4,0,12">
-                                    <TextBlock Text="Annotated example (metadata)" Style="{StaticResource SectionHeading}" />
+                                    <TextBlock Text="{Binding KindLabel}" Style="{StaticResource SectionHeading}" />
+                                    <Image Source="{Binding Thumbnail}" Height="180" MaxWidth="384" Stretch="Uniform" HorizontalAlignment="Left" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}"
+                                           AutomationProperties.Name="{Binding Annotation}" />
+                                    <TextBlock Text="{Binding ImageState}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" />
                                     <TextBlock Text="{Binding Annotation}" Style="{StaticResource Body}" />
-                                    <Expander Header="Example provenance">
+                                    <Button Content="Open full-size chart" HorizontalAlignment="Left" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}"
+                                            Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                            AutomationProperties.Name="{Binding KindLabel, StringFormat='Open full-size chart: {0}'}" />
+                                    <Expander Header="Example provenance" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Example provenance">
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Id, StringFormat='Example: {0}'}" Style="{StaticResource Body}" />
-                                            <TextBlock Text="{Binding SourceTradeId, StringFormat='Trade: {0}'}" Style="{StaticResource Body}" />
-                                            <TextBlock Text="{Binding SourceScreenshotId, StringFormat='Screenshot: {0}'}" Style="{StaticResource Body}" />
+                                            <TextBlock Text="{Binding ExampleId, StringFormat='Example: {0}'}" Style="{StaticResource Body}" />
+                                            <TextBlock Text="{Binding Source.SourceTradeId, StringFormat='Trade: {0}'}" Style="{StaticResource Body}" />
+                                            <TextBlock Text="{Binding Source.SourceScreenshotId, StringFormat='Screenshot: {0}'}" Style="{StaticResource Body}" />
                                         </StackPanel>
                                     </Expander>
                                 </StackPanel>
@@ -97,6 +103,34 @@
                         </StackPanel>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <StackPanel x:Name="ExampleEditor" MaxWidth="760" HorizontalAlignment="Stretch" IsEnabled="{Binding CanEditFields}"
+                            Visibility="{Binding IsEditing, Converter={StaticResource VisibleIf}}">
+                    <TextBlock Text="Chart examples" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="Optional · up to 12 images. Mark Valid or Invalid and explain the context, confirmation or failed condition, and lesson. This is your classification, not verified adherence. Original image bytes are kept unchanged." Style="{StaticResource Body}" Margin="0,4,0,12" />
+                    <Button x:Name="AttachExample" Content="Attach chart image…" Command="{Binding AttachExampleCommand}" HorizontalAlignment="Left" AutomationProperties.Name="Attach Playbook chart image" />
+                    <ItemsControl x:Name="ExampleRows" ItemsSource="{Binding EditorExamples}">
+                        <ItemsControl.ItemTemplate><DataTemplate>
+                            <Border Padding="12" Margin="0,0,0,12" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource PtjBorderBrush}" Background="{DynamicResource PtjSurfaceBrush}">
+                                <StackPanel>
+                                    <Image Source="{Binding Thumbnail}" Height="150" MaxWidth="384" Stretch="Uniform" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Annotation}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" />
+                                    <TextBlock Text="{Binding ImageState}" Style="{StaticResource Body}" />
+                                    <Label Content="Example classification" Target="{Binding ElementName=ExampleKind}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                    <ComboBox x:Name="ExampleKind" ItemsSource="{Binding Kinds}" SelectedItem="{Binding Kind}" Style="{StaticResource PtjComboBoxStyle}" MaxWidth="260" HorizontalAlignment="Left" MinWidth="180"
+                                              AutomationProperties.Name="Example classification: Valid or Invalid" AutomationProperties.IsRequiredForForm="True" />
+                                    <Label Content="Context, condition and lesson" Target="{Binding ElementName=Annotation}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                    <TextBox x:Name="Annotation" Text="{Binding Annotation, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap"
+                                             Height="112" MinHeight="84" VerticalContentAlignment="Top" Padding="12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" FontSize="16"
+                                             AutomationProperties.Name="Example annotation: context, condition and lesson" AutomationProperties.IsRequiredForForm="True" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Content="Open full-size chart" Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" />
+                                        <Button Content="Remove example" Click="OnRemoveExample" Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                AutomationProperties.HelpText="Removes this example from the pending revision only. Historical images and notes are retained." />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate></ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
                 <TextBlock Text="Immutable revisions" Style="{StaticResource SectionHeading}" Margin="0,20,0,8" />
                 <ItemsControl x:Name="History" ItemsSource="{Binding Revisions}">
                     <ItemsControl.ItemTemplate><DataTemplate>

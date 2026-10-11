@@ -8,7 +8,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Setups;
 
-public sealed class TradingSetupPlaybookStore(IDbContextFactory<JournalDbContext> factory)
+public sealed class TradingSetupPlaybookStore(IDbContextFactory<JournalDbContext> factory, IPlaybookImageStorage? images = null)
     : ITradingSetupPlaybookStore, ITradingSetupPlaybookHistoryReader
 {
     public async Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid tradingSetupId, CancellationToken cancellationToken = default) =>
@@ -50,6 +50,13 @@ public sealed class TradingSetupPlaybookStore(IDbContextFactory<JournalDbContext
         // Reserve the SQLite writer before reading any mutable owner or current revision.
         await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);
         await db.Database.UseTransactionAsync(transaction, cancellationToken);
+        // Cleanup takes the same writer reservation before checking references. Once verified,
+        // an application cleanup cannot remove an image between this check and the commit.
+        foreach (var example in revision.Guidance.Examples.Where(e => e.Image is not null))
+        {
+            if (images is null) throw new InvalidOperationException("Playbook image storage is unavailable.");
+            _ = await images.ReadAsync(example.Image!, cancellationToken);
+        }
         var setup = await db.TradingSetups.AsNoTracking().SingleOrDefaultAsync(s => s.Id == revision.TradingSetupId, cancellationToken);
         if (setup is null || !setup.IsActive || setup.UpdatedAtUtc != expectedSetupUpdatedAtUtc ||
             setup.Name != revision.SetupName || setup.Description != revision.SetupDescription || revision.RecordedAtUtc < setup.UpdatedAtUtc)
