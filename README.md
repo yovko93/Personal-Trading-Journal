@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M17.3 — Desktop Playbook management**
+
+The Playbook destination now uses the existing Trading Setup catalog: select an active or archived Setup, read current guidance, create/edit its five required sections, and browse immutable revisions (10 per page). Historical guidance is clearly read-only and retains its frozen Setup name. Save appends through the existing expected-revision contract, retains example metadata, closes editing on success, and keeps entered text on validation, cancellation, conflict or storage failure. Refresh offers guarded recovery; Setup switching, navigation and main-window closing protect unsaved work, and in-progress writes block leaving. Archive/Reopen uses the existing Setup lifecycle without deleting history or altering Trade context.
+
+Long-form reading is constrained to 760 DIP; the themed editor has compact multiline fields, scroll routing, accessible section labels, Ctrl+S, and a persistent Save/Cancel row. Existing example annotations/provenance are read-only; image authoring remains M17.4. There are no new Trade-linking commands, adherence claims, rule checks, AI requests, migrations or persistence changes. See [Playbook workflow and verification](docs/playbook.md#m173--desktop-playbook-management) for automated results and live-interaction limits.
+
+Local M17.3 verification: **101 focused tests** and **3,791/3,791 full parallel Release tests** passed, zero failures/skips. Release build: **0 warnings/errors**. Compiled-WPF current/history/editor renders cover Light/Dark at 960 DIP / 96 DPI and 480 DIP / 240 DPI. EF consistency and whitespace checks pass. Live keyboard/mouse/screen-reader acceptance and matching GitHub CI remain separate, unverified gates; all local fixtures are synthetic.
+
 **M17.2 — Playbook persistence and frozen Trade context**
 
 The additive `AddPlaybookHistory` migration persists owned Setup guidance revisions, ordered example annotations/provenance, and complete frozen Trade-context values. Existing Setups need no guidance; existing Trades/classifications/screenshots are not rewritten. Explicit guidance saves use a SQLite writer transaction with expected-revision and owner-state checks; immutable-history triggers prohibit rewriting/deleting revisions and reusing their numbers. Historical reads are bounded and work after Setup rename/archive. Repository/DI wiring is available; no Desktop authoring, Trade-linking command, automatic rule checking or AI integration is added.

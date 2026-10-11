@@ -1,4 +1,47 @@
-# Playbook — Domain, Application and persistence
+# Playbook — Domain, persistence and Desktop management
+
+## M17.3 — Desktop Playbook management
+
+The existing **Planning → Playbook** destination is now a usable page, not a placeholder. It reads the same `TradingSetup` catalog used by Trade classification and Trading Setups. Create/rename Setup identities in Trading Setups; this page adds no competing catalog. Active and archived Setups are selectable, including those without any guidance.
+
+### Workflow and safeguards
+
+1. Select a Setup. Current guidance shows its numbered revision and five readable sections: market context, entry conditions, confirmations, invalidation and execution guidance. No guidance is a valid empty state, not a reason to disable the Setup elsewhere.
+2. Choose **Create guidance** or **Edit guidance** on an active Setup. All five fields require meaningful text, at most 4,000 characters after existing Domain normalization. No input is silently truncated. Existing example annotations and original provenance are displayed and preserved unchanged on Save; adding/annotating images is deferred to M17.4.
+3. **Save Playbook** (also Ctrl+S) calls `SaveTradingSetupPlaybookUseCase` with the revision loaded when editing began. Success appends atomically and closes editing. If the post-commit list refresh fails, the committed guidance is still shown with an explicit saved-but-refresh-failed message; a retry cannot accidentally imply the original save failed.
+4. Validation, cancellation, stale revision/archived owner, unavailable Setup and storage errors retain all five entered fields. Conflict recovery is explicit **Refresh**: copy local text if needed, then accept the existing discard confirmation to read the latest version. No automatic merge or force overwrite is offered.
+5. **Cancel editing** saves nothing and asks before discarding changed fields. Change-then-revert is clean. Setup switching, revision/page switching, Refresh, destination navigation and main-window closing use the same guard. A veto keeps selection, editor and text intact. An in-progress write blocks leaving; **Cancel operation** requests cancellation under the repository's pre-commit rules. Reads are cancelled/invalidation-tagged on deactivation so late results cannot replace a newer selection.
+6. **Archive Setup / Reopen Setup** uses the existing activation policy and confirmation. Archived guidance and history remain readable; reopen before editing. Trade classifications, frozen context and immutable history are not changed by this lifecycle action.
+7. **Immutable revisions** uses descending numbered history with exclusive cursors: ten rows plus one look-ahead, never the whole history. **View revision** opens the frozen version in a distinct shaded, read-only panel; **Return to current** returns to current guidance. Browsing never creates a revision and there is no revision deletion action.
+
+The main shell remains the only page heading. Prose/editing is limited to a comfortable 760-DIP width; fields are 112 DIP high with internal text scrolling. The main vertical scroller receives wheel input at field edges. Save/Cancel stays outside the content scroller at the bottom of the viewport. Toolbars and history controls wrap at narrow widths. Controls carry accessible names and required-field labels, status uses a polite live region, and shared Light/Dark resources supply focus and contrast. Historical labels and disabled authoring controls distinguish history by more than color.
+
+No Trade-linking command, adherence assessment, executable rule, AI prompt/request, new persistence rule or migration is introduced. A link or snapshot remains **not proof that a plan was followed**. M17.2 retention and pre-M17 archive compatibility limits below remain unchanged.
+
+### M17.3 verification and remaining acceptance
+
+Focused verification: **101 passed** (13 Domain, 8 Application, 34 Infrastructure, 46 Desktop), zero failures/skips in `artifacts/m173-focused-verified`. There are **23 new Desktop cases** covering empty/current/history states, all five required fields and overlength retention, exact revision Save/example preservation, conflicts, cancellation, storage/read failures, post-commit refresh failure, stale/deactivated reads, archive/reopen, page cursors, unchanged/dirty navigation and owner-close guards. The compiled-view case covers both themes at 960 DIP / 96 DPI and 480 DIP / 240 DPI, text binding, selector veto/rollback, accessibility labels, Ctrl+S, visible action geometry, wheel/bottom reachability and the actual `MainWindow.OnClosing` override. Twelve current/historical/editor renders were generated; representative normal and narrow Light/Dark outputs were visually inspected in `artifacts/m173-renders`.
+
+The first render assertion incorrectly used native `IsVisible` on a detached visual; it now checks actual visibility bindings, nonzero geometry and viewport bounds. A broader sandbox navigation check passed 214 cases but failed two pre-existing synthetic AI/DPAPI flows; the direct synthetic credential Save test also failed under the sandbox. The same credential and acceptance tests passed outside the sandbox without code changes, real keys or HTTP. No assertions, harness deadlines or concurrency protections were relaxed.
+
+Final complete parallel Release: **3,791/3,791 passed**, zero failures/skips — Domain **467**, Application **719**, Infrastructure **1,166**, Desktop **1,439** (`artifacts/m173-full`). Infrastructure took 2m45s; Desktop 3m36s. Final Release build: **0 warnings/errors**, 3.12s. EF model consistency reports no pending changes. Tracked and new-file whitespace checks pass. The starting worktree was clean on `develop`, HEAD `6b5c012e5d4a5a25b8c8c856f84b1311fd2681ae`; M17.1/M17.2 were already committed and remain intact. M17.3 changes are uncommitted; no commit/push/merge was performed.
+
+All fixtures are synthetic; no production journal or provider is used. Detached compiled-WPF rendering and invoking `MainWindow.OnClosing` are automated evidence, not live mouse/keyboard or screen-reader acceptance. Live checks still required: Tab/Shift+Tab through the Setup selector, editor and revision pages; focus after Save/Cancel; actual mouse/touchpad scrolling in long fields; discard confirmation veto/acceptance on navigation and window close; and a physical minimum-width window on a 240-DPI desktop. Matching GitHub Actions cannot verify uncommitted changes; a run after the user's commit/push is a separate gate.
+
+Exact M17.3 files (relative to the repository):
+
+- `README.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/PlaybookNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
 
 ## M17.2 — SQLite persistence and historical snapshots
 

@@ -1,0 +1,125 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Setups.PlaybookView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource PtjBackgroundBrush}" FontSize="16" DataContextChanged="OnDataContextChanged">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleIf" />
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+        <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+            <Setter Property="FontSize" Value="16" /><Setter Property="LineHeight" Value="24" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="SectionHeading" TargetType="TextBlock" BasedOn="{StaticResource Body}">
+            <Setter Property="FontSize" Value="20" /><Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="AutomationProperties.HeadingLevel" Value="Level2" />
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+            <Setter Property="Margin" Value="0,0,8,8" />
+        </Style>
+    </UserControl.Resources>
+    <UserControl.InputBindings><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" /></UserControl.InputBindings>
+    <Grid Margin="0,0,8,0">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <WrapPanel>
+            <StackPanel Width="260" Margin="0,0,12,8">
+                <Label Content="_Trading Setup" Target="{Binding ElementName=SetupSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <ComboBox x:Name="SetupSelector" ItemsSource="{Binding Setups}" SelectedItem="{Binding SelectedSetup, Mode=OneWay}"
+                          DisplayMemberPath="Name" SelectionChanged="OnSetupChanged" IsEnabled="{Binding CanSelectSetup}"
+                          Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Trading Setup for Playbook"
+                          AutomationProperties.HelpText="Uses the existing Trading Setup catalog, including archived Setups." />
+            </StackPanel>
+            <Button Content="_Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="Refresh Playbook and Setup catalog" />
+            <Button Content="{Binding ArchiveLabel}" Command="{Binding ToggleArchiveCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding ArchiveLabel}" />
+            <Button Content="Cancel operation" Command="{Binding CancelOperationCommand}" VerticalAlignment="Bottom"
+                    Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel Playbook loading or saving" />
+        </WrapPanel>
+        <TextBlock Grid.Row="1" x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,0,0,12"
+                   AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Message}" />
+        <ScrollViewer Grid.Row="2" x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                      PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Playbook content scrolling">
+            <StackPanel Margin="0,0,12,12">
+                <TextBlock Text="{Binding SelectedSetup.Name}" Style="{StaticResource SectionHeading}" />
+                <TextBlock Text="{Binding SetupState}" Style="{StaticResource Body}" Margin="0,4,0,8" />
+                <WrapPanel>
+                    <Button x:Name="EditGuidance" Content="{Binding EditLabel}" Command="{Binding EditCommand}" AutomationProperties.Name="Create or edit current Playbook guidance" />
+                    <Button Content="Return to current" Command="{Binding ShowCurrentCommand}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" />
+                </WrapPanel>
+                <Border x:Name="ReadingPanel" Padding="16" CornerRadius="8" BorderBrush="{DynamicResource PtjBorderBrush}"
+                        Visibility="{Binding ShowReading, Converter={StaticResource VisibleIf}}">
+                    <Border.Style><Style TargetType="Border">
+                        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="BorderThickness" Value="1" />
+                        <Style.Triggers><DataTrigger Binding="{Binding IsHistorical}" Value="True">
+                            <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+                            <Setter Property="BorderThickness" Value="4,1,1,1" />
+                        </DataTrigger></Style.Triggers>
+                    </Style></Border.Style>
+                    <StackPanel MaxWidth="760" HorizontalAlignment="Stretch">
+                        <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Style="{StaticResource SectionHeading}" Foreground="{DynamicResource PtjAccentBrush}" />
+                        <TextBlock Text="{Binding DisplayedRevision.SetupName}" Style="{StaticResource Body}" Margin="0,4,0,8" />
+                    <TextBlock Text="Market context" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="{Binding DisplayedRevision.Guidance.MarketContext}" Style="{StaticResource Body}" Margin="0,4,0,16" />
+                    <TextBlock Text="Entry conditions" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="{Binding DisplayedRevision.Guidance.EntryConditions}" Style="{StaticResource Body}" Margin="0,4,0,16" />
+                    <TextBlock Text="Confirmations" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="{Binding DisplayedRevision.Guidance.Confirmations}" Style="{StaticResource Body}" Margin="0,4,0,16" />
+                    <TextBlock Text="Invalidation" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="{Binding DisplayedRevision.Guidance.Invalidation}" Style="{StaticResource Body}" Margin="0,4,0,16" />
+                    <TextBlock Text="Execution guidance" Style="{StaticResource SectionHeading}" />
+                    <TextBlock Text="{Binding DisplayedRevision.Guidance.ExecutionGuidance}" Style="{StaticResource Body}" Margin="0,4,0,16" />
+                        <ItemsControl ItemsSource="{Binding DisplayedRevision.Guidance.Examples}">
+                            <ItemsControl.ItemTemplate><DataTemplate>
+                                <StackPanel Margin="0,4,0,12">
+                                    <TextBlock Text="Annotated example (metadata)" Style="{StaticResource SectionHeading}" />
+                                    <TextBlock Text="{Binding Annotation}" Style="{StaticResource Body}" />
+                                    <Expander Header="Example provenance">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Id, StringFormat='Example: {0}'}" Style="{StaticResource Body}" />
+                                            <TextBlock Text="{Binding SourceTradeId, StringFormat='Trade: {0}'}" Style="{StaticResource Body}" />
+                                            <TextBlock Text="{Binding SourceScreenshotId, StringFormat='Screenshot: {0}'}" Style="{StaticResource Body}" />
+                                        </StackPanel>
+                                    </Expander>
+                                </StackPanel>
+                            </DataTemplate></ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                <ItemsControl x:Name="EditorFields" ItemsSource="{Binding Fields}" MaxWidth="760" HorizontalAlignment="Stretch"
+                              IsEnabled="{Binding CanEditFields}" Visibility="{Binding IsEditing, Converter={StaticResource VisibleIf}}">
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <StackPanel Margin="0,0,0,12">
+                            <Label Content="{Binding Label}" Target="{Binding ElementName=FieldText}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontWeight="SemiBold" />
+                            <TextBox x:Name="FieldText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}"
+                                     FontSize="16" MinHeight="84" Height="112" MinWidth="0" AcceptsReturn="True" AcceptsTab="False" TextWrapping="Wrap"
+                                     VerticalContentAlignment="Top" Padding="12"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                     AutomationProperties.Name="{Binding Label}" AutomationProperties.IsRequiredForForm="True"
+                                     AutomationProperties.HelpText="Required; up to 4,000 characters. Ctrl+S saves a new revision." />
+                        </StackPanel>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Immutable revisions" Style="{StaticResource SectionHeading}" Margin="0,20,0,8" />
+                <ItemsControl x:Name="History" ItemsSource="{Binding Revisions}">
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                            <WrapPanel>
+                                <TextBlock Text="{Binding Revision, StringFormat='Revision {0}'}" Style="{StaticResource Body}" Margin="0,0,16,8" />
+                                <TextBlock Text="{Binding RecordedAtUtc, StringFormat='{}{0:dd MMM yyyy HH:mm} UTC'}" Style="{StaticResource Body}" Margin="0,0,16,8" />
+                                <Button Content="View revision" Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding Revision, StringFormat='View read-only Playbook revision {0}'}" />
+                            </WrapPanel>
+                        </Border>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <WrapPanel Margin="0,12,0,0">
+                    <TextBlock Text="{Binding PageLabel}" Style="{StaticResource Body}" Margin="0,0,16,8" />
+                    <Button Content="Previous" Command="{Binding PreviousPageCommand}" AutomationProperties.Name="Previous revision page" />
+                    <Button Content="Next" Command="{Binding NextPageCommand}" AutomationProperties.Name="Next revision page" />
+                </WrapPanel>
+            </StackPanel>
+        </ScrollViewer>
+        <WrapPanel Grid.Row="3" x:Name="EditorActions" Margin="0,8,0,0" Visibility="{Binding IsEditing, Converter={StaticResource VisibleIf}}">
+            <Button x:Name="SavePlaybook" Content="_Save Playbook" Command="{Binding SaveCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Save Playbook as a new revision" />
+            <Button x:Name="CancelEditor" Content="_Cancel editing" Command="{Binding CancelEditCommand}" AutomationProperties.Name="Cancel editing Playbook without saving" />
+        </WrapPanel>
+    </Grid>
+</UserControl>
