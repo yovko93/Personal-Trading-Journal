@@ -6,6 +6,16 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17.7 — Playbook Save investigation and action colors**
+
+Playbook actions now use shared Light/Dark blue Refresh, amber Archive, teal/mint Create guidance, sky chart-view, red-outline Close image and solid-red Remove example styles, including focus, hover, pressed and disabled states. Synthetic compiled-WPF checks cover normal and narrow/240-DPI layouts.
+
+The reported return to “Create guidance” after Save is **not yet reproduced or claimed fixed**. New real SQLite-backed WPF coverage verifies first creation, editing, immediate current/revision display, navigation reactivation, chart metadata and a separate-process restart read. SQLite write rejection and competing-author tests preserve all entered fields/examples. No speculative Save or persistence change was made. See [investigation evidence and remaining gate](docs/playbook.md#pre-m177--save-investigation-and-action-colors). M17.7 has not started.
+
+The 12 October follow-up also passes through the compiled TextBox bindings and actual Save button with a synthetic image and production thumbnail reader: visible revision/status and fresh-process reload pass. The user's report of no message remains unresolved; this is automated evidence, not live UI acceptance.
+
+Local verification: **142 focused tests passed**; Release build has **0 warnings/errors**, EF and whitespace checks pass. The complete parallel Release run is **not green: 3,777 passed / 86 failed / 0 skipped**. All failures propagate one Calendar native child's unchanged 120-second aggregate timeout; the new Playbook tests passed in that run. Live helper capture/input failed, and matching CI remains unverified.
+
 **M17.6 — Frozen Playbook evidence in Daily AI Review**
 
 Explicit generation now includes each selected Trade's captured Playbook guidance and text annotations, read in the same SQLite snapshot as the Trade. Current, replaced/removed and legacy/no-capture states are distinguished; current Setup edits are never substituted. Associations and user-authored example labels **do not verify adherence**. No image bytes, storage keys or image filenames are sent. The disclosure names the added Playbook text.

@@ -28,8 +28,8 @@
                           Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Trading Setup for Playbook"
                           AutomationProperties.HelpText="Uses the existing Trading Setup catalog, including archived Setups." />
             </StackPanel>
-            <Button Content="_Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="Refresh Playbook and Setup catalog" />
-            <Button Content="{Binding ArchiveLabel}" Command="{Binding ToggleArchiveCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding ArchiveLabel}" />
+            <Button x:Name="RefreshPlaybook" Style="{StaticResource PtjPlaybookRefreshButtonStyle}" Content="_Refresh" Command="{Binding RefreshCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="Refresh Playbook and Setup catalog" />
+            <Button x:Name="ArchiveSetup" Style="{StaticResource PtjPlaybookArchiveButtonStyle}" Content="{Binding ArchiveLabel}" Command="{Binding ToggleArchiveCommand}" VerticalAlignment="Bottom" AutomationProperties.Name="{Binding ArchiveLabel}" />
             <Button Content="Cancel operation" Command="{Binding CancelOperationCommand}" VerticalAlignment="Bottom"
                     Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel Playbook loading or saving" />
         </WrapPanel>
@@ -41,7 +41,7 @@
                 <TextBlock Text="{Binding SelectedSetup.Name}" Style="{StaticResource SectionHeading}" />
                 <TextBlock Text="{Binding SetupState}" Style="{StaticResource Body}" Margin="0,4,0,8" />
                 <WrapPanel>
-                    <Button x:Name="EditGuidance" Content="{Binding EditLabel}" Command="{Binding EditCommand}" AutomationProperties.Name="Create or edit current Playbook guidance" />
+                    <Button x:Name="EditGuidance" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Content="{Binding EditLabel}" Command="{Binding EditCommand}" AutomationProperties.Name="Create or edit current Playbook guidance" />
                     <Button Content="Return to current" Command="{Binding ShowCurrentCommand}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" />
                 </WrapPanel>
                 <Border x:Name="ReadingPanel" Padding="16" CornerRadius="8" BorderBrush="{DynamicResource PtjBorderBrush}"
@@ -74,7 +74,7 @@
                                            AutomationProperties.Name="{Binding Annotation}" />
                                     <TextBlock Text="{Binding ImageState}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" />
                                     <TextBlock Text="{Binding Annotation}" Style="{StaticResource Body}" />
-                                    <Button Content="Open full-size chart" HorizontalAlignment="Left" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}"
+                                    <Button Style="{StaticResource PtjPlaybookViewButtonStyle}" Content="Open full-size chart" HorizontalAlignment="Left" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}"
                                             Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                             AutomationProperties.Name="{Binding KindLabel, StringFormat='Open full-size chart: {0}'}" />
                                     <Expander Header="Example provenance" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Example provenance">
@@ -122,8 +122,8 @@
                                              Height="112" MinHeight="84" VerticalContentAlignment="Top" Padding="12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" FontSize="16"
                                              AutomationProperties.Name="Example annotation: context, condition and lesson" AutomationProperties.IsRequiredForForm="True" />
                                     <WrapPanel Margin="0,8,0,0">
-                                        <Button Content="Open full-size chart" Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" />
-                                        <Button Content="Remove example" Click="OnRemoveExample" Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                        <Button Style="{StaticResource PtjPlaybookViewButtonStyle}" Content="Open full-size chart" Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Open full-size Playbook chart" />
+                                        <Button Style="{StaticResource PtjPlaybookRemoveButtonStyle}" Content="Remove example" Click="OnRemoveExample" Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                                 AutomationProperties.HelpText="Removes this example from the pending revision only. Historical images and notes are retained." />
                                     </WrapPanel>
                                 </StackPanel>

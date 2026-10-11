@@ -1,5 +1,45 @@
 # Playbook — Domain, persistence and Desktop management
 
+## Pre-M17.7 — Save investigation and action colors
+
+Investigation baseline: `develop`, `eb1b3fd38534051f013a83db6b4f473052143e14`; worktree initially clean. The reported Save failure remains an **open reproduction gate**, not a proven SQLite or selection defect. The supplied screenshot was not available in this task payload. On 12 October the user answered “Yes. No message” to the filled-sections/image and post-Save-message question. The reproduction therefore includes all five filled sections and an image. The running executable/build and a redacted screenshot immediately after Save are still needed to distinguish the observed UI from the passing compiled path; do not supply private guidance or the production database.
+
+### Save trace and observed results
+
+| Phase | Synthetic evidence | Observed result |
+| --- | --- | --- |
+| Command/validation | Existing focused tests plus real SQLite-backed compiled `PlaybookView` | All five sections required; incomplete validation keeps editing. Complete text creates revision 1; editing creates revision 2. |
+| Optimistic concurrency / transaction | `PlaybookSqliteViewTests.RealSqliteWriteRejectionPreservesEveryFieldAndExampleThenCanSave` (new and existing guidance) | SQLite abort trigger writes no partial revision; all five fields and example object remain. Another author commits; stale save is rejected and local edits remain. |
+| Post-save reload / selected Setup / paging | `CompiledSaveCreatesAndRevisesWithRealSqliteAndSurvivesReactivation` | Exact Setup identity retained; “Current revision 1/2,” “Edit guidance,” and the matching revision rows appear immediately. Reactivation rereads the committed revision. |
+| Images / restart | Same test: real image storage, separate supervised author/read processes | Original image metadata and notes survive revision 2 and process restart. This is automated WPF/SQLite verification, not a manually operated application restart. |
+| Live application | Production executable launched only with a new `--isolated-data-root` | Helper read the synthetic empty Dashboard accessibility tree. Capture failed with `FrameArrived timed out`; click failed with `coordinate input geometry is unavailable`. Live create/save/navigation/restart remains unverified. The isolated process was stopped; production data was never opened. |
+
+The inspected command validates fields/examples, sends selected Setup ID plus expected revision, appends metadata/revision in one SQLite writer transaction, commits, resets revision paging, and reloads current guidance. These paths passed without changing production Save code. Immediate-completion fake stores previously left this cross-layer boundary uncovered; the new tests exercise real SQLite, asynchronous image storage, compiled binding and a UI dispatcher synchronization context. A passing synthetic path does **not** establish the cause of the user's reported failure.
+
+12 October follow-up: the regression now enters text through the five compiled TextBox bindings and invokes the actual Save button's automation peer instead of calling the ViewModel command directly. It also uses the production image-content reader/thumbnail decoder and asserts the visible status reads “Revision 1 saved.” / “Revision 2 saved.” Both creation/editing and separate-process reload pass; all **3 SQLite-backed regression cases pass** (`artifacts/pre-m177-save-button`). This additional evidence still does not reproduce the reported silent failure. No production Save logic was changed, and the earlier full-suite timeout remains open rather than being superseded by this focused pass.
+
+### Action presentation
+
+Shared `PtjPlaybook*ButtonStyle` resources reuse the application theme palette: Refresh blue, Archive Setup amber caution, Create/Edit guidance teal/mint, Open full-size chart sky, Close image red-outline, Remove example solid red. Archive still preserves history; Remove example changes only the pending definition; no behavior or retention rules changed. Opaque hover/pressed/disabled colors and a dashed keyboard-focus indicator retain readable text. Narrow wrapping and scroll-to-example-action checks keep actions reachable without overlap. Light/Dark renders cover 960 DIP/96 DPI and 480 DIP/240 DPI, including current, historical, editor, examples, action reachability and palette states.
+
+Focused Release verification: **142 passed** (22 Domain, 19 Application, 59 Infrastructure, 42 Desktop), followed by the final compiled style test passing after the pressed-state contrast adjustment. Release build: **0 warnings/errors**; EF reports no pending model changes; tracked and new-file whitespace checks pass. The initial sandboxed broader run hit the existing DPAPI-dependent Settings check; the supported Windows-context focused run passed without changing that test.
+
+The complete parallel Release run is **not green: 3,777 passed / 86 failed / 0 skipped** (Domain 476/476, Application 732/732, Infrastructure 1,196/1,196, Desktop 1,373 passed/86 failed). All failures propagate the Calendar native child's unchanged 120-second aggregate deadline; all Playbook tests, including the new SQLite/WPF cases, passed in this run. Diagnostics: `calendar-native-20261011-192412-f98bfcecb9564f6ea5a6bf7f664caae9` under the Desktop test output's `TestResults`. It completed 72 STA actions. The last completed `DetachedTableChecksWideAndNarrowLayoutRegardlessOfRunnerDesktop` action took 0.171 seconds; the next began at `19:26:12.792 UTC`, about 0.033 seconds before termination. Last sampled child CPU was 119.70 seconds and working set 491,061,248 bytes. This demonstrates aggregate budget exhaustion while work was progressing, **not** an identified individual hang or a proven cause of contention. No deadline, assertion or harness was weakened; no full-suite retry was used to replace that result. Parent TRX evidence is in `artifacts/pre-m177-full-release`; focused output is in `artifacts/pre-m177-focused-final` and `artifacts/pre-m177-style-final`.
+
+Live mouse/keyboard and matching GitHub Actions acceptance remain open; no commit, push, merge, production-journal access or provider call is part of this investigation.
+
+Exact changed files for this investigation:
+
+- `README.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Desktop/Resources/Controls.xaml`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Screenshots/PlaybookExampleImages.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs` (new)
+
 ## M17.6 — Daily AI Review context
 
 Daily Review reads both the original immutable Trade capture and all retained association transitions from the **same read-only SQLite transaction** as the selected Trades. It includes only those Trades selected by the existing New York closure/activity and Account rules. The latest transition must match the Trade's classification before it can be current; older captures cannot be revived by matching a Setup ID. Legacy classifications remain explicitly uncaptured. Removed/replaced captures are historical, not evidence of today's selected plan. Stored captures remain usable after Setup rename/archive.

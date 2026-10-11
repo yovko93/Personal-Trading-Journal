@@ -996,4 +996,89 @@
             </Trigger>
         </Style.Triggers>
     </Style>
+    <!-- Playbook semantics reuse the shared blue/amber/sky palette and opaque, accessible action template. -->
+    <Style x:Key="PtjPlaybookRefreshButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjJournalActionBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnJournalActionBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjOnJournalActionBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalActionHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalActionPressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjPlaybookArchiveButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjJournalReviewBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjJournalReviewForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjJournalReviewForegroundBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalReviewHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalReviewPressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjPlaybookCreateButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjAccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjOnAccentBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlaybookCreateHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlaybookCreatePressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjPlaybookViewButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjJournalRevisionBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjJournalRevisionForegroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjJournalRevisionForegroundBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalRevisionHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalRevisionPressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjPlaybookCloseButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlaybookClosePressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="PtjPlaybookRemoveButtonStyle" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+        <Setter Property="Margin" Value="0,0,8,8" />
+        <Setter Property="Background" Value="{DynamicResource PtjDangerBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource PtjSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlaybookRemoveHoverBrush}" /></Trigger>
+            <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlaybookRemovePressedBrush}" /></Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>

@@ -55,6 +55,14 @@ public sealed class PlaybookViewTests
                     Assert.Equal(f.Setup.Id, ((Application.Setups.TradingSetupListItem)selector.SelectedItem).Id);
                     Assert.Equal("Trading Setup for Playbook", AutomationProperties.GetName(selector));
                     Assert.Equal("Current revision 12", ((TextBlock)view.FindName("Version")).Text);
+                    Assert.Same(app.Resources["PtjPlaybookRefreshButtonStyle"], ((Button)view.FindName("RefreshPlaybook")).Style);
+                    Assert.Same(app.Resources["PtjPlaybookArchiveButtonStyle"], ((Button)view.FindName("ArchiveSetup")).Style);
+                    Assert.Same(app.Resources["PtjPlaybookCreateButtonStyle"], ((Button)view.FindName("EditGuidance")).Style);
+                    foreach (string name in new[] { "RefreshPlaybook", "ArchiveSetup", "EditGuidance" })
+                    {
+                        var action = (Button)view.FindName(name);
+                        Assert.InRange(action.TranslatePoint(new Point(action.ActualWidth, 0), view).X, 0, width);
+                    }
                     Assert.True(selector.Focusable);
                     Render(view, theme, width, dpi, "current");
                     f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions[1]); Layout();
@@ -115,8 +123,14 @@ public sealed class PlaybookViewTests
                     Assert.Equal(3, exampleButtons.Count(b => b.Visibility == Visibility.Visible));
                     Assert.Single(exampleButtons, b => b.Content is "Open full-size chart" && b.Visibility == Visibility.Collapsed); // Legacy notes have no image.
                     foreach (var button in exampleButtons.Where(b => b.Visibility == Visibility.Visible))
-                    { Assert.True(button.Focusable); Assert.InRange(button.ActualWidth, 20, width); }
+                    {
+                        Assert.True(button.Focusable); Assert.InRange(button.ActualWidth, 20, width);
+                        Assert.Same(app.Resources[button.Content is "Remove example" ? "PtjPlaybookRemoveButtonStyle" : "PtjPlaybookViewButtonStyle"], button.Style);
+                        Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
+                    }
                     Render(view, theme, width, dpi, "examples");
+                    exampleButtons.Last(b => b.Content is "Remove example").BringIntoView(); Layout();
+                    Render(view, theme, width, dpi, "example-actions");
                     foreach (var field in f.Vm.Fields) field.Text = "Synthetic guidance";
                     f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
                     Assert.False(f.Vm.IsEditing); Assert.Equal(2, f.Vm.ReadingExamples.Count);
@@ -137,6 +151,34 @@ public sealed class PlaybookViewTests
                     typeof(MainWindow).GetMethod("OnClosing", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, [args]);
                     Assert.False(args.Cancel); Assert.True(f.Vm.IsEditing);
                     window.DataContext = null; window.Close(); view.DataContext = null;
+                    var palette = new WrapPanel { Background = (Brush)app.Resources["PtjSurfaceBrush"] };
+                    foreach (var (key, label) in new[] { ("Refresh", "Refresh"), ("Archive", "Archive Setup"), ("Create", "Create guidance"),
+                        ("View", "Open full-size chart"), ("Close", "Close image"), ("Remove", "Remove example") })
+                    {
+                        var button = new Button { Content = label, Style = (Style)app.Resources[$"PtjPlaybook{key}ButtonStyle"] };
+                        palette.Children.Add(button); button.ApplyTemplate();
+                        Assert.True(Contrast((SolidColorBrush)button.Foreground, (SolidColorBrush)button.Background) >= 4.5, theme + ": " + key);
+                        Assert.NotNull(button.Template.FindName("FocusIndicator", button));
+                        Assert.True(button.Focusable);
+                        var triggers = button.Style.Triggers.OfType<Trigger>().ToArray();
+                        Assert.Contains(triggers, t => t.Property == UIElement.IsMouseOverProperty);
+                        Assert.Contains(triggers, t => t.Property == Button.IsPressedProperty);
+                        Assert.Contains(triggers, t => t.Property == UIElement.IsEnabledProperty);
+                        foreach (var trigger in triggers.Where(t => t.Property == UIElement.IsMouseOverProperty || t.Property == Button.IsPressedProperty))
+                        {
+                            var value = Assert.IsType<DynamicResourceExtension>(trigger.Setters.OfType<Setter>().Single().Value);
+                            Assert.True(Contrast((SolidColorBrush)button.Foreground, (SolidColorBrush)app.Resources[value.ResourceKey]) >= 4.5,
+                                theme + ": " + key + " " + trigger.Property.Name);
+                        }
+                        button.IsEnabled = false;
+                        Assert.Equal(((SolidColorBrush)app.Resources["PtjTextSecondaryBrush"]).Color, ((SolidColorBrush)button.Foreground).Color);
+                        button.IsEnabled = true;
+                    }
+                    VisualTreeHelper.SetRootDpi(palette, new DpiScale(dpi / 96d, dpi / 96d));
+                    palette.Measure(new Size(width, 650)); palette.Arrange(new Rect(0, 0, width, 650)); palette.UpdateLayout();
+                    foreach (Button button in palette.Children)
+                        Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, button.ActualHeight), palette).X, 0, width);
+                    Render(palette, theme, width, dpi, "action-colors");
                 }
             }
         });
@@ -149,6 +191,16 @@ public sealed class PlaybookViewTests
             var child = VisualTreeHelper.GetChild(root, i); yield return child;
             foreach (var descendant in Descendants(child)) yield return descendant;
         }
+    }
+    private static double Contrast(SolidColorBrush foreground, SolidColorBrush background)
+    {
+        static double Luminance(Color c)
+        {
+            static double Linear(byte n) { double v = n / 255d; return v <= .04045 ? v / 12.92 : Math.Pow((v + .055) / 1.055, 2.4); }
+            return .2126 * Linear(c.R) + .7152 * Linear(c.G) + .0722 * Linear(c.B);
+        }
+        double a = Luminance(foreground.Color), b = Luminance(background.Color);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
     }
     private static byte[] SyntheticChart(int width = 800, int height = 240)
     {

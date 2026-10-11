@@ -67,4 +67,9 @@
     <SolidColorBrush x:Key="PtjJournalRevisionHoverBrush" Color="#1C5068" />
     <SolidColorBrush x:Key="PtjJournalRevisionPressedBrush" Color="#26647E" />
     <SolidColorBrush x:Key="PtjJournalRevisionForegroundBrush" Color="#B9E5FC" />
+    <SolidColorBrush x:Key="PtjPlaybookCreateHoverBrush" Color="#B1DBD5" />
+    <SolidColorBrush x:Key="PtjPlaybookClosePressedBrush" Color="#503040" />
+    <SolidColorBrush x:Key="PtjPlaybookCreatePressedBrush" Color="#C1E6E0" />
+    <SolidColorBrush x:Key="PtjPlaybookRemoveHoverBrush" Color="#F1A8B4" />
+    <SolidColorBrush x:Key="PtjPlaybookRemovePressedBrush" Color="#F7BCC5" />
 </ResourceDictionary>

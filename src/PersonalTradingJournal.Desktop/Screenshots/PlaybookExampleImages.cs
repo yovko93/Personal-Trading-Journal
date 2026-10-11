@@ -46,7 +46,7 @@ public sealed class PlaybookExampleImages(IPlaybookImageStorage images, ITradeSc
         var image = new Image { Source = bitmap, Stretch = Stretch.None, Focusable = true };
         AutomationProperties.SetName(image, example.KindLabel + ". " + example.Annotation);
         var close = new Button { Content = "Close image", IsCancel = true, Margin = new Thickness(8), MinHeight = 36 };
-        close.SetResourceReference(FrameworkElement.StyleProperty, "PtjSecondaryButtonStyle");
+        close.SetResourceReference(FrameworkElement.StyleProperty, "PtjPlaybookCloseButtonStyle");
         var panel = new DockPanel(); DockPanel.SetDock(close, Dock.Bottom); panel.Children.Add(close);
         panel.Children.Add(new ScrollViewer { Content = image, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, PanningMode = PanningMode.Both, Focusable = true });
