@@ -6,18 +6,18 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
-**M16.8 — Backup/export/restore acceptance (live gates still open)**
+**M16.8 — Backup/export/restore acceptance (core live round trip passed)**
 
-The real Settings-command round trip now verifies a richer isolated dataset: Trade/executions, screenshot, exact/null-scope Journals with revisions, and a validated fake AI snapshot. It checks archive hashes, JSON/four CSV semantics, active-session restore blocking, restored logical values through fresh services, and the retained recovery archive's changed dataset. No production data or AI provider was accessed. Only test/documentation changes were needed; no archive limits, confirmation, recovery protection or WPF deadlines changed.
+The real Settings-command round trip verifies a richer isolated dataset: Trade/executions, screenshot, exact/null-scope Journals with revisions, and a validated fake AI snapshot. On 2026-10-11, the user also completed the running Desktop app's native backup/export pickers and confirmed offline restore. The actual parent exit → maintenance → fresh-app process chain was observed, and the user confirmed reopening. Independent checks matched all restored logical tables and screenshot bytes to the original Desktop export, and verified that the retained recovery archive contains the deliberately changed dataset. No production data or AI provider was accessed. No product change, archive-limit change or deadline change was required.
 
 | Acceptance area | Evidence/result | Remaining blocker |
 | --- | --- | --- |
-| Backup/export/preflight/restore and failure safety | 271 focused tests passed; final strengthened workflow passed 1/1; final parallel Release **3,697/3,697** | Service evidence is not a live restart |
+| Backup/export/preflight/restore and failure safety | 271 focused tests; final strengthened workflow 1/1; parallel Release **3,697/3,697**; user-assisted native backup/export plus independently verified outputs | Live cancellation/decline/locked-file/interruption checks remain automated-only |
 | Light/Dark normal/narrow/240-DPI | Compiled WPF checks and 12 renders; eight restore/maintenance examples inspected | Live keyboard/mouse/native pickers and real monitor geometry |
-| Offline handoff/relaunch | Service teardown, recovery retention and fresh-service equality verified | **No actual cross-process restore/relaunch observed**: Windows helper failed to initialize |
-| GitHub Actions | No PR workflow returned for starting HEAD `01c3315c815dfafca43f03f6d07c1a07daf9cd3d` | Changes uncommitted; user must commit/push and verify that exact SHA in a PR targeting `main` |
+| Offline handoff/relaunch | **User-assisted live pass**: original PID 564 → maintenance 16780 → fresh normal 12848, same isolated root; original data restored and changed dataset verified in recovery archive | Helper capture/input failures prevented autonomous clicks and full visual inspection |
+| GitHub Actions | [CI #83](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38146488487) passed **3,697/3,697** for PR #19 head `a84f9acb34529cff1ee2e01637ab85570529b2c2`, using PR merge revision `5e0f38e78e47c2b5bf47340e80d344e82d9f8aa1` | Committed implementation verified; follow-up documentation edits are not included in that run |
 
-Final Release build: **0 warnings/errors**; EF model consistency and `git diff --check` passed. Full-suite breakdown: Domain **454**, Application **710**, Infrastructure **1,117**, Desktop **1,416**, zero failures/skips. Calendar native passed **87/87 in 101.989 seconds** (18.011 seconds headroom); grid **36/36**. See the [full acceptance matrix, exact evidence and isolated Windows checklist](docs/backup-restore.md#m168--end-to-end-acceptance-record-2026-10-10). M16.8 is **not** declared fully accepted while live restore/relaunch and matching CI remain unverified.
+Final implementation Release build: **0 warnings/errors**; EF model consistency and `git diff --check` passed. Full-suite breakdown: Domain **454**, Application **710**, Infrastructure **1,117**, Desktop **1,416**, zero failures/skips. Calendar native passed **87/87 in 101.989 seconds** (18.011 seconds headroom); grid **36/36**. See the [full acceptance matrix, exact evidence and isolated Windows checklist](docs/backup-restore.md#m168--end-to-end-acceptance-record-2026-10-10) and [live retry / matching CI](docs/backup-restore.md#m168--live-retry-and-matching-ci-2026-10-11). Core live restore/relaunch is now verified; remaining live theme/DPI/focus/failure scenarios are explicitly open, not inferred from automated tests. This follow-up changes documentation only; no full-suite rerun or schema change was needed.
 
 **M16.7a — Native full-load verification**
 
