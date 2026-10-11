@@ -6,6 +6,19 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M16.8 — Backup/export/restore acceptance (live gates still open)**
+
+The real Settings-command round trip now verifies a richer isolated dataset: Trade/executions, screenshot, exact/null-scope Journals with revisions, and a validated fake AI snapshot. It checks archive hashes, JSON/four CSV semantics, active-session restore blocking, restored logical values through fresh services, and the retained recovery archive's changed dataset. No production data or AI provider was accessed. Only test/documentation changes were needed; no archive limits, confirmation, recovery protection or WPF deadlines changed.
+
+| Acceptance area | Evidence/result | Remaining blocker |
+| --- | --- | --- |
+| Backup/export/preflight/restore and failure safety | 271 focused tests passed; final strengthened workflow passed 1/1; final parallel Release **3,697/3,697** | Service evidence is not a live restart |
+| Light/Dark normal/narrow/240-DPI | Compiled WPF checks and 12 renders; eight restore/maintenance examples inspected | Live keyboard/mouse/native pickers and real monitor geometry |
+| Offline handoff/relaunch | Service teardown, recovery retention and fresh-service equality verified | **No actual cross-process restore/relaunch observed**: Windows helper failed to initialize |
+| GitHub Actions | No PR workflow returned for starting HEAD `01c3315c815dfafca43f03f6d07c1a07daf9cd3d` | Changes uncommitted; user must commit/push and verify that exact SHA in a PR targeting `main` |
+
+Final Release build: **0 warnings/errors**; EF model consistency and `git diff --check` passed. Full-suite breakdown: Domain **454**, Application **710**, Infrastructure **1,117**, Desktop **1,416**, zero failures/skips. Calendar native passed **87/87 in 101.989 seconds** (18.011 seconds headroom); grid **36/36**. See the [full acceptance matrix, exact evidence and isolated Windows checklist](docs/backup-restore.md#m168--end-to-end-acceptance-record-2026-10-10). M16.8 is **not** declared fully accepted while live restore/relaunch and matching CI remain unverified.
+
 **M16.7a — Native full-load verification**
 
 The final complete parallel Release run passed **3,697/3,697**, zero failures/skips. Calendar native passed **87/87 in 73.249 seconds** with **46.751 seconds** left in its unchanged 120-second budget; grid passed **36/36**. Under the deliberately overlapping backup/export and Settings workload, native elapsed changed **102.199 → 98.945 seconds** and redundant theme preparation **85 loads / 10.24 seconds → two loads / 0.49 seconds**. Only the native test child's STA-owned theme dictionaries are reused; all assertions, process isolation, deadlines, concurrency and the Journal harness correction remain intact. Release build has **0 warnings/errors**; EF and whitespace checks passed. See [measured phases, intermediate regression correction and remaining variability](docs/ci-wpf-tests.md#m167a--calendar-native-full-load-deadline-2026-10-10). The prior M16.7 failure below is historical; matching GitHub CI and live restore/picker/restart acceptance remain open. M16.8 is not started.
