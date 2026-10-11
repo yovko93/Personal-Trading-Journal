@@ -1,5 +1,41 @@
 # Windows WPF test diagnostics
 
+## Pre-M17.7 Save diagnostics and Calendar full-load measurement
+
+12 October 2026; started clean on `develop`, `434a0055591cd71dba5715baf1fee3cca34d0452`. The only production correction concerns Playbook Save readback/reporting; it does not run in the Calendar fake-data tests. The native harness, assertions, two-collection Desktop concurrency, process isolation, 120-second aggregate / 45-second operation deadlines and nested-frame gate are **unchanged**. M16.7a's two theme-resource parses are still effective; no repeated-resource regression was found.
+
+Two complete parallel Release measurements used the existing `Measure-Load.ps1 -CiDiagnostics`, `PTJ_CALENDAR_TIMINGS=1`, TRX, blame collector and one-second process sampling. The first measures the original binaries; the final measures the Save correction and new diagnostics regressions. These are not a retry loop or selected passing native cases. Raw evidence is retained under ignored `artifacts/m145-load/pre-m177-diagnostic-{baseline,final}/` (supervision, phases, timing JSONL, process samples, TRX and VSTest diagnostics).
+
+| Native measurement | Before Save correction | Final full load |
+| --- | ---: | ---: |
+| Supervisor start UTC | 21:37:56.2928652 | 21:43:33.3223380 |
+| Exit / timeout UTC | 21:39:40.1244662 | 21:45:33.3089908 |
+| Wall seconds / headroom to 120 | 103.832 / 16.168 | deadline / none |
+| Child cases / completed STA actions | 87 passed / 86 | incomplete / 84 |
+| Startup to first STA, seconds | 5.269 | 6.894 |
+| Sum of exclusive test-action intervals, seconds | 83.127 | 92.141 (84 completed only) |
+| Longest completed exclusive test action, seconds | 3.007 | 3.351 |
+| Owner show + initial layout, 12, seconds | 14.693 | 17.036 |
+| Modal interaction/return, 12, seconds | 7.638 | 7.682 |
+| Modal dispatcher pumps, count / seconds | 220 / 9.177 | 218 / 11.386 |
+| Theme resource loads, count / seconds | 2 / 1.294 | 2 / 0.733 |
+| Chart layout / bitmap, 21 each, seconds | 0.916 / 0.410 | 0.751 / 0.306 |
+| Inline view/layout, 12, seconds | 1.805 | 1.792 |
+| Dialog close + owner close, seconds | 0.546 + 1.463 | 0.659 + 1.920 |
+| Fixture activation, 60, seconds | 1.740 | 3.345 |
+| Dispatcher post-to-execution, total / max seconds | 0.327 / 0.216 | 0.687 / 0.216 |
+| Intentional gate wait (overlaps active work), seconds | 24.559 | 29.039 |
+| Last child CPU / boundary working set | 108.328 s / 423.480 MiB | 103.500 s / 409.363 MiB |
+| Sampled peak child working set | 754.14 MiB | 725.67 MiB |
+| Sampled Infrastructure CPU during native lifetime | 139.81 s | 281.23 s |
+| Other sampled Desktop hosts' CPU in that interval | 23.98 + 9.53 + 19.50 + 3.66 s | 45.72 + 29.23 s |
+
+Exclusive action durations pair `start; phase=test action` and `assertions completed` UTC stamps. Per-case `elapsed` also includes waiting for the shared STA and must not be summed as wall time. Inclusive named scopes overlap; process CPU includes renderer/helper threads and can exceed wall time. Process samples are approximate interval endpoints, not a proof of causation. No machine-wide priority, affinity or DPI change was made.
+
+The final unfinished action was `ViewExpandsExactTradeWhileKeepingModalOpen`, entering at **21:45:32.5954156 UTC**, only **0.714 seconds** before termination. Completed actions remained short, and the last boundary had zero pending ThreadPool work. This is cumulative budget exhaustion under varying parallel CPU/native-window load, **not evidence of a 45-second action hang**, an unbounded dispatcher leak, or Playbook persistence blocking Calendar. Infrastructure used roughly twice as much sampled CPU during the final native window, with different Desktop children/order overlapping. The logs cannot isolate a single Infrastructure test or an exact OS rendering/scheduling wait as the cause. No supported additional harness correction was identified; no speculative change, retry, skip, broader deadline or global serialization was applied. Process-tree cleanup was confirmed at **21:45:33.5179909 UTC**.
+
+The baseline full suite passed **3,863/3,863**. The final full-suite result takes precedence: **3,781 passed / 86 failed / zero skipped** (Domain 476, Application 732, Infrastructure 1,196 passed; Desktop 1,377 passed / 86 failed). All failures propagate the native timeout: acceptance is **not green**, even though all 46 focused Playbook tests and their full-run counterparts pass. Release build has zero warnings/errors, EF reports no pending model changes, and whitespace checks pass. The earlier failed run's 72 completed actions (documented in Playbook) and this run's 84 reinforce the observed variability, not a claim that the timeout has been fixed. Matching GitHub Actions remains open for the uncommitted correction; local testing is not CI or live mouse/keyboard acceptance.
+
 ## M16.7a — Calendar native full-load deadline (2026-10-10)
 
 Started on clean `develop`, `4232c32834fbd97fb91c57c733ff36c88174d416`, with M16.1–M16.7 and the M16.6a Journal correction already committed by the user. Only test-resource preparation and its regression change; no product, backup/restore, schema, navigation or economic behavior changes. M16.8 is not started.

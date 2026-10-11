@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17.7 — opt-in Save diagnostics and loaded-suite timing (12 October)**
+
+Playbook Save now verifies the exact committed revision by a separate database read before reporting success. A missing/current-view reload or post-commit verification failure retains the editor and its fields/examples with an explicit recovery message, rather than claiming a successful display. Synthetic tests reproduce that reporting defect; the user's original silent “Create guidance” incident remains **unreproduced** and is not attributed to it without live diagnostics.
+
+Optional `PTJ_PLAYBOOK_SAVE_DIAGNOSTICS=1` records bounded, text-free Save phases, Setup identity/revisions, readback and UI state, plus build and hashed executable/database-path identities. It is off by default and never records guidance, images, filenames or exception messages. See [safe diagnostic instructions](docs/playbook.md#opt-in-save-diagnostics). Only the user may reproduce against their own journal; agent checks use isolated synthetic data.
+
+Verification: **46 focused Playbook tests passed**; Release build **0 warnings/errors**, EF and whitespace checks pass. The **final parallel Release suite is not green: 3,781 passed / 86 failed / zero skipped**, all failures propagated from one Calendar native aggregate timeout. The unchanged baseline had passed in 103.832 s, but the final native run completed only 84 actions before 120 s. That earlier pass is not acceptance of the final worktree. Details: [Playbook](docs/playbook.md#12-october-save-diagnostics-follow-up) and [CI timing notes](docs/ci-wpf-tests.md#pre-m177-save-diagnostics-and-calendar-full-load-measurement). No Calendar harness deadline, assertion or concurrency change was made. M17.7 remains unstarted; live UI and matching GitHub Actions acceptance are separate gates.
+
 **Pre-M17.7 — Playbook Save investigation and action colors**
 
 Playbook actions now use shared Light/Dark blue Refresh, amber Archive, teal/mint Create guidance, sky chart-view, red-outline Close image and solid-red Remove example styles, including focus, hover, pressed and disabled states. Synthetic compiled-WPF checks cover normal and narrow/240-DPI layouts.

@@ -24,6 +24,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
     private readonly SaveTradingSetupPlaybookUseCase _save;
     private readonly TradingSetupLifecycleUseCase _lifecycle;
     private readonly IDialogService _dialogs;
+    private readonly PlaybookSaveDiagnostics? _diagnostics;
     private CancellationTokenSource? _read;
     private long _generation;
     private TradingSetupListItem? _selected;
@@ -39,10 +40,12 @@ public sealed partial class PlaybookViewModel : ObservableObject
     public PlaybookViewModel(ITradingSetupReader setups, ITradingSetupPlaybookStore store,
         ITradingSetupPlaybookHistoryReader history, SaveTradingSetupPlaybookUseCase save,
         TradingSetupLifecycleUseCase lifecycle, IDialogService dialogs,
-        IPlaybookExampleImages? exampleImages = null, SavePlaybookExamplesUseCase? saveExamples = null)
+        IPlaybookExampleImages? exampleImages = null, SavePlaybookExamplesUseCase? saveExamples = null,
+        PlaybookSaveDiagnostics? diagnostics = null)
     {
         _setups = setups; _store = store; _history = history; _save = save; _lifecycle = lifecycle; _dialogs = dialogs;
         _exampleImages = exampleImages; _saveExamples = saveExamples;
+        _diagnostics = diagnostics;
         AttachExampleCommand = new AsyncRelayCommand(AttachExampleAsync, () => IsEditing && !IsBusy && EditorExamples.Count < PlaybookGuidance.MaximumExamples && _exampleImages is not null);
         RemoveExampleCommand = new RelayCommand<PlaybookExampleItem>(e => { if (e is not null) EditorExamples.Remove(e); AttachExampleCommand.NotifyCanExecuteChanged(); }, e => IsEditing && !IsBusy && e is not null);
         ViewImageCommand = new AsyncRelayCommand<PlaybookExampleItem>(ViewImageAsync, e => !IsBusy && e?.HasImage == true && _exampleImages is not null);
@@ -186,40 +189,74 @@ public sealed partial class PlaybookViewModel : ObservableObject
 
     private async Task SaveAsync(CancellationToken token)
     {
+        Guid attempt = Guid.NewGuid();
+        Guid? setupId = _selected?.Id;
+        int expected = _current?.Revision ?? 0;
+        long start = System.Diagnostics.Stopwatch.GetTimestamp();
+        TradingSetupPlaybookRevision? committed = null;
+        PlaybookSaveResult outcome = PlaybookSaveResult.Pending;
+        void Trace(PlaybookSavePhase phase, PlaybookSaveResult result) => _diagnostics?.Record(new(
+            attempt, phase, result, setupId, expected, committed?.Revision, _selected?.Id,
+            IsEditing, _ready, System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds));
+        Trace(PlaybookSavePhase.Invoked, PlaybookSaveResult.Pending);
         // Snapshot the five fields and owning identity before the first await; editing is disabled during the write.
         var invalid = Fields.FirstOrDefault(f => string.IsNullOrWhiteSpace(f.Text) || f.Text.Trim().Length > PlaybookGuidance.MaximumFieldLength);
-        if (invalid is not null) { Message = $"{invalid.Label}: enter meaningful text, up to 4,000 characters. Your text has been kept."; return; }
+        if (invalid is not null) { Message = $"{invalid.Label}: enter meaningful text, up to 4,000 characters. Your text has been kept."; Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidFields); return; }
         if (EditorExamples.Any(e => string.IsNullOrWhiteSpace(e.Annotation) || e.Annotation.Trim().Length > 4000 ||
             (e.PendingBytes is not null && e.Kind == PlaybookExampleKind.Unspecified)))
-        { Message = "Each new chart needs Valid or Invalid and a meaningful annotation (up to 4,000 characters). Your examples and text are retained."; return; }
+        { Message = "Each new chart needs Valid or Invalid and a meaningful annotation (up to 4,000 characters). Your examples and text are retained."; Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidExamples); return; }
         IsWriting = true; Message = "Saving a new immutable revision…";
         try
         {
             var guidance = new PlaybookGuidance(Fields[0].Text, Fields[1].Text, Fields[2].Text, Fields[3].Text, Fields[4].Text, EditorExamples.Select(e => e.ToDomain()));
-            var command = new SaveTradingSetupPlaybookCommand(_selected!.Id, _current?.Revision ?? 0, guidance);
+            var command = new SaveTradingSetupPlaybookCommand(setupId!.Value, expected, guidance);
             var pending = EditorExamples.Where(e => e.PendingBytes is not null).Select(e => new NewPlaybookImage(e.ExampleId, e.FileName, e.PendingBytes!)).ToArray();
             if (pending.Length > 0 && _saveExamples is null) throw new InvalidOperationException("Image saving is unavailable.");
-            var saved = _saveExamples is null ? await _save.ExecuteAsync(command, token) : await _saveExamples.ExecuteAsync(command, pending, token);
-            _current = saved; IsEditing = false; ResetHistory();
-            // A committed save is successful even if a later refresh fails.
+            Trace(PlaybookSavePhase.WriteStarted, PlaybookSaveResult.Pending);
+            var saved = committed = _saveExamples is null ? await _save.ExecuteAsync(command, token) : await _saveExamples.ExecuteAsync(command, pending, token);
+            Trace(PlaybookSavePhase.Committed, PlaybookSaveResult.Pending);
+            // A write result is not readback. Verify the exact immutable revision independently;
+            // cancellation after commit must not be described as a rolled-back save.
+            var readback = await _history.GetRevisionAsync(saved.TradingSetupId, saved.Revision, CancellationToken.None);
+            if (readback is null || !SameRevision(saved, readback))
+            {
+                Trace(PlaybookSavePhase.Readback, PlaybookSaveResult.ReadbackMissing);
+                outcome = PlaybookSaveResult.ReadbackMissing;
+                Message = "The write reported a commit, but its revision could not be verified. Your edits are retained. Copy them if needed, then Refresh before saving again.";
+                return;
+            }
+            Trace(PlaybookSavePhase.Readback, PlaybookSaveResult.Verified);
+            ResetHistory();
             await LoadAsync(refreshCatalog: true);
-            if (_ready) Message = $"Revision {saved.Revision} saved.";
+            bool loaded = _ready && _selected?.Id == saved.TradingSetupId && _current?.Revision >= saved.Revision;
+            outcome = loaded ? PlaybookSaveResult.Verified : PlaybookSaveResult.ReloadIncomplete;
+            Trace(PlaybookSavePhase.Reloaded, loaded ? PlaybookSaveResult.Verified : PlaybookSaveResult.ReloadIncomplete);
+            if (loaded) { IsEditing = false; Message = $"Revision {saved.Revision} saved."; }
             else
             {
-                _current = saved; Changed();
-                Message = $"Revision {saved.Revision} saved, but the refreshed list could not be loaded. Saved guidance is shown; Refresh before editing again.";
+                _ready = false; _current = readback; Changed();
+                Message = $"Revision {saved.Revision} verified in storage, but the refreshed view could not be loaded. Your edits are retained; Refresh before editing again.";
             }
         }
-        catch (OperationCanceledException) { Message = "Save cancelled. Your entered text is retained."; }
-        catch (ArgumentException) { Message = "Check all five sections: meaningful text, at most 4,000 characters each. Your text is retained."; }
-        catch (InvalidOperationException) { Message = "The Setup or Playbook changed or was archived. Your text is retained. Copy it if needed, then Refresh to load the latest revision."; }
-        catch (KeyNotFoundException) { Message = "The Setup is unavailable. Your text is retained; copy it before refreshing."; }
+        catch (Exception) when (committed is not null)
+        {
+            outcome = PlaybookSaveResult.ReadbackFailed;
+            Trace(PlaybookSavePhase.Readback, PlaybookSaveResult.ReadbackFailed);
+            Message = "The write reported a commit, but verification or display failed. Your edits are retained. Copy them if needed, then Refresh before saving again.";
+        }
+        catch (OperationCanceledException) { outcome = PlaybookSaveResult.Cancelled; Message = "Save cancelled. Your entered text is retained."; }
+        catch (ArgumentException) { outcome = PlaybookSaveResult.Invalid; Message = "Check all five sections: meaningful text, at most 4,000 characters each. Your text is retained."; }
+        catch (InvalidOperationException) { outcome = PlaybookSaveResult.Conflict; Message = "The Setup or Playbook changed or was archived. Your text is retained. Copy it if needed, then Refresh to load the latest revision."; }
+        catch (KeyNotFoundException) { outcome = PlaybookSaveResult.Unavailable; Message = "The Setup is unavailable. Your text is retained; copy it before refreshing."; }
         catch (PlaybookImageCleanupException) { Message = "Save failed and unused image cleanup could not finish. Your edits are retained; an unused file may remain. Try Save again."; }
         catch (PersonalTradingJournal.Application.Screenshots.ScreenshotStagingCleanupException) { Message = "Image saving and partial-file cleanup failed. Your edits are retained; an unused partial file may remain. Check available storage and try Save again."; }
         catch (Exception e) when (e is System.IO.IOException or System.IO.InvalidDataException) { Message = "An example image is missing, changed, unreadable, or could not be stored. Your edits are retained. Restore the image or remove that example from this revision and try again."; }
         catch (Exception) { Message = "Playbook could not be saved. Your text is retained. Try Save again or Refresh."; }
-        finally { IsWriting = false; }
+        finally { IsWriting = false; Trace(PlaybookSavePhase.Finished, outcome == PlaybookSaveResult.Pending ? PlaybookSaveResult.StorageFailure : outcome); }
     }
+
+    private static bool SameRevision(TradingSetupPlaybookRevision expected, TradingSetupPlaybookRevision actual) =>
+        System.Text.Json.JsonSerializer.Serialize(expected) == System.Text.Json.JsonSerializer.Serialize(actual);
 
     private async Task ToggleArchiveAsync(CancellationToken token)
     {

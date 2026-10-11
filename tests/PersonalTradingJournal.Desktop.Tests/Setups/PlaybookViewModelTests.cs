@@ -159,11 +159,46 @@ public sealed class PlaybookViewModelTests
     {
         var f = new PlaybookFixture(); await f.OpenAsync(); f.Edit("saved"); f.Data.FailReadAfterAppend = true;
         await f.Vm.SaveCommand.ExecuteAsync(null);
-        Assert.Single(f.Data.Revisions); Assert.False(f.Vm.IsEditing);
+        Assert.Single(f.Data.Revisions); Assert.True(f.Vm.IsEditing);
         Assert.Equal("saved", f.Vm.DisplayedRevision!.Guidance.MarketContext);
-        Assert.Contains("saved, but", f.Vm.Message); Assert.False(f.Vm.EditCommand.CanExecute(null));
-        f.Data.FailReadAfterAppend = false; await f.Vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Contains("verified in storage", f.Vm.Message); Assert.False(f.Vm.EditCommand.CanExecute(null));
+        f.Data.FailReadAfterAppend = false; f.Dialogs.ConfirmationResult = true; await f.Vm.RefreshCommand.ExecuteAsync(null);
         Assert.True(f.Vm.EditCommand.CanExecute(null)); Assert.Equal(1, f.Vm.DisplayedRevision.Revision);
+    }
+
+    [Fact]
+    public async Task MissingCurrentAfterCommitCannotClaimSuccessfulDisplayOrDiscardEdits()
+    {
+        var f = new PlaybookFixture(); await f.OpenAsync(); f.Edit("retained"); f.Data.MissingCurrentAfterAppend = true;
+        await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.Single(f.Data.Revisions); Assert.True(f.Vm.IsEditing);
+        Assert.All(f.Vm.Fields, field => Assert.Equal("retained", field.Text));
+        Assert.Equal(1, f.Vm.DisplayedRevision!.Revision); Assert.Equal("Edit guidance", f.Vm.EditLabel);
+        Assert.Contains("refreshed view could not", f.Vm.Message);
+        Assert.DoesNotContain("Revision 1 saved.", f.Vm.Message);
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task DelayedReadbackProtectsSelectionAndFieldsAndRequiresVerifiedResult(bool fail)
+    {
+        var f = new PlaybookFixture(); f.Seed(1); await f.OpenAsync(); f.Edit("PRIVATE entered text");
+        var readback = new TaskCompletionSource<TradingSetupPlaybookRevision?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        f.Data.RevisionRead = readback.Task;
+        var saving = f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(2, f.Data.Revisions.Count); Assert.True(f.Vm.IsEditing); Assert.True(f.Vm.IsWriting);
+        Assert.False(f.Vm.RefreshCommand.CanExecute(null)); Assert.False(f.Vm.SaveCommand.CanExecute(null));
+        await f.Vm.RefreshCommand.ExecuteAsync(null); // Direct command invocation still obeys the guard.
+        Assert.False(f.Vm.TrySelectSetup(f.Data.Row(f.Other)));
+        Assert.DoesNotContain("saved.", f.Vm.Message);
+        if (fail) readback.SetException(new IOException("PRIVATE path"));
+        else readback.SetResult(f.Data.Revisions[1]);
+        await saving;
+        Assert.Equal(f.Setup.Id, f.Vm.SelectedSetup!.Id); Assert.Equal(fail, f.Vm.IsEditing);
+        Assert.All(f.Vm.Fields, field => Assert.Equal("PRIVATE entered text", field.Text));
+        Assert.DoesNotContain("PRIVATE", f.Vm.Message);
+        Assert.Contains(fail ? "verification or display failed" : "Revision 2 saved.", f.Vm.Message);
+        Assert.Equal(fail ? 1 : 0, f.Vm.EditorExamples.Count);
     }
 }
 
@@ -174,12 +209,13 @@ internal sealed class PlaybookFixture
     internal readonly TradingSetup Setup = new("NQ pullback", "Existing catalog", FixedTimeProvider.FixedUtcNow.AddDays(-1));
     internal readonly TradingSetup Other = new("NQ range", null, FixedTimeProvider.FixedUtcNow.AddDays(-1));
     internal PlaybookViewModel Vm { get; }
-    internal PlaybookFixture(PersonalTradingJournal.Desktop.Screenshots.IPlaybookExampleImages? images = null, IPlaybookImageStorage? storage = null)
+    internal PlaybookFixture(PersonalTradingJournal.Desktop.Screenshots.IPlaybookExampleImages? images = null, IPlaybookImageStorage? storage = null,
+        PlaybookSaveDiagnostics? diagnostics = null)
     {
         Data.Setups.AddRange([Setup, Other]);
         var save = new SaveTradingSetupPlaybookUseCase(Data, Data, new FixedTimeProvider());
         Vm = new(Data, Data, Data, save, new(Data, new FixedTimeProvider()), Dialogs, images,
-            storage is null ? null : new SavePlaybookExamplesUseCase(save, storage));
+            storage is null ? null : new SavePlaybookExamplesUseCase(save, storage), diagnostics);
     }
     internal async Task OpenAsync() { await Vm.ActivateAsync(); Vm.TrySelectSetup(Data.Row(Setup)); await Vm.LoadTask; }
     internal void Edit(string text) { Vm.EditCommand.Execute(null); foreach (var f in Vm.Fields) f.Text = text; }
@@ -200,6 +236,8 @@ internal sealed class PlaybookData : ITradingSetupStore, ITradingSetupReader, IT
     internal string? WriteFailure;
     internal bool BlockWrite;
     internal bool FailReadAfterAppend;
+    internal bool MissingCurrentAfterAppend;
+    internal Task<TradingSetupPlaybookRevision?>? RevisionRead;
     internal Task<TradingSetupPlaybookRevision?>? NextRead;
     internal TradingSetupListItem Row(TradingSetup s) => new(s.Id, s.Name, s.Description, s.IsActive, s.CreatedAtUtc, s.UpdatedAtUtc);
     public Task<IReadOnlyList<TradingSetupListItem>> GetAllAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TradingSetupListItem>>(Setups.Select(Row).ToArray());
@@ -210,6 +248,7 @@ internal sealed class PlaybookData : ITradingSetupStore, ITradingSetupReader, IT
     public Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid id, CancellationToken cancellationToken = default)
     {
         if (FailReadAfterAppend && AppendCount > 0) throw new IOException("SECRET read failure");
+        if (MissingCurrentAfterAppend && AppendCount > 0) return Task.FromResult<TradingSetupPlaybookRevision?>(null);
         if (NextRead is { } next) { NextRead = null; return next; }
         return Task.FromResult(Revisions.LastOrDefault(r => r.TradingSetupId == id));
     }
@@ -222,7 +261,7 @@ internal sealed class PlaybookData : ITradingSetupStore, ITradingSetupReader, IT
         if (WriteFailure == "conflict" || (Revisions.LastOrDefault()?.Revision ?? 0) != expectedRevision) return false;
         Revisions.Add(revision); return true;
     }
-    public Task<TradingSetupPlaybookRevision?> GetRevisionAsync(Guid id, int revision, CancellationToken cancellationToken = default) => Task.FromResult(Revisions.SingleOrDefault(r => r.TradingSetupId == id && r.Revision == revision));
+    public Task<TradingSetupPlaybookRevision?> GetRevisionAsync(Guid id, int revision, CancellationToken cancellationToken = default) => RevisionRead ?? Task.FromResult(Revisions.SingleOrDefault(r => r.TradingSetupId == id && r.Revision == revision));
     public Task<IReadOnlyList<TradingSetupPlaybookRevision>> GetHistoryAsync(Guid id, int? beforeRevision, int limit, CancellationToken cancellationToken = default)
     {
         Limits.Add(limit);

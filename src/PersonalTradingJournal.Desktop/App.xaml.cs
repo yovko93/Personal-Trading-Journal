@@ -160,6 +160,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddTransient<TradingMistakesViewModel>();
             builder.Services.AddTransient<TradingSetupsViewModel>();
             builder.Services.AddTransient<PlaybookViewModel>();
+            builder.Services.AddSingleton(new PlaybookSaveDiagnostics(applicationPaths.LogsDirectory,
+                applicationPaths.DatabasePath, Environment.GetEnvironmentVariable("PTJ_PLAYBOOK_SAVE_DIAGNOSTICS") == "1"));
             builder.Services.AddTransient<IPlaybookExampleImages, PlaybookExampleImages>();
             builder.Services.AddTransient<SettingsViewModel>();
             builder.Services.AddSingleton<IDataBackupInteraction, WpfDataBackupInteraction>();

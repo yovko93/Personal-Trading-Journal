@@ -1,5 +1,37 @@
 # Playbook — Domain, persistence and Desktop management
 
+## 12 October Save diagnostics follow-up
+
+Started clean on `develop`, `434a0055591cd71dba5715baf1fee3cca34d0452`. Earlier M17 work is preserved. The original user-observed silent failure is still **not reproduced on real SQLite with synthetic data**. The compiled Save button, bound fields, image metadata, first creation, second revision, navigation and separate-process restart reads continue to pass.
+
+A narrower defect is demonstrated with a controlled read result: after a successful append, the previous code accepted `_ready == true` as proof of successful display even when `GetLatestAsync` returned null. That produced a success message with no current revision / “Create guidance”. It also collapsed the editor before checking the reload. This is **not proof that SQLite returned null in the user's app**, nor a reproduction of the absent-message detail.
+
+Save now captures Setup ID/expected revision before awaiting, verifies the exact committed immutable revision using the history reader (including its complete content), then reloads the catalog/current/revision page. Success requires verified readback and the correct selected Setup/current revision. Verification failure or incomplete reload retains every field/example and displays an explicit post-commit recovery message. It never reports cancellation as rollback after a reported commit. A verified fallback revision prevents a misleading “Create guidance” state if the current-view reload is missing. Refresh/selection/navigation remain guarded while writing; delayed readback regressions test these boundaries. No persistence, schema or Trade economics changes.
+
+### Opt-in Save diagnostics
+
+For a single user-run reproduction, close the old app and launch the intended build from a PowerShell session with `$env:PTJ_PLAYBOOK_SAVE_DIAGNOSTICS='1'`. The user must supply their own intended executable path; agent reproductions must additionally pass `--isolated-data-root` with a fresh absolute synthetic directory. Do **not** send a database, screenshot, guidance, ordinary application logs or full local paths.
+
+The separate `logs/playbook-save-diagnostics.jsonl` file under the selected data directory contains:
+
+- Runtime PID, assembly build MVID/SHA-256, and SHA-256 fingerprints of normalized executable and database paths (not their paths or filenames).
+- Attempt ID, invocation, field/example validation result, write start, reported committed revision, exact database readback, reload and final UI state.
+- Selected Setup ID before/after, expected/committed revision, elapsed milliseconds, editing/ready flags and a closed set of result codes. No Setup name, freeform exception, authored text, image data or filename is accepted by the diagnostic API.
+
+It is disabled by default, capped at 256 records per app process (including startup) and 512 KiB per file across processes. A full/unwritable diagnostic file must not affect Save. Move aside the old diagnostic file yourself if another capture is needed; disable the environment variable afterwards (`Remove-Item Env:PTJ_PLAYBOOK_SAVE_DIAGNOSTICS`). Sharing just this bounded file is sufficient for the next investigation.
+
+Verify paths locally without sharing them: inspect the recorded PID's executable in Task Manager, compare `Get-FileHash -Algorithm SHA256` of its sibling `PersonalTradingJournal.Desktop.dll` with `BinarySha256`, and compare `DatabasePathFingerprint` with SHA-256 of UTF-8 `Path.GetFullPath(expectedDatabasePath).ToUpperInvariant()`. The fingerprint identifies a path, **not** the database's contents. A different build/path is evidence to resolve before diagnosing persistence. If `Invoked` is absent, check that the enabled process/build is the one being used and that Save is enabled; do not infer a failed database write. `Committed` followed by an unverified readback is not a reason to repeatedly Save; retain/copy edits and use guarded Refresh to inspect storage.
+
+The actual newly built executable was launched with an isolated synthetic root: PID 19896, build MVID `575ea71e-bffb-4fba-9a08-cdafc68635db`, assembly SHA-256 `07C77BCE15E878204FB98A54CA134A36BEB3D345909E5D6466AB28467CA07737`. Executable path, binary hash and expected synthetic database-path fingerprint all matched. That process was stopped. This is runtime identity/startup verification, **not live mouse/keyboard Save acceptance**, and it does not verify the user's running app.
+
+Focused Playbook Release: **46/46 passed**, including real SQLite compiled Save/restart, delayed readback, post-commit exception, missing-current reload, validation visibility, retained examples and bounded/sanitized diagnostics (`artifacts/pre-m177-save-diagnostics-focused`). Release build: **0 warnings/errors**; EF: **no pending model changes**; tracked/new-file whitespace checks pass.
+
+The **final parallel Release suite is not green: 3,781 passed / 86 failed / zero skipped** (476 Domain, 732 Application, 1,196 Infrastructure passed; Desktop 1,377 passed / 86 failed). Every failure propagates the single native 120-second timeout; Playbook tests passed. The baseline passed 3,863/3,863 before the four added regressions, but it does not supersede the final failure. Raw final results: `artifacts/m145-load/pre-m177-diagnostic-final/`. Calendar measurements and remaining uncertainty are in [CI notes](ci-wpf-tests.md#pre-m177-save-diagnostics-and-calendar-full-load-measurement).
+
+Changed files for this follow-up: `README.md`, `docs/playbook.md`, `docs/ci-wpf-tests.md`, `src/PersonalTradingJournal.Desktop/App.xaml.cs`, `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`, new `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookSaveDiagnostics.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewModelTests.cs`, and new `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSaveDiagnosticsTests.cs`.
+
+Matching GitHub Actions and user-run sanitized live reproduction remain open. The workflow requires a PR targeting main (or a main push); these uncommitted changes cannot have a matching run. No production database or provider access, Git write, or M17.7 work. HEAD remains `434a0055591cd71dba5715baf1fee3cca34d0452` on `develop`.
+
 ## Pre-M17.7 — Save investigation and action colors
 
 Investigation baseline: `develop`, `eb1b3fd38534051f013a83db6b4f473052143e14`; worktree initially clean. The reported Save failure remains an **open reproduction gate**, not a proven SQLite or selection defect. The supplied screenshot was not available in this task payload. On 12 October the user answered “Yes. No message” to the filled-sections/image and post-Save-message question. The reproduction therefore includes all five filled sections and an image. The running executable/build and a redacted screenshot immediately after Save are still needed to distinguish the observed UI from the passing compiled path; do not supply private guidance or the production database.
