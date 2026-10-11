@@ -49,6 +49,10 @@ public sealed partial class InitialMigrationTests
             [
                 "TradeId", "ContractVersion", "TradingSetupId", "Revision", "TradeOpenedAtUtc", "CapturedAtUtc", "DefinitionJson",
             ],
+            ["TradePlaybookAssociations"] =
+            [
+                "TradeId", "Sequence", "TradingSetupId", "Revision", "RecordedAtUtc", "TradeOpenedAtUtc", "DefinitionJson",
+            ],
             ["CoachingAnalyses"] =
             [
                 "Id", "ReviewDate", "ScopeKind", "AccountId", "AccountDisplayName", "GeneratedAtUtc",
@@ -132,7 +136,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations"],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -144,7 +148,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(11L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(12L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -155,6 +159,7 @@ public sealed partial class InitialMigrationTests
                 string[] keyNames = tableName switch
                 {
                     "TradeBrowse" or "TradePlaybookContexts" => ["TradeId"],
+                    "TradePlaybookAssociations" => ["TradeId", "Sequence"],
                     "PlaybookRevisions" => ["TradingSetupId", "Revision"],
                     "PlaybookExamples" => ["TradingSetupId", "Revision", "ExampleId"],
                     "TradovateImportedExecutions" => ["TradeExecutionId"],
@@ -166,7 +171,7 @@ public sealed partial class InitialMigrationTests
                 foreach (string keyName in keyNames)
                 {
                     ColumnDefinition key = Assert.Single(columns, column => column.Name == keyName);
-                    Assert.Equal(keyName == "Revision" ? "INTEGER" : "TEXT", key.StoreType);
+                    Assert.Equal(keyName is "Revision" or "Sequence" ? "INTEGER" : "TEXT", key.StoreType);
                     Assert.Null(key.DefaultValue);
                 }
                 Assert.Equal(0L, ReadRowCount(connection, tableName));
@@ -537,7 +542,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations"],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -672,11 +677,12 @@ public sealed partial class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(19, foreignKeys.Count); // Composite revision keys each have two columns.
+        Assert.Equal(22, foreignKeys.Count); // Composite revision keys each have two columns.
         AssertForeignKey(foreignKeys, "PlaybookRevisions", "TradingSetupId", "TradingSetups", "RESTRICT");
         AssertForeignKey(foreignKeys, "PlaybookExamples", "SourceScreenshotId", "TradeScreenshots", "RESTRICT");
         AssertForeignKey(foreignKeys, "TradePlaybookContexts", "TradeId", "Trades", "CASCADE");
-        foreach (string table in new[] { "PlaybookExamples", "TradePlaybookContexts" })
+        AssertForeignKey(foreignKeys, "TradePlaybookAssociations", "TradeId", "Trades", "CASCADE");
+        foreach (string table in new[] { "PlaybookExamples", "TradePlaybookContexts", "TradePlaybookAssociations" })
             foreach (string column in new[] { "TradingSetupId", "Revision" })
                 Assert.Contains(foreignKeys, f => f.DependentTable == table && f.DependentColumn == column &&
                     f.PrincipalTable == "PlaybookRevisions" && f.PrincipalColumn == column && f.OnDelete == "RESTRICT");
@@ -706,7 +712,7 @@ public sealed partial class InitialMigrationTests
         ForeignKeyDefinition[] cascades = foreignKeys
             .Where(foreignKey => foreignKey.OnDelete == "CASCADE")
             .ToArray();
-        Assert.Equal(5, cascades.Length);
+        Assert.Equal(6, cascades.Length);
         Assert.Contains(cascades, cascade =>
             cascade.DependentTable == "TradeExecutions" &&
             cascade.DependentColumn == "TradeId");

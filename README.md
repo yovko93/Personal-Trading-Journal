@@ -6,6 +6,16 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M17.5 — Trade association with a frozen Playbook revision**
+
+Trades and Calendar inline Trade details share the existing **Trading Setup** selector. The selected revision is previewed; **Associate Setup…** confirms and atomically saves that exact guidance/examples and classification. A changed Trade or Setup produces a conflict without switching to newer guidance or losing the selection. New manual Trades open Details after creation for explicit association; imports are not automatically backfilled.
+
+**Open captured context** shows frozen guidance/examples and earlier associations after relinking/removal or archiving. Legacy classifications remain **legacy / no captured Playbook revision**. Archived Setups cannot supply new links. Ordinary classification edits record no-capture transitions, never resurrect an old plan. An association is **not verified adherence**. No automatic checks or AI context changes are included.
+
+Additive migration `20261011175435_AddTradePlaybookAssociations` retains original captures and adds append-only transitions. Backups preserve them; logical export v4 includes them in JSON. Older-schema archive restore remains deferred. See [M17.5 workflow, verification and limits](docs/playbook.md#m175--trade-association).
+
+M17.5 verification: **217 focused** and **3,846 full parallel Release tests passed**, zero failures/skips; Release build **0 warnings/errors**, EF consistency and whitespace checks passed. Light/Dark 960/96 and narrow 480/240-DPI automated association renders were inspected. Live keyboard/mouse, image-window focus and screen-reader checks remain open; uncommitted changes have no matching GitHub Actions acceptance. Synthetic data only; no provider calls or production journal access.
+
 **M17.4 — Playbook annotated chart examples**
 
 The Playbook editor now attaches original PNG/JPEG/supported WebP images, labels each **Valid** or **Invalid**, and reuses its annotation for context, confirmation/failed condition and lesson. Thumbnails are decoded at a bounded size; **Open full-size chart** provides a themed, scrollable, keyboard-accessible view. Save creates a new immutable revision; validation, cancellation and conflicts retain entered guidance, notes and pending images. Removing a current example does not remove historical bytes. No Trade linking, adherence evaluation or AI behavior is added.

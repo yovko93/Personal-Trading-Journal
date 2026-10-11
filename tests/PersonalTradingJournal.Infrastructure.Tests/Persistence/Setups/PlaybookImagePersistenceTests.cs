@@ -34,6 +34,8 @@ public sealed partial class PlaybookPersistenceTests
         Assert.Equal(Convert.ToHexString(SHA256.HashData(ImageBytes)), image.Sha256);
         Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
         Assert.True(await f.Contexts.TryAddAsync(PersonalTradingJournal.Domain.Trades.TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
+        var associations = f.Get<ITradePlaybookAssociationStore>();
+        Assert.True(await associations.TryApplyAsync(await associations.PreviewAsync(g.Trade.Id, g.Setup.Id)));
         await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         await f.Get<IPlaybookImageStorage>().DeleteUnreferencedAsync(image.StorageKey); // Still held by revision 1.
         await f.Restart();
@@ -56,6 +58,8 @@ public sealed partial class PlaybookPersistenceTests
         var restored = await new JournalRestoreService(f.Paths).RestoreAsync(new(archive, preview.Summary.ArchiveSha256));
         Assert.True(restored.Succeeded, restored.ToString()); Assert.True(File.Exists(restored.RecoveryArchivePath));
         await f.Restart(); Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
+        var restoredAssociation = Assert.Single(await f.Get<ITradePlaybookAssociationStore>().ReadHistoryAsync(g.Trade.Id));
+        Assert.Equal(image, Assert.Single(restoredAssociation.Definition!.Guidance.Examples).Image);
         Assert.Equal(example.Annotation, Assert.Single((await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.Examples).Annotation);
     }
 

@@ -32,7 +32,7 @@ internal enum ManualTradeInputField
     ExitFees,
 }
 
-public sealed class TradesViewModel : ObservableObject
+public sealed partial class TradesViewModel : ObservableObject
 {
     public event EventHandler? TradeDataCommitted;
     private const int TradePageSize = 20;
@@ -289,7 +289,10 @@ public sealed class TradesViewModel : ObservableObject
         ITradeScreenshotDeleteConfirmation tradeScreenshotDeleteConfirmation,
         UpdateTradeUseCase? updateTradeUseCase = null,
         DeleteTradeUseCase? deleteTradeUseCase = null,
-        IDialogService? dialogService = null)
+        IDialogService? dialogService = null,
+        ITradePlaybookAssociationStore? playbookAssociations = null,
+        ITradePlaybookContextStore? playbookContexts = null,
+        IPlaybookExampleImages? playbookImages = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -331,6 +334,13 @@ public sealed class TradesViewModel : ObservableObject
         _updateTradeUseCase = updateTradeUseCase;
         _deleteTradeUseCase = deleteTradeUseCase;
         _dialogService = dialogService;
+        _playbookAssociations = playbookAssociations;
+        _playbookContexts = playbookContexts;
+        _playbookImages = playbookImages;
+        LoadPlaybookHistoryCommand = new AsyncRelayCommand(LoadPlaybookHistoryAsync);
+        RefreshAssociationPreviewCommand = new AsyncRelayCommand(PrepareAssociationAsync);
+        LoadOlderAssociationsCommand = new AsyncRelayCommand(token => HasOlderAssociations ? LoadAssociationPageAsync(_associationCursor, token) : Task.CompletedTask);
+        OpenCapturedImageCommand = new AsyncRelayCommand<PersonalTradingJournal.Domain.Setups.PlaybookExample>(OpenCapturedImageAsync);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
         CancelManualEntryCommand = new RelayCommand(
@@ -466,6 +476,7 @@ public sealed class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedTradeDetailTradingSetup, value))
             {
+                _ = PrepareAssociationAsync(CancellationToken.None);
                 SaveTradingSetupCommand.NotifyCanExecuteChanged();
             }
         }
@@ -639,6 +650,12 @@ public sealed class TradesViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedTradeDetail, value))
             {
+                CapturedAssociations = [];
+                HasOlderAssociations = false;
+                _displayedTradeToken = null;
+                _selectedAssociationPreview = null;
+                ++_selectionPreviewGeneration;
+                PlaybookAssociationStatus = value?.TradingSetupId is null ? "No Setup associated." : "Setup classification · no captured Playbook revision loaded. Open captured context to inspect.";
                 OnPropertyChanged(nameof(IsSelectedTradeOpen));
                 ShowCloseTradeCommand.NotifyCanExecuteChanged();
                 SaveCloseTradeCommand.NotifyCanExecuteChanged();
@@ -657,6 +674,8 @@ public sealed class TradesViewModel : ObservableObject
                 SaveTradeEditCommand.NotifyCanExecuteChanged();
                 DeleteTradeCommand.NotifyCanExecuteChanged();
                 DeleteSelectedTradeCommand.NotifyCanExecuteChanged();
+                _ = LoadPlaybookHistoryAsync(CancellationToken.None);
+                _ = PrepareAssociationAsync(CancellationToken.None);
             }
         }
     }
@@ -2932,10 +2951,13 @@ public sealed class TradesViewModel : ObservableObject
     }
 
     private bool CanSaveTradingSetup() =>
+        !IsTradeEditVisible && !IsManualEntryVisible &&
         IsTradeDetailVisible &&
         SelectedTradeDetail is { } detail &&
         SelectedTradeDetailTradingSetup is { } setup &&
-        setup.Id != detail.TradingSetupId &&
+        (setup.Id != detail.TradingSetupId || _playbookAssociations is not null) &&
+        setup.IsActive &&
+        (_playbookAssociations is null || (_selectedAssociationPreview?.TradeId == detail.Id && _selectedAssociationPreview.SetupId == setup.Id)) &&
         !IsTradeDetailLoading &&
         !IsTradeScreenshotsLoading &&
         !IsTradingSetupSaving &&
@@ -2948,6 +2970,7 @@ public sealed class TradesViewModel : ObservableObject
         !IsScreenshotPreviewLoading;
 
     private bool CanClearTradingSetup() =>
+        !IsTradeEditVisible && !IsManualEntryVisible &&
         IsTradeDetailVisible &&
         SelectedTradeDetail?.TradingSetupId is not null &&
         !IsTradeDetailLoading &&
@@ -2984,15 +3007,36 @@ public sealed class TradesViewModel : ObservableObject
 
         try
         {
-            await _setTradeTradingSetupUseCase.ExecuteAsync(
-                new SetTradeTradingSetupCommand(detail.Id, tradingSetupId),
-                cancellationToken);
+            if (_playbookAssociations is not null)
+            {
+                var preview = tradingSetupId.HasValue ? _selectedAssociationPreview : await _playbookAssociations.PreviewAsync(detail.Id, null, cancellationToken);
+                if (preview is null || preview.TradeId != detail.Id || preview.SetupId != tradingSetupId ||
+                    _displayedTradeToken is null || preview.TradeToken != _displayedTradeToken)
+                {
+                    TradingSetupSaveErrorMessage = "The Trade changed or its preview is not ready. Your selection is retained. Reopen Trade details, then review and confirm the association.";
+                    return;
+                }
+                string target = preview.SetupId is null ? "Remove the Setup association" :
+                    preview.Definition is { } definition ? $"{preview.SetupName} · Playbook revision {definition.Revision}" :
+                    $"{preview.SetupName} · classification only (no Playbook guidance)";
+                if (_dialogService?.Confirm(new("Confirm Trade association", target +
+                    "\n\nThis associates the Trade with a plan; it does not verify that conditions were followed. Earlier captures are retained.", "Confirm association")) != true) return;
+                if (!await new ConfirmTradePlaybookAssociation(_playbookAssociations).ExecuteAsync(preview, cancellationToken))
+                {
+                    TradingSetupSaveErrorMessage = "The Trade or Setup changed. Your selection is retained. Review the current records and confirm again; no association was saved.";
+                    return;
+                }
+            }
+            else
+                await _setTradeTradingSetupUseCase.ExecuteAsync(
+                    new SetTradeTradingSetupCommand(detail.Id, tradingSetupId), cancellationToken);
             TradeDataCommitted?.Invoke(this, EventArgs.Empty);
             TradingSetupSuccessMessage = TradingSetupSavedMessage;
 
             _ = await ReloadTradeDetailAfterTradingSetupAsync(
                 detail.Id,
                 CancellationToken.None);
+            await LoadPlaybookHistoryAsync(CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -3006,6 +3050,10 @@ public sealed class TradesViewModel : ObservableObject
             exception.Message == "The selected trading setup is inactive.")
         {
             TradingSetupSaveErrorMessage = InactiveTradingSetupErrorMessage;
+        }
+        catch (InvalidOperationException) when (_playbookAssociations is not null)
+        {
+            TradingSetupSaveErrorMessage = "The selected Setup is unavailable or archived. Your selection is retained; refresh the available Setups before confirming again.";
         }
         catch (Exception)
         {
@@ -3538,7 +3586,7 @@ public sealed class TradesViewModel : ObservableObject
 
         try
         {
-            _ = await _createManualTradeUseCase.ExecuteAsync(
+            Guid createdTradeId = await _createManualTradeUseCase.ExecuteAsync(
                 command,
                 cancellationToken);
             TradeDataCommitted?.Invoke(this, EventArgs.Empty);
@@ -3557,6 +3605,8 @@ public sealed class TradesViewModel : ObservableObject
                     PageSize,
                     TradeListSortColumn.OpenedAtUtc,
                     TradeListSortDirection.Descending));
+            if (_playbookAssociations is not null)
+                await LoadTradeDetailByIdAsync(createdTradeId, CancellationToken.None);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

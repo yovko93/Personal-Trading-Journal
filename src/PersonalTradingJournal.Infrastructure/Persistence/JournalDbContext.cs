@@ -26,6 +26,7 @@ public sealed class JournalDbContext : DbContext
     public DbSet<PlaybookRevisionRecord> PlaybookRevisions => Set<PlaybookRevisionRecord>();
     public DbSet<PlaybookExampleRecord> PlaybookExamples => Set<PlaybookExampleRecord>();
     public DbSet<TradePlaybookContextRecord> TradePlaybookContexts => Set<TradePlaybookContextRecord>();
+    public DbSet<TradePlaybookAssociationRecord> TradePlaybookAssociations => Set<TradePlaybookAssociationRecord>();
 
     public DbSet<TradingMistakeRecord> TradingMistakes => Set<TradingMistakeRecord>();
 
@@ -57,6 +58,7 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PlaybookRevisionRecordConfiguration());
         modelBuilder.ApplyConfiguration(new PlaybookExampleRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradePlaybookContextRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradePlaybookAssociationRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingMistakeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradeBrowseRecordConfiguration());

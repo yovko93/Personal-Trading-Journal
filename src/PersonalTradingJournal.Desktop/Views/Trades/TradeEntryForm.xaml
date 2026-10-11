@@ -177,7 +177,7 @@
                                           DisplayMemberPath="Name"
                                           Style="{StaticResource PtjComboBoxStyle}" />
                                 <TextBlock Style="{StaticResource PtjFormHelperTextStyle}"
-                                           Text="Only active setups can be assigned to a new trade." />
+                                            Text="Active Setups only. After creating the Trade, confirm its exact Playbook revision in Details. Classification alone is not a captured plan." />
                             </StackPanel>
 
                             <StackPanel Grid.Column="3" Margin="8,0,0,0">

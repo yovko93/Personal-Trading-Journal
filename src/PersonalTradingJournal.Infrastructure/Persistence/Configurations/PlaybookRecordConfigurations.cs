@@ -5,6 +5,26 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence.Configurations;
 
+public sealed class TradePlaybookAssociationRecordConfiguration : IEntityTypeConfiguration<TradePlaybookAssociationRecord>
+{
+    public void Configure(EntityTypeBuilder<TradePlaybookAssociationRecord> b)
+    {
+        b.ToTable("TradePlaybookAssociations", t =>
+        {
+            t.HasCheckConstraint("CK_TradePlaybookAssociations_Snapshot", "Sequence > 0 AND ((Revision IS NULL AND DefinitionJson IS NULL) OR (TradingSetupId IS NOT NULL AND Revision > 0 AND DefinitionJson IS NOT NULL))");
+            t.HasTrigger("TradePlaybookAssociations_NoUpdate");
+            t.HasTrigger("TradePlaybookAssociations_NoDelete");
+        });
+        b.HasKey(r => new { r.TradeId, r.Sequence });
+        b.Property(r => r.TradeId).ValueGeneratedNever();
+        b.Property(r => r.Sequence).ValueGeneratedNever();
+        b.Property(r => r.RecordedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
+        b.Property(r => r.TradeOpenedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
+        b.HasOne<TradeRecord>().WithMany().HasForeignKey(r => r.TradeId).OnDelete(DeleteBehavior.Cascade);
+        b.HasOne<PlaybookRevisionRecord>().WithMany().HasForeignKey(r => new { r.TradingSetupId, r.Revision }).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
 public sealed class PlaybookRevisionRecordConfiguration : IEntityTypeConfiguration<PlaybookRevisionRecord>
 {
     public void Configure(EntityTypeBuilder<PlaybookRevisionRecord> b)

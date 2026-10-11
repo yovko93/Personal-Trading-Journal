@@ -83,6 +83,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
         services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
         services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
+        services.AddTransient<ITradePlaybookAssociationStore, TradePlaybookAssociationStore>();
+        services.AddTransient<ConfirmTradePlaybookAssociation>();
         services.AddTransient<SaveTradingSetupPlaybookUseCase>();
         services.AddTransient<IPlaybookImageStorage>(provider => new PlaybookImageStorage(applicationPaths,
             provider.GetRequiredService<ITradeScreenshotFileStorage>()));

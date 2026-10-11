@@ -1,5 +1,74 @@
 # Playbook — Domain, persistence and Desktop management
 
+## M17.5 — Trade association
+
+### Workflow and meaning
+
+Use the existing **Trading Setup** selector in Trade Details (also available in Calendar's inline Trade details). Selection loads a preview of the current revision. **Associate Setup…** confirms the Setup name and exact revision; save never reloads and substitutes a later definition. **Refresh preview** explicitly reviews a newer revision after a conflict. The Trade must still match the details/confirmation state. Missing, archived, changed or failed reads/writes retain the selection and show a recovery message. Confirmation decline writes nothing. Existing edit/work-in-progress guards disable association while editing, saving or manipulating attachments.
+
+New manual Trades are first created through the unchanged economics workflow, then open Details for explicit association. Creation itself does not silently capture a plan: the subsequent association/classification write is atomic. Imported Trades use the same action without changing executions, provenance or deduplication. A Setup without guidance remains a valid classification, explicitly without a captured revision. No legacy Trade is backfilled. Archived Setups remain readable through existing captures but cannot supply new links; removal/replacement with an active Setup remains allowed.
+
+**Open captured context** reads saved definitions, not the current catalog. Expand an association to read all five guidance sections and exact saved example annotations/classification; image viewing reuses bounded, hash-verified M17.4 presentation. History is newest first, queried in pages of 20 with **Older associations** and a return to newest through Open captured context. Long text wraps in the containing page/modal scroll, without navigation that can discard Trade edits. Capture is user-selected, often retrospective: **associated with this plan does not mean all conditions were followed**.
+
+### Persistence and retention
+
+M17.2's `TradePlaybookContexts` retains its insert-only original capture per Trade. Additive migration **`20261011175435_AddTradePlaybookAssociations`** adds `TradePlaybookAssociations`, keyed by `(TradeId, Sequence)`: selected Setup ID, optional exact revision/full version-1 definition JSON, recording UTC instant and original Trade opening UTC instant. Relink, revision update and removal append; removal has no definition. Sequence numbers are not reused while a Trade exists. Update/direct-delete triggers protect history; legitimate parent Trade deletion cascades its owned transitions. Original captures remain readable. Immutable Setup revisions pin their images after current associations are removed.
+
+Preview reads a consistent SQLite transaction. Confirmation obtains a SQLite writer reservation and rechecks transient SHA-256 tokens over actual Trade, ordered executions, mistakes/screenshots, original capture/latest transition, and active Setup plus canonical latest definition. Equal-audit-timestamp changes are detected. Tokens are not logged. Classification and frozen transition commit together; errors/cancellation before commit roll back, committed results are not reported as cancellation. No retries. Ordinary manual/classification edits append no-capture transitions when Setup changes, so returning to an earlier Setup cannot implicitly reactivate a snapshot. Economics/projections are unchanged.
+
+Frozen JSON uses the established versioned serializer, retaining names, all guidance, example identities, annotations and image metadata. Reads check definition identity against stored Setup/revision. Saved AI evidence is not rewritten; no new Playbook data is sent to AI. Complete backups retain the new table and historical-image inventory; logical export v4 adds `tradePlaybookAssociations` (JSON only), with exact UTC instants and definition JSON. Older-schema archive restore, including pre-M17.5, remains deferred; installed databases migrate additively.
+
+### M17.5 verification
+
+Synthetic tests cover exact confirmation, conflict/decline/failure retention, no implicit latest-revision substitution, legacy/no-guidance classification, concurrent confirmation, same-timestamp changes, atomic rollback, cancellation, relink/removal/restart, imported provenance/economics, archive behavior, paging and retained source images. Shared compiled-WPF controls cover Light/Dark at 960 DIP / 96 DPI and 480 DIP / 240 DPI: accessible names, command targets, read-only expanded content, wrapping and scroll reachability.
+
+Final verification on 2026-10-11: **217 focused tests passed** (Domain 22, Application 18, Infrastructure 133, Desktop 44; `artifacts/m175-final-focused`). Complete **parallel Release: 3,846/3,846 passed**, zero failures/skips: Domain 476, Application 729, Infrastructure 1,189, Desktop 1,452 (`artifacts/m175-final-full`). Infrastructure took 3m46s; Desktop 4m37s. This is 20 additional cases plus extended backup/restore and stale-selection assertions. Release build: **0 warnings/errors**, 29.43s (`artifacts/m175-final-build.log`). EF reports no pending model changes. Tracked and new-file whitespace checks pass.
+
+Eight new association renders were generated in `artifacts/m175-renders`, alongside the existing Playbook renders. Representative collapsed/expanded outputs covering each theme and size were visually inspected. An initial full run exposed outdated explicit schema allowlists and a shared-control `StaticResource` construction failure in Calendar leaf hosts. The schema/FK matrices now assert the additive table explicitly, and the shared control uses Calendar-compatible deferred theme resources. The final full run above includes the corrections; no test assertion, isolation or deadline was removed. The original frozen image and new association metadata also survive the synthetic backup → preflight → offline restore regression.
+
+Live mouse/keyboard interaction, full-size image-window focus return, physical high-DPI and screen-reader acceptance remain unverified. No production journal, provider call or Git write is used. Matching CI must run after the user's commit/push; local tests are not a GitHub Actions result.
+
+### M17.5 changed files
+
+Starting worktree was clean on `develop` at `a9aba0481555dc8863d03e05bae50e857867808c`. Existing M17.1–M17.4 work was already committed and preserved. These 36 paths remain uncommitted (24 modified, 12 new):
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarInlineTradeView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradeEntryForm.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/PlaybookRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/PlaybookRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/AccountTradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeMutationStore.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookImagePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `src/PersonalTradingJournal.Application/Trades/ConfirmTradePlaybookAssociation.cs`
+- `src/PersonalTradingJournal.Application/Trades/ITradePlaybookAssociationStore.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Playbook.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradePlaybookAssociationView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradePlaybookAssociationView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011175435_AddTradePlaybookAssociations.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261011175435_AddTradePlaybookAssociations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradePlaybookAssociationStore.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Trades/ConfirmTradePlaybookAssociationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradePlaybookAssociationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradePlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/TradePlaybookAssociationTests.cs`
+
 ## M17.4 — Annotated chart examples
 
 ### Editor and viewing workflow

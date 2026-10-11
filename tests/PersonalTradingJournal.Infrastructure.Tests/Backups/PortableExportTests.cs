@@ -32,7 +32,7 @@ public sealed class PortableExportTests
         var service = f.Services.GetRequiredService<IPortableExportService>(); Assert.False(Directory.Exists(Output(f)));
         var result = await service.CreateAsync(Output(f)); Assert.True(result.Succeeded, result.ToString()); Assert.Equal(0, result.Rows);
         using var document = Read(f); var root = document.RootElement;
-        Assert.Equal(3, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
+        Assert.Equal(4, root.GetProperty("version").GetInt32()); Assert.False(root.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
         foreach (var table in PortableExportSchema.Tables) Assert.Equal(0, root.GetProperty("tables").GetProperty(table.Name).GetArrayLength());
         Assert.Equal(6, Directory.GetFiles(Output(f)).Length); NoPartial(f);

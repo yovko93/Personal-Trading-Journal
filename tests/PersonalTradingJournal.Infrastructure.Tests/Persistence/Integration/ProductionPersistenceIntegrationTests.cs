@@ -89,6 +89,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261008195353_AddCoachingAnalysisSnapshots",
                     "20261011154034_AddPlaybookHistory",
                     "20261011171154_AddPlaybookExampleImages",
+                    "20261011175435_AddTradePlaybookAssociations",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

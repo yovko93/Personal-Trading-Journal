@@ -578,6 +578,43 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("TradeMistakes", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookAssociationRecord", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DefinitionJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradeId", "Sequence");
+
+                    b.Property<DateTime>("TradeOpenedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasIndex("TradingSetupId", "Revision");
+
+                    b.ToTable("TradePlaybookAssociations", null, t =>
+                        {
+                            t.HasTrigger("TradePlaybookAssociations_NoDelete");
+
+                            t.HasTrigger("TradePlaybookAssociations_NoUpdate");
+
+                            t.HasCheckConstraint("CK_TradePlaybookAssociations_Snapshot", "Sequence > 0 AND ((Revision IS NULL AND DefinitionJson IS NULL) OR (TradingSetupId IS NOT NULL AND Revision > 0 AND DefinitionJson IS NOT NULL))");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookContextRecord", b =>
                 {
                     b.Property<Guid>("TradeId")
@@ -929,6 +966,20 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasForeignKey("TradingMistakeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookAssociationRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookContextRecord", b =>

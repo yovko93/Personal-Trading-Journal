@@ -1,5 +1,13 @@
 # Backup and restore — M16
 
+## M17.5 — Trade association history
+
+Additive migration `20261011175435_AddTradePlaybookAssociations` preserves original captures and adds append-only association/removal transitions with frozen definition JSON and Trade opening/recording instants. Complete archives preserve both tables and historical image retention. Archive format remains v1; exact current migration compatibility is still required. Pre-M17.5 archives require a deferred staged-upgrade workflow and are not restored by this version.
+
+Logical export is now **v4**, adding JSON-only `tradePlaybookAssociations` with stable Trade ID/sequence, Setup/revision, UTC timestamps and exact frozen JSON. The four CSVs and existing fields are unchanged. Images remain metadata-only in exports; exports are not backups. Unencrypted-data warnings, credential exclusion, preflight and recovery protection remain unchanged.
+
+M17.5 verification includes frozen association/image metadata through synthetic backup → preflight → offline restore. The final full parallel Release suite passed **3,846/3,846** with zero failures/skips; build, EF consistency and whitespace checks passed. This does not claim live restore or matching CI acceptance for this uncommitted schema.
+
 ## M17.4 — Owned Playbook images
 
 Current schema includes **`20261011171154_AddPlaybookExampleImages`**. The staged-database attachment inventory now unions `TradeScreenshots.StorageKey` with every non-null `PlaybookExamples.ImageStorageKey`, across **all immutable revisions**, not just current guidance. Each referenced file is packaged once. Backup creation and restore preflight additionally verify revision-owned image lengths/SHA-256 against the frozen metadata. This also protects offline restore and recovery. Missing or changed images block publication/replacement; no historical attachment is silently omitted. Empty legacy Trade screenshots remain supported; new owned Playbook images require positive size and bounded admission.

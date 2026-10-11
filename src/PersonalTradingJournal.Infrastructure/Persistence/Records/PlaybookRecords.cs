@@ -41,3 +41,14 @@ public sealed class TradePlaybookContextRecord
     public DateTimeOffset CapturedAtUtc { get; set; }
     public string DefinitionJson { get; set; } = null!;
 }
+
+public sealed class TradePlaybookAssociationRecord
+{
+    public Guid TradeId { get; set; }
+    public int Sequence { get; set; }
+    public Guid? TradingSetupId { get; set; }
+    public int? Revision { get; set; }
+    public DateTimeOffset RecordedAtUtc { get; set; }
+    public DateTimeOffset TradeOpenedAtUtc { get; set; }
+    public string? DefinitionJson { get; set; }
+}

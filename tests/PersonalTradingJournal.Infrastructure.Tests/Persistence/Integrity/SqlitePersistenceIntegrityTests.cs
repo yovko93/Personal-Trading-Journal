@@ -66,6 +66,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(PlaybookRevisionRecord),
             typeof(PlaybookExampleRecord),
             typeof(TradePlaybookContextRecord),
+            typeof(TradePlaybookAssociationRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -165,20 +166,22 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradeScreenshotRecord), isRequired: false, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(TradePlaybookContextRecord), nameof(TradePlaybookContextRecord.TradeId),
             typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
-        foreach (Type type in new[] { typeof(PlaybookExampleRecord), typeof(TradePlaybookContextRecord) })
+        AssertForeignKey(model, typeof(TradePlaybookAssociationRecord), nameof(TradePlaybookAssociationRecord.TradeId),
+            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
+        foreach (Type type in new[] { typeof(PlaybookExampleRecord), typeof(TradePlaybookContextRecord), typeof(TradePlaybookAssociationRecord) })
         {
             var key = Assert.Single(foreignKeys, f => f.DeclaringEntityType.ClrType == type && f.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
             Assert.Equal(new[] { "TradingSetupId", "Revision" }, key.Properties.Select(p => p.Name));
-            Assert.True(key.IsRequired);
+            Assert.Equal(type != typeof(TradePlaybookAssociationRecord), key.IsRequired);
             Assert.Equal(DeleteBehavior.Restrict, key.DeleteBehavior);
         }
-        Assert.Equal(17, foreignKeys.Count);
+        Assert.Equal(19, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(5, cascades.Length);
+        Assert.Equal(6, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));

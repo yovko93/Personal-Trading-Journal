@@ -71,11 +71,12 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         var mistakes = await db.TradeMistakes.AsNoTracking().Where(m => ids.Contains(m.TradeId)).OrderBy(m => m.Id).ToArrayAsync(token);
         var screenshots = await db.TradeScreenshots.AsNoTracking().Where(s => ids.Contains(s.TradeId)).OrderBy(s => s.Id).ToArrayAsync(token);
         var playbookContexts = await db.TradePlaybookContexts.AsNoTracking().Where(c => ids.Contains(c.TradeId)).OrderBy(c => c.TradeId).ToArrayAsync(token);
+        var playbookAssociations = await db.TradePlaybookAssociations.AsNoTracking().Where(c => ids.Contains(c.TradeId)).OrderBy(c => c.TradeId).ThenBy(c => c.Sequence).ToArrayAsync(token);
         var tradovate = await db.TradovateImportedExecutions.AsNoTracking().Where(e => ids.Contains(e.TradeId)).OrderBy(e => e.TradeExecutionId).ToArrayAsync(token);
         var topstep = await db.TopstepImportedRows.AsNoTracking().Where(e => ids.Contains(e.TradeId)).OrderBy(e => e.Id).ToArrayAsync(token);
         // Include full owned records, not only timestamps (several writes may share a clock tick).
         // This digest is transient confirmation state, never logged or persisted.
-        byte[] canonical = JsonSerializer.SerializeToUtf8Bytes(new { account, trades, executions, browse, mistakes, screenshots, playbookContexts, tradovate, topstep });
+        byte[] canonical = JsonSerializer.SerializeToUtf8Bytes(new { account, trades, executions, browse, mistakes, screenshots, playbookContexts, playbookAssociations, tradovate, topstep });
         return new(new(account.Id, account.Name, trades.Length, Convert.ToHexString(SHA256.HashData(canonical))),
             screenshots.Select(s => s.StorageKey).Distinct(StringComparer.Ordinal).ToArray());
     }
