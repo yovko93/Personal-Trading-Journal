@@ -6,11 +6,19 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M17.1 — Playbook Domain/Application foundation**
+
+Playbook now has immutable, version-1 guidance and revision contracts owned by the existing **Trading Setup** identity. Strategy was previously removed; no competing catalog is created. Guidance covers market context, entry conditions, confirmations, invalidation, execution guidance and optional annotated examples. Existing Setup activation controls new authoring/capture; historical values remain frozen. A Trade-context contract preserves the full selected definition and distinguishes retrospective capture; neither a Setup link nor a snapshot proves the plan was followed.
+
+The Application authoring policy defines expected-revision/Setup-state checks and cancellation for a future atomic store. **No persistence implementation, migration, Desktop UI, automatic checks or AI changes** are included; existing Trade classification, economics and screenshot file ownership are unchanged. Screenshot example references preserve provenance, not guaranteed image retention. See [Playbook contracts, validation, historical-context design and synthetic NQ example](docs/playbook.md).
+
+M17.1 verification: **185 focused tests passed** (106 Domain + 79 Application, including 21 new cases); complete Domain and Application Release suites passed **1,185/1,185** (467 + 718), zero failures/skips. Solution Release build: **0 warnings/errors**. This is contract-level synthetic verification, not SQLite persistence, Desktop/live acceptance or matching GitHub CI; the complete cross-layer suite was not rerun for this foundation.
+
 **Pre-M17 — PR #19 backup safety corrections**
 
 Complete backups now preserve already-persisted **zero-byte screenshot files** end to end, including their empty-content SHA-256, preflight, offline restore and recovery. SQLite, manifest and preferences still require positive sizes; directory/link/path/hash protections remain unchanged. Screenshot admission is unchanged—backup preserves recorded bytes, it does not certify that they decode as images.
 
-Settings preflight checks the **actual staging volume** before extraction using validated uncompressed sizes, a per-file allowance and a 64 MiB reserve. Unknown capacity fails safely; capacity is rechecked while streaming. Offline restore uses the same checks, reserving both concurrently staged incoming copies before extraction and cleaning incomplete copies on failure/cancellation. Archives remain version 1 and unencrypted; no schema or production-journal changes. See [PR #19 evidence, verification and limits](docs/backup-restore.md#pre-m17--pr-19-backup-review-corrections-2026-10-11). M17 is not started.
+Settings preflight checks the **actual staging volume** before extraction using validated uncompressed sizes, a per-file allowance and a 64 MiB reserve. Unknown capacity fails safely; capacity is rechecked while streaming. Offline restore uses the same checks, reserving both concurrently staged incoming copies before extraction and cleaning incomplete copies on failure/cancellation. Archives remain version 1 and unencrypted; no schema or production-journal changes. See [PR #19 evidence, verification and limits](docs/backup-restore.md#pre-m17--pr-19-backup-review-corrections-2026-10-11). M17.1 now adds the Domain/Application foundation above.
 
 Verification: **37 Application + 214 Infrastructure focused tests passed**; the complete parallel Release suite passed **3,712/3,712**, zero failures/skips (454 Domain, 710 Application, 1,132 Infrastructure, 1,416 Desktop). Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Small synthetic capacity injection covers low/unknown space, loss during extraction/copy, cancellation and cleanup without filling a real disk. No live production data or provider was accessed. These corrections are uncommitted and require a new matching CI run after the user's commit/push.
 
