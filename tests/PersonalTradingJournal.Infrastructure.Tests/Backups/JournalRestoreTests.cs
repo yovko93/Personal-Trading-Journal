@@ -17,6 +17,104 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Backups;
 
 public sealed class JournalRestoreTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EmptyScreenshotBackupPreflightRestoreAndInterruptedRecoveryPreserveBytesAndRelationships(bool interrupted)
+    {
+        await using var source = await Fixture.Create(); await source.Add("empty.png");
+        await File.WriteAllBytesAsync(Path.Combine(source.Paths.ScreenshotsDirectory, "empty.png"), []);
+        var request = await Archive(source);
+        using (var zip = System.IO.Compression.ZipFile.OpenRead(source.Output))
+        {
+            var entry = zip.GetEntry(BackupArchiveContract.ScreenshotsPrefix + "empty.png")!;
+            Assert.Equal(0, entry.Length); using var bytes = entry.Open();
+            Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            using var manifestStream = zip.GetEntry(BackupArchiveContract.ManifestPath)!.Open();
+            var manifest = System.Text.Json.JsonSerializer.Deserialize<BackupManifest>(manifestStream, BackupArchiveContract.JsonOptions)!;
+            var screenshot = Assert.Single(manifest.Files.Where(f => f.Kind == BackupFileKind.Screenshot));
+            Assert.Equal(0, screenshot.SizeBytes);
+            Assert.Equal("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", screenshot.Sha256);
+        }
+        await using var target = await Fixture.Create(); await target.Add("old-empty.png");
+        await File.WriteAllBytesAsync(Path.Combine(target.Paths.ScreenshotsDirectory, "old-empty.png"), []);
+        string original = await StopAndFingerprint(target);
+        JournalRestoreResult result;
+        if (interrupted)
+        {
+            await Assert.ThrowsAsync<RestoreInterruption>(() => new JournalRestoreService(target.Paths, (phase, _) =>
+            { if (phase == JournalRestorePhase.IncomingInstalled) throw new RestoreInterruption(); }).RestoreAsync(request));
+            result = await new JournalRestoreService(target.Paths).RecoverInterruptedAsync();
+            Assert.Equal(JournalRestoreStatus.RecoveredOriginal, result.Status);
+            Assert.Equal(original, LogicalFingerprint(target.Paths.DatabasePath));
+        }
+        else
+        {
+            result = await new JournalRestoreService(target.Paths).RestoreAsync(request);
+            Assert.Equal(JournalRestoreStatus.Restored, result.Status);
+            Assert.Equal(LogicalFingerprint(source.Paths.DatabasePath), LogicalFingerprint(target.Paths.DatabasePath));
+        }
+        string key = interrupted ? "old-empty.png" : "empty.png";
+        Assert.Empty(await File.ReadAllBytesAsync(Path.Combine(target.Paths.ScreenshotsDirectory, key)));
+        var recovery = await new RestorePreflightService().InspectAsync(result.RecoveryArchivePath!, target.Root);
+        Assert.True(recovery.Validated, recovery.ToString()); Assert.Equal(1, recovery.Summary!.ScreenshotCount);
+        Assert.False(File.Exists(JournalDataSession.StatePath(target.Paths)));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OfflineIncomingCapacityIsCheckedBeforeExtractionOnItsStagingVolume(bool unknown)
+    {
+        await using var source = await Fixture.Create(); var request = await Archive(source);
+        using var archive = System.IO.Compression.ZipFile.OpenRead(source.Output);
+        using var manifestBytes = archive.GetEntry(BackupArchiveContract.ManifestPath)!.Open();
+        var manifest = System.Text.Json.JsonSerializer.Deserialize<BackupManifest>(manifestBytes, BackupArchiveContract.JsonOptions)!;
+        long oneCopy = StagingCapacity.Required(manifest.Files, 1, StagingCapacity.DefaultReserveBytes);
+        await using var target = await Fixture.Create(); await target.Add("old.png");
+        string original = await StopAndFingerprint(target); int calls = 0;
+        var result = await new JournalRestoreService(target.Paths, null, directory =>
+        {
+            Assert.StartsWith(JournalDataSession.WorkRoot(target.Paths), directory);
+            Assert.Empty(Directory.GetDirectories(directory, ".preflight-*.partial"));
+            if (++calls == 1) return long.MaxValue; // Archive pinning passes; expanded staging does not.
+            if (unknown) throw new IOException("synthetic secret path");
+            return oneCopy; // Enough for inspection alone, not inspection + incoming restore copy.
+        }).RestoreAsync(request);
+        Assert.Equal(2, calls);
+        Assert.Equal(unknown ? BackupValidationCode.CapacityUnavailable : BackupValidationCode.InsufficientStorage, result.ValidationFailure);
+        Assert.Equal(unknown ? JournalRestoreStatus.FailedOriginalIntact : JournalRestoreStatus.InsufficientStorage, result.Status);
+        Assert.Equal(original, LogicalFingerprint(target.Paths.DatabasePath)); Assert.Null(result.RecoveryArchivePath);
+        Assert.Empty(Directory.GetDirectories(JournalDataSession.WorkRoot(target.Paths), ".preflight-*.partial", SearchOption.AllDirectories));
+        Assert.DoesNotContain("secret", result.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OfflineCapacityLossOrCancellationDuringIncomingCopyCleansStagingAndPreservesOriginal(bool cancel)
+    {
+        await using var source = await Fixture.Create(); var request = await Archive(source);
+        await using var target = await Fixture.Create(); await target.Add("old.png"); string original = await StopAndFingerprint(target);
+        using var cts = new CancellationTokenSource(); bool sawPartial = false;
+        var result = await new JournalRestoreService(target.Paths, null, path =>
+        {
+            if (Path.GetFileName(path) == "incoming" && Directory.GetFiles(path).Any(p => new FileInfo(p).Length > 0))
+            {
+                sawPartial = true;
+                if (cancel) { cts.Cancel(); return long.MaxValue; }
+                return 0;
+            }
+            return long.MaxValue;
+        }).RestoreAsync(request, cts.Token);
+        Assert.True(sawPartial); Assert.Equal(cancel ? JournalRestoreStatus.Cancelled : JournalRestoreStatus.InsufficientStorage, result.Status);
+        Assert.False(result.CleanupFailed); Assert.Null(result.RecoveryArchivePath);
+        Assert.Equal(original, LogicalFingerprint(target.Paths.DatabasePath));
+        Assert.False(Directory.Exists(Path.Combine(result.RetainedDirectoryPath!, "incoming")));
+        Assert.Empty(Directory.GetDirectories(result.RetainedDirectoryPath!, ".preflight-*.partial"));
+        Assert.False(File.Exists(JournalDataSession.StatePath(target.Paths)));
+    }
+
     [Fact]
     public async Task SuccessfulRestorePreservesIncomingRelationshipsAndRetainsVerifiedRecoveryAndOriginalDirectory()
     {

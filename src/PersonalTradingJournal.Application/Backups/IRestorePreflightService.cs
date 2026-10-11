@@ -29,6 +29,8 @@ public sealed record RestorePreflightResult(Guid OperationId, RestorePreflightPh
         Failure switch
         {
             BackupValidationCode.Cancelled => "Backup inspection cancelled; no installed data was changed.",
+            BackupValidationCode.InsufficientStorage => "Not enough free space on the inspection staging volume. Free space or choose another staging location; no installed data was changed.",
+            BackupValidationCode.CapacityUnavailable => "Free space on the inspection staging volume could not be verified. Check storage access before retrying; no installed data was changed.",
             BackupValidationCode.LimitExceeded => "The archive or validation work exceeds supported safety limits.",
             BackupValidationCode.UnsupportedArchiveVersion or BackupValidationCode.UnsupportedDatabaseSchema => "This backup version or database schema is not supported by this application.",
             BackupValidationCode.DatabaseAttachmentMismatch => "Screenshot references do not match the archived files. Select a complete backup.",

@@ -268,7 +268,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
             length += read; hash.AppendData(buffer, 0, read); output.Write(buffer, 0, read);
         }
         token.ThrowIfCancellationRequested();
-        if (length == 0) throw new Failure(BackupValidationCode.ContentMismatch);
+        if (length == 0 && kind != BackupFileKind.Screenshot) throw new Failure(BackupValidationCode.ContentMismatch);
         return new(path, kind, length, Convert.ToHexStringLower(hash.GetHashAndReset()));
     }
 

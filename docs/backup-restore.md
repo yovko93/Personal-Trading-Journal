@@ -1,5 +1,40 @@
 # Backup and restore — M16
 
+## Pre-M17 — PR #19 backup review corrections (2026-10-11)
+
+Baseline: clean `develop`, `913c4c5f6a20f8d9373999632992dca45b62671f`; the M16.8 live acceptance notes were already committed. Both open PR findings were inspected. No production journal, provider, credential, or prior acceptance dataset is used by the regressions. No M17 work, Git writes, migration, format-version change or screenshot admission change is included.
+
+### Empty screenshots
+
+Screenshot admission can persist an empty stream. The producer's generic transfer rejected it; independently, manifest validation and the ZIP central-directory validator also required all sizes to be positive. Changing only the producer would therefore produce an archive the reader could not restore.
+
+Only `Screenshot` payloads may now have `sizeBytes: 0`. Their actual digest remains the SHA-256 of empty content, `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`. The existing streaming copy/hash paths, pinned-file inventory, restore staging, post-install verification and recovery all preserve the file and its Trade reference. **Database, manifest and preferences remain nonempty.** ZIP directory/reparse/link attributes and unsafe names remain rejected independently of byte length. All existing size ceilings, CRC/hash checks and exact archive/screenshot-reference inventory remain enforced. This is byte-preserving backup compatibility, not image decoding/repair; older builds with the unconditional rejection cannot read an archive containing an empty screenshot.
+
+### Capacity before expanding untrusted archives
+
+After validating the container, manifest, schema compatibility and exact size/inventory agreement, but **before creating payload staging**, preflight calculates with checked arithmetic:
+
+`required = copies × Σ(uncompressed payload bytes + 4,096 bytes per-file allowance) + 64 MiB reserve`.
+
+Settings inspection uses one copy; offline incoming inspection reserves two (inspection plus its incoming-install copy). The bounded manifest is read in memory, not expanded into an unchecked file. Compressed archive length is never substituted for payload capacity. Capacity is queried at the supplied staging directory and subsequently its private child. Windows uses [GetDiskFreeSpaceExW](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdiskfreespaceexw), which accepts the actual directory and reports bytes available to the caller, including quotas, rather than guessing from the archive's drive letter. Offline archive pinning/recovery checks also query their operation staging directory.
+
+Capacity is rechecked before each file and every streamed chunk against the remaining requirement; the second incoming copy is checked again while copied. Insufficient space returns `InsufficientStorage`; unavailable/error/negative capacity returns `CapacityUnavailable` with a safe actionable message. Native Windows disk-full writes are also mapped to insufficient storage. Failed/cancelled inspection removes its owned partial payloads; failed incoming-copy staging removes only its created files/directories. Cleanup failure remains explicit and cannot become successful preflight. No installed data is changed by inspection or an incoming-stage failure. Retained pinned archives and already verified recovery artifacts retain the existing recovery policy; no automatic recovery deletion is added.
+
+These checks are **advisory, not a disk reservation**. Another writer, quota change, unusual allocation size, filesystem failure or loss of space between check/write can still fail an operation; streaming bounds, cleanup, no-replacement-before-recovery and recovery-required startup remain the safety mechanisms. Small injected budgets test failures without filling a real volume. Physical disk exhaustion, unusual mounted-volume configurations and hardware crash durability were not newly tested live.
+
+### Regression evidence and changed files
+
+New isolated cases cover empty screenshot backup → preflight → verified restore, an empty screenshot in the installed recovery dataset and interrupted recovery, positive-size-only non-screenshot entries, one-copy versus two-copy budgets, actual staging-path reporting, insufficient/unknown/negative capacity before extraction, mid-chunk capacity loss/cancellation, incoming-copy cleanup, checked overflow, exact-capacity success and unchanged installed DB fingerprints. Existing malicious ZIP/link/deduplication/hash/schema/recovery coverage is retained.
+
+Focused Release: **37 Application + 214 Infrastructure passed**, zero failures/skips in the final focused runs. The initial sandboxed Infrastructure run had 211 passes and one existing symlink-fixture privilege failure (`A required privilege is not held by the client`), not a backup assertion; the privileged Windows run passed all 214 after the final tests were added. The **complete parallel Release suite passed 3,712/3,712**, zero failures/skips: Domain **454**, Application **710**, Infrastructure **1,132** (2 min 22 sec), Desktop **1,416** (3 min 28 sec). Release build: **0 warnings/errors**. EF `has-pending-model-changes` using the isolated in-memory design-time factory: **no changes**. Tracked and new-file whitespace checks passed. Evidence: ignored `artifacts/pr19-focused-app`, `artifacts/pr19-focused-infra-final`, `artifacts/pr19-full`. No matching GitHub Actions run can yet include these uncommitted changes; earlier CI #83 is not verification of these corrections. No new live UI acceptance is claimed for this service-only fix.
+
+Exact changed files (paths relative to the repository):
+
+- `README.md`; `docs/backup-restore.md`.
+- Application: `src/PersonalTradingJournal.Application/Backups/BackupArchiveContract.cs`, `BackupManifestValidator.cs`, `IJournalRestoreService.cs`, `IRestorePreflightService.cs` (all under that same `Backups` directory).
+- Infrastructure: `src/PersonalTradingJournal.Infrastructure/Backups/BackupArchiveService.cs`, `JournalRestoreService.cs`, `PreflightZipDirectory.cs`, `RestorePreflightService.cs`, **new** `StagingCapacity.cs` (all under that same `Backups` directory).
+- Tests: `tests/PersonalTradingJournal.Application.Tests/Backups/BackupManifestTests.cs`; `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/JournalRestoreTests.cs`, `RestorePreflightTests.cs`.
+
 ## M16.8 — Live retry and matching CI (2026-10-11)
 
 The retry started from a clean `develop` worktree at `a84f9acb34529cff1ee2e01637ab85570529b2c2`. [CI #83](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38146488487) **passed** for PR #19 at that head: **3,697 tests**, zero failures/skips, Release build with zero warnings/errors. The PR job checked out merge revision `5e0f38e78e47c2b5bf47340e80d344e82d9f8aa1` (develop head above merged with main `d10dc6d2de69e10e204affa6657f5a535a4a8e20`), rather than the develop SHA directly. This verifies the committed implementation; follow-up documentation edits are not part of that run. Workflow triggers remain pushes to `main` and PRs targeting `main`.
@@ -278,7 +313,7 @@ Baseline: clean `develop`, `5f0b9b387b26f550d6be4a3c9c6054730286f38f`, containin
 1. Pin a regular archive file with a Windows read handle denying writes/deletion; reject linked components, hard links and mismatched opened-handle identity. Before `ZipArchive` allocates entry objects, parse bounded end/central/local records. Enforce the existing M16.1 container/payload/manifest/role limits, at most 100,003 entries including the manifest, 240-character ASCII portable paths, 64 MiB central metadata, and 1 KiB per comment/extra field. Reject multivolume, encrypted, unsupported compression, directory/link/reparse entries, traversal, absolute paths, duplicate/case aliases, overlapping/local-name-mismatched records, prefixes, orphan records and unexpected gaps.
 2. The v1 producer profile supports stored/deflated regular entries, ZIP64 size/offset/directory records and data descriptors. Only ZIP64 extra fields are accepted; third-party repackaging with other metadata is rejected rather than interpreted. The extension is not trusted as a file type. See the [ZIP format specification](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT).
 3. Deserialize the bounded strict manifest, validate its declarations against the shipped migration catalog, and require exactly its payload set plus `manifest.json`. Every declared size must match container metadata. Missing, additional, duplicate, invalid-version or malformed content blocks before any installed-data operation.
-4. Create `.preflight-<operation-id>.partial` with a protected current-user-only Windows ACL (0700 elsewhere). Extract to generated ordinal filenames, **never** archive names. Stream each bounded compressed range using an 81,920-byte buffer, enforcing actual expanded length while computing SHA-256 and CRC. Reject excess output even if an attacker supplies valid hash/CRC values for a shorter prefix. This explicit inflation matters: `ZipArchiveEntry.Open()` may stop at a forged declared length. Verify all payloads, including optional preferences, which must contain only the supported `Theme` property. Credentials, caches, logs and unknown payload paths are rejected, not restored.
+4. Check actual staging-volume capacity against validated expanded payload sizes plus reserve before creating `.preflight-<operation-id>.partial` with a protected current-user-only Windows ACL (0700 elsewhere); see the Pre-M17 correction above. Extract to generated ordinal filenames, **never** archive names. Stream each bounded compressed range using an 81,920-byte buffer, enforcing actual expanded length while computing SHA-256 and CRC, and recheck remaining capacity before writes. Reject excess output even if an attacker supplies valid hash/CRC values for a shorter prefix. This explicit inflation matters: `ZipArchiveEntry.Open()` may stop at a forged declared length. Verify all payloads, including optional preferences, which must contain only the supported `Theme` property. Credentials, caches, logs and unknown payload paths are rejected, not restored.
 
 ### Independent SQLite and compatibility policy
 
@@ -439,7 +474,7 @@ The small manifest contains:
 | `databaseSchema.engine` | Exact `sqlite`. |
 | `databaseSchema.appliedMigrations` | Nonempty ordered EF migration IDs copied from the staged database. Must match its real migration table and the consuming app's trusted catalog. Do not infer schema from a filename. |
 | `hashAlgorithm` | Exact `SHA-256` in v1. |
-| `files[]` | `path`, `kind`, positive `sizeBytes` (uncompressed bytes), lowercase 64-hex `sha256` of complete uncompressed bytes. Each payload appears once; `manifest.json` is not self-listed/hashed. Producer writes files in ordinal path order for reproducibility; validator does not depend on order. |
+| `files[]` | `path`, `kind`, `sizeBytes` (uncompressed bytes; zero permitted only for screenshots), lowercase 64-hex `sha256` of complete uncompressed bytes. Database/preferences remain positive-size. Each payload appears once; `manifest.json` is not self-listed/hashed. Producer writes files in ordinal path order for reproducibility; validator does not depend on order. |
 
 Stable paths are `data/journal.db` (exactly one), `attachments/screenshots/<StorageKey>` (zero or more) and `preferences/settings.json` (zero or one). They are archive-relative mappings, not the installed directory layout. The future restore maps only these allowlisted roles to its controlled staging paths. No absolute local paths, machine/user names, Account labels, source filenames, secrets or provider text fields belong in the manifest.
 

@@ -15,11 +15,14 @@ public sealed class RestorePreflightService : IRestorePreflightService
 {
     private readonly Action<RestorePreflightPhase, string?>? hook;
     private readonly PreflightLimits limits;
+    private readonly Func<string, long> freeSpace;
+    private readonly int stagedCopies;
     private readonly Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary>? capture;
     public RestorePreflightService() : this(null, new()) { }
     internal RestorePreflightService(Action<RestorePreflightPhase, string?>? hook, PreflightLimits limits,
-        Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary>? capture = null)
-    { this.hook = hook; this.limits = limits; this.capture = capture; }
+        Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary>? capture = null,
+        Func<string, long>? freeSpace = null, int stagedCopies = 1)
+    { this.hook = hook; this.limits = limits; this.capture = capture; this.freeSpace = freeSpace ?? StagingCapacity.Available; this.stagedCopies = stagedCopies; }
 
     public Task<RestorePreflightResult> InspectAsync(string archivePath, string stagingParentDirectory, CancellationToken cancellationToken = default) =>
         Task.Run(() => Inspect(archivePath, stagingParentDirectory, cancellationToken), CancellationToken.None);
@@ -70,6 +73,8 @@ public sealed class RestorePreflightService : IRestorePreflightService
             if (payloads.Any(p => p.SizeBytes != entries[p.Path].Metadata.Size)) throw new PreflightFailure(BackupValidationCode.ContentMismatch);
 
             Check(RestorePreflightPhase.Staging);
+            long remaining = StagingCapacity.Required(payloads, stagedCopies, limits.StagingReserveBytes);
+            StagingCapacity.Require(parent, remaining, freeSpace);
             string pending = Path.Combine(parent, ".preflight-" + id.ToString("N") + ".partial");
             if (Path.Exists(pending)) throw new IOException();
             BackupArchiveService.CreatePrivateDirectory(pending);
@@ -79,15 +84,22 @@ public sealed class RestorePreflightService : IRestorePreflightService
             foreach (var payload in payloads)
             {
                 token.ThrowIfCancellationRequested();
+                StagingCapacity.Require(owned, remaining, freeSpace);
                 // Never extract an untrusted name to a filesystem path, even after path validation.
                 string target = Path.Combine(owned, "payload-" + files.Count.ToString("D6", System.Globalization.CultureInfo.InvariantCulture));
                 using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     files.Add(target);
                     var entry = entries[payload.Path];
-                    if (Transfer(file, entry.Metadata, output, token) != payload.Sha256)
+                    if (Transfer(file, entry.Metadata, output, token, count =>
+                    {
+                        StagingCapacity.Require(owned, remaining, freeSpace);
+                        token.ThrowIfCancellationRequested();
+                        remaining -= count;
+                    }) != payload.Sha256)
                         throw new PreflightFailure(BackupValidationCode.ContentMismatch);
                 }
+                remaining -= StagingCapacity.PerFileAllowance;
                 staged.Add(payload.Path, target);
                 if (payload.Kind == BackupFileKind.Preferences) ValidatePreferences(target);
             }
@@ -97,12 +109,14 @@ public sealed class RestorePreflightService : IRestorePreflightService
             result = new(id, phase, null, compatibility, summary);
         }
         catch (OperationCanceledException) { result = new(id, phase, BackupValidationCode.Cancelled, compatibility); }
-        catch (PreflightFailure e) { result = new(id, phase, e.Code, compatibility); }
+        catch (PreflightFailure e) { result = new(id, phase, e.Code, compatibility, CleanupFailed: e.CleanupFailed); }
         catch (SqliteDatabaseSnapshotService.SnapshotFailure) { result = new(id, phase, BackupValidationCode.UnsupportedDatabaseSchema, compatibility); }
         catch (SqliteException e) { result = new(id, phase, token.IsCancellationRequested ? BackupValidationCode.Cancelled :
             e.SqliteErrorCode == 9 ? BackupValidationCode.LimitExceeded : BackupValidationCode.DatabaseIntegrityFailed, compatibility); }
         catch (JsonException) { result = new(id, phase, BackupValidationCode.InvalidManifest, compatibility); }
         catch (InvalidDataException) { result = new(id, phase, BackupValidationCode.IncompleteArchive, compatibility); }
+        catch (IOException e) when (StagingCapacity.IsDiskFull(e))
+        { result = new(id, phase, BackupValidationCode.InsufficientStorage, compatibility); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or OverflowException)
         { result = new(id, phase, BackupValidationCode.IoFailure, compatibility); }
         finally
@@ -114,7 +128,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
                 try { Directory.Delete(owned); }
                 catch (DirectoryNotFoundException) { }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed = true; }
-            result = result with { CleanupFailed = failed };
+            result = result with { CleanupFailed = result.CleanupFailed || failed };
         }
         return result;
     }
@@ -209,7 +223,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
         while ((read = stream.Read(buffer)) != 0) { token.ThrowIfCancellationRequested(); hash.AppendData(buffer, 0, read); }
         token.ThrowIfCancellationRequested(); return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
-    private static string Transfer(FileStream archive, PreflightZipDirectory.Entry metadata, Stream output, CancellationToken token)
+    private static string Transfer(FileStream archive, PreflightZipDirectory.Entry metadata, Stream output, CancellationToken token, Action<int>? beforeWrite = null)
     {
         // ZipArchiveEntry.Open can stop at a forged declared length. Inflate the bounded compressed range ourselves
         // so additional output is detected, not silently ignored even when the declared prefix's hash/CRC is valid.
@@ -223,6 +237,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
             if (read > metadata.Size - length) throw new PreflightFailure(BackupValidationCode.LimitExceeded);
             length += read; hash.AppendData(buffer, 0, read);
             for (int i = 0; i < read; i++) crc = CrcTable[(crc ^ buffer[i]) & 255] ^ (crc >> 8);
+            beforeWrite?.Invoke(read);
             output.Write(buffer, 0, read);
         }
         token.ThrowIfCancellationRequested();

@@ -15,7 +15,7 @@ public sealed class JournalRestoreService : IJournalRestoreService
     private readonly Func<string, long> freeSpace;
     public JournalRestoreService(IApplicationPaths paths) : this(paths, null, null) { }
     internal JournalRestoreService(IApplicationPaths paths, Action<JournalRestorePhase, string>? checkpoint, Func<string, long>? freeSpace = null)
-    { this.paths = paths; this.checkpoint = checkpoint; this.freeSpace = freeSpace ?? AvailableSpace; }
+    { this.paths = paths; this.checkpoint = checkpoint; this.freeSpace = freeSpace ?? StagingCapacity.Available; }
 
     public Task<JournalRestoreResult> RestoreAsync(JournalRestoreRequest request, CancellationToken cancellationToken = default) =>
         Task.Run(() => Restore(request, cancellationToken), CancellationToken.None);
@@ -46,24 +46,26 @@ public sealed class JournalRestoreService : IJournalRestoreService
             BackupArchiveService.CreatePrivateDirectory(root);
             string incomingArchive = Path.Combine(root, "incoming.ptjbackup"), incomingDirectory = Path.Combine(root, "incoming");
             Check(JournalRestorePhase.Incoming);
-            RequireSpace(new FileInfo(request.ArchivePath).Length * 2 + 64L * 1024 * 1024);
+            RequireSpace(root, checked(new FileInfo(request.ArchivePath).Length * 2 + StagingCapacity.DefaultReserveBytes));
             if (CopyPinned(request.ArchivePath, incomingArchive, BackupArchiveContract.MaximumArchiveBytes, token) != request.ConfirmedArchiveSha256)
                 return Result(JournalRestoreStatus.SourceChanged);
-            BackupManifest? incomingManifest = null; bool stagingSpaceUnavailable = false;
+            BackupManifest? incomingManifest = null;
             var incoming = Inspect(incomingArchive, root, (manifest, staged, summary) =>
             {
-                try { RequireSpace(checked(summary.PayloadBytes * 2 + 64L * 1024 * 1024)); }
-                catch (StorageFailure) { stagingSpaceUnavailable = true; throw; }
                 incomingManifest = manifest; Stage(manifest, staged, incomingDirectory, token);
-            }, token);
+            }, token, stagedCopies: 2);
             if (!incoming.Validated || incoming.CleanupFailed)
-                return stagingSpaceUnavailable ? Result(JournalRestoreStatus.InsufficientStorage) :
-                    incoming.Failure == BackupValidationCode.Cancelled ? Result(JournalRestoreStatus.Cancelled) :
-                    Result(JournalRestoreStatus.RejectedArchive) with { CleanupFailed = incoming.CleanupFailed, ValidationFailure = incoming.Failure };
+                return Result(incoming.Failure switch
+                {
+                    BackupValidationCode.InsufficientStorage => JournalRestoreStatus.InsufficientStorage,
+                    BackupValidationCode.CapacityUnavailable => JournalRestoreStatus.FailedOriginalIntact,
+                    BackupValidationCode.Cancelled => JournalRestoreStatus.Cancelled,
+                    _ => JournalRestoreStatus.RejectedArchive
+                }) with { CleanupFailed = incoming.CleanupFailed, ValidationFailure = incoming.Failure };
 
             Check(JournalRestorePhase.RecoveryCapture);
             AssertClosed(paths.DatabasePath);
-            RequireSpace(checked(new FileInfo(paths.DatabasePath).Length * 3 + 64L * 1024 * 1024));
+            RequireSpace(root, checked(new FileInfo(paths.DatabasePath).Length * 3 + StagingCapacity.DefaultReserveBytes));
             recovery = Path.Combine(root, "recovery.ptjbackup");
             var captured = new BackupArchiveService(paths, new SqliteDatabaseSnapshotService(paths)).CreateAsync(recovery, token).GetAwaiter().GetResult();
             if (!captured.Succeeded || captured.CleanupFailed)
@@ -120,11 +122,11 @@ public sealed class JournalRestoreService : IJournalRestoreService
             {
                 OperationCanceledException => JournalRestoreStatus.Cancelled,
                 JournalMaintenanceException => JournalRestoreStatus.Blocked,
-                StorageFailure => JournalRestoreStatus.InsufficientStorage,
+                PreflightFailure { Code: BackupValidationCode.InsufficientStorage } => JournalRestoreStatus.InsufficientStorage,
                 _ when phase == JournalRestorePhase.Maintenance => JournalRestoreStatus.Blocked,
                 _ when phase == JournalRestorePhase.RecoveryCapture => JournalRestoreStatus.RecoveryCaptureFailed,
                 _ => JournalRestoreStatus.FailedOriginalIntact
-            });
+            }) with { ValidationFailure = (e as PreflightFailure)?.Code };
         }
         finally { lease?.Dispose(); }
     }
@@ -200,19 +202,41 @@ public sealed class JournalRestoreService : IJournalRestoreService
         return new(JournalRestoreStatus.RecoveredOriginal, state.OperationId, JournalRestorePhase.Finished, recoveryPath, root);
     }
 
-    private static RestorePreflightResult Inspect(string archive, string parent,
-        Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary> capture, CancellationToken token) =>
-        new RestorePreflightService(null, new(), capture).InspectAsync(archive, parent, token).GetAwaiter().GetResult();
+    private RestorePreflightResult Inspect(string archive, string parent,
+        Action<BackupManifest, IReadOnlyDictionary<string, string>, RestorePreflightSummary> capture, CancellationToken token, int stagedCopies = 1) =>
+        new RestorePreflightService(null, new(), capture, freeSpace, stagedCopies).InspectAsync(archive, parent, token).GetAwaiter().GetResult();
 
-    private static void Stage(BackupManifest manifest, IReadOnlyDictionary<string, string> staged, string directory, CancellationToken token)
+    private void Stage(BackupManifest manifest, IReadOnlyDictionary<string, string> staged, string directory, CancellationToken token)
     {
+        long remaining = StagingCapacity.Required(manifest.Files, 1, StagingCapacity.DefaultReserveBytes);
+        RequireSpace(Path.GetDirectoryName(directory)!, remaining);
         BackupArchiveService.CreatePrivateDirectory(directory);
-        BackupArchiveService.CreatePrivateDirectory(Path.Combine(directory, "screenshots"));
-        foreach (var entry in manifest.Files)
+        var owned = new List<string>(); string screenshots = Path.Combine(directory, "screenshots");
+        bool screenshotsCreated = false;
+        try
         {
-            string target = PayloadPath(directory, entry);
-            if (CopyPinned(staged[entry.Path], target, entry.SizeBytes, token) != entry.Sha256 || new FileInfo(target).Length != entry.SizeBytes)
-                throw new IOException();
+            BackupArchiveService.CreatePrivateDirectory(screenshots); screenshotsCreated = true;
+            foreach (var entry in manifest.Files)
+            {
+                string target = PayloadPath(directory, entry);
+                RequireSpace(directory, remaining);
+                if (CopyPinned(staged[entry.Path], target, entry.SizeBytes, token, count =>
+                    { RequireSpace(directory, remaining); token.ThrowIfCancellationRequested(); remaining -= count; },
+                    () => owned.Add(target)) != entry.Sha256 || new FileInfo(target).Length != entry.SizeBytes)
+                    throw new IOException();
+                remaining -= StagingCapacity.PerFileAllowance;
+            }
+        }
+        catch (Exception error)
+        {
+            bool failed = false;
+            foreach (string file in owned)
+                try { File.Delete(file); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed = true; }
+            foreach (string folder in screenshotsCreated ? new[] { screenshots, directory } : new[] { directory })
+                try { Directory.Delete(folder); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { failed = true; }
+            if (failed) throw new PreflightFailure(error is PreflightFailure capacity ? capacity.Code :
+                error is OperationCanceledException ? BackupValidationCode.Cancelled : BackupValidationCode.IoFailure, cleanupFailed: true);
+            throw;
         }
     }
     private static void VerifyDirectory(string directory, BackupManifest manifest, RestorePreflightSummary expected, CancellationToken token)
@@ -284,23 +308,25 @@ public sealed class JournalRestoreService : IJournalRestoreService
         SqliteDatabaseSnapshotService.EnsureNoLinks(path);
         using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (!BackupFileIdentity.IsUnaliased(file, path)) throw new IOException();
+        if (file.Length == 0 && kind != BackupFileKind.Screenshot) throw new IOException();
         return new(portable, kind, file.Length, Transfer(file, Stream.Null, BackupArchiveContract.MaximumPayloadBytes, token));
     }
-    private static string CopyPinned(string source, string target, long maximum, CancellationToken token)
+    private static string CopyPinned(string source, string target, long maximum, CancellationToken token, Action<int>? beforeWrite = null, Action? created = null)
     {
         SqliteDatabaseSnapshotService.EnsureNoLinks(source);
         using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read);
         if (!BackupFileIdentity.IsUnaliased(input, Path.GetFullPath(source))) throw new IOException();
         using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.WriteThrough);
-        string hash = Transfer(input, output, maximum, token); output.Flush(true); return hash;
+        created?.Invoke();
+        string hash = Transfer(input, output, maximum, token, beforeWrite); output.Flush(true); return hash;
     }
-    private static string Transfer(Stream input, Stream output, long maximum, CancellationToken token)
+    private static string Transfer(Stream input, Stream output, long maximum, CancellationToken token, Action<int>? beforeWrite = null)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256); byte[] buffer = new byte[81920]; long length = 0; int read;
         while ((read = input.Read(buffer)) != 0)
         {
             token.ThrowIfCancellationRequested(); if (read > maximum - length) throw new IOException(); length += read;
-            hash.AppendData(buffer, 0, read); output.Write(buffer, 0, read);
+            hash.AppendData(buffer, 0, read); beforeWrite?.Invoke(read); output.Write(buffer, 0, read);
         }
         token.ThrowIfCancellationRequested(); return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
@@ -343,17 +369,10 @@ public sealed class JournalRestoreService : IJournalRestoreService
         SqliteDatabaseSnapshotService.EnsureNoLinks(root);
         SqliteDatabaseSnapshotService.EnsureNoLinks(JournalDataSession.StatePath(paths));
     }
-    private void RequireSpace(long bytes) { if (freeSpace(paths.DataDirectory) < bytes) throw new StorageFailure(); }
-    private static long AvailableSpace(string path)
-    {
-        var drive = new DriveInfo(Path.GetPathRoot(Path.GetFullPath(path))!);
-        if (drive.DriveType is not (DriveType.Fixed or DriveType.Removable)) throw new IOException();
-        return drive.AvailableFreeSpace;
-    }
+    private void RequireSpace(string directory, long bytes) => StagingCapacity.Require(directory, bytes, freeSpace);
     private static bool IsHash(string value) => value is { Length: 64 } && value.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
     private sealed record RestoreState(int Version, Guid OperationId, bool Committed, string IncomingHash, string RecoveryHash,
         BackupFileEntry OriginalDatabase, BackupFileEntry? OriginalPreferences);
-    private sealed class StorageFailure : IOException;
 }
 
 internal sealed class RestoreInterruption : Exception;

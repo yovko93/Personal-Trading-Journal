@@ -64,7 +64,7 @@ public enum BackupValidationCode
     UnsupportedArchiveVersion, InvalidManifest, InvalidUtcTimestamp, UnsupportedDatabaseSchema,
     MissingEntry, DuplicateEntry, UnexpectedEntry, UnsafePath, LimitExceeded, InvalidHash,
     ContentMismatch, IncompleteArchive, DatabaseIntegrityFailed, DatabaseAttachmentMismatch,
-    SourceChanged, IoFailure, Cancelled
+    SourceChanged, IoFailure, Cancelled, InsufficientStorage, CapacityUnavailable
 }
 
 /// <summary>Ordinal only: do not echo an untrusted archive name, local path or raw exception into diagnostics.</summary>

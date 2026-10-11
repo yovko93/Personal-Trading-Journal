@@ -65,7 +65,8 @@ internal static class PreflightZipDirectory
             long disk = U16(header, 34);
             ReadExtra(extra, ref uncompressed, ref compressed, ref localOffset, ref disk);
             Require(disk == 0 && compressed >= 0 && compressed <= offset && localOffset < offset);
-            Limit(uncompressed > 0 && uncompressed <= maximum);
+            // A regular empty screenshot is not a ZIP directory. Paths/attributes above still reject directories.
+            Limit(uncompressed >= 0 && (uncompressed > 0 || name.StartsWith(BackupArchiveContract.ScreenshotsPrefix, StringComparison.Ordinal)) && uncompressed <= maximum);
             if (name != BackupArchiveContract.ManifestPath)
             { Limit(uncompressed <= limits.PayloadBytes - total); total += uncompressed; }
             ReadWithin(file, commentLength, directoryEnd);
@@ -151,8 +152,10 @@ internal static class PreflightZipDirectory
     private static void Limit(bool valid) { if (!valid) throw new PreflightFailure(BackupValidationCode.LimitExceeded); }
 }
 
-internal sealed class PreflightFailure(BackupValidationCode code) : Exception { internal BackupValidationCode Code { get; } = code; }
+internal sealed class PreflightFailure(BackupValidationCode code, bool cleanupFailed = false) : Exception
+{ internal BackupValidationCode Code { get; } = code; internal bool CleanupFailed { get; } = cleanupFailed; }
 internal sealed record PreflightLimits(int Files = BackupArchiveContract.MaximumFiles, int ManifestBytes = BackupArchiveContract.MaximumManifestBytes,
     long ArchiveBytes = BackupArchiveContract.MaximumArchiveBytes, long DatabaseBytes = BackupArchiveContract.MaximumDatabaseBytes,
     long ScreenshotBytes = BackupArchiveContract.MaximumScreenshotBytes, long PayloadBytes = BackupArchiveContract.MaximumPayloadBytes,
-    int DatabaseProgressCallbacks = 100000, int DatabaseSeconds = 60, int DatabaseProgressInterval = 1000);
+    int DatabaseProgressCallbacks = 100000, int DatabaseSeconds = 60, int DatabaseProgressInterval = 1000,
+    long StagingReserveBytes = StagingCapacity.DefaultReserveBytes);

@@ -62,7 +62,8 @@ public static class BackupManifestValidator
                 BackupFileKind.Preferences => BackupArchiveContract.MaximumPreferencesBytes,
                 _ => 0
             };
-            if (file.SizeBytes <= 0 || file.SizeBytes > maximum) Add(BackupValidationCode.LimitExceeded, i);
+            if (file.SizeBytes < 0 || (file.SizeBytes == 0 && file.Kind != BackupFileKind.Screenshot) || file.SizeBytes > maximum)
+                Add(BackupValidationCode.LimitExceeded, i);
             // Subtraction before addition avoids overflow even for hostile declarations.
             if (file.SizeBytes > BackupArchiveContract.MaximumPayloadBytes - total)
                 Add(BackupValidationCode.LimitExceeded, i);

@@ -22,6 +22,75 @@ public sealed class RestorePreflightTests
     private const string Shot = BackupArchiveContract.ScreenshotsPrefix + "image.png";
 
     [Theory]
+    [InlineData("insufficient")]
+    [InlineData("unknown")]
+    [InlineData("negative")]
+    public async Task ExpandedCapacityFailsBeforeCreatingStagingAndUsesActualDestination(string mode)
+    {
+        await using var f = await Fixture.Create(); await f.Add("image.png");
+        Assert.True((await f.Service().CreateAsync(f.Output)).Succeeded);
+        string before = InstalledHash(f); string parent = Path.Combine(f.Root, "chosen-staging"); Directory.CreateDirectory(parent);
+        var manifest = Parse(Read(f.Output)); long required = StagingCapacity.Required(manifest.Files, 1, 1024);
+        Assert.True(required > new FileInfo(f.Output).Length); int calls = 0;
+        var result = await new RestorePreflightService(null, new(StagingReserveBytes: 1024), freeSpace: path =>
+        {
+            calls++; Assert.Equal(parent, path); Assert.Empty(Directory.GetFileSystemEntries(parent));
+            return mode switch { "unknown" => throw new IOException("private diagnostic"), "negative" => -1, _ => required - 1 };
+        }).InspectAsync(f.Output, parent);
+        Assert.Equal(1, calls); Assert.Equal(RestorePreflightPhase.Staging, result.Phase);
+        Assert.Equal(mode == "insufficient" ? BackupValidationCode.InsufficientStorage : BackupValidationCode.CapacityUnavailable, result.Failure);
+        Assert.Null(result.Summary); Assert.False(result.CleanupFailed); Assert.Empty(Directory.GetFileSystemEntries(parent));
+        Assert.Equal(before, InstalledHash(f)); Assert.DoesNotContain("private", result.Message);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CapacityLossOrCancellationAfterAChunkCleansPartialPayloads(bool cancel)
+    {
+        await using var f = await Fixture.Create(); await f.Add("image.png");
+        await File.WriteAllBytesAsync(Path.Combine(f.Paths.ScreenshotsDirectory, "image.png"), new byte[200000]);
+        Assert.True((await f.Service().CreateAsync(f.Output)).Succeeded); string before = InstalledHash(f);
+        using var cts = new CancellationTokenSource(); bool sawPartial = false;
+        var result = await new RestorePreflightService(null, new(StagingReserveBytes: 1024), freeSpace: path =>
+        {
+            if (Path.GetFileName(path).StartsWith(".preflight-", StringComparison.Ordinal) &&
+                Directory.EnumerateFiles(path).Any(p => new FileInfo(p).Length > 0))
+            {
+                sawPartial = true;
+                if (cancel) { cts.Cancel(); return long.MaxValue; }
+                return 0;
+            }
+            return long.MaxValue;
+        }).InspectAsync(f.Output, f.Root, cts.Token);
+        Assert.True(sawPartial); Assert.Equal(cancel ? BackupValidationCode.Cancelled : BackupValidationCode.InsufficientStorage, result.Failure);
+        Assert.False(result.CleanupFailed); Assert.Null(result.Summary); Clean(f); Assert.Equal(before, InstalledHash(f));
+    }
+
+    [Fact]
+    public async Task ExactExpandedBudgetPassesAndOverflowFailsClosed()
+    {
+        await using var f = await Fixture.Create(); await f.Add("image.png"); Assert.True((await f.Service().CreateAsync(f.Output)).Succeeded);
+        var manifest = Parse(Read(f.Output)); long budget = StagingCapacity.Required(manifest.Files, 1, 1024);
+        var result = await new RestorePreflightService(null, new(StagingReserveBytes: 1024), freeSpace: _ => budget).InspectAsync(f.Output, f.Root);
+        Assert.True(result.Validated, result.ToString()); Clean(f);
+        var overflow = Assert.Throws<PreflightFailure>(() => StagingCapacity.Required([new(Db, BackupFileKind.Database, long.MaxValue, "")], 2, 1024));
+        Assert.Equal(BackupValidationCode.LimitExceeded, overflow.Code);
+    }
+
+    [Theory]
+    [InlineData(Db)]
+    [InlineData(Manifest)]
+    [InlineData(BackupArchiveContract.PreferencesPath)]
+    public async Task EmptyNonScreenshotZipPayloadsRemainRejected(string name)
+    {
+        await using var f = await Fixture.Create(); await File.WriteAllTextAsync(f.Paths.SettingsPath, "{\"Theme\":\"Dark\"}");
+        Assert.True((await f.Service().CreateAsync(f.Output)).Succeeded);
+        var entries = Read(f.Output); Replace(entries, name, []); if (name != Manifest) Rehash(entries, name); Write(f.Output, entries);
+        Assert.Equal(BackupValidationCode.LimitExceeded, (await new RestorePreflightService().InspectAsync(f.Output, f.Root)).Failure); Clean(f);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ProducerRoundTripReturnsOnlySafeCountsAndCleansEvenSuccessfulStaging(bool populated)

@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17 — PR #19 backup safety corrections**
+
+Complete backups now preserve already-persisted **zero-byte screenshot files** end to end, including their empty-content SHA-256, preflight, offline restore and recovery. SQLite, manifest and preferences still require positive sizes; directory/link/path/hash protections remain unchanged. Screenshot admission is unchanged—backup preserves recorded bytes, it does not certify that they decode as images.
+
+Settings preflight checks the **actual staging volume** before extraction using validated uncompressed sizes, a per-file allowance and a 64 MiB reserve. Unknown capacity fails safely; capacity is rechecked while streaming. Offline restore uses the same checks, reserving both concurrently staged incoming copies before extraction and cleaning incomplete copies on failure/cancellation. Archives remain version 1 and unencrypted; no schema or production-journal changes. See [PR #19 evidence, verification and limits](docs/backup-restore.md#pre-m17--pr-19-backup-review-corrections-2026-10-11). M17 is not started.
+
+Verification: **37 Application + 214 Infrastructure focused tests passed**; the complete parallel Release suite passed **3,712/3,712**, zero failures/skips (454 Domain, 710 Application, 1,132 Infrastructure, 1,416 Desktop). Release build: **0 warnings/errors**; EF model consistency and tracked/new-file whitespace checks passed. Small synthetic capacity injection covers low/unknown space, loss during extraction/copy, cancellation and cleanup without filling a real disk. No live production data or provider was accessed. These corrections are uncommitted and require a new matching CI run after the user's commit/push.
+
 **M16.8 — Backup/export/restore acceptance (core live round trip passed)**
 
 The real Settings-command round trip verifies a richer isolated dataset: Trade/executions, screenshot, exact/null-scope Journals with revisions, and a validated fake AI snapshot. On 2026-10-11, the user also completed the running Desktop app's native backup/export pickers and confirmed offline restore. The actual parent exit → maintenance → fresh-app process chain was observed, and the user confirmed reopening. Independent checks matched all restored logical tables and screenshot bytes to the original Desktop export, and verified that the retained recovery archive contains the deliberately changed dataset. No production data or AI provider was accessed. No product change, archive-limit change or deadline change was required.

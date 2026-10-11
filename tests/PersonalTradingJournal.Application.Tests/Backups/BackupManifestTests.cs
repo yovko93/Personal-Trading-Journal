@@ -137,7 +137,7 @@ public sealed class BackupManifestTests
     [InlineData(BackupFileKind.Database, BackupArchiveContract.MaximumDatabaseBytes)]
     [InlineData(BackupFileKind.Screenshot, BackupArchiveContract.MaximumScreenshotBytes)]
     [InlineData(BackupFileKind.Preferences, BackupArchiveContract.MaximumPreferencesBytes)]
-    public void PerRoleSizeLimitsRejectZeroNegativeAndOverflow(BackupFileKind kind, long maximum)
+    public void PerRoleSizeLimitsAllowEmptyScreenshotsOnlyAndRejectNegativeAndOverflow(BackupFileKind kind, long maximum)
     {
         var file = kind switch
         {
@@ -148,7 +148,8 @@ public sealed class BackupManifestTests
         BackupManifest WithSize(long size) => Valid with { Files = kind == BackupFileKind.Database
             ? [file with { SizeBytes = size }] : [Database, file with { SizeBytes = size }] };
         Assert.True(Check(WithSize(maximum)).IsValidManifest);
-        foreach (long size in new[] { 0, -1, maximum + 1, long.MaxValue }) Has(WithSize(size), BackupValidationCode.LimitExceeded);
+        Assert.Equal(kind == BackupFileKind.Screenshot, Check(WithSize(0)).IsValidManifest);
+        foreach (long size in new[] { -1, maximum + 1, long.MaxValue }) Has(WithSize(size), BackupValidationCode.LimitExceeded);
     }
 
     [Fact]

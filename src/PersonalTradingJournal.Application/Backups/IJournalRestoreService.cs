@@ -24,7 +24,9 @@ public sealed record JournalRestoreResult(JournalRestoreStatus Status, Guid Oper
 {
     public bool Succeeded => Status == JournalRestoreStatus.Restored;
     public bool NormalUseBlocked => Status == JournalRestoreStatus.RecoveryRequired;
-    public string Message => Status switch
+    public string Message => !NormalUseBlocked && ValidationFailure == BackupValidationCode.CapacityUnavailable
+        ? "Staging free space could not be verified. Check storage access before retrying; no dataset was replaced."
+        : Status switch
     {
         JournalRestoreStatus.Restored => "Restore verified. Recovery archive and original dataset retained. Restart the application before use.",
         JournalRestoreStatus.RecoveredOriginal => "The original dataset was recovered and verified. Recovery files are retained.",
