@@ -17,7 +17,8 @@ public static class CoachingEvidencePacketBuilder
             if (evidence.Trades.Count > CoachingContract.MaximumTrades ||
                 evidence.Journals.Count > CoachingContract.MaximumJournals ||
                 evidence.Trades.Sum(t => (long)t.Executions.Count) > CoachingContract.MaximumExecutions ||
-                evidence.Trades.Sum(t => (long)t.AssignedMistakes.Count) > CoachingContract.MaximumMistakeAssignments)
+                evidence.Trades.Sum(t => (long)t.AssignedMistakes.Count) > CoachingContract.MaximumMistakeAssignments ||
+                evidence.Trades.Sum(t => (long)(t.Playbook?.Associations.Count ?? 0)) > CoachingContract.MaximumPlaybookAssociations)
                 return TooLarge();
 
             var trades = evidence.Trades.OrderBy(t => t.TradeId).Select(t =>
@@ -28,6 +29,7 @@ public static class CoachingEvidencePacketBuilder
                     Executions = Array.AsReadOnly(t.Executions.OrderBy(e => e.Sequence).ThenBy(e => e.Id).ToArray()),
                     AssignedMistakes = Array.AsReadOnly(t.AssignedMistakes.OrderBy(m => m.Mistake.Id)
                         .ThenBy(m => m.AssignmentId).ToArray()),
+                    Playbook = FreezePlaybook(t),
                 };
             }).ToArray();
             var journals = evidence.Journals.OrderBy(j => j.TradingAccountId).ThenBy(j => j.JournalId).ToArray();
@@ -67,6 +69,10 @@ public static class CoachingEvidencePacketBuilder
                     trade.Account.Id, trade.PricingCurrency, trade.TradeId));
                 sources.AddRange(trade.Executions.Select(e => new CoachingSource("execution:" + e.Id.ToString("N"),
                     CoachingSourceKind.Execution, trade.Account.Id, trade.PricingCurrency, trade.TradeId, e.Id)));
+                sources.AddRange((trade.Playbook?.Associations ?? []).Select(a => new CoachingSource(
+                    PlaybookSource(trade.TradeId, a.Sequence), CoachingSourceKind.PlaybookAssociation,
+                    trade.Account.Id, trade.PricingCurrency, trade.TradeId, Revision: a.Guidance?.Revision,
+                    SetupId: a.SetupId, AssociationSequence: a.Sequence)));
             }
             sources.AddRange(journals.Select(j => new CoachingSource(JournalSource(j), CoachingSourceKind.Journal,
                 j.TradingAccountId, JournalId: j.JournalId, Revision: j.Revision)));
@@ -74,7 +80,7 @@ public static class CoachingEvidencePacketBuilder
                 new[] { ("text", j.Text), ("wentWell", j.Answers.WentWell),
                     ("needsImprovement", j.Answers.NeedsImprovement), ("nextTradingDay", j.Answers.NextTradingDay) }
                 .Where(f => string.IsNullOrWhiteSpace(f.Item2)).Select(f => f.Item1).ToArray()))).ToArray();
-            var content = new CoachingEvidenceContent(snapshot.Query, CoachingContract.ContentHandling, statistics,
+            var content = new CoachingEvidenceContent(snapshot.Query, CoachingContract.ContentHandling + " " + CoachingContract.PlaybookContentHandling, statistics,
                 snapshot.Trades, snapshot.Journals,
                 new(trades.Length == 0, statistics.Population.Closed.Count == 0, journals.Length == 0, false,
                     Array.AsReadOnly(trades.Select(t => (Guid?)t.Account.Id).Append(evidence.Query.TradingAccountId)
@@ -98,8 +104,38 @@ public static class CoachingEvidencePacketBuilder
         "journal:" + journal.JournalId.ToString("N") + ":revision:" + journal.Revision.ToString(CultureInfo.InvariantCulture);
 
     private static CoachingPacketBuildResult TooLarge() => new(CoachingPacketBuildStatus.TooLarge, null,
-        "Complete evidence exceeds the v1 packet limits. No records, text or statistics were truncated; no packet was produced.");
+        "Complete evidence, including retained Playbook context, exceeds the packet limits. No records, text or statistics were truncated; no packet was produced.");
     private static CoachingPacketBuildResult Invalid(string error) => new(CoachingPacketBuildStatus.InvalidEvidence, null, error);
+
+    public static string PlaybookSource(Guid tradeId, int sequence) =>
+        "trade:" + tradeId.ToString("N") + ":playbook:" + sequence.ToString(CultureInfo.InvariantCulture);
+
+    private static DailyReviewPlaybookEvidence? FreezePlaybook(DailyReviewTradeEvidence trade)
+    {
+        if (trade.Playbook is not { } playbook) return null; // Old snapshots did not supply this evidence.
+        if (!Enum.IsDefined(playbook.CurrentState) ||
+            playbook.Associations.Select(a => a.Sequence).Distinct().Count() != playbook.Associations.Count ||
+            playbook.Associations.Count(a => a.State == ReviewPlaybookAssociationState.Current) > 1)
+            throw new ArgumentException("Invalid Playbook association identities.");
+        var associations = playbook.Associations.OrderBy(a => a.Sequence).Select(a =>
+        {
+            if (a.Sequence < 0 || a.SetupId == Guid.Empty || !Enum.IsDefined(a.State) ||
+                a.CapturedAtUtc.Offset != TimeSpan.Zero || a.TradeOpenedAtUtc.Offset != TimeSpan.Zero ||
+                a.Guidance is { } g && (g.SetupId != a.SetupId || g.Revision < 1 ||
+                    g.RevisionRecordedAtUtc.Offset != TimeSpan.Zero || g.RevisionRecordedAtUtc > a.CapturedAtUtc ||
+                    g.Examples.Select(e => e.Id).Distinct().Count() != g.Examples.Count || g.Examples.Any(e => e.Id == Guid.Empty)))
+                throw new ArgumentException("Invalid Playbook capture.");
+            return a with { Guidance = a.Guidance is { } definition ? definition with
+                { Examples = Array.AsReadOnly(definition.Examples.ToArray()) } : null };
+        }).ToArray();
+        var current = associations.SingleOrDefault(a => a.State == ReviewPlaybookAssociationState.Current);
+        if (current is not null && current.SetupId != trade.Setup?.Id ||
+            (playbook.CurrentState == ReviewPlaybookState.Captured) != (current?.Guidance is not null) ||
+            playbook.CurrentState == ReviewPlaybookState.LegacyClassification && trade.Setup is null ||
+            playbook.CurrentState == ReviewPlaybookState.NoAssociation && trade.Setup is not null)
+            throw new ArgumentException("Current Playbook scope is inconsistent.");
+        return playbook with { Associations = Array.AsReadOnly(associations) };
+    }
 
     private static byte[] SerializeBounded<T>(T value, CancellationToken token)
     {

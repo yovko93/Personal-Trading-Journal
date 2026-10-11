@@ -7,6 +7,22 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 public sealed partial class MainWindowViewModelTests
 {
     [Fact]
+    public async Task PlaybookCitationCannotBypassUnsavedJournalGuardOrSubstituteMissingTrade()
+    {
+        var review = new ReviewFixture(); var f = CreateFixture(dailyReview: review.Vm);
+        f.Main.NavigateCommand.Execute(NavigationDestination.DailyReview); await review.Vm.LoadTask;
+        var citation = ReviewSnapshot.Read(ReviewFixture.Saved(DailyReviewViewTests.PlaybookEvidence(), true))
+            .Statements.SelectMany(s => s.Citations).Single(c => c.HasPlaybook);
+        f.Main.NavigateCommand.Execute(NavigationDestination.Journal); await f.Journal.LoadTask;
+        f.Journal.OpenEditorCommand.Execute(null); f.Journal.Text = "Synthetic unsaved draft";
+        await review.Vm.OpenTradeCommand.ExecuteAsync(citation.Trade);
+        Assert.Equal(NavigationDestination.Journal, f.Main.CurrentDestination);
+        Assert.Equal("Synthetic unsaved draft", f.Journal.Text);
+        Assert.Equal(0, f.TradeDetailReader.CallCount);
+        Assert.Contains("revision 3", citation.CapturedPlaybook);
+        f.Main.Dispose();
+    }
+    [Fact]
     public async Task ConfigureAiRoutesToSettingsWithoutGenerating()
     {
         var provider = new DailyReviewGenerationTests.Provider();

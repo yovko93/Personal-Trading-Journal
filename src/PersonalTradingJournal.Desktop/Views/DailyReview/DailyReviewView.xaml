@@ -58,6 +58,12 @@
                     <ItemsControl.ItemTemplate><DataTemplate>
                         <StackPanel Margin="0,4,0,8">
                             <TextBlock Style="{StaticResource ReviewBody}" Text="{Binding Label}" />
+                            <Expander Header="Open saved Playbook context" Margin="0,4"
+                                      Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                      Visibility="{Binding HasPlaybook, Converter={StaticResource BoolVisibility}}"
+                                      AutomationProperties.Name="{Binding Label, StringFormat=Captured Playbook citation: {0}}">
+                                <TextBlock Style="{StaticResource Prose}" Text="{Binding CapturedPlaybook}" />
+                            </Expander>
                             <WrapPanel>
                                 <Button Content="Open current Trade" Style="{DynamicResource PtjButtonStyle}"
                                         Visibility="{Binding HasTrade, Converter={StaticResource BoolVisibility}}"

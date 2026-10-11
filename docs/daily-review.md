@@ -1,5 +1,81 @@
 # Daily Review with AI Coaching — M15
 
+## M17.6 — Frozen Playbook evidence
+
+This section supersedes v1-only and four-query descriptions in the historical milestone notes below. New packets and responses use **daily-coaching.v2**. The saved-analysis table needs no migration: it already retains versioned immutable evidence/response JSON. Desktop reads v1 and v2 without rebuilding the evidence or running the current validator on historical content; only newly generated responses are validated against v2.
+
+The evidence reader now executes **six batched SELECTs**, not per-Trade reads: Trades/references, original Playbook captures, association transitions, executions, Mistakes and Journals. All share one deferred SQLite read transaction. The Playbook tables are restricted by the same selected-Trade subquery. Existing New York closure date, DST, open/partial activity, Account, currency and strict-Net definitions are unchanged. Every retained capture/transition is supplied; memory scales with the day's complete evidence. Packet limits (including a 5,000-association ceiling and 262,144 UTF-8 bytes) reject rather than silently page away context.
+
+### Source contract
+
+- `Trade.Playbook.CurrentState`: no association, legacy classification/no capture, or captured. A null Playbook property in an old snapshot means it was not supplied, not proof of no plan.
+- `Associations`: ascending immutable sequence, Setup ID, capture UTC instant, Trade opening UTC instant, current/replaced/removed state, optional frozen guidance. Sequence 0 identifies M17.2's original capture; positive sequences identify M17.5 transitions. Removal/classification-only transitions explicitly have no frozen definition. Later association changes, Setup edits/renames/archive and source deletion cannot rewrite a saved packet.
+- Guidance: frozen Setup identity/name/description, exact revision and revision UTC timestamp, all five guidance fields, ordered example IDs/annotations/user validity labels/provenance IDs and whether an image was referenced. No image binaries, local storage paths/keys, image filenames or hashes are sent. The AI has **not inspected any chart image**. Annotation and guidance prose is untrusted user evidence, never instructions.
+- Source IDs: `trade:{TradeId:N}:playbook:{sequence}`, bound to the original Account, currency, Setup and exact capture revision. `UserWrittenPlaybookContext` is a separate observation basis; calculated/recorded-Trade bases reject these citations. Unknown citations fail validation and cannot be saved. Membership validation alone cannot prove factual wording, adherence or prompt-injection resistance.
+- Saved citations show readable Setup/revision/Account/capture-state labels. **Open saved Playbook context** expands read-only snapshot text in place, preserving page state and unsaved work. The separate current-Trade link uses existing guarded navigation and unavailable-source handling. No mutable lookup replaces captured text. Legacy v1 sources remain readable, without fabricated Playbook content.
+
+### Budget and verification
+
+Provider limits are unchanged (Groq 6,800 estimated input / 1,000 output with 10% margin and 512 reserve). Both adapters count the complete v2 evidence/instructions/schema; oversized context sends no request and saves no analysis. The first two-Trade measurement was 6,892 because of fixed new wording and redundant absent optional metadata. The final contract omits absent optional Playbook/source properties and uses concise handling text; no Trade, execution, capture, annotation, Journal or statistic is dropped.
+
+Safe local token estimates (not billed usage), with instructions **340**, schema **369**, framing **83**, reserve **512**, output **1,000** in every case:
+
+| Synthetic complete evidence | Evidence tokens | 10% margin | Total estimate | Outcome |
+| --- | ---: | ---: | ---: | --- |
+| Two Trades, unknown costs, no associations/Journals | 4,899 | 570 | 6,773 | One fake HTTP call, validated atomic save |
+| One Trade, frozen plan and annotation | approximately 3,857 | approximately 465 | approximately 5,626 | One fake HTTP call, valid Playbook citation and saved evidence |
+| Long frozen plan | approximately 13,455 | approximately 1,425 | approximately 16,184 | Zero HTTP calls/saves |
+| 31 Trades | 46,811 | 4,761 | 52,876 | Zero HTTP calls/saves |
+| Mixed Account/currency day | 6,015 | 681 | 8,000 | Zero HTTP calls/saves |
+| Long Journal | 23,877 | 2,467 | 27,648 | Zero HTTP calls/saves |
+
+Playbook fixture example IDs are synthetic GUIDs, so their tokenizer lengths can vary slightly. Two Trades with additional plans/executions/text are not guaranteed to fit; limits are neither raised nor retried. Input rejection remains an actionable provider-profile limitation, not a claim that fewer dates/accounts are always available.
+
+All verification uses synthetic databases, fake provider/HTTP responses and automated WPF layout. No live provider call or production journal access is allowed in this milestone. Live mouse/keyboard/screen-reader behavior and GitHub Actions for the exact resulting commit remain separate gates while changes are uncommitted.
+
+Focused checks: **336 passed** (Application 131, Infrastructure 105, Desktop 100), zero failures/skips. Final local parallel Release suite: **3,860 passed, zero failures/skips** (Domain 476, Application 732, Infrastructure 1,196, Desktop 1,456). Infrastructure elapsed 3m50s; Desktop 4m37s. Release build: **zero warnings/errors**. EF `has-pending-model-changes`: no changes. Tracked and new-file whitespace checks pass. No deadlines, isolation protections or interaction assertions were removed. Initial development checks found the budget overhead described above and an unthemed citation expander foreground; both were corrected before this final green run.
+
+New regression coverage includes legacy/original/current/replaced/removed captures, exact and aggregate scope, concurrent WAL removal between read queries, frozen annotations without image metadata, immutable reload after service restart/source deletion, defensive packet copies, v1 display, basis/citation rejection, prompt-like Playbook text, fake-HTTP atomic save, oversized and cancelled requests with no save, and the shell's unsaved Journal navigation veto. Compiled-WPF tests verify focusability, accessible names, read-only in-place expansion, scrolling and no horizontal overflow. All four new citation renders were inspected: Light/Dark at **960 DIP/96 DPI** and **480 DIP/240 DPI** (`artifacts/m176-renders/`). This does not claim physical-monitor DPI, live input or assistive-technology acceptance.
+
+Evidence: `artifacts/m176-full/`, `artifacts/m176-focused-app/`, `artifacts/m176-focused-infra-final3/`, `artifacts/m176-focused-desktop-final/`. Baseline/final HEAD **889aa3f897f67fdbf48eaf9a2b0df19ef9b7d052**, branch **develop**; 24 changed files (19 tracked modifications, 5 new), no Git writes. **0 live provider requests; 0 paid requests; no production data accessed.** Matching CI cannot verify this uncommitted diff yet. After the user commits/pushes, verify the exact PR workflow head SHA; no CI-green claim is made here.
+
+### Exact M17.6 changed files
+
+Documentation: `README.md`, `docs/playbook.md`, `docs/daily-review.md`.
+
+Application:
+
+- `src/PersonalTradingJournal.Application/DailyReview/DailyReviewEvidence.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/DailyReviewPlaybookEvidence.cs` (new)
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingEvidencePacket.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingEvidencePacketBuilder.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingResponse.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingResponseValidator.cs`
+
+Infrastructure:
+
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/DailyReviewEvidenceReader.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingContract.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs`
+
+Desktop:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+
+Tests:
+
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/CoachingContractTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/CoachingPlaybookTests.cs` (new)
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/DailyReviewEvidenceReaderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/DailyReviewPlaybookReaderTests.cs` (new)
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/GroqInputBudgetTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookCoachingProjectionTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/ReviewPlaybookTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowDailyReviewTests.cs`
+
 ## M15.8 acceptance audit — 2026-10-09
 
 This is the current acceptance record; the implementation notes below retain their historical milestone/status statements. Baseline: clean `develop`, `30ccd18a23707bccc7c8bb998c68e1a641395c31`. The shared centered page header and calculated Account Current Balance were already present and are preserved. No production code, schema, economics, provider budget, or UI behavior changed in this audit. M16 is not started.

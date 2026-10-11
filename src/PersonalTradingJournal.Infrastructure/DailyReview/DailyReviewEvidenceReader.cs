@@ -60,6 +60,13 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
         // Subqueries, rather than one query per Trade or a limited browse page. Execution IDs
         // and nullable cost components retain source provenance even for partial exits.
         var ids = candidates.Select(row => row.Trade.Id);
+        // Both frozen formats are read under this same SQLite snapshot, never via the current Setup repository.
+        var originalContexts = await context.TradePlaybookContexts.AsNoTracking()
+            .Where(p => ids.Contains(p.TradeId)).ToDictionaryAsync(p => p.TradeId, cancellationToken);
+        var associationRows = await context.TradePlaybookAssociations.AsNoTracking()
+            .Where(p => ids.Contains(p.TradeId)).OrderBy(p => p.TradeId).ThenBy(p => p.Sequence)
+            .ToListAsync(cancellationToken);
+        var associationsByTrade = associationRows.ToLookup(p => p.TradeId);
         var executions = await context.TradeExecutions.AsNoTracking().Where(e => ids.Contains(e.TradeId))
             .OrderBy(e => e.TradeId).ThenBy(e => e.Sequence).ThenBy(e => e.Id)
             .Select(e => new { e.TradeId, Execution = new TradeExecutionDetailItem(e.Id, e.Sequence, e.ExecutedAtUtc,
@@ -116,9 +123,51 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
                     ? DailyReviewTradeInclusion.OpenActivityOnDate : DailyReviewTradeInclusion.UnavailableLifecycleActivityOnDate;
             trades.Add(new(row.Id, row.Account, row.Instrument, row.Setup, row.PricingCurrency, row.PricingPointValue,
                 row.CreatedAtUtc, row.UpdatedAtUtc, inclusion, row.Facts, Array.AsReadOnly(executionFacts),
-                Array.AsReadOnly(assigned), quality));
+                Array.AsReadOnly(assigned), quality, ReadPlaybook(row.Id, row.Setup?.Id)));
         }
         cancellationToken.ThrowIfCancellationRequested();
         return new(query, trades.AsReadOnly(), journals.AsReadOnly());
+
+        DailyReviewPlaybookEvidence ReadPlaybook(Guid tradeId, Guid? selectedSetup)
+        {
+            var captures = new List<ReviewPlaybookAssociation>();
+            if (originalContexts.TryGetValue(tradeId, out var original))
+            {
+                if (original.ContractVersion != Domain.Trades.TradePlaybookContext.ContractVersion)
+                    throw new InvalidDataException("Unsupported frozen Playbook context.");
+                captures.Add(new(0, original.TradingSetupId, original.CapturedAtUtc, original.TradeOpenedAtUtc,
+                    ReviewPlaybookAssociationState.Replaced, Guidance(original.DefinitionJson, original.TradingSetupId, original.Revision)));
+            }
+            foreach (var item in associationsByTrade[tradeId])
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                captures.Add(new(item.Sequence, item.TradingSetupId, item.RecordedAtUtc, item.TradeOpenedAtUtc,
+                    ReviewPlaybookAssociationState.Replaced, item.DefinitionJson is null ? null :
+                        Guidance(item.DefinitionJson, item.TradingSetupId, item.Revision)));
+            }
+            // Classification-only changes never resurrect an older capture, even when the Setup ID matches again.
+            var latest = captures.LastOrDefault();
+            for (int i = 0; i < captures.Count; i++)
+                captures[i] = captures[i] with { State = captures[i] == latest && latest.SetupId == selectedSetup
+                    ? ReviewPlaybookAssociationState.Current : selectedSetup is null
+                        ? ReviewPlaybookAssociationState.Removed : ReviewPlaybookAssociationState.Replaced };
+            var current = captures.LastOrDefault(p => p.State == ReviewPlaybookAssociationState.Current);
+            return new(selectedSetup is null ? ReviewPlaybookState.NoAssociation : current?.Guidance is not null
+                ? ReviewPlaybookState.Captured : ReviewPlaybookState.LegacyClassification, captures.AsReadOnly());
+        }
+
+        static ReviewPlaybookGuidance Guidance(string json, Guid? setup, int? revision)
+        {
+            var definition = PlaybookPersistenceMapper.Deserialize(json);
+            if (definition.TradingSetupId != setup || definition.Revision != revision)
+                throw new InvalidDataException("Frozen Playbook identity is inconsistent.");
+            var g = definition.Guidance;
+            return new(definition.TradingSetupId, definition.SetupName, definition.SetupDescription,
+                definition.Revision, definition.RecordedAtUtc, g.MarketContext, g.EntryConditions,
+                g.Confirmations, g.Invalidation, g.ExecutionGuidance,
+                Array.AsReadOnly(g.Examples.Select(e => new ReviewPlaybookExample(e.Id, e.Annotation,
+                    e.Kind.ToString(), e.SourceTradeId, e.SourceScreenshotId,
+                    e.Image is not null || e.SourceScreenshotId is not null)).ToArray()));
+        }
     }
 }

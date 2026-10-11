@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**M17.6 — Frozen Playbook evidence in Daily AI Review**
+
+Explicit generation now includes each selected Trade's captured Playbook guidance and text annotations, read in the same SQLite snapshot as the Trade. Current, replaced/removed and legacy/no-capture states are distinguished; current Setup edits are never substituted. Associations and user-authored example labels **do not verify adherence**. No image bytes, storage keys or image filenames are sent. The disclosure names the added Playbook text.
+
+New analyses use **daily-coaching.v2** with validated Playbook citations and immutable text-only evidence; existing v1 analyses remain readable without rewriting. A citation expands its saved context in place; its separate current-Trade link retains guarded navigation. Complete evidence is still subject to the unchanged provider budgets, with no truncation, automatic retry or fallback. No migration, economics, association-write or AI-adherence changes. See [M17.6 contract and verification](docs/daily-review.md#m176--frozen-playbook-evidence) and [Playbook integration](docs/playbook.md#m176--daily-ai-review-context).
+
+M17.6 local complete parallel Release suite: **3,860/3,860 passed**, zero failures/skips. Release build: **0 warnings/errors**; EF consistency and whitespace checks pass. Light/Dark saved-capture renders inspected at 960 DIP/96 DPI and 480 DIP/240 DPI. Live UI/provider and matching CI remain unverified; **no live or paid request**, production journal access or Git write occurred.
+
 **M17.5 — Trade association with a frozen Playbook revision**
 
 Trades and Calendar inline Trade details share the existing **Trading Setup** selector. The selected revision is previewed; **Associate Setup…** confirms and atomically saves that exact guidance/examples and classification. A changed Trade or Setup produces a conflict without switching to newer guidance or losing the selection. New manual Trades open Details after creation for explicit association; imports are not automatically backfilled.

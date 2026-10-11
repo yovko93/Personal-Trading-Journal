@@ -42,15 +42,15 @@ public sealed class DailyReviewViewModel : ObservableObject
         ? $"{date:dd MMM yyyy} · New York · {SelectedAccount.Label}" : "Select a New York date";
     public string ProviderSummary => (_credentials as ICoachingConfiguration)?.SelectedProvider switch
     {
-        CoachingProviderKind.Groq => "Only Generate sends this scope's Trade facts and Journal text to Groq.",
+        CoachingProviderKind.Groq => "Only Generate sends this scope's Trade facts and Journal text, including captured Playbook text, to Groq.",
         CoachingProviderKind.Unavailable => "Choose an AI provider in Settings before generating. Nothing is sent automatically.",
-        _ => "Only Generate sends this scope's Trade facts and Journal text to OpenAI.",
+        _ => "Only Generate sends this scope's Trade facts and Journal text, including captured Playbook text, to OpenAI.",
     };
     public string ProviderDisclosure => (_credentials as ICoachingConfiguration)?.SelectedProvider switch
     {
-        CoachingProviderKind.Groq => "Generate sends the selected Trade facts and Journal text to Groq. Groq Free tier has limits; usage may be billed if your account is upgraded. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
+        CoachingProviderKind.Groq => "Generate sends the selected Trade facts and Journal text to Groq, including frozen Playbook guidance and example annotations. No chart images are sent. Groq Free tier has limits; usage may be billed if your account is upgraded. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
         CoachingProviderKind.Unavailable => "AI provider configuration cannot be read. Choose a provider in Settings before generating. No fallback provider will be used.",
-        _ => "Generate sends the selected Trade facts and Journal text to OpenAI and may incur usage charges. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
+        _ => "Generate sends the selected Trade facts and Journal text to OpenAI and may incur usage charges, including frozen Playbook guidance and example annotations. No chart images are sent. Only an explicit click sends a request. Cancelling locally may not prevent charges.",
     };
 
     public DailyReviewViewModel(IDailyReviewEvidenceReader reader, ICoachingAnalysisRepository history,

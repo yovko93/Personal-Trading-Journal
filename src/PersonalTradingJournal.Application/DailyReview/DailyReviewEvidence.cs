@@ -52,7 +52,9 @@ public sealed record DailyReviewTradeEvidence(Guid TradeId, DailyReviewReference
     DailyReviewReference Instrument, DailyReviewReference? Setup, string PricingCurrency, decimal PricingPointValue,
     DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc, DailyReviewTradeInclusion Inclusion,
     DailyReviewTradeFacts? Facts, IReadOnlyList<TradeExecutionDetailItem> Executions,
-    IReadOnlyList<DailyReviewAssignedMistake> AssignedMistakes, DailyReviewTradeQuality Quality);
+    IReadOnlyList<DailyReviewAssignedMistake> AssignedMistakes, DailyReviewTradeQuality Quality,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    DailyReviewPlaybookEvidence? Playbook = null);
 
 /// <summary>Current persisted fields, unchanged, with the durable Journal revision. No entry is an
 /// absent item; an existing entry can have empty fields. All accounts retains null and individual IDs.</summary>

@@ -33,7 +33,7 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
                 messages = new[] { new { role = "system", content = OpenAiCoachingContract.Instructions },
                     new { role = "user", content = packet.Json } },
                 response_format = new { type = "json_schema", json_schema = new {
-                    name = "daily_coaching_v1", strict = true, schema = OpenAiCoachingContract.Schema() } },
+                    name = "daily_coaching_v2", strict = true, schema = OpenAiCoachingContract.Schema() } },
                 max_completion_tokens = options.MaximumOutputTokens, reasoning_effort = "low", stream = false, n = 1,
             });
             // HTTP JSON escaping is transport, not model input. Count decoded message content and

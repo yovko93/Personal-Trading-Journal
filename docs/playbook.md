@@ -1,5 +1,17 @@
 # Playbook — Domain, persistence and Desktop management
 
+## M17.6 — Daily AI Review context
+
+Daily Review reads both the original immutable Trade capture and all retained association transitions from the **same read-only SQLite transaction** as the selected Trades. It includes only those Trades selected by the existing New York closure/activity and Account rules. The latest transition must match the Trade's classification before it can be current; older captures cannot be revived by matching a Setup ID. Legacy classifications remain explicitly uncaptured. Removed/replaced captures are historical, not evidence of today's selected plan. Stored captures remain usable after Setup rename/archive.
+
+The provider projection preserves Setup identity/frozen name/description, revision and revision timestamp, association sequence/capture timestamp/Trade opening instant, five guidance sections and ordered example IDs, provenance IDs, validity labels and text annotations. It has **no image storage key, filename, content hash, local path field or image bytes**. `HasImage` only indicates an image reference; AI has not seen it. User prose remains untrusted evidence, not instructions. A plan, link or “valid” example never verifies Trade adherence. No automatic condition checks are introduced.
+
+`daily-coaching.v2` gives every retained transition a stable `trade:{TradeId:N}:playbook:{sequence}` citation (sequence zero is the original capture). `UserWrittenPlaybookContext` observations can cite only these supplied sources; they cannot label Playbook prose as calculated or verified Trade facts. Reference validation does not establish the truth of a generated claim. New saved snapshots retain the complete sanitized projection exactly as sent; v1 analyses remain unchanged/readable and do not acquire retroactive Playbook context.
+
+Saved citations expand the frozen text directly in Daily Review, with capture status, retrospective warning, guidance and annotations. This read-only expansion neither leaves the page nor closes a dirty editor. “Open current Trade” is a separate existing guarded navigation action and may report an unavailable source; it never replaces the saved capture. No current Setup navigation substitutes later definitions.
+
+The complete packet and both providers' existing budgets include this text. Large histories/guidance can make a previously eligible day oversized; no captures or example notes are dropped to fit. No schema, image-retention, Trade-association or economics changes were needed. Verification and remaining live/CI limits are recorded in [Daily Review M17.6](daily-review.md#m176--frozen-playbook-evidence).
+
 ## M17.5 — Trade association
 
 ### Workflow and meaning
