@@ -1,6 +1,6 @@
-# Trading Rules — M18.1 contract
+# Trading Rules — Domain, Application and persistence
 
-M18.1 is a Domain/Application foundation only. It does not persist rules or assessments, show a Desktop screen, inspect Trades automatically, or change AI coaching. M18.2 may implement storage against these contracts; it must not silently reinterpret old revisions.
+M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability. There is no Rules Desktop screen, automatic evaluation, or AI integration. Historical revisions are read exactly as recorded.
 
 ## Rule identity and scope
 
@@ -21,8 +21,80 @@ Example: “For NQ Trades in Account A, wait for the documented entry confirmati
 
 Each append-only assessment has its own stable ID, optional superseded assessment ID, target Trade ID or explicit New York day, original Account scope, UTC time, source (`Manual` or future `AutomaticCandidate`), basis, evidence sufficiency, explanation, and source references. It freezes the full rule revision. An evidence-based pass/violation requires a sufficient-evidence declaration and at least one non-Playbook-only source reference. A user-entered violation is manual and explicit; it can be recorded despite missing market facts. A `CannotEvaluate` assessment requires `Missing` or `Ambiguous` sufficiency. This contract does **not** claim that a supplied reference proves the wording of an assessment. Future evidence verification must check that cited facts exist, belong to the target Account/date and relevant currency, and actually satisfy the rule before recording an evidence-based pass or violation. A Setup association alone never verifies adherence.
 
-The Application store interfaces require atomic compare-and-append of the latest rule revision and, for assessment transitions, both the current active rule revision and previous assessment ID. A stale write returns `Conflict`; a pass attempted with absent/ambiguous evidence returns `MissingEvidence`; a missing or archived rule has distinct results. Domain validation rejects blank or oversized definitions, invalid scopes/targets, mismatched applicability, unsupported outcomes, and impossible evidence combinations. Cancellation is passed to reads/writes; no persistence adapter is wired in M18.1.
+The Application store interfaces require atomic compare-and-append of the latest rule revision and, for assessment transitions, both the current active rule revision and previous assessment ID. A stale write returns `Conflict`; a pass attempted with absent/ambiguous evidence returns `MissingEvidence`; a missing or archived rule has distinct results. Domain validation rejects blank or oversized definitions, invalid scopes/targets, mismatched applicability, unsupported outcomes, and impossible evidence combinations. Cancellation is passed to reads/writes. M18.2 wires the repository and use cases through `AddPersistence`.
+
+## M18.2 — SQLite persistence and portability
+
+Additive migration `20261012163222_AddTradingRules` adds `TradingRuleRevisions` and `TradingRuleAssessments`. Existing Accounts, Trades, Journals, Setups, and economics are untouched; no assessment is backfilled. Each definition is stored on its numbered revision, including active/archive state, applicability, exact scope, original Account label, and UTC time. An assessment has a restrictive composite foreign key to that exact immutable revision, its original Trade/day target, source/basis/outcome/sufficiency, explanation, source references, original Account label, recorded UTC time, and the preceding assessment ID. Numbered assessment sequences are local to a Rule and exact target.
+
+SQLite writer reservations cover validation through commit. The repository rechecks the latest Rule and previous assessment, verifies that the supplied frozen definition is identical to the stored revision, validates actual target ownership, and resolves cited sources in the same transaction. SQL checks and triggers additionally reject updates/deletes, reused or skipped revision/assessment numbers, invalid lifecycle transitions, invalid scopes, stale active-rule revisions, and outcome zero (`NotAssessed`). Cancellation before commit rolls back; after the final cancellation check, commit finishes without interruption. Storage exceptions propagate, with the transaction rolled back. No retry is added.
+
+An existing inactive Account is valid for historical work. A missing Account blocks creation/edit/reopen of an active exact-scope Rule and new exact-scope assessments. Its existing Rule can still be archived without changing scope. All-accounts definitions and exact-account definitions remain separate; `ITradingRuleReader.ReadCurrentAsync` uses an exact scope filter, with a null filter meaning all definitions. Reads use a consistent SQLite snapshot, pages of 1–100 rows, Rule-ID ordering for current definitions, descending revision keysets for Rule history, and descending sequence keysets for assessments of a Rule/target. Evidence collections are limited to 1,000 references per assessment and resolved in bounded SQL batches rather than per-source queries.
+
+### Source retention and deletion
+
+Trade and Account deletion paths keep their existing behavior. Assessments and Rule revisions are retained indefinitely in M18.2, with **historical identities**, not cascading foreign keys to mutable sources. Single-Trade and Delete All Trades operations therefore cannot erase assessments; removing an Account or creating a different Account with the same name cannot retarget them. Reads expose `Available`, `Changed`, or `Unavailable` for the target and each evidence reference. They retain the original IDs, scope, Account label, currency, and recorded source date. Fingerprints detect changes to the referenced record; an old outcome is never recalculated or described as a fresh assessment. These are identity/provenance snapshots, **not complete copies of deleted Trade/Journal content**. The explanation and exact Rule definition remain readable; unavailable source content cannot be reconstructed from a hash.
+
+Reference conventions:
+
+- Trade/Execution: original GUID, no source revision; ownership, currency, closure-date/activity attribution and nullable facts participate in source validation/fingerprinting. Unknown costs remain null; no new Net calculation is introduced.
+- Journal: original Journal GUID and a required, positive saved revision. Null-scoped Journals may be cited by an All-accounts day; an exact-Account target cannot cite a different or null scope. Later Journal edits do not replace a cited old revision; deletion makes it unavailable.
+- Playbook capture: `SourceId` is the Trade GUID; positive `Revision` is the immutable **association sequence**, not the Setup revision. Null `Revision` explicitly identifies the original legacy capture. Removal/classification-only transitions are not captures. A capture reference alone cannot prove compliance.
+
+Day references follow the existing New York closure-date rule. For open/partial Trades, only actual execution activity on the selected date is eligible evidence; it remains excluded from closed realized results. Cross-account references are rejected for an exact target. An All-accounts day retains each source's currency and Account; it never creates a converted or combined monetary total. Referential validation checks identity, scope and date, not whether arbitrary prose criteria are satisfied. Assessment sufficiency remains an explicit manual declaration until a later, separately scoped evaluator exists.
+
+### Backups and exports
+
+Complete backup archive format remains **v1**: it already stores the whole consistent SQLite database, migration list, and referenced screenshots. Current-schema preflight/restore preserve the new tables and triggers, verified by synthetic round trips including the retained recovery archive. An archive ending at the previous M17 migration is recognized as requiring staged migration and rejected without changing the installed data. Older-schema restore remains deferred; installed-database migration does not imply archive compatibility.
+
+Portable logical export advances from **v4 to v5** and adds `tradingRuleRevisions` and `tradingRuleAssessments` to `journal.json`, including every stored column and the complete `evidenceJson` identity metadata. The four existing CSVs are unchanged; Rules detail is JSON-only. Earlier export versions remain valid documents for their original schema but contain no Rules data and are not importable/restorable backups. Exports and backups remain unencrypted sensitive local data and exclude provider credentials.
 
 ## Deferred work and limits
 
-M18.2 must add an additive migration, durable readers/writers, referential verification and concurrency enforcement. Later milestones may add manual Desktop authoring, Trade/day assessment UI, and carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No assessment, revision, or rule survives process restart until persistence is implemented.
+Later milestones may add manual Desktop authoring, Trade/day assessment UI, and carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No M18.3 work, AI prompt change, or live acceptance is included. M17.7 live acceptance remains independent of these tests or any CI run.
+
+## M18.2 verification — 12 October 2026
+
+Tested `develop` at `9193a92217c9bd1a9b8ca38d40309a04fba930fd` plus the 25 files listed below. The starting worktree was clean. No Git writes, production journal access, provider calls or Desktop implementation occurred.
+
+| Check | Observed result / evidence |
+| --- | --- |
+| Focused Domain / Application | 9 / 6 Rules cases passed. |
+| Focused SQLite / portability / schema | 78 passed in `artifacts/m182-focused-verified`; another 32 passed in `artifacts/m182-integrity`, including 22 overlapping Rules cases. **103 distinct focused cases** in total, with **22 newly added** SQLite cases. |
+| Migration / restart | Previous-schema synthetic Trade data retained, nullable commission unchanged, Rules initially empty; restarted services read exact revisions and assessment transitions. |
+| Concurrency / rollback | Competing Rule and assessment writers commit only one candidate; stale revisions, forged definitions, invalid scope, fault injection and cancellation leave no partial append or consumed number. |
+| Retention / scope / paging | Single/bulk Trade deletion and Account deletion retain assessments; same-name replacement never changes identity. Exact/All scope, bounded pages, changed/unavailable references, Journal revisions, Playbook transitions and New York DST attribution passed. |
+| Data portability | Complete backup → preflight → offline restore and recovery round trips passed. Export v5 retains exact Rules/reference metadata. Previous-schema archive rejection leaves installed synthetic data unchanged. |
+| Final complete parallel Release | **3,925 passed, 0 failed, 0 skipped**: Domain 485, Application 738, Infrastructure 1,225, Desktop 1,477. TRX and child diagnostics: `artifacts/m182-full-final`. |
+| Build / EF / whitespace | Solution Release build: **0 warnings, 0 errors**. In-memory design-time EF `has-pending-model-changes`: none. `git diff --check` and new-file trailing-whitespace check passed. |
+| Live / CI | No Rules UI exists in this milestone; no live interaction acceptance claimed. These changes are uncommitted and therefore have no matching GitHub Actions run. M17.7 live acceptance remains separate and open. |
+
+The first complete parallel run (`artifacts/m182-full`) passed **3,921/3,925**: three complete-model inventory tests required the new entity/FK/index expectations, and the previously documented `JournalHistoryViewTests.CompiledHistoryPagesAndSnapshotsWrapInBothThemesAndRemainReadOnlyAtHighDpi` failed at line 242 (`wheel.Handled`). The model expectations were extended, not relaxed. The Journal test passed **unchanged** in a diagnostic run (`artifacts/m182-journal-diagnostic`) and the final parallel run. Its intermittent cause remains unproven; this task does not claim to fix it. Calendar native completed in **111.489 s** initially and **97.736 s** finally (22.264 s final headroom to the unchanged 120-second deadline). No assertions, concurrency settings, deadlines, retry policies or Desktop code changed.
+
+## M18.2 changed files
+
+- `README.md`
+- `docs/trading-rules.md`
+- `docs/backup-restore.md`
+- `src/PersonalTradingJournal.Application/Rules/ITradingRuleReader.cs`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Reads.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/RuleEvidenceSnapshots.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingRuleRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingRuleRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012163222_AddTradingRules.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012163222_AddTradingRules.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRuleEvidenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`

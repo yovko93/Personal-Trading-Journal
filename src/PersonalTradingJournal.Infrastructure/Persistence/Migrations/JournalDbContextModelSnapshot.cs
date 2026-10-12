@@ -595,13 +595,13 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<int?>("Revision")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime>("TradeOpenedAtUtc")
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid?>("TradingSetupId")
                         .HasColumnType("TEXT");
 
                     b.HasKey("TradeId", "Sequence");
-
-                    b.Property<DateTime>("TradeOpenedAtUtc")
-                        .HasColumnType("TEXT");
 
                     b.HasIndex("TradingSetupId", "Revision");
 
@@ -804,6 +804,165 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("TradingMistakes", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleAssessmentRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountNameAtAssessment")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Basis")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EvidenceSufficiency")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Explanation")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("NewYorkDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Outcome")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("RuleRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ScopeKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("SupersedesAssessmentId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TargetFingerprint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TargetKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TargetKind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupersedesAssessmentId");
+
+                    b.HasIndex("RuleId", "RuleRevision");
+
+                    b.HasIndex("RuleId", "TargetKey", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("TradingRuleAssessments", null, t =>
+                        {
+                            t.HasTrigger("TradingRuleAssessments_Append");
+
+                            t.HasTrigger("TradingRuleAssessments_NoDelete");
+
+                            t.HasTrigger("TradingRuleAssessments_NoUpdate");
+
+                            t.HasCheckConstraint("CK_TradingRuleAssessments_Outcome", "(Basis = 1 OR (Basis = 2 AND Outcome = 1 AND Source = 1)) AND (Outcome <> 3 OR (EvidenceSufficiency IN (2,3) AND Basis = 1)) AND ((Outcome <> 2 AND NOT (Outcome = 1 AND Basis = 1)) OR (EvidenceSufficiency = 1 AND json_array_length(EvidenceJson) > 0))");
+
+                            t.HasCheckConstraint("CK_TradingRuleAssessments_Scope", "(ScopeKind = 1 AND AccountId IS NULL AND AccountNameAtAssessment IS NULL) OR (ScopeKind = 2 AND AccountId IS NOT NULL AND AccountNameAtAssessment IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_TradingRuleAssessments_State", "Sequence > 0 AND Outcome IN (1,2,3) AND Source IN (1,2) AND Basis IN (1,2) AND EvidenceSufficiency IN (1,2,3) AND length(trim(Explanation)) BETWEEN 1 AND 4000 AND json_valid(EvidenceJson) AND json_type(EvidenceJson) = 'array' AND json_array_length(EvidenceJson) <= 1000");
+
+                            t.HasCheckConstraint("CK_TradingRuleAssessments_Target", "(TargetKind = 1 AND TradeId IS NOT NULL AND NewYorkDate IS NULL AND ScopeKind = 2 AND TargetFingerprint IS NOT NULL) OR (TargetKind = 2 AND TradeId IS NULL AND NewYorkDate IS NOT NULL AND TargetFingerprint IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleRevisionRecord", b =>
+                {
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountNameAtRevision")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Applicability")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ContractVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Criterion")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EvaluationMode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RequiredEvidence")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ScopeKind")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("RuleId", "Revision");
+
+                    b.HasIndex("ScopeKind", "AccountId", "IsActive", "RuleId");
+
+                    b.ToTable("TradingRuleRevisions", null, t =>
+                        {
+                            t.HasTrigger("TradingRuleRevisions_Append");
+
+                            t.HasTrigger("TradingRuleRevisions_NoDelete");
+
+                            t.HasTrigger("TradingRuleRevisions_NoUpdate");
+
+                            t.HasCheckConstraint("CK_TradingRuleRevisions_Definition", "ContractVersion = 1 AND Revision > 0 AND Applicability IN (1,2) AND EvaluationMode IN (1,2) AND IsActive IN (0,1) AND length(trim(Name)) BETWEEN 1 AND 120 AND length(trim(Criterion)) BETWEEN 1 AND 4000 AND length(trim(RequiredEvidence)) BETWEEN 1 AND 2000");
+
+                            t.HasCheckConstraint("CK_TradingRuleRevisions_Scope", "(ScopeKind = 1 AND AccountId IS NULL AND AccountNameAtRevision IS NULL) OR (ScopeKind = 2 AND AccountId IS NOT NULL AND AccountNameAtRevision IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingSetupRecord", b =>
@@ -1022,6 +1181,20 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
                         .WithMany()
                         .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleAssessmentRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleAssessmentRecord", null)
+                        .WithMany()
+                        .HasForeignKey("SupersedesAssessmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId", "RuleRevision")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

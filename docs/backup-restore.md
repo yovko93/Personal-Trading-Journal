@@ -1,5 +1,11 @@
 # Backup and restore — M16
 
+## M18.2 — Trading Rules data
+
+Current schema adds `20261012163222_AddTradingRules`. Complete **v1** archives preserve the entire Rule revision/assessment history, historical Account identities and source metadata with the rest of the database. Synthetic backup → preflight → offline restore and retained recovery-archive round trips verify these records. Restore requires the exact current migration sequence; pre-M18 archives are recognized as requiring staged migration and rejected without touching installed data. Support for upgrading older archives remains deferred.
+
+Logical export is now **v5**, adding JSON-only `tradingRuleRevisions` and `tradingRuleAssessments`, including reference metadata, UTC instants and explicit New York dates. The four CSVs, metadata-only screenshot policy, credential exclusions, and unencrypted warning remain unchanged. Versions 1–4 retain their original meaning but omit Rules; no logical export is a restorable backup. [Rules retention policy](trading-rules.md#source-retention-and-deletion) explains why deleted sources remain historical identities with explicit unavailable states. The entries below document earlier versions.
+
 ## Playbook eligible revision deletion
 
 Current schema additionally includes `20261011220636_AllowUnreferencedPlaybookRevisionDeletion`. It changes only two metadata-deletion triggers: current revisions and revisions referenced by retained Trade captures/association history remain protected; eligible older revisions can be deleted with atomic checks. Existing records and no-update guards are preserved. Revision gaps are valid and survive backup/preflight and logical export. Shared images are never deleted by that action; files with no remaining database reference are not included in a new complete archive, consistent with the existing referenced-file inventory.

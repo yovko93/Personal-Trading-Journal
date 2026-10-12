@@ -15,6 +15,9 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<TradingAccountRecord> TradingAccounts => Set<TradingAccountRecord>();
 
+    public DbSet<TradingRuleRevisionRecord> TradingRuleRevisions => Set<TradingRuleRevisionRecord>();
+    public DbSet<TradingRuleAssessmentRecord> TradingRuleAssessments => Set<TradingRuleAssessmentRecord>();
+
     public DbSet<DailyJournalRecord> DailyJournals => Set<DailyJournalRecord>();
 
     public DbSet<CoachingAnalysisRecord> CoachingAnalyses => Set<CoachingAnalysisRecord>();
@@ -51,6 +54,8 @@ public sealed class JournalDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new InstrumentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingAccountRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradingRuleRevisionRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new TradingRuleAssessmentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new DailyJournalRecordConfiguration());
         modelBuilder.ApplyConfiguration(new CoachingAnalysisRecordConfiguration());
         modelBuilder.ApplyConfiguration(new DailyJournalRevisionRecordConfiguration());

@@ -91,6 +91,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261011171154_AddPlaybookExampleImages",
                     "20261011175435_AddTradePlaybookAssociations",
                     "20261011220636_AllowUnreferencedPlaybookRevisionDeletion",
+                    "20261012163222_AddTradingRules",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 
