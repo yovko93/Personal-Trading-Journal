@@ -77,13 +77,37 @@ The two unresolved full-run failures are in unchanged code/tests:
 1. `JournalTradeContextViewTests.ReadOnlyRowsAlignWrapScrollAndExposeCurrenciesAndReferenceStatesInBothThemes`, `CheckLayout` line **123**: `Assert.True(wheel.Handled)` after a synthetic preview wheel event. Child diagnostics: `artifacts/m183-full/journal-context-20261012-172132-bde7fb5806e6420eb72bfc9b26d6f767`.
 2. `PlaybookSqliteViewTests.CompiledSaveCreatesAndRevisesWithRealSqliteAndSurvivesReactivation`, line **129**: `Assert.NotSame(previousTask, vm.SaveCommand.ExecutionTask)` after invoking Save through an automation peer and flushing the dispatcher. The command's task had not advanced at that assertion; this is **not** evidence of a failed database commit or a focus assertion. Child diagnostics: `artifacts/m183-full/playbook-sqlite-write-20261012-172212-427fc012d2244a239aa347cb59e1c793`.
 
-Both passed unchanged in one bounded targeted diagnostic run (`artifacts/m183-existing-ui-diagnostic`, **2/2**). Their precise intermittent causes remain unproven; no unrelated Journal/Playbook or harness change was made. A focused pass is not full-suite acceptance. **M18.3 full-suite verification remains open.**
+Both passed unchanged in one bounded targeted diagnostic run (`artifacts/m183-existing-ui-diagnostic`, **2/2**). At that stage their precise intermittent causes remained unproven and **M18.3 full-suite verification remained open**. The follow-up below records the subsequent investigation and final run; the earlier failure is not erased by a later pass.
 
 Solution Release build passed with **0 warnings / 0 errors**. EF `has-pending-model-changes --configuration Release --no-build` through the isolated design-time factory reports no changes. `git diff --check` and new-file trailing-whitespace checks passed. No migration is added.
 
 Remaining manual checks, in an isolated synthetic app only: open Planning → Rules, create an exact-Account rule using Tab/Ctrl+S, restart and inspect the saved revision; edit and decline discard during Rule switching and window closing; browse an old revision while fields are dirty and Return to current; archive/reopen; verify error announcements, keyboard focus and scrolling in both themes at minimum width/240 DPI. M18.4 assessments and automatic evaluation remain out of scope. GitHub Actions must test the user's eventual commit/PR tree; uncommitted changes cannot have a matching CI result. M17.7 live acceptance is not implied.
 
-### M18.3 changed files
+### Full-load interaction follow-up
+
+Started from the user's committed M18.3 implementation on clean `develop`, HEAD `b094d6fda04f1b7d02d07804068aa4ddb5c8203f`. Two faulty test assumptions were demonstrated without changing production behavior:
+
+- A synthetic wheel event does not specify modifiers. Production intentionally ignores Shift-wheel; setting Shift on the test STA reproduces `Handled=False`. The test now explicitly scopes ordinary synthetic input to no Shift, also asserts Shift bypass, and restores thread state even on failure. The same narrow correction covers the previously reported Journal History wheel check. It neither sends keyboard input to the desktop nor changes the user's physical keys.
+- A new command execution need not produce a new Task object. Two automation invocations of a synchronously completed command reuse one completed task. Save automation now waits for and asserts exactly one routed Click, awaits completion, and retains every validation/focus/scroll, exact new SQLite revision, UI readback and separate-process restart assertion. Dispatcher-deferred completion is covered too.
+
+The original failed run did not record modifiers or the state after a potentially synchronous Save. Therefore these are **proven harness assumptions with controlled regressions**, not proof of the exact old schedule and not demonstrated production Save/wheel defects. No persistence, UI behavior, deadlines, isolation, concurrency bounds, retries or skips changed. [Detailed chronology, safe diagnostic fields and timings](ci-wpf-tests.md#m183--synthetic-wheel-and-save-invocation-follow-up-12-october-2026).
+
+Final verification: **46/46** focused cases under concurrent export/Rules rendering (39 Infrastructure, 7 Desktop); **3/3** isolated comparison cases; **3,946/3,946** in the final complete parallel Release run, zero failures/skips (**485 Domain, 738 Application, 1,225 Infrastructure, 1,498 Desktop**). Journal Trade Context used **7.887 s** of its unchanged 30-second STA limit in the full run; Playbook SQLite write/validation **6.173 s**, fresh-process read **2.475 s**. Calendar native **99.309 s / 20.691 s headroom**, grid **33.460 s**. Release build **0 warnings/errors**; EF no pending model changes; whitespace checks passed. Raw evidence: ignored `artifacts/m145-load/m183a-final-full`, with earlier comparisons alongside it.
+
+**Local M18.3 automated verification is green; live and matching CI acceptance remain open.** Runner timing/input variability is not declared eliminated. No real journal or provider was accessed, no live mouse/keyboard checks were performed, and no Git writes were made. These eight follow-up files are uncommitted and cannot have a matching GitHub Actions result. The user must commit/push through the existing PR-to-main workflow and inspect the tested head/merge tree; M17.7 live acceptance remains separate. Do not start M18.4 from this report.
+
+Exact follow-up files:
+
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalTradeContextViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/SyntheticKeyboardState.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/WpfStepDiagnostics.cs` (new)
+- `README.md`
+- `docs/trading-rules.md`
+- `docs/ci-wpf-tests.md`
+
+### Original M18.3 changed files
 
 - `README.md`
 - `docs/trading-rules.md`

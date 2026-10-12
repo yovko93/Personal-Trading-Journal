@@ -1,5 +1,47 @@
 # Windows WPF test diagnostics
 
+## M18.3 — synthetic wheel and Save invocation follow-up (12 October 2026)
+
+Started on clean `develop` at `b094d6fda04f1b7d02d07804068aa4ddb5c8203f`; the user's M18.3 work was already committed. This correction changes tests and documentation only. Production wheel routing, Playbook Save/readback, Rules, schema, concurrency settings and all existing deadlines are unchanged.
+
+### Chronology and classification
+
+The earlier complete run (`artifacts/m183-full`) passed 3,943/3,945. Its first failures were Journal Trade Context `Assert.True(wheel.Handled)` (line 123) and Playbook SQLite automation `Assert.NotSame(previousTask, SaveCommand.ExecutionTask)` (line 129). The former stopped in the first Light layout after 0.954 STA seconds, not at a deadline. Neither artifact captured keyboard modifiers or whether a command had synchronously completed. An unchanged targeted pass did not establish a cause.
+
+Instrumentation now records bounded content-free interaction state in each child's `wpf-interactions.log`: modifiers, scroll extent/offset, dispatcher thread/shutdown, focus element type, window activation, button/command enablement, click count, task completion/reference equality, validation-attempt count and displayed revision number. No authored text, filenames or database rows are logged. The file has a 128-event/1,024-character-per-state bound. Existing phase/timing and supervisor logs retain startup, cleanup and timeout diagnostics.
+
+- **Journal:** the instrumented baseline passed in isolation and alongside export/Rules work, with modifiers `None`, no focused element, offset 0, and 752.12/769.32 DIP scrollable height. A controlled test-thread Shift state reproduces the original unhandled-event observation exactly (`handled=False`, offset 0): production deliberately leaves Shift-wheel alone. Removing Shift for the synthetic ordinary event yields `handled=True`, offset 48 in all four Light/Dark 1100/96 and 480/240 cases. This demonstrates an uncontrolled-input test assumption, **not proof that Shift was down during the old failure**. No production defect or scheduling hang was demonstrated.
+- **Playbook:** baseline automation delivered one click per save and displayed revisions 1 and 2. A regression with the real WPF automation peer and AsyncRelayCommand demonstrates two successful command executions sharing `Task.CompletedTask`. Thus task reference identity cannot count invocations. This was reproduced under competing load; it does **not prove** the old real-SQLite failure used that exact completion schedule. There is no recorded evidence of an unsuccessful production commit. The actual SQLite image/save/readback/restart test continues unchanged in purpose.
+
+### Narrow test corrections and preserved coverage
+
+`SyntheticKeyboardState` saves/restores only the current STA's keyboard-state table around a synchronous synthetic event; it never sends physical input, changes another app's keys or pumps while overridden. [Windows documents that isolation](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setkeyboardstate). The regression exercises Shift bypass, ordinary input while ambient Shift is held, and restoration even when an event throws. The same fixture fixes the previously reported Journal History synthetic-wheel assumption. Every handled/scroll-distance/layout assertion remains. Real Shift-wheel behavior is explicitly asserted, not removed.
+
+The Playbook fixture now observes exactly one routed Click from one `IInvokeProvider.Invoke`, coordinates through that event, then awaits command completion and asserts the exact new persisted revision, success UI, retained example and fresh-process read. It does not equate an idle marker or a different Task object with a command execution. The regression covers both cached synchronous completion and dispatcher-deferred completion. All invalid-field/example focus/scroll assertions remain; validation clicks also use the same observation. A missing Click remains bounded by the existing **30-second STA / 90-second child** supervisors, with a specific automation-dispatch breadcrumb. There is no retry, sleep, skip, deadline extension or bypass of the actual button binding.
+
+### Measurements
+
+These are separate supervised experiments, not retry-until-green runs. Desktop remains at two collections and Infrastructure at four; assemblies run concurrently. The baseline pair has no Infrastructure load; the controlled load adds all 39 PortableExport cases and compiled Rules renders. Final focused load additionally exercises Journal History and modifier restoration (46 cases total). Different action schedules and the extra coverage mean these are observations, not proof of a speedup.
+
+| STA wall seconds including cleanup | Baseline pair | Baseline + exports/Rules | Corrected pair | Final focused load | Final full load |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Journal Trade Context (four layouts) | 2.203 | 3.100 | 2.102 | 3.331 | 7.887 |
+| Playbook SQLite write/validation | 3.115 | 4.777 | 2.992 | 4.192 | 6.173 |
+| Playbook fresh-process restart read | 1.519 | 1.858 | 1.541 | 1.752 | 2.475 |
+| Journal History | — | — | — | 11.332 | 10.268 |
+
+Launch-to-STA time (runtime/discovery/fixture work, outside the 30-second action budget) for corrected pair → final focused → full load was **2.801 → 4.992 → 10.005 s** for Journal and **4.049 → 7.301 → 11.695 s** for Playbook write. Corresponding supervised child wall times were **5.166 → 8.693 → 18.598 s** and **7.406 → 11.986 → 18.610 s**. These show load sensitivity without a missed deadline. They do not identify a particular export/database operation as blocking UI input. Native scheduling/CPU/memory and process samples are preserved in raw artifacts, not inferred by subtracting multi-thread CPU from wall time.
+
+Final focused ordinary-wheel routing plus dispatcher flush took **0.669–4.610 ms**; valid Save invoke/idle/completion scopes took **939.082 / 304.293 ms**. Focus changed from TextBox to Button after the first save; measured owner activation was true. This is not a requirement for foreground activation. Process-sample and STA logs retain CPU/memory/dispatcher boundaries; no per-operation stall or contention-induced failure was observed in these experiments. Measurements are inclusive and must not be added as exclusive scheduler waits.
+
+Raw evidence is under ignored `artifacts/m145-load/m183a-{isolated,baseline-load,corrected-load,final-focused,final-isolated,final-full}`. Baseline pair **2/2**, baseline load **44/44**, initial corrected load **45/45**, final focused load **46/46**, corrected pair **3/3** passed. The added restoration Fact accounts for the one new case; synchronous/deferred automation and Shift regressions are assertions within the existing isolated cases.
+
+The **final complete parallel Release run passed 3,946/3,946**, zero failures/skips: Domain **485**, Application **738**, Infrastructure **1,225**, Desktop **1,498**. Calendar native exited successfully in **99.309 s** (**20.691 s** headroom to 120 s), grid in **33.460 s**. All original child cleanup/fatal-dispatch/timeout regressions still run; the intentionally crashing `calendar-sta-unhandled-native` child is an expected harness assertion, not a suite failure. Release build: **0 warnings/errors**. EF consistency: no pending model changes using the in-memory design-time factory. Tracked and new-file whitespace checks: passed.
+
+**Local automated acceptance is green.** The historical failure triggers remain unproven; these changes remove demonstrated harness assumptions, not evidence that every future Windows scheduling/input environment will pass. Live interaction and matching GitHub Actions remain separate acceptance gates. The eight changes are uncommitted, so no CI run can test this exact tree yet. No production data or providers were accessed; M18.4 is not started.
+
+Exact files: `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalTradeContextViewTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalHistoryViewTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`, new `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/SyntheticKeyboardState.cs`, new `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/WpfStepDiagnostics.cs`, `README.md`, `docs/trading-rules.md`, `docs/ci-wpf-tests.md`.
+
 ## M17.7 timeout follow-up — bounded Infrastructure fan-out (12 October 2026)
 
 Started from clean `develop` at `65df73dd9a33aae95c1be184f9fb33ae7b8e22dc`; all earlier M17 changes were already committed. The failed acceptance run below remains evidence, not a result erased by a later pass. It shows cumulative Calendar startup/layout slowdown and Journal layout budget exhaustion, **not a demonstrated production deadlock**. Native dispatcher scheduled waits were only 0.44 seconds in total; no timed-out action had used its individual 45-second limit. Infrastructure was the largest sampled competing test process (284.78 CPU seconds during that native child's lifetime).

@@ -237,7 +237,7 @@ public sealed class JournalHistoryViewTests
 
         scroller.ScrollToHome(); Flush();
         var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
-        last.RaiseEvent(wheel); Flush();
+        SyntheticKeyboardState.WithShift(false, () => last.RaiseEvent(wheel)); Flush();
         double forwardedOffset = scroller.VerticalOffset;
         Assert.True(wheel.Handled);
         Assert.True(forwardedOffset > 0);

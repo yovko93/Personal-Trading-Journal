@@ -73,6 +73,7 @@ public sealed class PlaybookSqliteViewTests
                     Assert.Equal("Current revision 2", ((TextBlock)view.FindName("Version")).Text);
                     return;
                 }
+                VerifyCompletedTaskReuseAndDeferredCompletion();
                 for (int revision = 1; revision <= 2; revision++)
                 {
                     vm.EditCommand.Execute(null);
@@ -94,8 +95,7 @@ public sealed class PlaybookSqliteViewTests
                     {
                         editors[1].SetCurrentValue(TextBox.TextProperty, "");
                         saveButton.Focus();
-                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
-                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);
+                        InvokeOnce(saveButton);
                         window.UpdateLayout();
                         Assert.True(vm.Fields[1].IsInvalid); Assert.True(vm.IsEditing);
                         Assert.Same(editors[1], System.Windows.Input.FocusManager.GetFocusedElement(window));
@@ -107,26 +107,27 @@ public sealed class PlaybookSqliteViewTests
                         editors[1].SetCurrentValue(TextBox.TextProperty, "Synthetic Entry conditions, revision 1");
                         Assert.False(vm.Fields[1].IsInvalid);
                         var chart = vm.EditorExamples.Single(); chart.Kind = PlaybookExampleKind.Unspecified; chart.Annotation = "";
-                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
-                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task); window.UpdateLayout();
+                        InvokeOnce(saveButton); window.UpdateLayout();
                         var kind = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<ComboBox>().Single();
                         var notes = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<TextBox>().Single();
                         Assert.Same(kind, System.Windows.Input.FocusManager.GetFocusedElement(window));
                         Assert.InRange(kind.TransformToAncestor(scroll).Transform(new Point()).Y, 0, scroll.ViewportHeight - kind.ActualHeight + 1);
                         Assert.True(chart.HasKindError && chart.HasAnnotationError); Assert.Null(vm.DisplayedRevision);
                         kind.SelectedItem = PlaybookExampleKind.Valid;
-                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
-                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task); window.UpdateLayout();
+                        InvokeOnce(saveButton); window.UpdateLayout();
                         Assert.Same(notes, System.Windows.Input.FocusManager.GetFocusedElement(window));
                         Assert.InRange(notes.TransformToAncestor(scroll).Transform(new Point()).Y, 0, scroll.ViewportHeight - notes.ActualHeight + 1);
                         notes.SetCurrentValue(TextBox.TextProperty, "Synthetic condition and lesson");
                         Assert.False(vm.HasValidationErrors); Assert.Single(vm.EditorExamples);
                     }
                     var previousTask = vm.SaveCommand.ExecutionTask;
-                    ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
-                    Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);
+                    WpfStepDiagnostics.Write($"Playbook before Invoke: revision={revision}; task={previousTask?.Status}; running={vm.SaveCommand.IsRunning}; canExecute={vm.SaveCommand.CanExecute(null)}; enabled={saveButton.IsEnabled}; active={window.IsActive}; focus={System.Windows.Input.Keyboard.FocusedElement?.GetType().Name}; loading={vm.IsLoading}; writing={vm.IsWriting}; validation={vm.ValidationAttempt}");
+                    using var invocationTiming = CalendarStaTest.Timing("Playbook Invoke through idle and Save completion");
+                    InvokeOnce(saveButton);
+                    WpfStepDiagnostics.Write($"Playbook after Invoke: revision={revision}; sameTask={ReferenceEquals(previousTask, vm.SaveCommand.ExecutionTask)}; task={vm.SaveCommand.ExecutionTask?.Status}; running={vm.SaveCommand.IsRunning}; canExecute={vm.SaveCommand.CanExecute(null)}; enabled={saveButton.IsEnabled}; active={window.IsActive}; focus={System.Windows.Input.Keyboard.FocusedElement?.GetType().Name}; loading={vm.IsLoading}; writing={vm.IsWriting}; validation={vm.ValidationAttempt}; editing={vm.IsEditing}; displayedRevision={vm.DisplayedRevision?.Revision}");
                     Assert.NotNull(vm.SaveCommand.ExecutionTask);
-                    Assert.NotSame(previousTask, vm.SaveCommand.ExecutionTask);
+                    // Task.CompletedTask may be reused when every await completes synchronously.
+                    // The click, exact next SQLite revision and independent restart read are the oracle.
                     Await(vm.SaveCommand.ExecutionTask);
                     window.UpdateLayout();
                     Assert.Equal($"Revision {revision} saved.", ((TextBlock)view.FindName("Status")).Text);
@@ -205,6 +206,58 @@ public sealed class PlaybookSqliteViewTests
             var child = VisualTreeHelper.GetChild(root, index); yield return child;
             foreach (var descendant in Descendants(child)) yield return descendant;
         }
+    }
+
+    private static void InvokeOnce(Button button)
+    {
+        var clicked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int count = 0;
+        long started = Stopwatch.GetTimestamp();
+        RoutedEventHandler handler = (_, _) => { count++; clicked.TrySetResult(); };
+        button.Click += handler;
+        try
+        {
+            using var phase = CalendarStaTest.Phase("Playbook automation click dispatch");
+            Assert.True(button.IsEnabled);
+            Assert.True(button.Command?.CanExecute(button.CommandParameter));
+            ((IInvokeProvider)new ButtonAutomationPeer(button)).Invoke();
+            // Event coordination, not an idle marker standing in for invocation. The existing
+            // 30-second STA / 90-second child supervisor still bounds a missing Click.
+            Await(clicked.Task);
+            Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);
+            Assert.Equal(1, count);
+        }
+        finally
+        {
+            button.Click -= handler;
+            WpfStepDiagnostics.Write($"Playbook automation: clicks={count}; elapsedMs={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3}; enabled={button.IsEnabled}; dispatcherShutdown={button.Dispatcher.HasShutdownStarted}");
+        }
+    }
+
+    private static void VerifyCompletedTaskReuseAndDeferredCompletion()
+    {
+        int executions = 0;
+        var command = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() => { executions++; return Task.CompletedTask; });
+        var button = new Button { Command = command };
+        InvokeOnce(button);
+        Task? first = command.ExecutionTask;
+        InvokeOnce(button);
+        Assert.Equal(2, executions);
+        Assert.Same(first, command.ExecutionTask); // The old NotSame oracle rejects valid invocations.
+        WpfStepDiagnostics.Write($"Playbook task reuse regression: executions={executions}; sameTask={ReferenceEquals(first, command.ExecutionTask)}");
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        command = new CommunityToolkit.Mvvm.Input.AsyncRelayCommand(() =>
+        {
+            executions++;
+            Dispatcher.CurrentDispatcher.BeginInvoke(() => completion.SetResult(), DispatcherPriority.Background);
+            return completion.Task;
+        });
+        button.Command = command;
+        InvokeOnce(button);
+        Await(command.ExecutionTask!);
+        Assert.Equal(3, executions);
+        Assert.True(completion.Task.IsCompletedSuccessfully);
     }
 
     // Keep real asynchronous SQLite continuations on the UI dispatcher without blocking it.

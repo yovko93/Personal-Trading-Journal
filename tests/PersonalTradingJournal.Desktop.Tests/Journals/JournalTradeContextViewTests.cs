@@ -21,6 +21,19 @@ namespace PersonalTradingJournal.Desktop.Tests.Journals;
 public sealed class JournalTradeContextViewTests
 {
     [Fact]
+    public Task SyntheticModifierScopeRestoresThreadStateEvenWhenAnAssertionThrows() => OnSta(() =>
+    {
+        ModifierKeys before = Keyboard.Modifiers;
+        SyntheticKeyboardState.WithShift(true, () =>
+        {
+            Assert.Throws<InvalidOperationException>(() => SyntheticKeyboardState.WithShift(false,
+                () => throw new InvalidOperationException("Synthetic event failure")));
+            Assert.True((Keyboard.Modifiers & ModifierKeys.Shift) != 0);
+        });
+        Assert.Equal(before, Keyboard.Modifiers);
+    });
+
+    [Fact]
     public async Task ReadOnlyRowsAlignWrapScrollAndExposeCurrenciesAndReferenceStatesInBothThemes()
     {
         var contexts = new List<JournalTradeContextViewModel>();
@@ -117,10 +130,33 @@ public sealed class JournalTradeContextViewTests
         else Assert.Equal(0, scroller.ScrollableWidth);
         scroller.ScrollToLeftEnd();
         Flush();
+        // A synthetic wheel does not define modifiers. Reproduce the legitimate Shift
+        // bypass, then explicitly test the ordinary wheel without touching global input.
+        SyntheticKeyboardState.WithShift(true, () =>
+        {
+            var shifted = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+            scroller.RaiseEvent(shifted);
+            Assert.False(shifted.Handled);
+            Assert.Equal(0, outer.VerticalOffset);
+            WpfStepDiagnostics.Write($"Journal Shift wheel: modifiers={Keyboard.Modifiers}; handled={shifted.Handled}; offset={outer.VerticalOffset}");
+        });
         var wheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
-        scroller.RaiseEvent(wheel);
-        Flush();
-        Assert.True(wheel.Handled);
+        string before = $"theme={theme}; width={width}; dpi={dpi}; modifiers={Keyboard.Modifiers}; " +
+            $"offset={outer.VerticalOffset}; scrollable={outer.ScrollableHeight}; viewport={outer.ViewportHeight}; " +
+            $"focus={Keyboard.FocusedElement?.GetType().Name ?? "none"}; dispatcher={Dispatcher.CurrentDispatcher.Thread.ManagedThreadId}";
+        using (CalendarStaTest.Timing("Journal context wheel route and flush"))
+        {
+            // Prove the ordinary-input fixture also works with ambient Shift held on
+            // this STA and restores that state afterwards, without pumping native input.
+            SyntheticKeyboardState.WithShift(true, () =>
+            {
+                SyntheticKeyboardState.WithShift(false, () => scroller.RaiseEvent(wheel));
+                Assert.True((Keyboard.Modifiers & ModifierKeys.Shift) != 0);
+            });
+            Flush();
+        }
+        WpfStepDiagnostics.Write($"Journal wheel: {before}; handled={wheel.Handled}; afterOffset={outer.VerticalOffset}; afterModifiers={Keyboard.Modifiers}");
+        Assert.True(wheel.Handled, before);
         Assert.True(outer.VerticalOffset > 0);
         outer.ScrollToTop();
         Flush();
@@ -200,6 +236,7 @@ public sealed class JournalTradeContextViewTests
     private static readonly Lazy<Task> Host = new(() => IsolatedTestProcess.RunSuiteAsync(
         typeof(JournalTradeContextViewTests), "journal-context", "PTJ_JOURNAL_CONTEXT_TEST_HOST",
         TimeSpan.FromMinutes(2), caseHangTimeout: TimeSpan.FromSeconds(30)));
-    private static Task OnSta(Action action) => Environment.GetEnvironmentVariable("PTJ_JOURNAL_CONTEXT_TEST_HOST") == "1"
-        ? CalendarStaTest.RunAsync(action, nameof(ReadOnlyRowsAlignWrapScrollAndExposeCurrenciesAndReferenceStatesInBothThemes)) : Host.Value;
+    private static Task OnSta(Action action, [System.Runtime.CompilerServices.CallerMemberName] string scenario = "") =>
+        Environment.GetEnvironmentVariable("PTJ_JOURNAL_CONTEXT_TEST_HOST") == "1"
+            ? CalendarStaTest.RunAsync(action, scenario) : Host.Value;
 }
