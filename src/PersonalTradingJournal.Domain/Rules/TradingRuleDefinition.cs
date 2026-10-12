@@ -30,6 +30,15 @@ public sealed record TradingRuleAccountScope
 /// <summary>Human text is never executable. Optional typed criteria are explicitly versioned.</summary>
 public sealed record TradingRuleDefinition
 {
+    /// <summary>A global principle. Targets and Accounts belong to assessments, not this definition.</summary>
+    public TradingRuleDefinition(string name, string criterion, string requiredEvidence,
+        AutomaticRuleCriterion? automaticCriterion = null)
+        : this(name, criterion, requiredEvidence, TradingRuleApplicability.Trade,
+            TradingRuleAccountScope.AllAccounts, automaticCriterion is null
+                ? TradingRuleEvaluationMode.ManualOnly : TradingRuleEvaluationMode.AutomaticCandidate, automaticCriterion)
+    { IsGlobal = true; }
+
+    // Compatibility constructor: retains the exact meaning of pre-global immutable revisions.
     public TradingRuleDefinition(string name, string criterion, string requiredEvidence,
         TradingRuleApplicability applicability, TradingRuleAccountScope accountScope,
         TradingRuleEvaluationMode evaluationMode, AutomaticRuleCriterion? automaticCriterion = null)
@@ -48,6 +57,7 @@ public sealed record TradingRuleDefinition
     }
 
     public string Name { get; }
+    public bool IsGlobal { get; }
     public string Criterion { get; }
     public string RequiredEvidence { get; }
     public TradingRuleApplicability Applicability { get; }

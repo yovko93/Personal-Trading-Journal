@@ -24,8 +24,8 @@ public sealed partial class TradingRulePersistenceTests
         var aggregate = TradingRuleAssessmentTarget.ForNewYorkDay(day, TradingRuleAccountScope.AllAccounts);
         var target = TradingRuleAssessmentTarget.ForNewYorkDay(day, TradingRuleAccountScope.ForAccount(first.TradingAccountId));
         Assert.Contains("aggregate", (await discovery.ReadTargetAsync(aggregate)).Label);
-        Assert.Equal(global.RuleId, Assert.Single((await discovery.ReadRulesAsync(aggregate)).Items).Revision.RuleId);
-        Assert.Equal(2, (await discovery.ReadRulesAsync(target)).TotalCount);
+        Assert.Equal(4, (await discovery.ReadRulesAsync(aggregate)).TotalCount);
+        Assert.Equal(4, (await discovery.ReadRulesAsync(target)).TotalCount);
         Assert.Equal(3, (await discovery.ReadEvidenceAsync(aggregate, TradingRuleEvidenceKind.Journal)).Count);
         Assert.Single(await discovery.ReadEvidenceAsync(target, TradingRuleEvidenceKind.Journal));
         var trades = await discovery.ReadEvidenceAsync(aggregate, TradingRuleEvidenceKind.Trade);

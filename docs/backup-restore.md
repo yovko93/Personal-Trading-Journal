@@ -1,6 +1,12 @@
 # Backup and restore — M16
 
-## M18.5 — Deterministic Rule evidence
+## Global Rules catalog compatibility
+
+Current schema additionally requires `20261012205801_GlobalTradingRuleCatalog`. Complete v1 archives retain both new global Rules and immutable legacy scoped definitions/assessments, including deleted-rule tombstones and typed check capabilities. Migration does not broaden old definitions. Preflight and offline restore still require the exact current schema; earlier archives need the deferred staged-upgrade path and are rejected safely. A database downgrade with global Rules is blocked rather than silently assigning old Trade/Account semantics.
+
+Portable JSON export **v7** includes `isGlobal` and `checkCapability` on Rule revisions. Legacy applicability/scope columns remain exact historical data; their fixed compatibility values on global rows are not ownership or assessment filters. Four CSVs are unchanged. Exports remain unencrypted, screenshot-metadata-only and **not restorable backups**. See [Rules compatibility and verification](trading-rules.md#global-catalog-refinement--before-m186).
+
+## M18.5 — Deterministic Rule evidence (historical)
 
 Current schema adds `20261012194059_AddDeterministicRuleChecks`: nullable typed criterion/evaluation metadata and idempotency fingerprints on the retained Rules tables. Complete **v1** backup/preflight/offline restore and recovery preserve these alongside immutable manual history; no calculation is rerun by restore. Older-schema archives, including M18.4 archives, require the deferred staged-upgrade path and are rejected before replacement. Installed-database migration is additive and does not imply old-archive restore support.
 

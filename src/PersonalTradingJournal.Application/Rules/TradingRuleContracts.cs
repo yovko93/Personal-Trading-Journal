@@ -2,7 +2,7 @@ using PersonalTradingJournal.Domain.Rules;
 
 namespace PersonalTradingJournal.Application.Rules;
 
-public enum TradingRuleAuthoringAction { Create = 1, Revise = 2, Archive = 3, Reopen = 4 }
+public enum TradingRuleAuthoringAction { Create = 1, Revise = 2, Archive = 3, Reopen = 4, Delete = 5 }
 public enum TradingRuleWriteStatus { Saved = 1, Conflict = 2, MissingRule = 3, MissingEvidence = 4, InvalidState = 5 }
 
 public sealed record TradingRuleWriteResult<T>(TradingRuleWriteStatus Status, T? Value);

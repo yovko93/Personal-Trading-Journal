@@ -19,7 +19,7 @@ internal static class PortableExportSchema
     internal static readonly ExportTable[] Tables =
     [
         new("tradingRuleRevisions", "TradingRuleRevisions", "RuleId,Revision", false,
-            [I("RuleId"), N("Revision"), N("ContractVersion"), T("Name"), T("Criterion"), T("RequiredEvidence"),
+            [I("RuleId"), N("Revision"), N("ContractVersion"), B("IsGlobal"), N("CheckCapability"), T("Name"), T("Criterion"), T("RequiredEvidence"),
              N("Applicability"), N("ScopeKind"), I("AccountId"), T("AccountNameAtRevision"), N("EvaluationMode"), T("AutomaticCriterionJson"), B("IsActive"), U("RecordedAtUtc")]),
         new("tradingRuleAssessments", "TradingRuleAssessments", "RuleId,TargetKey,Sequence", false,
             [I("Id"), I("RuleId"), N("RuleRevision"), N("Sequence"), T("TargetKey"), N("TargetKind"), I("TradeId"),

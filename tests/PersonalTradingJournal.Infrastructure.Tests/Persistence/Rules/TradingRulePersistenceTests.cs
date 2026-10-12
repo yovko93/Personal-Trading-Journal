@@ -25,9 +25,7 @@ public sealed partial class TradingRulePersistenceTests
     private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
     private const string PreviousSchema = "20261011220636_AllowUnreferencedPlaybookRevisionDeletion";
     private static TradingRuleDefinition Definition(Guid? account = null, TradingRuleApplicability applicability = TradingRuleApplicability.Trade,
-        string name = "Synthetic NQ rule") => new(name, "Wait for documented confirmation", "Executions and user observations",
-            applicability, account is Guid id ? TradingRuleAccountScope.ForAccount(id) : TradingRuleAccountScope.AllAccounts,
-            TradingRuleEvaluationMode.ManualOnly);
+        string name = "Synthetic NQ rule") => new(name, "Wait for documented confirmation", "Executions and user observations");
     private static TradingRuleAssessment Assess(TradingRuleRevision rule, TradingRuleAssessmentTarget target,
         Guid? prior = null, params TradingRuleEvidenceReference[] sources) => TradingRuleAssessment.Record(Guid.NewGuid(), rule, target,
             TradingRuleAssessmentOutcome.CannotEvaluate, TradingRuleAssessmentSource.Manual, TradingRuleAssessmentBasis.RecordedEvidence,
@@ -44,7 +42,7 @@ public sealed partial class TradingRulePersistenceTests
             Assert.Empty(await db.TradingRuleRevisions.ToArrayAsync()); Assert.Empty(await db.TradingRuleAssessments.ToArrayAsync());
             var execution = await db.TradeExecutions.OrderBy(e => e.Sequence).FirstAsync();
             Assert.Null(execution.Commission); Assert.Equal(trade.Id, execution.TradeId);
-            Assert.Equal("20261012194059_AddDeterministicRuleChecks", (await db.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Equal("20261012205801_GlobalTradingRuleCatalog", (await db.Database.GetAppliedMigrationsAsync()).Last());
         }
         Assert.Equal(TradingRuleWriteStatus.Saved, (await f.Get<WriteTradingRuleUseCase>().ExecuteAsync(
             new(Guid.NewGuid(), 0, TradingRuleAuthoringAction.Create, Definition(trade.TradingAccountId)))).Status);
@@ -78,8 +76,8 @@ public sealed partial class TradingRulePersistenceTests
         Assert.All(history[1].Evidence, s => { Assert.Equal("USD", s.Currency); Assert.Equal(TradingRuleSourceState.Available, s.State); });
         Assert.False((await f.Rules.GetLatestAsync(rule.RuleId))!.IsActive);
         var current = (await f.Rules.GetLatestAsync(rule.RuleId))!;
-        Assert.True(await f.Rules.TryAppendAsync(current.Reopen(3, Now.AddMinutes(3)), 3));
-        Assert.Equal(new[] { 4, 3, 2, 1 }, (await f.Reader.ReadRevisionsAsync(rule.RuleId)).Select(r => r.Revision.Revision));
+        Assert.False(await f.Rules.TryAppendAsync(current.Reopen(3, Now.AddMinutes(3)), 3));
+        Assert.Equal(new[] { 3, 2, 1 }, (await f.Reader.ReadRevisionsAsync(rule.RuleId)).Select(r => r.Revision.Revision));
     }
 
     [Theory]
@@ -170,8 +168,8 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(12, first.TotalCount); Assert.Equal(10, first.Items.Count); Assert.Equal(2, second.Items.Count);
         Assert.Equal(12, first.Items.Concat(second.Items).Select(r => r.Revision.RuleId).Distinct().Count());
         Assert.Equal(first.Items.Select(r => r.Revision.RuleId), (await f.Reader.ReadCurrentAsync(pageSize: 10)).Items.Select(r => r.Revision.RuleId));
-        Assert.Equal(5, (await f.Reader.ReadCurrentAsync(TradingRuleAccountScope.AllAccounts)).TotalCount);
-        Assert.Equal(6, (await f.Reader.ReadCurrentAsync(TradingRuleAccountScope.ForAccount(trade.TradingAccountId))).TotalCount);
+        Assert.Equal(12, (await f.Reader.ReadCatalogAsync()).TotalCount);
+        Assert.Equal(0, (await f.Reader.ReadCurrentAsync(TradingRuleAccountScope.ForAccount(trade.TradingAccountId))).TotalCount);
         var rule = first.Items[0].Revision;
         for (int i = 1; i < 4; i++) { var next = rule.Revise(rule.Revision, rule.Definition, Now); Assert.True(await f.Rules.TryAppendAsync(next, rule.Revision)); rule = next; }
         Assert.Equal(new[] { 4, 3 }, (await f.Reader.ReadRevisionsAsync(rule.RuleId, limit: 2)).Select(r => r.Revision.Revision));
@@ -210,8 +208,7 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal("Synthetic", historical.AccountNameAtAssessment);
         Assert.Equal(TradingRuleSourceState.Unavailable, historical.TargetState);
         Assert.Equal(TradingRuleSourceState.Unavailable, Assert.Single(historical.Evidence).State);
-        Assert.False(Assert.Single((await f.Reader.ReadCurrentAsync()).Items).AccountAvailable);
-        Assert.False(await f.Rules.TryAppendAsync(rule.Revise(1, rule.Definition, Now), 1));
+        Assert.True(Assert.Single((await f.Reader.ReadCatalogAsync()).Items).AccountAvailable);
         Assert.True(await f.Rules.TryAppendAsync(rule.Archive(1, Now), 1));
         Assert.False(await f.Rules.TryAppendAsync((await f.Rules.GetLatestAsync(rule.RuleId))!.Reopen(2, Now), 2));
     }

@@ -60,7 +60,7 @@ public sealed partial class TradingRulePersistenceTests
     }
 
     [Fact]
-    public async Task ExportVersionSixRetainsExactRuleAssessmentReferencesAndAllExistingTables()
+    public async Task ExportVersionSevenRetainsExactRuleAssessmentReferencesAndAllExistingTables()
     {
         await using var f = await Fixture.Create(); var trade = await f.Seed();
         var rule = await f.Rule(AutomaticDefinition(account: trade.TradingAccountId));
@@ -71,10 +71,13 @@ public sealed partial class TradingRulePersistenceTests
         var result = await f.Get<IPortableExportService>().CreateAsync(output);
         Assert.True(result.Succeeded, result.ToString());
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(7, json.RootElement.GetProperty("version").GetInt32());
         var tables = json.RootElement.GetProperty("tables");
         var revision = Assert.Single(tables.GetProperty("tradingRuleRevisions").EnumerateArray());
         Assert.Equal(rule.RuleId, revision.GetProperty("ruleId").GetGuid());
+        Assert.True(revision.GetProperty("isGlobal").GetBoolean());
+        Assert.Equal(1, revision.GetProperty("checkCapability").GetInt32());
+        Assert.Equal(JsonValueKind.Null, revision.GetProperty("accountId").ValueKind);
         Assert.Equal(rule.Definition.Criterion, revision.GetProperty("criterion").GetString());
         var assessment = Assert.Single(tables.GetProperty("tradingRuleAssessments").EnumerateArray());
         Assert.Equal(a.Id, assessment.GetProperty("id").GetGuid());

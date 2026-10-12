@@ -40,16 +40,21 @@ public sealed class RulesViewTests
                     void Layout() { view.Measure(new Size(width, 700)); view.Arrange(new Rect(0, 0, width, 700)); view.UpdateLayout(); }
                     Layout();
                     var scroller = (ScrollViewer)view.FindName("RulesScroller");
-                    var selector = (ComboBox)view.FindName("RuleSelector");
-                    Assert.Equal(id, selector.SelectedValue); Assert.Equal("Select Trading Rule", AutomationProperties.GetName(selector));
-                    Assert.True(selector.Focusable);
-                    Assert.Contains("Current", f.Vm.Message); Assert.Equal("Revision 12 · Active", ((TextBlock)view.FindName("Version")).Text);
-                    Render(view, theme, width, dpi, "current");
-                    ((Expander)view.FindName("RevisionHistory")).IsExpanded = true; Layout();
-                    Assert.Equal(10, ((ItemsControl)view.FindName("HistoryRows")).Items.Count);
+                    Assert.Single(((ItemsControl)view.FindName("RuleRows")).Items);
+                    Assert.Null(view.FindName("RuleSelector")); Assert.Null(view.FindName("RevisionHistory"));
+                    Assert.Null(view.FindName("AccountSelector")); Assert.Null(view.FindName("TargetSelector"));
+                    var rowButtons = Descendants((ItemsControl)view.FindName("RuleRows")).OfType<Button>().ToArray();
+                    Assert.Equal(new[] { "Edit", "Delete" }, rowButtons.Select(b => b.Content));
+                    foreach (var button in rowButtons)
+                    {
+                        Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
+                        Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
+                    }
+                    Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.IsVisible && (t.Text.Contains("Revision") || t.Text.Contains("Account scope")));
+                    Render(view, theme, width, dpi, "catalog");
                     f.Vm.EditCommand.Execute(null); Layout();
                     f.Vm.Automatic = true; Layout();
-                    foreach (string name in new[] { "CheckBasis", "CheckLimit", "CheckCurrency" })
+                    foreach (string name in new[] { "CheckCapability", "CheckBasis", "CheckLimit", "CheckCurrency" })
                     {
                         var input = (Control)view.FindName(name); input.BringIntoView(); Flush(); Layout();
                         Assert.True(input.Focusable); Assert.NotEmpty(AutomationProperties.GetName(input));
@@ -67,14 +72,7 @@ public sealed class RulesViewTests
                     Render(view, theme, width, dpi, "validation");
                     fields[1].SetCurrentValue(TextBox.TextProperty, "Unsaved criterion"); Layout();
                     Assert.False(FormValidation.GetIsInvalid(fields[1])); Assert.True(AutomationProperties.GetIsRequiredForForm(fields[1]));
-                    f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions.Last()); Layout();
-                    Assert.True(f.Vm.IsHistorical); Assert.Equal("Unsaved criterion", fields[1].Text);
-                    Assert.Contains("read-only", ((TextBlock)view.FindName("Version")).Text);
-                    Assert.Equal("criterion 3", ((TextBlock)view.FindName("ReadCriterion")).Text);
-                    Assert.Empty(Descendants((Border)view.FindName("ReadingCard")).OfType<TextBox>());
-                    ((Border)view.FindName("ReadingCard")).BringIntoView(); Flush(); Layout(); Render(view, theme, width, dpi, "history");
-                    f.Vm.ReturnCommand.Execute(null); Layout();
-                    foreach (var name in new[] { "CreateRule", "EditRule", "ArchiveRule", "SaveRule" })
+                    foreach (var name in new[] { "CreateRule", "SaveRule" })
                     {
                         var button = (Button)view.FindName(name); Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
                         Assert.NotNull(button.FocusVisualStyle);

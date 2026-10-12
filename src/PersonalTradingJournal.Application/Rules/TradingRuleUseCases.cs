@@ -18,13 +18,17 @@ public sealed class WriteTradingRuleUseCase(ITradingRuleStore rules, TimeProvide
             throw new ArgumentException("A definition is required only for Create or Revise.", nameof(command));
         cancellationToken.ThrowIfCancellationRequested();
         TradingRuleRevision? current = await _rules.GetLatestAsync(command.RuleId, cancellationToken);
+        // Legacy scoped definitions are retained for reading, never silently promoted or reopened.
+        if (command.Definition is { IsGlobal: false } || current is { Definition.IsGlobal: false } ||
+            command.Action is TradingRuleAuthoringAction.Archive or TradingRuleAuthoringAction.Reopen)
+            return new(TradingRuleWriteStatus.InvalidState, null);
         if (current is null && command.Action != TradingRuleAuthoringAction.Create)
             return new(TradingRuleWriteStatus.MissingRule, null);
         if ((current?.Revision ?? 0) != command.ExpectedRevision ||
             (current is not null && command.Action == TradingRuleAuthoringAction.Create))
             return new(TradingRuleWriteStatus.Conflict, null);
         if ((command.Action == TradingRuleAuthoringAction.Revise && !current!.IsActive) ||
-            (command.Action == TradingRuleAuthoringAction.Archive && !current!.IsActive) ||
+            (command.Action == TradingRuleAuthoringAction.Delete && !current!.IsActive) ||
             (command.Action == TradingRuleAuthoringAction.Reopen && current!.IsActive))
             return new(TradingRuleWriteStatus.InvalidState, null);
         DateTimeOffset now = _clock.GetUtcNow();
@@ -34,6 +38,7 @@ public sealed class WriteTradingRuleUseCase(ITradingRuleStore rules, TimeProvide
             TradingRuleAuthoringAction.Revise => current!.Revise(command.ExpectedRevision, command.Definition!, now),
             TradingRuleAuthoringAction.Archive => current!.Archive(command.ExpectedRevision, now),
             TradingRuleAuthoringAction.Reopen => current!.Reopen(command.ExpectedRevision, now),
+            TradingRuleAuthoringAction.Delete => current!.Archive(command.ExpectedRevision, now),
             _ => throw new ArgumentOutOfRangeException(nameof(command)),
         };
         cancellationToken.ThrowIfCancellationRequested();
@@ -73,7 +78,7 @@ public sealed class RecordTradingRuleAssessmentUseCase(
         if (rule is null) return new(TradingRuleWriteStatus.MissingRule, null);
         if (rule.Revision != command.ExpectedRuleRevision)
             return new(TradingRuleWriteStatus.Conflict, null);
-        if (!rule.IsActive) return new(TradingRuleWriteStatus.InvalidState, null);
+        if (!rule.IsActive || !rule.Definition.IsGlobal) return new(TradingRuleWriteStatus.InvalidState, null);
         TradingRuleAssessment? latest = await _assessments.GetLatestAsync(rule.RuleId, command.Target, cancellationToken);
         if (latest?.Id != command.ExpectedLatestAssessmentId)
             return new(TradingRuleWriteStatus.Conflict, null);

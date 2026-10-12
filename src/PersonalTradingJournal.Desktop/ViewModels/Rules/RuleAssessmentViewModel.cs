@@ -76,6 +76,11 @@ public sealed class RuleAssessmentViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(async () => { if (TryLeave()) { ResetDraft(); await LoadAsync(); } }, () => !IsBusy);
         CancelCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); RunChecksCommand.Cancel(); }, () => IsBusy);
         CloseCommand = new RelayCommand(() => CloseRequested?.Invoke());
+        RuleHistoryCommand = new AsyncRelayCommand(async () =>
+        {
+            if (_selected is null || !TryLeave()) return;
+            _historyRule = _selected.Id; _target = null; ResetDraft(); ResetHistory(); await LoadAsync();
+        }, () => !IsBusy && _selected is not null && _target is not null);
         NextRulesCommand = new AsyncRelayCommand(() => ChangeRules(1), () => !IsBusy && _target is not null && _rulePage * 20 < _ruleTotal);
         PreviousRulesCommand = new AsyncRelayCommand(() => ChangeRules(-1), () => !IsBusy && _target is not null && _rulePage > 1);
         OlderCommand = new AsyncRelayCommand(() => ChangeHistory(1), () => !IsBusy && _olderHistory);
@@ -124,6 +129,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public IRelayCommand CloseCommand { get; }
+    public IAsyncRelayCommand RuleHistoryCommand { get; }
     public IAsyncRelayCommand NextRulesCommand { get; }
     public IAsyncRelayCommand PreviousRulesCommand { get; }
     public IAsyncRelayCommand OlderCommand { get; }
@@ -190,8 +196,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     private async Task ChangeHistory(int delta) { _historyPage += delta; await LoadAsync(); }
     private async Task ChangeEvidence(int delta) { CaptureEvidence(); _evidencePage += delta; await LoadAsync(); }
     private static bool Applies(TradingRuleRevision? rule, TradingRuleAssessmentTarget target) => rule?.IsActive == true &&
-        ((rule.Definition.Applicability == TradingRuleApplicability.Trade) == (target.Kind == TradingRuleTargetKind.Trade)) &&
-        (rule.Definition.AccountScope.Kind == TradingRuleAccountScopeKind.AllAccounts || rule.Definition.AccountScope == target.AccountScope);
+        rule.Definition.IsGlobal;
 
     private async Task LoadAsync()
     {
@@ -301,7 +306,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     {
         foreach (string name in new[] { nameof(IsBusy), nameof(CanEdit), nameof(CanRecord), nameof(HasTarget), nameof(TargetLabel), nameof(SelectedRule), nameof(Latest), nameof(LatestLabel), nameof(Pages), nameof(SelectedSources) }) OnPropertyChanged(name);
         SaveCommand.NotifyCanExecuteChanged(); RefreshCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
-        RunChecksCommand.NotifyCanExecuteChanged();
+        RunChecksCommand.NotifyCanExecuteChanged(); RuleHistoryCommand.NotifyCanExecuteChanged();
         NextRulesCommand.NotifyCanExecuteChanged(); PreviousRulesCommand.NotifyCanExecuteChanged(); OlderCommand.NotifyCanExecuteChanged(); NewerCommand.NotifyCanExecuteChanged();
         NextEvidenceCommand.NotifyCanExecuteChanged(); PreviousEvidenceCommand.NotifyCanExecuteChanged();
     }

@@ -8,9 +8,7 @@ public sealed class TradingRuleUseCaseTests
     private static readonly DateTimeOffset Now = new(2026, 10, 12, 13, 0, 0, TimeSpan.Zero);
     private static readonly Guid Account = Guid.NewGuid();
     private static TradingRuleDefinition Definition(TradingRuleAccountScope? scope = null) =>
-        new("Planned entry", "Wait for confirmation", "Trade and execution facts",
-            TradingRuleApplicability.Trade, scope ?? TradingRuleAccountScope.ForAccount(Account),
-            TradingRuleEvaluationMode.ManualOnly);
+        new("Planned entry", "Wait for confirmation", "Trade and execution facts");
     private static RecordTradingRuleAssessmentCommand AssessmentCommand(Guid ruleId, int revision,
         TradingRuleAssessmentTarget target, TradingRuleAssessmentOutcome outcome = TradingRuleAssessmentOutcome.CannotEvaluate,
         Guid? previous = null, TradingRuleEvidenceSufficiency sufficiency = TradingRuleEvidenceSufficiency.Missing,
@@ -27,7 +25,7 @@ public sealed class TradingRuleUseCaseTests
         Guid id = Guid.NewGuid();
         var created = await useCase.ExecuteAsync(new(id, 0, TradingRuleAuthoringAction.Create, Definition()));
         var revised = await useCase.ExecuteAsync(new(id, 1, TradingRuleAuthoringAction.Revise, Definition()));
-        var archived = await useCase.ExecuteAsync(new(id, 2, TradingRuleAuthoringAction.Archive, null));
+        var archived = await useCase.ExecuteAsync(new(id, 2, TradingRuleAuthoringAction.Delete, null));
         Assert.Equal(new[] { 1, 2, 3 }, store.Revisions.Select(item => item.Revision));
         Assert.Equal(TradingRuleWriteStatus.Saved, archived.Status);
         Assert.False(archived.Value!.IsActive);
@@ -37,7 +35,7 @@ public sealed class TradingRuleUseCaseTests
         Assert.Equal(TradingRuleWriteStatus.InvalidState,
             (await useCase.ExecuteAsync(new(id, 3, TradingRuleAuthoringAction.Revise, Definition()))).Status);
         store.RejectRuleAppend = true;
-        Assert.Equal(TradingRuleWriteStatus.Conflict,
+        Assert.Equal(TradingRuleWriteStatus.InvalidState,
             (await useCase.ExecuteAsync(new(id, 3, TradingRuleAuthoringAction.Reopen, null))).Status);
         Assert.Equal(3, store.Revisions.Count);
         Assert.Equal(TradingRuleWriteStatus.Saved, revised.Status);
@@ -49,7 +47,7 @@ public sealed class TradingRuleUseCaseTests
         var store = new Store();
         var useCase = new WriteTradingRuleUseCase(store, new Clock());
         Assert.Equal(TradingRuleWriteStatus.MissingRule,
-            (await useCase.ExecuteAsync(new(Guid.NewGuid(), 1, TradingRuleAuthoringAction.Archive, null))).Status);
+            (await useCase.ExecuteAsync(new(Guid.NewGuid(), 1, TradingRuleAuthoringAction.Delete, null))).Status);
         await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(new(Guid.Empty, 0,
             TradingRuleAuthoringAction.Create, Definition())));
         await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(new(Guid.NewGuid(), 0,
@@ -108,14 +106,15 @@ public sealed class TradingRuleUseCaseTests
         await new WriteTradingRuleUseCase(store, new Clock()).ExecuteAsync(
             new(id, 0, TradingRuleAuthoringAction.Create, Definition()));
         var useCase = new RecordTradingRuleAssessmentUseCase(store, store, new Clock());
-        await Assert.ThrowsAsync<ArgumentException>(() => useCase.ExecuteAsync(AssessmentCommand(id, 1,
-            TradingRuleAssessmentTarget.ForTrade(Guid.NewGuid(), Guid.NewGuid()))));
+        var other = await useCase.ExecuteAsync(AssessmentCommand(id, 1,
+            TradingRuleAssessmentTarget.ForTrade(Guid.NewGuid(), Guid.NewGuid())));
+        Assert.Equal(TradingRuleWriteStatus.Saved, other.Status);
         await new WriteTradingRuleUseCase(store, new Clock()).ExecuteAsync(
             new(id, 1, TradingRuleAuthoringAction.Revise, Definition()));
         Assert.Equal(TradingRuleWriteStatus.Conflict,
             (await useCase.ExecuteAsync(AssessmentCommand(id, 1,
                 TradingRuleAssessmentTarget.ForTrade(Guid.NewGuid(), Account)))).Status);
-        Assert.Empty(store.Assessments);
+        Assert.Single(store.Assessments);
     }
 
     [Fact]
@@ -142,8 +141,7 @@ public sealed class TradingRuleUseCaseTests
     public async Task ManualAggregateDayAndExactDayHaveIndependentCorrectionChainsAndCancelledAppendIsAbsent()
     {
         var store = new Store(); var id = Guid.NewGuid();
-        var definition = new TradingRuleDefinition("Review day", "Evaluate recorded observations", "Daily facts",
-            TradingRuleApplicability.NewYorkDay, TradingRuleAccountScope.AllAccounts, TradingRuleEvaluationMode.ManualOnly);
+        var definition = new TradingRuleDefinition("Review day", "Evaluate recorded observations", "Daily facts");
         await new WriteTradingRuleUseCase(store, new Clock()).ExecuteAsync(new(id, 0, TradingRuleAuthoringAction.Create, definition));
         var writer = new RecordTradingRuleAssessmentUseCase(store, store, new Clock());
         var date = new DateOnly(2026, 11, 1);
@@ -157,6 +155,25 @@ public sealed class TradingRuleUseCaseTests
         Assert.Equal(2, store.Assessments.Count);
         Assert.All(store.Assessments, a => Assert.Equal(TradingRuleAssessmentSource.Manual, a.Source));
         Assert.Equal(TradingRuleAccountScopeKind.AllAccounts, first.Value.Target.AccountScope.Kind);
+    }
+
+    [Fact]
+    public async Task ScopedDefinitionsCannotBeCreatedOrPromotedAndDeletedGlobalCannotReopen()
+    {
+        var store = new Store(); var writer = new WriteTradingRuleUseCase(store, new Clock());
+        var scoped = new TradingRuleDefinition("Legacy", "Keep original scope", "Facts", TradingRuleApplicability.Trade,
+            TradingRuleAccountScope.ForAccount(Account), TradingRuleEvaluationMode.ManualOnly);
+        var id = Guid.NewGuid();
+        Assert.Equal(TradingRuleWriteStatus.InvalidState, (await writer.ExecuteAsync(new(id, 0, TradingRuleAuthoringAction.Create, scoped))).Status);
+        Assert.Empty(store.Revisions);
+        store.Revisions.Add(TradingRuleRevision.Create(id, scoped, Now));
+        Assert.Equal(TradingRuleWriteStatus.InvalidState, (await writer.ExecuteAsync(new(id, 1, TradingRuleAuthoringAction.Revise, Definition()))).Status);
+        Assert.Equal(TradingRuleWriteStatus.InvalidState, (await new RecordTradingRuleAssessmentUseCase(store, store, new Clock()).ExecuteAsync(
+            AssessmentCommand(id, 1, TradingRuleAssessmentTarget.ForTrade(Guid.NewGuid(), Account)))).Status);
+        Assert.Single(store.Revisions); Assert.Empty(store.Assessments);
+        var globalId = Guid.NewGuid(); await writer.ExecuteAsync(new(globalId, 0, TradingRuleAuthoringAction.Create, Definition()));
+        Assert.Equal(TradingRuleWriteStatus.Saved, (await writer.ExecuteAsync(new(globalId, 1, TradingRuleAuthoringAction.Delete, null))).Status);
+        Assert.Equal(TradingRuleWriteStatus.InvalidState, (await writer.ExecuteAsync(new(globalId, 2, TradingRuleAuthoringAction.Reopen, null))).Status);
     }
 
     private sealed class Clock : TimeProvider

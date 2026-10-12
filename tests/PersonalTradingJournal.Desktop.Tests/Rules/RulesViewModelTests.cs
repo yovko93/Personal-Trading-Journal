@@ -26,19 +26,18 @@ public sealed class RulesViewModelTests
     public async Task CreateValidateCorrectSaveAndReadBackAllFieldsAndExactScope()
     {
         var f = new RulesFixture(); await f.Vm.ActivateAsync(); Assert.True(f.Vm.ShowEmpty);
-        f.Vm.CreateCommand.Execute(null); Assert.Null(f.Vm.Account!.Id);
+        f.Vm.CreateCommand.Execute(null);
         await f.Vm.SaveCommand.ExecuteAsync(null);
         Assert.All(f.Vm.Fields, field => Assert.True(field.IsInvalid)); Assert.Equal(1, f.Vm.ValidationAttempt);
         Assert.Empty(f.Data.Rows); Assert.True(f.Vm.IsEditing);
-        f.Fill(); f.Vm.Target = TradingRuleApplicability.NewYorkDay; f.Vm.Mode = TradingRuleEvaluationMode.AutomaticCandidate;
-        f.Vm.Account = f.Vm.Accounts[1]; await f.Vm.SaveCommand.ExecuteAsync(null);
-        Assert.False(f.Vm.IsEditing); Assert.Contains("Saved and verified revision 1", f.Vm.Message);
+        f.Fill(); await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.False(f.Vm.IsEditing); Assert.Equal("Rule saved.", f.Vm.Message);
         var row = Assert.Single(f.Data.Rows);
-        Assert.Equal(f.Data.AccountId, row.Definition.AccountScope.AccountId);
-        Assert.Equal(TradingRuleApplicability.NewYorkDay, row.Definition.Applicability);
-        Assert.Equal(TradingRuleEvaluationMode.AutomaticCandidate, row.Definition.EvaluationMode);
+        Assert.True(row.Definition.IsGlobal);
+        Assert.Null(row.Definition.AccountScope.AccountId);
+        Assert.Equal(TradingRuleEvaluationMode.ManualOnly, row.Definition.EvaluationMode);
         Assert.Equal(new[] { "Synthetic rule", "Recorded criterion", "Required records" }, new[] { row.Definition.Name, row.Definition.Criterion, row.Definition.RequiredEvidence });
-        Assert.False(f.Vm.HasErrors); Assert.Contains("No typed check", f.Vm.ModeLabel);
+        Assert.False(f.Vm.HasErrors); Assert.Null(row.Definition.AutomaticCriterion);
     }
 
     [Theory]
@@ -71,19 +70,17 @@ public sealed class RulesViewModelTests
     }
 
     [Fact]
-    public async Task RevisionPreviewDoesNotOverwriteEditsAndArchiveReopenAppendHistory()
+    public async Task EditAndDeleteRetainOriginalInternalHistory()
     {
         var f = new RulesFixture(); var id = f.Data.Seed(3); await f.Open(id);
         f.Vm.EditCommand.Execute(null); f.Vm.Fields[1].Text = "pending change";
-        f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions.Last());
-        Assert.Contains("Historical revision 1", f.Vm.VersionLabel); Assert.Equal("pending change", f.Vm.Fields[1].Text);
-        f.Vm.ReturnCommand.Execute(null); Assert.Equal("pending change", f.Vm.Fields[1].Text);
+        Assert.Equal("pending change", f.Vm.Fields[1].Text);
         await f.Vm.SaveCommand.ExecuteAsync(null); Assert.Equal(4, f.Data.Rows.Count);
-        await f.Vm.ArchiveCommand.ExecuteAsync(null); Assert.Equal(4, f.Data.Rows.Count); // confirmation declined
-        f.Dialogs.ConfirmationResult = true; await f.Vm.ArchiveCommand.ExecuteAsync(null);
-        Assert.False(f.Vm.SelectedRule!.Details.Revision.IsActive); Assert.False(f.Vm.EditCommand.CanExecute(null));
-        await f.Vm.ArchiveCommand.ExecuteAsync(null); Assert.Equal(6, f.Vm.SelectedRule.Details.Revision.Revision);
-        Assert.True(f.Vm.EditCommand.CanExecute(null)); Assert.Equal("criterion 1", f.Data.Rows[0].Definition.Criterion);
+        await f.Vm.DeleteCommand.ExecuteAsync(f.Vm.SelectedRule); Assert.Equal(4, f.Data.Rows.Count); // confirmation declined
+        f.Dialogs.ConfirmationResult = true; await f.Vm.DeleteCommand.ExecuteAsync(f.Vm.SelectedRule);
+        Assert.Null(f.Vm.SelectedRule); Assert.False(f.Vm.EditCommand.CanExecute(null));
+        Assert.Empty(f.Vm.Rules); Assert.Equal(5, f.Data.Rows.Count);
+        Assert.Equal("criterion 1", f.Data.Rows[0].Definition.Criterion);
     }
 
     [Fact]
@@ -122,28 +119,70 @@ public sealed class RulesViewModelTests
     }
 
     [Theory]
-    [InlineData(10, false)]
-    [InlineData(11, true)]
-    [InlineData(20, true)]
-    public async Task RevisionLookaheadAndCatalogPagingPreserveSelectionAndEditor(int count, bool older)
+    [InlineData(20, false)]
+    [InlineData(21, true)]
+    [InlineData(40, true)]
+    public async Task GlobalCatalogPagingHasNoEmptyFinalPageAndPreservesDirtyEditor(int count, bool hasNext)
     {
-        var f = new RulesFixture(); var id = f.Data.Seed(count); for (int i = 0; i < 20; i++) f.Data.Seed(1);
-        await f.Vm.ActivateAsync(); Assert.Equal(20, f.Vm.Rules.Count); Assert.True(f.Vm.NextCommand.CanExecute(null));
-        await f.Vm.NextCommand.ExecuteAsync(null); Assert.Single(f.Vm.Rules); Assert.False(f.Vm.NextCommand.CanExecute(null));
-        var selected = new RuleRow(new(f.Data.Rows.Last(r => r.RuleId == id), null, true)); f.Vm.TrySelect(selected); await f.Vm.LoadTask;
-        Assert.Equal(older, f.Vm.OlderCommand.CanExecute(null)); f.Vm.EditCommand.Execute(null); f.Vm.Fields[1].Text = "draft";
-        if (older) { await f.Vm.OlderCommand.ExecuteAsync(null); Assert.Equal(count - 10, f.Vm.Revisions[0].Details.Revision.Revision); Assert.False(f.Vm.OlderCommand.CanExecute(null)); }
-        Assert.Equal("draft", f.Vm.Fields[1].Text); Assert.Equal(id, f.Vm.SelectedRule!.Id);
+        var f = new RulesFixture(); for (int i = 0; i < count; i++) f.Data.Seed(1);
+        await f.Vm.ActivateAsync(); Assert.Equal(20, f.Vm.Rules.Count);
+        Assert.Equal(hasNext, f.Vm.NextCommand.CanExecute(null));
+        var firstPage = f.Vm.Rules.Select(r => r.Id).ToArray();
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules[0]); f.Vm.Fields[1].Text = "draft";
+        if (hasNext)
+        {
+            await f.Vm.NextCommand.ExecuteAsync(null);
+            Assert.Equal(firstPage, f.Vm.Rules.Select(r => r.Id)); Assert.Equal("draft", f.Vm.Fields[1].Text);
+            f.Dialogs.ConfirmationResult = true; await f.Vm.NextCommand.ExecuteAsync(null);
+            Assert.Equal(count - 20, f.Vm.Rules.Count); Assert.False(f.Vm.NextCommand.CanExecute(null));
+            Assert.Empty(firstPage.Intersect(f.Vm.Rules.Select(r => r.Id)));
+        }
+    }
+
+    [Theory]
+    [InlineData("conflict")]
+    [InlineData("failure")]
+    [InlineData("cancel")]
+    public async Task DeleteFailurePreservesCatalogAndEditorFields(string failure)
+    {
+        var f = new RulesFixture(); var id = f.Data.Seed(1); await f.Open(id);
+        f.Vm.EditCommand.Execute(null); f.Vm.Fields[1].Text = "Keep my entered text";
+        f.Dialogs.ConfirmationResult = false;
+        await f.Vm.DeleteCommand.ExecuteAsync(f.Vm.SelectedRule);
+        Assert.Single(f.Data.Rows); Assert.True(f.Vm.IsEditing);
+        f.Dialogs.ConfirmationResult = true; f.Data.Failure = failure;
+        await f.Vm.DeleteCommand.ExecuteAsync(f.Vm.SelectedRule);
+        Assert.Single(f.Vm.Rules); Assert.Single(f.Data.Rows);
+        Assert.True(f.Vm.IsEditing); Assert.Equal("Keep my entered text", f.Vm.Fields[1].Text);
     }
 
     [Fact]
-    public async Task UnavailableExactScopeStaysReadableAndCanArchiveButNotReopenOrEdit()
+    public async Task FailedRowReadDoesNotOpenAnUnverifiedEditorOrHideItsError()
+    {
+        var f = new RulesFixture(); f.Data.Seed(1); await f.Vm.ActivateAsync();
+        f.Data.Failure = "readback";
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules[0]);
+        Assert.False(f.Vm.IsEditing); Assert.Contains("could not be loaded", f.Vm.Message);
+    }
+
+    [Fact]
+    public async Task DeletingLastRowOnLastPageReconcilesPageAndPreservesOtherRules()
+    {
+        var f = new RulesFixture(); for (int i = 0; i < 21; i++) f.Data.Seed(1);
+        await f.Vm.ActivateAsync(); await f.Vm.NextCommand.ExecuteAsync(null);
+        var last = Assert.Single(f.Vm.Rules); f.Dialogs.ConfirmationResult = true;
+        await f.Vm.DeleteCommand.ExecuteAsync(last);
+        Assert.Equal(20, f.Vm.Rules.Count); Assert.False(f.Vm.PreviousCommand.CanExecute(null));
+        Assert.False(f.Vm.NextCommand.CanExecute(null)); Assert.DoesNotContain(f.Vm.Rules, r => r.Id == last.Id);
+    }
+
+    [Fact]
+    public async Task LegacyUnavailableDefinitionIsNotSilentlyPromotedToGlobalCatalog()
     {
         var f = new RulesFixture(); var id = f.Data.Seed(1, f.Data.AccountId); f.Data.AccountAvailable = false;
-        await f.Open(id); Assert.Contains("unavailable", f.Vm.SelectedRule!.Scope);
-        Assert.False(f.Vm.EditCommand.CanExecute(null)); f.Dialogs.ConfirmationResult = true;
-        await f.Vm.ArchiveCommand.ExecuteAsync(null); Assert.False(f.Vm.ArchiveCommand.CanExecute(null));
-        Assert.Equal(f.Data.AccountId, f.Vm.SelectedRule.Details.Revision.Definition.AccountScope.AccountId);
+        await f.Vm.ActivateAsync(); Assert.Empty(f.Vm.Rules);
+        Assert.Equal(f.Data.AccountId, f.Data.Rows.Single().Definition.AccountScope.AccountId);
+        Assert.False(f.Vm.EditCommand.CanExecute(null));
     }
 }
 
@@ -152,7 +191,7 @@ internal sealed class RulesFixture
     public RulesData Data { get; } = new();
     public FakeDialogService Dialogs { get; } = new();
     public RulesViewModel Vm { get; }
-    public RulesFixture() => Vm = new(Data, Data, Data, new(Data, TimeProvider.System), Dialogs);
+    public RulesFixture() => Vm = new(Data, Data, new(Data, TimeProvider.System), Dialogs);
     public void Fill() { Vm.Fields[0].Text = "Synthetic rule"; Vm.Fields[1].Text = "Recorded criterion"; Vm.Fields[2].Text = "Required records"; }
     public async Task Open(Guid id) { await Vm.ActivateAsync(); Vm.TrySelect(Vm.Rules.Single(r => r.Id == id)); await Vm.LoadTask; }
 }
@@ -168,8 +207,7 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
     public Guid Seed(int count, Guid? account = null)
     {
         var id = Guid.NewGuid();
-        for (int i = 1; i <= count; i++) Rows.Add(TradingRuleRevision.Rehydrate(id, i, new("Synthetic rule", "criterion " + i, "evidence", TradingRuleApplicability.Trade,
-            account is Guid a ? TradingRuleAccountScope.ForAccount(a) : TradingRuleAccountScope.AllAccounts, TradingRuleEvaluationMode.ManualOnly), true, DateTimeOffset.UtcNow.AddDays(-1)));
+        for (int i = 1; i <= count; i++) Rows.Add(TradingRuleRevision.Rehydrate(id, i, account is Guid a ? new("Synthetic rule", "criterion " + i, "evidence", TradingRuleApplicability.Trade, TradingRuleAccountScope.ForAccount(a), TradingRuleEvaluationMode.ManualOnly) : new("Synthetic rule", "criterion " + i, "evidence"), true, DateTimeOffset.UtcNow.AddDays(-1)));
         return id;
     }
     public Task<TradingRuleRevision?> GetLatestAsync(Guid ruleId, CancellationToken cancellationToken = default) => Task.FromResult(Rows.LastOrDefault(r => r.RuleId == ruleId));
@@ -183,6 +221,12 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
         Rows.Add(candidate); return true;
     }
     private TradingRuleDetails Details(TradingRuleRevision r) => new(r, r.Definition.AccountScope.AccountId is null ? null : "Synthetic Account", r.Definition.AccountScope.AccountId is null || AccountAvailable);
+    public async Task<TradingRulePage> ReadCatalogAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        if (ReadGate is not null) await ReadGate.Task;
+        var rows = Rows.GroupBy(r => r.RuleId).Select(g => g.Last()).Where(r => r.IsActive && r.Definition.IsGlobal).OrderBy(r => r.RuleId).ToArray();
+        return new(rows.Skip((page - 1) * pageSize).Take(pageSize).Select(Details).ToArray(), rows.Length, page, pageSize);
+    }
     public async Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {
         if (ReadGate is not null) await ReadGate.Task; // Deliberately ignores cancellation to exercise late-result rejection.

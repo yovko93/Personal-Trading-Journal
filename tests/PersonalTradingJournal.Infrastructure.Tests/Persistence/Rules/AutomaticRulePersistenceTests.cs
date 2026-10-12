@@ -14,9 +14,8 @@ public sealed partial class TradingRulePersistenceTests
 {
     private static TradingRuleDefinition AutomaticDefinition(RuleProfitBasis basis = RuleProfitBasis.Gross,
         Guid? account = null, TradingRuleApplicability target = TradingRuleApplicability.Trade) =>
-        new("Synthetic loss limit", "No expression interpretation", "Complete closed recorded economics", target,
-            account is Guid id ? TradingRuleAccountScope.ForAccount(id) : TradingRuleAccountScope.AllAccounts,
-            TradingRuleEvaluationMode.AutomaticCandidate, new(basis, 5, "USD"));
+        new("Synthetic loss limit", "No expression interpretation", "Complete closed recorded economics",
+            new(basis, 5, "USD", capability: target == TradingRuleApplicability.Trade ? RuleCheckCapability.ClosedTradeLoss : RuleCheckCapability.ClosedDayLoss));
 
     [Fact]
     public async Task AutomaticChecksRestartIdempotencyChangedEvidenceAndManualHistory()
@@ -160,7 +159,7 @@ public sealed partial class TradingRulePersistenceTests
         Assert.True(await f.Assessments.TryAppendAsync(assessment, 1, null));
         await using (var db = f.Context())
         {
-            await db.GetService<IMigrator>().MigrateAsync("20261012163222_AddTradingRules");
+            await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => db.GetService<IMigrator>().MigrateAsync("20261012163222_AddTradingRules"));
             await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => db.Database.ExecuteSqlRawAsync("UPDATE TradingRuleRevisions SET Name = 'forbidden'"));
             await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM TradingRuleAssessments"));
             await db.Database.MigrateAsync();

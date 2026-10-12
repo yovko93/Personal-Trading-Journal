@@ -39,14 +39,12 @@ public sealed partial class TradingRuleRepository : IManualRuleAssessmentReader
     public async Task<TradingRulePage> ReadRulesAsync(TradingRuleAssessmentTarget target, int page = 1, int pageSize = 20, CancellationToken token = default)
     {
         int offset = PageOffset(page, pageSize);
-        string key = TargetKey(target);
-        int applicability = target.Kind == TradingRuleTargetKind.Trade ? (int)TradingRuleApplicability.Trade : (int)TradingRuleApplicability.NewYorkDay;
         await using var db = await factory.CreateDbContextAsync(token);
         await using var snapshot = await ReadSnapshot(db, token);
         var query = db.TradingRuleRevisions.AsNoTracking().Where(r =>
             !db.TradingRuleRevisions.Any(n => n.RuleId == r.RuleId && n.Revision > r.Revision) &&
-            ((r.Applicability == applicability && (r.AccountId == null || r.AccountId == target.AccountScope.AccountId)) ||
-             db.TradingRuleAssessments.Any(a => a.RuleId == r.RuleId && a.TargetKey == key)));
+            ((r.IsGlobal && r.IsActive) ||
+             db.TradingRuleAssessments.Any(a => a.RuleId == r.RuleId)));
         int total = await query.CountAsync(token);
         var rows = await query.OrderBy(r => r.RuleId).Skip(offset).Take(pageSize).ToArrayAsync(token);
         return new(await RuleDetails(db, rows, token), total, page, pageSize);

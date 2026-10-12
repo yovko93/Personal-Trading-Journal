@@ -2,6 +2,8 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 public sealed class TradingRuleRevisionRecord
 {
+    public bool IsGlobal { get; set; }
+    public int? CheckCapability { get; set; }
     public Guid RuleId { get; set; }
     public int Revision { get; set; }
     public int ContractVersion { get; set; }

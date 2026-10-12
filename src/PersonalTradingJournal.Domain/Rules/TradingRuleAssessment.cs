@@ -111,8 +111,8 @@ public sealed class TradingRuleAssessment
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(evidenceReferences);
         if (!ruleRevision.IsActive) throw new InvalidOperationException("Archived Rules cannot receive new assessments.");
-        if ((ruleRevision.Definition.Applicability == TradingRuleApplicability.Trade && target.Kind != TradingRuleTargetKind.Trade) ||
-            (ruleRevision.Definition.Applicability == TradingRuleApplicability.NewYorkDay && target.Kind != TradingRuleTargetKind.NewYorkDay))
+        if (!ruleRevision.Definition.IsGlobal && ((ruleRevision.Definition.Applicability == TradingRuleApplicability.Trade && target.Kind != TradingRuleTargetKind.Trade) ||
+            (ruleRevision.Definition.Applicability == TradingRuleApplicability.NewYorkDay && target.Kind != TradingRuleTargetKind.NewYorkDay)))
             throw new ArgumentException("Rule applicability does not match the assessment target.", nameof(target));
         if (ruleRevision.Definition.AccountScope.Kind == TradingRuleAccountScopeKind.ExactAccount &&
             ruleRevision.Definition.AccountScope != target.AccountScope)

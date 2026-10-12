@@ -33,6 +33,7 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
         await db.Database.UseTransactionAsync(transaction, cancellationToken);
         var latest = await LatestRule(db, candidate.RuleId).FirstOrDefaultAsync(cancellationToken);
         if ((latest?.Revision ?? 0) != expectedRevision) return false;
+        if (!candidate.Definition.IsGlobal || latest is { IsGlobal: false } || latest is { IsGlobal: true, IsActive: false }) return false;
         if (latest is null && !candidate.IsActive) throw new ArgumentException("A new Rule must be active.", nameof(candidate));
         if (latest is not null)
         {
@@ -85,7 +86,7 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
         await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);
         await db.Database.UseTransactionAsync(transaction, cancellationToken);
         var rule = await LatestRule(db, candidate.RuleRevision.RuleId).FirstOrDefaultAsync(cancellationToken);
-        if (rule is null || !rule.IsActive || rule.Revision != expectedRuleRevision) return false;
+        if (rule is null || !rule.IsGlobal || !rule.IsActive || rule.Revision != expectedRuleRevision) return false;
         var actual = ToDomain(rule);
         if (actual.Definition != candidate.RuleRevision.Definition || actual.RecordedAtUtc != candidate.RuleRevision.RecordedAtUtc)
             return false; // Never accept a fabricated definition carrying a genuine revision ID.
@@ -148,14 +149,16 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
     private static TradingRuleRevision ToDomain(TradingRuleRevisionRecord r)
     {
         if (r.ContractVersion != TradingRuleRevision.ContractVersion) throw new InvalidDataException("Unsupported Rule contract.");
+        var criterion = r.AutomaticCriterionJson is null ? null : JsonSerializer.Deserialize<AutomaticRuleCriterion>(r.AutomaticCriterionJson);
         return TradingRuleRevision.Rehydrate(r.RuleId, r.Revision,
-            new(r.Name, r.Criterion, r.RequiredEvidence, (TradingRuleApplicability)r.Applicability,
+            r.IsGlobal ? new(r.Name, r.Criterion, r.RequiredEvidence, criterion) : new(r.Name, r.Criterion, r.RequiredEvidence, (TradingRuleApplicability)r.Applicability,
                 Scope(r.AccountId), (TradingRuleEvaluationMode)r.EvaluationMode,
-                r.AutomaticCriterionJson is null ? null : JsonSerializer.Deserialize<AutomaticRuleCriterion>(r.AutomaticCriterionJson)), r.IsActive, r.RecordedAtUtc);
+                criterion), r.IsActive, r.RecordedAtUtc);
     }
     private static TradingRuleRevisionRecord ToRecord(TradingRuleRevision r, string? accountName) => new()
     {
         RuleId = r.RuleId, Revision = r.Revision, ContractVersion = TradingRuleRevision.ContractVersion,
+        IsGlobal = r.Definition.IsGlobal, CheckCapability = r.Definition.IsGlobal && r.Definition.AutomaticCriterion is { } c ? (int)c.Capability : null,
         Name = r.Definition.Name, Criterion = r.Definition.Criterion, RequiredEvidence = r.Definition.RequiredEvidence,
         Applicability = (int)r.Definition.Applicability, ScopeKind = (int)r.Definition.AccountScope.Kind,
         AccountId = r.Definition.AccountScope.AccountId, AccountNameAtRevision = accountName,

@@ -7,6 +7,18 @@ namespace PersonalTradingJournal.Desktop.Tests.Rules;
 
 public sealed class RuleAssessmentViewModelTests
 {
+    [Fact]
+    public async Task RetainedRuleHistoryIsAccessibleInsideAssessmentWorkflowAndGuardsEnteredExplanation()
+    {
+        var f = new AssessmentFixture(); await f.Open(); f.Fill(); await f.Vm.SaveCommand.ExecuteAsync(null);
+        f.Vm.Explanation = "Unsaved correction"; f.Dialogs.ConfirmationResult = false;
+        await f.Vm.RuleHistoryCommand.ExecuteAsync(null);
+        Assert.Equal(f.Data.Target, f.Vm.Target); Assert.Equal("Unsaved correction", f.Vm.Explanation);
+        f.Dialogs.ConfirmationResult = true; await f.Vm.RuleHistoryCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.Target); Assert.False(f.Vm.CanRecord);
+        Assert.Single(f.Vm.History); Assert.Equal(f.Data.Target, f.Vm.History[0].Details.Assessment.Target);
+    }
+
     [Theory]
     [InlineData(TradingRuleAssessmentOutcome.CannotEvaluate)]
     [InlineData(TradingRuleAssessmentOutcome.NoViolation)]
@@ -168,6 +180,7 @@ internal sealed class AssessmentData : IManualRuleAssessmentReader, ITradingRule
     { if (Failure == "readback") throw new IOException("Synthetic readback failure"); return Task.FromResult(Saved.FirstOrDefault(a => a.Id == id) is { } a ? Details(a) : null); }
     public Task<IReadOnlyList<TradingRuleAssessmentDetails>> ReadAssessmentsAsync(Guid ruleId, TradingRuleAssessmentTarget target, int? beforeSequence = null, int limit = 20, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<TradingRuleAssessmentDetails>>(Saved.Where(a => a.RuleRevision.RuleId == ruleId && a.Target == target).Select(Details).Where(a => beforeSequence is null || a.Sequence < beforeSequence).OrderByDescending(a => a.Sequence).Take(limit).ToArray());
     public Task<IReadOnlyList<TradingRuleAssessmentDetails>> ReadRuleHistoryAsync(Guid ruleId, int page = 1, int pageSize = 10, CancellationToken token = default) => Task.FromResult<IReadOnlyList<TradingRuleAssessmentDetails>>(Saved.Where(a => a.RuleRevision.RuleId == ruleId).Select(Details).OrderByDescending(a => a.Sequence).Skip((page - 1) * pageSize).Take(pageSize + 1).ToArray());
+    public Task<TradingRulePage> ReadCatalogAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) => Rules.ReadCatalogAsync(page, pageSize, cancellationToken);
     public Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) => Rules.ReadCurrentAsync(scope, active, page, pageSize, cancellationToken);
     public Task<IReadOnlyList<TradingRuleDetails>> ReadRevisionsAsync(Guid ruleId, int? beforeRevision = null, int limit = 20, CancellationToken cancellationToken = default) => Rules.ReadRevisionsAsync(ruleId, beforeRevision, limit, cancellationToken);
 }

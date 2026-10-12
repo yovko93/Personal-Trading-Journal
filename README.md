@@ -1,6 +1,14 @@
 # Personal Trading Journal
 
-**M18.5 — Explicit deterministic Trading Rule checks**
+**Rules — global principles catalog (before M18.6)**
+
+Planning → Rules now presents compact name/statement rows with Edit and confirmed Delete. Rules have no Account or Trade/day ownership; assessment targets keep that context separately. Revision browsing, Archive/Reopen and assessment links are removed from this page. Save feedback is brief, verified against persisted data, and failures preserve entered text. Unsaved-work and accessible field-validation guards remain.
+
+Existing scoped definitions are retained **read-only, not silently broadened** and do not join the global catalog or new checks. Their recorded assessments remain accessible from Trade/day assessment workflows. A global replacement must be created explicitly. Delete removes a global Rule from the list while retaining its historical text and assessments; stale deletes are rejected. Typed checks select global rules by check capability, independent of Account definition filters. Additive migration `20261012205801_GlobalTradingRuleCatalog`, JSON export **v7**, and current-schema complete backups preserve this distinction. [Compatibility policy and verification](docs/trading-rules.md#global-catalog-refinement--before-m186).
+
+Local verification: **184 focused tests passed**; final complete parallel Release **4,015/4,015**, zero failures/skips (487 Domain, 752 Application, 1,245 Infrastructure, 1,531 Desktop). Release build: **0 warnings/errors**; EF consistency and whitespace checks passed. Calendar native **87/87 in 109.707 s**, **10.293 s** headroom to its unchanged 120-second deadline. Light/Dark normal and narrow/240-DPI renders were inspected; live mouse/keyboard/screen-reader checks remain open. Starting HEAD `40ad8aeb28486d3961ebaae40282222547b65cfd` on `develop`; 41 files remain uncommitted. Matching CI requires the user's commit/push and workflow run. [Exact files, evidence and remaining checks](docs/trading-rules.md#global-catalog-verification--13-october-2026). No M18.6, provider calls or production-journal access.
+
+**M18.5 — Explicit deterministic Trading Rule checks (historical milestone report)**
 
 Rules can now carry a versioned **maximum closed-loss** criterion: Gross or strict Net, a nonnegative limit, and one currency, for one Trade or a New York closure day. Open **Assess Trading Rules / Assess day Rules → Run checks** to evaluate all applicable typed rules against saved records. Nothing runs on loading or from free text. Equality passes; unknown required costs, no closed evidence, or an unavailable lifecycle yield **Cannot evaluate**, never an invented Net or inferred plan adherence. Manual history stays labeled and retained.
 

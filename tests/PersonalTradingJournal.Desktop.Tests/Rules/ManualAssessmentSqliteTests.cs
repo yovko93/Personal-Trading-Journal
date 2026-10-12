@@ -25,8 +25,7 @@ public sealed class ManualAssessmentSqliteTests
         var scope = aggregate ? TradingRuleAccountScope.AllAccounts : TradingRuleAccountScope.ForAccount(account.Id);
         var date = new DateOnly(2026, 11, 1);
         var journal = (await db.Repository.CreateAsync(new(date, aggregate ? null : account.Id, "Synthetic user observation"))).Journal!.Entry;
-        var rule = TradingRuleRevision.Create(Guid.NewGuid(), new("Review reflection", "Evaluate the recorded observation", "A saved daily Journal",
-            TradingRuleApplicability.NewYorkDay, scope, TradingRuleEvaluationMode.ManualOnly), DateTimeOffset.UtcNow.AddDays(-1));
+        var rule = TradingRuleRevision.Create(Guid.NewGuid(), new("Review reflection", "Evaluate the recorded observation", "A saved daily Journal"), DateTimeOffset.UtcNow.AddDays(-1));
         Assert.True(await db.Provider.GetRequiredService<ITradingRuleStore>().TryAppendAsync(rule, 0));
         RuleAssessmentViewModel Create(IServiceProvider services) => new(services.GetRequiredService<IManualRuleAssessmentReader>(), services.GetRequiredService<ITradingRuleReader>(),
             services.GetRequiredService<ITradingRuleStore>(), services.GetRequiredService<ITradingRuleAssessmentStore>(),

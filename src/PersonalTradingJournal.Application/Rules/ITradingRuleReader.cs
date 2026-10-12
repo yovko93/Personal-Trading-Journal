@@ -17,6 +17,7 @@ public sealed record TradingRuleAssessmentDetails(TradingRuleAssessment Assessme
 /// <summary>Scope filters match definitions exactly; null means all definitions, including archived/historical scopes.</summary>
 public interface ITradingRuleReader
 {
+    Task<TradingRulePage> ReadCatalogAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null,
         int page = 1, int pageSize = 20, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TradingRuleDetails>> ReadRevisionsAsync(Guid ruleId, int? beforeRevision = null,

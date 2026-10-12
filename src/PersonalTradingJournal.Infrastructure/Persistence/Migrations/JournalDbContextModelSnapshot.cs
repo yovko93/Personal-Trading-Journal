@@ -927,6 +927,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<string>("AutomaticCriterionJson")
                         .HasColumnType("TEXT");
 
+                    b.Property<int?>("CheckCapability")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("ContractVersion")
                         .HasColumnType("INTEGER");
 
@@ -939,6 +942,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsGlobal")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Name")

@@ -10,16 +10,7 @@ namespace PersonalTradingJournal.Desktop.Views.Rules;
 
 public partial class RulesView : UserControl
 {
-    private bool _syncing;
     public RulesView() => InitializeComponent();
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (_syncing || DataContext is not RulesViewModel vm || vm.IsBusy || RuleSelector.SelectedItem is not RuleRow row) return;
-        if (!vm.TrySelect(row))
-        {
-            _syncing = true; RuleSelector.SetCurrentValue(ComboBox.SelectedValueProperty, vm.SelectedRule?.Id); _syncing = false;
-        }
-    }
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is RulesViewModel old) PropertyChangedEventManager.RemoveHandler(old, OnStateChanged, "");
@@ -27,7 +18,7 @@ public partial class RulesView : UserControl
     }
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is not (nameof(RulesViewModel.ValidationAttempt) or nameof(RulesViewModel.IsEditing) or nameof(RulesViewModel.IsHistorical))) return;
+        if (e.PropertyName is not (nameof(RulesViewModel.ValidationAttempt) or nameof(RulesViewModel.IsEditing))) return;
         Dispatcher.BeginInvoke(() =>
         {
             if (!IsLoaded || !ReferenceEquals(DataContext, sender) || sender is not RulesViewModel vm) return;
@@ -36,9 +27,8 @@ public partial class RulesView : UserControl
                 var first = Descendants(EditorFields).OfType<TextBox>().FirstOrDefault(FormValidation.GetIsInvalid);
                 first?.BringIntoView(); first?.Focus();
             }
-            else if (vm.IsHistorical) ReadingCard.BringIntoView();
-            else if (vm.IsEditing) { AccountSelector.BringIntoView(); AccountSelector.Focus(); }
-            else { SelectedName.BringIntoView(); if (EditRule.IsEnabled) EditRule.Focus(); else CreateRule.Focus(); }
+            else if (vm.IsEditing) { EditorFields.BringIntoView(); Descendants(EditorFields).OfType<TextBox>().FirstOrDefault()?.Focus(); }
+            else CreateRule.Focus();
         });
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

@@ -95,7 +95,7 @@ public sealed partial class TradingRuleRepository : IAutomaticRuleChecks
         }
         int applicability = target.Kind == TradingRuleTargetKind.Trade ? 1 : 2;
         var rules = await db.TradingRuleRevisions.AsNoTracking().Where(r => r.IsActive && r.AutomaticCriterionJson != null &&
-            r.Applicability == applicability && (r.AccountId == null || r.AccountId == target.AccountScope.AccountId) &&
+            r.IsGlobal && r.CheckCapability == applicability &&
             !db.TradingRuleRevisions.Any(n => n.RuleId == r.RuleId && n.Revision > r.Revision))
             .OrderBy(r => r.RuleId).Take(101).ToArrayAsync(token);
         if (rules.Length > 100) throw new CheckLimitException();

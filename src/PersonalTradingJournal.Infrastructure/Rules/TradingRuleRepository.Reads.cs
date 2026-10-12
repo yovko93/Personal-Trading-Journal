@@ -9,6 +9,19 @@ namespace PersonalTradingJournal.Infrastructure.Rules;
 
 public sealed partial class TradingRuleRepository
 {
+    public async Task<TradingRulePage> ReadCatalogAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
+    {
+        ValidateLimit(pageSize);
+        if (page < 1 || (long)(page - 1) * pageSize > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(page));
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await ReadSnapshot(db, cancellationToken);
+        var query = db.TradingRuleRevisions.AsNoTracking().Where(r => r.IsGlobal && r.IsActive &&
+            !db.TradingRuleRevisions.Any(next => next.RuleId == r.RuleId && next.Revision > r.Revision));
+        int total = await query.CountAsync(cancellationToken);
+        var rows = await query.OrderBy(r => r.Name).ThenBy(r => r.RuleId).Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(cancellationToken);
+        return new(await RuleDetails(db, rows, cancellationToken), total, page, pageSize);
+    }
+
     public async Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null,
         int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {

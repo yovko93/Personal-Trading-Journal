@@ -21,6 +21,7 @@
     <WrapPanel>
      <Button x:Name="RunChecks" Content="Run checks" Command="{Binding RunChecksCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Run deterministic checks for this exact target" AutomationProperties.HelpText="Evaluates all applicable typed criteria against saved data. Never executes free-text rules or modifies manual assessments."/>
      <Button Content="Refresh" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh assessments with unsaved change protection"/>
+     <Button Content="Rule assessment history" Command="{Binding RuleHistoryCommand}" AutomationProperties.Name="Read all retained assessments for this rule"/>
      <Button Content="Cancel operation" Command="{Binding CancelCommand}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel assessment loading or saving"/>
     </WrapPanel>
     <StackPanel Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}">

@@ -1,5 +1,91 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Global catalog refinement — before M18.6
+
+**Current behavior supersedes the scoped authoring and archive/history UI described in the milestone reports below.** Planning → Rules is a global catalog of general trading principles. A row shows its name, short statement, Edit and confirmed destructive Delete. The editor has no Account selector or Trade/day applicability. There are no assessment/source links, revision numbers, revision browsing, or Archive/Reopen controls on this page. Save is acknowledged briefly only after exact persisted readback; validation, conflicts, cancellation and failed readback retain entered fields. Required-field focus and unsaved switching/navigation/window-close guards remain.
+
+An optional **check metric** belongs to a typed criterion, not to the Rule's ownership: maximum closed loss per Trade or per New York closure day, with Gross/strict Net basis, threshold and currency. Manual assessments can reference a global principle from either workflow. Run checks selects active global rules by `RuleCheckCapability`, without filtering definitions by Account. The **assessment target** still carries the exact Trade/day and explicit exact-Account or aggregate scope. Evidence, costs, currencies, outcomes and the `closed-loss/1` calculator are unchanged.
+
+### Existing scoped definitions and deletion
+
+Additive migration `20261012205801_GlobalTradingRuleCatalog` adds `IsGlobal` (default false for existing rows) and nullable `CheckCapability`. It does not rewrite any old Rule or assessment. Legacy scoped definitions are **read-only compatibility data**, excluded from the global catalog and new manual/automatic assessments. Retained assessments remain readable in Trade/day assessment dialogs via **Rule assessment history**, including unavailable targets. A user who wants the old principle in the global catalog must explicitly create a new global Rule with a new identity; no automatic conversion, widening, merging or reassignment occurs.
+
+New Domain authoring accepts name, statement, required-evidence description and optional typed criterion, with no target or Account parameter. The old constructor and persisted applicability/scope columns are a compatibility envelope for immutable legacy reads. For `IsGlobal=true`, those old columns have fixed neutral storage values (Trade=1 / AllAccounts=1 / null Account) and **are not definition applicability or an assessment filter**. The global marker and typed capability are authoritative. SQLite rejects new legacy inserts, attempted promotion of a legacy identity, inconsistent typed metadata, and reopening a deleted global identity. Internal revision numbers continue monotonically.
+
+Delete appends an inactive internal tombstone under the same SQLite immediate write transaction and expected-revision check. All revisions and all existing/concurrently committed assessments are retained unconditionally; no reference-dependent hard-delete or cascade can race with a new assessment. The current revision and reference relationship are protected by the transaction and restrictive foreign keys. If Delete wins the write reservation, a later assessment with the prior revision is rejected. If an assessment commits first, Delete retains it. The Rule disappears from the active catalog, cannot be reopened there, and its original historical wording is never reinterpreted. Cancelled confirmation writes nothing; stale Delete requires Refresh.
+
+### Portability and verification
+
+Complete archive format v1 still includes the whole database. Current-schema preflight/restore/recovery preserve global flags, capabilities, tombstones, legacy definitions and assessments. Older-schema archives are rejected without modifying installed data; staged upgrade remains deferred. A schema downgrade is explicitly blocked once global definitions exist because the old schema cannot represent their meaning safely. Logical JSON export is **v7**, adding `isGlobal` and `checkCapability`; four CSVs and screenshot-metadata-only policy are unchanged. Earlier exports retain their original scoped meaning and are not backups.
+
+### Global catalog verification — 13 October 2026
+
+Started on clean `develop`, HEAD `40ad8aeb28486d3961ebaae40282222547b65cfd`; prior work was already committed and remains intact. **41 files** are modified/new (37 tracked edits, four new files), including one additive migration and its designer. No production data, provider calls, commit, push or merge; M18.6 is not started.
+
+| Scenario | Result and evidence |
+| --- | --- |
+| Global definitions and independent assessment targets | Passed: Domain/Application tests validate global authoring, legacy rejection, separate Trade/day/Account assessment identities, revision conflicts and missing evidence. |
+| Existing scoped data | Passed: synthetic pre-refinement SQLite data migrates without broadening or rewriting its original Account, text or assessment; retained history is readable but legacy definitions cannot be authored or checked. |
+| Confirmed Delete and races | Passed: SQLite concurrent assessment/Delete, stale revision, immutable historical text, restart and tombstone checks; ViewModel cancellation/failure/conflict preserve the list and entered fields. No cascade deletion. |
+| Typed checks | Passed: global per-Trade and per-day capabilities are selected across different Accounts; exact assessment scopes, strict Net, missing costs, currencies, idempotency and source conflicts remain covered. |
+| Catalog, paging and guards | Passed: 20/21/40-row page boundaries, last-row deletion reconciliation, validation recovery, failed row read, verified Save, unsaved navigation and actual MainWindow closing-path tests. |
+| Portability | Passed: complete backup → preflight → offline restore/recovery and export v7 retain global definitions, deleted-rule history, check capabilities and assessment evidence. Schema inventories and unsupported-schema rejection pass. |
+| Compiled WPF | Passed: Light/Dark at 960 DIP / 96 DPI and 480 DIP / 240 DPI; catalog/editor/validation and assessment renders inspected in ignored `artifacts/global-rules-renders`. Focusability, accessible names, first-invalid-field logical focus, scrolling and reachable actions asserted. |
+| Live interaction | Not performed: actual user mouse/keyboard and screen-reader announcements remain unverified. Renders and owned-window test automation are not live acceptance. |
+| Matching GitHub Actions | Open: these changes are uncommitted, so no workflow can have tested the exact resulting tree yet. Workflow remains main pushes / PRs targeting main; user commit/push and a matching successful run are required. |
+
+**Focused: 184 passed, zero failed/skipped** (Domain 11, Application 21, Infrastructure 99, Desktop 53), `artifacts/m145-load/global-rules-focused-complete`. **Final complete parallel Release: 4,015 passed, zero failed/skipped** (Domain 487, Application 752, Infrastructure 1,245, Desktop 1,531), `artifacts/m145-load/global-rules-full-final`. The final full build/run also covers the last legacy typed-summary presentation correction.
+
+Calendar native **87/87**, **109.707 seconds**, **10.293 seconds** headroom to its unchanged 120-second deadline; grid **20.590 seconds**. No Calendar or Journal timeout occurred. Timing remains load-dependent; no deadlines, concurrency bounds, skips, retries or isolation protections were changed. Release solution build: **0 warnings, 0 errors**. Design-time in-memory EF consistency: **no pending changes**. Tracked/new-file whitespace checks pass.
+
+The first focused run exposed one schema-inventory assertion with the two new columns in the wrong expected order; corrected before the green runs. New row-edit error handling prevents a failed read from opening an unverified editor or hiding its error. No claim is made that older live acceptance gaps or GitHub CI have been resolved.
+
+Remaining isolated manual checklist: create/edit/delete a global principle; decline dirty-editor navigation; inspect retained assessments from a Trade and day after deleting the rule; run both typed metrics for two different Accounts; verify Tab order, confirmation focus and screen-reader error announcements in both themes at minimum width/240 DPI.
+
+### Exact changed files — global catalog refinement
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Rules/ITradingRuleReader.cs`
+- `src/PersonalTradingJournal.Application/Rules/TradingRuleContracts.cs`
+- `src/PersonalTradingJournal.Application/Rules/TradingRuleUseCases.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RuleAssessmentViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleAssessmentView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `src/PersonalTradingJournal.Domain/Rules/AutomaticRuleCriterion.cs`
+- `src/PersonalTradingJournal.Domain/Rules/TradingRuleAssessment.cs`
+- `src/PersonalTradingJournal.Domain/Rules/TradingRuleDefinition.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012205801_GlobalTradingRuleCatalog.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012205801_GlobalTradingRuleCatalog.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingRuleRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Automatic.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Manual.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Reads.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Rules/TradingRuleUseCaseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RuleAssessmentViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Domain.Tests/Rules/GlobalTradingRuleTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/AutomaticRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/GlobalRuleCatalogTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/ManualRuleDiscoveryTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+
 M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules; M18.4 adds manual Trade/day assessments. M18.5 adds explicitly invoked typed checks below. There is no AI integration, free-text execution or background checking. Historical revisions are read exactly as recorded; earlier milestone reports below retain their original scope and results.
 
 ## M18.5 — Deterministic checks
@@ -94,7 +180,7 @@ Matching CI remains open: the GitHub connector returned no PR-triggered runs for
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
 
-## Rule identity and scope
+## Original M18.1 rule identity and scope (legacy compatibility)
 
 A Rule has a stable `RuleId` and immutable numbered `TradingRuleRevision` values (contract version 1). A revision contains a name, human-written criterion, description of required evidence, applicability to **one Trade** or **one New York trading day**, an explicit All-accounts or exact-Account scope, an evaluation mode, active/archive state, and UTC creation time. Create starts at revision 1. Editing, archiving, and reopening each append the next revision; an archived rule cannot receive new assessments. Revision numbers never move backward or get reused. A saved assessment embeds the exact revision, so a later rename, scope edit, or archive cannot rewrite what was evaluated.
 
