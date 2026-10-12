@@ -34,10 +34,15 @@ public sealed class RulesViewTests
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 foreach (var (width, dpi) in new[] { (960, 96), (480, 240) })
                 {
-                    var f = new RulesFixture(); var id = f.Data.Seed(12); f.Open(id).GetAwaiter().GetResult();
+                    var f = new RulesFixture(); var id = f.Data.Seed(12);
+                    f.Data.Rows[^1] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, 12,
+                        new("A longer synthetic rule name to check wrapping", "A short statement that remains readable beside the right-aligned actions.", "Retained evidence",
+                            new(PersonalTradingJournal.Domain.Rules.RuleProfitBasis.StrictNet, 123.456m, "EUR", capability: PersonalTradingJournal.Domain.Rules.RuleCheckCapability.ClosedDayLoss)),
+                        true, DateTimeOffset.UtcNow.AddDays(-1));
+                    f.Open(id).GetAwaiter().GetResult();
                     var view = new RulesView { DataContext = f.Vm }; FocusManager.SetIsFocusScope(view, true);
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
-                    void Layout() { view.Measure(new Size(width, 700)); view.Arrange(new Rect(0, 0, width, 700)); view.UpdateLayout(); }
+                    void Layout() { view.Measure(new Size(width, 400)); view.Arrange(new Rect(0, 0, width, 400)); view.UpdateLayout(); }
                     Layout();
                     var scroller = (ScrollViewer)view.FindName("RulesScroller");
                     Assert.Single(((ItemsControl)view.FindName("RuleRows")).Items);
@@ -51,18 +56,24 @@ public sealed class RulesViewTests
                         Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
                     }
                     Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.IsVisible && (t.Text.Contains("Revision") || t.Text.Contains("Account scope")));
+                    var rowGrid = Descendants(view).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
+                    Assert.InRange(rowGrid.ActualWidth - rowButtons[1].TranslatePoint(new Point(rowButtons[1].ActualWidth, 0), rowGrid).X, 0, 1);
+                    Assert.Equal(rowButtons[0].TranslatePoint(new Point(), rowGrid).Y, rowButtons[1].TranslatePoint(new Point(), rowGrid).Y);
+                    Assert.True(rowButtons[0].TranslatePoint(new Point(), rowGrid).X > rowGrid.ActualWidth / 2);
+                    var condition = Descendants(rowGrid).OfType<TextBlock>().Single(t => t.Text == f.Vm.SelectedRule!.AutomaticCondition);
+                    Assert.Equal(Visibility.Visible, condition.Visibility); Assert.Contains("EUR", condition.Text); Assert.Contains("123.456", condition.Text);
+                    Assert.InRange(condition.TranslatePoint(new Point(condition.ActualWidth, 0), rowGrid).X, 0, rowButtons[0].TranslatePoint(new Point(), rowGrid).X - 1);
                     Render(view, theme, width, dpi, "catalog");
                     f.Vm.EditCommand.Execute(null); Layout();
-                    f.Vm.Automatic = true; Layout();
+                    Layout();
                     foreach (string name in new[] { "CheckCapability", "CheckBasis", "CheckLimit", "CheckCurrency" })
                     {
-                        var input = (Control)view.FindName(name); input.BringIntoView(); Flush(); Layout();
-                        Assert.True(input.Focusable); Assert.NotEmpty(AutomationProperties.GetName(input));
-                        Assert.InRange(input.TranslatePoint(new Point(input.ActualWidth, 0), view).X, 0, width);
+                        Assert.Null(view.FindName(name));
                     }
-                    Render(view, theme, width, dpi, "typed-check");
+                    Assert.Empty(Descendants(view).OfType<CheckBox>());
+                    Assert.DoesNotContain(Descendants(view).OfType<Label>(), l => Equals(l.Content, "Required evidence"));
                     var fields = Descendants((ItemsControl)view.FindName("EditorFields")).OfType<TextBox>().ToArray();
-                    Assert.Equal(3, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
+                    Assert.Equal(2, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
                     fields[1].SetCurrentValue(TextBox.TextProperty, ""); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
                     Assert.True(FormValidation.GetIsInvalid(fields[1])); Assert.Equal("This field is required.", AutomationProperties.GetItemStatus(fields[1]));
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)fields[1].BorderBrush).Color);
@@ -130,7 +141,7 @@ public sealed class RulesViewTests
     }
     private static void Render(FrameworkElement view, string theme, int width, int dpi, string state)
     {
-        var bitmap = new RenderTargetBitmap(width * dpi / 96, 700 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(view);
+        var bitmap = new RenderTargetBitmap(width * dpi / 96, (int)view.ActualHeight * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(view);
         if (Environment.GetEnvironmentVariable("PTJ_RULES_RENDER_DIRECTORY") is not { Length: > 0 } output) return;
         Directory.CreateDirectory(output); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var stream = File.Create(Path.Combine(output, $"rules-{theme}-{width}-{dpi}-{state}.png")); encoder.Save(stream);

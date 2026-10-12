@@ -15,6 +15,28 @@ namespace PersonalTradingJournal.Desktop.Tests.Rules;
 public sealed class RulesSqliteTests
 {
     [Fact]
+    public async Task ProseEditRetainsExactTypedCriterionEvidenceAndHistoryAfterFreshServices()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var store = db.Provider.GetRequiredService<ITradingRuleStore>();
+        var criterion = new AutomaticRuleCriterion(RuleProfitBasis.StrictNet, 123.456m, "EUR", capability: RuleCheckCapability.ClosedDayLoss);
+        var original = TradingRuleRevision.Create(Guid.NewGuid(), new("Existing typed rule", "Original statement", "Original required facts", criterion), DateTimeOffset.UtcNow.AddDays(-1));
+        Assert.True(await store.TryAppendAsync(original, 0));
+        var vm = new RulesViewModel(db.Provider.GetRequiredService<ITradingRuleReader>(), store, new(store, TimeProvider.System), new FakeDialogService());
+        await vm.ActivateAsync(); await vm.EditRowCommand.ExecuteAsync(Assert.Single(vm.Rules));
+        Assert.Equal(2, vm.Fields.Count); vm.Fields[1].Text = "Revised prose";
+        await vm.SaveCommand.ExecuteAsync(null); Assert.False(vm.IsEditing);
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        var root = Path.GetDirectoryName(Path.GetDirectoryName(context.Database.GetDbConnection().DataSource))!;
+        await using var restarted = new ServiceCollection().AddSingleton(TimeProvider.System).AddPersistence(new LocalApplicationPaths(root)).BuildServiceProvider();
+        var history = await restarted.GetRequiredService<ITradingRuleReader>().ReadRevisionsAsync(original.RuleId);
+        Assert.Equal(new[] { 2, 1 }, history.Select(r => r.Revision.Revision));
+        Assert.All(history, r => { Assert.Equal(criterion, r.Revision.Definition.AutomaticCriterion); Assert.Equal("Original required facts", r.Revision.Definition.RequiredEvidence); });
+        Assert.Equal("Original statement", history[1].Revision.Definition.Criterion);
+        Assert.Equal("Revised prose", history[0].Revision.Definition.Criterion);
+    }
+
+    [Fact]
     public async Task RealSqliteCreateReviseConflictArchiveReopenAndFreshServicesReadExactHistory()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
@@ -26,9 +48,11 @@ public sealed class RulesSqliteTests
         await db.Provider.GetRequiredService<ITradingAccountStore>().AddAsync(account);
         var vm = Create(db.Provider); await vm.ActivateAsync(); vm.CreateCommand.Execute(null);
 
-        vm.Fields[0].Text = "Synthetic SQLite rule"; vm.Fields[1].Text = "Wait for recorded confirmation"; vm.Fields[2].Text = "Trade and execution evidence";
+        vm.Fields[0].Text = "Synthetic SQLite rule"; vm.Fields[1].Text = "Wait for recorded confirmation";
         await vm.SaveCommand.ExecuteAsync(null); Assert.False(vm.IsEditing); Assert.Equal("Rule saved.", vm.Message);
         Guid id = vm.SelectedRule!.Id;
+        Assert.Empty(vm.SelectedRule.Details.Revision.Definition.RequiredEvidence);
+        Assert.Null(vm.SelectedRule.Details.Revision.Definition.AutomaticCriterion);
         var competing = Create(db.Provider); await competing.ActivateAsync(); competing.TrySelect(competing.Rules.Single()); await competing.LoadTask;
         vm.EditCommand.Execute(null); competing.EditCommand.Execute(null);
         vm.Fields[1].Text = "Updated criterion"; await vm.SaveCommand.ExecuteAsync(null);

@@ -12,7 +12,6 @@ public sealed class RulesViewModelTests
     [Theory]
     [InlineData(0, 121)]
     [InlineData(1, 4001)]
-    [InlineData(2, 2001)]
     public async Task OversizedFieldIsPreservedAndClearsItsOwnValidationWhenCorrected(int index, int length)
     {
         var f = new RulesFixture(); await f.Vm.ActivateAsync(); f.Vm.CreateCommand.Execute(null); f.Fill();
@@ -36,7 +35,7 @@ public sealed class RulesViewModelTests
         Assert.True(row.Definition.IsGlobal);
         Assert.Null(row.Definition.AccountScope.AccountId);
         Assert.Equal(TradingRuleEvaluationMode.ManualOnly, row.Definition.EvaluationMode);
-        Assert.Equal(new[] { "Synthetic rule", "Recorded criterion", "Required records" }, new[] { row.Definition.Name, row.Definition.Criterion, row.Definition.RequiredEvidence });
+        Assert.Equal(new[] { "Synthetic rule", "Recorded criterion", "" }, new[] { row.Definition.Name, row.Definition.Criterion, row.Definition.RequiredEvidence });
         Assert.False(f.Vm.HasErrors); Assert.Null(row.Definition.AutomaticCriterion);
     }
 
@@ -51,7 +50,7 @@ public sealed class RulesViewModelTests
         f.Data.Failure = failure;
         await f.Vm.SaveCommand.ExecuteAsync(null);
         Assert.True(f.Vm.IsEditing); Assert.Equal("Recorded criterion", f.Vm.Fields[1].Text);
-        Assert.Equal("Required records", f.Vm.Fields[2].Text); Assert.DoesNotContain("Saved and verified", f.Vm.Message);
+        Assert.Equal("Synthetic rule", f.Vm.Fields[0].Text); Assert.DoesNotContain("Saved and verified", f.Vm.Message);
         Assert.Equal(failure == "readback" ? 1 : 0, f.Data.Rows.Count);
         if (failure == "readback") Assert.False(f.Vm.SaveCommand.CanExecute(null));
         f.Data.Failure = null;
@@ -87,10 +86,10 @@ public sealed class RulesViewModelTests
     public async Task DirtySwitchCancelRefreshAndDepartureUseOneGuardAndPreserveScope()
     {
         var f = new RulesFixture(); var first = f.Data.Seed(1); var second = f.Data.Seed(1); await f.Open(first);
-        f.Vm.EditCommand.Execute(null); f.Vm.Fields[2].Text = "local unsaved";
+        f.Vm.EditCommand.Execute(null); f.Vm.Fields[1].Text = "local unsaved";
         Assert.False(f.Vm.TrySelect(f.Vm.Rules.Single(r => r.Id == second)));
         f.Vm.CancelEditCommand.Execute(null); await f.Vm.RefreshCommand.ExecuteAsync(null);
-        Assert.True(f.Vm.IsEditing); Assert.Equal(first, f.Vm.SelectedRule!.Id); Assert.Equal("local unsaved", f.Vm.Fields[2].Text);
+        Assert.True(f.Vm.IsEditing); Assert.Equal(first, f.Vm.SelectedRule!.Id); Assert.Equal("local unsaved", f.Vm.Fields[1].Text);
         Assert.False(f.Vm.TryLeave()); f.Dialogs.ConfirmationResult = true;
         f.Vm.CancelEditCommand.Execute(null); Assert.False(f.Vm.IsEditing); Assert.Equal(2, f.Data.Rows.Count);
         Assert.True(f.Vm.TrySelect(f.Vm.Rules.Single(r => r.Id == second))); await f.Vm.LoadTask;
@@ -192,7 +191,7 @@ internal sealed class RulesFixture
     public FakeDialogService Dialogs { get; } = new();
     public RulesViewModel Vm { get; }
     public RulesFixture() => Vm = new(Data, Data, new(Data, TimeProvider.System), Dialogs);
-    public void Fill() { Vm.Fields[0].Text = "Synthetic rule"; Vm.Fields[1].Text = "Recorded criterion"; Vm.Fields[2].Text = "Required records"; }
+    public void Fill() { Vm.Fields[0].Text = "Synthetic rule"; Vm.Fields[1].Text = "Recorded criterion"; }
     public async Task Open(Guid id) { await Vm.ActivateAsync(); Vm.TrySelect(Vm.Rules.Single(r => r.Id == id)); await Vm.LoadTask; }
 }
 

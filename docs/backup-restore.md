@@ -2,6 +2,8 @@
 
 ## Global Rules catalog compatibility
 
+Current schema also requires `20261012214801_OptionalGlobalRuleEvidence`, allowing an empty authored evidence description on global Rules. Historical descriptions, typed criteria and assessments are copied unchanged with their guards retained. Complete archives preserve this value; old-schema archives remain unsupported until staged upgrading is implemented. JSON v7 keeps the same fields/types and represents absent global `requiredEvidence` as an empty string, never fabricated evidence. Downgrade is blocked if such rows cannot fit the older constraint.
+
 Current schema additionally requires `20261012205801_GlobalTradingRuleCatalog`. Complete v1 archives retain both new global Rules and immutable legacy scoped definitions/assessments, including deleted-rule tombstones and typed check capabilities. Migration does not broaden old definitions. Preflight and offline restore still require the exact current schema; earlier archives need the deferred staged-upgrade path and are rejected safely. A database downgrade with global Rules is blocked rather than silently assigning old Trade/Account semantics.
 
 Portable JSON export **v7** includes `isGlobal` and `checkCapability` on Rule revisions. Legacy applicability/scope columns remain exact historical data; their fixed compatibility values on global rows are not ownership or assessment filters. Four CSVs are unchanged. Exports remain unencrypted, screenshot-metadata-only and **not restorable backups**. See [Rules compatibility and verification](trading-rules.md#global-catalog-refinement--before-m186).

@@ -1,5 +1,57 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Simplified editor — 13 October 2026
+
+This is the current UI behavior, superseding the authoring controls in earlier milestone reports below. The global catalog's editor contains **Rule name** (1–120 characters) and **Criterion** (1–4,000 characters) only. Both remain required, with inline errors, first-invalid-field focus/scroll and unsaved-edit guards. Required evidence, the typed-check checkbox, metric, P&L basis, maximum loss and currency inputs are removed. A new entry has no automatic criterion and is manual-only; no threshold or evidence text is invented.
+
+Prose editing carries forward the selected persisted revision's exact evidence description and complete typed criterion. Existing automatic checks still run only through the explicit assessment **Run checks** action. Each active typed Rule displays a read-only sentence in its catalog row: Trade or New York closed-day metric, Gross or strict Net (all costs known), exact decimal loss threshold, currency and strict `>` comparison (equality passes). Ordinary manual Rules have no extra check explanation. Assessment eligibility, historical evaluations, currency/Account boundaries and source checks are unchanged.
+
+Rows use a flexible name/statement column and an auto-sized right-hand Edit/Delete column, with 12-DIP outer padding. Long names, statements and check explanations wrap without pushing actions off screen; the full statement remains in its tooltip. The compact editor has no hidden automatic authoring state. Failed, stale or cancelled saves keep entered text, and a successful save still requires exact database readback.
+
+### Persistence and compatibility
+
+Migration `20261012214801_OptionalGlobalRuleEvidence` relaxes only the global Rule evidence-description minimum from one character to zero. `requiredEvidence = ""` means **no authored description**, not zero evidence, an automatically passed assessment or fabricated placeholder. Nonempty historical descriptions retain their exact persisted values; legacy scoped definitions still require their original description and remain read-only. Name, statement and actual assessment-evidence requirements are unchanged.
+
+SQLite requires a transactional table rebuild to change the CHECK constraint. The migration copies every revision unchanged, preserves the primary key/index and all Rule/assessment insertion and immutability triggers, and checks foreign keys before committing. Downgrade refuses new empty descriptions instead of inventing replacement text. No assessment, criterion, revision number or source relationship is rewritten. Complete backup/preflight/restore/recovery retain both empty new descriptions and old typed history; exact-current-schema compatibility still applies. JSON export remains v7: fields and data types are unchanged, with empty global evidence descriptions explicitly permitted. Exports are not backups.
+
+### Verification for this refinement
+
+Started with a clean `develop` worktree at `ec9b9418c4bd8ce0f09e7a9469fff9cc47fd306f`; prior changes were already committed. HEAD/branch remain unchanged. Final worktree: **21 changed files** (19 modified, two new migration files). Only synthetic data is used. No M18.6, production data, AI requests or Git writes.
+
+Focused verification: **186 passed, zero failures/skips** (Domain 12, Application 21, Infrastructure 100, Desktop 53), recorded in ignored `artifacts/m145-load/simplified-rules-focused-final`. Tests cover two-field validation, new manual-only creation, typed-condition/evidence retention through prose edits and conflicts, SQLite restart/migration, immutable assessment retention, downgrade rejection, backup/preflight/restore/recovery and export of absent descriptions.
+
+Final complete parallel Release: **4,017 passed, zero failures/skips** (Domain 488, Application 752, Infrastructure 1,246, Desktop 1,531), `artifacts/m145-load/simplified-rules-full-final`. Calendar native **87/87 in 114.719 seconds**, **5.281 seconds** headroom to the unchanged 120-second deadline; grid **29.338 seconds**. No Calendar or Journal timeout occurred. Limited headroom remains load-dependent; no timing or concurrency changes were made. Release solution build: **0 warnings/errors**. Design-time in-memory EF model consistency and tracked/new-file whitespace checks pass.
+
+Compiled WPF checks pass in Light/Dark at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, using a deliberately short 400-DIP viewport to retain meaningful scrolling coverage after removing fields. Catalog, editor and error renders are in ignored `artifacts/simplified-rules-renders` and were inspected. Assertions check same-row actions, Delete flush to the right content edge (within 1 DIP, plus 12-DIP card padding), no overlap with wrapping text/condition, accessible names, focusability, first-invalid-field logical focus and reachable Save/Cancel. There are no check inputs or Required evidence editor controls.
+
+The initial focused run caught two test updates: an obsolete third-field case and reference equality on a rehydrated revision. The former now tests the two surviving fields; migration retention compares the full serialized assessment and evaluation contents instead of object identity. No product assertions, test deadlines, concurrency bounds or isolation protections were weakened.
+
+Live mouse/keyboard and screen-reader checks remain open. Automated compiled WPF checks/renders are not live acceptance. The changed tree is uncommitted and therefore cannot have a matching GitHub Actions run; user commit/push and the matching workflow result remain a separate gate.
+
+### Exact changed files — simplified editor
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Domain/Rules/TradingRuleDefinition.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingRuleRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012214801_OptionalGlobalRuleEvidence.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012214801_OptionalGlobalRuleEvidence.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/AutomaticRuleViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Domain.Tests/Rules/GlobalTradingRuleTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/GlobalRuleCatalogTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+
 ## Global catalog refinement — before M18.6
 
 **Current behavior supersedes the scoped authoring and archive/history UI described in the milestone reports below.** Planning → Rules is a global catalog of general trading principles. A row shows its name, short statement, Edit and confirmed destructive Delete. The editor has no Account selector or Trade/day applicability. There are no assessment/source links, revision numbers, revision browsing, or Archive/Reopen controls on this page. Save is acknowledged briefly only after exact persisted readback; validation, conflicts, cancellation and failed readback retain entered fields. Required-field focus and unsaved switching/navigation/window-close guards remain.

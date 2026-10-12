@@ -31,21 +31,32 @@ public sealed record TradingRuleAccountScope
 public sealed record TradingRuleDefinition
 {
     /// <summary>A global principle. Targets and Accounts belong to assessments, not this definition.</summary>
-    public TradingRuleDefinition(string name, string criterion, string requiredEvidence,
+    public TradingRuleDefinition(string name, string criterion, string requiredEvidence = "",
         AutomaticRuleCriterion? automaticCriterion = null)
         : this(name, criterion, requiredEvidence, TradingRuleApplicability.Trade,
             TradingRuleAccountScope.AllAccounts, automaticCriterion is null
-                ? TradingRuleEvaluationMode.ManualOnly : TradingRuleEvaluationMode.AutomaticCandidate, automaticCriterion)
-    { IsGlobal = true; }
+                ? TradingRuleEvaluationMode.ManualOnly : TradingRuleEvaluationMode.AutomaticCandidate, automaticCriterion, true)
+    { }
 
     // Compatibility constructor: retains the exact meaning of pre-global immutable revisions.
     public TradingRuleDefinition(string name, string criterion, string requiredEvidence,
         TradingRuleApplicability applicability, TradingRuleAccountScope accountScope,
         TradingRuleEvaluationMode evaluationMode, AutomaticRuleCriterion? automaticCriterion = null)
+        : this(name, criterion, requiredEvidence, applicability, accountScope, evaluationMode, automaticCriterion, false)
+    { }
+
+    private TradingRuleDefinition(string name, string criterion, string requiredEvidence,
+        TradingRuleApplicability applicability, TradingRuleAccountScope accountScope,
+        TradingRuleEvaluationMode evaluationMode, AutomaticRuleCriterion? automaticCriterion, bool isGlobal)
     {
         Name = Required(name, 120, nameof(name));
         Criterion = Required(criterion, 4_000, nameof(criterion));
-        RequiredEvidence = Required(requiredEvidence, 2_000, nameof(requiredEvidence));
+        // Empty means no authored evidence description, not fabricated evidence or a passed check.
+        if (isGlobal && requiredEvidence is not null && requiredEvidence.Length <= 2_000)
+            RequiredEvidence = requiredEvidence.Trim();
+        else
+            RequiredEvidence = Required(requiredEvidence!, 2_000, nameof(requiredEvidence));
+        IsGlobal = isGlobal;
         if (!Enum.IsDefined(applicability)) throw new ArgumentOutOfRangeException(nameof(applicability));
         if (!Enum.IsDefined(evaluationMode)) throw new ArgumentOutOfRangeException(nameof(evaluationMode));
         AccountScope = accountScope ?? throw new ArgumentNullException(nameof(accountScope));

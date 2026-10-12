@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using PersonalTradingJournal.Application.Rules;
 using PersonalTradingJournal.Domain.Rules;
 
@@ -6,6 +7,31 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Rules;
 
 public sealed partial class TradingRulePersistenceTests
 {
+    [Fact]
+    public async Task OptionalEvidenceMigrationPreservesTypedRulesAssessmentsAndAllImmutableGuards()
+    {
+        await using var f = await Fixture.Create("20261012205801_GlobalTradingRuleCatalog");
+        var trade = await f.Seed(); var rule = await f.Rule(AutomaticDefinition());
+        var run = await f.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId));
+        var assessmentId = Assert.Single(run.AssessmentIds);
+        var before = (await f.Reader.ReadAssessmentAsync(assessmentId))!;
+        await using (var db = f.Context()) await db.Database.MigrateAsync();
+        await f.Restart();
+        var after = (await f.Reader.ReadAssessmentAsync(assessmentId))!;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before.Assessment), System.Text.Json.JsonSerializer.Serialize(after.Assessment));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before.Evaluation), System.Text.Json.JsonSerializer.Serialize(after.Evaluation));
+        var manual = await f.Rule(new TradingRuleDefinition("General principle", "Wait for confirmation"));
+        Assert.Empty((await f.Rules.GetLatestAsync(manual.RuleId))!.Definition.RequiredEvidence);
+        Assert.Equal(1, (await f.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId))).Unchanged);
+        await using var check = f.Context();
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.Database.ExecuteSqlRawAsync("UPDATE TradingRuleRevisions SET Criterion = 'changed'"));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.Database.ExecuteSqlRawAsync("DELETE FROM TradingRuleRevisions"));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.Database.ExecuteSqlRawAsync("DELETE FROM TradingRuleAssessments"));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261012205801_GlobalTradingRuleCatalog"));
+        Assert.Equal(2, await check.TradingRuleRevisions.CountAsync());
+        Assert.Single(await check.TradingRuleAssessments.ToArrayAsync());
+    }
+
     [Fact]
     public async Task MigrationRetainsScopedMeaningAndAssessmentsWithoutPromotingLegacyRules()
     {

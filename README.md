@@ -1,6 +1,14 @@
 # Personal Trading Journal
 
-**Rules — global principles catalog (before M18.6)**
+**Rules — simplified prose editor (before M18.6)**
+
+Planning → Rules now edits only **Rule name** and **Criterion**. New entries are manual-assessment principles; there is no Required evidence field or automatic-check configuration. Existing evidence descriptions and typed conditions are retained unchanged when prose is edited. Active typed Rules show their exact metric, Gross/strict Net basis, threshold and currency read-only in the row. Edit/Delete stay at the far right, with wrapping text on the left. Validation, verified Save, Delete protections and unsaved-work guards remain.
+
+Migration `20261012214801_OptionalGlobalRuleEvidence` permits an absent authored evidence description (empty string, not placeholder evidence) for global Rules without changing historical text or assessments. Assessment evidence requirements are unchanged. Complete backups require the new current schema; JSON v7 preserves the existing fields and now explicitly allows an empty global `requiredEvidence`. [Details and verification](docs/trading-rules.md#simplified-editor--13-october-2026).
+
+Verification: **186 focused tests passed**; final full parallel Release **4,017/4,017**, zero failures/skips (488 Domain, 752 Application, 1,246 Infrastructure, 1,531 Desktop). Release build has **0 warnings/errors**; EF model and whitespace checks pass. Light/Dark renders at 960 DIP / 96 DPI and 480 DIP / 240 DPI were inspected. Calendar native passed 87/87 in **114.719 s**, leaving **5.281 s** against the unchanged 120-second deadline; load-dependent headroom remains limited. Live interaction and matching CI remain open. Starting/ending HEAD is `ec9b9418c4bd8ce0f09e7a9469fff9cc47fd306f` on `develop`, with **21 changed files** (19 modified, two new migration files), no commit/push/merge, production access or M18.6. [Exact file inventory](docs/trading-rules.md#exact-changed-files--simplified-editor).
+
+**Rules — global principles catalog (previous verification report)**
 
 Planning → Rules now presents compact name/statement rows with Edit and confirmed Delete. Rules have no Account or Trade/day ownership; assessment targets keep that context separately. Revision browsing, Archive/Reopen and assessment links are removed from this page. Save feedback is brief, verified against persisted data, and failures preserve entered text. Unsaved-work and accessible field-validation guards remain.
 

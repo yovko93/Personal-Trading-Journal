@@ -11,7 +11,7 @@ public sealed class TradingRuleRevisionRecordConfiguration : IEntityTypeConfigur
     {
         b.ToTable("TradingRuleRevisions", t =>
         {
-            t.HasCheckConstraint("CK_TradingRuleRevisions_Definition", "ContractVersion = 1 AND Revision > 0 AND Applicability IN (1,2) AND EvaluationMode IN (1,2) AND IsActive IN (0,1) AND length(trim(Name)) BETWEEN 1 AND 120 AND length(trim(Criterion)) BETWEEN 1 AND 4000 AND length(trim(RequiredEvidence)) BETWEEN 1 AND 2000");
+            t.HasCheckConstraint("CK_TradingRuleRevisions_Definition", "ContractVersion = 1 AND Revision > 0 AND Applicability IN (1,2) AND EvaluationMode IN (1,2) AND IsActive IN (0,1) AND length(trim(Name)) BETWEEN 1 AND 120 AND length(trim(Criterion)) BETWEEN 1 AND 4000 AND length(trim(RequiredEvidence)) BETWEEN CASE WHEN IsGlobal = 1 THEN 0 ELSE 1 END AND 2000");
             t.HasCheckConstraint("CK_TradingRuleRevisions_Scope", "(ScopeKind = 1 AND AccountId IS NULL AND AccountNameAtRevision IS NULL) OR (ScopeKind = 2 AND AccountId IS NOT NULL AND AccountNameAtRevision IS NOT NULL)");
             t.HasTrigger("TradingRuleRevisions_NoUpdate"); t.HasTrigger("TradingRuleRevisions_NoDelete");
             t.HasTrigger("TradingRuleRevisions_Append");

@@ -5,6 +5,23 @@ namespace PersonalTradingJournal.Domain.Tests.Rules;
 public sealed class GlobalTradingRuleTests
 {
     [Fact]
+    public void GlobalEvidenceDescriptionMayBeAbsentWithoutInventingAssessmentEvidence()
+    {
+        var definition = new TradingRuleDefinition("Be patient", "Wait for confirmation");
+        Assert.Empty(definition.RequiredEvidence);
+        Assert.Null(definition.AutomaticCriterion);
+        Assert.Equal(TradingRuleEvaluationMode.ManualOnly, definition.EvaluationMode);
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition("Legacy", "Statement", "",
+            TradingRuleApplicability.Trade, TradingRuleAccountScope.AllAccounts, TradingRuleEvaluationMode.ManualOnly));
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition("Name", "Statement", new string('x', 2001)));
+        var revision = TradingRuleRevision.Create(Guid.NewGuid(), definition, DateTimeOffset.UtcNow);
+        Assert.Throws<ArgumentException>(() => TradingRuleAssessment.Record(Guid.NewGuid(), revision,
+            TradingRuleAssessmentTarget.ForTrade(Guid.NewGuid(), Guid.NewGuid()), TradingRuleAssessmentOutcome.NoViolation,
+            TradingRuleAssessmentSource.Manual, TradingRuleAssessmentBasis.RecordedEvidence,
+            TradingRuleEvidenceSufficiency.Sufficient, "No recorded supporting facts", [], null, revision.RecordedAtUtc));
+    }
+
+    [Fact]
     public void GlobalPrincipleHasNoAccountIdentityAndSupportsIndependentTradeAndDayAssessments()
     {
         var now = DateTimeOffset.UtcNow;

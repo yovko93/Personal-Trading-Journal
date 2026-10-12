@@ -38,39 +38,25 @@
             <ItemsControl x:Name="RuleRows" ItemsSource="{Binding Rules}" Margin="0,8,0,12">
                 <ItemsControl.ItemTemplate><DataTemplate>
                     <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="12,8" Background="{DynamicResource PtjSurfaceBrush}">
-                        <StackPanel>
-                            <TextBlock Text="{Binding Name}" Style="{StaticResource Heading}" Margin="0,0,0,4" />
-                            <TextBlock Text="{Binding Statement}" Style="{StaticResource Body}" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" />
-                            <WrapPanel Margin="0,8,0,0">
-                                <Button Content="Edit" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
-                                <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,8,8" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
-                            </WrapPanel>
-                        </StackPanel>
+                        <Grid x:Name="RuleRowLayout">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource Heading}" Margin="0,0,0,4" />
+                                <TextBlock Text="{Binding Statement}" Style="{StaticResource Body}" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" />
+                                <TextBlock Text="{Binding AutomaticCondition}" Style="{StaticResource Body}" Margin="0,6,0,0"
+                                           Visibility="{Binding HasAutomaticCondition, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="{Binding AutomaticCondition}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <Button Content="Edit" Margin="0,0,8,0" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
+                                <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Margin="0" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
             <StackPanel x:Name="Editor" Visibility="{Binding IsEditing, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanEdit}">
                 <TextBlock Text="Rule editor" Style="{StaticResource Heading}" />
-                <TextBlock Text="Write a general trading principle. All three fields are required." Style="{StaticResource Body}" Margin="0,0,0,12" />
-                <CheckBox Content="Enable typed maximum closed-loss check" IsChecked="{Binding Automatic}" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Enable typed loss criterion"><CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></CheckBox.ContentTemplate></CheckBox>
-                <WrapPanel Visibility="{Binding Automatic, Converter={StaticResource VisibleIf}}">
-                    <StackPanel Width="260" Margin="0,8,12,12">
-                        <Label Content="Check metric" Target="{Binding ElementName=CheckCapability}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                        <ComboBox x:Name="CheckCapability" ItemsSource="{Binding Capabilities}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Capability}" Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Optional check metric" />
-                    </StackPanel>
-                    <StackPanel Width="260" Margin="0,8,12,12">
-                        <Label Content="P&amp;L basis" Target="{Binding ElementName=CheckBasis}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                        <ComboBox x:Name="CheckBasis" ItemsSource="{Binding Bases}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Basis}" Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Typed check Gross or strict Net basis" />
-                    </StackPanel>
-                    <StackPanel Width="180" Margin="0,8,12,12">
-                        <Label Content="Maximum loss" Target="{Binding ElementName=CheckLimit}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                        <TextBox x:Name="CheckLimit" Text="{Binding LossLimit, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AutomationProperties.Name="Maximum closed loss, nonnegative" />
-                    </StackPanel>
-                    <StackPanel Width="120" Margin="0,8,12,12">
-                        <Label Content="Currency" Target="{Binding ElementName=CheckCurrency}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-                        <TextBox x:Name="CheckCurrency" Text="{Binding CheckCurrency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AutomationProperties.Name="Criterion currency, three-letter code" />
-                    </StackPanel>
-                </WrapPanel>
+                <TextBlock Text="Write a general trading principle. Name and statement are required. New rules are manually assessed." Style="{StaticResource Body}" Margin="0,0,0,12" />
                 <Border x:Name="ValidationSummary" Background="{DynamicResource PtjDangerSurfaceBrush}" BorderBrush="{DynamicResource PtjDangerBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12" Visibility="{Binding HasErrors, Converter={StaticResource VisibleIf}}">
                     <TextBlock Text="Cannot save. Correct each highlighted field. Your entered text is retained." Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
                 </Border>
