@@ -1,0 +1,124 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Rules.RulesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
+             FontSize="16" Background="{DynamicResource PtjBackgroundBrush}" DataContextChanged="OnDataContextChanged">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibleIf" />
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+        <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+            <Setter Property="FontSize" Value="16" /><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineHeight" Value="24" />
+        </Style>
+        <Style x:Key="Heading" TargetType="TextBlock" BasedOn="{StaticResource Body}">
+            <Setter Property="FontSize" Value="21" /><Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="AutomationProperties.HeadingLevel" Value="Level2" />
+            <Setter Property="Margin" Value="0,12,0,6" />
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Margin" Value="0,0,8,8" /></Style>
+    </UserControl.Resources>
+    <UserControl.InputBindings><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" /></UserControl.InputBindings>
+    <ScrollViewer x:Name="RulesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Rule management content">
+        <StackPanel Margin="0,0,12,12">
+            <WrapPanel>
+                <StackPanel Width="280" Margin="0,0,12,8">
+                    <Label Content="_Select rule" Target="{Binding ElementName=RuleSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                    <ComboBox x:Name="RuleSelector" Style="{StaticResource PtjComboBoxStyle}" ItemsSource="{Binding Rules}" DisplayMemberPath="Label"
+                              SelectedValuePath="Id" SelectedValue="{Binding SelectedRule.Id, Mode=OneWay}" SelectionChanged="OnSelectionChanged" IsEnabled="{Binding CanSelect}"
+                              AutomationProperties.Name="Select Trading Rule" AutomationProperties.HelpText="Includes active and archived rules on this catalog page." />
+                </StackPanel>
+                <Button x:Name="CreateRule" Content="Create rule" Command="{Binding CreateCommand}" Style="{StaticResource PtjPlaybookCreateButtonStyle}" VerticalAlignment="Bottom" Margin="0,0,8,8" AutomationProperties.Name="Create Trading Rule" />
+                <Button Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource PtjPlaybookRefreshButtonStyle}" VerticalAlignment="Bottom" Margin="0,0,8,8" AutomationProperties.Name="Refresh Rules and Account catalog" />
+            </WrapPanel>
+            <WrapPanel>
+                <TextBlock Text="{Binding PageLabel}" Style="{StaticResource Body}" Margin="0,4,12,8" />
+                <Button Content="Previous rules" Command="{Binding PreviousCommand}" AutomationProperties.Name="Previous Rules page" />
+                <Button Content="Next rules" Command="{Binding NextCommand}" AutomationProperties.Name="Next Rules page" />
+            </WrapPanel>
+            <Border Style="{StaticResource PtjCardStyle}" Margin="0,4,0,12">
+                <StackPanel>
+                    <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Rule operation status" />
+                    <Button Content="Cancel operation" Command="{Binding CancelOperationCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel Rule loading or saving" />
+                </StackPanel>
+            </Border>
+            <TextBlock x:Name="EmptyState" Text="No rule selected. Create a rule to describe your criteria and the evidence needed to assess them." Style="{StaticResource Body}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" />
+            <TextBlock x:Name="SelectedName" Text="{Binding SelectedRule.Name}" Style="{StaticResource Heading}" />
+            <WrapPanel x:Name="Actions">
+                <Button x:Name="EditRule" Content="Edit rule" Command="{Binding EditCommand}" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Edit current Rule revision" />
+                <Button x:Name="ArchiveRule" Content="{Binding ArchiveLabel}" Command="{Binding ArchiveCommand}" Style="{StaticResource PtjPlaybookArchiveButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="{Binding ArchiveLabel}" />
+                <Button x:Name="ReturnToCurrent" Content="Return to current" Command="{Binding ReturnCommand}" Style="{StaticResource PtjPlaybookReturnButtonStyle}" Margin="0,0,8,8" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Return to current Rule without changing editor fields" />
+            </WrapPanel>
+            <Border x:Name="ReadingCard" Style="{StaticResource PtjCardStyle}" Margin="0,0,0,16" Visibility="{Binding ShowReading, Converter={StaticResource VisibleIf}}">
+                <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+                    <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Style="{StaticResource Heading}" />
+                    <TextBlock Text="{Binding Displayed.Name}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Displayed.Scope, StringFormat=Account scope: {0}}" Style="{StaticResource Body}" />
+                    <TextBlock Text="{Binding TargetLabel, StringFormat=Applies to: {0}}" Style="{StaticResource Body}" />
+                    <TextBlock Text="{Binding ModeLabel}" Style="{StaticResource Body}" />
+                    <TextBlock Text="Criterion" Style="{StaticResource Heading}" />
+                    <TextBlock x:Name="ReadCriterion" Text="{Binding Displayed.Details.Revision.Definition.Criterion}" Style="{StaticResource Body}" />
+                    <TextBlock Text="Required evidence" Style="{StaticResource Heading}" />
+                    <TextBlock Text="{Binding Displayed.Details.Revision.Definition.RequiredEvidence}" Style="{StaticResource Body}" />
+                </StackPanel>
+            </Border>
+            <StackPanel x:Name="Editor" Visibility="{Binding IsEditing, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanEdit}">
+                <TextBlock Text="Rule editor" Style="{StaticResource Heading}" />
+                <TextBlock Text="All three text fields are required. Save appends an immutable revision. Account scope and eligibility describe where a rule may be assessed; they do not evaluate it." Style="{StaticResource Body}" Margin="0,0,0,12" />
+                <WrapPanel>
+                    <StackPanel Width="250" Margin="0,0,12,12">
+                        <Label Content="_Account scope" Target="{Binding ElementName=AccountSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                        <ComboBox x:Name="AccountSelector" Style="{StaticResource PtjComboBoxStyle}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding Account}" DisplayMemberPath="Label" AutomationProperties.Name="Rule Account scope" AutomationProperties.IsRequiredForForm="True" />
+                    </StackPanel>
+                    <StackPanel Width="250" Margin="0,0,12,12">
+                        <Label Content="_Applies to" Target="{Binding ElementName=TargetSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                        <ComboBox x:Name="TargetSelector" Style="{StaticResource PtjComboBoxStyle}" ItemsSource="{Binding Targets}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Target}" AutomationProperties.Name="Trade or New York-day Rule target" />
+                    </StackPanel>
+                </WrapPanel>
+                <Label Content="Assessment _eligibility" Target="{Binding ElementName=ModeSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                <ComboBox x:Name="ModeSelector" Style="{StaticResource PtjComboBoxStyle}" MaxWidth="480" HorizontalAlignment="Stretch" ItemsSource="{Binding Modes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" AutomationProperties.Name="Rule assessment eligibility" />
+                <TextBlock Text="Future-check eligibility is metadata only. No automatic checks or manual assessments are available here; a Setup association never proves adherence." Style="{StaticResource Body}" Margin="0,8,0,12" />
+                <Border x:Name="ValidationSummary" Background="{DynamicResource PtjDangerSurfaceBrush}" BorderBrush="{DynamicResource PtjDangerBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12" Visibility="{Binding HasErrors, Converter={StaticResource VisibleIf}}">
+                    <TextBlock Text="Cannot save. Correct each highlighted field. Your entered text is retained." Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
+                </Border>
+                <ItemsControl x:Name="EditorFields" ItemsSource="{Binding Fields}">
+                    <ItemsControl.ItemTemplate><DataTemplate>
+                        <StackPanel MaxWidth="760" Margin="0,0,0,12">
+                            <Label Content="{Binding Label}" Target="{Binding ElementName=FieldText}" Foreground="{DynamicResource PtjAccentBrush}" FontSize="20" FontWeight="SemiBold" />
+                            <TextBox x:Name="FieldText" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" MinWidth="0" MinHeight="44" FontSize="16" TextWrapping="Wrap" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                     validation:FormValidation.IsInvalid="{Binding IsInvalid}" AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Help}" AutomationProperties.ItemStatus="{Binding Error}" AutomationProperties.IsRequiredForForm="True">
+                                <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
+                                    <Setter Property="Height" Value="100" /><Setter Property="AcceptsReturn" Value="True" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Label}" Value="Rule name"><Setter Property="Height" Value="44" /><Setter Property="AcceptsReturn" Value="False" /></DataTrigger>
+                                        <DataTrigger Binding="{Binding IsInvalid}" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" /><Setter Property="BorderThickness" Value="2" /></DataTrigger>
+                                    </Style.Triggers>
+                                </Style></TextBox.Style>
+                            </TextBox>
+                            <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                    </DataTemplate></ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <WrapPanel>
+                    <Button x:Name="SaveRule" Content="Save rule" Command="{Binding SaveCommand}" Style="{StaticResource PtjJournalSaveButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Save a new Rule revision" />
+                    <Button Content="Cancel editing" Command="{Binding CancelEditCommand}" AutomationProperties.Name="Cancel Rule editing with unsaved-change protection" />
+                </WrapPanel>
+            </StackPanel>
+            <Expander x:Name="RevisionHistory" Header="Revision history · read-only" Margin="0,12,0,0" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Rule revision history">
+                <StackPanel>
+                    <ItemsControl x:Name="HistoryRows" ItemsSource="{Binding Revisions}"><ItemsControl.ItemTemplate><DataTemplate>
+                        <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                            <WrapPanel>
+                                <TextBlock Text="{Binding Version}" Style="{StaticResource Body}" Margin="0,8,16,8" />
+                                <Button Content="View revision" Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Style="{StaticResource PtjPlaybookViewButtonStyle}" AutomationProperties.Name="{Binding Version, StringFormat=View {0} read-only}" />
+                            </WrapPanel>
+                        </Border>
+                    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+                    <WrapPanel Margin="0,12,0,0">
+                        <TextBlock Text="{Binding HistoryPageLabel}" Style="{StaticResource Body}" Margin="0,8,12,8" />
+                        <Button Content="Newer revisions" Command="{Binding NewerCommand}" AutomationProperties.Name="Newer Rule revisions" />
+                        <Button Content="Older revisions" Command="{Binding OlderCommand}" AutomationProperties.Name="Older Rule revisions" />
+                    </WrapPanel>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

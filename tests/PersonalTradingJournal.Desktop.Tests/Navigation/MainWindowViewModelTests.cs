@@ -1235,7 +1235,8 @@ public sealed partial class MainWindowViewModelTests
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null,
         DeleteAccountTradesUseCase? accountTradeDeletion = null,
         DataBackupsViewModel? dataBackups = null,
-        PlaybookViewModel? playbook = null)
+        PlaybookViewModel? playbook = null,
+        PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1407,7 +1408,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges, dailyReview, playbook);
+            topstepChanges, dailyReview, playbook, rules);
 
         return new ViewModelFixture(
             main,

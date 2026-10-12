@@ -1,6 +1,6 @@
-# Trading Rules — Domain, Application and persistence
+# Trading Rules — contracts, persistence and management
 
-M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability. There is no Rules Desktop screen, automatic evaluation, or AI integration. Historical revisions are read exactly as recorded.
+M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules. There is no assessment UI, automatic evaluation or AI integration. Historical revisions are read exactly as recorded.
 
 ## Rule identity and scope
 
@@ -49,9 +49,59 @@ Complete backup archive format remains **v1**: it already stores the whole consi
 
 Portable logical export advances from **v4 to v5** and adds `tradingRuleRevisions` and `tradingRuleAssessments` to `journal.json`, including every stored column and the complete `evidenceJson` identity metadata. The four existing CSVs are unchanged; Rules detail is JSON-only. Earlier export versions remain valid documents for their original schema but contain no Rules data and are not importable/restorable backups. Exports and backups remain unencrypted sensitive local data and exclude provider credentials.
 
+## M18.3 — Desktop management
+
+Open **Planning → Rules**. The existing catalog lists active and archived definitions in deterministic 20-row pages, with the selected Rule's name, state, target, Account scope, current revision and actions given priority. **Create rule** defaults explicitly to All accounts and manual-only eligibility. Choose **One Trade** or **New York trading day**, then supply Rule name (1–120 characters), Criterion (1–4,000) and Required evidence (1–2,000); whitespace-only input is invalid. Limits and normalization follow the M18.1 definition. Inactive Accounts remain selectable and labeled; saved definitions for missing Accounts remain readable with an unavailable label. Those unavailable Rules may be archived but cannot be edited or reopened until the original Account is available; no same-name substitution occurs.
+
+**Save rule** uses the expected revision through the M18.2 use case. It reads the exact committed revision back, compares its identity, definition, lifecycle and UTC time, then reloads current state and history before reporting success. Conflict, validation, cancellation and storage failures retain all entered fields. If commit succeeds but readback fails or is cancelled, the form remains open and Save is disabled until **Refresh** verifies the stored Rule; a new unsaved Rule retains its committed identity for that recovery. Refresh asks before replacing dirty fields. Save and lifecycle operations block navigation/window closing while in progress; **Cancel operation** requests cancellation without claiming rollback of an already committed revision.
+
+**Edit rule** edits the active current version, not a historical snapshot. **Archive rule / Reopen rule** require confirmation and append lifecycle revisions through the same concurrency rules. No delete action is added. Revision history shows ten rows with one lookahead, descending numbered revision cursors and Newer/Older controls. **View revision** shows a distinct read-only preview; **Return to current**, history paging and viewing old definitions do not overwrite an open editor. Rule/catalog switching, Cancel editing, Refresh, navigation and main-window closing guard dirty fields. Declining discard preserves selection and all fields. Accepting window close authorizes shutdown without prematurely clearing editor state.
+
+All three text fields have inline validation, red borders, an accessible error summary, required-field/help metadata and first-invalid-field focus/scroll. Correcting a field clears its error. Ctrl+S saves; tab order and visible focus follow shared controls. Teal create/edit, green Save, blue Refresh, amber lifecycle and a distinct Return action reuse shared Light/Dark resources. One page scrollbar reaches the editor and history; multiline fields scroll internally until their edge, then pass the wheel to the page. The shell remains the only page-level “Rules” heading.
+
+**Eligibility is metadata, not execution.** Manual-only and “Future-check candidate (not enabled)” preserve the established enum. This UI neither invokes nor records assessments, and it never interprets a Rule or Setup link as adherence or a violation. There is no Rules schema, provider, Trade or Journal change in M18.3.
+
+### M18.3 verification and remaining live checks
+
+Work started on clean `develop` at `8bd2b9ff1c39e9e39886fc6222025b66ad600256`; the M18.1/M18.2 implementation was already committed. Only the 13 files below are changed. No production data, provider, schema or Git writes were used.
+
+- **22 focused Desktop cases passed**, including 20 new Rules cases and two existing Playbook navigation guard cases. Evidence: ignored `artifacts/m183-focused-verified/*.trx`.
+- Synthetic SQLite-backed ViewModel tests create and edit real revisions, reject a stale editor without losing its fields, archive/reopen, then recreate services and read exact history from the same isolated database. They retain inactive exact-Account/New York-day scope and verify zero assessments were created. This is a service-restart persistence test, not a claim of user-driven application restart acceptance.
+- Compiled WPF tests exercise Light/Dark at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, current/editor/historical/error states, field bindings and limits, aligned reachable actions, revision paging, mouse-wheel/page scrolling, accessible names and first-invalid-field logical focus on a real WPF presentation source. The actual `MainWindow.OnClosing` override is exercised for veto/acceptance. Foreground activation is not assumed.
+- Sixteen automated render images were generated under ignored `artifacts/m183-renders`; current cards, historical previews, editor/actions and validation were visually inspected across both themes and sizes. These are **automated renders and events**, not live mouse/keyboard or screen-reader observations.
+
+Final complete parallel Release (`artifacts/m183-full`): **3,943 passed / 2 failed / 0 skipped**, out of 3,945. Domain **485/485**, Application **738/738**, Infrastructure **1,225/1,225**, Desktop **1,495/1,497**. All new Rules cases passed in this full run. Calendar native exited successfully after **83.940 seconds** (36.060 seconds headroom against the unchanged 120-second deadline); the isolated Rules view child exited successfully after **9.816 seconds**. No deadlines, assertions, concurrency settings, retries or skips were added or changed.
+
+The two unresolved full-run failures are in unchanged code/tests:
+
+1. `JournalTradeContextViewTests.ReadOnlyRowsAlignWrapScrollAndExposeCurrenciesAndReferenceStatesInBothThemes`, `CheckLayout` line **123**: `Assert.True(wheel.Handled)` after a synthetic preview wheel event. Child diagnostics: `artifacts/m183-full/journal-context-20261012-172132-bde7fb5806e6420eb72bfc9b26d6f767`.
+2. `PlaybookSqliteViewTests.CompiledSaveCreatesAndRevisesWithRealSqliteAndSurvivesReactivation`, line **129**: `Assert.NotSame(previousTask, vm.SaveCommand.ExecutionTask)` after invoking Save through an automation peer and flushing the dispatcher. The command's task had not advanced at that assertion; this is **not** evidence of a failed database commit or a focus assertion. Child diagnostics: `artifacts/m183-full/playbook-sqlite-write-20261012-172212-427fc012d2244a239aa347cb59e1c793`.
+
+Both passed unchanged in one bounded targeted diagnostic run (`artifacts/m183-existing-ui-diagnostic`, **2/2**). Their precise intermittent causes remain unproven; no unrelated Journal/Playbook or harness change was made. A focused pass is not full-suite acceptance. **M18.3 full-suite verification remains open.**
+
+Solution Release build passed with **0 warnings / 0 errors**. EF `has-pending-model-changes --configuration Release --no-build` through the isolated design-time factory reports no changes. `git diff --check` and new-file trailing-whitespace checks passed. No migration is added.
+
+Remaining manual checks, in an isolated synthetic app only: open Planning → Rules, create an exact-Account rule using Tab/Ctrl+S, restart and inspect the saved revision; edit and decline discard during Rule switching and window closing; browse an old revision while fields are dirty and Return to current; archive/reopen; verify error announcements, keyboard focus and scrolling in both themes at minimum width/240 DPI. M18.4 assessments and automatic evaluation remain out of scope. GitHub Actions must test the user's eventual commit/PR tree; uncommitted changes cannot have a matching CI result. M17.7 live acceptance is not implied.
+
+### M18.3 changed files
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/RulesNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Deferred work and limits
 
-Later milestones may add manual Desktop authoring, Trade/day assessment UI, and carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No M18.3 work, AI prompt change, or live acceptance is included. M17.7 live acceptance remains independent of these tests or any CI run.
+M18.3 supplies Desktop authoring only. Later milestones may add Trade/day assessment UI and carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No M18.4 work, AI prompt change, or live acceptance is included. M17.7 live acceptance remains independent of these tests or any CI run.
 
 ## M18.2 verification — 12 October 2026
 
