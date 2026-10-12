@@ -17,10 +17,12 @@ public sealed record ReviewText(string Heading, string Text, string? SourceDetai
     public IReadOnlyList<ReviewCitation> Citations { get; init; } = [];
 }
 
-public sealed record ReviewCitation(string Label, ReviewTradeRow? Trade = null, ReviewJournalRow? Journal = null)
+public sealed record ReviewCitation(string Label, ReviewTradeRow? Trade = null, ReviewJournalRow? Journal = null,
+    string? CapturedPlaybook = null)
 {
     public bool HasTrade => Trade is not null;
     public bool HasJournal => Journal is not null;
+    public bool HasPlaybook => CapturedPlaybook is not null;
 }
 
 public static class ReviewDisplay
@@ -153,7 +155,8 @@ public sealed class ReviewSnapshot
 
     public static ReviewSnapshot Read(SavedCoachingAnalysis saved)
     {
-        if (saved.EvidenceContractVersion != CoachingContract.Version || saved.ResponseContractVersion != CoachingContract.Version)
+        if (saved.EvidenceContractVersion is not (CoachingContract.Version or CoachingContract.LegacyVersion) ||
+            saved.ResponseContractVersion != saved.EvidenceContractVersion)
             throw new InvalidDataException("This saved contract version is not supported by this Desktop version.");
         using var document = JsonDocument.Parse(saved.EvidenceJson);
         if (document.RootElement.GetProperty("packetId").GetString() != saved.PacketId ||
@@ -187,6 +190,32 @@ public sealed class ReviewSnapshot
                     : row.Context;
                 return new($"Saved source: {row.Heading} · {trade.PricingCurrency} · {context}", Trade: row);
             }
+            if (source.Kind == CoachingSourceKind.PlaybookAssociation)
+            {
+                var trade = content.RecordedTradeFacts.Single(t => t.TradeId == source.TradeId);
+                var capture = trade.Playbook?.Associations.SingleOrDefault(a => a.Sequence == source.AssociationSequence)
+                    ?? throw new InvalidDataException("A saved Playbook capture is unavailable.");
+                if (capture.SetupId != source.SetupId || capture.Guidance?.Revision != source.Revision)
+                    throw new InvalidDataException("A saved Playbook citation identity is inconsistent.");
+                var g = capture.Guidance;
+                string state = capture.State switch
+                {
+                    ReviewPlaybookAssociationState.Current => "current at generation",
+                    ReviewPlaybookAssociationState.Removed => "removed association at generation",
+                    _ => "replaced association at generation",
+                };
+                string title = g is null ? "No captured Playbook revision" : $"{g.SetupName} · revision {g.Revision}";
+                string text = $"{title} · {state}\nRecorded {ReviewDisplay.Time(capture.CapturedAtUtc)}\n" +
+                    (capture.CapturedAtUtc > capture.TradeOpenedAtUtc ? "Retrospective capture. " : "") +
+                    "Association does not verify adherence. This is the immutable saved context, not the current Setup.\n" +
+                    "No chart images were supplied to or inspected by AI; annotations are user-written text only.";
+                if (g is not null)
+                    text += $"\n\nMarket context\n{g.MarketContext}\n\nEntry conditions\n{g.EntryConditions}" +
+                        $"\n\nConfirmations\n{g.Confirmations}\n\nInvalidation\n{g.Invalidation}\n\nExecution guidance\n{g.ExecutionGuidance}" +
+                        string.Concat(g.Examples.Select(e => $"\n\nExample · {e.Kind} (user label)\n{e.Annotation}"));
+                return new($"Saved Playbook: {title} · {ReviewDisplay.Account(trade.Account)} · {state}",
+                    Trade: new(trade, CanNavigate: true), CapturedPlaybook: text);
+            }
             if (source.Kind == CoachingSourceKind.Journal)
             {
                 var journal = content.UntrustedJournalObservations.SingleOrDefault(j => j.JournalId == source.JournalId)
@@ -210,6 +239,7 @@ public sealed class ReviewSnapshot
         {
             CoachingObservationBasis.CalculatedFact => "calculated facts",
             CoachingObservationBasis.RecordedTradeFact => "recorded Trade facts",
+            CoachingObservationBasis.UserWrittenPlaybookContext => "user-written Playbook context (not verified adherence)",
             _ => "user-written Journal observations",
         };
         var statements = new List<ReviewText> { Statement("AI day summary · not calculated fact", response.DaySummary) };

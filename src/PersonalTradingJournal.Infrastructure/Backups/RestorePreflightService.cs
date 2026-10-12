@@ -184,7 +184,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
             var actual = new HashSet<string>(StringComparer.Ordinal);
             using (var command = database.CreateCommand())
             {
-                command.CommandText = "SELECT DISTINCT StorageKey COLLATE BINARY FROM TradeScreenshots LIMIT 100001;";
+                command.CommandText = PlaybookImageInventory.KeysSql;
                 using var rows = command.ExecuteReader();
                 while (rows.Read())
                 {
@@ -196,6 +196,7 @@ public sealed class RestorePreflightService : IRestorePreflightService
                 }
             }
             if (!expected.SetEquals(actual)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
+            if (!PlaybookImageInventory.Matches(database, payloads, token)) throw new PreflightFailure(BackupValidationCode.DatabaseAttachmentMismatch);
             check(RestorePreflightPhase.Summary);
             long Count(string table) { token.ThrowIfCancellationRequested(); using var command = database.CreateCommand();
                 command.CommandText = "SELECT COUNT(*) FROM " + table; return (long)command.ExecuteScalar()!; }

@@ -1,0 +1,60 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Trades.TradePlaybookAssociationView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ AutomationProperties.Name="Trade Setup and captured Playbook association">
+ <UserControl.Resources><BooleanToVisibilityConverter x:Key="ImageVisibility" /></UserControl.Resources>
+ <StackPanel>
+  <TextBlock Text="Trading Setup / Playbook" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+  <TextBlock Text="{Binding SelectedTradeDetail.TradingSetupName, TargetNullValue=No Setup associated}" TextWrapping="Wrap" Style="{DynamicResource PtjBodyTextStyle}" />
+  <TextBlock Text="Choose an active Setup. Confirm the exact revision before associating; classification alone is not a captured plan." TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" Margin="0,6" />
+  <ComboBox x:Name="AssociationSetup" ItemsSource="{Binding TradeDetailTradingSetupOptions}" SelectedItem="{Binding SelectedTradeDetailTradingSetup}"
+    DisplayMemberPath="Name" Style="{DynamicResource PtjComboBoxStyle}" AutomationProperties.Name="Trading Setup for Trade association"
+    ToolTip="{Binding SelectedTradeDetailTradingSetup.Name}" HorizontalAlignment="Stretch" />
+  <WrapPanel Margin="0,8">
+   <Button Content="Refresh preview" Command="{Binding RefreshAssociationPreviewCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,0,8,8"
+    AutomationProperties.Name="Explicitly reload the selected Setup's current Playbook revision" />
+   <Button x:Name="ConfirmAssociation" Content="Associate Setup…" Command="{Binding SaveTradingSetupCommand}" Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,0,8,8"
+    AutomationProperties.Name="Preview and confirm Setup and exact Playbook revision" />
+   <Button Content="Remove association…" Command="{Binding ClearTradingSetupCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,0,8,8"
+    AutomationProperties.Name="Confirm removing the current Setup association while retaining history" />
+  </WrapPanel>
+  <TextBlock Text="{Binding SelectedPlaybookPreviewText}" TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock Margin="0,12,0,6" Text="{Binding PlaybookAssociationStatus}"
+                                   TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                        <Button x:Name="OpenCapturedContext" HorizontalAlignment="Left" Content="Open captured context"
+                                AutomationProperties.Name="Open frozen Trade Playbook context and earlier associations"
+                                Command="{Binding LoadPlaybookHistoryCommand}" Style="{DynamicResource PtjButtonStyle}" />
+                        <ItemsControl x:Name="CapturedContextHistory" ItemsSource="{Binding CapturedAssociations}" Margin="0,8,0,8">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Expander Header="{Binding Heading}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                              AutomationProperties.Name="{Binding Heading}" Margin="0,4">
+                                        <Expander.HeaderTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></Expander.HeaderTemplate>
+                                        <StackPanel Margin="8" MaxWidth="760" HorizontalAlignment="Left">
+                                            <TextBlock Text="Frozen user-selected context; not verified adherence." TextWrapping="Wrap" Style="{DynamicResource PtjSecondaryTextStyle}" />
+                                            <TextBlock Text="{Binding Guidance}" TextWrapping="Wrap" Margin="0,8" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                                            <ItemsControl ItemsSource="{Binding Examples}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,6">
+                                                            <TextBlock Text="{Binding KindLabel}" />
+                                                            <TextBlock Text="{Binding Annotation}" TextWrapping="Wrap" />
+                                                            <Button Content="Open captured example image" HorizontalAlignment="Left"
+                                                                Command="{Binding DataContext.OpenCapturedImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding Source}" Style="{DynamicResource PtjButtonStyle}"
+                                                                Visibility="{Binding HasImage, Converter={StaticResource ImageVisibility}}">
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Older associations" HorizontalAlignment="Left"
+                                IsEnabled="{Binding HasOlderAssociations}" Command="{Binding LoadOlderAssociationsCommand}"
+                                Style="{DynamicResource PtjButtonStyle}" AutomationProperties.Name="Read next page of earlier frozen associations" />
+ </StackPanel>
+</UserControl>

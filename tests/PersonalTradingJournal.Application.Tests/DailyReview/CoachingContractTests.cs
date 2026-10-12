@@ -12,7 +12,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Application.Tests.DailyReview;
 
-public sealed class CoachingContractTests
+public sealed partial class CoachingContractTests
 {
     private static readonly DateOnly Day = new(2026, 11, 1);
     private static readonly Guid Account = Guid.Parse("00000000-0000-0000-0000-000000000001");

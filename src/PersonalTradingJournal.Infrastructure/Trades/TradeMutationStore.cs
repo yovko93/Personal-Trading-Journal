@@ -94,6 +94,7 @@ public sealed class TradeMutationStore : ITradeMutationStore
         }
 
         TradeRecord replacementRecord = TradePersistenceMapper.ToRecord(trade);
+        bool classificationChanged = currentRecord.TradingSetupId != trade.TradingSetupId;
         currentRecord.TradingAccountId = replacementRecord.TradingAccountId;
         currentRecord.InstrumentId = replacementRecord.InstrumentId;
         currentRecord.PricingPointValue = replacementRecord.PricingPointValue;
@@ -108,6 +109,15 @@ public sealed class TradeMutationStore : ITradeMutationStore
             await context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            // Ordinary Trade editing is classification only, never a retrospective capture.
+            // Record the transition so reassigning an old Setup cannot reactivate an older plan.
+            if (classificationChanged)
+            {
+                int previous = await context.TradePlaybookAssociations.Where(a => a.TradeId == trade.Id)
+                    .MaxAsync(a => (int?)a.Sequence, cancellationToken) ?? 0;
+                context.TradePlaybookAssociations.Add(new() { TradeId = trade.Id, Sequence = checked(previous + 1),
+                    TradingSetupId = trade.TradingSetupId, RecordedAtUtc = trade.UpdatedAtUtc, TradeOpenedAtUtc = trade.OpenedAtUtc });
+            }
             context.TradeExecutions.RemoveRange(currentExecutionRecords);
             await context.SaveChangesAsync(cancellationToken);
 

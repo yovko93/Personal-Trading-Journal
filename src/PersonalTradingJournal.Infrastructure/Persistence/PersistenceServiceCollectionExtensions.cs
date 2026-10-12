@@ -80,6 +80,16 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<IInstrumentDeletionStore, InstrumentDeletionStore>();
         services.AddTransient<ITradingSetupReader, TradingSetupReader>();
         services.AddTransient<ITradingSetupStore, TradingSetupStore>();
+        services.AddTransient<ITradingSetupPlaybookStore, TradingSetupPlaybookStore>();
+        services.AddTransient<ITradingSetupPlaybookHistoryReader, TradingSetupPlaybookStore>();
+        services.AddTransient<IPlaybookRevisionDeletion, PlaybookRevisionDeletion>();
+        services.AddTransient<ITradePlaybookContextStore, TradePlaybookContextStore>();
+        services.AddTransient<ITradePlaybookAssociationStore, TradePlaybookAssociationStore>();
+        services.AddTransient<ConfirmTradePlaybookAssociation>();
+        services.AddTransient<SaveTradingSetupPlaybookUseCase>();
+        services.AddTransient<IPlaybookImageStorage>(provider => new PlaybookImageStorage(applicationPaths,
+            provider.GetRequiredService<ITradeScreenshotFileStorage>()));
+        services.AddTransient<SavePlaybookExamplesUseCase>();
         services.AddTransient<ITradingSetupNameChecker, TradingSetupNameChecker>();
         services.AddTransient<ITradingSetupDeletionStore, TradingSetupDeletionStore>();
         services.AddTransient<ITradingMistakeReader, TradingMistakeReader>();
@@ -116,8 +126,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<
             ITradeScreenshotContentReader,
             TradeScreenshotContentReader>();
-        services.AddSingleton<ITradeScreenshotFileStorage>(
-            new LocalTradeScreenshotFileStorage(applicationPaths));
+        services.AddSingleton<ITradeScreenshotFileStorage>(provider =>
+            new RetainedScreenshotFileStorage(applicationPaths, provider.GetRequiredService<IDbContextFactory<JournalDbContext>>()));
 
         return services;
     }

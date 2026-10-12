@@ -63,6 +63,10 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(DailyJournalRecord),
             typeof(DailyJournalRevisionRecord),
             typeof(CoachingAnalysisRecord),
+            typeof(PlaybookRevisionRecord),
+            typeof(PlaybookExampleRecord),
+            typeof(TradePlaybookContextRecord),
+            typeof(TradePlaybookAssociationRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -156,13 +160,28 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingAccountRecord), isRequired: false, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(DailyJournalRevisionRecord), nameof(DailyJournalRevisionRecord.JournalId),
             typeof(DailyJournalRecord), isRequired: true, DeleteBehavior.Restrict);
-        Assert.Equal(12, foreignKeys.Count);
+        AssertForeignKey(model, typeof(PlaybookRevisionRecord), nameof(PlaybookRevisionRecord.TradingSetupId),
+            typeof(TradingSetupRecord), isRequired: true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(PlaybookExampleRecord), nameof(PlaybookExampleRecord.SourceScreenshotId),
+            typeof(TradeScreenshotRecord), isRequired: false, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(TradePlaybookContextRecord), nameof(TradePlaybookContextRecord.TradeId),
+            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
+        AssertForeignKey(model, typeof(TradePlaybookAssociationRecord), nameof(TradePlaybookAssociationRecord.TradeId),
+            typeof(TradeRecord), isRequired: true, DeleteBehavior.Cascade);
+        foreach (Type type in new[] { typeof(PlaybookExampleRecord), typeof(TradePlaybookContextRecord), typeof(TradePlaybookAssociationRecord) })
+        {
+            var key = Assert.Single(foreignKeys, f => f.DeclaringEntityType.ClrType == type && f.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
+            Assert.Equal(new[] { "TradingSetupId", "Revision" }, key.Properties.Select(p => p.Name));
+            Assert.Equal(type != typeof(TradePlaybookAssociationRecord), key.IsRequired);
+            Assert.Equal(DeleteBehavior.Restrict, key.DeleteBehavior);
+        }
+        Assert.Equal(19, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
                 foreignKey.DeleteBehavior == DeleteBehavior.Cascade)
             .ToArray();
-        Assert.Equal(4, cascades.Length);
+        Assert.Equal(6, cascades.Length);
         Assert.Contains(cascades, foreignKey =>
             foreignKey.DeclaringEntityType.ClrType == typeof(TradeExecutionRecord) &&
             foreignKey.Properties.Single().Name == nameof(TradeExecutionRecord.TradeId));
@@ -244,7 +263,9 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(7, uniqueIndexes.Count);
+        Assert.Equal(8, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(PlaybookExampleRecord) &&
+            index.Properties.SequenceEqual(["TradingSetupId", "Revision", "Position"]));
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyJournalRecord) &&
             index.Properties.SequenceEqual([nameof(DailyJournalRecord.TradingDate), nameof(DailyJournalRecord.TradingAccountId)]) &&
             index.Filter == "\"TradingAccountId\" IS NOT NULL");

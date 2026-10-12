@@ -101,6 +101,11 @@ public sealed class BackupArchiveService : IBackupArchiveService
                         throw new Failure(BackupValidationCode.SourceChanged);
                     payload.Add(entry.Path, (entry, stage)); total += entry.SizeBytes;
                 }
+                using var metadata = new SqliteConnection(new SqliteConnectionStringBuilder
+                { DataSource = snapshot.DatabasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+                metadata.Open();
+                if (!PlaybookImageInventory.Matches(metadata, payload.Values.Select(p => p.Entry), token))
+                    throw new Failure(BackupValidationCode.DatabaseAttachmentMismatch);
             }
             // Captured bytes no longer depend on live screenshot lifetime. New app screenshots use fresh keys.
             CapturePreferences(root, owned, payload, token);
@@ -174,7 +179,7 @@ public sealed class BackupArchiveService : IBackupArchiveService
         { DataSource = database, Mode = SqliteOpenMode.ReadOnly, Pooling = false, DefaultTimeout = 2 }.ToString());
         connection.Open();
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT DISTINCT StorageKey COLLATE BINARY FROM TradeScreenshots ORDER BY StorageKey COLLATE BINARY LIMIT 100001;";
+        command.CommandText = PlaybookImageInventory.KeysSql;
         using var rows = command.ExecuteReader();
         var keys = new List<string>(); var unique = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (rows.Read())

@@ -10,7 +10,7 @@ using PersonalTradingJournal.Desktop.Views.DailyReview;
 
 namespace PersonalTradingJournal.Desktop.Tests.DailyReview;
 
-public sealed class DailyReviewViewTests
+public sealed partial class DailyReviewViewTests
 {
     [Fact]
     public async Task SimplifiedEvidenceKeepsSummariesAndDirectSavedCitationActionsWithoutTechnicalControls()
@@ -40,7 +40,7 @@ public sealed class DailyReviewViewTests
                 root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
                 root.Measure(new Size(width, 760)); root.Arrange(new Rect(0, 0, width, 760)); root.UpdateLayout(); Flush();
                 var scroll = (ScrollViewer)view.FindName("ReviewScroll");
-                Assert.Single(Descendants(view).OfType<Expander>()); // Only generation privacy help remains.
+                Assert.Single(Descendants(view).OfType<Expander>(), e => e.Visibility == Visibility.Visible); // Only generation privacy help for non-Playbook citations.
                 Assert.DoesNotContain(Descendants(view).OfType<TextBox>(), t => t.IsReadOnly);
                 Assert.DoesNotContain(Descendants(view).OfType<ItemsControl>(),
                     i => i.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.ParentBinding.Path?.Path == "Trades");

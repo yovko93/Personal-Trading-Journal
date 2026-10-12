@@ -1,5 +1,110 @@
 # Windows WPF test diagnostics
 
+## M17.7 timeout follow-up — bounded Infrastructure fan-out (12 October 2026)
+
+Started from clean `develop` at `65df73dd9a33aae95c1be184f9fb33ae7b8e22dc`; all earlier M17 changes were already committed. The failed acceptance run below remains evidence, not a result erased by a later pass. It shows cumulative Calendar startup/layout slowdown and Journal layout budget exhaustion, **not a demonstrated production deadlock**. Native dispatcher scheduled waits were only 0.44 seconds in total; no timed-out action had used its individual 45-second limit. Infrastructure was the largest sampled competing test process (284.78 CPU seconds during that native child's lifetime).
+
+The execution-layout correction bounds **Infrastructure** xUnit collection concurrency at four instead of the host-CPU default (eight on this machine). Desktop retains its existing two-collection bound. Assemblies still run concurrently, four Infrastructure collections can overlap, and explicitly concurrent SQLite/import/backup test operations are unchanged. This is not global serialization or a change to production services. Every Calendar/Journal assertion, child isolation, fatal-exception reporting, poisoned-dispatcher rejection, nested-frame gate, and 120-/30-/45-second deadline remains unchanged. No retries, skips, sleeps or selected-case removal were added.
+
+Two targeted measurements used identical filters: Backups, Playbook persistence, Calendar modal/chart/grid and the two failing Journal layout cases, with opt-in phase timing, process samples and CI-style diagnostics. Each passed **476/476** (37 Application, 279 Infrastructure, 160 Desktop). Their different xUnit schedules are important: these results **do not show a universal isolated speedup** or quantify OS scheduler wait.
+
+| Measurement, seconds | CPU-default baseline | Four Infrastructure collections |
+| --- | ---: | ---: |
+| Native child / remaining to 120 | 94.327 / 25.673 | 98.243 / 21.757 |
+| Native startup to first STA | 5.279 | 4.983 |
+| Native completed-action wall sum (86 actions) | 78.129 | 76.961 |
+| Native completed-action CPU sum | 89.844 | 86.500 |
+| Native action-boundary peak working set, MiB | 742.191 | 639.070 |
+| Grid child / remaining to 120 | 30.621 / 89.379 | 58.007 / 61.993 |
+| Journal editor STA / remaining to 30 | 12.364 / 17.636 | 23.159 / 6.841 |
+| Journal History STA / remaining to 30 | 16.451 / 13.549 | 9.278 / 20.722 |
+
+Inclusive scopes cannot be added as exclusive costs; process CPU includes multiple threads and is not wall time. The selected concurrency bound limits independent migration/SQLite/archive fixture pressure rather than claiming that a particular export call blocks WPF. Exact OS/storage scheduling and the old Journal dump's blocked instruction remain unproven. Raw evidence: ignored `artifacts/m145-load/m177-timeout-{baseline-load,bounded-load,bounded-full}/`, including supervisor logs, phase logs, JSONL timings, process samples, TRX and VSTest diagnostics. Existing harness regressions and all fixtures, not an assertion about a configuration constant, are the verification of this test-runner-only change.
+
+### Final complete parallel Release verification
+
+One complete parallel solution run after that correction passed **3,884/3,884**, zero failures/skips: Domain **476**, Application **732**, Infrastructure **1,203**, Desktop **1,473**. All four assembly TRX start times fall within 0.5 seconds, confirming this was not a serialized solution run. Infrastructure TRX wall time was **209.444 s**, Desktop **262.392 s**. The build had **0 warnings/errors**, EF reported no pending model changes, and tracked/new-file whitespace checks passed.
+
+| Full-load measurement | Prior failed acceptance run (CPU default) | Final four-collection run |
+| --- | ---: | ---: |
+| Native child wall / headroom, seconds | 120 / none | **98.433 / 21.567** |
+| Native startup to first STA, seconds | 20.957 | 5.512 |
+| Native completed STA actions | 27 before termination | **86** (87 child cases passed) |
+| Native owner-show/layout sum, seconds (12 calls) | 41.67 | 11.75 |
+| Native modal-open/interactions sum, seconds (12 calls) | 23.66 | 6.56 |
+| Native dispatcher scheduled-wait sum, seconds | 0.44 | 0.10 |
+| Grid child wall / headroom, seconds | 120 / none | **21.247 / 98.753** (36 cases) |
+| Grid startup to first STA, seconds | 17.208 | 3.548 |
+| Journal editor STA / headroom, seconds | 30.365 / none | **12.535 / 17.465** |
+| Journal History STA / headroom, seconds | 30.036 / none | **8.964 / 21.036** |
+
+Final native completed-action wall sum **77.466 s**, CPU sum **91.234 s**, boundary peak working set **770.723 MiB**. Sampled Infrastructure CPU during the native lifetime was **187.359 s** over 98.433 wall seconds (versus 284.78 over the prior 120-second interval); its sampled peak was **445.191 MiB**. These are observations from different schedules, not a controlled proof that four collections eliminates all possible contention. The target-only comparison above retains the counterexample where the new configuration was slower. No memory leak, application deadlock, lost Journal read, or exporter defect was demonstrated. The correction is a bounded test-runner resource policy, not a product change or a guarantee against overloaded machines.
+
+Local full-suite acceptance is green for this worktree. Matching GitHub Actions is **not verified**: the new test configuration and docs are uncommitted, so no run can test this exact change yet. The existing workflow requires a push to main or a PR targeting main; the user must commit/push develop and open/update that PR, then check its tested head/merge tree. Do not change triggers or call an earlier green run acceptance. Live Playbook Save/input and remaining M17.7 manual gates are unchanged. No production data or provider access occurred.
+
+## M17.7 acceptance — unchanged Calendar deadlines (12 October 2026)
+
+Acceptance audit of `develop` **`206dfd3e10d0831eb4750650eefb4c89b4fc0ae4`**, initially clean. No product/test-harness code was changed. The synthetic live app was stopped before the full run. One complete parallel Release run used the existing `Measure-Load.ps1 -Name m177-final-full -CiDiagnostics`, with phase timings, one-second process sampling, TRX and the unchanged 120-second child / 30-/45-second action bounds. No retries, skips, concurrency reductions or deadline increases.
+
+| Measurement | Calendar native | Calendar grid |
+| --- | ---: | ---: |
+| Supervisor start UTC | 13:55:41.0736762 | 13:54:54.5636722 |
+| Timeout UTC | 13:57:41.0391595 | 13:56:54.5062771 |
+| Startup to first STA, seconds | 20.957 | 17.208 |
+| Completed / started STA actions | 27 / 28 | 32 / 33 |
+| Cleanup confirmed UTC | 13:57:41.3692145 | 13:56:54.9720336 |
+
+Native completed-action wall sum **89.374 s**, process-CPU delta sum **95.563 s**, longest completed action **7.014 s**, peak action-boundary working set **548.570 MiB**. The final `JournalActionStaysInlineAndProtectedModalCloseKeepsTradeAndJournalDrafts` began its test action at **13:57:36.6917489**, only **4.347 s** before termination; the preceding same-named action completed in **6.036 s**. This is not evidence of an individual 45-second hang. The grid's last `PopulatedGridRendersSignsAndCenteredWeeklyOnlySaturdayAcrossThemes` began at **13:56:53.7675845**, only **0.739 s** before termination. Both trees were killed and exit confirmed; no completed child TRX was produced.
+
+Native inclusive timing scopes: 12 owner-show/layout calls **41.67 s**, 12 modal open/interactions **23.66 s**, 12 inline view/layout calls **7.48 s**, 48 modal pumps **10.30 s**, two theme parses **2.78 s**, 21 chart layouts **2.39 s**, 21 bitmaps **0.64 s**. The two-parse resource reuse remains effective. Dispatcher scheduled waits total **0.44 s**; the **67.33 s** gate wait overlaps other active cases and must not be counted as additional idle time or removed (it protects nested-frame exclusion). These inclusive scopes overlap and are not an additive wall-time breakdown.
+
+During the native lifetime, sampled Infrastructure testhost PID 24152 used **284.78 CPU s**, native testhost PID 25408 **107.59 CPU s**, grid testhost PID 24464 **62.28 CPU s**, and parent Desktop host PID 15760 **36.20 CPU s**. Multi-threaded CPU time is not wall time or a measure of scheduler wait. The previous preview-layout full run passed the native child in **86.097 s**; this audit's unchanged binary workload slowed across startup, window/layout and other actions while assemblies overlapped. This supports aggregate budget exhaustion under load, not a demonstrated new Playbook, SQLite, picker or dispatcher-lifetime defect. It does not isolate an individual competing test or precise OS scheduling cause. No sound code correction has been established; the timing variability remains **unresolved**, and the passing focused Playbook suite is not full-suite acceptance.
+
+Final parallel result: **3,760 passed / 124 failed / zero skipped**, 3,884 total. Domain 476, Application 732 and Infrastructure 1,203 all passed; Desktop passed 1,349 and failed 124. **86 failures** propagate native timeout and **36** propagate grid timeout. Two additional failures must not be hidden by that grouping:
+
+- `JournalHistoryViewTests.CompiledHistoryPagesAndSnapshotsWrapInBothThemesAndRemainReadOnlyAtHighDpi`: `History Light 480 DIP / 240 DPI` ran from elapsed 16.079 to 26.745 s; the Dark high-DPI phase began at 26.747 s and the STA timeout fired at **30.036 s**. Last sample: CPU **35.609 s**, working set **160.672 MiB**, background STA alive, zero pending ThreadPool work. The phase is broader than a single operation; no exact blocked instruction is established.
+- `JournalViewTests.CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts`: final Arrange ended at elapsed **30.214 s**, immediately followed by UpdateLayout; STA timeout at **30.365 s**, CPU **32.563 s**, working set **155.238 MiB**, zero pending ThreadPool work. The unchanged 30-second VSTest inactivity collector aborted the child and retained `testhost_20972_20261012T165951_hangdump.dmp`. The dump was not decoded; the final short phase does not prove a deadlock. Both Journal children exited with cleanup confirmed.
+
+All Playbook tests, including the compiled Save/write and separate restart-read children, passed. No corrective production/harness change is supported by these cumulative-load observations alone. The unresolved full-suite result takes precedence over 163 focused passes; there was no repeat full run to select a greener outcome.
+
+Raw phase/timing JSONL, `native-actions.csv`, process samples, supervisor diagnostics, final parent TRX and VSTest logs remain in ignored `artifacts/m145-load/m177-final-full`. Final suite totals and acceptance gates are recorded in [M17.7 acceptance](playbook.md#m177--integration-acceptance-12-october-2026). This run is local automated evidence only, not live UI or matching GitHub Actions.
+
+## Pre-M17.7 Save diagnostics and Calendar full-load measurement
+
+12 October 2026; started clean on `develop`, `434a0055591cd71dba5715baf1fee3cca34d0452`. The only production correction concerns Playbook Save readback/reporting; it does not run in the Calendar fake-data tests. The native harness, assertions, two-collection Desktop concurrency, process isolation, 120-second aggregate / 45-second operation deadlines and nested-frame gate are **unchanged**. M16.7a's two theme-resource parses are still effective; no repeated-resource regression was found.
+
+Two complete parallel Release measurements used the existing `Measure-Load.ps1 -CiDiagnostics`, `PTJ_CALENDAR_TIMINGS=1`, TRX, blame collector and one-second process sampling. The first measures the original binaries; the final measures the Save correction and new diagnostics regressions. These are not a retry loop or selected passing native cases. Raw evidence is retained under ignored `artifacts/m145-load/pre-m177-diagnostic-{baseline,final}/` (supervision, phases, timing JSONL, process samples, TRX and VSTest diagnostics).
+
+| Native measurement | Before Save correction | Final full load |
+| --- | ---: | ---: |
+| Supervisor start UTC | 21:37:56.2928652 | 21:43:33.3223380 |
+| Exit / timeout UTC | 21:39:40.1244662 | 21:45:33.3089908 |
+| Wall seconds / headroom to 120 | 103.832 / 16.168 | deadline / none |
+| Child cases / completed STA actions | 87 passed / 86 | incomplete / 84 |
+| Startup to first STA, seconds | 5.269 | 6.894 |
+| Sum of exclusive test-action intervals, seconds | 83.127 | 92.141 (84 completed only) |
+| Longest completed exclusive test action, seconds | 3.007 | 3.351 |
+| Owner show + initial layout, 12, seconds | 14.693 | 17.036 |
+| Modal interaction/return, 12, seconds | 7.638 | 7.682 |
+| Modal dispatcher pumps, count / seconds | 220 / 9.177 | 218 / 11.386 |
+| Theme resource loads, count / seconds | 2 / 1.294 | 2 / 0.733 |
+| Chart layout / bitmap, 21 each, seconds | 0.916 / 0.410 | 0.751 / 0.306 |
+| Inline view/layout, 12, seconds | 1.805 | 1.792 |
+| Dialog close + owner close, seconds | 0.546 + 1.463 | 0.659 + 1.920 |
+| Fixture activation, 60, seconds | 1.740 | 3.345 |
+| Dispatcher post-to-execution, total / max seconds | 0.327 / 0.216 | 0.687 / 0.216 |
+| Intentional gate wait (overlaps active work), seconds | 24.559 | 29.039 |
+| Last child CPU / boundary working set | 108.328 s / 423.480 MiB | 103.500 s / 409.363 MiB |
+| Sampled peak child working set | 754.14 MiB | 725.67 MiB |
+| Sampled Infrastructure CPU during native lifetime | 139.81 s | 281.23 s |
+| Other sampled Desktop hosts' CPU in that interval | 23.98 + 9.53 + 19.50 + 3.66 s | 45.72 + 29.23 s |
+
+Exclusive action durations pair `start; phase=test action` and `assertions completed` UTC stamps. Per-case `elapsed` also includes waiting for the shared STA and must not be summed as wall time. Inclusive named scopes overlap; process CPU includes renderer/helper threads and can exceed wall time. Process samples are approximate interval endpoints, not a proof of causation. No machine-wide priority, affinity or DPI change was made.
+
+The final unfinished action was `ViewExpandsExactTradeWhileKeepingModalOpen`, entering at **21:45:32.5954156 UTC**, only **0.714 seconds** before termination. Completed actions remained short, and the last boundary had zero pending ThreadPool work. This is cumulative budget exhaustion under varying parallel CPU/native-window load, **not evidence of a 45-second action hang**, an unbounded dispatcher leak, or Playbook persistence blocking Calendar. Infrastructure used roughly twice as much sampled CPU during the final native window, with different Desktop children/order overlapping. The logs cannot isolate a single Infrastructure test or an exact OS rendering/scheduling wait as the cause. No supported additional harness correction was identified; no speculative change, retry, skip, broader deadline or global serialization was applied. Process-tree cleanup was confirmed at **21:45:33.5179909 UTC**.
+
+The baseline full suite passed **3,863/3,863**. The final full-suite result takes precedence: **3,781 passed / 86 failed / zero skipped** (Domain 476, Application 732, Infrastructure 1,196 passed; Desktop 1,377 passed / 86 failed). All failures propagate the native timeout: acceptance is **not green**, even though all 46 focused Playbook tests and their full-run counterparts pass. Release build has zero warnings/errors, EF reports no pending model changes, and whitespace checks pass. The earlier failed run's 72 completed actions (documented in Playbook) and this run's 84 reinforce the observed variability, not a claim that the timeout has been fixed. Matching GitHub Actions remains open for the uncommitted correction; local testing is not CI or live mouse/keyboard acceptance.
+
 ## M16.7a — Calendar native full-load deadline (2026-10-10)
 
 Started on clean `develop`, `4232c32834fbd97fb91c57c733ff36c88174d416`, with M16.1–M16.7 and the M16.6a Journal correction already committed by the user. Only test-resource preparation and its regression change; no product, backup/restore, schema, navigation or economic behavior changes. M16.8 is not started.

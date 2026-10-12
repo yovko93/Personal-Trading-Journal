@@ -87,6 +87,10 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261004145757_AddDailyJournals",
                     "20261004165044_AddDailyJournalReviewAnswers",
                     "20261008195353_AddCoachingAnalysisSnapshots",
+                    "20261011154034_AddPlaybookHistory",
+                    "20261011171154_AddPlaybookExampleImages",
+                    "20261011175435_AddTradePlaybookAssociations",
+                    "20261011220636_AllowUnreferencedPlaybookRevisionDeletion",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

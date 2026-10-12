@@ -211,7 +211,7 @@ public sealed class LocalTradeScreenshotFileStorage : ITradeScreenshotFileStorag
         }
         catch
         {
-            // Cleanup is best-effort and must not replace the original storage failure.
+            throw new ScreenshotStagingCleanupException();
         }
     }
 }

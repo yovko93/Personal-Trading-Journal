@@ -53,7 +53,7 @@ public sealed class TradingSetupDeletionStore(
             })
         {
             throw new TradingSetupDeleteBlockedException(
-                "The trading setup is referenced by existing trades.",
+                "The trading setup is referenced by existing Trades or Playbook history. Archive it instead.",
                 exception);
         }
     }

@@ -11,6 +11,19 @@ public sealed class DeleteTradeScreenshotUseCaseTests
     private const string StorageKey = "opaque/screenshots/asset-01.png";
 
     [Fact]
+    public async Task SharedImageIsIntentionallyRetainedWithoutAttemptingPhysicalCleanup()
+    {
+        var store = new RecordingDeletionStore
+        {
+            DeletionInfo = new(ScreenshotId, TradeId, StorageKey, DeletePhysicalFile: false),
+        };
+        var files = new RecordingFileStorage();
+        var result = await new DeleteTradeScreenshotUseCase(store, files).ExecuteAsync(CreateCommand());
+        Assert.True(result.FileCleanupSucceeded);
+        Assert.Equal(0, files.CallCount);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncCommitsMetadataBeforeNonCancellableFileCleanup()
     {
         var operations = new List<string>();

@@ -14,7 +14,7 @@ public static class CoachingResponseValidator
         cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(json) || json.Length > CoachingContract.MaximumResponseBytes ||
             Encoding.UTF8.GetByteCount(json) > CoachingContract.MaximumResponseBytes)
-            return Invalid("Response is empty or exceeds the v1 UTF-8 limit.");
+            return Invalid("Response is empty or exceeds the UTF-8 limit.");
         CoachingResponse? response;
         try
         {
@@ -23,7 +23,7 @@ public static class CoachingResponseValidator
                 return Invalid("Duplicate JSON property names are not allowed.");
             response = JsonSerializer.Deserialize<CoachingResponse>(json, CoachingContract.JsonOptions);
         }
-        catch (JsonException) { return Invalid("Response must match the v1 JSON structure and enum names exactly."); }
+        catch (JsonException) { return Invalid("Response must match the current JSON structure and enum names exactly."); }
         cancellationToken.ThrowIfCancellationRequested();
         if (response is null) return Invalid("Response must be an object.");
         var errors = new List<string>();
@@ -90,6 +90,7 @@ public static class CoachingResponseValidator
                     CoachingObservationBasis.RecordedTradeFact => item.SourceIds.All(id => sources[id].Kind is
                         CoachingSourceKind.Trade or CoachingSourceKind.Execution),
                     CoachingObservationBasis.UserWrittenJournalObservation => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.Journal),
+                    CoachingObservationBasis.UserWrittenPlaybookContext => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.PlaybookAssociation),
                     _ => false,
                 };
                 if (!appropriate) errors.Add(location + ": basis does not match the cited source kinds.");

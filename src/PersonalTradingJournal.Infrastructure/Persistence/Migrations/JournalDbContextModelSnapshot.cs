@@ -245,6 +245,132 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookExampleRecord", b =>
+                {
+                    b.Property<Guid>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ExampleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Annotation")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageFileName")
+                        .HasMaxLength(180)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ImageSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageStorageKey")
+                        .HasMaxLength(180)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("SourceScreenshotId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("SourceTradeId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradingSetupId", "Revision", "ExampleId");
+
+                    b.HasIndex("ImageStorageKey");
+
+                    b.HasIndex("SourceScreenshotId");
+
+                    b.HasIndex("TradingSetupId", "Revision", "Position")
+                        .IsUnique();
+
+                    b.ToTable("PlaybookExamples", null, t =>
+                        {
+                            t.HasTrigger("PlaybookExamples_NoDelete");
+
+                            t.HasTrigger("PlaybookExamples_NoUpdate");
+
+                            t.HasCheckConstraint("CK_PlaybookExamples_Position", "Position >= 0 AND Position < 12");
+
+                            t.HasCheckConstraint("CK_PlaybookExamples_Source", "SourceScreenshotId IS NULL OR SourceTradeId IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", b =>
+                {
+                    b.Property<Guid>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Confirmations")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ContractVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EntryConditions")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExecutionGuidance")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Invalidation")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MarketContext")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetupDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SetupName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradingSetupId", "Revision");
+
+                    b.ToTable("PlaybookRevisions", null, t =>
+                        {
+                            t.HasTrigger("PlaybookRevisions_NoDelete");
+
+                            t.HasTrigger("PlaybookRevisions_NoUpdate");
+
+                            t.HasCheckConstraint("CK_PlaybookRevisions_Version", "ContractVersion = 1 AND Revision >= 1");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TopstepImportedRowRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -450,6 +576,79 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TradeMistakes", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookAssociationRecord", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DefinitionJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("RecordedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid?>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradeId", "Sequence");
+
+                    b.Property<DateTime>("TradeOpenedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasIndex("TradingSetupId", "Revision");
+
+                    b.ToTable("TradePlaybookAssociations", null, t =>
+                        {
+                            t.HasTrigger("TradePlaybookAssociations_NoDelete");
+
+                            t.HasTrigger("TradePlaybookAssociations_NoUpdate");
+
+                            t.HasCheckConstraint("CK_TradePlaybookAssociations_Snapshot", "Sequence > 0 AND ((Revision IS NULL AND DefinitionJson IS NULL) OR (TradingSetupId IS NOT NULL AND Revision > 0 AND DefinitionJson IS NOT NULL))");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookContextRecord", b =>
+                {
+                    b.Property<Guid>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ContractVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DefinitionJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("TradeOpenedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradeId");
+
+                    b.HasIndex("TradingSetupId", "Revision");
+
+                    b.ToTable("TradePlaybookContexts", null, t =>
+                        {
+                            t.HasTrigger("TradePlaybookContexts_NoUpdate");
+
+                            t.HasCheckConstraint("CK_TradePlaybookContexts_Version", "ContractVersion = 1");
+                        });
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", b =>
@@ -704,6 +903,29 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookExampleRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeScreenshotRecord", null)
+                        .WithMany()
+                        .HasForeignKey("SourceScreenshotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingSetupRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TopstepImportedRowRecord", b =>
                 {
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
@@ -742,6 +964,35 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingMistakeRecord", null)
                         .WithMany()
                         .HasForeignKey("TradingMistakeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookAssociationRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId", "Revision")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradePlaybookContextRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId", "Revision")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
