@@ -43,6 +43,7 @@
             <TextBlock x:Name="EmptyState" Text="No rule selected. Create a rule to describe your criteria and the evidence needed to assess them." Style="{StaticResource Body}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" />
             <TextBlock x:Name="SelectedName" Text="{Binding SelectedRule.Name}" Style="{StaticResource Heading}" />
             <WrapPanel x:Name="Actions">
+                <Button Content="Manual assessments" Command="{Binding AssessmentHistoryCommand}" AutomationProperties.Name="Read retained manual assessments for selected Rule" />
                 <Button x:Name="EditRule" Content="Edit rule" Command="{Binding EditCommand}" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Edit current Rule revision" />
                 <Button x:Name="ArchiveRule" Content="{Binding ArchiveLabel}" Command="{Binding ArchiveCommand}" Style="{StaticResource PtjPlaybookArchiveButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="{Binding ArchiveLabel}" />
                 <Button x:Name="ReturnToCurrent" Content="Return to current" Command="{Binding ReturnCommand}" Style="{StaticResource PtjPlaybookReturnButtonStyle}" Margin="0,0,8,8" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Return to current Rule without changing editor fields" />

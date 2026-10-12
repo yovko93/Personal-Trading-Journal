@@ -1,6 +1,6 @@
-# Trading Rules — contracts, persistence and management
+# Trading Rules — contracts, persistence and manual assessments
 
-M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules. There is no assessment UI, automatic evaluation or AI integration. Historical revisions are read exactly as recorded.
+M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules; M18.4 adds manual Trade/day assessments. There is no automatic evaluation or AI integration. Historical revisions are read exactly as recorded.
 
 ## Rule identity and scope
 
@@ -125,7 +125,78 @@ Exact follow-up files:
 
 ## Deferred work and limits
 
-M18.3 supplies Desktop authoring only. Later milestones may add Trade/day assessment UI and carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No M18.4 work, AI prompt change, or live acceptance is included. M17.7 live acceptance remains independent of these tests or any CI run.
+M18.4 supplies manual Trade/day assessment UI. Later milestones may add carefully specified automatic checks. `AutomaticCandidate` only reserves a source label; it is **not** an engine or a promise of automated evaluation. Rules never modify gross/net economics or imply that a Trade followed a linked Playbook. No M18.5 work or AI prompt change is included. M17.7 live acceptance remains independent of these tests or any CI run.
+
+## M18.4 — Manual Desktop assessments
+
+### Entry points and semantics
+
+- **Trade Details → Assess Rules** opens the loaded Trade's exact identity and Account, for manual and imported Trades alike. The same action is available in Calendar's inline Trade detail. Parent editor fields remain untouched; only already-saved facts are assessed.
+- **Calendar Day Performance → Assess day Rules** opens the selected New York date and explicit Account scope. All accounts means a positively identified **aggregate day target**, not a null-scoped Journal and not an implicit choice of Account. Exact-account rules are not offered for an aggregate target. No Trade is required to record Cannot evaluate on an empty day.
+- **Planning → Rules → Manual assessments** shows retained results across targets, newest UTC recording time first with ID tie-breaker. Open exact target / correction deliberately loads that record's original target. Missing Accounts/Trades, archived or no-longer-applicable rules block new writes while history stays readable. Existing inactive Accounts remain usable for historical assessment.
+
+The dialog shows the current immutable rule revision, criterion and required evidence before confirmation. All new UI records are **Manual user assessments — not calculated facts**; “Manual” records the local user's source declaration, not an authenticated multi-user identity. No violation requires explicitly declared sufficient, selected recorded evidence. Confirmed violation either requires sufficient recorded evidence or the explicit “I report this violation” declaration with an explanation. Cannot evaluate requires an explanation identifying missing/ambiguous facts, with available references selected where useful; it never becomes a pass. Not assessed remains absence, not a stored fourth outcome.
+
+### Reads, history and retention
+
+`IManualRuleAssessmentReader` adds read-only SQL discovery: 20 displayed rules or source rows, 10 displayed assessments, one lookahead source/history row, and repository limits of 1–100. Applicable active/archived definitions and previously assessed rules are discoverable for a target. Target history uses descending sequence keysets; Rules' cross-target browser uses bounded offset pages ordered by UTC then ID. Refresh restarts no writes; concurrent inserts may shift offset pages until refreshed. No per-source repository call or unbounded scan into Desktop memory is used.
+
+The current picker exposes a Trade identity (covering its recorded lifecycle) and, for day assessments, saved Journal identities/revisions. It does not add a separate Execution or Playbook-capture picker; older records of those kinds remain readable. Closed Trade sources use the same New York closure date as Calendar/Daily Review, including midnight and DST transitions; open/partial activity appears only on its recorded activity date and is not called realized P&L. Unknown Net is unavailable, not zero; currencies and Account labels remain explicit. Journal selection includes all account scopes and null-scoped Journals only for a genuinely aggregate day.
+
+Record confirmation captures the rule revision, target, selected references and previous assessment ID. The M18.2 store rechecks them under its writer transaction, including live target ownership, source existence/scope and current rule applicability. No storage or schema semantics changed. Corrections append new immutable records and supersede an earlier assessment ID without editing it. The history shows frozen criterion/revision, original Account identity, explanation, manual attribution, sequence, reference state and UTC recording time presented in New York with explicit DST offset; exact UTC is also expandable. References establish identity, not proof of an explanation. Deleted/moved sources never silently become another record or erase history.
+
+### Guards and failures
+
+Selections are immutable for a dialog target. Rule switching, Refresh and closing ask before discarding dirty explanation/source choices; read cancellation and late-result rejection cannot repopulate a closed dialog. During save, duplicate submission and departure are blocked; cancellation is supported before commit, and a committed record is independently read back before success. Validation and storage/conflict errors retain all fields. An unverified reported commit disables resubmission until an explicit guarded Refresh; there is no automatic retry. A successful correction reloads latest/history. The owned dialog blocks parent navigation, and watches every owner in the Day Performance → main-window chain: a veto leaves all windows and drafts intact; accepted owner close explicitly ends its modal frame before owned-window destruction.
+
+### M18.4 verification
+
+Started from clean `develop`, HEAD `1c79d374b879d6acb78a954edf6badcc92dd7caf`. All fixtures are synthetic; no production database or provider is opened. This work adds no migration and does not begin M18.5.
+
+Focused validation: **86 passed, zero failures/skips** (Domain 9, Application 8, Infrastructure 28, Desktop 41), including **27 new cases**. Evidence: ignored `artifacts/m145-load/m184-focused-final`. The SQLite-backed editor tests record all outcomes and corrections, check exact versus explicit aggregate day targets and conflicting prior assessments, then rebuild services and read history again. Existing M18.2 tests additionally cover atomic cancellation/rollback, deleted Account/Trade references and evidence ownership. New discovery tests exercise bounded pages, null-scope Journals, other Accounts/currencies, unknown Net, midnight/DST attribution, cancellation and deleted-source restart reads. VM tests cover confirmed append/readback, validation, explicit user violation, cancellation, storage and readback failures, stale rule/prior assessment, paging without advancing dirty baselines, guards and late-load rejection.
+
+Compiled WPF tests inspect Light/Dark at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, including validation borders/accessibility, logical focus, scrolling to Record, history, reachable fixed Close, and actual owned-window closing. Twelve automated overview/validation/history PNGs are in ignored `artifacts/m184-renders`; Light and Dark normal/narrow samples were visually inspected. **These are automated native-window/renderer checks, not live human keyboard/mouse or screen-reader acceptance.**
+
+During implementation the new test caught a missing error-border trigger (fixed), and a fixture initially omitted its clock (fixed in the fixture). The nested-owner test then consistently left WPF `ShowDialog → ShowHelper → Dispatcher.PushFrameImpl` waiting after owned-window destruction. Content-free phase traces and the synthetic hang dump identified that path. Observable modal-entry coordination alone did not resolve it. The dialog now explicitly closes its modal frame after owner-close consent, guards the full owner chain, and bypasses a second confirmation only for that accepted close. The retained regression exercises child, parent and ancestor veto, draft preservation, and accepted ancestor close. Its 30-second action/90-second child deadlines remain unchanged; no retries, skips, concurrency changes or timeout increases were added.
+
+Remaining live checklist (isolated synthetic data only): open each Trade/day entry point with Tab; record each outcome and inspect the confirmation; leave an explanation dirty and decline Refresh/Close/Escape/main-window close; open Rules history, append a correction and inspect the original; verify native focus restoration, screen-reader announcements and wheel/touchpad use at minimum width in both themes. No automated result closes these manual gates.
+
+| Final verification | Observed result |
+| --- | --- |
+| Complete parallel Release suite | **3,973 passed, 0 failed, 0 skipped**: Domain 485, Application 739, Infrastructure 1,230, Desktop 1,519. Raw TRX/process/STA diagnostics: ignored `artifacts/m145-load/m184-full-final`. |
+| Native deadlines under full load | Calendar native **62.522 s / 57.478 s headroom** to 120 seconds; Calendar grid **28.622 s**. New manual-assessment native child also passed. Existing Desktop/Infrastructure concurrency bounds and all deadlines are unchanged. |
+| Build / model / whitespace | Release build **0 warnings, 0 errors**; EF design-time `has-pending-model-changes`: none; `git diff --check` plus changed/new-file trailing-whitespace check passed. |
+| Live / CI / data safety | Human keyboard/mouse and screen-reader workflow unverified; matching Actions run open. No production journal, AI provider, Git commit/push/merge or M18.5 work. |
+
+CI: `gh` is unavailable locally. The GitHub connector returned **no PR-triggered workflow runs** for the starting HEAD on 12 October 2026 (that API is filtered to PR runs, not proof about every event). More importantly, these M18.4 changes remain uncommitted and cannot have a matching Actions run. `.github/workflows/ci.yml` runs on pushes to `main` and PRs targeting `main`; the user must commit/push to the existing develop PR workflow and inspect the tested head/merge tree. Local verification is not matching CI or M17.7 live acceptance.
+
+### M18.4 exact changed files
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Application/Rules/IManualRuleAssessmentReader.cs` (new)
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Manual.cs` (new)
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Dialogs/IRuleAssessmentDialog.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Dialogs/WpfRuleAssessmentDialog.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RuleAssessmentViewModel.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleAssessmentView.xaml` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleAssessmentView.xaml.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarInlineTradeView.xaml`
+- `tests/PersonalTradingJournal.Application.Tests/Rules/TradingRuleUseCaseTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/ManualRuleDiscoveryTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RuleAssessmentViewModelTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentEntryTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentSqliteTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentViewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelTests.cs` (fixture dependency only)
 
 ## M18.2 verification — 12 October 2026
 

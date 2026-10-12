@@ -34,7 +34,7 @@ public sealed record RuleRow(TradingRuleDetails Details)
     public string Version => $"Revision {Details.Revision.Revision} · {State}";
 }
 
-/// <summary>Rule authoring only: no assessment command or evaluator is exposed.</summary>
+/// <summary>Rule authoring and access to retained manual assessments. No evaluator.</summary>
 public sealed class RulesViewModel : ObservableObject
 {
     private readonly ITradingRuleReader _reader;
@@ -51,7 +51,7 @@ public sealed class RulesViewModel : ObservableObject
     private int _expected, _page = 1, _loadedPage = 1, _total, _historyPage;
     private readonly List<int?> _cursors = [null];
     private bool _older;
-    private string _message = "Create a rule or select an existing rule. No assessments are performed here.";
+    private string _message = "Create or select a rule. Open Manual assessments to read retained results; start a new target from Trade Details or Day Performance.";
     private string[] _baseline = [];
     private Guid? _baselineAccount;
     private TradingRuleApplicability _baselineTarget;
@@ -63,9 +63,11 @@ public sealed class RulesViewModel : ObservableObject
     private IReadOnlyList<RuleAccountOption> _accountOptions = [new(null, "All accounts")];
 
     public RulesViewModel(ITradingRuleReader reader, ITradingRuleStore store, ITradingAccountReader accounts,
-        WriteTradingRuleUseCase writer, IDialogService dialogs)
+        WriteTradingRuleUseCase writer, IDialogService dialogs, IRuleAssessmentDialog? assessments = null)
     {
         _reader = reader; _store = store; _accounts = accounts; _writer = writer; _dialogs = dialogs;
+        AssessmentHistoryCommand = new RelayCommand(() =>
+        { if (SelectedRule is { } row && !IsBusy) assessments?.ShowRuleHistory(row.Id); }, () => !IsBusy && SelectedRule is not null && assessments is not null);
         Fields = [new("Rule name", 120), new("Criterion", 4000), new("Required evidence", 2000)];
         foreach (var field in Fields) field.PropertyChanged += (_, e) =>
         {
@@ -102,7 +104,7 @@ public sealed class RulesViewModel : ObservableObject
     public bool IsHistorical => _historical is not null;
     public string VersionLabel => IsHistorical ? $"Historical revision {Displayed!.Details.Revision.Revision} · read-only" : Displayed?.Version ?? "No rule selected";
     public string TargetLabel => Displayed?.Details.Revision.Definition.Applicability == TradingRuleApplicability.NewYorkDay ? "New York trading day" : "One Trade";
-    public string ModeLabel => Displayed?.Details.Revision.Definition.EvaluationMode == TradingRuleEvaluationMode.AutomaticCandidate ? "Candidate for future checks — no checks are enabled" : "Manual assessment only — assessment is not available on this page";
+    public string ModeLabel => Displayed?.Details.Revision.Definition.EvaluationMode == TradingRuleEvaluationMode.AutomaticCandidate ? "Candidate for future checks — no checks are enabled" : "Manual assessment only — a recorded user judgment, not a calculated fact";
     public bool ShowReading => Displayed is not null && (!IsEditing || IsHistorical);
     public bool ShowEmpty => SelectedRule is null && !IsEditing && !IsLoading;
     public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); Changed(); } }
@@ -120,6 +122,7 @@ public sealed class RulesViewModel : ObservableObject
     public string ArchiveLabel => SelectedRule?.Details.Revision.IsActive == true ? "Archive rule" : "Reopen rule";
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public IRelayCommand CreateCommand { get; }
+    public IRelayCommand AssessmentHistoryCommand { get; }
     public IRelayCommand EditCommand { get; }
     public IAsyncRelayCommand SaveCommand { get; }
     public IRelayCommand CancelEditCommand { get; }
@@ -267,6 +270,7 @@ public sealed class RulesViewModel : ObservableObject
     }
     private void Changed()
     {
+        AssessmentHistoryCommand?.NotifyCanExecuteChanged();
         foreach (string property in new[] { nameof(SelectedRule), nameof(Displayed), nameof(IsHistorical), nameof(VersionLabel), nameof(TargetLabel), nameof(ModeLabel), nameof(ShowReading), nameof(ShowEmpty), nameof(IsBusy), nameof(CanSelect), nameof(CanEdit), nameof(HasUnsavedChanges), nameof(PageLabel), nameof(HistoryPageLabel), nameof(ArchiveLabel) }) OnPropertyChanged(property);
         CreateCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged(); CancelEditCommand?.NotifyCanExecuteChanged(); RefreshCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged(); ArchiveCommand?.NotifyCanExecuteChanged(); ViewRevisionCommand?.NotifyCanExecuteChanged(); ReturnCommand?.NotifyCanExecuteChanged(); NextCommand?.NotifyCanExecuteChanged(); PreviousCommand?.NotifyCanExecuteChanged(); OlderCommand?.NotifyCanExecuteChanged(); NewerCommand?.NotifyCanExecuteChanged();
     }

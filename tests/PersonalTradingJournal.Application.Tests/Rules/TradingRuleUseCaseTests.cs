@@ -138,6 +138,27 @@ public sealed class TradingRuleUseCaseTests
         Assert.Empty(store.Assessments);
     }
 
+    [Fact]
+    public async Task ManualAggregateDayAndExactDayHaveIndependentCorrectionChainsAndCancelledAppendIsAbsent()
+    {
+        var store = new Store(); var id = Guid.NewGuid();
+        var definition = new TradingRuleDefinition("Review day", "Evaluate recorded observations", "Daily facts",
+            TradingRuleApplicability.NewYorkDay, TradingRuleAccountScope.AllAccounts, TradingRuleEvaluationMode.ManualOnly);
+        await new WriteTradingRuleUseCase(store, new Clock()).ExecuteAsync(new(id, 0, TradingRuleAuthoringAction.Create, definition));
+        var writer = new RecordTradingRuleAssessmentUseCase(store, store, new Clock());
+        var date = new DateOnly(2026, 11, 1);
+        var aggregate = TradingRuleAssessmentTarget.ForNewYorkDay(date, TradingRuleAccountScope.AllAccounts);
+        var exact = TradingRuleAssessmentTarget.ForNewYorkDay(date, TradingRuleAccountScope.ForAccount(Account));
+        var first = await writer.ExecuteAsync(AssessmentCommand(id, 1, aggregate));
+        var separate = await writer.ExecuteAsync(AssessmentCommand(id, 1, exact));
+        Assert.Equal(TradingRuleWriteStatus.Saved, separate.Status); Assert.Null(separate.Value!.SupersedesAssessmentId);
+        Assert.Equal(TradingRuleWriteStatus.Conflict, (await writer.ExecuteAsync(AssessmentCommand(id, 1, exact, previous: first.Value!.Id))).Status);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => writer.ExecuteAsync(AssessmentCommand(id, 1, aggregate, previous: first.Value.Id), new(true)));
+        Assert.Equal(2, store.Assessments.Count);
+        Assert.All(store.Assessments, a => Assert.Equal(TradingRuleAssessmentSource.Manual, a.Source));
+        Assert.Equal(TradingRuleAccountScopeKind.AllAccounts, first.Value.Target.AccountScope.Kind);
+    }
+
     private sealed class Clock : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => Now;

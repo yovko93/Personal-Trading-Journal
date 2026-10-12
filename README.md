@@ -6,7 +6,15 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
-**M18.3 — Trading Rules management**
+**M18.4 — Manual Trading Rule assessments**
+
+Trade Details (including inline Calendar Trades) now offers **Assess Rules**; Day Performance offers **Assess day Rules** for its exact New York date and explicit Account or All-accounts aggregate scope. An owned, guarded dialog shows the rule text/revision, lets the user choose recorded sources and explain **Confirmed violation**, **No violation**, or **Cannot evaluate**, then confirms an append-only manual assessment. No result is inferred or calculated. Corrections append history; “Not assessed” means no record. Planning → Rules → **Manual assessments** reads retained results and can explicitly reopen their original target for a correction. Missing/changed sources and archived rules remain readable, never silently reassigned.
+
+Rule/assessment concurrency, target ownership and evidence scope are rechecked by the existing transactional store; success follows readback. Failed/cancelled/conflicting saves retain explanation and references. Rule switching, Refresh, Close/Escape, and owner-chain closing protect unfinished assessments without discarding parent Trade/Journal editors. No migration, automatic checks, provider calls or economics changes. See [Trading Rules](docs/trading-rules.md#m184--manual-desktop-assessments) for the workflow, bounded source/history reads and verification results. Live interaction and matching CI are separate gates; M18.5 is not included.
+
+M18.4 local verification: **86/86 focused tests** and **3,973/3,973 complete parallel Release tests**, zero failures/skips (485 Domain, 739 Application, 1,230 Infrastructure, 1,519 Desktop). Calendar native: **62.522 s**, **57.478 s headroom** to its unchanged 120-second deadline; grid: **28.622 s**. Release build: **0 warnings/errors**; EF model consistency and whitespace checks passed. Light/Dark normal and narrow/240-DPI automated renders were inspected. Actual human interaction/screen-reader acceptance and a CI run containing these uncommitted changes remain open. [Exact changed files, implementation findings and manual checklist](docs/trading-rules.md#m184-verification).
+
+**M18.3 — Trading Rules management (historical verification)**
 
 Planning → Rules now opens a management page backed by the existing Rules repositories. Create a rule for a Trade or New York day, select an explicit All-accounts or exact-Account scope, edit by appending a revision, browse read-only history, and archive/reopen without deleting history. Current selection and actions lead the page; catalog/revision reads are bounded to 20/10 displayed rows. Required-field errors retain text, mark individual fields and focus the first invalid field. Rule switching, Refresh, navigation and owner closing protect unsaved work; saves report success only after verifying persisted readback. A commit followed by failed readback retains the form and requires Refresh before resubmission. Inactive Accounts are labeled; unavailable historical Accounts are never silently replaced.
 
