@@ -1,6 +1,7 @@
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Domain.Setups;
+using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.Trades;
@@ -92,17 +93,101 @@ public sealed partial class TradesViewModelTests
         Assert.False(vm.SaveTradingSetupCommand.CanExecute(null)); Assert.False(vm.ClearTradingSetupCommand.CanExecute(null));
     }
 
+    [Theory]
+    [InlineData(20)]
+    [InlineData(21)]
+    [InlineData(40)]
+    public async Task AssociationHistoryUsesLookaheadWithoutAnEmptyFinalPage(int count)
+    {
+        var item = CreateTradeListItem();
+        var reader = new FakeTradeDetailReader();
+        reader.EnqueueResult(CreateTradeDetail(item));
+        var store = new AssociationFake
+        {
+            History = Enumerable.Range(1, count).Reverse()
+                .Select(sequence => new TradePlaybookAssociation(sequence, null, DateTimeOffset.UtcNow, null))
+                .ToList()
+        };
+        var vm = CreateViewModel(tradeDetailReader: reader, playbookAssociations: store);
+        await vm.EnsureLoadedAsync();
+        await vm.ShowTradeDetailCommand.ExecuteAsync(item);
+        store.HistoryReads.Clear();
+
+        await vm.LoadPlaybookHistoryCommand.ExecuteAsync(null);
+        Assert.Equal((null, 21), Assert.Single(store.HistoryReads));
+        Assert.Equal(Enumerable.Range(count - 19, 20).Reverse(), vm.CapturedAssociations.Select(row => row.Sequence));
+        Assert.Equal(count > 20, vm.HasOlderAssociations);
+
+        if (count > 20)
+        {
+            await vm.LoadOlderAssociationsCommand.ExecuteAsync(null);
+            Assert.Equal((count - 19, 21), store.HistoryReads[1]);
+            Assert.Equal(Enumerable.Range(1, count - 20).Reverse(), vm.CapturedAssociations.Select(row => row.Sequence));
+            Assert.False(vm.HasOlderAssociations);
+        }
+
+        var finalPage = vm.CapturedAssociations;
+        int reads = store.HistoryReads.Count;
+        await vm.LoadOlderAssociationsCommand.ExecuteAsync(null);
+        Assert.Equal(reads, store.HistoryReads.Count);
+        Assert.Same(finalPage, vm.CapturedAssociations);
+    }
+
+    [Fact]
+    public async Task LegacyCaptureAppearsOnlyAfterTheLastAssociationPage()
+    {
+        var item = CreateTradeListItem();
+        var detail = CreateTradeDetail(item);
+        var reader = new FakeTradeDetailReader();
+        reader.EnqueueResult(detail);
+        var setup = CreateTradingSetup("Original plan");
+        var definition = TradingSetupPlaybookRevision.Create(setup,
+            new("context", "entry", "confirmation", "invalidation", "execution"), setup.UpdatedAtUtc);
+        var capturedAt = detail.OpenedAtUtc > definition.RecordedAtUtc ? detail.OpenedAtUtc : definition.RecordedAtUtc;
+        var context = TradePlaybookContext.Rehydrate(detail.Id, detail.OpenedAtUtc, definition, capturedAt);
+        var store = new AssociationFake
+        {
+            History = Enumerable.Range(1, 21).Reverse()
+                .Select(sequence => new TradePlaybookAssociation(sequence, null, DateTimeOffset.UtcNow, null))
+                .ToList()
+        };
+        var vm = CreateViewModel(tradeDetailReader: reader, playbookAssociations: store,
+            playbookContexts: new AssociationContextFake(context));
+        await vm.EnsureLoadedAsync();
+        await vm.ShowTradeDetailCommand.ExecuteAsync(item);
+        await vm.LoadPlaybookHistoryCommand.ExecuteAsync(null);
+
+        Assert.Equal(20, vm.CapturedAssociations.Count);
+        Assert.True(vm.HasOlderAssociations);
+        await vm.LoadOlderAssociationsCommand.ExecuteAsync(null);
+        Assert.Equal([1, 0], vm.CapturedAssociations.Select(row => row.Sequence));
+        Assert.StartsWith("Original capture", vm.CapturedAssociations[^1].Heading);
+        Assert.False(vm.HasOlderAssociations);
+    }
+
+    private sealed class AssociationContextFake(TradePlaybookContext context) : ITradePlaybookContextStore
+    {
+        public Task<TradePlaybookContext?> GetAsync(Guid tradeId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<TradePlaybookContext?>(context.TradeId == tradeId ? context : null);
+        public Task<bool> TryAddAsync(TradePlaybookContext value, DateTimeOffset expectedTradeUpdatedAtUtc,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     internal sealed class AssociationFake : ITradePlaybookAssociationStore
     {
         public TradingSetupPlaybookRevision? Definition; public bool Result = true; public int Writes; public bool Failure;
         public TradePlaybookAssociationPreview? Submitted;
         public string TradeToken = "trade";
         public List<TradePlaybookAssociation> History = [];
+        public List<(int? BeforeSequence, int Limit)> HistoryReads = [];
         public Task<TradePlaybookAssociationPreview> PreviewAsync(Guid tradeId, Guid? setupId, CancellationToken cancellationToken = default) =>
             Task.FromResult(new TradePlaybookAssociationPreview(tradeId, setupId, Definition?.SetupName, setupId.HasValue ? Definition : null, TradeToken, "setup"));
         public Task<bool> TryApplyAsync(TradePlaybookAssociationPreview preview, CancellationToken cancellationToken = default)
         { Writes++; Submitted = preview; if (Failure) throw new IOException("Synthetic failure"); if (Result) History.Insert(0, new(Writes, preview.SetupId, DateTimeOffset.UtcNow, preview.Definition)); return Task.FromResult(Result); }
-        public Task<IReadOnlyList<TradePlaybookAssociation>> ReadHistoryAsync(Guid tradeId, int? beforeSequence = null, int limit = 20, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<TradePlaybookAssociation>>(History.Where(h => !beforeSequence.HasValue || h.Sequence < beforeSequence).Take(limit).ToArray());
+        public Task<IReadOnlyList<TradePlaybookAssociation>> ReadHistoryAsync(Guid tradeId, int? beforeSequence = null, int limit = 20, CancellationToken cancellationToken = default)
+        {
+            HistoryReads.Add((beforeSequence, limit));
+            return Task.FromResult<IReadOnlyList<TradePlaybookAssociation>>(History.Where(h => !beforeSequence.HasValue || h.Sequence < beforeSequence).Take(limit).ToArray());
+        }
     }
 }

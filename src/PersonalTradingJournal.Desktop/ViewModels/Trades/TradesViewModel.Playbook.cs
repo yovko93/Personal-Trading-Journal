@@ -68,19 +68,21 @@ public sealed partial class TradesViewModel
         try
         {
             var baseline = _displayedTradeToken is null ? await _playbookAssociations.PreviewAsync(detail.Id, null, token) : null;
-            var history = await _playbookAssociations.ReadHistoryAsync(detail.Id, before, limit: 20, cancellationToken: token);
+            const int pageSize = 20;
+            var history = await _playbookAssociations.ReadHistoryAsync(detail.Id, before, limit: pageSize + 1, cancellationToken: token);
             var legacy = _playbookContexts is null ? null : await _playbookContexts.GetAsync(detail.Id, token);
             if (!ReferenceEquals(detail, SelectedTradeDetail) || generation != _associationReadGeneration) return;
+            var page = history.Take(pageSize).ToArray();
             _displayedTradeToken ??= baseline?.TradeToken;
-            HasOlderAssociations = history.Count == 20;
-            _associationCursor = history.LastOrDefault()?.Sequence;
-            var rows = history.Select(a => new CapturedAssociationView(a.Sequence,
+            HasOlderAssociations = history.Count > pageSize;
+            _associationCursor = page.LastOrDefault()?.Sequence;
+            var rows = page.Select(a => new CapturedAssociationView(a.Sequence,
                 a.Definition is { } d ? $"Association {a.Sequence} · {d.SetupName} · revision {d.Revision} (frozen)" :
                 a.SetupId is null ? $"Association {a.Sequence} · removed" : $"Association {a.Sequence} · classification only", a.Definition)).ToList();
             if (legacy is not null && !HasOlderAssociations) rows.Add(new(0, $"Original capture · {legacy.Definition.SetupName} · revision {legacy.Definition.Revision}", legacy.Definition));
             CapturedAssociations = rows;
             if (before is not null) return;
-            var current = history.Count > 0 ? history[0].Definition : legacy?.Definition;
+            var current = page.Length > 0 ? page[0].Definition : legacy?.Definition;
             PlaybookAssociationStatus = current is not null && current.TradingSetupId == detail.TradingSetupId ?
                 $"{current.SetupName} · captured revision {current.Revision}. Association is not verified adherence." :
                 detail.TradingSetupId.HasValue ? "Legacy / no captured Playbook revision for the current Setup." : "No current Setup association. Earlier captures remain below.";
