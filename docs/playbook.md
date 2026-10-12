@@ -2,7 +2,15 @@
 
 ## M17.7 — Integration acceptance (12 October 2026)
 
-**Acceptance remains open.** This audit starts from clean `develop` at `206dfd3e10d0831eb4750650eefb4c89b4fc0ae4`, preserving all earlier M17 implementation and historical-heading changes. The matrix below is the current acceptance record; earlier milestone sections are dated implementation history, not substitutes for these checks. No new product defect was reproduced, so no speculative product, schema or test-harness correction was made. M18 is not started.
+**Acceptance remains open for live UI and matching CI; the local full-suite gate is now green.** The initial audit started from clean `develop` at `206dfd3e10d0831eb4750650eefb4c89b4fc0ae4`. The timeout follow-up started clean at `65df73dd9a33aae95c1be184f9fb33ae7b8e22dc`, preserving all earlier M17 changes. No product/schema change was required. The matrix below retains the live acceptance record; the follow-up result supersedes only the earlier automated timeout gate. M18 is not started.
+
+### Calendar/Journal timeout follow-up
+
+Infrastructure test collections now have a four-collection concurrency bound instead of the host-CPU default (eight here). Desktop remains at two; the solution still runs all four assemblies in parallel. This limits competing migration/SQLite/archive fixtures without changing explicit concurrent-operation tests, assertions, child isolation, nested-frame guards, timeout poisoning or the 120-second Calendar and 30-/45-second STA deadlines. No retries/skips/sleeps or whole-suite serialization were added. Earlier evidence shows cumulative slowdown across startup/layout, not a demonstrated application deadlock; the exact prior OS scheduling cause remains uncertain.
+
+Two targeted parallel workload measurements each passed **476/476**. The **final complete parallel Release suite passed 3,884/3,884**, zero failures/skips: Domain 476, Application 732, Infrastructure 1,203, Desktop 1,473. Native: **87 child cases**, 86 STA actions, **98.433 s**, **21.567 s** headroom. Grid: 36 cases, **21.247 s**, **98.753 s** headroom. Journal editor STA: **12.535 s**; Journal History STA: **8.964 s**, both below 30 seconds. Build **0 warnings/errors**, EF no pending model changes, whitespace checks pass. See [raw timing locations, before/after comparisons and limitations](ci-wpf-tests.md#m177-timeout-follow-up--bounded-infrastructure-fan-out-12-october-2026). The targeted comparison was not uniformly faster; a local full pass is not a promise against arbitrary runner overload.
+
+Exact files changed in this follow-up: `tests/PersonalTradingJournal.Infrastructure.Tests/AssemblyInfo.cs`, `README.md`, `docs/ci-wpf-tests.md`, `docs/playbook.md`. No production code, test assertions or data were changed. Existing harness/concurrent persistence tests ran in the full suite; no artificial configuration-only regression was added. No new live UI/render inspection or GitHub run is claimed for this test-runner change. The original live Save reproduction, manual checklist and matching PR workflow remain open; uncommitted changes cannot have matching CI. No production journal or provider access, commit/push/merge, or M18 work occurred.
 
 ### Acceptance matrix
 
@@ -26,7 +34,7 @@ The newly built Desktop executable was launched with `--isolated-data-root` poin
 
 Windows helper capture failed with `FrameArrived timed out: timed out waiting on channel`; refreshed-window retry failed with `window capture timed out: timed out waiting on channel`. Accessibility-only read succeeded, but clicking Trading Setups failed with `coordinate input geometry is unavailable`. Tab returned no verifiable focused element. No guidance was typed or Save invoked in that process; its diagnostics contain the runtime record only. The empty synthetic process was stopped before the complete suite. Do not infer a Save failure, successful Save, or a different production database from these helper failures. The real SQLite compiled Save/restart tests pass, but the previously reported live silent failure is still an **open reproduction gate**.
 
-### Verification and CI
+### Initial acceptance audit verification and CI (before the timeout follow-up)
 
 Focused Release: **163/163 passed**, zero failures/skips (Domain 22, Application 19, Infrastructure 66, Desktop 56), in `artifacts/m177-focused`. Automated renders are in `artifacts/m177-renders`. Release build: **0 warnings/errors**. EF's in-memory design-time check reports **no pending model changes**; `git diff --check` passes.
 

@@ -1,5 +1,47 @@
 # Windows WPF test diagnostics
 
+## M17.7 timeout follow-up — bounded Infrastructure fan-out (12 October 2026)
+
+Started from clean `develop` at `65df73dd9a33aae95c1be184f9fb33ae7b8e22dc`; all earlier M17 changes were already committed. The failed acceptance run below remains evidence, not a result erased by a later pass. It shows cumulative Calendar startup/layout slowdown and Journal layout budget exhaustion, **not a demonstrated production deadlock**. Native dispatcher scheduled waits were only 0.44 seconds in total; no timed-out action had used its individual 45-second limit. Infrastructure was the largest sampled competing test process (284.78 CPU seconds during that native child's lifetime).
+
+The execution-layout correction bounds **Infrastructure** xUnit collection concurrency at four instead of the host-CPU default (eight on this machine). Desktop retains its existing two-collection bound. Assemblies still run concurrently, four Infrastructure collections can overlap, and explicitly concurrent SQLite/import/backup test operations are unchanged. This is not global serialization or a change to production services. Every Calendar/Journal assertion, child isolation, fatal-exception reporting, poisoned-dispatcher rejection, nested-frame gate, and 120-/30-/45-second deadline remains unchanged. No retries, skips, sleeps or selected-case removal were added.
+
+Two targeted measurements used identical filters: Backups, Playbook persistence, Calendar modal/chart/grid and the two failing Journal layout cases, with opt-in phase timing, process samples and CI-style diagnostics. Each passed **476/476** (37 Application, 279 Infrastructure, 160 Desktop). Their different xUnit schedules are important: these results **do not show a universal isolated speedup** or quantify OS scheduler wait.
+
+| Measurement, seconds | CPU-default baseline | Four Infrastructure collections |
+| --- | ---: | ---: |
+| Native child / remaining to 120 | 94.327 / 25.673 | 98.243 / 21.757 |
+| Native startup to first STA | 5.279 | 4.983 |
+| Native completed-action wall sum (86 actions) | 78.129 | 76.961 |
+| Native completed-action CPU sum | 89.844 | 86.500 |
+| Native action-boundary peak working set, MiB | 742.191 | 639.070 |
+| Grid child / remaining to 120 | 30.621 / 89.379 | 58.007 / 61.993 |
+| Journal editor STA / remaining to 30 | 12.364 / 17.636 | 23.159 / 6.841 |
+| Journal History STA / remaining to 30 | 16.451 / 13.549 | 9.278 / 20.722 |
+
+Inclusive scopes cannot be added as exclusive costs; process CPU includes multiple threads and is not wall time. The selected concurrency bound limits independent migration/SQLite/archive fixture pressure rather than claiming that a particular export call blocks WPF. Exact OS/storage scheduling and the old Journal dump's blocked instruction remain unproven. Raw evidence: ignored `artifacts/m145-load/m177-timeout-{baseline-load,bounded-load,bounded-full}/`, including supervisor logs, phase logs, JSONL timings, process samples, TRX and VSTest diagnostics. Existing harness regressions and all fixtures, not an assertion about a configuration constant, are the verification of this test-runner-only change.
+
+### Final complete parallel Release verification
+
+One complete parallel solution run after that correction passed **3,884/3,884**, zero failures/skips: Domain **476**, Application **732**, Infrastructure **1,203**, Desktop **1,473**. All four assembly TRX start times fall within 0.5 seconds, confirming this was not a serialized solution run. Infrastructure TRX wall time was **209.444 s**, Desktop **262.392 s**. The build had **0 warnings/errors**, EF reported no pending model changes, and tracked/new-file whitespace checks passed.
+
+| Full-load measurement | Prior failed acceptance run (CPU default) | Final four-collection run |
+| --- | ---: | ---: |
+| Native child wall / headroom, seconds | 120 / none | **98.433 / 21.567** |
+| Native startup to first STA, seconds | 20.957 | 5.512 |
+| Native completed STA actions | 27 before termination | **86** (87 child cases passed) |
+| Native owner-show/layout sum, seconds (12 calls) | 41.67 | 11.75 |
+| Native modal-open/interactions sum, seconds (12 calls) | 23.66 | 6.56 |
+| Native dispatcher scheduled-wait sum, seconds | 0.44 | 0.10 |
+| Grid child wall / headroom, seconds | 120 / none | **21.247 / 98.753** (36 cases) |
+| Grid startup to first STA, seconds | 17.208 | 3.548 |
+| Journal editor STA / headroom, seconds | 30.365 / none | **12.535 / 17.465** |
+| Journal History STA / headroom, seconds | 30.036 / none | **8.964 / 21.036** |
+
+Final native completed-action wall sum **77.466 s**, CPU sum **91.234 s**, boundary peak working set **770.723 MiB**. Sampled Infrastructure CPU during the native lifetime was **187.359 s** over 98.433 wall seconds (versus 284.78 over the prior 120-second interval); its sampled peak was **445.191 MiB**. These are observations from different schedules, not a controlled proof that four collections eliminates all possible contention. The target-only comparison above retains the counterexample where the new configuration was slower. No memory leak, application deadlock, lost Journal read, or exporter defect was demonstrated. The correction is a bounded test-runner resource policy, not a product change or a guarantee against overloaded machines.
+
+Local full-suite acceptance is green for this worktree. Matching GitHub Actions is **not verified**: the new test configuration and docs are uncommitted, so no run can test this exact change yet. The existing workflow requires a push to main or a PR targeting main; the user must commit/push develop and open/update that PR, then check its tested head/merge tree. Do not change triggers or call an earlier green run acceptance. Live Playbook Save/input and remaining M17.7 manual gates are unchanged. No production data or provider access occurred.
+
 ## M17.7 acceptance — unchanged Calendar deadlines (12 October 2026)
 
 Acceptance audit of `develop` **`206dfd3e10d0831eb4750650eefb4c89b4fc0ae4`**, initially clean. No product/test-harness code was changed. The synthetic live app was stopped before the full run. One complete parallel Release run used the existing `Measure-Load.ps1 -Name m177-final-full -CiDiagnostics`, with phase timings, one-second process sampling, TRX and the unchanged 120-second child / 30-/45-second action bounds. No retries, skips, concurrency reductions or deadline increases.
