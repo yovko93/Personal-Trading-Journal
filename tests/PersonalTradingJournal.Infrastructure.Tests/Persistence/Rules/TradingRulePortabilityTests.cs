@@ -17,6 +17,10 @@ public sealed partial class TradingRulePersistenceTests
     public async Task CompleteBackupPreflightOfflineRestoreAndRecoveryRetainRulesAndAssessments()
     {
         await using var source = await Fixture.Create(); var trade = await source.Seed();
+        var automatic = await source.Rule(AutomaticDefinition());
+        var checkedRun = await source.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId));
+        Guid calculatedId = Assert.Single(checkedRun.AssessmentIds);
+        var originalCalculation = (await source.Reader.ReadAssessmentAsync(calculatedId))!.Evaluation!;
         var rule = await source.Rule(Definition(trade.TradingAccountId));
         var assessment = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Execution, trade.Executions[0].Id));
@@ -34,6 +38,11 @@ public sealed partial class TradingRulePersistenceTests
         Assert.True(File.Exists(restored.RecoveryArchivePath));
         Assert.True((await new RestorePreflightService().InspectAsync(restored.RecoveryArchivePath!, target.Root)).Validated);
         await target.Restart();
+        Assert.Equal(automatic.Definition.AutomaticCriterion, (await target.Rules.GetLatestAsync(automatic.RuleId))!.Definition.AutomaticCriterion);
+        var restoredCalculation = (await target.Reader.ReadAssessmentAsync(calculatedId))!.Evaluation!;
+        Assert.Equal(originalCalculation.Calculation, restoredCalculation.Calculation);
+        Assert.Equal(originalCalculation.ExecutionIds, restoredCalculation.ExecutionIds);
+        Assert.Equal(1, (await target.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId))).Unchanged);
         Assert.Equal(new[] { 2, 1 }, (await target.Reader.ReadRevisionsAsync(rule.RuleId)).Select(r => r.Revision.Revision));
         var saved = (await target.Reader.ReadAssessmentAsync(assessment.Id))!;
         Assert.Equal(assessment.Explanation, saved.Assessment.Explanation);
@@ -51,10 +60,10 @@ public sealed partial class TradingRulePersistenceTests
     }
 
     [Fact]
-    public async Task ExportVersionFiveRetainsExactRuleAssessmentReferencesAndAllExistingTables()
+    public async Task ExportVersionSixRetainsExactRuleAssessmentReferencesAndAllExistingTables()
     {
         await using var f = await Fixture.Create(); var trade = await f.Seed();
-        var rule = await f.Rule(Definition(trade.TradingAccountId));
+        var rule = await f.Rule(AutomaticDefinition(account: trade.TradingAccountId));
         var a = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Trade, trade.Id));
         Assert.True(await f.Assessments.TryAppendAsync(a, 1, null));
@@ -62,7 +71,7 @@ public sealed partial class TradingRulePersistenceTests
         var result = await f.Get<IPortableExportService>().CreateAsync(output);
         Assert.True(result.Succeeded, result.ToString());
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(5, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(6, json.RootElement.GetProperty("version").GetInt32());
         var tables = json.RootElement.GetProperty("tables");
         var revision = Assert.Single(tables.GetProperty("tradingRuleRevisions").EnumerateArray());
         Assert.Equal(rule.RuleId, revision.GetProperty("ruleId").GetGuid());
@@ -76,6 +85,9 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(JsonValueKind.Null, tables.GetProperty("executions")[0].GetProperty("commission").ValueKind);
         Assert.Equal(4, Directory.GetFiles(output, "*.csv").Length);
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
+        Assert.NotNull(revision.GetProperty("automaticCriterionJson").GetString());
+        Assert.Equal(JsonValueKind.Null, assessment.GetProperty("evaluationJson").ValueKind);
+        Assert.Equal(JsonValueKind.Null, assessment.GetProperty("evaluationFingerprint").ValueKind);
     }
 
     [Fact]

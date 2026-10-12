@@ -32,6 +32,9 @@ public sealed record RuleRow(TradingRuleDetails Details)
         (Details.AccountNameAtRevision ?? "Account") + (Details.AccountAvailable ? "" : " (unavailable)");
     public string Label => $"{Name} · {State} · {Scope}";
     public string Version => $"Revision {Details.Revision.Revision} · {State}";
+    public string CheckSummary => Details.Revision.Definition.AutomaticCriterion is { } c
+        ? $"Typed check: {(Details.Revision.Definition.Applicability == TradingRuleApplicability.Trade ? "one closed Trade" : "New York closed-day sum")}, {c.Basis} loss greater than {c.MaximumLoss} {c.Currency}. Equality passes; incomplete required evidence cannot pass."
+        : "No typed criterion. Run checks does not assess this rule.";
 }
 
 /// <summary>Rule authoring and access to retained manual assessments. No evaluator.</summary>
@@ -56,6 +59,9 @@ public sealed class RulesViewModel : ObservableObject
     private Guid? _baselineAccount;
     private TradingRuleApplicability _baselineTarget;
     private TradingRuleEvaluationMode _baselineMode;
+    private string _limit = "0", _currency = "USD", _criteriaBaseline = "";
+    private bool _automatic;
+    private RuleProfitBasis _basis = RuleProfitBasis.Gross;
     private RuleAccountOption? _account;
     private TradingRuleApplicability _target = TradingRuleApplicability.Trade;
     private TradingRuleEvaluationMode _mode = TradingRuleEvaluationMode.ManualOnly;
@@ -95,16 +101,24 @@ public sealed class RulesViewModel : ObservableObject
     public IReadOnlyList<RuleRow> Revisions { get => _revisions; private set => SetProperty(ref _revisions, value); }
     public IReadOnlyList<RuleAccountOption> Accounts { get => _accountOptions; private set => SetProperty(ref _accountOptions, value); }
     public IReadOnlyList<RuleChoice<TradingRuleApplicability>> Targets { get; } = [new(TradingRuleApplicability.Trade, "One Trade"), new(TradingRuleApplicability.NewYorkDay, "New York trading day")];
-    public IReadOnlyList<RuleChoice<TradingRuleEvaluationMode>> Modes { get; } = [new(TradingRuleEvaluationMode.ManualOnly, "Manual assessment only"), new(TradingRuleEvaluationMode.AutomaticCandidate, "Future-check candidate (not enabled)")];
+    public IReadOnlyList<RuleChoice<TradingRuleEvaluationMode>> Modes { get; } = [new(TradingRuleEvaluationMode.ManualOnly, "Manual assessment only"), new(TradingRuleEvaluationMode.AutomaticCandidate, "Eligible for typed checks")];
+    public IReadOnlyList<RuleChoice<RuleProfitBasis>> Bases { get; } = [new(RuleProfitBasis.Gross, "Gross (before costs)"), new(RuleProfitBasis.StrictNet, "Strict Net (all costs required)")];
+    public bool Automatic { get => _automatic; set { SetProperty(ref _automatic, value); if (value) Mode = TradingRuleEvaluationMode.AutomaticCandidate; OnPropertyChanged(nameof(HasUnsavedChanges)); } }
+    public RuleProfitBasis Basis { get => _basis; set { SetProperty(ref _basis, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
+    public string LossLimit { get => _limit; set { SetProperty(ref _limit, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
+    public string CheckCurrency { get => _currency; set { SetProperty(ref _currency, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
+    private string CriteriaState => $"{Automatic}|{Basis}|{LossLimit}|{CheckCurrency}";
     public RuleAccountOption? Account { get => _account; set { SetProperty(ref _account, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
     public TradingRuleApplicability Target { get => _target; set { SetProperty(ref _target, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
-    public TradingRuleEvaluationMode Mode { get => _mode; set { SetProperty(ref _mode, value); OnPropertyChanged(nameof(HasUnsavedChanges)); } }
+    public TradingRuleEvaluationMode Mode { get => _mode; set { SetProperty(ref _mode, value); if (value == TradingRuleEvaluationMode.ManualOnly) Automatic = false; OnPropertyChanged(nameof(HasUnsavedChanges)); } }
     public RuleRow? SelectedRule => _selected;
     public RuleRow? Displayed => _historical ?? _selected;
     public bool IsHistorical => _historical is not null;
     public string VersionLabel => IsHistorical ? $"Historical revision {Displayed!.Details.Revision.Revision} · read-only" : Displayed?.Version ?? "No rule selected";
     public string TargetLabel => Displayed?.Details.Revision.Definition.Applicability == TradingRuleApplicability.NewYorkDay ? "New York trading day" : "One Trade";
-    public string ModeLabel => Displayed?.Details.Revision.Definition.EvaluationMode == TradingRuleEvaluationMode.AutomaticCandidate ? "Candidate for future checks — no checks are enabled" : "Manual assessment only — a recorded user judgment, not a calculated fact";
+    public string ModeLabel => Displayed?.Details.Revision.Definition.AutomaticCriterion is { } c
+        ? $"Typed check v{c.Version}: {c.Basis} closed loss greater than {c.MaximumLoss} {c.Currency}. Run explicitly from Trade Details or Day Performance. Equality passes; open activity is excluded."
+        : "No typed check — manual assessment only; this action will leave the rule unassessed.";
     public bool ShowReading => Displayed is not null && (!IsEditing || IsHistorical);
     public bool ShowEmpty => SelectedRule is null && !IsEditing && !IsLoading;
     public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); Changed(); } }
@@ -114,7 +128,7 @@ public sealed class RulesViewModel : ObservableObject
     public bool CanSelect => !IsBusy;
     public bool CanEdit => !IsBusy;
     public bool HasErrors => Fields.Any(f => f.IsInvalid);
-    public bool HasUnsavedChanges => IsEditing && (!Fields.Select(f => f.Text).SequenceEqual(_baseline) || Account?.Id != _baselineAccount || Target != _baselineTarget || Mode != _baselineMode);
+    public bool HasUnsavedChanges => IsEditing && (!Fields.Select(f => f.Text).SequenceEqual(_baseline) || Account?.Id != _baselineAccount || Target != _baselineTarget || Mode != _baselineMode || CriteriaState != _criteriaBaseline);
     public int ValidationAttempt { get; private set; }
     public string Message { get => _message; private set => SetProperty(ref _message, value); }
     public string PageLabel => $"Rules page {_page} · {_total} rules";
@@ -199,6 +213,11 @@ public sealed class RulesViewModel : ObservableObject
         if (Account is null) { Account = new(id, (_selected?.Scope ?? "Account") + " (unavailable)", false); Accounts = Accounts.Append(Account).ToArray(); }
         Target = definition?.Applicability ?? TradingRuleApplicability.Trade;
         Mode = definition?.EvaluationMode ?? TradingRuleEvaluationMode.ManualOnly;
+        Automatic = definition?.AutomaticCriterion is not null;
+        Basis = definition?.AutomaticCriterion?.Basis ?? RuleProfitBasis.Gross;
+        LossLimit = (definition?.AutomaticCriterion?.MaximumLoss ?? 0).ToString(System.Globalization.CultureInfo.CurrentCulture);
+        CheckCurrency = definition?.AutomaticCriterion?.Currency ?? "USD";
+        _criteriaBaseline = CriteriaState;
         _baseline = text; _baselineAccount = Account.Id; _baselineTarget = Target; _baselineMode = Mode; IsEditing = true;
     }
     private async Task SaveAsync(CancellationToken token)
@@ -206,8 +225,20 @@ public sealed class RulesViewModel : ObservableObject
         foreach (var field in Fields) field.Validate();
         if (HasErrors) { Message = "Cannot save. Correct the highlighted fields; all entered text is retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return; }
         if (Account?.Available != true || !Enum.IsDefined(Target) || !Enum.IsDefined(Mode)) { Message = "Choose an available Account, target and assessment eligibility. Your fields are retained."; return; }
-        var definition = new TradingRuleDefinition(Fields[0].Text, Fields[1].Text, Fields[2].Text, Target,
-            Account.Id is Guid id ? TradingRuleAccountScope.ForAccount(id) : TradingRuleAccountScope.AllAccounts, Mode);
+        TradingRuleDefinition definition;
+        try
+        {
+            AutomaticRuleCriterion? criterion = null;
+            if (Automatic)
+            {
+                if (!decimal.TryParse(LossLimit, out var limit)) throw new ArgumentException();
+                criterion = new(Basis, limit, CheckCurrency.Trim().ToUpperInvariant());
+            }
+            definition = new(Fields[0].Text, Fields[1].Text, Fields[2].Text, Target,
+                Account.Id is Guid id ? TradingRuleAccountScope.ForAccount(id) : TradingRuleAccountScope.AllAccounts,
+                Automatic ? TradingRuleEvaluationMode.AutomaticCandidate : Mode, criterion);
+        }
+        catch (ArgumentException) { Message = "Cannot save. Typed check needs a nonnegative decimal loss limit, a supported basis and three-letter currency. Your fields are retained."; return; }
         await WriteAsync(new(_editId, _expected, _expected == 0 ? TradingRuleAuthoringAction.Create : TradingRuleAuthoringAction.Revise, definition), token);
     }
     private async Task ArchiveAsync(CancellationToken token)

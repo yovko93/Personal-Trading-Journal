@@ -1,6 +1,98 @@
-# Trading Rules — contracts, persistence and manual assessments
+# Trading Rules — contracts, persistence and assessments
 
-M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules; M18.4 adds manual Trade/day assessments. There is no automatic evaluation or AI integration. Historical revisions are read exactly as recorded.
+M18.1 established the Domain/Application foundation; M18.2 adds SQLite persistence and data portability; M18.3 adds Desktop management under Planning → Rules; M18.4 adds manual Trade/day assessments. M18.5 adds explicitly invoked typed checks below. There is no AI integration, free-text execution or background checking. Historical revisions are read exactly as recorded; earlier milestone reports below retain their original scope and results.
+
+## M18.5 — Deterministic checks
+
+### Supported contract and evidence
+
+`AutomaticRuleCriterion` v1 defines a **maximum closed-loss** limit, a `Gross` or `StrictNet` basis and one uppercase three-letter currency. The nonnegative decimal limit is never rounded. A Rule revision's existing target determines the metric:
+
+| Target | Metric and inclusion | Required evidence |
+| --- | --- | --- |
+| Trade | The exact Account/Trade's complete closed lifecycle P&L in the criterion currency. | At least one closed Trade; reconstructable executions/pricing; Gross. Strict Net additionally requires every execution's commission and fee. |
+| New York day | Sum of closed lifecycle P&L attributed to that New York **closure date**, for the explicit exact Account or aggregate All accounts, only in the criterion currency. | At least one contributing closed Trade and complete required facts for **every** contributing Trade. No separate intra-day drawdown or broker balance calculation. |
+
+The calculator uses the existing Domain `Trade.GrossPnL` / `Trade.NetPnL`; no new economics or estimated-Net formula. A **Confirmed violation** means P&L is strictly less than negative maximum loss. Equality, a smaller loss, zero P&L or a gain is **No violation** only when the evidence is complete. Unknown commissions/fees are counted per execution. Gross does not require costs; strict Net does. Even a large known gross loss cannot prove a strict-Net outcome when required costs are unknown. Decimal overflow is an operational error, never a recorded outcome.
+
+No closed Trades in that currency, missing executions/unavailable lifecycle, unavailable Gross, or missing required costs yields **Cannot evaluate**, with coverage/explanation. A zero-Trade day is not a fabricated evidence-backed pass. Open/partial activity is excluded from the realized sum, with counts; it is not treated as flat or zero Net. Closed Trades spanning midnight belong only to their closure day. Candidate execution activity is queried using Calendar's half-open New York midnight UTC bounds (23/25-hour DST days), then reconstructed closure determines final inclusion. A Trade without executions has no reliable date and conservatively prevents a complete result in its currency. Invalid stored lifecycle data or IO/SQL errors fail the operation instead of becoming Cannot evaluate.
+
+All accounts is an explicit aggregate target, retaining each source Account ID; a global rule may run on it or on an exact Account. An exact-account rule is eligible only for that exact target. Different currencies are never combined; other-currency sources retain identity and an exclusion count. Inactive but existing Accounts remain usable. Missing Accounts/Trades block new checks; history remains readable with changed/unavailable source labels. No Setup/Playbook association proves adherence. Journal prose and free-text Rule descriptions are not interpreted. Rules without a typed criterion—including older automatic-candidate definitions—are untouched by Run checks; no Not-assessed record is created.
+
+### Explicit Desktop workflow and history
+
+In Planning → Rules, enable the typed check and select basis, loss limit and currency. Saving creates a new immutable Rule revision; existing revisions are not backfilled. **Assess Trading Rules…** in Trade Details (including inline Calendar Trade details) and **Assess day Rules…** in Day Performance open the shared guarded assessment window. **Run checks** explicitly evaluates all applicable current typed rules, not just the selected manual rule. Opening, paging and Refresh never run checks. Manual fields are protected by the existing discard guard; declining it starts no operation. Selection and closing are blocked during a write, duplicate submissions are suppressed, and Cancel operation remains usable while bounded SQLite work runs off the WPF dispatcher.
+
+Results display exact Rule revision, calculated versus manual attribution, evaluator version, target, coverage, explanation, UTC/New York recording time and source identities. Rules → Assessment history reads the same records. Corrections and calculated checks append; neither edits or relabels a manual record. An identical repeat returns its existing assessment ID even if a manual correction has since been recorded, leaving that correction as the latest record. Changed evidence or a new Rule revision can append a new result. Saved evaluation facts are historical, not a claim that current sources still comply.
+
+### Transaction, limits and portability
+
+Evaluator version is `closed-loss/1`. One read snapshot prepares the current eligible Rule set and source universe. A separate SQLite immediate write transaction re-reads and fingerprints that entire set—including new/deleted Trades, imported executions and revised/archived/new Rules—before calculating and appending. A mismatch returns Conflict with zero writes; there is no retry. The write reservation prevents another writer changing the checked state before commit. Source fingerprints, exact Trade/Account/currency facts, contributing/excluded coverage and ordered execution identities are saved with each result. A unique Rule/revision/target/evidence-fingerprint index enforces idempotency, including concurrent requests.
+
+Work is bounded at **100 eligible rules, 1,000 candidate Trades and 10,000 executions per request**. Limits apply before publication, with no truncation or partial batch. Cancellation is checked through reads, reconstruction and before commit; the final commit is non-cancellable and returns the committed result. Busy/locked storage, overflow and unexpected failures are errors, not assessments. The desktop preserves entered manual fields on failure. Missing/changed sources do not rewrite prior calculated facts.
+
+Additive migration `20261012194059_AddDeterministicRuleChecks` adds nullable criterion/evaluation JSON and evaluation fingerprint columns plus the unique index and narrow insertion guards. Old manual revisions/assessments remain byte-for-byte unchanged and have null typed metadata. The existing Rule envelope/source enum numbers remain compatible; the criterion and evaluator carry their own versions. Lifecycle changes retain the criterion; history update/delete guards remain. Rollback uses native SQLite DROP COLUMN rather than EF's trigger-breaking table rebuild, with a regression proving retained old history and immutability through downgrade/upgrade.
+
+Complete **v1** archives contain the entire database and retain these fields through preflight, offline restore and recovery. Restore still requires exact current migration state; pre-M18.5 archives need the deferred staged-upgrade path. Logical export advances to **v6**, adding `automaticCriterionJson`, `evaluationJson` and `evaluationFingerprint` to the JSON-only Rules tables. Existing fields/four CSVs are unchanged. Earlier exports retain their original meaning but lack these facts; exports remain non-restorable. No AI/provider, screenshots, Trade economics, Journal rules or live-data replacement behavior changes.
+
+### M18.5 verification
+
+Work began on clean `develop`, HEAD `8ea74f7a6419aa45b69e84e7abb18a0b11c473ba`; prior M18 work was already committed. No commit, push or merge is performed here. Only isolated synthetic data is used; provider calls: **0**, production journal access: **none**. Automated WPF renders are not live keyboard, mouse or screen-reader acceptance.
+
+Focused verification: **182 passed / 0 failed / 0 skipped** (Domain 9, Application 20, Infrastructure 106, Desktop 47), recorded in ignored `artifacts/m145-load/m185-focused-complete`. There are **30 new cases**: 12 calculation/contract, 12 SQLite, 6 ViewModel; existing compiled WPF, portability and schema checks were extended. The last tiny selected-rule typed-summary binding is additionally covered by the final full build/run. Tests cover strict boundary/equality, nullable costs, precision/overflow, currency and Account isolation, open/partial and empty evidence, both DST transitions, source/rule conflicts, concurrent idempotency, manual coexistence, cancellation/rollback, unavailable source reads, batch limits and migration retention. Backup → preflight → offline restore/recovery preserves the calculated metadata and idempotency; export v6 schema inventory covers every persisted field.
+
+**Final complete parallel Release: 4,003 passed / 0 failed / 0 skipped**, with Domain **485**, Application **751**, Infrastructure **1,242**, Desktop **1,525**. Evidence: ignored `artifacts/m145-load/m185-full-final` TRX and process diagnostics. Calendar native **87/87**, process elapsed **87.272 seconds**, **32.728 seconds** headroom to the unchanged 120-second aggregate deadline; grid process **22.069 seconds**. No Calendar/Journal timeout occurred. Solution Release build passed with **0 warnings/errors**; in-memory design-time EF model consistency reports no changes; tracked and new-file whitespace checks passed. Branch/HEAD are unchanged; **40 files** remain modified/new, listed below, with no unrelated starting changes to overwrite.
+
+Implementation-stage failures were corrected before the final run: obsolete wording/version/schema-inventory expectations, plus EF's generated Down table rebuild conflicting with retained append-only triggers. Native DROP COLUMN fixes the demonstrated rollback defect; a targeted downgrade/upgrade regression also proves old records and their no-update/no-delete guards remain. No test deadline, concurrency bound, assertion purpose, retry or skip was weakened.
+
+Automated Light/Dark renders at **960 DIP / 96 DPI** and **480 DIP / 240 DPI** show wrapping typed inputs, reachable actions, status/errors and assessment history. Sources: ignored `artifacts/m185-renders`, `RulesViewTests` and `ManualAssessmentViewTests`; normal/narrow examples were visually inspected. Existing real owned-window close veto and focus/scroll assertions remain. These are compiled WPF automation/renders, not live user interaction.
+
+Remaining live checklist (isolated app only): author a strict-Net rule, run it on a Trade with unknown costs, then on a fully costed one; run the day version with two currencies; inspect calculated versus manual history, repeat without changes, cancel a run, and decline discarding a manual draft. Verify Tab order, focus announcements and long evidence scrolling in both themes at minimum width/240 DPI.
+
+Matching CI remains open: the GitHub connector returned no PR-triggered runs for the starting HEAD on 12 October 2026; it does not inspect every workflow event. More importantly, the exact resulting changes are uncommitted. The existing workflow runs on `main` pushes and PRs targeting `main`; after the user's commit/push, verify the tested PR head/merge tree. Local results do not claim matching CI, M17.7 live acceptance or M18.6 work.
+
+### M18.5 exact changed files
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Rules/AutomaticRuleChecks.cs`
+- `src/PersonalTradingJournal.Application/Rules/ITradingRuleReader.cs`
+- `src/PersonalTradingJournal.Desktop/Dialogs/WpfRuleAssessmentDialog.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RuleAssessmentViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDetailsView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarInlineTradeView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleAssessmentView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Domain/Rules/AutomaticRuleCriterion.cs`
+- `src/PersonalTradingJournal.Domain/Rules/TradingRuleDefinition.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingRuleRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012194059_AddDeterministicRuleChecks.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261012194059_AddDeterministicRuleChecks.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingRuleRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Automatic.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Reads.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Rules/AutomaticRuleCalculatorTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/AutomaticRuleViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/AutomaticRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
 
 ## Rule identity and scope
 

@@ -13,6 +13,7 @@ public sealed class TradingRuleRevisionRecord
     public Guid? AccountId { get; set; }
     public string? AccountNameAtRevision { get; set; }
     public int EvaluationMode { get; set; }
+    public string? AutomaticCriterionJson { get; set; }
     public bool IsActive { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
 }
@@ -37,6 +38,8 @@ public sealed class TradingRuleAssessmentRecord
     public int EvidenceSufficiency { get; set; }
     public string Explanation { get; set; } = null!;
     public string EvidenceJson { get; set; } = null!;
+    public string? EvaluationJson { get; set; }
+    public string? EvaluationFingerprint { get; set; }
     public Guid? SupersedesAssessmentId { get; set; }
     public DateTimeOffset RecordedAtUtc { get; set; }
 }

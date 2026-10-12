@@ -12,7 +12,7 @@ public sealed record TradingRuleEvidenceDetails(TradingRuleEvidenceReference Ref
     TradingRuleSourceState State);
 public sealed record TradingRuleAssessmentDetails(TradingRuleAssessment Assessment, int Sequence,
     string? AccountNameAtAssessment, TradingRuleSourceState TargetState,
-    IReadOnlyList<TradingRuleEvidenceDetails> Evidence);
+    IReadOnlyList<TradingRuleEvidenceDetails> Evidence, RuleEvaluationEvidence? Evaluation = null);
 
 /// <summary>Scope filters match definitions exactly; null means all definitions, including archived/historical scopes.</summary>
 public interface ITradingRuleReader

@@ -9,7 +9,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Rules;
 
-public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbContext> factory)
+public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbContext> factory, TimeProvider? clock = null)
     : ITradingRuleStore, ITradingRuleAssessmentStore, ITradingRuleReader
 {
     public async Task<TradingRuleRevision?> GetLatestAsync(Guid ruleId, CancellationToken cancellationToken = default)
@@ -150,7 +150,8 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
         if (r.ContractVersion != TradingRuleRevision.ContractVersion) throw new InvalidDataException("Unsupported Rule contract.");
         return TradingRuleRevision.Rehydrate(r.RuleId, r.Revision,
             new(r.Name, r.Criterion, r.RequiredEvidence, (TradingRuleApplicability)r.Applicability,
-                Scope(r.AccountId), (TradingRuleEvaluationMode)r.EvaluationMode), r.IsActive, r.RecordedAtUtc);
+                Scope(r.AccountId), (TradingRuleEvaluationMode)r.EvaluationMode,
+                r.AutomaticCriterionJson is null ? null : JsonSerializer.Deserialize<AutomaticRuleCriterion>(r.AutomaticCriterionJson)), r.IsActive, r.RecordedAtUtc);
     }
     private static TradingRuleRevisionRecord ToRecord(TradingRuleRevision r, string? accountName) => new()
     {
@@ -159,6 +160,7 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
         Applicability = (int)r.Definition.Applicability, ScopeKind = (int)r.Definition.AccountScope.Kind,
         AccountId = r.Definition.AccountScope.AccountId, AccountNameAtRevision = accountName,
         EvaluationMode = (int)r.Definition.EvaluationMode, IsActive = r.IsActive, RecordedAtUtc = r.RecordedAtUtc,
+        AutomaticCriterionJson = r.Definition.AutomaticCriterion is null ? null : JsonSerializer.Serialize(r.Definition.AutomaticCriterion),
     };
     private static TradingRuleAssessmentTarget Target(TradingRuleAssessmentRecord r) => r.TargetKind == (int)TradingRuleTargetKind.Trade
         ? TradingRuleAssessmentTarget.ForTrade(r.TradeId!.Value, r.AccountId!.Value)

@@ -243,7 +243,7 @@
                         </Button>
                     </Grid>
 
-                    <Button Content="Assess Trading Rules…" Command="{Binding AssessRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual Rule assessments for this exact Trade and Account" />
+                    <Button Content="Assess Trading Rules…" Command="{Binding AssessRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for this exact Trade and Account" />
                     <TextBlock Margin="0,16,0,0"
                                Text="Loading trade details...">
                         <TextBlock.Style>

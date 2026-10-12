@@ -46,6 +46,7 @@ public sealed class TradingRuleAssessmentRecordConfiguration : IEntityTypeConfig
         b.Property(r => r.EvidenceJson).IsRequired();
         b.Property(r => r.RecordedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
         b.HasIndex(r => new { r.RuleId, r.TargetKey, r.Sequence }).IsUnique();
+        b.HasIndex(r => new { r.RuleId, r.RuleRevision, r.TargetKey, r.EvaluationFingerprint }).IsUnique();
         b.HasOne<TradingRuleRevisionRecord>().WithMany().HasForeignKey(r => new { r.RuleId, r.RuleRevision }).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<TradingRuleAssessmentRecord>().WithMany().HasForeignKey(r => r.SupersedesAssessmentId).OnDelete(DeleteBehavior.Restrict);
         // Trade/Account/source IDs are historical identities with explicit read-time availability.

@@ -1,6 +1,12 @@
 # Backup and restore — M16
 
-## M18.2 — Trading Rules data
+## M18.5 — Deterministic Rule evidence
+
+Current schema adds `20261012194059_AddDeterministicRuleChecks`: nullable typed criterion/evaluation metadata and idempotency fingerprints on the retained Rules tables. Complete **v1** backup/preflight/offline restore and recovery preserve these alongside immutable manual history; no calculation is rerun by restore. Older-schema archives, including M18.4 archives, require the deferred staged-upgrade path and are rejected before replacement. Installed-database migration is additive and does not imply old-archive restore support.
+
+Logical export is **v6**: Rules JSON now includes `automaticCriterionJson`, `evaluationJson` and `evaluationFingerprint` with exact decimal facts, original Trade/Account/currency identity, execution IDs, coverage and evaluator version. Four CSVs remain unchanged; screenshot binaries remain excluded from logical export. Earlier exports remain readable documents, not restorable backups. Exports/archives remain unencrypted and exclude credentials. [Definitions and verification](trading-rules.md#m185--deterministic-checks).
+
+## M18.2 — Trading Rules data (historical)
 
 Current schema adds `20261012163222_AddTradingRules`. Complete **v1** archives preserve the entire Rule revision/assessment history, historical Account identities and source metadata with the rest of the database. Synthetic backup → preflight → offline restore and retained recovery-archive round trips verify these records. Restore requires the exact current migration sequence; pre-M18 archives are recognized as requiring staged migration and rejected without touching installed data. Support for upgrading older archives remains deferred.
 

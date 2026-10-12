@@ -2,7 +2,7 @@ namespace PersonalTradingJournal.Domain.Rules;
 
 public enum TradingRuleApplicability { Trade = 1, NewYorkDay = 2 }
 
-/// <summary>Manual-only today; automatic eligibility is a future capability, not an assessment.</summary>
+/// <summary>Eligibility alone never runs a check; a supported typed criterion is also required.</summary>
 public enum TradingRuleEvaluationMode { ManualOnly = 1, AutomaticCandidate = 2 }
 
 public enum TradingRuleAccountScopeKind { AllAccounts = 1, ExactAccount = 2 }
@@ -27,12 +27,12 @@ public sealed record TradingRuleAccountScope
         new(TradingRuleAccountScopeKind.ExactAccount, accountId);
 }
 
-/// <summary>Human-authored criteria only. No expression is interpreted or run by M18.1.</summary>
+/// <summary>Human text is never executable. Optional typed criteria are explicitly versioned.</summary>
 public sealed record TradingRuleDefinition
 {
     public TradingRuleDefinition(string name, string criterion, string requiredEvidence,
         TradingRuleApplicability applicability, TradingRuleAccountScope accountScope,
-        TradingRuleEvaluationMode evaluationMode)
+        TradingRuleEvaluationMode evaluationMode, AutomaticRuleCriterion? automaticCriterion = null)
     {
         Name = Required(name, 120, nameof(name));
         Criterion = Required(criterion, 4_000, nameof(criterion));
@@ -42,6 +42,9 @@ public sealed record TradingRuleDefinition
         AccountScope = accountScope ?? throw new ArgumentNullException(nameof(accountScope));
         Applicability = applicability;
         EvaluationMode = evaluationMode;
+        if (automaticCriterion is not null && evaluationMode != TradingRuleEvaluationMode.AutomaticCandidate)
+            throw new ArgumentException("Typed checks require automatic eligibility.", nameof(automaticCriterion));
+        AutomaticCriterion = automaticCriterion;
     }
 
     public string Name { get; }
@@ -50,6 +53,7 @@ public sealed record TradingRuleDefinition
     public TradingRuleApplicability Applicability { get; }
     public TradingRuleAccountScope AccountScope { get; }
     public TradingRuleEvaluationMode EvaluationMode { get; }
+    public AutomaticRuleCriterion? AutomaticCriterion { get; }
 
     private static string Required(string value, int limit, string parameter)
     {

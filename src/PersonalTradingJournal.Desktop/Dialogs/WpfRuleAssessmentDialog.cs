@@ -17,7 +17,7 @@ public sealed class WpfRuleAssessmentDialog(Func<RuleAssessmentViewModel> create
         var owner = System.Windows.Application.Current.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)
             ?? System.Windows.Application.Current.MainWindow;
         var focus = Keyboard.FocusedElement;
-        var window = new Window { Title = "Manual Rule assessments", Content = new RuleAssessmentView { DataContext = vm },
+        var window = new Window { Title = "Rule assessments", Content = new RuleAssessmentView { DataContext = vm },
             Width = Math.Min(960, owner?.ActualWidth ?? 960), Height = Math.Min(820, owner?.ActualHeight ?? 820),
             MinWidth = 340, MinHeight = 320, Owner = owner, ShowInTaskbar = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         window.SetResourceReference(FrameworkElement.StyleProperty, "PtjWindowStyle");

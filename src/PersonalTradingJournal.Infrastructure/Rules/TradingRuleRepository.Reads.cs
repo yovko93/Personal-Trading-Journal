@@ -100,7 +100,8 @@ public sealed partial class TradingRuleRepository
             return new TradingRuleAssessmentDetails(ToDomain(row, ToDomain(revisions[(row.RuleId, row.RuleRevision)])),
                 row.Sequence, row.AccountNameAtAssessment, state,
                 Array.AsReadOnly(sources[row.Id].Select(s => new TradingRuleEvidenceDetails(s.Reference, s.AccountId,
-                    s.AccountName, s.TradeId, s.NewYorkDate, s.Currency, State(s.Reference, s.Fingerprint))).ToArray()));
+                    s.AccountName, s.TradeId, s.NewYorkDate, s.Currency, State(s.Reference, s.Fingerprint))).ToArray()),
+                row.EvaluationJson is null ? null : System.Text.Json.JsonSerializer.Deserialize<RuleEvaluationEvidence>(row.EvaluationJson, RuleEvidenceSnapshots.Json));
         }).ToArray());
 
         TradingRuleSourceState State(TradingRuleEvidenceReference reference, string hash) =>

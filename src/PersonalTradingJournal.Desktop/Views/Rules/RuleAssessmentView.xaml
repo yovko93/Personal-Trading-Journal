@@ -12,13 +12,14 @@
  </UserControl.Resources>
  <Grid Margin="12">
   <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-  <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnWheel" AutomationProperties.Name="Manual Rule assessment content">
+  <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnWheel" AutomationProperties.Name="Manual and calculated Rule assessment content">
    <StackPanel Margin="0,0,12,0">
-    <TextBlock Text="Manual Rule assessments" Style="{DynamicResource PtjSectionTitleTextStyle}" AutomationProperties.HeadingLevel="Level1"/>
+    <TextBlock Text="Rule assessments" Style="{DynamicResource PtjSectionTitleTextStyle}" AutomationProperties.HeadingLevel="Level1"/>
     <TextBlock x:Name="TargetLabel" Text="{Binding TargetLabel}" Style="{StaticResource Body}" FontWeight="SemiBold"/>
     <TextBlock Text="Manual user assessments are not calculated facts. Assess saved records only; unfinished Trade or Journal edits are not included." Style="{StaticResource Body}"/>
     <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Assessment operation status"/>
     <WrapPanel>
+     <Button x:Name="RunChecks" Content="Run checks" Command="{Binding RunChecksCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Run deterministic checks for this exact target" AutomationProperties.HelpText="Evaluates all applicable typed criteria against saved data. Never executes free-text rules or modifies manual assessments."/>
      <Button Content="Refresh" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh assessments with unsaved change protection"/>
      <Button Content="Cancel operation" Command="{Binding CancelCommand}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel assessment loading or saving"/>
     </WrapPanel>
@@ -31,10 +32,14 @@
      <StackPanel>
       <TextBlock Text="{Binding SelectedRule.Name}" Style="{DynamicResource PtjSectionTitleTextStyle}"/>
       <TextBlock Text="{Binding SelectedRule.Version}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding SelectedRule.CheckSummary}" Style="{StaticResource Body}"/>
       <TextBlock Text="{Binding SelectedRule.Details.Revision.Definition.Criterion}" Style="{StaticResource Body}"/>
       <TextBlock Text="Required evidence" Style="{StaticResource Body}" FontWeight="SemiBold"/>
       <TextBlock Text="{Binding SelectedRule.Details.Revision.Definition.RequiredEvidence}" Style="{StaticResource Body}"/>
       <TextBlock x:Name="LatestState" Text="{Binding LatestLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}"/>
+      <TextBlock Text="{Binding Latest.Attribution}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Latest.Details.Assessment.Explanation}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Latest.Coverage}" Style="{StaticResource Body}"/>
      </StackPanel>
     </Border>
     <StackPanel x:Name="AssessmentEditor" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanEdit}">
@@ -78,10 +83,12 @@
       <TextBlock Text="{Binding State}" Style="{StaticResource Body}"/>
       <TextBlock Text="{Binding Details.Assessment.RuleRevision.Definition.Criterion}" Style="{StaticResource Body}"/>
       <TextBlock Text="{Binding Details.Assessment.Explanation}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Coverage}" Style="{StaticResource Body}"/>
       <Expander Header="Recorded provenance and UTC time" Foreground="{DynamicResource PtjTextPrimaryBrush}"><StackPanel>
        <TextBlock Text="{Binding Utc}" Style="{StaticResource Body}"/>
        <TextBlock Text="{Binding Details.Assessment.Basis}" Style="{StaticResource Body}"/><TextBlock Text="{Binding Details.Assessment.EvidenceSufficiency}" Style="{StaticResource Body}"/>
        <TextBlock Text="{Binding Evidence}" Style="{StaticResource Body}"/>
+       <TextBlock Text="{Binding CalculationSources}" Style="{StaticResource Body}"/>
       </StackPanel></Expander>
       <Button Content="Open exact target / correction" HorizontalAlignment="Left" Command="{Binding DataContext.OpenTargetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Target}"/>
      </StackPanel></Border>

@@ -820,6 +820,12 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<int>("Basis")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("EvaluationFingerprint")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvaluationJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EvidenceJson")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -877,9 +883,10 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SupersedesAssessmentId");
 
-                    b.HasIndex("RuleId", "RuleRevision");
-
                     b.HasIndex("RuleId", "TargetKey", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("RuleId", "RuleRevision", "TargetKey", "EvaluationFingerprint")
                         .IsUnique();
 
                     b.ToTable("TradingRuleAssessments", null, t =>
@@ -916,6 +923,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("Applicability")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("AutomaticCriterionJson")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("ContractVersion")
                         .HasColumnType("INTEGER");

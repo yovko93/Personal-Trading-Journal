@@ -38,7 +38,7 @@ public sealed class RulesViewModelTests
         Assert.Equal(TradingRuleApplicability.NewYorkDay, row.Definition.Applicability);
         Assert.Equal(TradingRuleEvaluationMode.AutomaticCandidate, row.Definition.EvaluationMode);
         Assert.Equal(new[] { "Synthetic rule", "Recorded criterion", "Required records" }, new[] { row.Definition.Name, row.Definition.Criterion, row.Definition.RequiredEvidence });
-        Assert.False(f.Vm.HasErrors); Assert.Contains("no checks", f.Vm.ModeLabel);
+        Assert.False(f.Vm.HasErrors); Assert.Contains("No typed check", f.Vm.ModeLabel);
     }
 
     [Theory]

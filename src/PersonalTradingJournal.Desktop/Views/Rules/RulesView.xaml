@@ -43,7 +43,7 @@
             <TextBlock x:Name="EmptyState" Text="No rule selected. Create a rule to describe your criteria and the evidence needed to assess them." Style="{StaticResource Body}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" />
             <TextBlock x:Name="SelectedName" Text="{Binding SelectedRule.Name}" Style="{StaticResource Heading}" />
             <WrapPanel x:Name="Actions">
-                <Button Content="Manual assessments" Command="{Binding AssessmentHistoryCommand}" AutomationProperties.Name="Read retained manual assessments for selected Rule" />
+                <Button Content="Assessment history" Command="{Binding AssessmentHistoryCommand}" AutomationProperties.Name="Read retained manual and calculated assessments for selected Rule" />
                 <Button x:Name="EditRule" Content="Edit rule" Command="{Binding EditCommand}" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Edit current Rule revision" />
                 <Button x:Name="ArchiveRule" Content="{Binding ArchiveLabel}" Command="{Binding ArchiveCommand}" Style="{StaticResource PtjPlaybookArchiveButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="{Binding ArchiveLabel}" />
                 <Button x:Name="ReturnToCurrent" Content="Return to current" Command="{Binding ReturnCommand}" Style="{StaticResource PtjPlaybookReturnButtonStyle}" Margin="0,0,8,8" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Return to current Rule without changing editor fields" />
@@ -76,7 +76,22 @@
                 </WrapPanel>
                 <Label Content="Assessment _eligibility" Target="{Binding ElementName=ModeSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                 <ComboBox x:Name="ModeSelector" Style="{StaticResource PtjComboBoxStyle}" MaxWidth="480" HorizontalAlignment="Stretch" ItemsSource="{Binding Modes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Mode}" AutomationProperties.Name="Rule assessment eligibility" />
-                <TextBlock Text="Future-check eligibility is metadata only. No automatic checks or manual assessments are available here; a Setup association never proves adherence." Style="{StaticResource Body}" Margin="0,8,0,12" />
+                <TextBlock Text="No free-text condition is executed. Add a typed closed-loss check below, then explicitly run it from Trade Details or Day Performance. A Setup association never proves adherence." Style="{StaticResource Body}" Margin="0,8,0,12" />
+                <CheckBox Content="Enable typed maximum closed-loss check" IsChecked="{Binding Automatic}" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Enable typed loss criterion"><CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></CheckBox.ContentTemplate></CheckBox>
+                <WrapPanel Visibility="{Binding Automatic, Converter={StaticResource VisibleIf}}">
+                    <StackPanel Width="260" Margin="0,8,12,12">
+                        <Label Content="P&amp;L basis" Target="{Binding ElementName=CheckBasis}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                        <ComboBox x:Name="CheckBasis" ItemsSource="{Binding Bases}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Basis}" Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Typed check Gross or strict Net basis" />
+                    </StackPanel>
+                    <StackPanel Width="180" Margin="0,8,12,12">
+                        <Label Content="Maximum loss" Target="{Binding ElementName=CheckLimit}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                        <TextBox x:Name="CheckLimit" Text="{Binding LossLimit, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AutomationProperties.Name="Maximum closed loss, nonnegative" />
+                    </StackPanel>
+                    <StackPanel Width="120" Margin="0,8,12,12">
+                        <Label Content="Currency" Target="{Binding ElementName=CheckCurrency}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+                        <TextBox x:Name="CheckCurrency" Text="{Binding CheckCurrency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AutomationProperties.Name="Criterion currency, three-letter code" />
+                    </StackPanel>
+                </WrapPanel>
                 <Border x:Name="ValidationSummary" Background="{DynamicResource PtjDangerSurfaceBrush}" BorderBrush="{DynamicResource PtjDangerBrush}" BorderThickness="1" Padding="12" Margin="0,0,0,12" Visibility="{Binding HasErrors, Converter={StaticResource VisibleIf}}">
                     <TextBlock Text="Cannot save. Correct each highlighted field. Your entered text is retained." Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" />
                 </Border>

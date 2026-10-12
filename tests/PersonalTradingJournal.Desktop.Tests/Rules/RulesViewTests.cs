@@ -48,6 +48,14 @@ public sealed class RulesViewTests
                     ((Expander)view.FindName("RevisionHistory")).IsExpanded = true; Layout();
                     Assert.Equal(10, ((ItemsControl)view.FindName("HistoryRows")).Items.Count);
                     f.Vm.EditCommand.Execute(null); Layout();
+                    f.Vm.Automatic = true; Layout();
+                    foreach (string name in new[] { "CheckBasis", "CheckLimit", "CheckCurrency" })
+                    {
+                        var input = (Control)view.FindName(name); input.BringIntoView(); Flush(); Layout();
+                        Assert.True(input.Focusable); Assert.NotEmpty(AutomationProperties.GetName(input));
+                        Assert.InRange(input.TranslatePoint(new Point(input.ActualWidth, 0), view).X, 0, width);
+                    }
+                    Render(view, theme, width, dpi, "typed-check");
                     var fields = Descendants((ItemsControl)view.FindName("EditorFields")).OfType<TextBox>().ToArray();
                     Assert.Equal(3, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
                     fields[1].SetCurrentValue(TextBox.TextProperty, ""); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();

@@ -37,6 +37,10 @@ public sealed class ManualAssessmentViewTests
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 720)); view.Arrange(new Rect(0, 0, width, 720)); view.UpdateLayout(); }
                     Layout(); var scroll = (ScrollViewer)view.FindName("PageScroll");
+                    var run = (Button)view.FindName("RunChecks");
+                    Assert.Same(f.Vm.RunChecksCommand, run.Command); Assert.True(run.Focusable);
+                    Assert.NotEmpty(AutomationProperties.GetName(run)); Assert.NotNull(run.FocusVisualStyle);
+                    Assert.InRange(run.TranslatePoint(new Point(run.ActualWidth, 0), view).X, 0, width);
                     Assert.Equal(f.Data.RuleId, ((ComboBox)view.FindName("RuleSelector")).SelectedValue);
                     Assert.Contains("Not assessed", ((TextBlock)view.FindName("LatestState")).Text);
                     var explanation = (TextBox)view.FindName("Explanation");

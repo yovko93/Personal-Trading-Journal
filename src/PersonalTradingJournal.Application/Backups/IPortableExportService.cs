@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 5; // Adds immutable Trading Rule revisions and assessments; existing fields retain their semantics.
+    public const int Version = 6; // Adds typed Rule criteria and deterministic evaluation evidence; old fields retain their semantics.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

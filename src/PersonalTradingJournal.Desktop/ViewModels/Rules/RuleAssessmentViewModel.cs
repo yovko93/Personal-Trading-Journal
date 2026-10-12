@@ -23,9 +23,15 @@ public sealed record AssessmentRow(TradingRuleAssessmentDetails Details)
         ? $"Trade {id} · {Scope}" : $"{Details.Assessment.Target.NewYorkDate:dd MMM yyyy} · New York · {Scope}";
     public string Scope => Details.Assessment.Target.AccountScope.Kind == TradingRuleAccountScopeKind.AllAccounts
         ? "All accounts (aggregate)" : (Details.AccountNameAtAssessment ?? "Historical Account") + $" ({Details.Assessment.Target.AccountScope.AccountId})";
-    public string Attribution => (Details.Assessment.Source == TradingRuleAssessmentSource.Manual ? "Manual user assessment — not a calculated fact" : "Recorded assessment source: " + Details.Assessment.Source) +
+    public string Attribution => (Details.Assessment.Source == TradingRuleAssessmentSource.Manual ? "Manual user assessment — not a calculated fact" : "Calculated assessment · " + (Details.Evaluation?.EvaluatorVersion ?? "legacy evaluator metadata unavailable")) +
         " · " + TradingTimestampFormatter.FormatNewYork(Details.Assessment.RecordedAtUtc, "dd MMM yyyy HH:mm:ss", CultureInfo.CurrentCulture) + " New York";
     public string State => $"Target: {Details.TargetState}. References verify identity, not the truth of the explanation.";
+    public string Coverage => Details.Evaluation is { } e
+        ? $"Recorded calculation: {e.Criterion.Basis}, {e.Criterion.Currency}; value {e.Calculation.Value?.ToString() ?? "Unavailable"}. {e.Calculation.ContributingTrades} closed Trades; {e.Calculation.ExcludedActivity} open/partial and {e.Calculation.OtherCurrencyTrades} other-currency Trades excluded. Missing commissions: {e.Calculation.MissingCommissions}; fees: {e.Calculation.MissingFees}. Historical snapshot, not a current compliance claim."
+        : "";
+    public string CalculationSources => Details.Evaluation is { } e ? string.Join("\n", e.Facts.Select(f =>
+        $"Trade {f.TradeId} · Account {f.AccountId} · {f.Currency} · Gross {f.Gross?.ToString() ?? "Unavailable"} · strict Net {f.Net?.ToString() ?? "Unavailable"}")) +
+        "\nExecution identities: " + string.Join(", ", e.ExecutionIds) : "";
     public string Evidence => Details.Evidence.Count == 0 ? "No recorded source references; see the stated basis and explanation." : string.Join("\n", Details.Evidence.Select(e =>
         $"{e.Reference.Kind} {e.Reference.SourceId} · revision {e.Reference.Revision?.ToString() ?? "not versioned"} · {e.State} · {e.Currency ?? "no currency"}"));
     public string Utc => Details.Assessment.RecordedAtUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
@@ -40,6 +46,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     private readonly ITradingRuleAssessmentStore _assessments;
     private readonly RecordTradingRuleAssessmentUseCase _writer;
     private readonly IDialogService _dialogs;
+    private readonly IAutomaticRuleChecks? _checks;
     private CancellationTokenSource? _read;
     private long _generation;
     private bool _loading, _writing, _available, _unverified, _sufficient, _explicitViolation;
@@ -60,12 +67,14 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     private AssessmentRow? _latest;
 
     public RuleAssessmentViewModel(IManualRuleAssessmentReader discovery, ITradingRuleReader reader,
-        ITradingRuleStore rules, ITradingRuleAssessmentStore assessments, RecordTradingRuleAssessmentUseCase writer, IDialogService dialogs)
+        ITradingRuleStore rules, ITradingRuleAssessmentStore assessments, RecordTradingRuleAssessmentUseCase writer, IDialogService dialogs, IAutomaticRuleChecks? checks = null)
     {
         _discovery = discovery; _reader = reader; _rules = rules; _assessments = assessments; _writer = writer; _dialogs = dialogs;
+        _checks = checks;
+        RunChecksCommand = new AsyncRelayCommand(RunChecksAsync, () => !IsBusy && _available && _target is not null && _checks is not null);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => CanRecord);
         RefreshCommand = new AsyncRelayCommand(async () => { if (TryLeave()) { ResetDraft(); await LoadAsync(); } }, () => !IsBusy);
-        CancelCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); }, () => IsBusy);
+        CancelCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); RunChecksCommand.Cancel(); }, () => IsBusy);
         CloseCommand = new RelayCommand(() => CloseRequested?.Invoke());
         NextRulesCommand = new AsyncRelayCommand(() => ChangeRules(1), () => !IsBusy && _target is not null && _rulePage * 20 < _ruleTotal);
         PreviousRulesCommand = new AsyncRelayCommand(() => ChangeRules(-1), () => !IsBusy && _target is not null && _rulePage > 1);
@@ -129,6 +138,35 @@ public sealed class RuleAssessmentViewModel : ObservableObject
         _target = target; _historyRule = target is null ? ruleId ?? throw new ArgumentException("A rule or target is required") : null;
         return LoadTask = LoadAsync();
     }
+    public IAsyncRelayCommand RunChecksCommand { get; }
+    private async Task RunChecksAsync(CancellationToken token)
+    {
+        if (_target is null || _checks is null || IsBusy || !TryLeave()) return;
+        var target = _target;
+        _writing = true; Changed(); Message = "Checking recorded data against applicable typed Rules…";
+        try
+        {
+            // Microsoft.Data.Sqlite executes much of its async API synchronously. Keep bounded
+            // reconstruction/transaction work off the WPF dispatcher so Cancel remains usable.
+            var result = await Task.Run(() => _checks.RunAsync(target, token), token);
+            if (result.Status != RuleCheckStatus.Completed)
+            {
+                Message = result.Status switch
+                {
+                    RuleCheckStatus.Conflict => "Rule or source data changed. No checks were saved. Refresh before running again.",
+                    RuleCheckStatus.LimitExceeded => "Check batch exceeds 100 rules, 1,000 candidate Trades or 10,000 executions. Nothing was saved; use an exact Account scope or review manually.",
+                    _ => "The exact target is unavailable. No checks were saved; historical assessments remain readable."
+                };
+                return;
+            }
+            ResetDraft(); ResetHistory(); await LoadAsync();
+            Message = $"Checks committed: {result.Recorded} new, {result.Unchanged} identical results retained. Rules without typed criteria were not assessed. " +
+                (_available ? "Review each Rule's result and coverage in history." : "Readback could not load the target. Refresh to inspect the saved history.");
+        }
+        catch (OperationCanceledException) { Message = "Checks cancelled before commit. No new assessments were reported; your manual fields are retained."; }
+        catch (Exception) { Message = "Checks could not complete. This is an operational error, not Cannot evaluate. Your fields are retained; Refresh to verify history."; }
+        finally { _writing = false; Changed(); }
+    }
     public bool TrySelect(RuleRow? row)
     {
         if (row?.Id == _selected?.Id) return true;
@@ -140,7 +178,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
         if (_writing) { Message = "Wait for the assessment save to finish or cancel it before closing."; return false; }
         return !HasUnsavedChanges || _dialogs.Confirm(new("Discard assessment changes?", "Discard the unsaved explanation and evidence selection? Recorded assessments remain unchanged.", "Discard changes", isDestructive: true));
     }
-    public void Deactivate() { ++_generation; _read?.Cancel(); _read = null; _loading = false; Changed(); }
+    public void Deactivate() { ++_generation; _read?.Cancel(); RunChecksCommand.Cancel(); _read = null; _loading = false; Changed(); }
     private void CaptureEvidence()
     {
         foreach (var row in Evidence) { if (row.Selected) _chosen[row.Option.Reference] = row.Option; else _chosen.Remove(row.Option.Reference); }
@@ -210,7 +248,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
             _olderEvidence = evidence.Count > 20;
             Message = selected is null ? "No applicable Rules. Create a matching rule in Planning → Rules." :
                 _target is not null && !(_available && Applies(selected.Details.Revision, _target)) ? "Historical records remain readable. This target or current Rule is unavailable, archived, or no longer applicable; new assessments are blocked." :
-                "Assess only recorded, saved data. Missing costs and a Playbook association never establish adherence. No automatic checks run.";
+                "Assess only recorded, saved data. Run checks evaluates typed criteria only when clicked. Missing costs and a Playbook association never establish adherence.";
         }
         catch (OperationCanceledException) { if (generation == _generation) Message = "Loading cancelled. Unsaved explanation retained."; }
         catch (Exception) { if (generation == _generation) { _available = false; Message = "Assessments could not be loaded. Your explanation is retained; use Refresh when ready."; } }
@@ -263,6 +301,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
     {
         foreach (string name in new[] { nameof(IsBusy), nameof(CanEdit), nameof(CanRecord), nameof(HasTarget), nameof(TargetLabel), nameof(SelectedRule), nameof(Latest), nameof(LatestLabel), nameof(Pages), nameof(SelectedSources) }) OnPropertyChanged(name);
         SaveCommand.NotifyCanExecuteChanged(); RefreshCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
+        RunChecksCommand.NotifyCanExecuteChanged();
         NextRulesCommand.NotifyCanExecuteChanged(); PreviousRulesCommand.NotifyCanExecuteChanged(); OlderCommand.NotifyCanExecuteChanged(); NewerCommand.NotifyCanExecuteChanged();
         NextEvidenceCommand.NotifyCanExecuteChanged(); PreviousEvidenceCommand.NotifyCanExecuteChanged();
     }
