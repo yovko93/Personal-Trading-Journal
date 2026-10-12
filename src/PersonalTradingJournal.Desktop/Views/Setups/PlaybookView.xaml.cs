@@ -45,7 +45,7 @@ public partial class PlaybookView : UserControl
             Dispatcher.BeginInvoke(() =>
             {
                 if (IsLoaded && ReferenceEquals(DataContext, sender) && DataContext is PlaybookViewModel { IsHistorical: true })
-                    ReadingPanel.BringIntoView(new Rect(0, 0, ReadingPanel.ActualWidth, 40));
+                    Version.BringIntoView();
             });
         }
         if (e.PropertyName == nameof(PlaybookViewModel.IsWriting) && sender is PlaybookViewModel { IsWriting: false, IsEditing: true } editor && editor.AttachExampleCommand.IsRunning)

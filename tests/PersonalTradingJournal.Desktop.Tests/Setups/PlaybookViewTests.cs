@@ -69,6 +69,7 @@ public sealed class PlaybookViewTests
                         Assert.InRange(action.TranslatePoint(new Point(action.ActualWidth, 0), view).X, 0, width);
                     }
                     Assert.True(selector.Focusable);
+                    double currentCardWidth = ((Border)view.FindName("ReadingPanel")).ActualWidth;
                     Render(view, theme, width, dpi, "current");
                     f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions[1]); Layout();
                     var returnAction = (Button)view.FindName("ReturnToCurrent");
@@ -84,8 +85,18 @@ public sealed class PlaybookViewTests
                     Assert.Equal(Visibility.Visible, ((TextBlock)view.FindName("Version")).Visibility);
                     var reading = (Border)view.FindName("ReadingPanel");
                     var hostPanel = (StackPanel)reading.Parent;
-                    Assert.InRange(reading.TranslatePoint(new Point(reading.ActualWidth / 2, 0), hostPanel).X - hostPanel.ActualWidth / 2, -.5, .5);
-                    Assert.True(reading.TranslatePoint(new Point(), hostPanel).Y >= ((WrapPanel)view.FindName("PlaybookActions")).TranslatePoint(new Point(0, ((WrapPanel)view.FindName("PlaybookActions")).ActualHeight), hostPanel).Y);
+                    var heading = (TextBlock)view.FindName("Version");
+                    var actions = (WrapPanel)view.FindName("PlaybookActions");
+                    Assert.Same(hostPanel, heading.Parent); // Heading is outside the card.
+                    Assert.Equal(TextAlignment.Center, heading.TextAlignment);
+                    Assert.InRange(heading.TranslatePoint(new Point(heading.ActualWidth / 2, 0), hostPanel).X - hostPanel.ActualWidth / 2, -.5, .5);
+                    Assert.InRange(reading.ActualWidth - currentCardWidth, -.5, .5);
+                    Assert.InRange(reading.ActualWidth - hostPanel.ActualWidth, -.5, .5);
+                    Assert.InRange(reading.TranslatePoint(new Point(), hostPanel).X, -.5, .5);
+                    Assert.True(heading.TranslatePoint(new Point(), hostPanel).Y >= actions.TranslatePoint(new Point(0, actions.ActualHeight), hostPanel).Y + 3.5);
+                    Assert.True(reading.TranslatePoint(new Point(), hostPanel).Y >= heading.TranslatePoint(new Point(0, heading.ActualHeight), hostPanel).Y + 11.5);
+                    Assert.DoesNotContain(Descendants(reading).OfType<TextBlock>(), b => b.Text == f.Vm.DisplayedRevision!.SetupName || b.Text.StartsWith("Historical revision", StringComparison.Ordinal));
+                    Assert.All(Descendants(reading).OfType<TextBlock>(), b => Assert.Equal(TextAlignment.Left, b.TextAlignment));
                     Assert.False(((Button)view.FindName("EditGuidance")).IsEnabled);
                     Assert.Equal(Visibility.Collapsed, ((ItemsControl)view.FindName("EditorFields")).Visibility);
                     Render(view, theme, width, dpi, "historical");

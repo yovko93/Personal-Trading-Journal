@@ -6,9 +6,13 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17.7 — Historical preview heading alignment**
+
+The historical revision heading is centered between the Playbook action buttons and the preview card, with no repeated Setup name. The card again fills the available width, while its guidance text stays left-aligned with the existing comfortable reading width. Revision selection, pending edits, validation and stored data are unchanged. **56 Desktop Playbook tests passed**, including compiled Light/Dark layout checks at 960 DIP/96 DPI and 480 DIP/240 DPI; automated renders were inspected. Release build: **0 warnings/errors**; whitespace check passes. Live interaction and matching CI remain unverified; the full suite was not rerun for this layout-only follow-up. See [verification](docs/playbook.md#historical-preview-heading-alignment).
+
 **Pre-M17.7 — Playbook preview placement and chart validation**
 
-The current guidance card keeps all sections and text, without the redundant “Current revision N” heading or repeated Setup name. Historical guidance has its own centered, clearly labeled preview below the actions and above any open editor. Switching previews or returning to current never overwrites the pending form, examples or save baseline.
+The current guidance card keeps all sections and text, without the redundant “Current revision N” heading or repeated Setup name. Historical guidance has a clearly labeled preview below the actions and above any open editor; the subsequent layout follow-up centers only its external heading, not the card or section text. Switching previews or returning to current never overwrites the pending form, examples or save baseline.
 
 Save now validates every chart example alongside the five guidance sections: a prominent summary, per-example error box, red invalid controls, inline explanations and accessible focus/scroll recovery retain all input. Legacy text-only/unclassified examples remain supported under the existing Domain rules. Provenance stays stored and available through collapsed details; no schema, snapshot, export, backup or AI evidence change is made. See [behavior and verification](docs/playbook.md#preview-placement-and-chart-example-validation). M17.7 remains unstarted.
 

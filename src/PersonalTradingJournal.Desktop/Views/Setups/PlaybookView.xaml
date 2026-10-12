@@ -53,6 +53,8 @@
                     <Button x:Name="EditGuidance" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Content="{Binding EditLabel}" Command="{Binding EditCommand}" AutomationProperties.Name="Create or edit current Playbook guidance" />
                     <Button x:Name="ReturnToCurrent" Content="Return to current" Style="{StaticResource PtjPlaybookReturnButtonStyle}" Command="{Binding ShowCurrentCommand}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Return to current Playbook revision" />
                 </WrapPanel>
+                <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}"
+                           Style="{StaticResource SectionHeading}" TextAlignment="Center" Margin="0,4,0,12" />
                 <Border x:Name="ReadingPanel" Padding="16" CornerRadius="8" BorderBrush="{DynamicResource PtjBorderBrush}"
                         Visibility="{Binding ShowReading, Converter={StaticResource VisibleIf}}">
                     <Border.Style><Style TargetType="Border">
@@ -60,12 +62,9 @@
                         <Style.Triggers><DataTrigger Binding="{Binding IsHistorical}" Value="True">
                             <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
                             <Setter Property="BorderThickness" Value="4,1,1,1" />
-                            <Setter Property="MaxWidth" Value="800" />
                         </DataTrigger></Style.Triggers>
                     </Style></Border.Style>
                     <StackPanel MaxWidth="760" HorizontalAlignment="Stretch">
-                        <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" Style="{StaticResource SectionHeading}" Foreground="{DynamicResource PtjAccentBrush}" />
-                        <TextBlock Text="{Binding DisplayedRevision.SetupName}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" Style="{StaticResource Body}" Margin="0,4,0,8" />
                     <TextBlock Text="Market context" Style="{StaticResource SectionHeading}" />
                     <TextBlock Text="{Binding DisplayedRevision.Guidance.MarketContext}" Style="{StaticResource Body}" Margin="0,4,0,16" />
                     <TextBlock Text="Entry conditions" Style="{StaticResource SectionHeading}" />
