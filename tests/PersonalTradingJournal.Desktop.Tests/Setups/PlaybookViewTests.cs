@@ -57,6 +57,9 @@ public sealed class PlaybookViewTests
                     Assert.Equal(f.Setup.Id, ((Application.Setups.TradingSetupListItem)selector.SelectedItem).Id);
                     Assert.Equal("Trading Setup for Playbook", AutomationProperties.GetName(selector));
                     Assert.Equal("Current revision 12", ((TextBlock)view.FindName("Version")).Text);
+                    Assert.Equal(Visibility.Collapsed, ((TextBlock)view.FindName("Version")).Visibility);
+                    Assert.Equal(Visibility.Visible, ((Border)view.FindName("ReadingPanel")).Visibility);
+                    Assert.Contains(Descendants((Border)view.FindName("ReadingPanel")).OfType<TextBlock>(), b => b.Text == "Market context" && b.Visibility == Visibility.Visible);
                     Assert.Same(app.Resources["PtjPlaybookRefreshButtonStyle"], ((Button)view.FindName("RefreshPlaybook")).Style);
                     Assert.Same(app.Resources["PtjPlaybookArchiveButtonStyle"], ((Button)view.FindName("ArchiveSetup")).Style);
                     Assert.Same(app.Resources["PtjPlaybookCreateButtonStyle"], ((Button)view.FindName("EditGuidance")).Style);
@@ -78,6 +81,11 @@ public sealed class PlaybookViewTests
                     Assert.All(Descendants(view).OfType<TextBlock>().Where(b => b.Text is "Market context" or "Entry conditions" or "Confirmations" or "Invalidation" or "Execution guidance"),
                         b => Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)b.Foreground).Color));
                     Assert.Contains("Historical revision 11", ((TextBlock)view.FindName("Version")).Text);
+                    Assert.Equal(Visibility.Visible, ((TextBlock)view.FindName("Version")).Visibility);
+                    var reading = (Border)view.FindName("ReadingPanel");
+                    var hostPanel = (StackPanel)reading.Parent;
+                    Assert.InRange(reading.TranslatePoint(new Point(reading.ActualWidth / 2, 0), hostPanel).X - hostPanel.ActualWidth / 2, -.5, .5);
+                    Assert.True(reading.TranslatePoint(new Point(), hostPanel).Y >= ((WrapPanel)view.FindName("PlaybookActions")).TranslatePoint(new Point(0, ((WrapPanel)view.FindName("PlaybookActions")).ActualHeight), hostPanel).Y);
                     Assert.False(((Button)view.FindName("EditGuidance")).IsEnabled);
                     Assert.Equal(Visibility.Collapsed, ((ItemsControl)view.FindName("EditorFields")).Visibility);
                     Render(view, theme, width, dpi, "historical");
@@ -138,9 +146,31 @@ public sealed class PlaybookViewTests
                     Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("ValidationSummaryPanel")).Visibility);
                     Assert.False(PersonalTradingJournal.Desktop.Validation.FormValidation.GetIsInvalid(fields[1]));
                     f.Vm.AttachExampleCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-                    var example = f.Vm.EditorExamples.Last(); example.Kind = PlaybookExampleKind.Invalid;
+                    var example = f.Vm.EditorExamples.Last();
+                    f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    Assert.True(example.HasKindError && example.HasAnnotationError);
+                    var invalidKind = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<ComboBox>().Last();
+                    var invalidNotes = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<TextBox>().Last();
+                    foreach (var control in new Control[] { invalidKind, invalidNotes })
+                    {
+                        Assert.True(PersonalTradingJournal.Desktop.Validation.FormValidation.GetIsInvalid(control));
+                        Assert.NotEmpty(AutomationProperties.GetItemStatus(control)); Assert.NotEmpty(AutomationProperties.GetHelpText(control));
+                        var chrome = (Border)control.Template.FindName(control is ComboBox ? "ComboBoxChrome" : "TextBoxChrome", control);
+                        Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)chrome.BorderBrush).Color);
+                    }
+                    invalidKind.BringIntoView(); Layout(); Render(view, theme, width, dpi, "invalid-example");
+                    scroll.ScrollToVerticalOffset(scroll.VerticalOffset + invalidKind.TransformToAncestor(scroll).Transform(new Point()).Y - 32); Layout();
+                    Render(view, theme, width, dpi, "invalid-example-fields");
+                    invalidKind.SelectedItem = PlaybookExampleKind.Invalid; Layout(); Assert.False(example.HasKindError); Assert.True(example.HasAnnotationError);
                     example.Annotation = "NQ synthetic example: the retest failed its confirmation. Lesson: wait for the stated condition; this label does not evaluate a Trade.";
+                    Assert.False(f.Vm.HasValidationErrors);
                     example.Thumbnail = thumbnail;
+                    f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions[1]); Layout();
+                    Assert.True(f.Vm.IsEditing && f.Vm.IsHistorical); Assert.Same(example, f.Vm.EditorExamples.Last());
+                    Assert.Equal(Visibility.Visible, ((ItemsControl)view.FindName("EditorFields")).Visibility);
+                    Assert.True(reading.TranslatePoint(new Point(0, reading.ActualHeight), hostPanel).Y <= ((Border)view.FindName("FormGuidance")).TranslatePoint(new Point(), hostPanel).Y + .5);
+                    scroll.ScrollToTop(); Layout(); Render(view, theme, width, dpi, "history-above-draft");
+                    f.Vm.ShowCurrentCommand.Execute(null); Layout(); Assert.True(f.Vm.IsEditing);
                     Layout(); var exampleEditor = (StackPanel)view.FindName("ExampleEditor");
                     exampleEditor.BringIntoView(); Layout();
                     var annotation = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<TextBox>().Last();

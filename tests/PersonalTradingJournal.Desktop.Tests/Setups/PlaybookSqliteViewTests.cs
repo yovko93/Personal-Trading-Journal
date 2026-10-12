@@ -106,6 +106,21 @@ public sealed class PlaybookSqliteViewTests
                         Assert.InRange(y, 0, scroll.ViewportHeight - editors[1].ActualHeight + 1);
                         editors[1].SetCurrentValue(TextBox.TextProperty, "Synthetic Entry conditions, revision 1");
                         Assert.False(vm.Fields[1].IsInvalid);
+                        var chart = vm.EditorExamples.Single(); chart.Kind = PlaybookExampleKind.Unspecified; chart.Annotation = "";
+                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
+                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task); window.UpdateLayout();
+                        var kind = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<ComboBox>().Single();
+                        var notes = Descendants((ItemsControl)view.FindName("ExampleRows")).OfType<TextBox>().Single();
+                        Assert.Same(kind, System.Windows.Input.FocusManager.GetFocusedElement(window));
+                        Assert.InRange(kind.TransformToAncestor(scroll).Transform(new Point()).Y, 0, scroll.ViewportHeight - kind.ActualHeight + 1);
+                        Assert.True(chart.HasKindError && chart.HasAnnotationError); Assert.Null(vm.DisplayedRevision);
+                        kind.SelectedItem = PlaybookExampleKind.Valid;
+                        ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();
+                        Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task); window.UpdateLayout();
+                        Assert.Same(notes, System.Windows.Input.FocusManager.GetFocusedElement(window));
+                        Assert.InRange(notes.TransformToAncestor(scroll).Transform(new Point()).Y, 0, scroll.ViewportHeight - notes.ActualHeight + 1);
+                        notes.SetCurrentValue(TextBox.TextProperty, "Synthetic condition and lesson");
+                        Assert.False(vm.HasValidationErrors); Assert.Single(vm.EditorExamples);
                     }
                     var previousTask = vm.SaveCommand.ExecutionTask;
                     ((IInvokeProvider)new ButtonAutomationPeer(saveButton)).Invoke();

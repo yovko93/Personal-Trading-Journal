@@ -1,5 +1,41 @@
 # Playbook — Domain, persistence and Desktop management
 
+## Preview placement and chart example validation
+
+This presentation follow-up begins on `develop`, `6bb985296bb0d3690dde4b32ac04b6d02a63e616`. Inspection found a clean worktree; previously delivered changes were already present in HEAD. M17.7 is not started.
+
+The current reading card remains beneath the Playbook actions, with every guidance section, example and note intact. Only its redundant current-revision heading and repeated Setup name are hidden. Stored revisions and revision-list identities are unchanged. Selecting history shows a centered, maximum-800-DIP read-only card in that same location, with **Historical revision N** and its frozen Setup name, above the form. Return to current retains its distinct style. Viewing or switching history is independent of the editor: no discard confirmation, field reload, example replacement or baseline change occurs. Save still appends against the loaded current revision, never the historical preview. Setup changes, Refresh, paging, leaving and closing retain their existing unsaved-change guards.
+
+Save inspects all fields and examples before writing, collecting errors rather than stopping at the first example. Each incomplete example has a red error box, red classification/annotation controls, inline explanations, required/error/help automation properties and live status. The first invalid guidance field or example control receives focus and is scrolled into view. Changing classification/annotation clears that individual error immediately; removing a malformed pending attachment clears its summary entry. Text, pending image bytes and classifications are kept on validation, conflict and storage failure. Success still requires verified database readback. Static guidance remains informational, not an error.
+
+The existing Domain/Application rules are unchanged:
+
+- Every example needs a meaningful annotation, at most 4,000 trimmed characters. “Context, condition and lesson” is one existing annotation field, not three new persisted fields.
+- A newly attached chart (or revision-owned image) requires Valid or Invalid. A pending attachment must have nonempty bytes, be at most 8 MiB, and use the existing safe PNG/JPEG/WebP filename rule. Image admission/decoding, storage/hash checks and failure compensation remain unchanged. Invalid pending bytes/names are blocked before a write, with removal/reattachment guidance.
+- Legacy text-only examples and screenshot-provenance examples remain readable/editable under their existing optional-image and unspecified-classification semantics; they are not silently upgraded or rejected for lacking a new owned image.
+- Technical provenance is in the existing collapsed **Example provenance** details. Where useful, the reading card says “Example from a Trade screenshot” or “Example linked to a Trade” without presenting raw IDs as prose. Original example/Trade/screenshot IDs, revisions, frozen Trade context, saved AI evidence, exports and backups are untouched.
+
+Focused Release verification: **163 passed / zero failures or skips** (Domain 22, Application 19, Infrastructure 66, Desktop 56). Coverage includes every invalid example rather than first-error-only behavior, independent correction/removal, safe legacy notes, invalid pending attachments, unsaved fields/images across history switches, saving against current rather than viewed history, read-only preview placement/centering and actual loaded-WPF focus/scroll to classification then annotation. The existing real SQLite first-save/edit/readback/restart, retention, backup/export and AI snapshot tests remain green. Release build: **0 warnings/errors**; EF reports no pending model changes; whitespace checks pass.
+
+Automated Light/Dark current, historical-above-draft and validation renders were inspected at **960 DIP/96 DPI** and **480 DIP/240 DPI** (`artifacts/playbook-preview-renders`). The focused TRX files are in `artifacts/playbook-preview-focused-final`.
+
+The final **complete parallel Release suite passed 3,884/3,884**, zero failures/skips: Domain 476, Application 732, Infrastructure 1,203, Desktop 1,473. Logs/TRX and unchanged native supervision diagnostics are in `artifacts/m145-load/playbook-preview-full-final`. Calendar native passed all 87 cases / 86 STA actions in **86.097 seconds**, **33.903 seconds** under its existing 120-second aggregate deadline. No Calendar timeout occurred in this run; the previously recorded full-load variability is still unresolved, not claimed fixed by this UI change. No retries, skips, deadline or concurrency changes were introduced.
+
+Live keyboard/mouse and screen-reader announcements remain unverified, as does matching GitHub Actions for this uncommitted work. Test databases and chart images are synthetic. No production journal, provider call, migration or Git write is part of this change.
+
+Exact files changed in this follow-up:
+
+- `README.md`
+- `docs/playbook.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookExampleItem.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.Examples.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookExampleEditorTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
+
 ## Field validation and protected revision deletion
 
 This follow-up starts from clean `develop`, `4852767724453b5332808b04c498059286479bb8`, preserving the committed M17 implementation and Save readback diagnostics. It does not start M17.7 or claim to reproduce the original silent live Save incident.

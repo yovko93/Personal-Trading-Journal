@@ -19,6 +19,24 @@ public sealed partial class PlaybookViewModel
     public IRelayCommand<PlaybookExampleItem> RemoveExampleCommand { get; }
     public IAsyncRelayCommand<PlaybookExampleItem> ViewImageCommand { get; }
 
+    private readonly HashSet<PlaybookExampleItem> _observedExamples = [];
+    private void OnExamplesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        foreach (var removed in _observedExamples.Where(x => !EditorExamples.Contains(x)).ToArray())
+        { removed.PropertyChanged -= OnExampleValidationChanged; _observedExamples.Remove(removed); }
+        foreach (var added in EditorExamples.Where(x => !_observedExamples.Contains(x)))
+        { added.PropertyChanged += OnExampleValidationChanged; _observedExamples.Add(added); }
+        NotifyExampleValidation();
+    }
+    private void OnExampleValidationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    { if (e.PropertyName == nameof(PlaybookExampleItem.HasErrors)) NotifyExampleValidation(); }
+    private void NotifyExampleValidation()
+    {
+        OnPropertyChanged(nameof(ValidationSummary)); OnPropertyChanged(nameof(HasValidationErrors));
+        if (!HasValidationErrors && Message == "Save blocked by field validation. Your edits are retained.")
+            Message = "Validation corrected. Save Playbook to create a revision.";
+    }
+
     private void UpdateReadingExamples()
     {
         if (ReferenceEquals(_readingExamplesOwner, DisplayedRevision)) return;

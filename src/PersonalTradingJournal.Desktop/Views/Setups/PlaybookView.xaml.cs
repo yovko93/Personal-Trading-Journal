@@ -34,10 +34,19 @@ public partial class PlaybookView : UserControl
             Dispatcher.BeginInvoke(() =>
             {
                 if (!IsLoaded || !ReferenceEquals(DataContext, sender)) return;
-                var first = Descendants(EditorFields).OfType<TextBox>().FirstOrDefault(b => b.DataContext is PlaybookField { IsInvalid: true });
-                (first?.Parent as FrameworkElement)?.BringIntoView(); first?.Focus();
+                var first = Descendants(EditorFields).Concat(Descendants(ExampleRows)).OfType<Control>()
+                    .FirstOrDefault(PersonalTradingJournal.Desktop.Validation.FormValidation.GetIsInvalid);
+                first?.BringIntoView(); first?.Focus();
             });
             return;
+        }
+        if (e.PropertyName == nameof(PlaybookViewModel.HistoricalPreviewRequest))
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (IsLoaded && ReferenceEquals(DataContext, sender) && DataContext is PlaybookViewModel { IsHistorical: true })
+                    ReadingPanel.BringIntoView(new Rect(0, 0, ReadingPanel.ActualWidth, 40));
+            });
         }
         if (e.PropertyName == nameof(PlaybookViewModel.IsWriting) && sender is PlaybookViewModel { IsWriting: false, IsEditing: true } editor && editor.AttachExampleCommand.IsRunning)
         {

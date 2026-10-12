@@ -49,7 +49,7 @@
             <StackPanel Margin="0,0,12,12">
                 <TextBlock Text="{Binding SelectedSetup.Name}" Style="{StaticResource SectionHeading}" />
                 <TextBlock Text="{Binding SetupState}" Style="{StaticResource Body}" Margin="0,4,0,8" />
-                <WrapPanel>
+                <WrapPanel x:Name="PlaybookActions">
                     <Button x:Name="EditGuidance" Style="{StaticResource PtjPlaybookCreateButtonStyle}" Content="{Binding EditLabel}" Command="{Binding EditCommand}" AutomationProperties.Name="Create or edit current Playbook guidance" />
                     <Button x:Name="ReturnToCurrent" Content="Return to current" Style="{StaticResource PtjPlaybookReturnButtonStyle}" Command="{Binding ShowCurrentCommand}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Return to current Playbook revision" />
                 </WrapPanel>
@@ -60,11 +60,12 @@
                         <Style.Triggers><DataTrigger Binding="{Binding IsHistorical}" Value="True">
                             <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
                             <Setter Property="BorderThickness" Value="4,1,1,1" />
+                            <Setter Property="MaxWidth" Value="800" />
                         </DataTrigger></Style.Triggers>
                     </Style></Border.Style>
                     <StackPanel MaxWidth="760" HorizontalAlignment="Stretch">
-                        <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Style="{StaticResource SectionHeading}" Foreground="{DynamicResource PtjAccentBrush}" />
-                        <TextBlock Text="{Binding DisplayedRevision.SetupName}" Style="{StaticResource Body}" Margin="0,4,0,8" />
+                        <TextBlock x:Name="Version" Text="{Binding VersionLabel}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" Style="{StaticResource SectionHeading}" Foreground="{DynamicResource PtjAccentBrush}" />
+                        <TextBlock Text="{Binding DisplayedRevision.SetupName}" Visibility="{Binding IsHistorical, Converter={StaticResource VisibleIf}}" Style="{StaticResource Body}" Margin="0,4,0,8" />
                     <TextBlock Text="Market context" Style="{StaticResource SectionHeading}" />
                     <TextBlock Text="{Binding DisplayedRevision.Guidance.MarketContext}" Style="{StaticResource Body}" Margin="0,4,0,16" />
                     <TextBlock Text="Entry conditions" Style="{StaticResource SectionHeading}" />
@@ -83,6 +84,7 @@
                                            AutomationProperties.Name="{Binding Annotation}" />
                                     <TextBlock Text="{Binding ImageState}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" />
                                     <TextBlock Text="{Binding Annotation}" Style="{StaticResource Body}" />
+                                    <TextBlock Text="{Binding SourceLabel}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
                                     <Button Style="{StaticResource PtjPlaybookViewButtonStyle}" Content="Open full-size chart" HorizontalAlignment="Left" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}"
                                             Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
                                             AutomationProperties.Name="{Binding KindLabel, StringFormat='Open full-size chart: {0}'}" />
@@ -133,18 +135,28 @@
                         <ItemsControl.ItemTemplate><DataTemplate>
                             <Border Padding="12" Margin="0,0,0,12" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource PtjBorderBrush}" Background="{DynamicResource PtjSurfaceBrush}">
                                 <StackPanel>
+                                    <Border Padding="10" Margin="0,0,0,8" CornerRadius="6" BorderThickness="2" BorderBrush="{DynamicResource PtjDangerBrush}" Background="{DynamicResource PtjDangerSurfaceBrush}"
+                                            Visibility="{Binding HasErrors, Converter={StaticResource VisibleIf}}">
+                                        <TextBlock Text="{Binding ErrorSummary}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" FontWeight="SemiBold" AutomationProperties.LiveSetting="Assertive" AutomationProperties.Name="{Binding ErrorSummary}" />
+                                    </Border>
                                     <Image Source="{Binding Thumbnail}" Height="150" MaxWidth="384" Stretch="Uniform" HorizontalAlignment="Left" AutomationProperties.Name="{Binding Annotation}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" />
                                     <TextBlock Text="{Binding ImageState}" Style="{StaticResource Body}" />
+                                    <TextBlock Text="{Binding AttachmentError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasAttachmentError, Converter={StaticResource VisibleIf}}" AutomationProperties.LiveSetting="Polite" />
                                     <Label Content="Example classification" Target="{Binding ElementName=ExampleKind}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                     <ComboBox x:Name="ExampleKind" ItemsSource="{Binding Kinds}" SelectedItem="{Binding Kind}" Style="{StaticResource PtjComboBoxStyle}" MaxWidth="260" HorizontalAlignment="Left" MinWidth="180"
-                                              AutomationProperties.Name="Example classification: Valid or Invalid" AutomationProperties.IsRequiredForForm="True" />
+                                              AutomationProperties.Name="Example classification: Valid or Invalid" AutomationProperties.IsRequiredForForm="{Binding RequiresClassification}"
+                                              validation:FormValidation.IsInvalid="{Binding HasKindError}" AutomationProperties.ItemStatus="{Binding KindError}" AutomationProperties.HelpText="{Binding KindError}" />
+                                    <TextBlock Text="{Binding KindError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasKindError, Converter={StaticResource VisibleIf}}" AutomationProperties.LiveSetting="Polite" />
                                     <Label Content="Context, condition and lesson" Target="{Binding ElementName=Annotation}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                                     <TextBox x:Name="Annotation" Text="{Binding Annotation, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap"
                                              Height="112" MinHeight="84" VerticalContentAlignment="Top" Padding="12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" FontSize="16"
-                                             AutomationProperties.Name="Example annotation: context, condition and lesson" AutomationProperties.IsRequiredForForm="True" />
+                                             AutomationProperties.Name="Example annotation: context, condition and lesson" AutomationProperties.IsRequiredForForm="True"
+                                             validation:FormValidation.IsInvalid="{Binding HasAnnotationError}" AutomationProperties.ItemStatus="{Binding AnnotationError}" AutomationProperties.HelpText="{Binding AnnotationError}" />
+                                    <TextBlock Text="{Binding AnnotationError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasAnnotationError, Converter={StaticResource VisibleIf}}" AutomationProperties.LiveSetting="Polite" />
                                     <WrapPanel Margin="0,8,0,0">
                                         <Button Style="{StaticResource PtjPlaybookViewButtonStyle}" Content="Open full-size chart" Command="{Binding DataContext.ViewImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Visibility="{Binding HasImage, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Open full-size Playbook chart" />
                                         <Button Style="{StaticResource PtjPlaybookRemoveButtonStyle}" Content="Remove example" Click="OnRemoveExample" Command="{Binding DataContext.RemoveExampleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+                                                validation:FormValidation.IsInvalid="{Binding HasAttachmentError}" AutomationProperties.ItemStatus="{Binding AttachmentError}"
                                                 AutomationProperties.HelpText="Removes this example from the pending revision only. Historical images and notes are retained." />
                                     </WrapPanel>
                                 </StackPanel>

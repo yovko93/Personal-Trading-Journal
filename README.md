@@ -6,6 +6,14 @@ The repository currently contains the application foundation, the core trading D
 
 ## Current Status
 
+**Pre-M17.7 — Playbook preview placement and chart validation**
+
+The current guidance card keeps all sections and text, without the redundant “Current revision N” heading or repeated Setup name. Historical guidance has its own centered, clearly labeled preview below the actions and above any open editor. Switching previews or returning to current never overwrites the pending form, examples or save baseline.
+
+Save now validates every chart example alongside the five guidance sections: a prominent summary, per-example error box, red invalid controls, inline explanations and accessible focus/scroll recovery retain all input. Legacy text-only/unclassified examples remain supported under the existing Domain rules. Provenance stays stored and available through collapsed details; no schema, snapshot, export, backup or AI evidence change is made. See [behavior and verification](docs/playbook.md#preview-placement-and-chart-example-validation). M17.7 remains unstarted.
+
+Verification: **163 focused tests** and **3,884/3,884 complete parallel Release tests passed**, zero failures/skips. Release build: **0 warnings/errors**; EF consistency and whitespace checks pass. Automated Light/Dark normal and narrow/240-DPI renders were inspected. Calendar native passed in **86.097 s** against its unchanged 120-second deadline; no timeout occurred in this run, but earlier variability remains unresolved. Live UI/screen-reader and matching GitHub Actions acceptance remain open.
+
 **Pre-M17.7 — Playbook field validation and protected revision deletion**
 
 Guidance headings now use the shared Light/Dark accent, while body text stays neutral. Static form instructions are an information panel; unsuccessful field validation instead shows a prominent error summary, red field borders and inline explanations, with focus/scroll to the first invalid section. Correcting a field clears its error without losing text or examples. Return to current has a distinct violet action style; Delete revision remains red.

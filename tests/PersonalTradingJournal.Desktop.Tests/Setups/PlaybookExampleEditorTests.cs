@@ -9,6 +9,59 @@ namespace PersonalTradingJournal.Desktop.Tests.Setups;
 
 public sealed class PlaybookExampleEditorTests
 {
+    [Fact]
+    public async Task AllExampleErrorsClearIndividuallyWithoutLosingImagesAndLegacyNotesStayValid()
+    {
+        var images = new ExampleImagesFake(); var f = new PlaybookFixture(images, images); f.Seed(1); await f.OpenAsync(); f.Edit("kept");
+        var legacy = f.Vm.EditorExamples[0];
+        await f.Vm.AttachExampleCommand.ExecuteAsync(null); await f.Vm.AttachExampleCommand.ExecuteAsync(null);
+        var first = f.Vm.EditorExamples[1]; var second = f.Vm.EditorExamples[2];
+        second.Annotation = new string('a', 4001);
+        await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.False(legacy.HasErrors); Assert.False(legacy.RequiresClassification);
+        Assert.All(new[] { first, second }, e => { Assert.True(e.HasKindError); Assert.True(e.HasAnnotationError); Assert.NotNull(e.PendingBytes); });
+        Assert.Contains("Chart example 2", f.Vm.ValidationSummary); Assert.Contains("Chart example 3", f.Vm.ValidationSummary);
+        Assert.Equal(0, f.Data.AppendCount); Assert.Empty(images.Files);
+        first.Kind = PlaybookExampleKind.Valid; Assert.False(first.HasKindError); Assert.True(first.HasAnnotationError);
+        first.Annotation = "context, condition, lesson"; Assert.False(first.HasErrors); Assert.True(f.Vm.HasValidationErrors);
+        second.Kind = PlaybookExampleKind.Invalid; second.Annotation = "failed condition";
+        Assert.False(f.Vm.HasValidationErrors); Assert.All(f.Vm.Fields, field => Assert.Equal("kept", field.Text));
+        await f.Vm.SaveCommand.ExecuteAsync(null); Assert.False(f.Vm.IsEditing); Assert.Equal(2, images.Files.Count);
+    }
+
+    [Theory]
+    [InlineData("chart.png", 0)] [InlineData("../chart.png", 1)]
+    public async Task InvalidPendingAttachmentIsMarkedAndRemovalClearsSummary(string name, int size)
+    {
+        var f = new PlaybookFixture(); await f.OpenAsync(); f.Edit("kept");
+        var image = new DrawingImage(); image.Freeze();
+        var row = new PlaybookExampleItem(name, new byte[size], image) { Kind = PlaybookExampleKind.Valid, Annotation = "notes kept" };
+        f.Vm.EditorExamples.Add(row); await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.True(row.HasAttachmentError); Assert.False(row.HasKindError); Assert.False(row.HasAnnotationError);
+        Assert.True(f.Vm.IsEditing); Assert.Equal("notes kept", row.Annotation); Assert.Equal(0, f.Data.AppendCount);
+        f.Vm.RemoveExampleCommand.Execute(row); Assert.False(f.Vm.HasValidationErrors);
+    }
+
+    [Fact]
+    public async Task HistoricalPreviewSwitchingAndReturningPreservePendingFormAndSaveFromCurrentRevision()
+    {
+        var images = new ExampleImagesFake(); var f = new PlaybookFixture(images, images); f.Seed(3); await f.OpenAsync(); f.Edit("unsaved fields");
+        await f.Vm.AttachExampleCommand.ExecuteAsync(null); var pending = f.Vm.EditorExamples.Last();
+        pending.Kind = PlaybookExampleKind.Invalid; pending.Annotation = "unsaved example";
+        foreach (var revision in f.Vm.Revisions.Reverse())
+        {
+            f.Vm.ViewRevisionCommand.Execute(revision);
+            Assert.Same(revision, f.Vm.DisplayedRevision); Assert.True(f.Vm.ShowReading && f.Vm.IsEditing);
+            Assert.Same(pending, f.Vm.EditorExamples.Last()); Assert.All(f.Vm.Fields, field => Assert.Equal("unsaved fields", field.Text));
+            Assert.Null(f.Dialogs.ConfirmationRequest); Assert.True(f.Vm.HasUnsavedChanges);
+        }
+        f.Vm.ShowCurrentCommand.Execute(null); Assert.False(f.Vm.ShowReading); Assert.True(f.Vm.IsEditing);
+        f.Vm.ViewRevisionCommand.Execute(f.Vm.Revisions.Last());
+        await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(4, f.Vm.DisplayedRevision!.Revision); Assert.Equal("unsaved fields", f.Vm.DisplayedRevision.Guidance.MarketContext);
+        Assert.False(f.Vm.IsEditing); Assert.False(f.Vm.IsHistorical);
+    }
+
     [Theory]
     [InlineData(PlaybookExampleKind.Valid)] [InlineData(PlaybookExampleKind.Invalid)]
     public async Task AttachClassifyViewSaveRemoveAndHistoryKeepExactBytesAndNotes(PlaybookExampleKind kind)
@@ -16,7 +69,7 @@ public sealed class PlaybookExampleEditorTests
         var images = new ExampleImagesFake(); var f = new PlaybookFixture(images, images); await f.OpenAsync(); f.Edit("guidance");
         await f.Vm.AttachExampleCommand.ExecuteAsync(null); var row = Assert.Single(f.Vm.EditorExamples);
         Assert.Empty(images.Files); Assert.True(f.Vm.HasUnsavedChanges); Assert.False(f.Vm.TryLeave());
-        await f.Vm.SaveCommand.ExecuteAsync(null); Assert.True(f.Vm.IsEditing); Assert.Contains("Each new chart", f.Vm.Message);
+        await f.Vm.SaveCommand.ExecuteAsync(null); Assert.True(f.Vm.IsEditing); Assert.Contains("Chart example 1", f.Vm.ValidationSummary);
         row.Kind = kind; row.Annotation = "Synthetic context, condition and lesson";
         await f.Vm.ViewImageCommand.ExecuteAsync(row); Assert.Same(row, images.Viewed);
         await f.Vm.SaveCommand.ExecuteAsync(null);

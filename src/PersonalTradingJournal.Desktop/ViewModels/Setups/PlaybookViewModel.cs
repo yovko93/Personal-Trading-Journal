@@ -60,6 +60,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
         ViewImageCommand = new AsyncRelayCommand<PlaybookExampleItem>(ViewImageAsync, e => !IsBusy && e?.HasImage == true && _exampleImages is not null);
         Fields = new[] { "Market context", "Entry conditions", "Confirmations", "Invalidation", "Execution guidance" }
             .Select(label => new PlaybookField(label)).ToArray();
+        EditorExamples.CollectionChanged += OnExamplesChanged;
         foreach (var field in Fields) field.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName != nameof(PlaybookField.Error)) return;
@@ -81,9 +82,11 @@ public sealed partial class PlaybookViewModel : ObservableObject
     }
 
     public IReadOnlyList<PlaybookField> Fields { get; }
-    public bool HasValidationErrors => Fields.Any(f => f.IsInvalid);
-    public string ValidationSummary => HasValidationErrors ? "Cannot save. Correct these required sections: " + string.Join(", ", Fields.Where(f => f.IsInvalid).Select(f => f.Label)) + ". Your text and examples are kept." : "";
+    public bool HasValidationErrors => Fields.Any(f => f.IsInvalid) || EditorExamples.Any(e => e.HasErrors);
+    public string ValidationSummary => HasValidationErrors ? "Cannot save. Correct: " + string.Join(", ", Fields.Where(f => f.IsInvalid).Select(f => f.Label)
+        .Concat(EditorExamples.Select((e, i) => (e, i)).Where(x => x.e.HasErrors).Select(x => $"Chart example {x.i + 1}"))) + ". Your text and examples are kept." : "";
     public int ValidationAttempt { get; private set; }
+    public int HistoricalPreviewRequest { get; private set; }
     public IAsyncRelayCommand<TradingSetupPlaybookRevision> DeleteRevisionCommand { get; }
     public IReadOnlyList<TradingSetupListItem> Setups { get => _catalog; private set => SetProperty(ref _catalog, value); }
     public IReadOnlyList<TradingSetupPlaybookRevision> Revisions { get => _revisions; private set => SetProperty(ref _revisions, value); }
@@ -91,7 +94,7 @@ public sealed partial class PlaybookViewModel : ObservableObject
     public TradingSetupPlaybookRevision? DisplayedRevision => _historical ?? _current;
     public bool IsHistorical => _historical is not null;
     public bool HasGuidance => DisplayedRevision is not null;
-    public bool ShowReading => !IsEditing && HasGuidance;
+    public bool ShowReading => HasGuidance && (!IsEditing || IsHistorical);
     public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); if (!value) { EditorExamples.Clear(); foreach (var input in Fields) input.ResetValidation(); } Changed(); } }
     public bool IsLoading { get => _loading; private set { SetProperty(ref _loading, value); Changed(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); Changed(); } }
@@ -222,10 +225,8 @@ public sealed partial class PlaybookViewModel : ObservableObject
         Trace(PlaybookSavePhase.Invoked, PlaybookSaveResult.Pending);
         // Snapshot the five fields and owning identity before the first await; editing is disabled during the write.
         foreach (var field in Fields) field.Validate();
-        if (HasValidationErrors) { Message = "Save blocked by field validation. Your edits are retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidFields); return; }
-        if (EditorExamples.Any(e => string.IsNullOrWhiteSpace(e.Annotation) || e.Annotation.Trim().Length > 4000 ||
-            (e.PendingBytes is not null && e.Kind == PlaybookExampleKind.Unspecified)))
-        { Message = "Each new chart needs Valid or Invalid and a meaningful annotation (up to 4,000 characters). Your examples and text are retained."; Trace(PlaybookSavePhase.ValidationRejected, PlaybookSaveResult.InvalidExamples); return; }
+        foreach (var example in EditorExamples) example.Validate();
+        if (HasValidationErrors) { Message = "Save blocked by field validation. Your edits are retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); Trace(PlaybookSavePhase.ValidationRejected, Fields.Any(f => f.IsInvalid) ? PlaybookSaveResult.InvalidFields : PlaybookSaveResult.InvalidExamples); return; }
         IsWriting = true; Message = "Saving a new immutable revision…";
         try
         {
@@ -324,8 +325,10 @@ public sealed partial class PlaybookViewModel : ObservableObject
 
     private void ShowRevision(TradingSetupPlaybookRevision? revision)
     {
-        if (revision is null || revision.TradingSetupId != _selected?.Id || !Revisions.Contains(revision) || !TryLeave()) return;
-        IsEditing = false; _historical = revision; Changed();
+        if (IsBusy || revision is null || revision.TradingSetupId != _selected?.Id || !Revisions.Contains(revision)) return;
+        // Read-only preview is independent of the pending editor. Never reload its fields or baseline.
+        _historical = revision; Changed();
+        HistoricalPreviewRequest++; OnPropertyChanged(nameof(HistoricalPreviewRequest));
     }
 
     private async Task ChangePageAsync(int delta)
