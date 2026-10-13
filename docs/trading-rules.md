@@ -1,5 +1,56 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Prospective drag order — 13 October 2026
+
+Started on clean `develop`, HEAD `76cbf749e29eb8a42ce7ee64491b00edc524f468`. Previous work is preserved. This section supersedes the earlier descriptions of dashed source markers, target tint and immediate-only neighbor placement. No Rule definitions, assessments, revisions, ordering transactions, schema or backup/export contract changed; M18.6 has not started.
+
+### Temporary visual order
+
+- At drag start, capture the row bitmap and stationary row bounds once. Compare the pointer with **original midpoints**, in scroll-content coordinates, not with moving hit targets. Drop handling belongs to the stationary scroll viewport, including empty slots. Whole-row hit areas and excluded Edit/Delete, disclosure and editor controls are unchanged.
+- Only when the insertion index changes, calculate the prospective positions of all affected cards. One shared **120-ms ease-out clock** interpolates their `TranslateTransform`s from the current visual positions. Remaining cards retain their relative order and interpolate together, including unequal-height expanded Criteria. A rapid reversal retargets from the visible positions. The collection, templates, Rule values and numbers do not change. No new movement clock is created for ordinary pointer updates.
+- The lifted bitmap retains its DPI-aware modest scale and shadow. Its hidden source leaves a quiet empty slot; **all drag-specific dashed outlines and target borders are removed**. There is no insertion line. Windows reduced-motion (`ClientAreaAnimation=false`) places cards immediately. The 12-DIP/50-ms edge-scroll pacing remains unchanged.
+- Escape, leaving the viewport, unloading, drop and failure stop/remove the clock and restore transforms/opacity. Leaving resets immediately; returning reuses the captured rows/bitmap. The WPF `QueryContinueDrag` Drop announcement must retain the prospective index until the actual Drop consumes it; Cancel/Escape clears it immediately. No-op drops call no repository. A real drop retains the existing single optimistic-concurrency move and single verified catalog publication/renumbering. Failed/cancelled writes reload the persisted order using the existing path; unsaved-work protection remains intact.
+
+### Measurements and regression evidence
+
+The compiled WPF probe uses 12 synthetic Rules with long/expanded Criteria at 96 and 240 DPI. It invokes the production pointer-update path 60 times and services layout after every update. The preceding committed implementation's recorded result was one layout notification, one target update, zero row measures/arranges and zero database/collection changes; the earlier refresh-churn baseline had 60 layout notifications and 119 target changes. This task does not reintroduce those operations.
+
+| 60 pointer updates, one insertion change | Previous recorded elapsed ms | Current focused elapsed ms | Previous → current layout notifications |
+| --- | ---: | ---: | --- |
+| 96 DPI, collapsed | 3.042 | 6.781 | 1 → 0 |
+| 96 DPI, expanded | 0.574 | 0.442 | 1 → 0 |
+| 240 DPI, collapsed | 1.065 | 0.704 | 1 → 0 |
+| 240 DPI, expanded | 0.484 | 0.686 | 1 → 0 |
+
+Both versions have **zero catalog/revision reads, move writes, catalog publications, collection/property notifications, template row loads/unloads, row measurements/arrangements or pointer-time tree scans**. Current immediate/reduced-motion probe has one target change/shift update. Elapsed values are bounded UI-thread measurements across separate runs, not an FPS or speedup claim.
+
+The additional real WPF animation-clock probe crosses multiple rows both ways, retargets midway, seeks the clock without sleeping, and checks non-overlap and exact final positions. Sixty repeated selections of the same target retain the same clock; **two changed targets create two clocks**, three explicitly sampled progress updates, and zero layout/data/collection work. Automated clock sampling proves geometry/lifecycle, not smooth GPU rendering. Diagnostics now distinguish `Animations` (clock creation) from `ShiftFrames` (progress updates). The opt-in numeric-only diagnostics remain bounded; no Rule text, identifiers or paths are recorded.
+
+Focused regressions also verify no-op zero-write drops, one-write/one-publication success, failure rollback/cleanup, leave/re-entry, Escape, native Drop announcement, whole-row/control exclusions, keyboard reorder, guards, SQLite restart and concurrency. Raw results: `artifacts/m145-load/rules-shift-focused-final`; automated renders: `artifacts/rules-shift-renders`. The first development run had one new assertion incorrectly inspecting unrelated standard WPF focus templates for dashes; it was scoped to drag surfaces without changing native keyboard-focus behavior.
+
+### Verification and limits
+
+- Focused **83/83 passed** (37 Desktop, 46 Infrastructure).
+- **Final complete parallel Release: 4,039 passed / 2 failed / zero skipped**, `artifacts/m145-load/rules-shift-full`: Domain 490/490, Application 753/753, Infrastructure 1,249/1,249; Desktop 1,547 passed / 2 failed. Both failures are `MainWindowViewModelTests.DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification` (`notifyChange: True` and `False`), propagating one aborted `daily-review-acceptance` child. Its blame collector reached the unchanged **30-second inactivity deadline** while the first `True` case was active. The sequence marks that case incomplete; the other parent case propagates the shared child failure rather than proving another independent hang. Full-suite acceptance stays **open**; no retry, skip, concurrency, assertion or deadline change.
+- Bounded failure evidence: the child's first STA action started at **19:46:12.543 UTC**; gate wait **3.221 ms**, dispatcher readiness **104.243 ms**, scheduled wait **31.158 ms**, theme loading **1,786.762 ms**. The dump timestamp is **19:46:16**; no first-action completion was recorded. The test performs synthetic SQLite setup before entering this action, so the inactivity budget is not equivalent to 30 seconds stalled in WPF. These breadcrumbs do **not** localize a specific hung operation or prove a product defect. Dump, sequence, TRX and phase logs remain under `daily-review-acceptance-20261013-194510-316762cf3acf4fccbdc70ad81530a44f`. This unrelated failure was not hidden with a rerun or speculative change.
+- Rules regressions passed under the full load. Calendar native **87/87 in 94.954 s**, leaving **25.046 s** to its unchanged 120-second deadline. Neither its earlier chart-focus assertion nor aggregate timeout recurred; prior variability remains unproven, not declared fixed.
+- Release build **0 warnings/errors**. EF: **no pending model changes** through the isolated design-time context. `git diff --check` and new-file whitespace checks pass. Eight modified files and one new file; branch/HEAD unchanged.
+- Inspected automated Light/Dark renders at 960 DIP/96 DPI and 480 DIP/240 DPI: lifted card, prospective empty slot, shifted card, wrapped text and visible actions. These are render/layout checks, not actual mouse observations.
+- Computer-use skill: launched the actual Release app against the existing **synthetic-only** `artifacts/rules-drag-live/isolated` root. Helper discovered its window, but capture returned `FrameArrived timed out`; refreshing window identity and retrying returned `window capture timed out`. No blind mouse/keyboard input. The synthetic app was closed normally. Physical OLE dragging, edge dwell, GPU smoothness and screen-reader behavior remain unverified. Manual check: drag a middle card through several rows in both directions; expand a long Criterion, scroll while dragging, test Escape/leave, then repeat with Windows animations disabled and at 240 DPI.
+- No production journal or provider access. No Git writes; these uncommitted changes cannot have matching GitHub Actions acceptance. Earlier Calendar focus/timing instability is not claimed fixed.
+
+Exact changed files (8 modified, 1 new):
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Diagnostics/RulesDragDiagnostics.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.DragVisuals.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.ProspectiveOrder.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesDragPerformanceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Stable drag movement — 13 October 2026
 
 Started on clean `develop`, HEAD `193d158ffa8271a68c7cd846e546e119086dd004`; the preceding card work was committed and preserved. No Rule/assessment, storage, ordering transaction, schema, backup/export or M18.6 changes.

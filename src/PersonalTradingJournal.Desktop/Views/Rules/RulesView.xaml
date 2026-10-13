@@ -80,7 +80,8 @@
                 <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Rule operation status" />
             </StackPanel>
         </Border>
-    <ScrollViewer Grid.Row="1" x:Name="RulesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Rule management content">
+    <ScrollViewer Grid.Row="1" x:Name="RulesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Rule management content"
+                  AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop">
         <StackPanel Margin="0,0,12,12">
             <TextBlock x:Name="RulesMotto" Text="Правилата са, за да се спазват!" Style="{StaticResource Heading}"
                        FontSize="24" TextAlignment="Center" Margin="0,4,0,20" />
@@ -98,7 +99,6 @@
                             Focusable="True" FocusVisualStyle="{StaticResource RuleRowFocusStyle}" KeyboardNavigation.IsTabStop="True"
                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             PreviewMouseLeftButtonDown="OnRowDown" PreviewMouseMove="OnRowMove" PreviewMouseLeftButtonUp="OnRowUp"
-                            AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop"
                             PreviewKeyDown="OnRowKey" QueryContinueDrag="OnQueryContinueDrag" GiveFeedback="OnDragFeedback" QueryCursor="OnRowQueryCursor" Loaded="OnRowLoaded" Unloaded="OnRowUnloaded"
                             AutomationProperties.Name="{Binding Name, StringFormat=Reorder rule {0}}"
                             AutomationProperties.HelpText="Drag the Rule row to reorder. Alt+Up or Alt+Down moves a focused Rule; Shift+F10 opens move actions."
@@ -113,8 +113,6 @@
                         <Grid x:Name="RuleRowLayout">
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <Border x:Name="DropHighlight" Grid.ColumnSpan="3" Background="{DynamicResource PtjAccentBrush}" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="1" Opacity="0.10"
-                                    CornerRadius="6" Visibility="Collapsed" IsHitTestVisible="False" />
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
                             <Canvas x:Name="RuleGrip" Width="10" Height="20" Margin="0,6,10,0" IsHitTestVisible="False" Focusable="False">
                                 <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="0" Canvas.Top="0" />
@@ -154,9 +152,6 @@
                                     </MultiBinding>
                                 </ContentControl.Content>
                             </ContentControl>
-                            <Rectangle x:Name="DragOriginMarker" Grid.ColumnSpan="3" Grid.RowSpan="2"
-                                       Stroke="{DynamicResource PtjAccentBrush}" StrokeThickness="2" StrokeDashArray="3,2"
-                                       RadiusX="4" RadiusY="4" IsHitTestVisible="False" Visibility="Collapsed" />
                         </Grid>
                     </local:RuleReorderRow>
                 </DataTemplate></ItemsControl.ItemTemplate>

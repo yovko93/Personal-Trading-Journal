@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using PersonalTradingJournal.Desktop.Diagnostics;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
@@ -35,7 +36,7 @@ public sealed class RulesDragPerformanceTests
                     f.Data.Rows.Add(TradingRuleRevision.Create(Guid.NewGuid(), new($"Synthetic rule {i:00}",
                         string.Join(" ", Enumerable.Repeat("Synthetic long Criterion for measuring drag layout.", 12))), DateTimeOffset.UtcNow));
                 Await(f.Vm.ActivateAsync());
-                var clock = new DragClock(); var view = new RulesView { DataContext = f.Vm, DragClock = clock };
+                var clock = new DragClock(); var view = new RulesView { DataContext = f.Vm, DragClock = clock, AnimateReordering = false };
                 VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                 void Layout() { view.Measure(new Size(800, 600)); view.Arrange(new Rect(0, 0, 800, 600)); view.UpdateLayout(); }
                 Layout();
@@ -46,9 +47,11 @@ public sealed class RulesDragPerformanceTests
                 int reads = f.Data.CatalogCalls.Count;
                 Assert.True(view.BeginRowLift(source, new Point(180, 220))); Layout();
                 var diagnostics = Assert.IsType<RulesDragDiagnostics>(f.Vm.DragDiagnostics); diagnostics.Reset();
+                var overlay = (Canvas)view.FindName("DragOverlay");
+                Point firstMidpoint = rows[0].TranslatePoint(new Point(120, rows[0].ActualHeight / 2), overlay);
                 for (int i = 0; i < 60; i++)
                 {
-                    view.UpdateRowDrag(target, new Point(180 + i % 4, 220 + i), 200);
+                    view.UpdateRowDrag(new Point(firstMidpoint.X + i % 4, firstMidpoint.Y - 1), 200);
                     view.UpdateLayout();
                 }
                 Console.WriteLine($"RulesDrag dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
@@ -62,38 +65,87 @@ public sealed class RulesDragPerformanceTests
                 Assert.Equal(0, diagnostics[RuleDragCounter.RowMeasures]); Assert.Equal(0, diagnostics[RuleDragCounter.RowArranges]);
                 // Moving between descendants/rows within the viewport must not flicker the source slot.
                 view.LeaveRowDrag(new Point(200, 240));
-                Assert.Equal(Visibility.Visible, ((Border)view.FindName("LiftedRule")).Visibility); Assert.Equal(.55, source.Opacity);
+                Assert.Equal(Visibility.Visible, ((Border)view.FindName("LiftedRule")).Visibility); Assert.Equal(0, source.Opacity);
+                // Cross one and several original midpoints in both directions. Variable-height
+                // expanded Criteria retain their layout; every affected card occupies its final slot.
+                var list = (ItemsControl)view.FindName("RuleRows");
+                var tops = rows.Select(r => r.TranslatePoint(new Point(), list).Y - ((TranslateTransform)r.RenderTransform).Y).ToArray();
+                void CheckSlots(int index)
+                {
+                    Assert.Equal(index, view.ProspectiveIndex);
+                    var order = rows.Where(r => r != source).ToList(); order.Insert(index, source);
+                    double top = tops[0];
+                    foreach (var r in order)
+                    {
+                        Assert.Equal(top, r.TranslatePoint(new Point(), list).Y, 4);
+                        top += r.ActualHeight + r.Margin.Bottom + r.Margin.Top;
+                    }
+                }
+                CheckSlots(0);
+                foreach (int index in new[] { 2, 6, 11, 4, 1, 0 })
+                {
+                    double y = index == 0 ? tops[0] - 1 : tops[index] + rows[index].ActualHeight / 2 + 1;
+                    view.UpdateProspectiveOrder(list.TranslatePoint(new Point(120, y), overlay));
+                    CheckSlots(index);
+                }
+                Assert.Same(catalog, f.Vm.Rules); Assert.Equal(reads, f.Data.CatalogCalls.Count); Assert.Equal(0, f.Data.MoveCalls);
+                // One easing clock per target change, not one per pointer event. Seek the real
+                // WPF clock rather than sleeping; non-source rows never overlap during retargeting.
+                view.AnimateReordering = true; diagnostics.Reset(); view.SetProspectiveIndex(8);
+                var animation = Assert.IsType<AnimationClock>(view.ShiftClock);
+                animation.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(40), TimeSeekOrigin.BeginTime);
+                AssertNonOverlapping(rows, source, list);
+                for (int i = 0; i < 60; i++) view.SetProspectiveIndex(8);
+                Assert.Same(animation, view.ShiftClock); Assert.Equal(1, diagnostics[RuleDragCounter.Animations]);
+                view.SetProspectiveIndex(3);
+                Assert.NotSame(animation, view.ShiftClock);
+                view.ShiftClock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(60), TimeSeekOrigin.BeginTime);
+                AssertNonOverlapping(rows, source, list);
+                view.ShiftClock.Controller.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(120), TimeSeekOrigin.BeginTime);
+                CheckSlots(3);
+                view.UpdateLayout();
+                Console.WriteLine($"RulesDrag animated dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
+                Assert.Equal(2, diagnostics[RuleDragCounter.TargetChanges]); Assert.Equal(2, diagnostics[RuleDragCounter.Animations]);
+                foreach (var counter in new[] { RuleDragCounter.CatalogReads, RuleDragCounter.MoveWrites,
+                    RuleDragCounter.CatalogPublishes, RuleDragCounter.PropertyNotifications, RuleDragCounter.CollectionChanges,
+                    RuleDragCounter.RowsLoaded, RuleDragCounter.RowsUnloaded, RuleDragCounter.RowMeasures, RuleDragCounter.RowArranges })
+                    Assert.Equal(0, diagnostics[counter]);
+                Assert.InRange(diagnostics[RuleDragCounter.ViewLayouts], 0, 1);
+                view.AnimateReordering = false;
                 diagnostics.Reset();
                 for (int i = 0; i < 60; i++)
                 {
-                    view.UpdateRowDrag(target, new Point(180, 590), 590);
+                    view.UpdateRowDrag(new Point(180, 590), 590);
                     view.UpdateLayout();
                 }
                 Console.WriteLine($"RulesDrag edge dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
                 Assert.Equal(1, diagnostics[RuleDragCounter.ScrollRequests]);
-                clock.Advance(TimeSpan.FromMilliseconds(49)); view.UpdateRowDrag(target, new Point(180, 590), 590);
+                clock.Advance(TimeSpan.FromMilliseconds(49)); view.UpdateRowDrag(new Point(180, 590), 590);
                 Assert.Equal(1, diagnostics[RuleDragCounter.ScrollRequests]);
-                clock.Advance(TimeSpan.FromMilliseconds(1)); view.UpdateRowDrag(target, new Point(180, 590), 590);
+                clock.Advance(TimeSpan.FromMilliseconds(1)); view.UpdateRowDrag(new Point(180, 590), 590);
                 Assert.Equal(2, diagnostics[RuleDragCounter.ScrollRequests]);
                 view.LeaveRowDrag(new Point(-1, -1));
                 Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("LiftedRule")).Visibility); Assert.Equal(1, source.Opacity);
+                Assert.Null(view.ShiftClock); Assert.All(rows, r => Assert.Equal(0, ((TranslateTransform)r.RenderTransform).Y));
                 view.EndRowDrag();
                 Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("LiftedRule")).Visibility);
                 Assert.Equal(1, source.Opacity);
-                Assert.All(Descendants(view).OfType<Border>().Where(b => b.Name == "DropHighlight"), b => Assert.Equal(Visibility.Collapsed, b.Visibility));
+                Assert.All(rows, b => Assert.Equal(Transform.Identity, b.RenderTransform)); Assert.Null(view.ShiftClock);
                 Assert.Same(catalog, f.Vm.Rules); Assert.Equal(reads, f.Data.CatalogCalls.Count); Assert.Equal(0, f.Data.MoveCalls);
 
                 // A no-op drop, a valid drop, then a failed drop use the same UI entry point.
-                diagnostics.Reset(); Await(view.DropRuleAsync(ids[0], ids[1], false));
+                Assert.True(view.BeginRowLift(rows[0], new Point(180, 200)));
+                diagnostics.Reset(); Await(view.DropProspectiveOrderAsync());
                 Assert.Equal(0, diagnostics[RuleDragCounter.MoveWrites]); Assert.Equal(0, diagnostics[RuleDragCounter.CatalogReads]);
-                Await(view.DropRuleAsync(ids[1], ids[0], false)); Layout();
+                Assert.True(view.BeginRowLift(rows[1], new Point(180, 200))); view.SetProspectiveIndex(0);
+                Await(view.DropProspectiveOrderAsync()); Layout();
                 Assert.Equal(1, diagnostics[RuleDragCounter.MoveWrites]); Assert.Equal(1, diagnostics[RuleDragCounter.CatalogReads]);
                 Assert.Equal(1, diagnostics[RuleDragCounter.CatalogPublishes]); Assert.Equal(1, diagnostics[RuleDragCounter.CollectionChanges]);
                 Assert.Equal(ids[1], f.Vm.Rules[0].Id); Assert.Equal(Enumerable.Range(1, 12), f.Vm.Rules.Select(r => r.DisplayNumber));
                 var persisted = f.Vm.Rules.Select(r => r.Id).ToArray(); f.Data.Failure = "failure"; diagnostics.Reset();
                 var failedSource = Descendants(view).OfType<RuleReorderRow>().First();
                 Assert.True(view.BeginRowLift(failedSource, new Point(180, 200)));
-                Await(view.DropRuleAsync(ids[2], ids[1], false)); Layout();
+                view.SetProspectiveIndex(3); Await(view.DropProspectiveOrderAsync()); Layout();
                 Assert.Equal(persisted, f.Vm.Rules.Select(r => r.Id)); Assert.Equal(1, diagnostics[RuleDragCounter.MoveWrites]);
                 Assert.Equal(1, diagnostics[RuleDragCounter.CatalogReads]); Assert.Equal(1, diagnostics[RuleDragCounter.CatalogPublishes]);
                 Assert.Equal(Visibility.Collapsed, ((Border)view.FindName("LiftedRule")).Visibility);
@@ -101,6 +153,13 @@ public sealed class RulesDragPerformanceTests
                 Assert.Contains("could not be moved", f.Vm.Message); f.Vm.Deactivate();
             }
         }, "Rules pointer movement numeric diagnostics");
+    }
+    private static void AssertNonOverlapping(RuleReorderRow[] rows, RuleReorderRow source, ItemsControl list)
+    {
+        var others = rows.Where(r => r != source).ToArray();
+        for (int i = 1; i < others.Length; i++)
+            Assert.True(others[i - 1].TranslatePoint(new Point(0, others[i - 1].ActualHeight), list).Y <=
+                others[i].TranslatePoint(new Point(), list).Y + .01, "Displaced cards must not overlap while a shared clock is retargeted.");
     }
     private sealed class DragClock : TimeProvider
     {

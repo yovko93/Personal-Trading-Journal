@@ -3,7 +3,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using PersonalTradingJournal.Desktop.ViewModels.Rules;
 using PersonalTradingJournal.Desktop.Diagnostics;
 
@@ -14,7 +13,6 @@ public partial class RulesView
     private Border? _liftSource;
     private Point _grabOffset;
     private double _originalOpacity;
-    private Rectangle? _originMarker;
 
     internal Cursor? RowCursor(DependencyObject? hit, Border row) =>
         DataContext is RulesViewModel { IsBusy: false } && CanStartRowDrag(hit, row)
@@ -60,12 +58,12 @@ public partial class RulesView
         bitmap.Render(drawing); bitmap.Freeze();
         _liftSource = source; _originalOpacity = source.Opacity;
         DragDiagnostics?.Count(RuleDragCounter.TreeScans);
-        _originMarker = OriginMarker(source);
+        CaptureVisualOrder(source);
         Vector offset = pointer - source.TranslatePoint(new Point(), DragOverlay);
         _grabOffset = new Point(offset.X, offset.Y);
         LiftedRuleImage.Source = bitmap;
         // Scale only the frozen image, never the stored card or its text layout. Respect
-        // reduced motion and clamp to the viewport; no neighbor animation or layout churn.
+        // reduced motion and clamp to the viewport; never change the stored card's layout.
         double liftScale = SystemParameters.ClientAreaAnimation ? 1.015 : 1;
         double fit = Math.Min(liftScale, Math.Max(1, DragOverlay.ActualWidth - 16) / source.ActualWidth);
         LiftedRuleImage.Width = source.ActualWidth * fit; LiftedRuleImage.Height = source.ActualHeight * fit;
@@ -80,8 +78,7 @@ public partial class RulesView
         DragDiagnostics?.Count(RuleDragCounter.PreviewMoves);
         if (LiftedRule.Visibility != Visibility.Visible)
         {
-            _liftSource.Opacity = _originalOpacity * 0.55;
-            _originMarker!.Visibility = Visibility.Visible;
+            _liftSource.Opacity = 0; // The temporary insertion slot is quiet empty space, without a border.
             LiftedRule.Visibility = Visibility.Visible;
         }
         // Keep its width in the viewport, while following vertical pointer motion. Clip only
@@ -97,12 +94,9 @@ public partial class RulesView
         if (_liftSource is not null)
         {
             _liftSource.Opacity = _originalOpacity;
-            if (_originMarker is not null) _originMarker.Visibility = Visibility.Collapsed;
         }
-        ClearDropHighlights();
+        RestoreVisualOrder();
         Mouse.UpdateCursor();
     }
 
-    private static Rectangle OriginMarker(Border source) =>
-        Descendants(source).OfType<Rectangle>().Single(r => r.Name == "DragOriginMarker");
 }

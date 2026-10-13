@@ -8,7 +8,7 @@ internal enum RuleDragCounter
 {
     PointerMoves, CatalogReads, RevisionReads, MoveWrites, CatalogPublishes, PropertyNotifications,
     CollectionChanges, RowsLoaded, RowsUnloaded, RowMeasures, RowArranges, ViewLayouts,
-    PreviewCaptures, PreviewMoves, TargetChanges, TreeScans, ScrollRequests, Animations
+    PreviewCaptures, PreviewMoves, TargetChanges, TreeScans, ScrollRequests, Animations, ShiftFrames
 }
 internal enum RuleDragPhase { InputEnded, DropCompleted }
 

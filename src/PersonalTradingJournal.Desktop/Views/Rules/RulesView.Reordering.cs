@@ -14,7 +14,6 @@ public partial class RulesView
     private const string RuleDragFormat = "PTJ.RuleOrder";
     private Point _dragStart;
     private Border? _dragRow;
-    private Border? _dropHighlight;
     private int _edgeDirection;
     private long? _lastEdgeScroll;
     internal TimeProvider DragClock { get; set; } = TimeProvider.System;
@@ -64,7 +63,9 @@ public partial class RulesView
     private void OnRowUnloaded(object sender, RoutedEventArgs e) { DragDiagnostics?.Count(RuleDragCounter.RowsUnloaded); EndRowDrag(); }
     private void OnQueryContinueDrag(object sender, QueryContinueDragEventArgs e)
     {
-        if (e.EscapePressed || e.Action != DragAction.Continue) EndRowDrag();
+        // WPF can announce Drop before routing the Drop event. Keep its prospective
+        // position until that event consumes it; cancellation clears it immediately.
+        if (e.EscapePressed || e.Action == DragAction.Cancel) EndRowDrag();
     }
     internal void EndRowDrag()
     {
@@ -72,38 +73,28 @@ public partial class RulesView
         _lastEdgeScroll = null; _edgeDirection = 0;
         HideRowLift();
         _liftSource = null;
-        _originMarker = null;
+        ClearVisualOrder();
         LiftedRuleImage.Source = null;
         LiftTranslation.X = 0; LiftTranslation.Y = 0;
-    }
-    private void ClearDropHighlights()
-    {
-        if (_dropHighlight is { } highlight)
-        {
-            DragDiagnostics?.Count(RuleDragCounter.TargetChanges);
-            highlight.Visibility = Visibility.Collapsed;
-            _dropHighlight = null;
-        }
     }
     private bool TryDrop(DragEventArgs e, out Guid source)
     {
         source = e.Data.GetData(RuleDragFormat) is Guid id ? id : Guid.Empty;
         Guid candidate = source;
-        return DataContext is RulesViewModel { IsBusy: false } vm && vm.Rules.Any(r => r.Id == candidate);
+        return _liftSource?.DataContext is RuleRow captured && captured.Id == candidate &&
+            DataContext is RulesViewModel { IsBusy: false } vm && vm.Rules.Any(r => r.Id == candidate);
     }
     private void OnRuleDragOver(object sender, DragEventArgs e)
     {
         e.Handled = true; e.Effects = DragDropEffects.None;
-        if (!TryDrop(e, out _) || sender is not Border { Child: Grid grid }) { HideRowLift(); return; }
+        if (!TryDrop(e, out _) || !new Rect(DragOverlay.RenderSize).Contains(e.GetPosition(DragOverlay))) { HideRowLift(); return; }
         e.Effects = DragDropEffects.Move;
-        UpdateRowDrag(grid, e.GetPosition(DragOverlay), e.GetPosition(RulesScroller).Y);
+        UpdateRowDrag(e.GetPosition(DragOverlay), e.GetPosition(RulesScroller).Y);
     }
-    internal void UpdateRowDrag(Grid grid, Point pointer, double y)
+    internal void UpdateRowDrag(Point pointer, double y)
     {
         DragDiagnostics?.Count(RuleDragCounter.PointerMoves);
-        if (LiftedRule.HasAnimatedProperties || LiftTranslation.HasAnimatedProperties || grid.HasAnimatedProperties)
-            DragDiagnostics?.Count(RuleDragCounter.Animations);
-        MoveRowLift(pointer); ShowDropHighlight(grid);
+        MoveRowLift(pointer); UpdateProspectiveOrder(pointer);
         int direction = y < 36 ? -1 : y > RulesScroller.ActualHeight - 36 ? 1 : 0;
         if (direction == 0) { _lastEdgeScroll = null; _edgeDirection = 0; return; }
         long now = DragClock.GetTimestamp();
@@ -115,15 +106,6 @@ public partial class RulesView
         DragDiagnostics?.Count(RuleDragCounter.ScrollRequests);
         RulesScroller.ScrollToVerticalOffset(RulesScroller.VerticalOffset + direction * 12);
     }
-    internal void ShowDropHighlight(Grid grid)
-    {
-        if (ReferenceEquals(_dropHighlight?.Parent, grid)) return;
-        ClearDropHighlights();
-        // The target is a direct child, not a recursive traversal of every template.
-        _dropHighlight = grid.Children.OfType<Border>().First(b => b.Name == "DropHighlight");
-        _dropHighlight.Visibility = Visibility.Visible;
-        DragDiagnostics?.Count(RuleDragCounter.TargetChanges);
-    }
     private void OnRuleDragLeave(object sender, DragEventArgs e) => LeaveRowDrag(e.GetPosition(DragOverlay));
     internal void LeaveRowDrag(Point pointer)
     {
@@ -131,24 +113,29 @@ public partial class RulesView
         {
             HideRowLift(); _lastEdgeScroll = null; _edgeDirection = 0;
         }
-        // Routed child/row leave events inside the viewport must not hide/re-show the
-        // frozen preview and original slot. The next target update changes only its tint.
+        // Routed child/row leave events inside the viewport must not reset the gesture.
     }
     private async void OnRuleDrop(object sender, DragEventArgs e)
     {
-        e.Handled = true; EndRowDrag();
-        if (!TryDrop(e, out Guid source) || sender is not Border { Child: Grid { DataContext: RuleRow target } grid }) return;
-        await DropRuleAsync(source, target.Id, e.GetPosition(grid).Y >= grid.RowDefinitions[0].ActualHeight / 2);
+        e.Handled = true;
+        if (!TryDrop(e, out _) || !new Rect(DragOverlay.RenderSize).Contains(e.GetPosition(DragOverlay))) { EndRowDrag(); return; }
+        UpdateProspectiveOrder(e.GetPosition(DragOverlay));
+        await DropProspectiveOrderAsync();
     }
     internal async Task DropRuleAsync(Guid source, Guid target, bool after)
     {
         EndRowDrag();
+        if (DataContext is not RulesViewModel vm) return;
+        int index = vm.Rules.ToList().FindIndex(r => r.Id == target);
+        if (index < 0 || source == target) return;
+        Guid? before = after ? index + 1 < vm.Rules.Count ? vm.Rules[index + 1].Id : null : target;
+        await CommitDropAsync(source, before);
+    }
+    private async Task CommitDropAsync(Guid source, Guid? before)
+    {
         try
         {
             if (DataContext is not RulesViewModel vm) return;
-            int index = vm.Rules.ToList().FindIndex(r => r.Id == target);
-            if (index < 0 || source == target) return;
-            Guid? before = after ? index + 1 < vm.Rules.Count ? vm.Rules[index + 1].Id : null : target;
             await vm.MoveBeforeAsync(source, before);
             FocusRow(source);
         }
