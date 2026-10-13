@@ -86,6 +86,8 @@ public sealed class RulesViewModel : ObservableObject
     public IReadOnlyList<RuleField> Fields { get; }
     public IReadOnlyList<RuleRow> Rules { get => _rules; private set => SetProperty(ref _rules, value); }
     public RuleRow? SelectedRule => _selected;
+    public Guid? EditingRuleId => IsEditing && _expected > 0 ? _editId : null;
+    public RulesViewModel? NewRuleEditor => IsEditing && _expected == 0 ? this : null;
     public bool ShowEmpty => Rules.Count == 0 && !IsEditing && !IsLoading;
     public bool IsEditing { get => _editing; private set { SetProperty(ref _editing, value); Changed(); } }
     public bool IsLoading { get => _loading; private set { SetProperty(ref _loading, value); Changed(); } }
@@ -227,7 +229,7 @@ public sealed class RulesViewModel : ObservableObject
     private void Changed()
     {
         EditRowCommand?.NotifyCanExecuteChanged(); DeleteCommand?.NotifyCanExecuteChanged();
-        foreach (string property in new[] { nameof(SelectedRule), nameof(ShowEmpty), nameof(IsBusy), nameof(CanSelect), nameof(CanEdit), nameof(HasUnsavedChanges), nameof(PageLabel) }) OnPropertyChanged(property);
+        foreach (string property in new[] { nameof(SelectedRule), nameof(EditingRuleId), nameof(NewRuleEditor), nameof(ShowEmpty), nameof(IsBusy), nameof(CanSelect), nameof(CanEdit), nameof(HasUnsavedChanges), nameof(PageLabel) }) OnPropertyChanged(property);
         CreateCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged(); CancelEditCommand?.NotifyCanExecuteChanged(); RefreshCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged(); NextCommand?.NotifyCanExecuteChanged(); PreviousCommand?.NotifyCanExecuteChanged();
     }
 }

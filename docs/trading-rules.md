@@ -1,5 +1,31 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Inline editor layout — 13 October 2026
+
+The redundant **Rule editor** heading and explanatory sentence are removed. Rule name and Criterion labels, required-field accessibility, inline errors and the error summary remain. One shared form template is instantiated above the list for Create, or immediately under the edited Rule's header/actions and before the next row. Placement follows the captured Rule ID, never a row index or displayed name. Other rows remain visible/reachable through the page scrollbar.
+
+Existing commands still own validation, concurrency, Save readback, Cancel and unsaved-change confirmation. A declined row switch/Create/Cancel keeps the same form and text. Accepted switching moves the form to the correct row. Successful Save or accepted Cancel closes that form; clean Edit → Create opens blank fields above the list and hands focus to the new form. On ordinary edit opening, the selected header and first field are brought into view together where the viewport permits. Closing restores focus to the matching Edit button when present, otherwise Create.
+
+The page/count indicator and Previous/Next controls now sit **below the list**, aligned to its right edge. The indicator can wrap above the grouped navigation buttons without overlap. Paging limits, order, guards and availability are unchanged. There are no persistence, schema, assessment, automatic-check, deadline or concurrency changes in this refinement.
+
+Started on clean `develop` at `9219f57cb3dbbb0cbd262266c2b875b08c351bb1`; prior work was already committed and remains intact. Focused Desktop verification: **54 passed, zero failures/skips**, `artifacts/m145-load/rules-inline-focused-final`. This includes SQLite-backed existing Save tests, captured-identity placement, vetoed and accepted switching, correct Save/Cancel targeting, empty Create fields, unchanged pagination guards, validation and owner-close protection.
+
+Compiled WPF checks use three distinct Rules and one shared form in **Light/Dark, 960 DIP / 96 DPI and 480 DIP / 240 DPI**, with a 400-DIP viewport for scrolling. Assertions verify the form is inside the selected row and before the next row, only one form exists, Create is above the list, the footer is below the list/right-aligned, actions remain accessible, and declined switching preserves the same controls and text. Existing wheel, PageDown, validation, field geometry and Save reachability assertions remain. Real owned-window automation verifies first-invalid-field logical focus, selected-row visibility, and clean Edit → Create focus when `IsEditing` remains true. Catalog/create/edit/validation renders in ignored `artifacts/rules-inline-renders` were inspected; these are automated WPF renders, not live input observations.
+
+Verification uses only synthetic data. Live mouse/keyboard and screen-reader checks and a GitHub Actions run for the resulting committed changes remain separate, open gates. No M18.6, production access or commit/push/merge.
+
+Final full parallel Release: **4,018 passed, zero failures/skips** (488 Domain, 752 Application, 1,246 Infrastructure, 1,532 Desktop), `artifacts/m145-load/rules-inline-full-final`. Calendar native **87/87 in 104.711 seconds**, **15.289 seconds** headroom against the unchanged 120-second aggregate deadline; grid **34.647 seconds**. No Calendar or Journal timeout occurred, but this is not a claim to eliminate load-dependent timing risk. Release build: **0 warnings/errors**; design-time EF reports no pending model changes, and whitespace checks pass. HEAD/branch are unchanged; final worktree contains the seven modified files below, no new files. No matching CI run can verify this uncommitted tree yet.
+
+Exact changed files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Simplified editor — 13 October 2026
 
 This is the current UI behavior, superseding the authoring controls in earlier milestone reports below. The global catalog's editor contains **Rule name** (1–120 characters) and **Criterion** (1–4,000 characters) only. Both remain required, with inline errors, first-invalid-field focus/scroll and unsaved-edit guards. Required evidence, the typed-check checkbox, metric, P&L basis, maximum loss and currency inputs are removed. A new entry has no automatic criterion and is manual-only; no threshold or evidence text is invented.

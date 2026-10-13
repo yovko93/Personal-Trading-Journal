@@ -9,6 +9,29 @@ namespace PersonalTradingJournal.Desktop.Tests.Rules;
 
 public sealed class RulesViewModelTests
 {
+    [Fact]
+    public async Task EditorPlacementTracksCapturedIdentityAndGuardsSwitchCreateCancelAndSave()
+    {
+        var f = new RulesFixture(); var first = f.Data.Seed(1); var second = f.Data.Seed(1);
+        await f.Vm.ActivateAsync();
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == first));
+        Assert.Equal(first, f.Vm.EditingRuleId); Assert.Null(f.Vm.NewRuleEditor);
+        f.Vm.Fields[1].Text = "Keep this draft";
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == second));
+        f.Vm.CreateCommand.Execute(null); f.Vm.CancelEditCommand.Execute(null);
+        Assert.Equal(first, f.Vm.EditingRuleId); Assert.Equal("Keep this draft", f.Vm.Fields[1].Text);
+        f.Dialogs.ConfirmationResult = true;
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == second));
+        Assert.Equal(second, f.Vm.EditingRuleId); Assert.Equal("criterion 1", f.Vm.Fields[1].Text);
+        f.Vm.Fields[1].Text = "Saved second"; await f.Vm.SaveCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.EditingRuleId); Assert.Null(f.Vm.NewRuleEditor);
+        Assert.Equal("criterion 1", f.Data.Rows.Single(r => r.RuleId == first).Definition.Criterion);
+        Assert.Equal("Saved second", f.Data.Rows.Last(r => r.RuleId == second).Definition.Criterion);
+        f.Vm.CreateCommand.Execute(null); Assert.Same(f.Vm, f.Vm.NewRuleEditor); Assert.Null(f.Vm.EditingRuleId);
+        Assert.All(f.Vm.Fields, field => Assert.Empty(field.Text));
+        f.Vm.CancelEditCommand.Execute(null); Assert.Null(f.Vm.NewRuleEditor); Assert.False(f.Vm.IsEditing);
+    }
+
     [Theory]
     [InlineData(0, 121)]
     [InlineData(1, 4001)]

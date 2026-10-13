@@ -1,6 +1,8 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using PersonalTradingJournal.Desktop.Validation;
@@ -11,6 +13,12 @@ namespace PersonalTradingJournal.Desktop.Views.Rules;
 public partial class RulesView : UserControl
 {
     public RulesView() => InitializeComponent();
+    private void OnEditorLoaded(object sender, RoutedEventArgs e)
+    {
+        // Moving a clean edit to Create can keep IsEditing=true. The new host still needs focus.
+        if (ReferenceEquals(sender, e.OriginalSource) && DataContext is RulesViewModel vm)
+            OnStateChanged(vm, new PropertyChangedEventArgs(vm.HasErrors ? nameof(RulesViewModel.ValidationAttempt) : nameof(RulesViewModel.IsEditing)));
+    }
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (e.OldValue is RulesViewModel old) PropertyChangedEventManager.RemoveHandler(old, OnStateChanged, "");
@@ -24,11 +32,27 @@ public partial class RulesView : UserControl
             if (!IsLoaded || !ReferenceEquals(DataContext, sender) || sender is not RulesViewModel vm) return;
             if (e.PropertyName == nameof(RulesViewModel.ValidationAttempt))
             {
-                var first = Descendants(EditorFields).OfType<TextBox>().FirstOrDefault(FormValidation.GetIsInvalid);
+                var first = Descendants(this).OfType<TextBox>().FirstOrDefault(FormValidation.GetIsInvalid);
                 first?.BringIntoView(); first?.Focus();
             }
-            else if (vm.IsEditing) { EditorFields.BringIntoView(); Descendants(EditorFields).OfType<TextBox>().FirstOrDefault()?.Focus(); }
-            else CreateRule.Focus();
+            else if (vm.IsEditing)
+            {
+                UpdateLayout();
+                var first = Descendants(this).OfType<TextBox>().FirstOrDefault();
+                // Reveal the row header and first field together, not the entire tall form.
+                if (vm.EditingRuleId is Guid id)
+                {
+                    var row = Descendants(RuleRows).OfType<Grid>().FirstOrDefault(g => g.Name == "RuleRowLayout" && g.DataContext is RuleRow r && r.Id == id);
+                    if (row is not null && first is not null)
+                        row.BringIntoView(new Rect(0, 0, row.ActualWidth, first.TranslatePoint(new Point(0, first.ActualHeight), row).Y));
+                }
+                first?.BringIntoView(); first?.Focus();
+            }
+            else
+            {
+                var edit = Descendants(RuleRows).OfType<Button>().FirstOrDefault(b => Equals(b.Content, "Edit") && b.DataContext is RuleRow r && r.Id == vm.SelectedRule?.Id);
+                if (edit is not null) edit.Focus(); else CreateRule.Focus();
+            }
         });
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
@@ -49,4 +73,13 @@ public partial class RulesView : UserControl
         RulesScroller.ScrollToVerticalOffset(RulesScroller.VerticalOffset - e.Delta);
         e.Handled = true;
     }
+}
+
+/// <summary>Only the captured editing identity hosts the shared form, never a row index.</summary>
+public sealed class RuleInlineEditorConverter : IMultiValueConverter
+{
+    public object? Convert(object[] values, Type targetType, object parameter, CultureInfo culture) =>
+        values is [Guid row, Guid editing, RulesViewModel vm] && row == editing ? vm : null;
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
 }

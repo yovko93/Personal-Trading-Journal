@@ -34,21 +34,33 @@ public sealed class RulesViewTests
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 foreach (var (width, dpi) in new[] { (960, 96), (480, 240) })
                 {
-                    var f = new RulesFixture(); var id = f.Data.Seed(12);
+                    var f = new RulesFixture(); f.Data.Seed(12);
+                    var id = Guid.Parse("00000000-0000-0000-0000-000000000001");
+                    for (int i = 0; i < f.Data.Rows.Count; i++)
+                    {
+                        var old = f.Data.Rows[i];
+                        f.Data.Rows[i] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, old.Revision, old.Definition, old.IsActive, old.RecordedAtUtc);
+                    }
                     f.Data.Rows[^1] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, 12,
                         new("A longer synthetic rule name to check wrapping", "A short statement that remains readable beside the right-aligned actions.", "Retained evidence",
                             new(PersonalTradingJournal.Domain.Rules.RuleProfitBasis.StrictNet, 123.456m, "EUR", capability: PersonalTradingJournal.Domain.Rules.RuleCheckCapability.ClosedDayLoss)),
                         true, DateTimeOffset.UtcNow.AddDays(-1));
+                    var secondId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+                    var thirdId = Guid.Parse("00000000-0000-0000-0000-000000000003");
+                    foreach (var other in new[] { secondId, thirdId })
+                        f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(other, new("Another synthetic principle", "Leave these rows unchanged"), DateTimeOffset.UtcNow.AddDays(-1)));
                     f.Open(id).GetAwaiter().GetResult();
                     var view = new RulesView { DataContext = f.Vm }; FocusManager.SetIsFocusScope(view, true);
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 400)); view.Arrange(new Rect(0, 0, width, 400)); view.UpdateLayout(); }
                     Layout();
                     var scroller = (ScrollViewer)view.FindName("RulesScroller");
-                    Assert.Single(((ItemsControl)view.FindName("RuleRows")).Items);
+                    Assert.Equal(3, ((ItemsControl)view.FindName("RuleRows")).Items.Count);
                     Assert.Null(view.FindName("RuleSelector")); Assert.Null(view.FindName("RevisionHistory"));
                     Assert.Null(view.FindName("AccountSelector")); Assert.Null(view.FindName("TargetSelector"));
-                    var rowButtons = Descendants((ItemsControl)view.FindName("RuleRows")).OfType<Button>().ToArray();
+                    var rows = (ItemsControl)view.FindName("RuleRows");
+                    var rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
+                    var rowButtons = Descendants(rowGrid).OfType<Button>().ToArray();
                     Assert.Equal(new[] { "Edit", "Delete" }, rowButtons.Select(b => b.Content));
                     foreach (var button in rowButtons)
                     {
@@ -56,28 +68,42 @@ public sealed class RulesViewTests
                         Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
                     }
                     Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.IsVisible && (t.Text.Contains("Revision") || t.Text.Contains("Account scope")));
-                    var rowGrid = Descendants(view).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
+
                     Assert.InRange(rowGrid.ActualWidth - rowButtons[1].TranslatePoint(new Point(rowButtons[1].ActualWidth, 0), rowGrid).X, 0, 1);
                     Assert.Equal(rowButtons[0].TranslatePoint(new Point(), rowGrid).Y, rowButtons[1].TranslatePoint(new Point(), rowGrid).Y);
                     Assert.True(rowButtons[0].TranslatePoint(new Point(), rowGrid).X > rowGrid.ActualWidth / 2);
                     var condition = Descendants(rowGrid).OfType<TextBlock>().Single(t => t.Text == f.Vm.SelectedRule!.AutomaticCondition);
                     Assert.Equal(Visibility.Visible, condition.Visibility); Assert.Contains("EUR", condition.Text); Assert.Contains("123.456", condition.Text);
                     Assert.InRange(condition.TranslatePoint(new Point(condition.ActualWidth, 0), rowGrid).X, 0, rowButtons[0].TranslatePoint(new Point(), rowGrid).X - 1);
+                    var pager = (WrapPanel)view.FindName("RulePagination");
+                    Assert.True(pager.TranslatePoint(new Point(), view).Y >= rows.TranslatePoint(new Point(0, rows.ActualHeight), view).Y);
+                    Assert.InRange(Math.Abs(pager.TranslatePoint(new Point(pager.ActualWidth, 0), view).X - rows.TranslatePoint(new Point(rows.ActualWidth, 0), view).X), 0, 1);
+                    Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text == "Rule editor" || t.Text.StartsWith("Write a general trading principle."));
+                    foreach (var button in Descendants(pager).OfType<Button>())
+                    {
+                        Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
+                        Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
+                    }
                     Render(view, theme, width, dpi, "catalog");
                     f.Vm.EditCommand.Execute(null); Layout();
-                    Layout();
+                    var inline = Descendants(rowGrid).OfType<ContentControl>().Single(c => c.Name == "InlineEditorHost");
+                    Assert.Same(f.Vm, inline.Content);
+                    Assert.False(((ContentControl)view.FindName("CreateEditorHost")).HasContent);
+                    Assert.InRange(inline.TranslatePoint(new Point(), rowGrid).Y, rowGrid.RowDefinitions[0].ActualHeight, rowGrid.ActualHeight);
+                    var nextRow = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
+                    Assert.True(inline.TranslatePoint(new Point(0, inline.ActualHeight), rows).Y < nextRow.TranslatePoint(new Point(), rows).Y);
                     foreach (string name in new[] { "CheckCapability", "CheckBasis", "CheckLimit", "CheckCurrency" })
                     {
                         Assert.Null(view.FindName(name));
                     }
                     Assert.Empty(Descendants(view).OfType<CheckBox>());
                     Assert.DoesNotContain(Descendants(view).OfType<Label>(), l => Equals(l.Content, "Required evidence"));
-                    var fields = Descendants((ItemsControl)view.FindName("EditorFields")).OfType<TextBox>().ToArray();
+                    var fields = Descendants(Find<ItemsControl>(view, "EditorFields")).OfType<TextBox>().ToArray();
                     Assert.Equal(2, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
                     fields[1].SetCurrentValue(TextBox.TextProperty, ""); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
                     Assert.True(FormValidation.GetIsInvalid(fields[1])); Assert.Equal("This field is required.", AutomationProperties.GetItemStatus(fields[1]));
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)fields[1].BorderBrush).Color);
-                    Assert.Equal(Visibility.Visible, ((Border)view.FindName("ValidationSummary")).Visibility);
+                    Assert.Equal(Visibility.Visible, Find<Border>(view, "ValidationSummary").Visibility);
                     fields[1].BringIntoView(); Flush(); Layout();
                     Assert.InRange(fields[1].TranslatePoint(new Point(), scroller).Y, -1, scroller.ViewportHeight);
                     Render(view, theme, width, dpi, "validation");
@@ -85,7 +111,7 @@ public sealed class RulesViewTests
                     Assert.False(FormValidation.GetIsInvalid(fields[1])); Assert.True(AutomationProperties.GetIsRequiredForForm(fields[1]));
                     foreach (var name in new[] { "CreateRule", "SaveRule" })
                     {
-                        var button = (Button)view.FindName(name); Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
+                        var button = Find<Button>(view, name); Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
                         Assert.NotNull(button.FocusVisualStyle);
                         Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
                     }
@@ -95,10 +121,28 @@ public sealed class RulesViewTests
                     fields[1].RaiseEvent(wheel); Flush(); Layout();
                     Assert.True(wheel.Handled); Assert.True(scroller.VerticalOffset > 0);
                     double offset = scroller.VerticalOffset; scroller.PageDown(); Flush(); Layout(); Assert.True(scroller.VerticalOffset > offset);
-                    var save = (Button)view.FindName("SaveRule"); save.BringIntoView(); Flush(); Layout();
+                    var save = Find<Button>(view, "SaveRule"); save.BringIntoView(); Flush(); Layout();
                     Assert.Same(f.Vm.SaveCommand, save.Command);
                     Assert.InRange(save.TranslatePoint(new Point(save.ActualWidth, save.ActualHeight), scroller).Y, 0, scroller.ViewportHeight + 1);
                     Render(view, theme, width, dpi, "editor");
+                    // Guarded switching leaves this exact inline form and draft intact on veto.
+                    f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId)).GetAwaiter().GetResult(); Layout();
+                    Assert.Same(f.Vm, inline.Content); Assert.Equal("Unsaved criterion", fields[1].Text);
+                    f.Dialogs.ConfirmationResult = true;
+                    f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId)).GetAwaiter().GetResult(); Layout();
+                    Assert.False(inline.HasContent);
+                    var nextHost = Descendants(nextRow).OfType<ContentControl>().Single(c => c.Name == "InlineEditorHost");
+                    Assert.Same(f.Vm, nextHost.Content);
+                    Assert.Single(Descendants(view).OfType<StackPanel>(), p => p.Name == "Editor");
+                    f.Vm.CancelEditCommand.Execute(null); Layout(); Assert.False(nextHost.HasContent);
+                    f.Vm.CreateCommand.Execute(null); Layout();
+                    var create = (ContentControl)view.FindName("CreateEditorHost");
+                    Assert.Same(f.Vm, create.Content);
+                    Assert.True(create.TranslatePoint(new Point(0, create.ActualHeight), view).Y <= rows.TranslatePoint(new Point(), view).Y);
+                    Assert.All(f.Vm.Fields, field => Assert.Empty(field.Text));
+                    scroller.ScrollToHome(); Flush(); Layout(); Render(view, theme, width, dpi, "create");
+                    f.Fill(); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    Assert.False(create.HasContent); Assert.DoesNotContain(Descendants(view).OfType<StackPanel>(), p => p.Name == "Editor");
                     f.Vm.Deactivate();
                 }
             }
@@ -118,6 +162,15 @@ public sealed class RulesViewTests
                 Assert.Same(invalid, FocusManager.GetFocusedElement(focusWindow));
                 var scroll = (ScrollViewer)focusView.FindName("RulesScroller");
                 Assert.InRange(invalid.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - invalid.ActualHeight + 1);
+                focus.Fill(); focus.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Flush(); focusWindow.UpdateLayout();
+                focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules)).GetAwaiter().GetResult(); Flush(); focusWindow.UpdateLayout();
+                var selectedRow = Descendants(focusView).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
+                Assert.InRange(selectedRow.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight);
+                // A clean Edit -> Create transition keeps IsEditing true but changes the form host.
+                focus.Vm.CreateCommand.Execute(null); Flush(); focusWindow.UpdateLayout();
+                var createName = Descendants((ContentControl)focusView.FindName("CreateEditorHost")).OfType<TextBox>().First();
+                Assert.Empty(createName.Text); Assert.Same(createName, FocusManager.GetFocusedElement(focusWindow));
+                Assert.InRange(createName.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - createName.ActualHeight + 1);
             }
             finally { focusWindow.Close(); focus.Vm.Deactivate(); }
             // Exercise the actual MainWindow.OnClosing override, without native activation assumptions.
@@ -131,6 +184,9 @@ public sealed class RulesViewTests
             Assert.False(accepted.Cancel); Assert.Equal("Recorded criterion", dirty.Vm.Fields[1].Text); window.Close();
         }, "Rules Light/Dark normal/high-DPI and guarded window close");
     }
+    private static T Find<T>(DependencyObject root, string name) where T : FrameworkElement =>
+        Descendants(root).OfType<T>().Single(e => e.Name == name);
+
     private static void Flush()
     {
         var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame);

@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**Rules — inline editing and bottom pagination (before M18.6)**
+
+Edit now opens the shared Rule name/Criterion form immediately beneath its own row. Create opens an empty form above the list. The redundant editor heading/explanation are removed; field labels, validation, accessibility and unsaved-work protection remain. Save/Cancel target the captured Rule identity, and pagination sits below the list at the right edge. Persistence, assessments and automatic checks are unchanged. [Verification and exact files](docs/trading-rules.md#inline-editor-layout--13-october-2026).
+
+Local verification: **54 focused tests passed**; final full parallel Release **4,018/4,018**, zero failures/skips (488 Domain, 752 Application, 1,246 Infrastructure, 1,532 Desktop). Release build: **0 warnings/errors**; EF consistency and whitespace checks pass. Light/Dark create/edit renders at 960 DIP / 96 DPI and 480 DIP / 240 DPI were inspected. Calendar native passed 87/87 in **104.711 s** against its unchanged 120-second deadline; no Calendar or Journal timeout occurred. Seven files are modified on `develop`, HEAD `9219f57cb3dbbb0cbd262266c2b875b08c351bb1`. Live input/screen-reader and matching CI verification remain open; no production access, Git writes or M18.6.
+
 **Rules — simplified prose editor (before M18.6)**
 
 Planning → Rules now edits only **Rule name** and **Criterion**. New entries are manual-assessment principles; there is no Required evidence field or automatic-check configuration. Existing evidence descriptions and typed conditions are retained unchanged when prose is edited. Active typed Rules show their exact metric, Gross/strict Net basis, threshold and currency read-only in the row. Edit/Delete stay at the far right, with wrapping text on the left. Validation, verified Save, Delete protections and unsaved-work guards remain.
