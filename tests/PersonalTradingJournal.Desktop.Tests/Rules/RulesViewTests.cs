@@ -50,13 +50,14 @@ public sealed class RulesViewTests
                         f.Data.Rows[i] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, old.Revision, old.Definition, old.IsActive, old.RecordedAtUtc);
                     }
                     f.Data.Rows[^1] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, 12,
-                        new("A longer synthetic rule name to check wrapping", string.Join(" ", Enumerable.Repeat("A synthetic Criterion remains readable and retains its complete optional text.", 12)), "Retained evidence",
+                        new("A longer synthetic rule name to check wrapping", string.Join("\n", Enumerable.Repeat("A synthetic Criterion remains readable and retains its complete optional text.", 36)), "Retained evidence",
                             new(PersonalTradingJournal.Domain.Rules.RuleProfitBasis.StrictNet, 123.456m, "EUR", capability: PersonalTradingJournal.Domain.Rules.RuleCheckCapability.ClosedDayLoss)),
                         true, DateTimeOffset.UtcNow.AddDays(-1));
                     var secondId = Guid.Parse("00000000-0000-0000-0000-000000000002");
                     var thirdId = Guid.Parse("00000000-0000-0000-0000-000000000003");
                     foreach (var other in new[] { secondId, thirdId })
-                        f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(other, new("Another synthetic principle", "Leave these rows unchanged"), DateTimeOffset.UtcNow.AddDays(-1)));
+                        f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(other, new("Another synthetic principle",
+                            other == thirdId ? "Context line\nConfirmation line\nLesson line" : "Leave these rows unchanged"), DateTimeOffset.UtcNow.AddDays(-1)));
                     for (int number = 4; number <= 12; number++)
                         f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(Guid.Parse($"00000000-0000-0000-0000-{number:D12}"),
                             new("Another synthetic principle"), DateTimeOffset.UtcNow.AddDays(-1)));
@@ -117,27 +118,61 @@ public sealed class RulesViewTests
                     Assert.False(grip.IsHitTestVisible); Assert.False(grip.Focusable);
                     Assert.True(grip.TranslatePoint(new Point(grip.ActualWidth, 0), rowGrid).X < marker.TranslatePoint(new Point(), rowGrid).X);
                     var criterion = Find<TextBlock>(rowGrid, "RuleCriterion");
-                    Assert.Equal(TextTrimming.CharacterEllipsis, criterion.TextTrimming); Assert.Equal(66, criterion.MaxHeight);
+                    Assert.Equal(TextTrimming.None, criterion.TextTrimming); Assert.Equal(double.PositiveInfinity, criterion.MaxHeight);
+                    Assert.Equal(TextWrapping.Wrap, criterion.TextWrapping);
+                    var title = Find<TextBlock>(rowGrid, "RuleTitle");
+                    Assert.Equal(TextTrimming.None, title.TextTrimming); Assert.Equal(TextWrapping.Wrap, title.TextWrapping);
+                    Assert.Equal(f.Vm.SelectedRule!.Name, title.Text);
+                    var textScroller = Find<ScrollViewer>(rowGrid, "RuleTextScroller");
+                    Assert.Equal(320, textScroller.MaxHeight); Assert.InRange(textScroller.ActualHeight, 1, 320);
+                    Assert.Equal(Visibility.Visible, textScroller.ComputedVerticalScrollBarVisibility);
+                    Assert.True(textScroller.ScrollableHeight > 0); Assert.True(textScroller.Focusable && textScroller.IsTabStop);
+                    Assert.Contains("Page Up", AutomationProperties.GetHelpText(textScroller));
                     Assert.Equal(criterion.Text, AutomationProperties.GetName(criterion));
                     Assert.True(criterion.Text.Length > 500);
                     Assert.Equal(criterion.Text, Assert.IsType<string>(criterion.ToolTip));
                     Assert.Equal(criterion.Text, UIElementAutomationPeer.CreatePeerForElement(criterion)!.GetName());
                     Assert.DoesNotContain(Descendants(rows).OfType<Expander>(), e => e.Name == "CriterionDetails" || Equals(e.Header, "Full criterion"));
                     Assert.DoesNotContain(Descendants(rows).OfType<FrameworkElement>(), e => e.Name == "FullCriterion");
-                    Assert.InRange(criterion.ActualHeight, 1, 66);
+                    Assert.True(criterion.ActualHeight > textScroller.ViewportHeight);
                     var shortCriterion = Descendants(rows).OfType<TextBlock>().Single(t => t.Name == "RuleCriterion" &&
                         t.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
                     Assert.Equal("Leave these rows unchanged", shortCriterion.Text);
                     Assert.Equal(shortCriterion.Text, shortCriterion.ToolTip);
                     Assert.Equal(shortCriterion.Text, UIElementAutomationPeer.CreatePeerForElement(shortCriterion)!.GetName());
+                    var shortScroller = Find<ScrollViewer>(Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" &&
+                        g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId), "RuleTextScroller");
+                    Assert.Equal(Visibility.Collapsed, shortScroller.ComputedVerticalScrollBarVisibility);
+                    Assert.Equal(0, shortScroller.ScrollableHeight); Assert.True(shortScroller.ActualHeight < 320);
+                    var multilineCriterion = Descendants(rows).OfType<TextBlock>().Single(t => t.Name == "RuleCriterion" &&
+                        t.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == thirdId);
+                    Assert.Equal("Context line\nConfirmation line\nLesson line", multilineCriterion.Text);
+                    Assert.True(multilineCriterion.ActualHeight >= 3 * 22);
                     var emptyCriterion = Descendants(rows).OfType<TextBlock>().First(t => t.Name == "RuleCriterion" &&
                         t.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && !r.HasStatement);
                     Assert.Equal(Visibility.Collapsed, emptyCriterion.Visibility); Assert.Equal(0, emptyCriterion.ActualHeight);
-                    // The visible text column contains only the title, preview and typed condition.
+                    // The text column contains the complete title, Criterion and typed condition.
                     Assert.Equal(3, Assert.IsType<StackPanel>(VisualTreeHelper.GetParent(criterion)).Children.Count);
                     foreach (var button in rowButtons)
                         Assert.InRange(button.TranslatePoint(new Point(), rowGrid).Y, 0, 1);
-                    Assert.False(f.Vm.IsEditing); Render(view, theme, width, dpi, "criterion-preview");
+                    Assert.False(f.Vm.IsEditing); Render(view, theme, width, dpi, "complete-text");
+                    double pageOffset = scroller.VerticalOffset;
+                    var localWheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                    criterion.RaiseEvent(localWheel); Flush(); Layout();
+                    Assert.True(localWheel.Handled); Assert.True(textScroller.VerticalOffset > 0);
+                    Assert.Equal(pageOffset, scroller.VerticalOffset);
+                    textScroller.ScrollToEnd(); Flush(); Layout();
+                    Assert.Equal(textScroller.ScrollableHeight, textScroller.VerticalOffset, 3);
+                    Assert.True(condition.TranslatePoint(new Point(0, condition.ActualHeight), textScroller).Y <= textScroller.ViewportHeight + 1);
+                    var boundaryWheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, -120) { RoutedEvent = UIElement.PreviewMouseWheelEvent };
+                    criterion.RaiseEvent(boundaryWheel); Flush(); Layout();
+                    Assert.True(boundaryWheel.Handled); Assert.True(scroller.VerticalOffset > pageOffset);
+                    Assert.Equal(textScroller.ScrollableHeight, textScroller.VerticalOffset, 3);
+                    condition.BringIntoView(); Flush(); Layout();
+                    Assert.InRange(condition.TranslatePoint(new Point(), scroller).Y, 0, scroller.ViewportHeight);
+                    Assert.True(condition.TranslatePoint(new Point(0, condition.ActualHeight), scroller).Y <= scroller.ViewportHeight + 1);
+                    Render(view, theme, width, dpi, "complete-text-end");
+                    textScroller.ScrollToHome(); scroller.ScrollToHome(); Flush(); Layout();
                     Assert.True(surface.Focusable); Assert.NotNull(surface.FocusVisualStyle);
                     Assert.Contains("Reorder rule", AutomationProperties.GetName(surface));
                     Assert.Contains("Alt+Up", AutomationProperties.GetHelpText(surface));
@@ -150,16 +185,25 @@ public sealed class RulesViewTests
                     Assert.Equal(2, surface.ContextMenu!.Items.Count);
                     Assert.DoesNotContain(Descendants(rowGrid).OfType<TextBlock>(), t => t.Text == "↕");
                     Assert.DoesNotContain(Descendants(rowGrid).OfType<FrameworkElement>(), e => e.Name is "RuleDragHandle" or "InsertionIndicator");
-                    // Background, number and both text areas share the real drag-source hit filter.
-                    foreach (var hit in new DependencyObject[] { surface, rowGrid, grip, grip.Children[0], marker, condition, Find<TextBlock>(rowGrid, "RuleCriterion") })
+                    // Card surfaces remain draggable; overflowing text and scrollbar controls scroll instead.
+                    foreach (var hit in new DependencyObject[] { surface, rowGrid, grip, grip.Children[0], marker })
                         Assert.True(RulesView.CanStartRowDrag(hit, surface));
+                    foreach (var hit in new DependencyObject[] { textScroller, criterion, title, condition })
+                    {
+                        Assert.False(RulesView.CanStartRowDrag(hit, surface)); Assert.Null(view.RowCursor(hit, surface));
+                    }
+                    Assert.All(Descendants(textScroller).OfType<System.Windows.Controls.Primitives.ScrollBar>(), bar => Assert.False(RulesView.CanStartRowDrag(bar, surface)));
+                    var shortSurface = (Border)VisualTreeHelper.GetParent(VisualTreeHelper.GetParent(shortScroller));
+                    Assert.True(RulesView.CanStartRowDrag(shortCriterion, shortSurface));
+                    criterion.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent });
+                    Assert.Same(Cursors.Hand, view.RowCursor(surface, surface)); // No row drag candidate was armed.
                     foreach (var button in rowButtons)
                     {
                         Assert.False(RulesView.CanStartRowDrag(button, surface));
                         Assert.False(RulesView.CanStartRowDrag(Descendants(button).First(), surface));
                         Assert.Null(view.RowCursor(button, surface));
                     }
-                    foreach (var hit in new DependencyObject[] { surface, rowGrid, marker, condition })
+                    foreach (var hit in new DependencyObject[] { surface, rowGrid, marker })
                         Assert.Same(Cursors.Hand, view.RowCursor(hit, surface));
                     var query = new QueryCursorEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.QueryCursorEvent };
                     surface.RaiseEvent(query); Assert.True(query.Handled); Assert.Same(Cursors.Hand, query.Cursor);
@@ -368,11 +412,17 @@ public sealed class RulesViewTests
                 Assert.Same(invalid, FocusManager.GetFocusedElement(focusWindow));
                 var scroll = (ScrollViewer)focusView.FindName("RulesScroller");
                 Assert.InRange(invalid.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - invalid.ActualHeight + 1);
-                focus.Fill(); Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
+                focus.Fill(); focus.Vm.Fields[1].Text = string.Join("\n", Enumerable.Repeat("Complete saved Criterion line", 45));
+                Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
                 var shownCriterion = Find<TextBlock>(focusView, "RuleCriterion");
                 Assert.True(shownCriterion.IsVisible);
                 Assert.Equal(shownCriterion.Text, shownCriterion.ToolTip);
                 Assert.Equal(shownCriterion.Text, UIElementAutomationPeer.CreatePeerForElement(shownCriterion)!.GetName());
+                var shownTextScroller = Find<ScrollViewer>(focusView, "RuleTextScroller");
+                shownTextScroller.Focus(); Assert.Same(shownTextScroller, FocusManager.GetFocusedElement(focusWindow));
+                var pageDown = new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(focusView)!, 0, Key.PageDown) { RoutedEvent = Keyboard.KeyDownEvent };
+                shownTextScroller.RaiseEvent(pageDown); Flush(); focusWindow.UpdateLayout();
+                Assert.True(pageDown.Handled); Assert.True(shownTextScroller.VerticalOffset > 0);
                 Await(focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules))); Flush(); focusWindow.UpdateLayout();
                 var selectedRow = Descendants(focusView).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
                 Assert.InRange(selectedRow.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight);

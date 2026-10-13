@@ -1,5 +1,29 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Complete Rule and Criterion text — 14 October 2026
+
+Started on clean `develop`, HEAD `a2d375a5c5c5f20dc6471f5970c9a301c7ccc5c4`; all preceding work is preserved. This section supersedes earlier three-line/ellipsis descriptions.
+
+- Cards render the complete saved Rule and optional Criterion, preserving newlines and wrapping within the available width. No text trimming, ellipsis, three-line limit or disclosure remains. Full exact Criterion text also remains available through its automation name and tooltip.
+- A dedicated text viewport contains the Rule, Criterion and any retained typed-condition sentence. It grows naturally up to **320 DIPs** and shows a vertical scrollbar only when content overflows. Only this text area is capped; number, grip, actions and inline editor remain outside it. Horizontal scrolling is disabled. Short and empty Criteria create no unnecessary scrollbar or empty Criterion line.
+- Scrollable text and scrollbar controls do not arm row dragging or show the drag hand cursor. Grip, number, padding and non-overflowing text continue to use the existing drag path. Keyboard/context-menu ordering and the DPI-aware lifted preview, prospective visual order, atomic persistence and unsaved-edit guards are preserved.
+- Wheel input scrolls the text while it can move in that direction, then returns to the page at its upper/lower boundary. The text viewport is keyboard focusable, accepts Page Up/Down and arrow scrolling, and has an accessible full-text name/instruction. Existing editor TextBox wheel behavior is retained.
+
+Focused compiled WPF coverage includes empty, short, explicit multiline and very long Criteria; complete Rule text; natural heights and conditional scrollbars; no trimming; wheel scrolling and boundary handoff; bringing the final content fully into the outer page viewport; Page Down and logical keyboard focus in a connected WPF window; scrolling/control drag exclusion; short-text/grip drag access; existing drag geometry, no-write movement, cancellation, failure and ordering assertions. All data is synthetic. No stored text, revision, Rule/assessment semantics, schema or repository contract changed.
+
+Verification: final focused **12/12 passed**, zero failures/skips (compiled Rules view, drag probe, seven ordering regressions and three theme-resource tests). Release build: **0 warnings/errors**. `git diff --check` passed. Inspected automated Light/Dark renders at **960 DIP/96 DPI** and **480 DIP/240 DPI**, including the complete wrapping text, visible long-text scrollbars and final content brought fully into the page viewport. Empty/short/multiline natural-height and scrollbar checks passed alongside keyboard Page Down, wheel boundary handoff, drag exclusions, no-write pointer movement, cleanup and persistent-order assertions.
+
+Automated renders: `artifacts/rules-complete-text-renders`; final diagnostics: `artifacts/m145-load/rules-complete-text-focused-final`. Automated WPF input/geometry is distinct from live mouse, touchpad or screen-reader use, which remains unverified. **The full suite remains open until a new complete parallel Release run passes**; this scoped presentation task does not rerun it or resolve the earlier Daily Review child timeout. Matching GitHub Actions acceptance remains open for uncommitted changes. No production journal/provider access, Git writes or M18.6 work. Final worktree: six modified files listed below; branch/HEAD unchanged.
+
+Exact changed files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Concise Criterion cards and heading contrast — 13 October 2026
 
 Started on clean `develop`, HEAD `56560eeaea420a2822f8e9f9db8af091631ab840`; preceding changes were committed by the user and preserved. This presentation update supersedes older descriptions of a visible **Full criterion** disclosure.

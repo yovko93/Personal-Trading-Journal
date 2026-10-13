@@ -81,7 +81,16 @@ public partial class RulesView : UserControl
         // Match the Playbook editor: let text scroll locally, then hand the wheel to the page.
         for (DependencyObject? source = e.OriginalSource as DependencyObject; source is not null && source != RulesScroller;
              source = source is Visual ? VisualTreeHelper.GetParent(source) : null)
+        {
             if (source is TextBox box && (e.Delta > 0 ? box.VerticalOffset > 0 : box.VerticalOffset + box.ViewportHeight < box.ExtentHeight)) return;
+            if (source is ScrollViewer { Name: "RuleTextScroller" } text &&
+                (e.Delta > 0 ? text.VerticalOffset > 0 : text.VerticalOffset < text.ScrollableHeight))
+            {
+                text.ScrollToVerticalOffset(text.VerticalOffset - e.Delta);
+                e.Handled = true;
+                return;
+            }
+        }
         RulesScroller.ScrollToVerticalOffset(RulesScroller.VerticalOffset - e.Delta);
         e.Handled = true;
     }

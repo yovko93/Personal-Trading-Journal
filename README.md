@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**Rules — complete text in cards (before M18.6)**
+
+Rule and Criterion text now display in full, preserving line breaks and wrapping with no line limit, ellipsis or trimming. Only the text area is capped at **320 DIPs**; long cards show an automatic vertical scrollbar, while short and empty Criteria need no scrollbar. Grip, number and Edit/Delete stay outside the scrolling area. Long text supports wheel and keyboard scrolling; the wheel returns to the page at either boundary. Scrollable text/scrollbars cannot start a row drag; the remaining card surfaces and short text retain existing drag and ordering behavior.
+
+[Verification and exact files](docs/trading-rules.md#complete-rule-and-criterion-text--14-october-2026). Focused **12/12 passed**, zero failures/skips; Release build **0 warnings/errors**; whitespace check passed. Inspected automated Light/Dark renders at 960 DIP/96 DPI and 480 DIP/240 DPI, including scrolling to the final content. Live mouse/touchpad/screen-reader checks remain unverified. **Full-suite acceptance remains open until a new complete parallel Release run passes.** Six modified files on `develop`, HEAD `a2d375a5c5c5f20dc6471f5970c9a301c7ccc5c4`. No production access, Git writes or M18.6 work.
+
 **Rules — concise Criterion cards and heading contrast (before M18.6)**
 
 The visible **Full criterion** disclosure, arrow and spacing are removed. Cards retain the three-line Criterion preview; the complete value remains in its tooltip and accessible name. Empty Criteria occupy no line. Only “Правилата са, за да се спазват!” now uses the dynamic primary-text theme brush: dark in Light theme and light in Dark theme, with its centered, wrapping layout preserved. Rule titles, drag behavior, ordering and data semantics are unchanged.

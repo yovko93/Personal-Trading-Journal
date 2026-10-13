@@ -25,6 +25,7 @@ public partial class RulesView
         for (var current = source; current is not null; current = DragParent(current))
         {
             if (ReferenceEquals(current, row)) return true;
+            if (current is ScrollViewer { Name: "RuleTextScroller", ScrollableHeight: > 0 }) return false;
             if (current is ButtonBase or TextBoxBase or PasswordBox or Selector or ScrollBar or Thumb or Hyperlink or Expander ||
                 current is FrameworkElement { Name: "InlineEditorHost" }) return false;
         }

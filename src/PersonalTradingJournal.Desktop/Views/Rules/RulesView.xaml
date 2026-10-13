@@ -128,12 +128,18 @@
                                            Focusable="False" IsHitTestVisible="False" AutomationProperties.Name="{Binding PositionDescription}" />
                             </Border>
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                            <ScrollViewer x:Name="RuleTextScroller" Grid.Column="1" Margin="0,0,16,0" MaxHeight="320"
+                                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly"
+                                          Focusable="True" KeyboardNavigation.IsTabStop="True"
+                                          AutomationProperties.Name="{Binding Name, StringFormat=Complete text for rule {0}}"
+                                          AutomationProperties.HelpText="Read the complete Rule and Criterion. Use arrow keys or Page Up and Page Down to scroll long text.">
+                            <StackPanel>
                                 <TextBlock x:Name="RuleTitle" Text="{Binding Name}" Style="{StaticResource Heading}" FontSize="20" Margin="0,0,0,4" />
-                                <TextBlock x:Name="RuleCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" LineHeight="22" MaxHeight="66" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" AutomationProperties.Name="{Binding Statement}" Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" />
+                                <TextBlock x:Name="RuleCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" LineHeight="22" ToolTip="{Binding Statement}" AutomationProperties.Name="{Binding Statement}" Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" />
                                 <TextBlock Text="{Binding AutomaticCondition}" Style="{StaticResource Body}" Margin="0,6,0,0"
                                            Visibility="{Binding HasAutomaticCondition, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="{Binding AutomaticCondition}" />
                             </StackPanel>
+                            </ScrollViewer>
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Right">
                                 <Button Content="Edit" Style="{StaticResource PtjPlaybookRefreshButtonStyle}" Padding="10,6" MinHeight="34" FontSize="14" Margin="0,0,6,0" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
                                 <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Padding="10,6" MinHeight="34" FontSize="14" Margin="0" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
