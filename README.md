@@ -1,6 +1,12 @@
 # Personal Trading Journal
 
-**Rules — timed feedback and complete checklist catalog (before M18.6)**
+**Rules — optional Criterion and numbered list (before M18.6)**
+
+Planning → Rules now requires only **Rule** text (the unchanged 120-character limit). **Criterion** is optional, up to 4,000 characters; empty values save/reload without placeholder text and produce no empty list line. Both editors are equally wide, 100-DIP-high multiline fields with wrapping and vertical scrolling. Circular numbers identify display positions in deterministic catalog order, not database IDs, revisions or adherence. Edit/Delete and the guarded inline editor retain their existing behavior.
+
+Migration `20261013090509_OptionalGlobalRuleCriterion` relaxes the global Criterion constraint while retaining old text, typed checks, assessments and immutable-history guards. JSON v7 keeps its existing field shape; complete backups/restore use the new current schema. Older-schema archives remain unsupported pending staged upgrade support. [Detailed verification and file inventory](docs/trading-rules.md#optional-criterion-and-numbered-rules--13-october-2026). **161 focused tests passed**; final full parallel Release **4,031/4,031**, zero failures/skips (490 Domain, 753 Application, 1,247 Infrastructure, 1,541 Desktop). Release build **0 warnings/errors**; EF consistency and whitespace checks pass. Calendar native passed 87/87 in **66.583 s**, leaving **53.417 s** against the unchanged 120-second deadline; no Calendar/Journal timeout. Twenty-three files remain uncommitted on `develop`, HEAD `ff8f9c0d12ccdc04f81d6e0460d4e6751921e414`. Live input/screen-reader and matching CI remain separate open checks.
+
+**Rules — timed feedback and complete checklist catalog (previous verification report; bullets superseded above)**
 
 Planning → Rules now shows one bordered, theme-aware Information/Success/Error message above the scrollable content. Each action replaces the previous message and starts a fresh **10-second** lifetime; field validation stays until corrected and feedback never takes keyboard focus. Pagination controls are removed: the complete catalog loads through cancellable **20-row database pages**, in repository name/identity order, before replacing the visible list. Decorative bullets are list markers, not assessments. Edit/Delete stay at the right and the editor stays beneath its own row.
 

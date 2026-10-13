@@ -21,7 +21,7 @@ public sealed partial class TradingRulePersistenceTests
         var checkedRun = await source.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId));
         Guid calculatedId = Assert.Single(checkedRun.AssessmentIds);
         var originalCalculation = (await source.Reader.ReadAssessmentAsync(calculatedId))!.Evaluation!;
-        var rule = await source.Rule(new TradingRuleDefinition("Manual principle", "Wait for confirmation"));
+        var rule = await source.Rule(new TradingRuleDefinition("Manual principle"));
         var assessment = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Execution, trade.Executions[0].Id));
         Assert.True(await source.Assessments.TryAppendAsync(assessment, 1, null));
@@ -45,6 +45,8 @@ public sealed partial class TradingRulePersistenceTests
         Assert.Equal(1, (await target.Get<IAutomaticRuleChecks>().RunAsync(TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId))).Unchanged);
         Assert.Equal(new[] { 2, 1 }, (await target.Reader.ReadRevisionsAsync(rule.RuleId)).Select(r => r.Revision.Revision));
         Assert.Empty((await target.Rules.GetLatestAsync(rule.RuleId))!.Definition.RequiredEvidence);
+        Assert.Empty((await target.Rules.GetLatestAsync(rule.RuleId))!.Definition.Criterion);
+        Assert.Empty((await target.Reader.ReadAssessmentAsync(assessment.Id))!.Assessment.RuleRevision.Definition.Criterion);
         var saved = (await target.Reader.ReadAssessmentAsync(assessment.Id))!;
         Assert.Equal(assessment.Explanation, saved.Assessment.Explanation);
         Assert.Equal(TradingRuleSourceState.Available, saved.TargetState);
@@ -65,7 +67,7 @@ public sealed partial class TradingRulePersistenceTests
     {
         await using var f = await Fixture.Create(); var trade = await f.Seed();
         var rule = await f.Rule(AutomaticDefinition(account: trade.TradingAccountId));
-        var manual = await f.Rule(new TradingRuleDefinition("Manual principle", "Wait for confirmation"));
+        var manual = await f.Rule(new TradingRuleDefinition("Manual principle"));
         var a = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Trade, trade.Id));
         Assert.True(await f.Assessments.TryAppendAsync(a, 1, null));
@@ -80,6 +82,7 @@ public sealed partial class TradingRulePersistenceTests
         var revision = revisions.Single(r => r.GetProperty("ruleId").GetGuid() == rule.RuleId);
         var manualRevision = revisions.Single(r => r.GetProperty("ruleId").GetGuid() == manual.RuleId);
         Assert.Equal("", manualRevision.GetProperty("requiredEvidence").GetString());
+        Assert.Equal("", manualRevision.GetProperty("criterion").GetString());
         Assert.Equal(JsonValueKind.Null, manualRevision.GetProperty("automaticCriterionJson").ValueKind);
         Assert.Equal(rule.RuleId, revision.GetProperty("ruleId").GetGuid());
         Assert.True(revision.GetProperty("isGlobal").GetBoolean());

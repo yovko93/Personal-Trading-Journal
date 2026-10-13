@@ -4,6 +4,23 @@ namespace PersonalTradingJournal.Domain.Tests.Rules;
 
 public sealed class GlobalTradingRuleTests
 {
+    [Theory]
+    [InlineData("")]
+    [InlineData(" \r\n ")]
+    public void OptionalGlobalCriterionDoesNotInventTextOrChangeTypedCondition(string text)
+    {
+        var condition = new AutomaticRuleCriterion(RuleProfitBasis.StrictNet, 25m, "USD");
+        var definition = new TradingRuleDefinition("Wait\nfor confirmation", text, automaticCriterion: condition);
+        Assert.Empty(definition.Criterion); Assert.Same(condition, definition.AutomaticCriterion);
+        Assert.Equal("Wait\nfor confirmation", definition.Name);
+        Assert.Empty(new TradingRuleDefinition("Required rule").Criterion);
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition("", text));
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition(new string('x', 121), text));
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition("Rule", new string('x', 4001)));
+        Assert.Throws<ArgumentException>(() => new TradingRuleDefinition("Legacy", text, "Evidence",
+            TradingRuleApplicability.Trade, TradingRuleAccountScope.AllAccounts, TradingRuleEvaluationMode.ManualOnly));
+    }
+
     [Fact]
     public void GlobalEvidenceDescriptionMayBeAbsentWithoutInventingAssessmentEvidence()
     {

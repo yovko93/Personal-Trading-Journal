@@ -50,13 +50,16 @@ public sealed class RulesViewTests
                     var thirdId = Guid.Parse("00000000-0000-0000-0000-000000000003");
                     foreach (var other in new[] { secondId, thirdId })
                         f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(other, new("Another synthetic principle", "Leave these rows unchanged"), DateTimeOffset.UtcNow.AddDays(-1)));
+                    for (int number = 4; number <= 12; number++)
+                        f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(Guid.Parse($"00000000-0000-0000-0000-{number:D12}"),
+                            new("Another synthetic principle"), DateTimeOffset.UtcNow.AddDays(-1)));
                     Await(f.Open(id));
                     var view = new RulesView { DataContext = f.Vm }; FocusManager.SetIsFocusScope(view, true);
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 400)); view.Arrange(new Rect(0, 0, width, 400)); view.UpdateLayout(); }
                     Layout();
                     var scroller = (ScrollViewer)view.FindName("RulesScroller");
-                    Assert.Equal(3, ((ItemsControl)view.FindName("RuleRows")).Items.Count);
+                    Assert.Equal(12, ((ItemsControl)view.FindName("RuleRows")).Items.Count);
                     Assert.Null(view.FindName("RuleSelector")); Assert.Null(view.FindName("RevisionHistory"));
                     Assert.Null(view.FindName("AccountSelector")); Assert.Null(view.FindName("TargetSelector"));
                     var rows = (ItemsControl)view.FindName("RuleRows");
@@ -81,13 +84,23 @@ public sealed class RulesViewTests
                     Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text == "Rule editor" || t.Text.StartsWith("Write a general trading principle."));
                     var marker = Find<TextBlock>(rowGrid, "RuleMarker");
                     Assert.False(marker.Focusable); Assert.False(marker.IsHitTestVisible);
-                    Assert.Equal("Rule list item", AutomationProperties.GetName(marker));
+                    Assert.Equal("1", marker.Text); Assert.Equal("Rule list position 1", AutomationProperties.GetName(marker));
                     Assert.True(condition.TranslatePoint(new Point(), rowGrid).X >= marker.ActualWidth);
                     var feedback = (Border)view.FindName("FeedbackBox");
                     Assert.True(feedback.TranslatePoint(new Point(0, feedback.ActualHeight), view).Y <= scroller.TranslatePoint(new Point(), view).Y);
                     Assert.Equal(new Thickness(1), feedback.BorderThickness);
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjSuccessSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     Render(view, theme, width, dpi, "catalog");
+                    var markers = Descendants(rows).OfType<TextBlock>().Where(t => t.Name == "RuleMarker").ToArray();
+                    Assert.Equal(Enumerable.Range(1, 12).Select(n => n.ToString()), markers.Select(t => t.Text));
+                    var tenth = markers.Single(t => t.Text == "10");
+                    var badge = (Border)VisualTreeHelper.GetParent(tenth);
+                    Assert.Equal(badge.ActualWidth, badge.ActualHeight);
+                    Assert.InRange(tenth.ActualWidth, 1, badge.ActualWidth - 12);
+                    Assert.Equal(Visibility.Collapsed, Find<TextBlock>(Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" &&
+                        g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.DisplayNumber == 10), "RuleCriterion").Visibility);
+                    tenth.BringIntoView(); Flush(); Layout(); Render(view, theme, width, dpi, "double-digit");
+                    scroller.ScrollToHome(); Flush(); Layout();
                     f.Vm.EditCommand.Execute(null); Layout();
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjInformationSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     var inline = Descendants(rowGrid).OfType<ContentControl>().Single(c => c.Name == "InlineEditorHost");
@@ -103,17 +116,23 @@ public sealed class RulesViewTests
                     Assert.Empty(Descendants(view).OfType<CheckBox>());
                     Assert.DoesNotContain(Descendants(view).OfType<Label>(), l => Equals(l.Content, "Required evidence"));
                     var fields = Descendants(Find<ItemsControl>(view, "EditorFields")).OfType<TextBox>().ToArray();
-                    Assert.Equal(2, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
-                    fields[1].SetCurrentValue(TextBox.TextProperty, ""); Await(f.Vm.SaveCommand.ExecuteAsync(null)); Layout();
+                    Assert.Equal(2, fields.Length); Assert.Equal(100, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
+                    Assert.Equal(fields[0].ActualWidth, fields[1].ActualWidth);
+                    Assert.Equal("Rule", AutomationProperties.GetName(fields[0]));
+                    Assert.True(AutomationProperties.GetIsRequiredForForm(fields[0]));
+                    Assert.False(AutomationProperties.GetIsRequiredForForm(fields[1]));
+                    Assert.All(fields, field => { Assert.True(field.AcceptsReturn); Assert.Equal(TextWrapping.Wrap, field.TextWrapping); Assert.Equal(ScrollBarVisibility.Auto, field.VerticalScrollBarVisibility); });
+                    fields[0].SetCurrentValue(TextBox.TextProperty, ""); Await(f.Vm.SaveCommand.ExecuteAsync(null)); Layout();
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
-                    Assert.True(FormValidation.GetIsInvalid(fields[1])); Assert.Equal("This field is required.", AutomationProperties.GetItemStatus(fields[1]));
-                    Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)fields[1].BorderBrush).Color);
+                    Assert.True(FormValidation.GetIsInvalid(fields[0])); Assert.Equal("This field is required.", AutomationProperties.GetItemStatus(fields[0]));
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)fields[0].BorderBrush).Color);
                     Assert.Equal(Visibility.Visible, Find<Border>(view, "ValidationSummary").Visibility);
-                    fields[1].BringIntoView(); Flush(); Layout();
-                    Assert.InRange(fields[1].TranslatePoint(new Point(), scroller).Y, -1, scroller.ViewportHeight);
+                    fields[0].BringIntoView(); Flush(); Layout();
+                    Assert.InRange(fields[0].TranslatePoint(new Point(), scroller).Y, -1, scroller.ViewportHeight);
                     Render(view, theme, width, dpi, "validation");
-                    fields[1].SetCurrentValue(TextBox.TextProperty, "Unsaved criterion"); Layout();
-                    Assert.False(FormValidation.GetIsInvalid(fields[1])); Assert.True(AutomationProperties.GetIsRequiredForForm(fields[1]));
+                    fields[0].SetCurrentValue(TextBox.TextProperty, "Required Rule\nwith multiple lines"); Layout();
+                    Assert.False(FormValidation.GetIsInvalid(fields[0])); Assert.True(AutomationProperties.GetIsRequiredForForm(fields[0]));
+                    fields[1].SetCurrentValue(TextBox.TextProperty, "Unsaved criterion");
                     foreach (var name in new[] { "CreateRule", "SaveRule" })
                     {
                         var button = Find<Button>(view, name); Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
@@ -160,9 +179,9 @@ public sealed class RulesViewTests
             try
             {
                 focus.Vm.CreateCommand.Execute(null); Flush(); focusWindow.UpdateLayout();
-                focus.Vm.Fields[0].Text = "Synthetic focus rule";
+                focus.Vm.Fields[1].Text = "Optional text cannot replace the required Rule";
                 Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
-                var invalid = Descendants(focusView).OfType<TextBox>().Single(t => AutomationProperties.GetName(t) == "Criterion");
+                var invalid = Descendants(focusView).OfType<TextBox>().Single(t => AutomationProperties.GetName(t) == "Rule");
                 Assert.True(FormValidation.GetIsInvalid(invalid));
                 Assert.Same(invalid, FocusManager.GetFocusedElement(focusWindow));
                 clock.Advance(10); Await(focus.Vm.FeedbackExpiryTask); Flush(); focusWindow.UpdateLayout();

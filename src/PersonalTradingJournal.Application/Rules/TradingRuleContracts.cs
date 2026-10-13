@@ -7,6 +7,7 @@ public enum TradingRuleWriteStatus { Saved = 1, Conflict = 2, MissingRule = 3, M
 
 public sealed record TradingRuleWriteResult<T>(TradingRuleWriteStatus Status, T? Value);
 
+/// <summary>Global prose requires Rule text (Name); Criterion may be empty. Typed checks remain independent.</summary>
 public sealed record WriteTradingRuleCommand(Guid RuleId, int ExpectedRevision,
     TradingRuleAuthoringAction Action, TradingRuleDefinition? Definition);
 

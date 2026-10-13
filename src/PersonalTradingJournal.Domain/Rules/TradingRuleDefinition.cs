@@ -31,7 +31,7 @@ public sealed record TradingRuleAccountScope
 public sealed record TradingRuleDefinition
 {
     /// <summary>A global principle. Targets and Accounts belong to assessments, not this definition.</summary>
-    public TradingRuleDefinition(string name, string criterion, string requiredEvidence = "",
+    public TradingRuleDefinition(string name, string criterion = "", string requiredEvidence = "",
         AutomaticRuleCriterion? automaticCriterion = null)
         : this(name, criterion, requiredEvidence, TradingRuleApplicability.Trade,
             TradingRuleAccountScope.AllAccounts, automaticCriterion is null
@@ -50,7 +50,9 @@ public sealed record TradingRuleDefinition
         TradingRuleEvaluationMode evaluationMode, AutomaticRuleCriterion? automaticCriterion, bool isGlobal)
     {
         Name = Required(name, 120, nameof(name));
-        Criterion = Required(criterion, 4_000, nameof(criterion));
+        // Optional supporting prose for global principles. Legacy definitions retain their original contract.
+        Criterion = isGlobal && criterion is not null && criterion.Length <= 4_000
+            ? criterion.Trim() : Required(criterion!, 4_000, nameof(criterion));
         // Empty means no authored evidence description, not fabricated evidence or a passed check.
         if (isGlobal && requiredEvidence is not null && requiredEvidence.Length <= 2_000)
             RequiredEvidence = requiredEvidence.Trim();

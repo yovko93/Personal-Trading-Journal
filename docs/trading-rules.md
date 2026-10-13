@@ -1,5 +1,60 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Optional Criterion and numbered Rules — 13 October 2026
+
+This is the current authoring/list presentation, superseding the required Criterion and decorative bullet descriptions below:
+
+- **Rule** replaces the “Rule name” UI/accessibility label. Meaningful Rule text remains required, with the existing **120-character** limit; the stored property/column remains `Name` to preserve identities and compatibility. Internal line breaks are retained. Its editor now matches Criterion: 100-DIP height, the same available width (maximum 760 DIP), multiline wrapping, vertical scrolling and no horizontal scrollbar.
+- **Criterion** is optional supporting prose (0–4,000 characters). Blank/whitespace-only global Criterion becomes an empty string under the existing trim convention, never invented prose. Saving an existing Rule can clear it. The list collapses the Criterion text element when empty. Optional accessibility/help and validation reflect this; required Rule and over-limit Criterion errors remain independent of the ten-second action message.
+- Circular, accent-bordered number badges show **1, 2, 3…** in the repository's deterministic name/identity order. Numbers are recalculated after complete load, Save, Delete and Refresh. They are display positions only, not identifiers, revisions, interactive checkboxes or proof of adherence. Stable Rule IDs still determine editing, deletion and historical references. Double digits fit without overlapping wrapped text or right-aligned actions; badges can grow for longer numbers.
+
+### Persistence and compatibility
+
+Domain/Application global definitions accept an absent Criterion; the legacy scoped-definition constructor retains its original requirements and read-only semantics. Typed automatic conditions are independent of this optional prose. Prose-only editing retains their exact values and the existing hidden evidence description. Assessment outcomes, sufficiency requirements, selection, calculation and concurrency rules are unchanged.
+
+SQLite previously required nonempty Criterion. Additive migration **`20261013090509_OptionalGlobalRuleCriterion`** rebuilds that CHECK transactionally, copies all existing rows unchanged, reinstates revision/assessment triggers and checks foreign keys. Empty Criterion is permitted for global definitions only. Current-schema migration history now contains 18 migrations. A downgrade that cannot represent an empty Criterion fails before replacing history; it does not manufacture text.
+
+Backup manifest v1 and JSON export v7 retain their existing fields/types and exact empty strings. Complete backup → preflight → offline restore/recovery tests include an empty-Criterion Rule and its assessment. Export verifies empty `criterion` alongside retained typed conditions and references. Existing current-schema-only restore policy is unchanged: archives from older schemas, including the immediately preceding schema, need a future staged upgrade and are rejected today, not silently migrated during restore.
+
+### Verification and limits
+
+Started on clean `develop` at `ff8f9c0d12ccdc04f81d6e0460d4e6751921e414`; all previous work was already committed and preserved. Synthetic data only.
+
+- **161 focused tests passed** (22 Domain, 14 Application, 62 Infrastructure, 63 Desktop), zero failures/skips: `artifacts/m145-load/rules-numbered-focused-final`.
+- New coverage: optional/whitespace Criterion, required Rule/unchanged limits, immutable revisions and stale writes, SQLite create/clear/fresh-services reload, preserved legacy scoped data, typed checks/assessment text across migration, downgrade refusal, backup/preflight/restore/recovery/export, and numbering after create/delete/refresh.
+- First focused run exposed two new-test fixture mistakes (missing TimeProvider construction and an incorrect ordinal-name ordering expectation). Both were corrected without changing production behavior or weakening assertions; the final focused run passes.
+- Compiled WPF exercises twelve rows, double-digit badges, collapsed empty Criteria, equal-width/100-DIP editors, required/optional accessibility, multiline wrapping, invalid Rule focus, timed-feedback validation persistence, guarded inline switching, Save/Cancel, wheel/PageDown and owner close. Light/Dark catalog/create/edit/validation/numbered renders at **960 DIP / 96 DPI** and **480 DIP / 240 DPI** were inspected in `artifacts/rules-numbered-renders`; these are automated renders, not live input.
+- Final complete parallel Release: **4,031 passed, zero failures/skips** (490 Domain, 753 Application, 1,247 Infrastructure, 1,541 Desktop), `artifacts/m145-load/rules-numbered-full-final`. Calendar native **87/87 in 66.583 seconds**, **53.417 seconds** headroom to its unchanged 120-second deadline; grid **17.893 seconds**, Rules WPF child **9.296 seconds**. No Calendar/Journal timeout occurred; this is not a guarantee against future load variability.
+- Release build: **0 warnings/errors**; EF model consistency, `git diff --check` and new migration whitespace checks pass. Final branch/HEAD remain `develop` / `ff8f9c0d12ccdc04f81d6e0460d4e6751921e414`; 23 files are uncommitted (21 modified and two new migration files).
+
+Live mouse/keyboard and screen-reader checks remain open. Uncommitted changes cannot have matching GitHub Actions verification. No production data, provider calls, Git writes, assessment/automatic-check changes, deadline increases or M18.6 work.
+
+### Exact changed files — optional Criterion
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Application/Rules/TradingRuleContracts.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Domain/Rules/TradingRuleDefinition.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingRuleRecordConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Rules/TradingRuleUseCaseTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesFeedbackTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Domain.Tests/Rules/GlobalTradingRuleTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/GlobalRuleCatalogTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261013090509_OptionalGlobalRuleCriterion.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261013090509_OptionalGlobalRuleCriterion.cs`
+
 ## Timed feedback and complete catalog — 13 October 2026
 
 This section supersedes the pagination presentation described below. Rules shows a single, fixed top feedback box above its scrollable actions, list and editor. Information is blue, verified success green, and errors red, using shared Light/Dark resources and explicit text labels rather than color alone. Create, Edit, Save, Cancel, Delete, Refresh, declined confirmations and failures replace the previous message. The latest message expires after ten seconds; a cancelled older timer cannot dismiss its replacement. Leaving the destination cancels its feedback timer. Loading/saving cancellation remains reachable independently of the feedback lifetime.

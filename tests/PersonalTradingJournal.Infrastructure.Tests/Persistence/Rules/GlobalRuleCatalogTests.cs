@@ -8,6 +8,39 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Rules;
 public sealed partial class TradingRulePersistenceTests
 {
     [Fact]
+    public async Task OptionalCriterionMigrationKeepsHistoricalTextAssessmentsAndTypedChecks()
+    {
+        await using var f = await Fixture.Create("20261012214801_OptionalGlobalRuleEvidence");
+        var trade = await f.Seed(); var rule = await f.Rule(AutomaticDefinition());
+        var target = TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId);
+        var run = await f.Get<IAutomaticRuleChecks>().RunAsync(target);
+        var assessmentId = Assert.Single(run.AssessmentIds);
+        var before = (await f.Reader.ReadAssessmentAsync(assessmentId))!;
+        await using (var db = f.Context()) await db.Database.MigrateAsync();
+        await f.Restart();
+        var after = (await f.Reader.ReadAssessmentAsync(assessmentId))!;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before.Assessment), System.Text.Json.JsonSerializer.Serialize(after.Assessment));
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(before.Evaluation), System.Text.Json.JsonSerializer.Serialize(after.Evaluation));
+        var revised = rule.Revise(1, new(rule.Definition.Name, "", rule.Definition.RequiredEvidence, rule.Definition.AutomaticCriterion), Now);
+        Assert.True(await f.Rules.TryAppendAsync(revised, 1));
+        var manual = await f.Rule(new TradingRuleDefinition("Rule without Criterion"));
+        await f.Restart();
+        Assert.Empty((await f.Rules.GetLatestAsync(manual.RuleId))!.Definition.Criterion);
+        var history = await f.Reader.ReadRevisionsAsync(rule.RuleId);
+        Assert.Equal(new[] { "", rule.Definition.Criterion }, history.Select(r => r.Revision.Definition.Criterion));
+        Assert.All(history, r => Assert.Equal(rule.Definition.AutomaticCriterion, r.Revision.Definition.AutomaticCriterion));
+        Assert.Equal(rule.Definition.Criterion, (await f.Reader.ReadAssessmentAsync(assessmentId))!.Assessment.RuleRevision.Definition.Criterion);
+        var newRun = await f.Get<IAutomaticRuleChecks>().RunAsync(target);
+        Assert.Single(newRun.AssessmentIds);
+        Assert.Equal(before.Evaluation!.Calculation, (await f.Reader.ReadAssessmentAsync(newRun.AssessmentIds[0]))!.Evaluation!.Calculation);
+        await using var check = f.Context();
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.Database.ExecuteSqlRawAsync("UPDATE TradingRuleRevisions SET Criterion = 'changed'"));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.Database.ExecuteSqlRawAsync("DELETE FROM TradingRuleAssessments"));
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => check.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261012214801_OptionalGlobalRuleEvidence"));
+        Assert.Equal(3, await check.TradingRuleRevisions.CountAsync()); Assert.Equal(2, await check.TradingRuleAssessments.CountAsync());
+    }
+
+    [Fact]
     public async Task OptionalEvidenceMigrationPreservesTypedRulesAssessmentsAndAllImmutableGuards()
     {
         await using var f = await Fixture.Create("20261012205801_GlobalTradingRuleCatalog");

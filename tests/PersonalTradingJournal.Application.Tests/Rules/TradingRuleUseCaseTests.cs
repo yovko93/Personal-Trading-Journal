@@ -18,6 +18,21 @@ public sealed class TradingRuleUseCaseTests
             references ?? []);
 
     [Fact]
+    public async Task CreateAndClearOptionalCriterionRetainVersionsAndTypedCondition()
+    {
+        var store = new Store(); var writer = new WriteTradingRuleUseCase(store, new Clock());
+        Guid id = Guid.NewGuid(); var condition = new AutomaticRuleCriterion(RuleProfitBasis.Gross, 10, "USD");
+        var created = await writer.ExecuteAsync(new(id, 0, TradingRuleAuthoringAction.Create, new("Rule", automaticCriterion: condition)));
+        Assert.Equal(TradingRuleWriteStatus.Saved, created.Status); Assert.Empty(created.Value!.Definition.Criterion);
+        await writer.ExecuteAsync(new(id, 1, TradingRuleAuthoringAction.Revise, new("Rule", "Optional prose", automaticCriterion: condition)));
+        var cleared = await writer.ExecuteAsync(new(id, 2, TradingRuleAuthoringAction.Revise, new("Rule", automaticCriterion: condition)));
+        Assert.Equal(TradingRuleWriteStatus.Saved, cleared.Status); Assert.Empty(cleared.Value!.Definition.Criterion);
+        Assert.All(store.Revisions, r => Assert.Equal(condition, r.Definition.AutomaticCriterion));
+        Assert.Equal(new[] { "", "Optional prose", "" }, store.Revisions.Select(r => r.Definition.Criterion));
+        Assert.Equal(TradingRuleWriteStatus.Conflict, (await writer.ExecuteAsync(new(id, 1, TradingRuleAuthoringAction.Revise, new("Stale")))).Status);
+    }
+
+    [Fact]
     public async Task AuthoringAppendsImmutableNumberedRevisionsAndRejectsStaleCommit()
     {
         var store = new Store();

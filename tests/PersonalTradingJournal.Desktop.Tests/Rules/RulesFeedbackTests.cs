@@ -18,9 +18,9 @@ public sealed class RulesFeedbackTests
         clock.Advance(1); Assert.True(f.Vm.HasMessage); Assert.True(f.Vm.HasErrors);
         clock.Advance(8); Assert.True(f.Vm.HasMessage);
         clock.Advance(1); await f.Vm.FeedbackExpiryTask;
-        Assert.False(f.Vm.HasMessage); Assert.All(f.Vm.Fields, field => Assert.True(field.IsInvalid));
+        Assert.False(f.Vm.HasMessage); Assert.True(f.Vm.Fields[0].IsInvalid); Assert.False(f.Vm.Fields[1].IsInvalid);
         f.Vm.Fields[0].Text = "Correct name"; Assert.False(f.Vm.Fields[0].IsInvalid);
-        Assert.True(f.Vm.Fields[1].IsInvalid);
+        Assert.False(f.Vm.Fields[1].IsInvalid);
         f.Fill(); await f.Vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal("Rule saved.", f.Vm.Message); Assert.Equal(RuleFeedbackKind.Success, f.Vm.FeedbackKind);
         await f.Vm.EditRowCommand.ExecuteAsync(Assert.Single(f.Vm.Rules));

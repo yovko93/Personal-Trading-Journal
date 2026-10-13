@@ -6,28 +6,31 @@ using PersonalTradingJournal.Domain.Rules;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Rules;
 
-public sealed class RuleField(string label, int limit) : ObservableObject
+public sealed class RuleField(string label, int limit, bool required = true) : ObservableObject
 {
     private string _text = "", _error = "";
     private bool _validated;
     public string Label { get; } = label;
     public int Limit { get; } = limit;
+    public bool IsRequired { get; } = required;
     public string Text { get => _text; set { if (SetProperty(ref _text, value) && _validated) Validate(); } }
     public string Error { get => _error; private set { SetProperty(ref _error, value); OnPropertyChanged(nameof(IsInvalid)); OnPropertyChanged(nameof(Help)); } }
     public bool IsInvalid => Error.Length > 0;
-    public string Help => IsInvalid ? Error : $"Required; at most {Limit:N0} characters.";
-    public void Validate() { _validated = true; Error = string.IsNullOrWhiteSpace(Text) ? "This field is required." : Text.Length > Limit ? $"Use at most {Limit:N0} characters." : ""; }
+    public string Help => IsInvalid ? Error : $"{(IsRequired ? "Required" : "Optional")}; at most {Limit:N0} characters.";
+    public void Validate() { _validated = true; Error = IsRequired && string.IsNullOrWhiteSpace(Text) ? "This field is required." : Text.Length > Limit ? $"Use at most {Limit:N0} characters." : ""; }
     public void Reset() { _validated = false; Error = ""; }
 }
 
 public enum RuleFeedbackKind { Information, Success, Error }
 
 public sealed record RuleChoice<T>(T Value, string Label);
-public sealed record RuleRow(TradingRuleDetails Details)
+public sealed record RuleRow(TradingRuleDetails Details, int DisplayNumber = 0)
 {
     public Guid Id => Details.Revision.RuleId;
     public string Name => Details.Revision.Definition.Name;
     public string Statement => Details.Revision.Definition.Criterion;
+    public bool HasStatement => !string.IsNullOrWhiteSpace(Statement);
+    public string PositionDescription => $"Rule list position {DisplayNumber}";
     public string State => Details.Revision.IsActive ? "Active" : "Archived";
     public string Scope => Details.Revision.Definition.IsGlobal ? "Global principle" : Details.Revision.Definition.AccountScope.AccountId is null ? "Legacy All accounts" :
         (Details.AccountNameAtRevision ?? "Account") + (Details.AccountAvailable ? "" : " (unavailable)");
@@ -72,7 +75,7 @@ public sealed class RulesViewModel : ObservableObject
         _reader = reader; _store = store; _writer = writer; _dialogs = dialogs; _clock = timeProvider ?? TimeProvider.System;
         EditRowCommand = new AsyncRelayCommand<RuleRow>(async row => { if (row is not null && TrySelect(row)) { await LoadTask; if (_loaded && _selected?.Id == row.Id && !IsEditing) Edit(); } }, row => !IsBusy && row is not null);
         DeleteCommand = new AsyncRelayCommand<RuleRow>(DeleteAsync, row => !IsBusy && row is not null);
-        Fields = [new("Rule name", 120), new("Criterion", 4000)];
+        Fields = [new("Rule", 120), new("Criterion", 4000, required: false)];
         foreach (var field in Fields) field.PropertyChanged += (_, e) =>
         {
             OnPropertyChanged(nameof(HasErrors)); OnPropertyChanged(nameof(HasUnsavedChanges));
@@ -175,7 +178,7 @@ public sealed class RulesViewModel : ObservableObject
             var selectedId = _pendingRuleId ?? _selected?.Id;
             var current = selectedId is null ? null : (await _reader.ReadRevisionsAsync(selectedId.Value, limit: 1, cancellationToken: cancel.Token)).FirstOrDefault();
             cancel.Token.ThrowIfCancellationRequested(); if (generation != _generation) return;
-            if (page is not null) Rules = page.Select(r => new RuleRow(r)).ToArray();
+            if (page is not null) Rules = page.Select((r, index) => new RuleRow(r, index + 1)).ToArray();
             _selected = current is { Revision.IsActive: true, Revision.Definition.IsGlobal: true } ? new(current) : null;
             _unverified = false; _pendingRuleId = null; IsEditing = false;
             _loaded = true; Feedback(catalog ? "Rules refreshed." : "Rule loaded.", RuleFeedbackKind.Success);
@@ -188,7 +191,7 @@ public sealed class RulesViewModel : ObservableObject
     {
         if (!TryLeave()) return;
         _selected = null; _editId = Guid.NewGuid(); _expected = 0; _unverified = false; _pendingRuleId = null;
-        Populate(null); Message = "Create a rule. Enter its name and criterion, then Save.";
+        Populate(null); Message = "Enter a Rule, optionally add a Criterion, then Save.";
     }
     private void Edit()
     {
@@ -238,7 +241,7 @@ public sealed class RulesViewModel : ObservableObject
             var catalog = await CatalogAsync(token);
             token.ThrowIfCancellationRequested();
             if (latest is null || latest.Revision < saved.Revision) throw new InvalidOperationException("Rule changed during readback; Refresh required.");
-            _selected = new(new(latest, null, true)); Rules = catalog.Select(r => new RuleRow(r)).ToArray();
+            _selected = new(new(latest, null, true)); Rules = catalog.Select((r, index) => new RuleRow(r, index + 1)).ToArray();
             _unverified = false; _pendingRuleId = null; IsEditing = false;
             Feedback(command.Action == TradingRuleAuthoringAction.Delete ? "Rule deleted. Existing assessments are retained." : "Rule saved.", RuleFeedbackKind.Success);
             if (!latest.IsActive) _selected = null;

@@ -15,6 +15,38 @@ namespace PersonalTradingJournal.Desktop.Tests.Rules;
 public sealed class RulesSqliteTests
 {
     [Fact]
+    public async Task EmptyCriterionCreateClearAndFreshServicesReloadKeepPriorTextAndTypedCondition()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        RulesViewModel Create(IServiceProvider services) => new(services.GetRequiredService<ITradingRuleReader>(),
+            services.GetRequiredService<ITradingRuleStore>(), new(services.GetRequiredService<ITradingRuleStore>(), TimeProvider.System), new FakeDialogService());
+        var vm = Create(db.Provider); await vm.ActivateAsync(); vm.CreateCommand.Execute(null);
+        vm.Fields[0].Text = "Required Rule\nwith two lines";
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.False(vm.IsEditing); Assert.Equal("Rule saved.", vm.Message);
+        var emptyId = vm.SelectedRule!.Id; Assert.False(Assert.Single(vm.Rules).HasStatement);
+        var store = db.Provider.GetRequiredService<ITradingRuleStore>();
+        var typed = TradingRuleRevision.Create(Guid.NewGuid(), new("Typed rule", "Keep historical prose", "Preserve evidence",
+            new(RuleProfitBasis.StrictNet, 25m, "EUR")), DateTimeOffset.UtcNow.AddDays(-1));
+        Assert.True(await store.TryAppendAsync(typed, 0));
+        await vm.RefreshCommand.ExecuteAsync(null); await vm.EditRowCommand.ExecuteAsync(vm.Rules.Single(r => r.Id == typed.RuleId));
+        vm.Fields[1].Text = ""; await vm.SaveCommand.ExecuteAsync(null);
+        Assert.False(vm.IsEditing); Assert.Equal(typed.Definition.AutomaticCriterion, vm.SelectedRule!.Details.Revision.Definition.AutomaticCriterion);
+        vm.Deactivate();
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        var root = Path.GetDirectoryName(Path.GetDirectoryName(context.Database.GetDbConnection().DataSource))!;
+        await using var restarted = new ServiceCollection().AddSingleton(TimeProvider.System).AddPersistence(new LocalApplicationPaths(root)).BuildServiceProvider();
+        var fresh = Create(restarted); await fresh.ActivateAsync();
+        Assert.All(fresh.Rules, r => { Assert.Empty(r.Statement); Assert.False(r.HasStatement); });
+        await fresh.EditRowCommand.ExecuteAsync(fresh.Rules.Single(r => r.Id == emptyId));
+        Assert.Equal("Required Rule\nwith two lines", fresh.Fields[0].Text); Assert.Empty(fresh.Fields[1].Text);
+        var history = await restarted.GetRequiredService<ITradingRuleReader>().ReadRevisionsAsync(typed.RuleId);
+        Assert.Equal(new[] { "", "Keep historical prose" }, history.Select(r => r.Revision.Definition.Criterion));
+        Assert.All(history, r => { Assert.Equal(typed.Definition.AutomaticCriterion, r.Revision.Definition.AutomaticCriterion); Assert.Equal("Preserve evidence", r.Revision.Definition.RequiredEvidence); });
+        fresh.Deactivate();
+    }
+
+    [Fact]
     public async Task ProseEditRetainsExactTypedCriterionEvidenceAndHistoryAfterFreshServices()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
