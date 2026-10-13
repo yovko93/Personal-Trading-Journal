@@ -1,5 +1,61 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Stable drag movement — 13 October 2026
+
+Started on clean `develop`, HEAD `193d158ffa8271a68c7cd846e546e119086dd004`; the preceding card work was committed and preserved. No Rule/assessment, storage, ordering transaction, schema, backup/export or M18.6 changes.
+
+### Reproduction and measured cause
+
+An isolated compiled WPF probe uses 12 synthetic Rules, long Criteria, collapsed/expanded disclosure, and 96/240 DPI. It performs 60 pointer updates through the production drag-over path, servicing layout after each update. Before behavior changes, numeric diagnostics showed **zero catalog/revision reads, move-store calls, catalog publications, ViewModel notifications or collection changes**. The records and their displayed order were not being reloaded during movement. Instead, every update cleared/re-shown the target (119 transitions), recursively scanned the entire list (60 scans), and changed Canvas positioning (60 layout notifications). Row measures/arranges were zero: these are redundant page/overlay layout notifications, not proof of 60 rebuilt row templates. No animations were found.
+
+| 60-update probe | Before elapsed ms | Final focused elapsed ms | Before → after layout notifications |
+| --- | ---: | ---: | --- |
+| 96 DPI, collapsed | 51.296 | 3.042 | 60 → 1 |
+| 96 DPI, expanded | 58.908 | 0.574 | 60 → 1 |
+| 240 DPI, collapsed | 41.461 | 1.065 | 60 → 1 |
+| 240 DPI, expanded | 60.403 | 0.484 | 60 → 1 |
+
+After: **one target transition, zero whole-list scans**, zero reads/writes/collection changes/property notifications, zero row measures/arranges, and the same frozen preview reused for all 60 updates. These are UI-thread operation measurements, not GPU frame-rate or physical-mouse smoothness claims. Baseline was isolated; final focused verification also ran representative persistence work. Raw bounded summaries are in `artifacts/m145-load/rules-drag-baseline`, `rules-drag-baseline-edge` and `rules-drag-focused` (child `rules-drag.trx`). No source text is in these summaries.
+
+The separate edge probe issued **60 scroll requests for 60 events**, taking 55.829–89.584 ms before the fix. This demonstrably tied scrolling speed to pointer-event frequency. Now an event burst issues one request, and a deterministic clock regression checks that another cannot occur before 50 ms. Each step is 12 DIPs, at most 20 steps/second (240 DIPs/s), with no catch-up burst, sleeping test, timer surviving a drag, or animation. Stationary edge scrolling still depends on drag-over events; physical dwell behavior remains a live check.
+
+### Correction and protections
+
+- Preview movement uses a `TranslateTransform`, not Canvas layout offsets. Original-slot opacity/visibility is set only on entry/re-entry; its marker is cached. The same target is left untouched; changing targets clears only the previous cached highlight. No pointer-time recursive list scan, recapture, renumbering or repository operation.
+- Routed child/row leave events inside the Rules viewport no longer hide and re-show the entire preview and source slot. Leaving the viewport, cancellation, failed/drop completion or unloading clears temporary visuals/cursors and releases the snapshot/source references. No persistent line or movement animation was introduced. Card/lift shadows were retained because these measurements do not demonstrate a shadow defect.
+- An unchanged insertion slot returns before any busy state, discard prompt, repository call or catalog read. A real drop keeps the established atomic catalog-version-checked move, then publishes/renumbers the verified order once. Overlapping moves are blocked. Failure or write cancellation reads the actual persisted order once and retains unsaved fields; no local optimistic shuffle is invented.
+- Whole-row dragging, grip/number/text hit areas, button/editor/disclosure exclusions, full Criterion, Alt+Up/Down, context menus and existing unsaved-edit confirmation are preserved. Existing SQLite tests still cover restart, concurrency and rollback.
+
+### Opt-in diagnostics
+
+Set `PTJ_RULES_DRAG_DIAGNOSTICS=1` before launching an isolated app. Optionally set `PTJ_RULES_DRAG_DIAGNOSTICS_DIRECTORY` to a diagnostic output directory. Numeric counters remain in memory during pointer movement; input-end/drop-completion summaries go to Trace and the optional `rules-drag-<process>.jsonl`. At most 32 summaries per ViewModel and a 64-KiB file threshold bound output. No Rule text, IDs, filenames, database paths or credentials are included. Logging failures cannot change the operation result. Remove these variables for ordinary use.
+
+Counters distinguish catalog/revision reader calls and move-store attempts (not SQL statement counts or guaranteed commits), publications, property/collection notifications, row load/unload/measure/arrange, layout notifications, capture/movement, target changes, whole-tree scans, scroll requests and animated preview/target state. Because no repository operation is called during movement, no database read/write is initiated by that path. Input and completion summaries distinguish the asynchronous write from pointer movement.
+
+### Verification and remaining limits
+
+- Focused **83/83 passed**: 37 Desktop and 46 Infrastructure (`artifacts/m145-load/rules-drag-focused`). Count regressions cover movement, edge pacing, target/source cleanup, no-op/success/failure/drop, cancelled and overlapping writes, and persisted numbering/order. Compiled WPF verifies the existing Light/Dark normal/narrow-240-DPI controls; renders are in `artifacts/rules-drag-renders`.
+- **Final full parallel Release: 4,041/4,041 passed, zero failures/skips**, `artifacts/m145-load/rules-drag-full`: 490 Domain, 753 Application, 1,249 Infrastructure, 1,549 Desktop. Calendar native passed **87/87 in 107.361 seconds**, leaving **12.639 seconds** to its unchanged 120-second deadline. Neither the prior chart-focus assertion nor a Calendar/Journal timeout recurred. That narrow headroom and earlier unexplained instability remain risks, not claimed fixes. No test deadline, assertion or concurrency change was made.
+- Release build: **0 warnings/errors**. EF consistency: **no pending model changes**, isolated design-time context. `git diff --check` and separate new-file trailing-whitespace checks passed. Branch/HEAD remain as above; 11 modified and 2 new tracked-intent files, no commits.
+- Live check: the actual instrumented Desktop executable was launched with `--isolated-data-root` under `artifacts/rules-drag-live/isolated`, containing only 12 synthetic Rules and no Accounts/Trades/Journals. The Windows helper discovered it but screenshot capture failed with `FrameArrived timed out`; after refreshing window selection, retry failed with `window capture timed out`. No blind input was sent. The synthetic app was closed normally. **Actual mouse dragging, OLE event cadence, edge dwell, GPU smoothness and screen-reader behavior remain unverified.** Automated tests/renders are not live acceptance.
+- No production journal or AI provider was accessed. No Git writes. These uncommitted changes have no matching GitHub Actions acceptance. Previous Calendar instability is tracked separately; no deadline, assertion, isolation or concurrency bound was weakened.
+
+Exact changed files (11 modified, 2 new):
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Diagnostics/RulesDragDiagnostics.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleReorderRow.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.DragVisuals.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesDragPerformanceTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesOrderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Compact Rule cards — 13 October 2026
 
 Started on clean `develop`, HEAD `fdf68456735ee9fe5d425a0e9cdae555e20702fc`. The previous work had already been committed; it is preserved. These changes extend the existing view and drag lifecycle, not the ordering repository or ViewModel.

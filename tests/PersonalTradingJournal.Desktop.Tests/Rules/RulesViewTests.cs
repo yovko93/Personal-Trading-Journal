@@ -196,9 +196,9 @@ public sealed class RulesViewTests
                     Assert.InRange(liftImage.Width / surface.ActualWidth, 0.9, SystemParameters.ClientAreaAnimation ? 1.0151 : 1.0001);
                     Assert.Equal(Transform.Identity, surface.LayoutTransform); Assert.Equal(Transform.Identity, surface.RenderTransform);
                     Assert.Equal(new Thickness(2), lift.BorderThickness);
-                    double firstY = Canvas.GetTop(lift);
+                    double firstY = ((TranslateTransform)lift.RenderTransform).Y;
                     view.MoveRowLift(new Point(start.X, start.Y + 24)); Layout();
-                    Assert.Equal(firstY + 24, Canvas.GetTop(lift)); Assert.Same(snapshot, liftImage.Source);
+                    Assert.Equal(firstY + 24, ((TranslateTransform)lift.RenderTransform).Y); Assert.Same(snapshot, liftImage.Source);
                     Render(view, theme, width, dpi, "lifted-row");
                     view.HideRowLift(); Layout(); // same cleanup used by leaving the valid drop area
                     Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Equal(Visibility.Collapsed, origin.Visibility); Assert.Equal(1, surface.Opacity);
@@ -218,14 +218,14 @@ public sealed class RulesViewTests
                     nextSnapshot.CopyPixels(new Int32Rect(inset, inset, 1, 1), interiorPixel, 4, 0);
                     Assert.Equal(255, interiorPixel[3]); // Opaque card interior, not rounded corner/shadow or an offset blank visual.
                     view.EndRowDrag();
-                    RulesView.ShowDropHighlight(rowGrid); Layout();
+                    view.ShowDropHighlight(rowGrid); Layout();
                     var highlight = Find<Border>(rowGrid, "DropHighlight");
                     Assert.Equal(Visibility.Visible, highlight.Visibility);
                     Assert.InRange(highlight.Opacity, 0.05, 0.15);
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)highlight.Background).Color);
                     Render(view, theme, width, dpi, "drag-highlight");
                     view.EndRowDrag(); Layout(); Assert.Equal(Visibility.Collapsed, highlight.Visibility);
-                    RulesView.ShowDropHighlight(rowGrid);
+                    view.ShowDropHighlight(rowGrid);
                     Assert.True(view.BeginRowLift(surface, start));
                     Await(view.DropRuleAsync(secondId, id, after: false)); Layout();
                     Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Null(liftImage.Source); Assert.Equal(1, surface.Opacity);
@@ -244,7 +244,7 @@ public sealed class RulesViewTests
                     Assert.Equal(id, f.Vm.Rules[0].Id); Assert.Equal(secondId, f.Vm.Rules[1].Id);
                     // Failure clears temporary feedback without hiding the actionable error.
                     rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
-                    RulesView.ShowDropHighlight(rowGrid); f.Data.Failure = "failure";
+                    view.ShowDropHighlight(rowGrid); f.Data.Failure = "failure";
                     var failedSource = (Border)VisualTreeHelper.GetParent(rowGrid);
                     Assert.True(view.BeginRowLift(failedSource, start));
                     Await(view.DropRuleAsync(secondId, id, after: false)); Layout(); f.Data.Failure = null;

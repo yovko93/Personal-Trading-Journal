@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using PersonalTradingJournal.Desktop.ViewModels.Rules;
+using PersonalTradingJournal.Desktop.Diagnostics;
 
 namespace PersonalTradingJournal.Desktop.Views.Rules;
 
@@ -13,6 +14,7 @@ public partial class RulesView
     private Border? _liftSource;
     private Point _grabOffset;
     private double _originalOpacity;
+    private Rectangle? _originMarker;
 
     internal Cursor? RowCursor(DependencyObject? hit, Border row) =>
         DataContext is RulesViewModel { IsBusy: false } && CanStartRowDrag(hit, row)
@@ -38,6 +40,7 @@ public partial class RulesView
     {
         EndRowDrag();
         if (source.ActualWidth <= 0 || source.ActualHeight <= 0) return false;
+        DragDiagnostics?.Count(RuleDragCounter.PreviewCaptures);
         // Snapshot the actual laid-out row, including its number, text, condition and actions.
         // No duplicate bindings/commands or live VisualBrush that would inherit placeholder styling.
         double dpiScale = Math.Max(VisualTreeHelper.GetDpi(this).DpiScaleX, VisualTreeHelper.GetDpi(source).DpiScaleX);
@@ -56,6 +59,8 @@ public partial class RulesView
             }, null, cardBounds);
         bitmap.Render(drawing); bitmap.Freeze();
         _liftSource = source; _originalOpacity = source.Opacity;
+        DragDiagnostics?.Count(RuleDragCounter.TreeScans);
+        _originMarker = OriginMarker(source);
         Vector offset = pointer - source.TranslatePoint(new Point(), DragOverlay);
         _grabOffset = new Point(offset.X, offset.Y);
         LiftedRuleImage.Source = bitmap;
@@ -72,14 +77,18 @@ public partial class RulesView
     internal void MoveRowLift(Point pointer)
     {
         if (_liftSource is null) return;
-        _liftSource.Opacity = _originalOpacity * 0.55;
-        OriginMarker(_liftSource).Visibility = Visibility.Visible;
-        LiftedRule.Visibility = Visibility.Visible;
+        DragDiagnostics?.Count(RuleDragCounter.PreviewMoves);
+        if (LiftedRule.Visibility != Visibility.Visible)
+        {
+            _liftSource.Opacity = _originalOpacity * 0.55;
+            _originMarker!.Visibility = Visibility.Visible;
+            LiftedRule.Visibility = Visibility.Visible;
+        }
         // Keep its width in the viewport, while following vertical pointer motion. Clip only
         // to the page viewport, never create another window or cover the app's other controls.
-        Canvas.SetLeft(LiftedRule, Math.Clamp(pointer.X - _grabOffset.X + 8, 8,
-            Math.Max(8, DragOverlay.ActualWidth - LiftedRuleImage.Width - 12)));
-        Canvas.SetTop(LiftedRule, pointer.Y - _grabOffset.Y + 12);
+        LiftTranslation.X = Math.Clamp(pointer.X - _grabOffset.X + 8, 8,
+            Math.Max(8, DragOverlay.ActualWidth - LiftedRuleImage.Width - 12));
+        LiftTranslation.Y = pointer.Y - _grabOffset.Y + 12;
     }
 
     internal void HideRowLift()
@@ -88,7 +97,7 @@ public partial class RulesView
         if (_liftSource is not null)
         {
             _liftSource.Opacity = _originalOpacity;
-            OriginMarker(_liftSource).Visibility = Visibility.Collapsed;
+            if (_originMarker is not null) _originMarker.Visibility = Visibility.Collapsed;
         }
         ClearDropHighlights();
         Mouse.UpdateCursor();

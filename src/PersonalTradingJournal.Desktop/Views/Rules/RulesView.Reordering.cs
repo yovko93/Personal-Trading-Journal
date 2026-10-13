@@ -5,6 +5,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using PersonalTradingJournal.Desktop.ViewModels.Rules;
+using PersonalTradingJournal.Desktop.Diagnostics;
 
 namespace PersonalTradingJournal.Desktop.Views.Rules;
 
@@ -13,6 +14,10 @@ public partial class RulesView
     private const string RuleDragFormat = "PTJ.RuleOrder";
     private Point _dragStart;
     private Border? _dragRow;
+    private Border? _dropHighlight;
+    private int _edgeDirection;
+    private long? _lastEdgeScroll;
+    internal TimeProvider DragClock { get; set; } = TimeProvider.System;
 
     internal static bool CanStartRowDrag(DependencyObject? source, Border row)
     {
@@ -47,15 +52,16 @@ public partial class RulesView
         if (Math.Abs(now.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(now.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         var source = _dragRow; _dragRow = null;
+        DragDiagnostics?.Reset();
         try
         {
             if (BeginRowLift(source, e.GetPosition(DragOverlay)))
                 DragDrop.DoDragDrop(source, new DataObject(RuleDragFormat, row.Id), DragDropEffects.Move);
         }
-        finally { EndRowDrag(); }
+        finally { EndRowDrag(); DragDiagnostics?.Report(); }
     }
     private void OnRowUp(object sender, MouseButtonEventArgs e) => EndRowDrag();
-    private void OnRowUnloaded(object sender, RoutedEventArgs e) => EndRowDrag();
+    private void OnRowUnloaded(object sender, RoutedEventArgs e) { DragDiagnostics?.Count(RuleDragCounter.RowsUnloaded); EndRowDrag(); }
     private void OnQueryContinueDrag(object sender, QueryContinueDragEventArgs e)
     {
         if (e.EscapePressed || e.Action != DragAction.Continue) EndRowDrag();
@@ -63,14 +69,21 @@ public partial class RulesView
     internal void EndRowDrag()
     {
         _dragRow = null;
+        _lastEdgeScroll = null; _edgeDirection = 0;
         HideRowLift();
         _liftSource = null;
+        _originMarker = null;
         LiftedRuleImage.Source = null;
+        LiftTranslation.X = 0; LiftTranslation.Y = 0;
     }
     private void ClearDropHighlights()
     {
-        foreach (var highlight in Descendants(RuleRows).OfType<Border>().Where(b => b.Name == "DropHighlight"))
+        if (_dropHighlight is { } highlight)
+        {
+            DragDiagnostics?.Count(RuleDragCounter.TargetChanges);
             highlight.Visibility = Visibility.Collapsed;
+            _dropHighlight = null;
+        }
     }
     private bool TryDrop(DragEventArgs e, out Guid source)
     {
@@ -80,18 +93,47 @@ public partial class RulesView
     }
     private void OnRuleDragOver(object sender, DragEventArgs e)
     {
-        e.Handled = true; ClearDropHighlights(); e.Effects = DragDropEffects.None;
+        e.Handled = true; e.Effects = DragDropEffects.None;
         if (!TryDrop(e, out _) || sender is not Border { Child: Grid grid }) { HideRowLift(); return; }
         e.Effects = DragDropEffects.Move;
-        MoveRowLift(e.GetPosition(DragOverlay));
-        ShowDropHighlight(grid);
-        double y = e.GetPosition(RulesScroller).Y;
-        if (y < 36) RulesScroller.LineUp();
-        else if (y > RulesScroller.ActualHeight - 36) RulesScroller.LineDown();
+        UpdateRowDrag(grid, e.GetPosition(DragOverlay), e.GetPosition(RulesScroller).Y);
     }
-    internal static void ShowDropHighlight(Grid grid) =>
-        Descendants(grid).OfType<Border>().First(b => b.Name == "DropHighlight").Visibility = Visibility.Visible;
-    private void OnRuleDragLeave(object sender, DragEventArgs e) => HideRowLift();
+    internal void UpdateRowDrag(Grid grid, Point pointer, double y)
+    {
+        DragDiagnostics?.Count(RuleDragCounter.PointerMoves);
+        if (LiftedRule.HasAnimatedProperties || LiftTranslation.HasAnimatedProperties || grid.HasAnimatedProperties)
+            DragDiagnostics?.Count(RuleDragCounter.Animations);
+        MoveRowLift(pointer); ShowDropHighlight(grid);
+        int direction = y < 36 ? -1 : y > RulesScroller.ActualHeight - 36 ? 1 : 0;
+        if (direction == 0) { _lastEdgeScroll = null; _edgeDirection = 0; return; }
+        long now = DragClock.GetTimestamp();
+        // Logical-pixel scrolling at at most 20 steps/s, not one jump per pointer event.
+        // No catch-up burst after a busy dispatcher and no timer surviving a cancelled drag.
+        if (direction == _edgeDirection && _lastEdgeScroll is long last &&
+            DragClock.GetElapsedTime(last, now) < TimeSpan.FromMilliseconds(50)) return;
+        _lastEdgeScroll = now; _edgeDirection = direction;
+        DragDiagnostics?.Count(RuleDragCounter.ScrollRequests);
+        RulesScroller.ScrollToVerticalOffset(RulesScroller.VerticalOffset + direction * 12);
+    }
+    internal void ShowDropHighlight(Grid grid)
+    {
+        if (ReferenceEquals(_dropHighlight?.Parent, grid)) return;
+        ClearDropHighlights();
+        // The target is a direct child, not a recursive traversal of every template.
+        _dropHighlight = grid.Children.OfType<Border>().First(b => b.Name == "DropHighlight");
+        _dropHighlight.Visibility = Visibility.Visible;
+        DragDiagnostics?.Count(RuleDragCounter.TargetChanges);
+    }
+    private void OnRuleDragLeave(object sender, DragEventArgs e) => LeaveRowDrag(e.GetPosition(DragOverlay));
+    internal void LeaveRowDrag(Point pointer)
+    {
+        if (!new Rect(0, 0, DragOverlay.ActualWidth, DragOverlay.ActualHeight).Contains(pointer))
+        {
+            HideRowLift(); _lastEdgeScroll = null; _edgeDirection = 0;
+        }
+        // Routed child/row leave events inside the viewport must not hide/re-show the
+        // frozen preview and original slot. The next target update changes only its tint.
+    }
     private async void OnRuleDrop(object sender, DragEventArgs e)
     {
         e.Handled = true; EndRowDrag();
@@ -110,7 +152,7 @@ public partial class RulesView
             await vm.MoveBeforeAsync(source, before);
             FocusRow(source);
         }
-        finally { EndRowDrag(); }
+        finally { EndRowDrag(); DragDiagnostics?.Report(RuleDragPhase.DropCompleted); }
     }
     private async void OnRowKey(object sender, KeyEventArgs e)
     {

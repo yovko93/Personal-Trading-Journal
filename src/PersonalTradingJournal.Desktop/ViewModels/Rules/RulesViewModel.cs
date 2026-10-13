@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Rules;
 using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Desktop.Diagnostics;
 using PersonalTradingJournal.Domain.Rules;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Rules;
@@ -48,6 +49,7 @@ public sealed record RuleRow(TradingRuleDetails Details, int DisplayNumber = 0)
 /// <summary>Global principle catalog. Assessment targets and history belong to separate workflows.</summary>
 public sealed class RulesViewModel : ObservableObject
 {
+    internal RulesDragDiagnostics? DragDiagnostics { get; } = RulesDragDiagnostics.Enabled ? new() : null;
     private readonly ITradingRuleReader _reader;
     private readonly ITradingRuleStore _store;
     private readonly ITradingRuleOrderStore? _order;
@@ -77,6 +79,7 @@ public sealed class RulesViewModel : ObservableObject
     {
         _reader = reader; _store = store; _writer = writer; _dialogs = dialogs; _clock = timeProvider ?? TimeProvider.System;
         _order = orderStore ?? store as ITradingRuleOrderStore;
+        if (DragDiagnostics is { } diagnostics) PropertyChanged += (_, _) => diagnostics.Count(RuleDragCounter.PropertyNotifications);
         MoveUpCommand = new AsyncRelayCommand<RuleRow>(row => MoveByAsync(row, -1), row => CanMove(row, -1));
         MoveDownCommand = new AsyncRelayCommand<RuleRow>(row => MoveByAsync(row, 1), row => CanMove(row, 1));
         EditRowCommand = new AsyncRelayCommand<RuleRow>(async row => { if (row is not null && TrySelect(row)) { await LoadTask; if (_loaded && _selected?.Id == row.Id && !IsEditing) Edit(); } }, row => !IsBusy && row is not null);
@@ -184,6 +187,7 @@ public sealed class RulesViewModel : ObservableObject
         {
             var page = catalog ? await CatalogAsync(cancel.Token) : null;
             var selectedId = _pendingRuleId ?? _selected?.Id;
+            if (selectedId is not null) DragDiagnostics?.Count(RuleDragCounter.RevisionReads);
             var current = selectedId is null ? null : (await _reader.ReadRevisionsAsync(selectedId.Value, limit: 1, cancellationToken: cancel.Token)).FirstOrDefault();
             cancel.Token.ThrowIfCancellationRequested(); if (generation != _generation) return;
             if (page is not null) PublishCatalog(page);
@@ -261,6 +265,7 @@ public sealed class RulesViewModel : ObservableObject
     private sealed record Catalog(IReadOnlyList<TradingRuleDetails> Items, long Version);
     private void PublishCatalog(Catalog catalog)
     {
+        DragDiagnostics?.Count(RuleDragCounter.CatalogPublishes);
         _catalogVersion = catalog.Version;
         Rules = catalog.Items.Select((r, i) => new RuleRow(r, i + 1)).ToArray();
     }
@@ -275,6 +280,7 @@ public sealed class RulesViewModel : ObservableObject
         for (int number = 1; ; number = checked(number + 1))
         {
             token.ThrowIfCancellationRequested();
+            DragDiagnostics?.Count(RuleDragCounter.CatalogReads);
             var page = await _reader.ReadCatalogAsync(number, size, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
             total ??= page.TotalCount;
@@ -301,13 +307,20 @@ public sealed class RulesViewModel : ObservableObject
     }
     public async Task MoveBeforeAsync(Guid ruleId, Guid? beforeRuleId)
     {
-        if (_order is null || IsBusy || !Rules.Any(r => r.Id == ruleId) || !TryLeave()) return;
+        if (_order is null || IsBusy) return;
+        int current = Rules.ToList().FindIndex(r => r.Id == ruleId);
+        if (current < 0) return;
+        Guid? next = current + 1 < Rules.Count ? Rules[current + 1].Id : null;
+        // Same insertion slot is not a mutation: no prompt, busy state, read or write.
+        if (beforeRuleId == ruleId || beforeRuleId == next) return;
+        if (!TryLeave()) return;
         using var cancel = new CancellationTokenSource(); _move = cancel;
         IsWriting = true;
         string message; var kind = RuleFeedbackKind.Error; bool saved = false;
         try
         {
             var command = new MoveTradingRuleCommand(ruleId, beforeRuleId, _catalogVersion);
+            DragDiagnostics?.Count(RuleDragCounter.MoveWrites);
             var result = await Task.Run(() => _order.MoveAsync(command, cancel.Token), cancel.Token);
             saved = result == RuleMoveStatus.Saved;
             message = result switch

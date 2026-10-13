@@ -258,6 +258,7 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
     }
     public async Task<RuleMoveStatus> MoveAsync(MoveTradingRuleCommand command, CancellationToken cancellationToken = default)
     {
+        Interlocked.Increment(ref _moveCalls);
         if (WriteGate is not null) await WriteGate.Task.WaitAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested(); Ordered();
         if (Failure == "cancel") throw new OperationCanceledException();
@@ -275,6 +276,8 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
     public TaskCompletionSource? WriteGate { get; set; }
     public TaskCompletionSource? ReadGate { get; set; }
     public List<(int Page, int Size)> CatalogCalls { get; } = [];
+    private int _moveCalls;
+    public int MoveCalls => _moveCalls;
     public Func<int, CancellationToken, Task>? BeforeCatalogPage { get; set; }
     public Guid Seed(int count, Guid? account = null)
     {

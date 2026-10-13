@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**Rules — stable pointer movement (before M18.6)**
+
+Measured dragging with 12 synthetic Rules and long/expanded Criteria: the apparent refresh came from redundant visual work, not catalog reads or SQLite writes. For 60 pointer updates, layout notifications fell from **60 to 1**, target-style changes from **119 to 1**, and whole-list visual scans from **60 to 0**. The lifted bitmap now moves using a render transform; target styling changes only with the target. Edge scrolling is capped at 20 logical-pixel steps/second rather than one jump per pointer event. No-op drops perform no read/write; a real drop retains one concurrency-checked move and one verified catalog publication. Guards, cards, numbering and keyboard/context-menu ordering are preserved.
+
+[Measurements, opt-in diagnostics, exact files and verification](docs/trading-rules.md#stable-drag-movement--13-october-2026). Focused **83/83 passed**; final full parallel Release **4,041/4,041**, zero failures/skips. Release build **0 warnings/errors**, EF consistency and whitespace checks passed. Calendar native **87/87 in 107.361 s**, leaving **12.639 s** to the unchanged deadline; previous instability is not claimed fixed. Live mouse verification is **blocked**: the Windows helper found the isolated app but capture timed out twice; no blind input or production access. Thirteen changed files remain uncommitted on `develop`, HEAD `193d158ffa8271a68c7cd846e546e119086dd004`; matching CI remains open. No M18.6, commit, push or merge.
+
 **Rules — compact cards (before M18.6)**
 
 Rules now use rounded, theme-aware cards with soft shadows, a six-dot grip and numbered circles. Rule text wraps; Criterion previews stop at three lines, with a keyboard-accessible **Full criterion** disclosure for the exact text. Edit/Delete remain at the top-right even with long details open. Drag from the grip, number, text or card padding; buttons, disclosures and editor controls keep their normal input. The lifted DPI-aware snapshot has a modest scale and stronger shadow, with temporary source/target markers. Stable immediate placement avoids neighbor animations; reduced-motion settings disable the extra scale. Existing guarded, atomic ordering and quiet success remain unchanged.

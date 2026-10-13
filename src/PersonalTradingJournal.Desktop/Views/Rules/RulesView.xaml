@@ -99,7 +99,7 @@
                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             PreviewMouseLeftButtonDown="OnRowDown" PreviewMouseMove="OnRowMove" PreviewMouseLeftButtonUp="OnRowUp"
                             AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop"
-                            PreviewKeyDown="OnRowKey" QueryContinueDrag="OnQueryContinueDrag" GiveFeedback="OnDragFeedback" QueryCursor="OnRowQueryCursor" Unloaded="OnRowUnloaded"
+                            PreviewKeyDown="OnRowKey" QueryContinueDrag="OnQueryContinueDrag" GiveFeedback="OnDragFeedback" QueryCursor="OnRowQueryCursor" Loaded="OnRowLoaded" Unloaded="OnRowUnloaded"
                             AutomationProperties.Name="{Binding Name, StringFormat=Reorder rule {0}}"
                             AutomationProperties.HelpText="Drag the Rule row to reorder. Alt+Up or Alt+Down moves a focused Rule; Shift+F10 opens move actions."
                             AutomationProperties.ItemStatus="{Binding PositionDescription}">
@@ -168,6 +168,7 @@
     <Canvas x:Name="DragOverlay" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True">
         <Border x:Name="LiftedRule" Visibility="Collapsed" BorderBrush="{DynamicResource PtjAccentBrush}"
                 BorderThickness="2" CornerRadius="8" Background="{DynamicResource PtjSurfaceBrush}" IsHitTestVisible="False">
+            <Border.RenderTransform><TranslateTransform x:Name="LiftTranslation" /></Border.RenderTransform>
             <Border.Effect><DropShadowEffect Color="{DynamicResource PtjCardShadowColor}" BlurRadius="16" ShadowDepth="5" Opacity="0.28" /></Border.Effect>
             <Image x:Name="LiftedRuleImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False" />
         </Border>

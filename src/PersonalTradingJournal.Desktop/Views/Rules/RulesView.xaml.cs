@@ -7,12 +7,24 @@ using System.Windows.Input;
 using System.Windows.Media;
 using PersonalTradingJournal.Desktop.Validation;
 using PersonalTradingJournal.Desktop.ViewModels.Rules;
+using PersonalTradingJournal.Desktop.Diagnostics;
+using System.Collections.Specialized;
 
 namespace PersonalTradingJournal.Desktop.Views.Rules;
 
 public partial class RulesView : UserControl
 {
-    public RulesView() => InitializeComponent();
+    private RulesDragDiagnostics? DragDiagnostics => (DataContext as RulesViewModel)?.DragDiagnostics;
+    public RulesView()
+    {
+        InitializeComponent();
+        if (RulesDragDiagnostics.Enabled)
+        {
+            LayoutUpdated += (_, _) => DragDiagnostics?.Count(RuleDragCounter.ViewLayouts);
+            ((INotifyCollectionChanged)RuleRows.Items).CollectionChanged += (_, _) => DragDiagnostics?.Count(RuleDragCounter.CollectionChanges);
+        }
+    }
+    private void OnRowLoaded(object sender, RoutedEventArgs e) => DragDiagnostics?.Count(RuleDragCounter.RowsLoaded);
     private void OnEditorLoaded(object sender, RoutedEventArgs e)
     {
         // Moving a clean edit to Create can keep IsEditing=true. The new host still needs focus.
