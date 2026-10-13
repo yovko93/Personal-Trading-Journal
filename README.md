@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+**Rules — lifted drag preview (before M18.6)**
+
+Draggable Rule text, numbers and row background show a hand cursor; pressing/dragging uses a closed-hand cursor. Edit/Delete and inline editor controls retain their normal input and cursors. A DPI-aware snapshot of the actual row follows the pointer with a theme-accent outline and subtle shadow; its original slot remains marked with a dashed outline and dimmed content. The noninteractive preview is confined to the Rules viewport and disappears on leaving the drop area, cancellation, drop or failure. No persistent insertion line or successful-move banner returns. Alt+Up/Down, context-menu moves, guards and atomic ordering are unchanged.
+
+[Verification, exact files and live limits](docs/trading-rules.md#lifted-rule-drag-preview--13-october-2026). No persistence, schema, assessment or M18.6 changes; no production access or Git writes.
+
+Verification: final focused **31/31 passed**; inspected Light/Dark normal and narrow/240-DPI renders. Release build **0 warnings/errors**, EF consistency and whitespace checks pass. **Final full parallel Release: 3,952 passed / 86 failed / zero skipped**; the failures propagate one Calendar native chart guide assertion (`Light`, 480 DIP / 240 DPI), expected Visible after focus/pump but observed Collapsed. The native child finished 86/87 in **67.961 s**; no timeout occurred. Rules WPF passed under the same load. This Calendar assertion remains unexplained and full-suite acceptance stays open; no retry, skip or deadline change. Five modified and two new files remain uncommitted on `develop`, HEAD `4125a979385838bc501bbca1bc99adc521ec1a8a`. Physical dragging, screen-reader and matching CI verification remain open.
+
 **Rules — quiet whole-row reordering (before M18.6)**
 
 Successful drag and keyboard moves update order/numbers without a “Rule moved” banner. A faint row tint appears only during dragging; the horizontal insertion line and arrows beneath numbers are gone. Drag a row's number, text or background; Edit/Delete, selectable text controls and the inline editor are excluded. Tab to a Rule and use **Alt+Up / Alt+Down**, or Shift+F10 → Move up/down. Ordinary arrow keys remain available for normal navigation.

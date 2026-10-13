@@ -36,6 +36,7 @@ public partial class RulesView
             !CanStartRowDrag(e.OriginalSource as DependencyObject, row)) return;
         _dragRow = row; _dragStart = e.GetPosition(this);
         row.Focus(); // Do not handle the event or capture the mouse; ordinary controls retain input.
+        Mouse.UpdateCursor();
     }
     private void OnRowMove(object sender, MouseEventArgs e)
     {
@@ -46,10 +47,14 @@ public partial class RulesView
         if (Math.Abs(now.X - _dragStart.X) < SystemParameters.MinimumHorizontalDragDistance &&
             Math.Abs(now.Y - _dragStart.Y) < SystemParameters.MinimumVerticalDragDistance) return;
         var source = _dragRow; _dragRow = null;
-        try { DragDrop.DoDragDrop(source, new DataObject(RuleDragFormat, row.Id), DragDropEffects.Move); }
+        try
+        {
+            if (BeginRowLift(source, e.GetPosition(DragOverlay)))
+                DragDrop.DoDragDrop(source, new DataObject(RuleDragFormat, row.Id), DragDropEffects.Move);
+        }
         finally { EndRowDrag(); }
     }
-    private void OnRowUp(object sender, MouseButtonEventArgs e) => _dragRow = null;
+    private void OnRowUp(object sender, MouseButtonEventArgs e) => EndRowDrag();
     private void OnRowUnloaded(object sender, RoutedEventArgs e) => EndRowDrag();
     private void OnQueryContinueDrag(object sender, QueryContinueDragEventArgs e)
     {
@@ -58,6 +63,12 @@ public partial class RulesView
     internal void EndRowDrag()
     {
         _dragRow = null;
+        HideRowLift();
+        _liftSource = null;
+        LiftedRuleImage.Source = null;
+    }
+    private void ClearDropHighlights()
+    {
         foreach (var highlight in Descendants(RuleRows).OfType<Border>().Where(b => b.Name == "DropHighlight"))
             highlight.Visibility = Visibility.Collapsed;
     }
@@ -69,9 +80,10 @@ public partial class RulesView
     }
     private void OnRuleDragOver(object sender, DragEventArgs e)
     {
-        e.Handled = true; EndRowDrag(); e.Effects = DragDropEffects.None;
-        if (!TryDrop(e, out _) || sender is not Grid grid) return;
+        e.Handled = true; ClearDropHighlights(); e.Effects = DragDropEffects.None;
+        if (!TryDrop(e, out _) || sender is not Grid grid) { HideRowLift(); return; }
         e.Effects = DragDropEffects.Move;
+        MoveRowLift(e.GetPosition(DragOverlay));
         ShowDropHighlight(grid);
         double y = e.GetPosition(RulesScroller).Y;
         if (y < 36) RulesScroller.LineUp();
@@ -79,7 +91,7 @@ public partial class RulesView
     }
     internal static void ShowDropHighlight(Grid grid) =>
         Descendants(grid).OfType<Border>().First(b => b.Name == "DropHighlight").Visibility = Visibility.Visible;
-    private void OnRuleDragLeave(object sender, DragEventArgs e) => EndRowDrag();
+    private void OnRuleDragLeave(object sender, DragEventArgs e) => HideRowLift();
     private async void OnRuleDrop(object sender, DragEventArgs e)
     {
         e.Handled = true; EndRowDrag();

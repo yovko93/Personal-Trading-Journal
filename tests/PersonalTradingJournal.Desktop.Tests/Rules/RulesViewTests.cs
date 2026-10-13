@@ -123,7 +123,53 @@ public sealed class RulesViewTests
                     {
                         Assert.False(RulesView.CanStartRowDrag(button, surface));
                         Assert.False(RulesView.CanStartRowDrag(Descendants(button).First(), surface));
+                        Assert.Null(view.RowCursor(button, surface));
                     }
+                    foreach (var hit in new DependencyObject[] { surface, rowGrid, marker, condition })
+                        Assert.Same(Cursors.Hand, view.RowCursor(hit, surface));
+                    var query = new QueryCursorEventArgs(Mouse.PrimaryDevice, 0) { RoutedEvent = Mouse.QueryCursorEvent };
+                    surface.RaiseEvent(query); Assert.True(query.Handled); Assert.Same(Cursors.Hand, query.Cursor);
+                    surface.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonDownEvent });
+                    Assert.Same(RuleDragCursor.Grabbing, view.RowCursor(surface, surface));
+                    surface.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.PreviewMouseLeftButtonUpEvent });
+                    Assert.Same(Cursors.Hand, view.RowCursor(surface, surface));
+                    Assert.Null(Mouse.OverrideCursor);
+
+                    var overlay = (Canvas)view.FindName("DragOverlay");
+                    var lift = (Border)view.FindName("LiftedRule");
+                    var liftImage = (Image)view.FindName("LiftedRuleImage");
+                    var origin = Find<System.Windows.Shapes.Rectangle>(surface, "DragOriginMarker");
+                    Point start = surface.TranslatePoint(new Point(70, 20), overlay);
+                    Assert.True(view.BeginRowLift(surface, start)); Layout();
+                    var snapshot = Assert.IsType<RenderTargetBitmap>(liftImage.Source);
+                    Assert.InRange(snapshot.DpiX, dpi, dpi + 0.01);
+                    Assert.True(snapshot.IsFrozen); Assert.InRange(snapshot.PixelWidth * (long)snapshot.PixelHeight, 1, 8_100_000);
+                    Assert.Equal(surface.ActualWidth, snapshot.Width, 0); Assert.Equal(surface.ActualHeight, snapshot.Height, 0);
+                    Assert.Equal(Visibility.Visible, lift.Visibility); Assert.Equal(Visibility.Visible, origin.Visibility);
+                    Assert.Equal(0.55, surface.Opacity); Assert.False(overlay.IsHitTestVisible); Assert.True(overlay.ClipToBounds);
+                    Assert.IsType<System.Windows.Media.Effects.DropShadowEffect>(lift.Effect);
+                    Assert.Equal(new Thickness(2), lift.BorderThickness);
+                    double firstY = Canvas.GetTop(lift);
+                    view.MoveRowLift(new Point(start.X, start.Y + 24)); Layout();
+                    Assert.Equal(firstY + 24, Canvas.GetTop(lift)); Assert.Same(snapshot, liftImage.Source);
+                    Render(view, theme, width, dpi, "lifted-row");
+                    view.HideRowLift(); Layout(); // same cleanup used by leaving the valid drop area
+                    Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Equal(Visibility.Collapsed, origin.Visibility); Assert.Equal(1, surface.Opacity);
+                    view.MoveRowLift(start); Layout(); Assert.Equal(Visibility.Visible, lift.Visibility); // re-enter without recapturing
+                    var cancelDrag = (QueryContinueDragEventArgs)Activator.CreateInstance(typeof(QueryContinueDragEventArgs),
+                        BindingFlags.Instance | BindingFlags.NonPublic, null, [true, DragDropKeyStates.LeftMouseButton], null)!;
+                    cancelDrag.Action = DragAction.Cancel; cancelDrag.RoutedEvent = DragDrop.QueryContinueDragEvent;
+                    surface.RaiseEvent(cancelDrag);
+                    Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Equal(Visibility.Collapsed, origin.Visibility);
+                    Assert.Null(liftImage.Source); Assert.Equal(1, surface.Opacity); Assert.Null(Mouse.OverrideCursor);
+                    // Capture a non-first row as well: parent layout offsets must not crop its bitmap.
+                    var nextSurface = Descendants(rows).OfType<Border>().Single(b => b.Name == "RuleRowSurface" &&
+                        b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
+                    Assert.True(view.BeginRowLift(nextSurface, start));
+                    var nextSnapshot = Assert.IsType<RenderTargetBitmap>(liftImage.Source);
+                    var cornerPixel = new byte[4]; nextSnapshot.CopyPixels(new Int32Rect(1, 1, 1, 1), cornerPixel, 4, 0);
+                    Assert.Equal(255, cornerPixel[3]); // Entire opaque row, not an offset blank visual.
+                    view.EndRowDrag();
                     RulesView.ShowDropHighlight(rowGrid); Layout();
                     var highlight = Find<Border>(rowGrid, "DropHighlight");
                     Assert.Equal(Visibility.Visible, highlight.Visibility);
@@ -132,7 +178,9 @@ public sealed class RulesViewTests
                     Render(view, theme, width, dpi, "drag-highlight");
                     view.EndRowDrag(); Layout(); Assert.Equal(Visibility.Collapsed, highlight.Visibility);
                     RulesView.ShowDropHighlight(rowGrid);
+                    Assert.True(view.BeginRowLift(surface, start));
                     Await(view.DropRuleAsync(secondId, id, after: false)); Layout();
+                    Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Null(liftImage.Source); Assert.Equal(1, surface.Opacity);
                     Assert.False(f.Vm.HasMessage);
                     Assert.Equal(Visibility.Collapsed, feedback.Visibility);
                     Assert.All(Descendants(view).OfType<Border>().Where(b => b.Name == "DropHighlight"), b => Assert.Equal(Visibility.Collapsed, b.Visibility));
@@ -149,7 +197,10 @@ public sealed class RulesViewTests
                     // Failure clears temporary feedback without hiding the actionable error.
                     rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
                     RulesView.ShowDropHighlight(rowGrid); f.Data.Failure = "failure";
+                    var failedSource = (Border)VisualTreeHelper.GetParent(rowGrid);
+                    Assert.True(view.BeginRowLift(failedSource, start));
                     Await(view.DropRuleAsync(secondId, id, after: false)); Layout(); f.Data.Failure = null;
+                    Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Null(liftImage.Source); Assert.Equal(1, failedSource.Opacity);
                     Assert.Contains("could not be moved", f.Vm.Message); Assert.Equal(id, f.Vm.Rules[0].Id);
                     Assert.All(Descendants(view).OfType<Border>().Where(b => b.Name == "DropHighlight"), b => Assert.Equal(Visibility.Collapsed, b.Visibility));
                     Render(view, theme, width, dpi, "move-error");
@@ -182,6 +233,7 @@ public sealed class RulesViewTests
                     var fields = Descendants(Find<ItemsControl>(view, "EditorFields")).OfType<TextBox>().ToArray();
                     surface = (Border)VisualTreeHelper.GetParent(rowGrid);
                     Assert.All(fields, field => Assert.False(RulesView.CanStartRowDrag(field, surface)));
+                    Assert.All(fields, field => Assert.Null(view.RowCursor(field, surface)));
                     Assert.False(RulesView.CanStartRowDrag(inline, surface));
                     Assert.Equal(2, fields.Length); Assert.Equal(100, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
                     Assert.Equal(fields[0].ActualWidth, fields[1].ActualWidth);

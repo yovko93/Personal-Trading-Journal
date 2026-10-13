@@ -1,5 +1,37 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Lifted Rule drag preview — 13 October 2026
+
+Started on clean `develop`, HEAD `4125a979385838bc501bbca1bc99adc521ec1a8a`; the previous quiet-reorder work was committed and preserved. This is a presentation-only change.
+
+- The existing original-hit ancestor filter also controls hover cursors: hand on draggable row background, number and text, normal cursor on buttons/selectable text/editor controls. Pressing the row shows a high-contrast, DPI-scaled closed-hand cursor; the standard drag threshold still applies. No application-wide cursor override is installed.
+- Dragging captures the actual complete laid-out row once, including number, text, typed-condition sentence and action appearance. The immutable bitmap follows the pointer with a theme-accent outline and shadow. Capture uses the effective DPI and a bounded approximately eight-million-pixel buffer; unusually large rows reduce capture resolution rather than allocating unbounded memory. It does not duplicate bindings or commands, write an image file or change source text.
+- The original slot retains its height and a dashed outline with dimmed content; other rows are not dimmed. The lifted image is non-hit-testable, width-fitted and clipped to the existing page viewport, never a topmost window. Tall content can extend beyond that viewport while the existing edge scrolling remains available.
+- Leaving the valid drop area hides the lifted card, original-slot styling and target highlight; re-entry restores the same snapshot. Drop, Escape, cancellation, view/row unloading and the drag-loop `finally` release the snapshot and restore opacity/cursor behavior. Persistence failure and unsaved-edit veto also leave no drag styling. No persistent insertion line or “Rule moved” success message is added.
+- Quiet numbering updates, Alt+Up/Down, Shift+F10 move actions, unsaved-edit protection, conflict/readback handling and atomic persisted order are unchanged. Rule/assessment semantics, backup/export compatibility and schema are unchanged.
+
+### Verification and limits
+
+Both initial and final focused runs passed **31/31** ViewModel/ordering/compiled-WPF cases (`artifacts/m145-load/rules-lift-focused` and `rules-lift-final-focused`). The final regression checks routed hover/press/release and Escape, hand versus closed-hand cursors, button/editor exclusions, pointer-following geometry, snapshot identity/DPI/size, non-first-row capture, original-slot restoration, leave/re-entry, successful and failed drops, quiet feedback and keyboard reorder. It retains existing validation, navigation, concurrency and error assertions.
+
+Light/Dark automated renders at **960 DIP / 96 DPI** and **480 DIP / 240 DPI** are under `artifacts/rules-lift-renders-final`. The initial high-DPI image was visibly soft; capture now considers both view and source DPI, with an exact DPI regression and high-quality scaling. Final rendered examples were inspected. These are **automated layout/interaction checks**, not a physical mouse/OLE drag-loop or screen-reader acceptance claim. Live checks remain: hand/closed-hand pointer shape, drag across rows and viewport edges, Escape/outside drop, button/text selection, keyboard focus, and unsaved-editor veto.
+
+Release build: **0 warnings/errors**. EF model consistency: **no pending changes**, using the isolated design-time context. Tracked and new-file whitespace checks pass. No production data or AI providers accessed; no Git writes or M18.6. Five modified and two new files remain uncommitted on `develop` at the baseline SHA above; they cannot have matching GitHub Actions acceptance.
+
+**Final complete parallel Release is not green:** **3,952 passed / 86 failed / zero skipped** (`artifacts/m145-load/rules-lift-final-full`): Domain **490/490**, Application **753/753**, Infrastructure **1,249/1,249**, Desktop **1,460 passed / 86 failed**. All reported failures propagate one native-suite result: `CalendarDayPerformanceChartTests.FullHeightRegionsHandOffOneGuideAndRetainKeyboardFocusWithSubtleThemeDrawing(Light, 480, 240)`, `AssertGuideAt` line 277, called at line 121. `targets[0].Focus()` returned true, then the test pumped the dispatcher; the guide was **Collapsed** instead of **Visible**. The child completed **86/87 in 67.961 seconds**, with **52.039 seconds** to the unchanged aggregate deadline. **No timeout occurred.** Rules compiled WPF passed in this same full run.
+
+Bounded investigation: the chart shows the guide on keyboard focus and clears its keyboard target on lost focus. The captured logs do not record the post-pump focused element/activation state for this assertion, so they cannot establish whether native focus moved or a chart defect caused the observation. Neither a causal connection to Rules nor a fix is claimed. Raw child evidence is in `calendar-native-20261013-120712-1aeee10397694e1b9246912564039a1d` under the full run. No Calendar production/test change, retry, sleep, skip, weakened assertion or deadline increase was made. This failure remains open; focused green is not full-suite acceptance.
+
+Exact files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.DragVisuals.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleDragCursor.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Quiet whole-row reordering — 13 October 2026
 
 This presentation update supersedes handle-only dragging, unmodified Up/Down and insertion-line/success-banner descriptions below. The Bulgarian heading and persisted order are unchanged.
