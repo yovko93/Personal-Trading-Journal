@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -102,25 +103,56 @@ public sealed class RulesViewTests
                     Assert.Equal(TextAlignment.Center, motto.TextAlignment); Assert.Equal(TextWrapping.Wrap, motto.TextWrapping);
                     Assert.True(motto.TranslatePoint(new Point(0, motto.ActualHeight), view).Y <= ((Button)view.FindName("CreateRule")).TranslatePoint(new Point(), view).Y);
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)motto.Foreground).Color);
-                    var handle = Find<Button>(rowGrid, "RuleDragHandle");
-                    Assert.True(handle.Focusable); Assert.NotNull(handle.FocusVisualStyle);
-                    Assert.Contains("Reorder rule", AutomationProperties.GetName(handle));
-                    Assert.Equal(2, handle.ContextMenu!.Items.Count);
-                    RulesView.ShowInsertion(rowGrid, after: false); Layout();
-                    var insertion = Find<Border>(rowGrid, "InsertionIndicator");
-                    Assert.Equal(Visibility.Visible, insertion.Visibility); Assert.Equal(VerticalAlignment.Top, insertion.VerticalAlignment);
-                    Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)insertion.Background).Color);
-                    Render(view, theme, width, dpi, "insertion");
-                    RulesView.ShowInsertion(rowGrid, after: true); Layout();
-                    Assert.Equal(VerticalAlignment.Bottom, insertion.VerticalAlignment);
-                    insertion.Visibility = Visibility.Collapsed;
-                    // The same drop operation used by routed Drop persists second above first.
+                    var surface = (Border)VisualTreeHelper.GetParent(rowGrid);
+                    Assert.True(surface.Focusable); Assert.NotNull(surface.FocusVisualStyle);
+                    Assert.Contains("Reorder rule", AutomationProperties.GetName(surface));
+                    Assert.Contains("Alt+Up", AutomationProperties.GetHelpText(surface));
+                    var peer = UIElementAutomationPeer.CreatePeerForElement(surface);
+                    Assert.NotNull(peer); Assert.Equal(AutomationControlType.ListItem, peer.GetAutomationControlType());
+                    Assert.Equal(AutomationProperties.GetName(surface), peer.GetName());
+                    Assert.Contains("Alt+Up", peer.GetHelpText());
+                    Assert.Equal("Rule list position 1", peer.GetItemStatus());
+                    Assert.True(peer.IsKeyboardFocusable());
+                    Assert.Equal(2, surface.ContextMenu!.Items.Count);
+                    Assert.DoesNotContain(Descendants(rowGrid).OfType<TextBlock>(), t => t.Text == "↕");
+                    Assert.DoesNotContain(Descendants(rowGrid).OfType<FrameworkElement>(), e => e.Name is "RuleDragHandle" or "InsertionIndicator");
+                    // Background, number and both text areas share the real drag-source hit filter.
+                    foreach (var hit in new DependencyObject[] { surface, rowGrid, marker, condition, Find<TextBlock>(rowGrid, "RuleCriterion") })
+                        Assert.True(RulesView.CanStartRowDrag(hit, surface));
+                    foreach (var button in rowButtons)
+                    {
+                        Assert.False(RulesView.CanStartRowDrag(button, surface));
+                        Assert.False(RulesView.CanStartRowDrag(Descendants(button).First(), surface));
+                    }
+                    RulesView.ShowDropHighlight(rowGrid); Layout();
+                    var highlight = Find<Border>(rowGrid, "DropHighlight");
+                    Assert.Equal(Visibility.Visible, highlight.Visibility);
+                    Assert.InRange(highlight.Opacity, 0.05, 0.15);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)highlight.Background).Color);
+                    Render(view, theme, width, dpi, "drag-highlight");
+                    view.EndRowDrag(); Layout(); Assert.Equal(Visibility.Collapsed, highlight.Visibility);
+                    RulesView.ShowDropHighlight(rowGrid);
                     Await(view.DropRuleAsync(secondId, id, after: false)); Layout();
+                    Assert.False(f.Vm.HasMessage);
+                    Assert.Equal(Visibility.Collapsed, feedback.Visibility);
+                    Assert.All(Descendants(view).OfType<Border>().Where(b => b.Name == "DropHighlight"), b => Assert.Equal(Visibility.Collapsed, b.Visibility));
                     Assert.Equal(secondId, f.Vm.Rules[0].Id); Assert.Equal(1, f.Vm.Rules[0].DisplayNumber);
-                    var movedHandle = Descendants(rows).OfType<Button>().Single(b => b.Name == "RuleDragHandle" && b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
-                    movedHandle.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, new TestPresentationSource(view), 0, Key.Down) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+                    var movedRow = Descendants(rows).OfType<Border>().Single(b => b.Name == "RuleRowSurface" && b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
+                    SyntheticKeyboardState.WithAlt(() =>
+                    {
+                        var key = new KeyEventArgs(Keyboard.PrimaryDevice, new TestPresentationSource(view), 0, Key.Down) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+                        movedRow.RaiseEvent(key); Assert.True(key.Handled);
+                    });
                     Await(f.Vm.MoveDownCommand.ExecutionTask!); Layout();
+                    Assert.False(f.Vm.HasMessage);
                     Assert.Equal(id, f.Vm.Rules[0].Id); Assert.Equal(secondId, f.Vm.Rules[1].Id);
+                    // Failure clears temporary feedback without hiding the actionable error.
+                    rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
+                    RulesView.ShowDropHighlight(rowGrid); f.Data.Failure = "failure";
+                    Await(view.DropRuleAsync(secondId, id, after: false)); Layout(); f.Data.Failure = null;
+                    Assert.Contains("could not be moved", f.Vm.Message); Assert.Equal(id, f.Vm.Rules[0].Id);
+                    Assert.All(Descendants(view).OfType<Border>().Where(b => b.Name == "DropHighlight"), b => Assert.Equal(Visibility.Collapsed, b.Visibility));
+                    Render(view, theme, width, dpi, "move-error");
                     Assert.Equal(12, f.Data.Rows.Count(r => r.RuleId == id)); // No revisions for moves.
                     rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
                     var markers = Descendants(rows).OfType<TextBlock>().Where(t => t.Name == "RuleMarker").ToArray();
@@ -148,6 +180,9 @@ public sealed class RulesViewTests
                     Assert.Empty(Descendants(view).OfType<CheckBox>());
                     Assert.DoesNotContain(Descendants(view).OfType<Label>(), l => Equals(l.Content, "Required evidence"));
                     var fields = Descendants(Find<ItemsControl>(view, "EditorFields")).OfType<TextBox>().ToArray();
+                    surface = (Border)VisualTreeHelper.GetParent(rowGrid);
+                    Assert.All(fields, field => Assert.False(RulesView.CanStartRowDrag(field, surface)));
+                    Assert.False(RulesView.CanStartRowDrag(inline, surface));
                     Assert.Equal(2, fields.Length); Assert.Equal(100, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
                     Assert.Equal(fields[0].ActualWidth, fields[1].ActualWidth);
                     Assert.Equal("Rule", AutomationProperties.GetName(fields[0]));

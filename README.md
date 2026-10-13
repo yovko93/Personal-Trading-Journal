@@ -1,6 +1,14 @@
 # Personal Trading Journal
 
-**Rules — persistent drag and keyboard ordering (before M18.6)**
+**Rules — quiet whole-row reordering (before M18.6)**
+
+Successful drag and keyboard moves update order/numbers without a “Rule moved” banner. A faint row tint appears only during dragging; the horizontal insertion line and arrows beneath numbers are gone. Drag a row's number, text or background; Edit/Delete, selectable text controls and the inline editor are excluded. Tab to a Rule and use **Alt+Up / Alt+Down**, or Shift+F10 → Move up/down. Ordinary arrow keys remain available for normal navigation.
+
+The persisted ordering, atomic version checks, unsaved-work guard and error/conflict recovery are unchanged. Focused rows expose a list-item automation peer with Rule name, display position and keyboard instructions. Other action/validation feedback retains its existing behavior. [Verification, exact files and Calendar timeout follow-up](docs/trading-rules.md#quiet-whole-row-reordering--13-october-2026). No schema, export, assessment or M18.6 changes; no production data or Git writes.
+
+Verification: **151 initial focused + 6 final focused tests passed**; final complete parallel Release **4,038/4,038**, zero failures/skips. Release build **0 warnings/errors**, EF consistency and whitespace checks pass. Light/Dark automated normal/narrow-240-DPI renders were inspected. Calendar native passed 87/87 in **113.544 s**, only **6.456 s** below its unchanged deadline. The first full run had one distinct fatal-dispatcher probe timeout (4,037 passed); its cause remains unproven despite a final pass. [Timing chronology](docs/ci-wpf-tests.md#quiet-rules-reordering--calendar-follow-up-13-october-2026). Ten modified files and one new file remain uncommitted on `develop`, HEAD `35f9f48149174fc4c9629a6057dac0b0a60dbe19`. Physical drag/edge scrolling, screen-reader behavior and matching CI remain unverified.
+
+**Rules — persistent drag and keyboard ordering (previous presentation; handles/feedback superseded above)**
 
 Planning → Rules displays **“Правилата са, за да се спазват!”** centered above Create/Refresh, without changing the shared page header. Drag a numbered ↕ handle to an insertion line, or focus it and press Up/Down (Shift+F10 also offers Move up/down). Only handles start drags. Existing unsaved-work protection applies. Display numbers follow persisted positions, never identities or revisions.
 

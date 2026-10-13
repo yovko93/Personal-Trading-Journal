@@ -1,5 +1,45 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Quiet whole-row reordering — 13 October 2026
+
+This presentation update supersedes handle-only dragging, unmodified Up/Down and insertion-line/success-banner descriptions below. The Bulgarian heading and persisted order are unchanged.
+
+- Successful moves clear action feedback quietly; no “Moving Rule” or “Rule moved” banner. Failure, cancellation, conflict and failed readback still produce the established actionable messages. Other Create/Edit/Save/Delete/Refresh messages and field validation are unchanged.
+- Drag from row background, number or non-editable text. The original-hit ancestor filter excludes Edit/Delete and other buttons, TextBox/RichTextBox/PasswordBox, selectors, scrollbars, thumbs, links and the entire inline editor host. Mouse events are not swallowed or captured before crossing the standard drag threshold. Existing selectable/editable text retains its normal interaction.
+- The numbered circle contains only its display number. Rows are keyboard-focusable with an accent focus outline. **Alt+Up / Alt+Down** reorder; ordinary arrows are not intercepted. Shift+F10 exposes equivalent move commands. A dedicated list-item automation peer exposes Rule name, current position and keyboard help; numbers remain positions, not IDs/revisions or adherence claims.
+- A **10% accent-tinted row background** replaces the line. It is non-hit-testable and temporary: cleared on drag leave, drop (including veto/failure), cancellation, unloading and drag-loop completion. The existing before/after pointer-half placement and near-edge scrolling remain. There is no persistent selection/drag line.
+- The same guarded, concurrency-checked store operation handles mouse and keyboard moves. Storage/schema, automatic checks, assessments, snapshots, JSON v8 and backup compatibility remain unchanged.
+
+### Evidence and limits
+
+Started on clean `develop` at `35f9f48149174fc4c9629a6057dac0b0a60dbe19`; prior ordering work was already committed and preserved. Synthetic data only. Initial focused checks: **151/151** (22 Domain, 14 Application, 47 Infrastructure, 68 Desktop), `artifacts/m145-load/rules-quiet-focused`.
+
+Compiled WPF exercises multiple row hit locations and interactive exclusions, temporary tint cleanup after completion/failure/cancellation path, routed Alt+Down, quiet success, error feedback, right-aligned actions, editor guards and scrolling. Final Light/Dark automated renders at **960 DIP / 96 DPI** and **480 DIP / 240 DPI** are in `artifacts/rules-quiet-renders-final`; normal drag-highlight and narrow catalog/double-digit examples were inspected. Native physical dragging, screen-reader interaction and edge-scroll dwell remain live checks, not claims based on renders.
+
+An isolated WPF diagnostic confirmed `UIElementAutomationPeer.CreatePeerForElement(new Border())` returns null. The new row automation peer corrects that demonstrated gap; compiled tests verify the actual peer's name, position, help and focusability.
+
+The earlier Calendar timeout was in `WindowControlsRetainModalAndDraftThenCloseInEveryState(Light, Normal)` at its unchanged **45-second action** deadline, not the 120-second aggregate deadline. Test-only bounded phase breadcrumbs now distinguish owner show/layout, day/Trade loads, maximize/minimize/restore, resize, close veto, dismissal, focus and cleanup. No assertion, deadline, concurrency or production Calendar behavior changed. A passing rerun does not establish a cause or fix for that earlier timeout.
+
+Final focused checks after the accessibility correction: **6/6**. Final complete parallel Release: **4,038/4,038**, zero failures/skips (**490 Domain, 753 Application, 1,249 Infrastructure, 1,546 Desktop**), `artifacts/m145-load/rules-quiet-final-full`. Calendar native passed **87/87 in 113.544 seconds**, leaving **6.456 seconds** to its unchanged 120-second deadline. Its four instrumented modal actions took **2.804–3.490 seconds**. This limited headroom remains a timing risk.
+
+The first complete run was **4,037 passed / 1 failed**: the separate `NativeUnhandledDispatcherCallbackFailsItsChildWithTheOriginalError` harness probe hit its 30-second child deadline after its synthetic exception handler was reached. The same probe exited within **7.780 seconds** in the final run. No causal fix was established for that intermittent exit delay or the previous modal timeout; [raw chronology and measurements](ci-wpf-tests.md#quiet-rules-reordering--calendar-follow-up-13-october-2026) retain both outcomes. No retry, assertion removal, serialization or deadline extension was added.
+
+Release build: **0 warnings/errors**. EF model consistency: **no pending changes**, using the isolated design-time context. `git diff --check` and the new-file whitespace check passed. No production data, providers, Git writes or M18.6. Branch remains `develop`, HEAD `35f9f48149174fc4c9629a6057dac0b0a60dbe19`. These uncommitted changes have no matching GitHub Actions acceptance; local green does not establish live mouse/keyboard or CI acceptance.
+
+Exact changed files (10 modified, 1 new):
+
+- `README.md`
+- `docs/trading-rules.md`
+- `docs/ci-wpf-tests.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RuleReorderRow.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesOrderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/SyntheticKeyboardState.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalWindowTests.cs` (diagnostics only)
+
 ## Persistent Rule order — 13 October 2026
 
 The page-only heading **“Правилата са, за да се спазват!”** is centered, accent-colored and wrapping above Create/Refresh. The shared application heading is unchanged.

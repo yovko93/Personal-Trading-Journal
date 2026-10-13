@@ -6,6 +6,11 @@
              FontSize="16" Background="{DynamicResource PtjBackgroundBrush}" DataContextChanged="OnDataContextChanged">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="VisibleIf" />
+        <Style x:Key="RuleRowFocusStyle" TargetType="Control">
+            <Setter Property="Template"><Setter.Value><ControlTemplate>
+                <Border BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="2" CornerRadius="4" Margin="2" />
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
         <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
             <Setter Property="FontSize" Value="16" /><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineHeight" Value="24" />
@@ -89,33 +94,30 @@
             <ContentControl x:Name="CreateEditorHost" Content="{Binding NewRuleEditor}" Style="{StaticResource EditorHostStyle}" Margin="0,8,0,12" />
             <ItemsControl x:Name="RuleRows" ItemsSource="{Binding Rules}" Margin="0,8,0,12">
                 <ItemsControl.ItemTemplate><DataTemplate>
-                    <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="12,8" Background="{DynamicResource PtjSurfaceBrush}">
+                    <local:RuleReorderRow x:Name="RuleRowSurface" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="12,8" Background="{DynamicResource PtjSurfaceBrush}"
+                            Focusable="True" FocusVisualStyle="{StaticResource RuleRowFocusStyle}" KeyboardNavigation.IsTabStop="True"
+                            Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            PreviewMouseLeftButtonDown="OnRowDown" PreviewMouseMove="OnRowMove" PreviewMouseLeftButtonUp="OnRowUp"
+                            PreviewKeyDown="OnRowKey" QueryContinueDrag="OnQueryContinueDrag" Unloaded="OnRowUnloaded"
+                            AutomationProperties.Name="{Binding Name, StringFormat=Reorder rule {0}}"
+                            AutomationProperties.HelpText="Drag the Rule row to reorder. Alt+Up or Alt+Down moves a focused Rule; Shift+F10 opens move actions."
+                            AutomationProperties.ItemStatus="{Binding PositionDescription}">
+                        <Border.ContextMenu><ContextMenu>
+                            <MenuItem Header="Move up" Command="{Binding PlacementTarget.Tag.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            <MenuItem Header="Move down" Command="{Binding PlacementTarget.Tag.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        </ContextMenu></Border.ContextMenu>
                         <Grid x:Name="RuleRowLayout" AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop">
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <Button x:Name="RuleDragHandle" Padding="0" Margin="0,0,12,0" VerticalAlignment="Top"
-                                    IsEnabled="{Binding DataContext.CanSelect, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    PreviewMouseLeftButtonDown="OnHandleDown" PreviewMouseMove="OnHandleMove" PreviewKeyDown="OnHandleKey"
-                                    ToolTip="Drag to reorder, or focus here and press Up / Down. Shift+F10 opens move actions."
-                                    AutomationProperties.Name="{Binding Name, StringFormat=Reorder rule {0}}"
-                                    AutomationProperties.HelpText="Drag handle. Up and Down move this Rule; Shift+F10 opens move actions."
-                                    AutomationProperties.ItemStatus="{Binding PositionDescription}">
-                                <Button.ContextMenu><ContextMenu>
-                                    <MenuItem Header="Move up" Command="{Binding PlacementTarget.Tag.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                    <MenuItem Header="Move down" Command="{Binding PlacementTarget.Tag.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                              CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                </ContextMenu></Button.ContextMenu>
-                                <StackPanel>
-                            <Border x:Name="RuleNumberBadge" MinWidth="32" MinHeight="32" Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}" CornerRadius="100" Padding="6,0" VerticalAlignment="Top"
+                            <Border x:Name="DropHighlight" Grid.ColumnSpan="3" Background="{DynamicResource PtjAccentBrush}" Opacity="0.10"
+                                    CornerRadius="4" Visibility="Collapsed" IsHitTestVisible="False" />
+                            <Border x:Name="RuleNumberBadge" MinWidth="32" MinHeight="32" Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}" CornerRadius="100" Padding="6,0" Margin="0,0,12,0" VerticalAlignment="Top"
                                     Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="1" Focusable="False" IsHitTestVisible="False">
                                 <TextBlock x:Name="RuleMarker" Text="{Binding DisplayNumber}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource PtjAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Focusable="False" IsHitTestVisible="False" AutomationProperties.Name="{Binding PositionDescription}" />
                             </Border>
-                                    <TextBlock Text="↕" HorizontalAlignment="Center" Foreground="{DynamicResource PtjAccentBrush}" FontSize="16" IsHitTestVisible="False" />
-                                </StackPanel>
-                            </Button>
                             <StackPanel Grid.Column="1" Margin="0,0,16,0">
                                 <TextBlock Text="{Binding Name}" Style="{StaticResource Heading}" Margin="0,0,0,4" />
                                 <TextBlock x:Name="RuleCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" />
@@ -135,10 +137,9 @@
                                     </MultiBinding>
                                 </ContentControl.Content>
                             </ContentControl>
-                            <Border x:Name="InsertionIndicator" Grid.ColumnSpan="3" Grid.RowSpan="2" Height="3" VerticalAlignment="Top"
-                                    Background="{DynamicResource PtjAccentBrush}" Visibility="Collapsed" IsHitTestVisible="False" />
+
                         </Grid>
-                    </Border>
+                    </local:RuleReorderRow>
                 </DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
 

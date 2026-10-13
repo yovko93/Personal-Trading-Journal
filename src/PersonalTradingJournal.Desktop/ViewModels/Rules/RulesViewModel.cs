@@ -303,7 +303,7 @@ public sealed class RulesViewModel : ObservableObject
     {
         if (_order is null || IsBusy || !Rules.Any(r => r.Id == ruleId) || !TryLeave()) return;
         using var cancel = new CancellationTokenSource(); _move = cancel;
-        IsWriting = true; Message = "Moving Rule…";
+        IsWriting = true;
         string message; var kind = RuleFeedbackKind.Error; bool saved = false;
         try
         {
@@ -312,7 +312,7 @@ public sealed class RulesViewModel : ObservableObject
             saved = result == RuleMoveStatus.Saved;
             message = result switch
             {
-                RuleMoveStatus.Saved => "Rule moved.",
+                RuleMoveStatus.Saved => "",
                 RuleMoveStatus.Conflict => "Rules changed elsewhere. The persisted order has been reloaded; move again if needed.",
                 _ => "The Rule is no longer available. The persisted order has been reloaded."
             };

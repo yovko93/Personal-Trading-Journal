@@ -13,8 +13,10 @@ public sealed class RulesOrderTests
         Assert.False(f.Vm.MoveUpCommand.CanExecute(f.Vm.Rules[0]));
         Assert.False(f.Vm.MoveDownCommand.CanExecute(f.Vm.Rules[^1]));
         await f.Vm.MoveBeforeAsync(original[1], original[0]);
+        Assert.Empty(f.Vm.Message); Assert.False(f.Vm.HasMessage);
         Assert.Equal(new[] { original[1], original[0], original[2] }, f.Vm.Rules.Select(r => r.Id));
         await f.Vm.MoveDownCommand.ExecuteAsync(f.Vm.Rules[0]);
+        Assert.Empty(f.Vm.Message); Assert.False(f.Vm.HasMessage);
         Assert.Equal(original, f.Vm.Rules.Select(r => r.Id));
         await f.Vm.MoveBeforeAsync(original[0], null);
         await f.Vm.RefreshCommand.ExecuteAsync(null); f.Vm.Deactivate(); await f.Vm.ActivateAsync();

@@ -1,5 +1,26 @@
 # Windows WPF test diagnostics
 
+## Quiet Rules reordering — Calendar follow-up (13 October 2026)
+
+Started on clean `develop` at `35f9f48149174fc4c9629a6057dac0b0a60dbe19`. The preceding ordering task's failing Calendar case was `WindowControlsRetainModalAndDraftThenCloseInEveryState(Light, Normal)` at its **45-second STA action** deadline, not the 120-second aggregate limit. This task adds only bounded phase breadcrumbs to that test: owner creation/layout, modal invocation, day/Trade loading, editor opening, maximize/minimize/restore, resize, dirty close veto, final dismissal, focus and cleanup. It does not change Calendar production code, assertions, action/child deadlines, two-collection Desktop concurrency or four-collection Infrastructure concurrency.
+
+The first complete parallel run, `artifacts/m145-load/rules-quiet-full`, passed **4,037/4,038** (Domain 490, Application 753, Infrastructure 1,249, Desktop 1,545 passed / 1 failed). Calendar native completed **87/87 in 95.026 seconds**, with **24.974 seconds** to its unchanged 120-second bound. The previously failing modal case passed; this does not establish its old cause or a fix.
+
+The sole failure was instead `CalendarStaTestTests.NativeUnhandledDispatcherCallbackFailsItsChildWithTheOriginalError`: the parent expected the synthetic fatal child to exit with the original `InvalidOperationException`, but its **30-second** process deadline expired. Its `native-fatal-probe.log` records `callback entered`, `filter requested catch=True`, and `unhandled event handled for pump unwind=True`. The STA action had completed at 0.097 seconds; no evidence shows the original modal action hanging. Between child launch at 11:19:53.776 UTC and forced cleanup at 11:20:23.781 UTC, the supervisor recorded native threads waiting but no managed stack or completed fatal report. Those observations do **not** distinguish pump-shutdown failure from later crash/reporting delay; no speculative harness correction or deadline increase was made. Raw logs remain in `calendar-sta-unhandled-native-20261013-111953-f7d0436fb6b04870bfe590f38a43ef4c` under that run.
+
+The Rules accessibility regression then demonstrated that a plain Border has no automation peer and that the default framework peer does not expose this row's keyboard focusability. A dedicated list-item peer now exposes the focusable row, name, position and keyboard instructions. The final Rules-focused run passed **6/6** after that correction; the initial broader focused run passed **151/151**. A final complete run tests the changed peer, rather than repeating the identical tree until green. Final results are recorded in `docs/trading-rules.md`; an eventual pass does not resolve the unproven fatal-child timing mechanism.
+
+| Parallel run | Calendar native cases | Child seconds | Headroom to 120 s | Four modal action times, seconds |
+| --- | ---: | ---: | ---: | --- |
+| First (`rules-quiet-full`) | 87/87 | 95.026 | 24.974 | 2.204 / 2.315 / 2.338 / 2.761 |
+| Final (`rules-quiet-final-full`) | 87/87 | 113.544 | 6.456 | 2.804 / 3.490 / 3.005 / 3.275 |
+
+These are measured elapsed times with different test schedules, not a demonstrated performance improvement. The final aggregate has limited headroom. The earlier modal stall and the first run's fatal-child exit delay remain unresolved risks; production changes, retries, sleeps, skips, serialization and deadline increases were not used to obtain these results.
+
+Final complete parallel Release: **4,038/4,038**, zero failures/skips (490 Domain, 753 Application, 1,249 Infrastructure, 1,546 Desktop). The fatal-dispatcher probe's final child exited in **7.780 seconds** and its parent assertion passed; this is not evidence of a causal fix. Release build: **0 warnings/errors**; EF model consistency and whitespace checks pass. Exact file inventory is in the linked Rules documentation.
+
+No production journal or provider was accessed. Live input and matching CI acceptance remain separate from automated WPF renders and local tests.
+
 ## M18.3 — synthetic wheel and Save invocation follow-up (12 October 2026)
 
 Started on clean `develop` at `b094d6fda04f1b7d02d07804068aa4ddb5c8203f`; the user's M18.3 work was already committed. This correction changes tests and documentation only. Production wheel routing, Playbook Save/readback, Rules, schema, concurrency settings and all existing deadlines are unchanged.

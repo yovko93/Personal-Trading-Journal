@@ -181,10 +181,15 @@ public sealed partial class CalendarDayModalTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             var view = new CalendarView { DataContext = vm, Resources = CalendarViewLayoutTests.SharedThemeResources(theme) };
             var owner = new Window { Content = view, Width = 1400, Height = 980, ShowInTaskbar = false };
+            void Step(string phase, Action action)
+            {
+                using var diagnostic = CalendarStaTest.Phase("Window controls: " + phase);
+                action();
+            }
             Exception? failure = null;
             try
             {
-                owner.Show(); Pump(); owner.UpdateLayout();
+                Step("owner show, pump and layout", () => { owner.Show(); Pump(); owner.UpdateLayout(); });
                 var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
                 using var focus = new CalendarFocusProbe(owner, cell, $"WindowControls/{theme}/{closeState}");
                 dispatcher.BeginInvoke(new Action(async () =>
@@ -193,40 +198,42 @@ public sealed partial class CalendarDayModalTests
                     {
                         var dialog = view.DayDialog!;
                         focus.ObserveDialog(dialog);
-                        await vm.DayLoadTask; dialog.UpdateLayout();
+                        using (CalendarStaTest.Phase("Window controls: await day loading")) await vm.DayLoadTask;
+                        Step("initial dialog layout", dialog.UpdateLayout);
                         var panel = (Border)dialog.FindName("DayPanel");
                         var maximize = (Button)dialog.FindName("MaximizeButton");
                         var minimize = (Button)dialog.FindName("MinimizeButton");
                         double restoreWidth = panel.ActualWidth, restoreHeight = panel.ActualHeight;
                         Assert.False(IsWindowEnabled(new WindowInteropHelper(owner).Handle));
                         Assert.True(minimize.IsVisible && maximize.IsVisible);
-                        Click(maximize); Pump(); dialog.UpdateLayout();
+                        Step("maximize/restore, pump and layout", () => { Click(maximize); Pump(); dialog.UpdateLayout(); });
                         Assert.True(dialog.IsPanelMaximized);
                         Assert.Equal(dialog.ActualWidth - 16, panel.ActualWidth, 1);
                         Assert.Equal(dialog.ActualHeight - 16, panel.ActualHeight, 1);
                         Assert.Equal("Restore Day Performance", AutomationProperties.GetName(maximize));
-                        Click(maximize); Pump(); dialog.UpdateLayout();
+                        Step("maximize/restore, pump and layout", () => { Click(maximize); Pump(); dialog.UpdateLayout(); });
                         Assert.False(dialog.IsPanelMaximized);
                         Assert.Equal(restoreWidth, panel.ActualWidth, 1); Assert.Equal(restoreHeight, panel.ActualHeight, 1);
-                        await vm.ViewTradeCommand.ExecuteAsync(row);
-                        await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
+                        using (CalendarStaTest.Phase("Window controls: load Trade")) await vm.ViewTradeCommand.ExecuteAsync(row);
+                        using (CalendarStaTest.Phase("Window controls: open Trade editor")) await editor.ShowSelectedTradeEditCommand.ExecuteAsync(null);
                         editor.EntryPriceText = "123.456";
                         string draft = editor.EntryPriceText;
-                        Click(maximize); Click(minimize); Pump();
+                        Step("maximize and minimize with draft", () => { Click(maximize); Click(minimize); Pump(); });
                         Assert.Equal(WindowState.Minimized, owner.WindowState);
                         Assert.Equal(WindowState.Minimized, dialog.WindowState);
                         Assert.Same(dialog, view.DayDialog); Assert.True(editor.IsTradeEditVisible);
                         Assert.False(IsWindowEnabled(new WindowInteropHelper(owner).Handle));
                         // Model the taskbar restoring the application: the owner StateChanged must return the modal.
-                        owner.WindowState = WindowState.Normal; Pump(); dialog.UpdateLayout();
+                        Step("restore owner and modal", () => { owner.WindowState = WindowState.Normal; Pump(); dialog.UpdateLayout(); });
                         Assert.Equal(WindowState.Normal, dialog.WindowState);
                         Assert.True(dialog.IsPanelMaximized); Assert.True(dialog.IsVisible);
                         Assert.Equal(draft, editor.EntryPriceText); Assert.True(editor.IsTradeEditVisible);
                         Assert.False(IsWindowEnabled(new WindowInteropHelper(owner).Handle));
-                        owner.Width = 1280; Pump(); dialog.UpdateLayout();
+                        Step("resize owner", () => { owner.Width = 1280; Pump(); dialog.UpdateLayout(); });
                         Assert.Equal(view.ActualWidth, dialog.ActualWidth, 1);
-                        dialog.Close(); Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible);
-                        editor.CancelTradeEditCommand.Execute(null);
+                        Step("dirty close veto", () => { dialog.Close(); Assert.True(dialog.IsVisible); Assert.True(editor.IsTradeEditVisible); });
+                        Step("cancel inline Trade edit", () => editor.CancelTradeEditCommand.Execute(null));
+                        using var closingPhase = CalendarStaTest.Phase("Window controls: final " + closeState + " dismissal");
                         if (closeState == "Normal") Click(maximize);
                         if (closeState == "Minimized") Click(minimize);
                         if (closeState == "Returned") { Click(minimize); owner.WindowState = WindowState.Normal; Pump(); }
@@ -238,17 +245,17 @@ public sealed partial class CalendarDayModalTests
                         else if (closeState == "Maximized") Click((Button)dialog.FindName("DismissButton"));
                         else dialog.Close();
                     }
-                    catch (Exception exception) { failure = exception; editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }
+                    catch (Exception exception) { failure = exception; Step("exception cleanup", () => { editor.CancelTradeEditCommand.Execute(null); view.DayDialog?.Close(); }); }
                 }));
-                cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent));
-                Pump(); if (failure is not null) throw failure;
+                Step("modal invocation", () => cell.RaiseEvent(new RoutedEventArgs(CalendarDayHost.InvokedEvent)));
+                Step("post-close dispatcher pump", Pump); if (failure is not null) throw failure;
                 Assert.Null(view.DayDialog); Assert.Equal(date, vm.SelectedDate);
                 Assert.True(IsWindowEnabled(new WindowInteropHelper(owner).Handle));
                 if (owner.WindowState == WindowState.Minimized) owner.WindowState = WindowState.Normal;
-                focus.VerifyRestored(); Assert.True(cell.IsKeyboardFocused);
+                Step("verify restored focus", () => { focus.VerifyRestored(); Assert.True(cell.IsKeyboardFocused); });
                 Assert.Single(reader.Calls);
             }
-            finally { editor.CancelTradeEditCommand.Execute(null); owner.Close(); }
+            finally { Step("owner cleanup", () => { editor.CancelTradeEditCommand.Execute(null); owner.Close(); }); }
         });
     }
 
