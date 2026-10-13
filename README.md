@@ -1,6 +1,12 @@
 # Personal Trading Journal
 
-**Rules — inline editing and bottom pagination (before M18.6)**
+**Rules — timed feedback and complete checklist catalog (before M18.6)**
+
+Planning → Rules now shows one bordered, theme-aware Information/Success/Error message above the scrollable content. Each action replaces the previous message and starts a fresh **10-second** lifetime; field validation stays until corrected and feedback never takes keyboard focus. Pagination controls are removed: the complete catalog loads through cancellable **20-row database pages**, in repository name/identity order, before replacing the visible list. Decorative bullets are list markers, not assessments. Edit/Delete stay at the right and the editor stays beneath its own row.
+
+Verification: **61 focused tests passed**; final full parallel Release **4,025/4,025**, zero failures/skips (488 Domain, 752 Application, 1,246 Infrastructure, 1,539 Desktop). Light/Dark automated renders at 960 DIP / 96 DPI and 480 DIP / 240 DPI were inspected. Release build: **zero warnings/errors**; EF consistency and whitespace checks pass. Calendar native passed 87/87 in **83.482 s**, leaving **36.518 s** against the unchanged 120-second deadline. [Exact files and evidence](docs/trading-rules.md#timed-feedback-and-complete-catalog--13-october-2026). Nine files remain uncommitted on `develop`, HEAD `48c66e0bf3e36051600874847b7e80ebeea72804`. No persistence, assessment, automatic-check or deadline changes; no production access or M18.6. Live input/screen-reader and matching CI checks remain open.
+
+**Rules — inline editing and bottom pagination (previous verification report; pagination superseded above)**
 
 Edit now opens the shared Rule name/Criterion form immediately beneath its own row. Create opens an empty form above the list. The redundant editor heading/explanation are removed; field labels, validation, accessibility and unsaved-work protection remain. Save/Cancel target the captured Rule identity, and pagination sits below the list at the right edge. Persistence, assessments and automatic checks are unchanged. [Verification and exact files](docs/trading-rules.md#inline-editor-layout--13-october-2026).
 

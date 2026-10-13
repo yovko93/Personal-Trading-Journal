@@ -29,6 +29,8 @@
     <SolidColorBrush x:Key="PtjCalendarTodayBrush" Color="#0077B5" />
     <SolidColorBrush x:Key="PtjOnCalendarTodayBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjOnAccentBrush" Color="#173E3A" />
+    <SolidColorBrush x:Key="PtjInformationBrush" Color="#A4D0F4" />
+    <SolidColorBrush x:Key="PtjInformationSurfaceBrush" Color="#28394E" />
     <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
     <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />

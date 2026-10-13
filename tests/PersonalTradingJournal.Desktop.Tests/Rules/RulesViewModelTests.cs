@@ -141,24 +141,24 @@ public sealed class RulesViewModelTests
     }
 
     [Theory]
-    [InlineData(20, false)]
-    [InlineData(21, true)]
-    [InlineData(40, true)]
-    public async Task GlobalCatalogPagingHasNoEmptyFinalPageAndPreservesDirtyEditor(int count, bool hasNext)
+    [InlineData(0)]
+    [InlineData(20)]
+    [InlineData(21)]
+    [InlineData(40)]
+    [InlineData(105)]
+    public async Task CompleteCatalogUsesBoundedPagesAndPreservesOrderAndDirtyEditor(int count)
     {
         var f = new RulesFixture(); for (int i = 0; i < count; i++) f.Data.Seed(1);
-        await f.Vm.ActivateAsync(); Assert.Equal(20, f.Vm.Rules.Count);
-        Assert.Equal(hasNext, f.Vm.NextCommand.CanExecute(null));
-        var firstPage = f.Vm.Rules.Select(r => r.Id).ToArray();
+        await f.Vm.ActivateAsync(); Assert.Equal(count, f.Vm.Rules.Count);
+        Assert.Equal(f.Data.Rows.OrderBy(r => r.Definition.Name, StringComparer.Ordinal).ThenBy(r => r.RuleId).Select(r => r.RuleId), f.Vm.Rules.Select(r => r.Id));
+        Assert.Equal(Enumerable.Range(1, Math.Max(1, (count + 19) / 20)), f.Data.CatalogCalls.Select(c => c.Page));
+        Assert.All(f.Data.CatalogCalls, c => Assert.Equal(20, c.Size));
+        if (count == 0) return;
+        var loaded = f.Vm.Rules;
         await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules[0]); f.Vm.Fields[1].Text = "draft";
-        if (hasNext)
-        {
-            await f.Vm.NextCommand.ExecuteAsync(null);
-            Assert.Equal(firstPage, f.Vm.Rules.Select(r => r.Id)); Assert.Equal("draft", f.Vm.Fields[1].Text);
-            f.Dialogs.ConfirmationResult = true; await f.Vm.NextCommand.ExecuteAsync(null);
-            Assert.Equal(count - 20, f.Vm.Rules.Count); Assert.False(f.Vm.NextCommand.CanExecute(null));
-            Assert.Empty(firstPage.Intersect(f.Vm.Rules.Select(r => r.Id)));
-        }
+        await f.Vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Same(loaded, f.Vm.Rules); Assert.Equal("draft", f.Vm.Fields[1].Text);
+        Assert.True(f.Vm.IsEditing);
     }
 
     [Theory]
@@ -188,14 +188,13 @@ public sealed class RulesViewModelTests
     }
 
     [Fact]
-    public async Task DeletingLastRowOnLastPageReconcilesPageAndPreservesOtherRules()
+    public async Task DeletingLastRowRefreshesCompleteCatalogAndPreservesOtherRules()
     {
         var f = new RulesFixture(); for (int i = 0; i < 21; i++) f.Data.Seed(1);
-        await f.Vm.ActivateAsync(); await f.Vm.NextCommand.ExecuteAsync(null);
-        var last = Assert.Single(f.Vm.Rules); f.Dialogs.ConfirmationResult = true;
+        await f.Vm.ActivateAsync();
+        var last = f.Vm.Rules.Last(); f.Dialogs.ConfirmationResult = true;
         await f.Vm.DeleteCommand.ExecuteAsync(last);
-        Assert.Equal(20, f.Vm.Rules.Count); Assert.False(f.Vm.PreviousCommand.CanExecute(null));
-        Assert.False(f.Vm.NextCommand.CanExecute(null)); Assert.DoesNotContain(f.Vm.Rules, r => r.Id == last.Id);
+        Assert.Equal(20, f.Vm.Rules.Count); Assert.DoesNotContain(f.Vm.Rules, r => r.Id == last.Id);
     }
 
     [Fact]
@@ -213,7 +212,7 @@ internal sealed class RulesFixture
     public RulesData Data { get; } = new();
     public FakeDialogService Dialogs { get; } = new();
     public RulesViewModel Vm { get; }
-    public RulesFixture() => Vm = new(Data, Data, new(Data, TimeProvider.System), Dialogs);
+    public RulesFixture(TimeProvider? clock = null) => Vm = new(Data, Data, new(Data, TimeProvider.System), Dialogs, clock);
     public void Fill() { Vm.Fields[0].Text = "Synthetic rule"; Vm.Fields[1].Text = "Recorded criterion"; }
     public async Task Open(Guid id) { await Vm.ActivateAsync(); Vm.TrySelect(Vm.Rules.Single(r => r.Id == id)); await Vm.LoadTask; }
 }
@@ -226,6 +225,8 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
     public string? Failure { get; set; }
     public TaskCompletionSource? WriteGate { get; set; }
     public TaskCompletionSource? ReadGate { get; set; }
+    public List<(int Page, int Size)> CatalogCalls { get; } = [];
+    public Func<int, CancellationToken, Task>? BeforeCatalogPage { get; set; }
     public Guid Seed(int count, Guid? account = null)
     {
         var id = Guid.NewGuid();
@@ -245,8 +246,10 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
     private TradingRuleDetails Details(TradingRuleRevision r) => new(r, r.Definition.AccountScope.AccountId is null ? null : "Synthetic Account", r.Definition.AccountScope.AccountId is null || AccountAvailable);
     public async Task<TradingRulePage> ReadCatalogAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {
+        CatalogCalls.Add((page, pageSize));
+        if (BeforeCatalogPage is not null) await BeforeCatalogPage(page, cancellationToken);
         if (ReadGate is not null) await ReadGate.Task;
-        var rows = Rows.GroupBy(r => r.RuleId).Select(g => g.Last()).Where(r => r.IsActive && r.Definition.IsGlobal).OrderBy(r => r.RuleId).ToArray();
+        var rows = Rows.GroupBy(r => r.RuleId).Select(g => g.Last()).Where(r => r.IsActive && r.Definition.IsGlobal).OrderBy(r => r.Definition.Name, StringComparer.Ordinal).ThenBy(r => r.RuleId).ToArray();
         return new(rows.Skip((page - 1) * pageSize).Take(pageSize).Select(Details).ToArray(), rows.Length, page, pageSize);
     }
     public async Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)

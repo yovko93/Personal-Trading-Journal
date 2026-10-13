@@ -1,5 +1,39 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Timed feedback and complete catalog — 13 October 2026
+
+This section supersedes the pagination presentation described below. Rules shows a single, fixed top feedback box above its scrollable actions, list and editor. Information is blue, verified success green, and errors red, using shared Light/Dark resources and explicit text labels rather than color alone. Create, Edit, Save, Cancel, Delete, Refresh, declined confirmations and failures replace the previous message. The latest message expires after ten seconds; a cancelled older timer cannot dismiss its replacement. Leaving the destination cancels its feedback timer. Loading/saving cancellation remains reachable independently of the feedback lifetime.
+
+Field errors and the form validation summary have independent lifetimes and remain until corrected. Feedback announcement is polite and does not focus or scroll anything. Existing first-invalid-field focus, editor-opening focus and unsaved-change guards are unchanged.
+
+There is no page indicator or Previous/Next UI. The ViewModel gathers the repository's bounded 20-row pages on a worker task (SQLite async APIs can otherwise complete synchronously on the UI thread), preserving name/identity ordering. Only a complete result replaces the catalog. Cancellation, failed later reads, inconsistent counts, missing rows or duplicate identities leave the previous list and entered fields intact and request Refresh. No retries, unbounded database query, repository limit changes or partial-catalog success. The list itself materializes all loaded Rules; unusually large catalogs still have proportional memory/layout cost. Pages are individual repository snapshots, not a new catalog-wide transaction; concurrent external changes detected during paging require Refresh, and writes retain their existing revision rechecks.
+
+Each row has a small noninteractive, theme-aware list bullet, accessible as “Rule list item”; it is not a checked/adherence state. The name, criterion and any existing typed condition stay beside it, with Edit/Delete at the far right and the shared editor underneath its exact row. Create remains above the list.
+
+### Verification
+
+- Started on clean `develop`, HEAD `48c66e0bf3e36051600874847b7e80ebeea72804`; preserved all committed prior work.
+- **61 focused Desktop tests passed**, zero failures/skips: `artifacts/m145-load/rules-feedback-focused`. Covers 0/20/21/40/105 rows, deterministic complete loading, later-page cancellation/failure, count/duplicate changes, timed replacement/expiry, validation persistence, action feedback and existing SQLite save/guard tests.
+- Compiled WPF checks retain inline placement, switching veto, correct Save/Cancel targeting, wheel/PageDown, field geometry and owner-close assertions. Added fixed top feedback placement, themed states, no pagination, marker/action separation and focus preservation when feedback expires.
+- Inspected automated catalog/create/edit/validation renders in Light/Dark at 960 DIP / 96 DPI and 480 DIP / 240 DPI: `artifacts/rules-feedback-renders`. A 400-DIP viewport exercises scrolling; these are not live keyboard/mouse observations. Feedback heading/background contrast ratios are 6.42/7.23 (Light/Dark information), 5.11/5.94 (success) and 4.70/5.33 (error).
+- Final complete parallel Release: **4,025 passed, zero failures/skips** (488 Domain, 752 Application, 1,246 Infrastructure, 1,539 Desktop), `artifacts/m145-load/rules-feedback-full-final`. Calendar native **87/87 in 83.482 seconds**, **36.518 seconds** headroom to its unchanged 120-second aggregate deadline; grid **32.970 seconds**. Rules compiled-WPF child passed in **7.594 seconds**. No Calendar/Journal timeout occurred; one pass does not eliminate load-dependent timing risk.
+- Release build: **0 warnings, 0 errors**. EF reports no pending model changes; `git diff --check` and new-file whitespace checks pass. No schema, repository query, assessment, automatic-check, test deadline or concurrency changes.
+- Final branch/HEAD remain `develop` / `48c66e0bf3e36051600874847b7e80ebeea72804`. Nine files are uncommitted (eight modified, one new), listed below.
+
+Remaining acceptance: live mouse/keyboard and screen-reader announcements, and GitHub Actions for the user's resulting commit. Uncommitted changes cannot have matching CI verification. No production journal, provider calls, commits/push/merge or M18.6.
+
+Exact changed files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesFeedbackTests.cs` (new)
+
 ## Inline editor layout — 13 October 2026
 
 The redundant **Rule editor** heading and explanatory sentence are removed. Rule name and Criterion labels, required-field accessibility, inline errors and the error summary remain. One shared form template is instantiated above the list for Create, or immediately under the edited Rule's header/actions and before the next row. Placement follows the captured Rule ID, never a row index or displayed name. Other rows remain visible/reachable through the page scrollbar.

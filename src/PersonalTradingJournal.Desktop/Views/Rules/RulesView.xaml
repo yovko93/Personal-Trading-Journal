@@ -59,19 +59,31 @@
         </Style>
     </UserControl.Resources>
     <UserControl.InputBindings><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" /></UserControl.InputBindings>
-    <ScrollViewer x:Name="RulesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Rule management content">
+    <Grid>
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+        <Border x:Name="FeedbackBox" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,12,12"
+                Visibility="{Binding HasMessage, Converter={StaticResource VisibleIf}}">
+            <Border.Style><Style TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource PtjInformationSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource PtjInformationBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding FeedbackKind}" Value="Success"><Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger>
+                    <DataTrigger Binding="{Binding FeedbackKind}" Value="Error"><Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" /></DataTrigger>
+                </Style.Triggers>
+            </Style></Border.Style>
+            <StackPanel>
+                <TextBlock Text="{Binding FeedbackHeading}" FontWeight="SemiBold" Style="{StaticResource Body}" Foreground="{Binding BorderBrush, ElementName=FeedbackBox}" />
+                <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Rule operation status" />
+            </StackPanel>
+        </Border>
+    <ScrollViewer Grid.Row="1" x:Name="RulesScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnMouseWheel" AutomationProperties.Name="Rule management content">
         <StackPanel Margin="0,0,12,12">
             <WrapPanel>
                 <Button x:Name="CreateRule" Content="Create rule" Command="{Binding CreateCommand}" Style="{StaticResource PtjPlaybookCreateButtonStyle}" VerticalAlignment="Bottom" Margin="0,0,8,8" AutomationProperties.Name="Create Trading Rule" />
                 <Button Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource PtjPlaybookRefreshButtonStyle}" VerticalAlignment="Bottom" Margin="0,0,8,8" AutomationProperties.Name="Refresh Rules" />
             </WrapPanel>
 
-            <Border Margin="0,4,0,12" Visibility="{Binding HasMessage, Converter={StaticResource VisibleIf}}">
-                <StackPanel>
-                    <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Rule operation status" />
-                    <Button Content="Cancel operation" Command="{Binding CancelOperationCommand}" HorizontalAlignment="Left" Margin="0,8,0,0" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel Rule loading or saving" />
-                </StackPanel>
-            </Border>
+            <Button Content="Cancel operation" Command="{Binding CancelOperationCommand}" HorizontalAlignment="Left" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel Rule loading or saving" />
             <TextBlock Text="No rules yet. Create a trading principle to get started." Style="{StaticResource Body}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" />
             <ContentControl x:Name="CreateEditorHost" Content="{Binding NewRuleEditor}" Style="{StaticResource EditorHostStyle}" Margin="0,8,0,12" />
             <ItemsControl x:Name="RuleRows" ItemsSource="{Binding Rules}" Margin="0,8,0,12">
@@ -79,18 +91,19 @@
                     <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="12,8" Background="{DynamicResource PtjSurfaceBrush}">
                         <Grid x:Name="RuleRowLayout">
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel Margin="0,0,16,0">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock x:Name="RuleMarker" Text="•" FontSize="22" Foreground="{DynamicResource PtjAccentBrush}" Focusable="False" IsHitTestVisible="False" AutomationProperties.Name="Rule list item" />
+                            <StackPanel Grid.Column="1" Margin="0,0,16,0">
                                 <TextBlock Text="{Binding Name}" Style="{StaticResource Heading}" Margin="0,0,0,4" />
                                 <TextBlock Text="{Binding Statement}" Style="{StaticResource Body}" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" />
                                 <TextBlock Text="{Binding AutomaticCondition}" Style="{StaticResource Body}" Margin="0,6,0,0"
                                            Visibility="{Binding HasAutomaticCondition, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="{Binding AutomaticCondition}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
                                 <Button Content="Edit" Margin="0,0,8,0" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
                                 <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Margin="0" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
                             </StackPanel>
-                            <ContentControl x:Name="InlineEditorHost" Grid.Row="1" Grid.ColumnSpan="2" Style="{StaticResource EditorHostStyle}" Margin="0,12,0,0">
+                            <ContentControl x:Name="InlineEditorHost" Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource EditorHostStyle}" Margin="0,12,0,0">
                                 <ContentControl.Content>
                                     <MultiBinding Converter="{StaticResource InlineEditor}">
                                         <Binding Path="Id" />
@@ -103,14 +116,9 @@
                     </Border>
                 </DataTemplate></ItemsControl.ItemTemplate>
             </ItemsControl>
-            <WrapPanel x:Name="RulePagination" HorizontalAlignment="Right">
-                <TextBlock Text="{Binding PageLabel}" Style="{StaticResource Body}" Margin="0,4,12,8" />
-                <StackPanel Orientation="Horizontal">
-                    <Button Content="Previous rules" Command="{Binding PreviousCommand}" AutomationProperties.Name="Previous Rules page" />
-                    <Button Content="Next rules" Command="{Binding NextCommand}" Margin="0,0,0,8" AutomationProperties.Name="Next Rules page" />
-                </StackPanel>
-            </WrapPanel>
+
 
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </UserControl>

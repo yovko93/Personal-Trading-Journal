@@ -28,6 +28,7 @@ public sealed class RulesViewTests
         }
         await CalendarStaTest.RunAsync(() =>
         {
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             foreach (string theme in new[] { "Light", "Dark" })
             {
@@ -49,7 +50,7 @@ public sealed class RulesViewTests
                     var thirdId = Guid.Parse("00000000-0000-0000-0000-000000000003");
                     foreach (var other in new[] { secondId, thirdId })
                         f.Data.Rows.Add(PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Create(other, new("Another synthetic principle", "Leave these rows unchanged"), DateTimeOffset.UtcNow.AddDays(-1)));
-                    f.Open(id).GetAwaiter().GetResult();
+                    Await(f.Open(id));
                     var view = new RulesView { DataContext = f.Vm }; FocusManager.SetIsFocusScope(view, true);
                     VisualTreeHelper.SetRootDpi(view, new DpiScale(dpi / 96d, dpi / 96d));
                     void Layout() { view.Measure(new Size(width, 400)); view.Arrange(new Rect(0, 0, width, 400)); view.UpdateLayout(); }
@@ -75,17 +76,20 @@ public sealed class RulesViewTests
                     var condition = Descendants(rowGrid).OfType<TextBlock>().Single(t => t.Text == f.Vm.SelectedRule!.AutomaticCondition);
                     Assert.Equal(Visibility.Visible, condition.Visibility); Assert.Contains("EUR", condition.Text); Assert.Contains("123.456", condition.Text);
                     Assert.InRange(condition.TranslatePoint(new Point(condition.ActualWidth, 0), rowGrid).X, 0, rowButtons[0].TranslatePoint(new Point(), rowGrid).X - 1);
-                    var pager = (WrapPanel)view.FindName("RulePagination");
-                    Assert.True(pager.TranslatePoint(new Point(), view).Y >= rows.TranslatePoint(new Point(0, rows.ActualHeight), view).Y);
-                    Assert.InRange(Math.Abs(pager.TranslatePoint(new Point(pager.ActualWidth, 0), view).X - rows.TranslatePoint(new Point(rows.ActualWidth, 0), view).X), 0, 1);
+                    Assert.Null(view.FindName("RulePagination"));
+                    Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => Equals(b.Content, "Previous rules") || Equals(b.Content, "Next rules"));
                     Assert.DoesNotContain(Descendants(view).OfType<TextBlock>(), t => t.Text == "Rule editor" || t.Text.StartsWith("Write a general trading principle."));
-                    foreach (var button in Descendants(pager).OfType<Button>())
-                    {
-                        Assert.True(button.Focusable); Assert.NotEmpty(AutomationProperties.GetName(button));
-                        Assert.InRange(button.TranslatePoint(new Point(button.ActualWidth, 0), view).X, 0, width);
-                    }
+                    var marker = Find<TextBlock>(rowGrid, "RuleMarker");
+                    Assert.False(marker.Focusable); Assert.False(marker.IsHitTestVisible);
+                    Assert.Equal("Rule list item", AutomationProperties.GetName(marker));
+                    Assert.True(condition.TranslatePoint(new Point(), rowGrid).X >= marker.ActualWidth);
+                    var feedback = (Border)view.FindName("FeedbackBox");
+                    Assert.True(feedback.TranslatePoint(new Point(0, feedback.ActualHeight), view).Y <= scroller.TranslatePoint(new Point(), view).Y);
+                    Assert.Equal(new Thickness(1), feedback.BorderThickness);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjSuccessSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     Render(view, theme, width, dpi, "catalog");
                     f.Vm.EditCommand.Execute(null); Layout();
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjInformationSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     var inline = Descendants(rowGrid).OfType<ContentControl>().Single(c => c.Name == "InlineEditorHost");
                     Assert.Same(f.Vm, inline.Content);
                     Assert.False(((ContentControl)view.FindName("CreateEditorHost")).HasContent);
@@ -100,7 +104,8 @@ public sealed class RulesViewTests
                     Assert.DoesNotContain(Descendants(view).OfType<Label>(), l => Equals(l.Content, "Required evidence"));
                     var fields = Descendants(Find<ItemsControl>(view, "EditorFields")).OfType<TextBox>().ToArray();
                     Assert.Equal(2, fields.Length); Assert.Equal(44, fields[0].ActualHeight); Assert.Equal(100, fields[1].ActualHeight);
-                    fields[1].SetCurrentValue(TextBox.TextProperty, ""); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    fields[1].SetCurrentValue(TextBox.TextProperty, ""); Await(f.Vm.SaveCommand.ExecuteAsync(null)); Layout();
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     Assert.True(FormValidation.GetIsInvalid(fields[1])); Assert.Equal("This field is required.", AutomationProperties.GetItemStatus(fields[1]));
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjDangerBrush"]).Color, ((SolidColorBrush)fields[1].BorderBrush).Color);
                     Assert.Equal(Visibility.Visible, Find<Border>(view, "ValidationSummary").Visibility);
@@ -126,10 +131,10 @@ public sealed class RulesViewTests
                     Assert.InRange(save.TranslatePoint(new Point(save.ActualWidth, save.ActualHeight), scroller).Y, 0, scroller.ViewportHeight + 1);
                     Render(view, theme, width, dpi, "editor");
                     // Guarded switching leaves this exact inline form and draft intact on veto.
-                    f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId)).GetAwaiter().GetResult(); Layout();
+                    Await(f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId))); Layout();
                     Assert.Same(f.Vm, inline.Content); Assert.Equal("Unsaved criterion", fields[1].Text);
                     f.Dialogs.ConfirmationResult = true;
-                    f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId)).GetAwaiter().GetResult(); Layout();
+                    Await(f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules.Single(r => r.Id == secondId))); Layout();
                     Assert.False(inline.HasContent);
                     var nextHost = Descendants(nextRow).OfType<ContentControl>().Single(c => c.Name == "InlineEditorHost");
                     Assert.Same(f.Vm, nextHost.Content);
@@ -141,14 +146,14 @@ public sealed class RulesViewTests
                     Assert.True(create.TranslatePoint(new Point(0, create.ActualHeight), view).Y <= rows.TranslatePoint(new Point(), view).Y);
                     Assert.All(f.Vm.Fields, field => Assert.Empty(field.Text));
                     scroller.ScrollToHome(); Flush(); Layout(); Render(view, theme, width, dpi, "create");
-                    f.Fill(); f.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Layout();
+                    f.Fill(); Await(f.Vm.SaveCommand.ExecuteAsync(null)); Layout();
                     Assert.False(create.HasContent); Assert.DoesNotContain(Descendants(view).OfType<StackPanel>(), p => p.Name == "Editor");
                     f.Vm.Deactivate();
                 }
             }
             // Logical field focus and bring-into-view on a real WPF presentation source,
             // without asserting ownership of the Windows foreground keyboard device.
-            var focus = new RulesFixture(); focus.Vm.ActivateAsync().GetAwaiter().GetResult();
+            var clock = new FeedbackClock(); var focus = new RulesFixture(clock); Await(focus.Vm.ActivateAsync());
             var focusView = new RulesView { DataContext = focus.Vm };
             var focusWindow = new Window { Content = focusView, Width = 760, Height = 640, ShowActivated = false };
             focusWindow.Show();
@@ -156,14 +161,17 @@ public sealed class RulesViewTests
             {
                 focus.Vm.CreateCommand.Execute(null); Flush(); focusWindow.UpdateLayout();
                 focus.Vm.Fields[0].Text = "Synthetic focus rule";
-                focus.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Flush(); focusWindow.UpdateLayout();
+                Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
                 var invalid = Descendants(focusView).OfType<TextBox>().Single(t => AutomationProperties.GetName(t) == "Criterion");
                 Assert.True(FormValidation.GetIsInvalid(invalid));
                 Assert.Same(invalid, FocusManager.GetFocusedElement(focusWindow));
+                clock.Advance(10); Await(focus.Vm.FeedbackExpiryTask); Flush(); focusWindow.UpdateLayout();
+                Assert.False(focus.Vm.HasMessage); Assert.True(FormValidation.GetIsInvalid(invalid));
+                Assert.Same(invalid, FocusManager.GetFocusedElement(focusWindow));
                 var scroll = (ScrollViewer)focusView.FindName("RulesScroller");
                 Assert.InRange(invalid.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - invalid.ActualHeight + 1);
-                focus.Fill(); focus.Vm.SaveCommand.ExecuteAsync(null).GetAwaiter().GetResult(); Flush(); focusWindow.UpdateLayout();
-                focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules)).GetAwaiter().GetResult(); Flush(); focusWindow.UpdateLayout();
+                focus.Fill(); Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
+                Await(focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules))); Flush(); focusWindow.UpdateLayout();
                 var selectedRow = Descendants(focusView).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
                 Assert.InRange(selectedRow.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight);
                 // A clean Edit -> Create transition keeps IsEditing true but changes the form host.
@@ -175,7 +183,7 @@ public sealed class RulesViewTests
             finally { focusWindow.Close(); focus.Vm.Deactivate(); }
             // Exercise the actual MainWindow.OnClosing override, without native activation assumptions.
             var dirty = new RulesFixture(); using var shell = MainWindowViewModelTests.RulesShell(dirty.Vm);
-            shell.NavigateCommand.Execute(NavigationDestination.Rules); shell.CurrentContentViewModel.ToString(); dirty.Vm.LoadTask.GetAwaiter().GetResult();
+            shell.NavigateCommand.Execute(NavigationDestination.Rules); shell.CurrentContentViewModel.ToString(); Await(dirty.Vm.LoadTask);
             dirty.Vm.CreateCommand.Execute(null); dirty.Fill();
             var window = new MainWindow(shell);
             var closing = typeof(MainWindow).GetMethod("OnClosing", BindingFlags.Instance | BindingFlags.NonPublic)!;
@@ -186,6 +194,19 @@ public sealed class RulesViewTests
     }
     private static T Find<T>(DependencyObject root, string name) where T : FrameworkElement =>
         Descendants(root).OfType<T>().Single(e => e.Name == name);
+
+    private static void Await(Task task)
+    {
+        // Await actual completion while servicing the same UI dispatcher; no sleeps or retries.
+        if (!task.IsCompleted)
+        {
+            var frame = new DispatcherFrame();
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            _ = task.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)), TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+        }
+        task.GetAwaiter().GetResult(); // The existing supervised 30-second STA deadline still applies.
+    }
 
     private static void Flush()
     {

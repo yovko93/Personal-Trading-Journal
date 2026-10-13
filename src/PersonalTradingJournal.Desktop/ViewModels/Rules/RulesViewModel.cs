@@ -20,6 +20,8 @@ public sealed class RuleField(string label, int limit) : ObservableObject
     public void Reset() { _validated = false; Error = ""; }
 }
 
+public enum RuleFeedbackKind { Information, Success, Error }
+
 public sealed record RuleChoice<T>(T Value, string Label);
 public sealed record RuleRow(TradingRuleDetails Details)
 {
@@ -53,7 +55,11 @@ public sealed class RulesViewModel : ObservableObject
     private RuleRow? _selected;
     private Guid _editId;
     private Guid? _pendingRuleId;
-    private int _expected, _page = 1, _loadedPage = 1, _total;
+    private int _expected;
+    private readonly TimeProvider _clock;
+    private CancellationTokenSource? _feedbackLifetime;
+    private RuleFeedbackKind _feedbackKind;
+    internal Task FeedbackExpiryTask { get; private set; } = Task.CompletedTask;
     private string _message = "";
     private string[] _baseline = [];
     private string _retainedEvidence = "";
@@ -61,9 +67,9 @@ public sealed class RulesViewModel : ObservableObject
     private IReadOnlyList<RuleRow> _rules = [];
 
     public RulesViewModel(ITradingRuleReader reader, ITradingRuleStore store,
-        WriteTradingRuleUseCase writer, IDialogService dialogs)
+        WriteTradingRuleUseCase writer, IDialogService dialogs, TimeProvider? timeProvider = null)
     {
-        _reader = reader; _store = store; _writer = writer; _dialogs = dialogs;
+        _reader = reader; _store = store; _writer = writer; _dialogs = dialogs; _clock = timeProvider ?? TimeProvider.System;
         EditRowCommand = new AsyncRelayCommand<RuleRow>(async row => { if (row is not null && TrySelect(row)) { await LoadTask; if (_loaded && _selected?.Id == row.Id && !IsEditing) Edit(); } }, row => !IsBusy && row is not null);
         DeleteCommand = new AsyncRelayCommand<RuleRow>(DeleteAsync, row => !IsBusy && row is not null);
         Fields = [new("Rule name", 120), new("Criterion", 4000)];
@@ -79,8 +85,6 @@ public sealed class RulesViewModel : ObservableObject
         CancelEditCommand = new RelayCommand(() => { if (TryLeave()) { IsEditing = false; Message = "Editing cancelled."; } }, () => IsEditing && !IsWriting);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => !IsWriting);
         CancelOperationCommand = new RelayCommand(() => { _read?.Cancel(); SaveCommand.Cancel(); DeleteCommand.Cancel(); }, () => IsBusy);
-        NextCommand = new AsyncRelayCommand(() => ChangePage(1), () => !IsBusy && _page * 20L < _total);
-        PreviousCommand = new AsyncRelayCommand(() => ChangePage(-1), () => !IsBusy && _page > 1);
     }
 
     public IReadOnlyList<RuleField> Fields { get; }
@@ -99,8 +103,36 @@ public sealed class RulesViewModel : ObservableObject
     public bool HasUnsavedChanges => IsEditing && !Fields.Select(f => f.Text).SequenceEqual(_baseline);
     public int ValidationAttempt { get; private set; }
     public bool HasMessage => Message.Length > 0;
-    public string Message { get => _message; private set { SetProperty(ref _message, value); OnPropertyChanged(nameof(HasMessage)); } }
-    public string PageLabel => $"Rules page {_page} · {_total} rules";
+    public string Message { get => _message; private set => Feedback(value); }
+    public RuleFeedbackKind FeedbackKind => _feedbackKind;
+    public string FeedbackHeading => FeedbackKind switch { RuleFeedbackKind.Success => "Success", RuleFeedbackKind.Error => "Error", _ => "Information" };
+    private void Feedback(string message, RuleFeedbackKind kind = RuleFeedbackKind.Information)
+    {
+        _feedbackLifetime?.Cancel();
+        _feedbackLifetime = null;
+        _feedbackKind = kind;
+        SetProperty(ref _message, message, nameof(Message));
+        OnPropertyChanged(nameof(HasMessage)); OnPropertyChanged(nameof(FeedbackKind)); OnPropertyChanged(nameof(FeedbackHeading));
+        if (message.Length > 0)
+        {
+            var lifetime = new CancellationTokenSource();
+            _feedbackLifetime = lifetime;
+            FeedbackExpiryTask = ExpireFeedbackAsync(lifetime);
+        }
+    }
+    private async Task ExpireFeedbackAsync(CancellationTokenSource lifetime)
+    {
+        try
+        {
+            // Capture the UI synchronization context; timer completion never changes focus.
+            await Task.Delay(TimeSpan.FromSeconds(10), _clock, lifetime.Token);
+            if (!ReferenceEquals(_feedbackLifetime, lifetime)) return;
+            _feedbackLifetime = null;
+            SetProperty(ref _message, "", nameof(Message)); OnPropertyChanged(nameof(HasMessage));
+        }
+        catch (OperationCanceledException) { }
+        finally { lifetime.Dispose(); }
+    }
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public IRelayCommand CreateCommand { get; }
     public IAsyncRelayCommand<RuleRow> EditRowCommand { get; }
@@ -110,16 +142,16 @@ public sealed class RulesViewModel : ObservableObject
     public IRelayCommand CancelEditCommand { get; }
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand CancelOperationCommand { get; }
-    public IAsyncRelayCommand NextCommand { get; }
-    public IAsyncRelayCommand PreviousCommand { get; }
 
     public Task ActivateAsync() => LoadTask = LoadAsync(true);
     public bool TryLeave()
     {
         if (IsWriting) { Message = "Wait for the Rule operation to finish, or cancel it before leaving."; return false; }
-        return !HasUnsavedChanges || _dialogs.Confirm(new("Discard Rule changes?", "Discard the unsaved Rule fields and continue? The saved rule will remain unchanged.", "Discard changes", isDestructive: true));
+        if (!HasUnsavedChanges || _dialogs.Confirm(new("Discard Rule changes?", "Discard the unsaved Rule fields and continue? The saved rule will remain unchanged.", "Discard changes", isDestructive: true))) return true;
+        Message = "Action cancelled. Your unsaved fields are retained.";
+        return false;
     }
-    public void Deactivate() { ++_generation; _read?.Cancel(); _read = null; IsLoading = false; IsEditing = false; }
+    public void Deactivate() { Message = ""; ++_generation; _read?.Cancel(); _read = null; IsLoading = false; IsEditing = false; }
     public bool TrySelect(RuleRow? row)
     {
         if (row?.Id == _selected?.Id) return true;
@@ -143,25 +175,25 @@ public sealed class RulesViewModel : ObservableObject
             var selectedId = _pendingRuleId ?? _selected?.Id;
             var current = selectedId is null ? null : (await _reader.ReadRevisionsAsync(selectedId.Value, limit: 1, cancellationToken: cancel.Token)).FirstOrDefault();
             cancel.Token.ThrowIfCancellationRequested(); if (generation != _generation) return;
-            if (page is not null) { Rules = page.Items.Select(r => new RuleRow(r)).ToArray(); _total = page.TotalCount; _loadedPage = _page = page.Page; }
+            if (page is not null) Rules = page.Select(r => new RuleRow(r)).ToArray();
             _selected = current is { Revision.IsActive: true, Revision.Definition.IsGlobal: true } ? new(current) : null;
             _unverified = false; _pendingRuleId = null; IsEditing = false;
-            _loaded = true; Message = "";
+            _loaded = true; Feedback(catalog ? "Rules refreshed." : "Rule loaded.", RuleFeedbackKind.Success);
         }
         catch (OperationCanceledException) { if (generation == _generation) Message = "Loading cancelled. Your fields are retained; Refresh to try again."; }
-        catch (Exception) { if (generation == _generation) Message = "Rules could not be loaded. Your fields are retained; Refresh to try again."; }
-        finally { if (generation == _generation) { _read = null; _page = _loadedPage; IsLoading = false; Changed(); } }
+        catch (Exception) { if (generation == _generation) Feedback("Rules could not be loaded completely. Your previous list and fields are retained; Refresh to try again.", RuleFeedbackKind.Error); }
+        finally { if (generation == _generation) { _read = null; IsLoading = false; Changed(); } }
     }
     private void Create()
     {
         if (!TryLeave()) return;
         _selected = null; _editId = Guid.NewGuid(); _expected = 0; _unverified = false; _pendingRuleId = null;
-        Populate(null); Message = "";
+        Populate(null); Message = "Create a rule. Enter its name and criterion, then Save.";
     }
     private void Edit()
     {
         _editId = _selected!.Id; _expected = _selected.Details.Revision.Revision; _unverified = false;
-        Populate(_selected.Details.Revision.Definition); Message = "";
+        Populate(_selected.Details.Revision.Definition); Message = "Editing rule. Changes are not saved until you choose Save.";
     }
     private void Populate(TradingRuleDefinition? definition)
     {
@@ -175,7 +207,7 @@ public sealed class RulesViewModel : ObservableObject
     private async Task SaveAsync(CancellationToken token)
     {
         foreach (var field in Fields) field.Validate();
-        if (HasErrors) { Message = "Cannot save. Correct the highlighted fields; all entered text is retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return; }
+        if (HasErrors) { Feedback("Cannot save. Correct the highlighted fields; all entered text is retained.", RuleFeedbackKind.Error); ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return; }
 
         var definition = new TradingRuleDefinition(Fields[0].Text, Fields[1].Text, _retainedEvidence, _retainedCriterion);
         await WriteAsync(new(_editId, _expected, _expected == 0 ? TradingRuleAuthoringAction.Create : TradingRuleAuthoringAction.Revise, definition), token);
@@ -183,7 +215,7 @@ public sealed class RulesViewModel : ObservableObject
     private async Task DeleteAsync(RuleRow? row, CancellationToken token)
     {
         if (row is null || !TryLeave()) return;
-        if (!_dialogs.Confirm(new("Delete rule?", $"Delete {row.Name} from the Rules list? Existing assessments and their original rule text will be retained. This cannot be undone.", "Delete rule", isDestructive: true))) return;
+        if (!_dialogs.Confirm(new("Delete rule?", $"Delete {row.Name} from the Rules list? Existing assessments and their original rule text will be retained. This cannot be undone.", "Delete rule", isDestructive: true))) { Message = "Delete cancelled. The rule is unchanged."; return; }
         await WriteAsync(new(row.Id, row.Details.Revision.Revision, TradingRuleAuthoringAction.Delete, null), token);
     }
     private async Task WriteAsync(WriteTradingRuleCommand command, CancellationToken token)
@@ -194,7 +226,7 @@ public sealed class RulesViewModel : ObservableObject
             var result = await _writer.ExecuteAsync(command, token);
             if (result.Status != TradingRuleWriteStatus.Saved || result.Value is null)
             {
-                Message = result.Status switch { TradingRuleWriteStatus.Conflict => "Rule changed. Your fields are retained. Refresh before trying again.", TradingRuleWriteStatus.MissingRule => "Rule no longer exists. Your fields are retained; Refresh to inspect the catalog.", _ => "Rule state does not allow this action. Your fields are retained; Refresh to inspect it." }; return;
+                Feedback(result.Status switch { TradingRuleWriteStatus.Conflict => "Rule changed. Your fields are retained. Refresh before trying again.", TradingRuleWriteStatus.MissingRule => "Rule no longer exists. Your fields are retained; Refresh to inspect the catalog.", _ => "Rule state does not allow this action. Your fields are retained; Refresh to inspect it." }, RuleFeedbackKind.Error); return;
             }
             committed = true; _unverified = true; _pendingRuleId = command.RuleId;
             var saved = result.Value;
@@ -206,30 +238,40 @@ public sealed class RulesViewModel : ObservableObject
             var catalog = await CatalogAsync(token);
             token.ThrowIfCancellationRequested();
             if (latest is null || latest.Revision < saved.Revision) throw new InvalidOperationException("Rule changed during readback; Refresh required.");
-            _selected = new(new(latest, null, true)); Rules = catalog.Items.Select(r => new RuleRow(r)).ToArray(); _total = catalog.TotalCount; _page = _loadedPage = catalog.Page;
+            _selected = new(new(latest, null, true)); Rules = catalog.Select(r => new RuleRow(r)).ToArray();
             _unverified = false; _pendingRuleId = null; IsEditing = false;
-            Message = command.Action == TradingRuleAuthoringAction.Delete ? "Rule deleted. Existing assessments are retained." : "Rule saved.";
+            Feedback(command.Action == TradingRuleAuthoringAction.Delete ? "Rule deleted. Existing assessments are retained." : "Rule saved.", RuleFeedbackKind.Success);
             if (!latest.IsActive) _selected = null;
         }
         catch (OperationCanceledException) { Message = committed ? "Save committed but verification was cancelled. Your fields are retained. Refresh before saving again." : "Save cancelled. Your fields are retained; no success was reported."; }
-        catch (Exception) { Message = committed ? "Save committed but readback failed. Your fields are retained. Refresh to verify before saving again." : "Rule could not be saved. Your fields are retained. Try again or Refresh."; }
+        catch (Exception) { Feedback(committed ? "Save committed but readback failed. Your fields are retained. Refresh to verify before saving again." : "Rule could not be saved. Your fields are retained. Try again or Refresh.", RuleFeedbackKind.Error); }
         finally { IsWriting = false; }
     }
-    private async Task ChangePage(int direction)
+    private Task<IReadOnlyList<TradingRuleDetails>> CatalogAsync(CancellationToken token) => Task.Run(async () =>
     {
-        if (!TryLeave()) return;
-        _page += direction; await (LoadTask = LoadAsync(true));
-    }
-    private async Task<TradingRulePage> CatalogAsync(CancellationToken token)
-    {
-        var page = await _reader.ReadCatalogAsync(page: _page, pageSize: 20, cancellationToken: token);
-        int lastPage = (int)Math.Max(1, ((long)page.TotalCount + 19) / 20);
-        return page.Page > lastPage ? await _reader.ReadCatalogAsync(page: lastPage, pageSize: 20, cancellationToken: token) : page;
-    }
+        // SQLite async calls may complete synchronously. Keep bounded reads off the UI thread.
+        const int size = 20;
+        var items = new List<TradingRuleDetails>();
+        var ids = new HashSet<Guid>();
+        int? total = null;
+        for (int number = 1; ; number = checked(number + 1))
+        {
+            token.ThrowIfCancellationRequested();
+            var page = await _reader.ReadCatalogAsync(number, size, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            total ??= page.TotalCount;
+            int expected = (int)Math.Min(size, (long)total.Value - items.Count);
+            if (total < 0 || page.TotalCount != total || page.Page != number || page.PageSize != size ||
+                expected < 0 || page.Items.Count != expected || page.Items.Any(r => !ids.Add(r.Revision.RuleId)))
+                throw new InvalidOperationException("Catalog changed during loading. Refresh required.");
+            items.AddRange(page.Items);
+            if (items.Count == total) return (IReadOnlyList<TradingRuleDetails>)items;
+        }
+    }, token);
     private void Changed()
     {
         EditRowCommand?.NotifyCanExecuteChanged(); DeleteCommand?.NotifyCanExecuteChanged();
-        foreach (string property in new[] { nameof(SelectedRule), nameof(EditingRuleId), nameof(NewRuleEditor), nameof(ShowEmpty), nameof(IsBusy), nameof(CanSelect), nameof(CanEdit), nameof(HasUnsavedChanges), nameof(PageLabel) }) OnPropertyChanged(property);
-        CreateCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged(); CancelEditCommand?.NotifyCanExecuteChanged(); RefreshCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged(); NextCommand?.NotifyCanExecuteChanged(); PreviousCommand?.NotifyCanExecuteChanged();
+        foreach (string property in new[] { nameof(SelectedRule), nameof(EditingRuleId), nameof(NewRuleEditor), nameof(ShowEmpty), nameof(IsBusy), nameof(CanSelect), nameof(CanEdit), nameof(HasUnsavedChanges) }) OnPropertyChanged(property);
+        CreateCommand?.NotifyCanExecuteChanged(); EditCommand?.NotifyCanExecuteChanged(); SaveCommand?.NotifyCanExecuteChanged(); CancelEditCommand?.NotifyCanExecuteChanged(); RefreshCommand?.NotifyCanExecuteChanged(); CancelOperationCommand?.NotifyCanExecuteChanged();
     }
 }
