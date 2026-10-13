@@ -10,7 +10,7 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 namespace PersonalTradingJournal.Infrastructure.Rules;
 
 public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbContext> factory, TimeProvider? clock = null)
-    : ITradingRuleStore, ITradingRuleAssessmentStore, ITradingRuleReader
+    : ITradingRuleStore, ITradingRuleAssessmentStore, ITradingRuleReader, ITradingRuleOrderStore
 {
     public async Task<TradingRuleRevision?> GetLatestAsync(Guid ruleId, CancellationToken cancellationToken = default)
     {

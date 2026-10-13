@@ -1,8 +1,80 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Persistent Rule order — 13 October 2026
+
+The page-only heading **“Правилата са, за да се спазват!”** is centered, accent-colored and wrapping above Create/Refresh. The shared application heading is unchanged.
+
+- Drag the numbered ↕ handle to the accent insertion line above/below a row. Edit, Delete and editor fields do not initiate drags. Near-edge drag motion scrolls the page. Escape/outside-drop cancellation writes nothing.
+- Keyboard: Tab to the named reorder handle, then Up/Down; Shift+F10 opens equivalent Move up/down actions. First/last boundaries disable unavailable moves. After a move the same Rule's handle is focused and brought into view. Numbers recalculate from verified persisted order and are neither Rule IDs nor revisions.
+- Reordering uses the existing unsaved-change guard before disrupting an editor. A veto retains the form, text and order. Failed/conflicting/cancelled writes reload actual persisted order and retain entered fields; failed readback reports an error, not verified success. No optimistic local shuffle or automatic retry.
+- Complete list loading still uses cancellable 20-row queries. Every page must have the same catalog version/count, with no duplicates; concurrent changes reject a partial/mixed list.
+
+### Storage and portability
+
+Additive migration **`20261013102243_AddTradingRuleOrder`** adds `TradingRulePositions` and a singleton `TradingRuleCatalogState` (19 migrations total). It initializes active global Rules using the previous SQLite Name/RuleId order; legacy scoped Rules remain excluded and unchanged. Positions reference original Rule identity/revision 1. New Rules append; prose/typed-condition revisions keep their position; deletion removes that position and closes the gap. A trigger updates the catalog version in the same transaction as every global Rule append.
+
+Move-before (or move-to-end) requires the catalog version last read. A SQLite immediate writer transaction rechecks source/target/version, permutes the affected positions in one statement and increments the version. Competing create/edit/delete/move operations conflict rather than silently overwriting order. A failure rolls everything back. Cancellation is checked before commit; an already completed commit is read back rather than falsely reported as rolled back. SQLite busy acquisition follows the existing provider timeout; work runs off the WPF thread.
+
+Rule definitions, immutable revision numbers, typed conditions, assessments and saved AI snapshots are not rewritten by moves. Backup manifest remains v1 and preserves the complete current-schema database. JSON export **v8** explicitly includes `tradingRulePositions` (ruleId, initialRevision, zero-based position) and `tradingRuleCatalogState` (id/version). Even an empty export has this one metadata singleton, not a user Rule. Four CSVs are unchanged; exports are not backups. Older exports remain readable documents. Older-schema archives, including the immediately preceding schema, still require a future staged-upgrade path and are rejected by preflight/restore today.
+
+### Verification
+
+Started on clean `develop` at `56fbc5d4a446a3b5ebbd23eb3f4d4788c355ac8c`; preserved the existing implementation. Synthetic data only.
+
+- Focused: **272/272 passed**, zero failures/skips (22 Domain, 14 Application, 168 Infrastructure, 68 Desktop), `artifacts/m145-load/rules-order-focused-verified`. Additional model/foreign-key integrity checks: **10/10**, `artifacts/rules-order-integrity`.
+- Coverage includes second-above-first and move-to-end, first/last keyboard boundaries, dirty-editor veto, cancellation/failure/stale catalog, concurrent SQLite writers, rollback after the position UPDATE, legacy name/ID initialization, prose-edit position retention, new-row append, delete gap closure, fresh services/ViewModel restart and backup/preflight/offline restore/recovery/export.
+- Compiled WPF verifies heading text/alignment/wrapping, accessible handles/menu, routed Down key and shared drop path, renumbering without revisions, themed insertion lines, double-digit badges, right-aligned actions and retained inline validation/scroll behavior. Inspected Light/Dark catalog/insertion/editor/numbered renders at **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, `artifacts/rules-order-renders`.
+- Development checks caught incomplete schema/table/singleton expectations and two test-fixture mistakes (fake content-version tracking and synthetic key presentation source). Corrected the exact assertions/fixtures, without removing behavior checks.
+- The first complete run, `artifacts/m145-load/rules-order-full-final`, had **4,036 passed / 2 failed**: only the separate model record/FK inventory omitted the new order records. Desktop **1,546/1,546** passed; native **87/87 in 109.964 s**, **10.036 s** headroom. Those inventory assertions were updated to explicitly verify the new records and restrictive composite FK, and all ten integrity tests passed. The final full-run result is recorded below; an isolated pass is not full acceptance.
+
+- **Final complete parallel Release is not green:** `artifacts/m145-load/rules-order-full-verified`, **3,952 passed / 86 failed / zero skipped** out of 4,038 (490 Domain, 753 Application, 1,249 Infrastructure passed; Desktop 1,460 passed / 86 failed). All Rules checks passed. The 86 Desktop failures propagate the isolated Calendar native result.
+- First underlying failure: `CalendarDayModalTests.WindowControlsRetainModalAndDraftThenCloseInEveryState(Light, Normal)`, `CalendarDayModalWindowTests.cs:178`. Dispatcher acquisition completed in **8 ms**; the unchanged **45-second STA action deadline** expired at **45.011 s** in phase `test action`, thread 19 still alive. No finer operation is established by this breadcrumb. The child refused subsequent STA work; its partial TRX records 46 passed / 5 failed before termination. Its supervisor exited nonzero at **111.462 s**, before the 120-second aggregate deadline. This is an unresolved Calendar timeout, not a Rules assertion failure or proof of a specific scheduling/product cause. No retry, skip, deadline, assertion or concurrency change was made.
+- Rules compiled child passed in **9.628 s** in the final full run. Release build **0 warnings/errors**, EF model consistency and tracked/new-file whitespace checks pass.
+- Final worktree: **33 changed files** (24 modified, 9 new), no staged changes; branch/HEAD remain `develop` / `56fbc5d4a446a3b5ebbd23eb3f4d4788c355ac8c`. Full-suite acceptance remains open.
+
+Live pointer dragging, edge-scroll dwell behavior and screen-reader interaction remain unverified; automated WPF layout/routed-key/drop-operation checks are not live acceptance. No production data or providers, Git writes or M18.6 work. Uncommitted changes cannot have a matching GitHub Actions run.
+
+Remaining manual checks, using an isolated journal only: drag the second handle above the first and check insertion/edge scrolling; Refresh, navigate back and restart to confirm order; Tab/Up/Down/Shift+F10 in Light/Dark at minimum width, including a dirty-editor veto. Check screen-reader announcements of Rule name, position and operation result.
+
+### Exact changed files — persisted order
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Rules/ITradingRuleOrderStore.cs`
+- `src/PersonalTradingJournal.Application/Rules/ITradingRuleReader.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingRuleCatalogConfigurations.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261013102243_AddTradingRuleOrder.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261013102243_AddTradingRuleOrder.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingRuleCatalogRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Order.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.Reads.cs`
+- `src/PersonalTradingJournal.Infrastructure/Rules/TradingRuleRepository.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesOrderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRuleOrderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+
 ## Optional Criterion and numbered Rules — 13 October 2026
 
-This is the current authoring/list presentation, superseding the required Criterion and decorative bullet descriptions below:
+This earlier refinement introduced optional Criterion and numbered rows; the persisted-order section above supersedes its name/identity sorting:
 
 - **Rule** replaces the “Rule name” UI/accessibility label. Meaningful Rule text remains required, with the existing **120-character** limit; the stored property/column remains `Name` to preserve identities and compatibility. Internal line breaks are retained. Its editor now matches Criterion: 100-DIP height, the same available width (maximum 760 DIP), multiline wrapping, vertical scrolling and no horizontal scrollbar.
 - **Criterion** is optional supporting prose (0–4,000 characters). Blank/whitespace-only global Criterion becomes an empty string under the existing trim convention, never invented prose. Saving an existing Rule can clear it. The list collapses the Criterion text element when empty. Optional accessibility/help and validation reflect this; required Rule and over-limit Criterion errors remain independent of the ten-second action message.

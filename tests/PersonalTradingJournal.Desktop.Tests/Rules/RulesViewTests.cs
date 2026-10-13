@@ -18,6 +18,12 @@ namespace PersonalTradingJournal.Desktop.Tests.Rules;
 
 public sealed class RulesViewTests
 {
+    private sealed class TestPresentationSource(Visual visual) : PresentationSource
+    {
+        public override Visual RootVisual { get; set; } = visual;
+        public override bool IsDisposed => false;
+        protected override CompositionTarget GetCompositionTargetCore() => null!;
+    }
     private const string Host = "PTJ_RULES_VIEW_HOST";
     [Fact]
     public async Task CompiledThemesNarrowHighDpiBindingsValidationHistoryAndWindowClose()
@@ -64,7 +70,7 @@ public sealed class RulesViewTests
                     Assert.Null(view.FindName("AccountSelector")); Assert.Null(view.FindName("TargetSelector"));
                     var rows = (ItemsControl)view.FindName("RuleRows");
                     var rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
-                    var rowButtons = Descendants(rowGrid).OfType<Button>().ToArray();
+                    var rowButtons = Descendants(rowGrid).OfType<Button>().Where(b => b.Name != "RuleDragHandle").ToArray();
                     Assert.Equal(new[] { "Edit", "Delete" }, rowButtons.Select(b => b.Content));
                     foreach (var button in rowButtons)
                     {
@@ -91,6 +97,32 @@ public sealed class RulesViewTests
                     Assert.Equal(new Thickness(1), feedback.BorderThickness);
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjSuccessSurfaceBrush"]).Color, ((SolidColorBrush)feedback.Background).Color);
                     Render(view, theme, width, dpi, "catalog");
+                    var motto = (TextBlock)view.FindName("RulesMotto");
+                    Assert.Equal("Правилата са, за да се спазват!", motto.Text);
+                    Assert.Equal(TextAlignment.Center, motto.TextAlignment); Assert.Equal(TextWrapping.Wrap, motto.TextWrapping);
+                    Assert.True(motto.TranslatePoint(new Point(0, motto.ActualHeight), view).Y <= ((Button)view.FindName("CreateRule")).TranslatePoint(new Point(), view).Y);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)motto.Foreground).Color);
+                    var handle = Find<Button>(rowGrid, "RuleDragHandle");
+                    Assert.True(handle.Focusable); Assert.NotNull(handle.FocusVisualStyle);
+                    Assert.Contains("Reorder rule", AutomationProperties.GetName(handle));
+                    Assert.Equal(2, handle.ContextMenu!.Items.Count);
+                    RulesView.ShowInsertion(rowGrid, after: false); Layout();
+                    var insertion = Find<Border>(rowGrid, "InsertionIndicator");
+                    Assert.Equal(Visibility.Visible, insertion.Visibility); Assert.Equal(VerticalAlignment.Top, insertion.VerticalAlignment);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)insertion.Background).Color);
+                    Render(view, theme, width, dpi, "insertion");
+                    RulesView.ShowInsertion(rowGrid, after: true); Layout();
+                    Assert.Equal(VerticalAlignment.Bottom, insertion.VerticalAlignment);
+                    insertion.Visibility = Visibility.Collapsed;
+                    // The same drop operation used by routed Drop persists second above first.
+                    Await(view.DropRuleAsync(secondId, id, after: false)); Layout();
+                    Assert.Equal(secondId, f.Vm.Rules[0].Id); Assert.Equal(1, f.Vm.Rules[0].DisplayNumber);
+                    var movedHandle = Descendants(rows).OfType<Button>().Single(b => b.Name == "RuleDragHandle" && b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
+                    movedHandle.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, new TestPresentationSource(view), 0, Key.Down) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+                    Await(f.Vm.MoveDownCommand.ExecutionTask!); Layout();
+                    Assert.Equal(id, f.Vm.Rules[0].Id); Assert.Equal(secondId, f.Vm.Rules[1].Id);
+                    Assert.Equal(12, f.Data.Rows.Count(r => r.RuleId == id)); // No revisions for moves.
+                    rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
                     var markers = Descendants(rows).OfType<TextBlock>().Where(t => t.Name == "RuleMarker").ToArray();
                     Assert.Equal(Enumerable.Range(1, 12).Select(n => n.ToString()), markers.Select(t => t.Text));
                     var tenth = markers.Single(t => t.Text == "10");

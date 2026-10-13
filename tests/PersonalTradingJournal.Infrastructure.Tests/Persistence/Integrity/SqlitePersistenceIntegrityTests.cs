@@ -69,6 +69,8 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradePlaybookAssociationRecord),
             typeof(TradingRuleRevisionRecord),
             typeof(TradingRuleAssessmentRecord),
+            typeof(TradingRulePositionRecord),
+            typeof(TradingRuleCatalogStateRecord),
         ];
         List<IEntityType> entityTypes = context.Model.GetEntityTypes().ToList();
 
@@ -185,7 +187,13 @@ public sealed class SqlitePersistenceIntegrityTests
         Assert.Equal(DeleteBehavior.Restrict, ruleRevisionKey.DeleteBehavior);
         AssertForeignKey(model, typeof(TradingRuleAssessmentRecord), nameof(TradingRuleAssessmentRecord.SupersedesAssessmentId),
             typeof(TradingRuleAssessmentRecord), isRequired: false, DeleteBehavior.Restrict);
-        Assert.Equal(21, foreignKeys.Count);
+        var positionKey = Assert.Single(foreignKeys, f =>
+            f.DeclaringEntityType.ClrType == typeof(TradingRulePositionRecord) &&
+            f.PrincipalEntityType.ClrType == typeof(TradingRuleRevisionRecord));
+        Assert.Equal(new[] { "RuleId", "InitialRevision" }, positionKey.Properties.Select(p => p.Name));
+        Assert.True(positionKey.IsRequired);
+        Assert.Equal(DeleteBehavior.Restrict, positionKey.DeleteBehavior);
+        Assert.Equal(22, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>

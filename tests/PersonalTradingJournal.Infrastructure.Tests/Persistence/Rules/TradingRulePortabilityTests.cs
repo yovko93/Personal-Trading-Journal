@@ -26,6 +26,9 @@ public sealed partial class TradingRulePersistenceTests
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Execution, trade.Executions[0].Id));
         Assert.True(await source.Assessments.TryAppendAsync(assessment, 1, null));
         Assert.True(await source.Rules.TryAppendAsync(rule.Archive(1, Now), 1));
+        var ordered = await source.Rule(new TradingRuleDefinition("Ordered principle"));
+        var catalog = await source.Reader.ReadCatalogAsync();
+        Assert.Equal(RuleMoveStatus.Saved, await source.Get<ITradingRuleOrderStore>().MoveAsync(new(ordered.RuleId, automatic.RuleId, catalog.CatalogVersion)));
         string archive = Path.Combine(source.Root, "rules.ptjbackup");
         Assert.True((await source.Get<IBackupArchiveService>().CreateAsync(archive)).Succeeded);
         var preflight = await source.Get<IRestorePreflightService>().InspectAsync(archive, source.Root);
@@ -38,6 +41,7 @@ public sealed partial class TradingRulePersistenceTests
         Assert.True(File.Exists(restored.RecoveryArchivePath));
         Assert.True((await new RestorePreflightService().InspectAsync(restored.RecoveryArchivePath!, target.Root)).Validated);
         await target.Restart();
+        Assert.Equal(new[] { ordered.RuleId, automatic.RuleId }, (await target.Reader.ReadCatalogAsync()).Items.Select(r => r.Revision.RuleId));
         Assert.Equal(automatic.Definition.AutomaticCriterion, (await target.Rules.GetLatestAsync(automatic.RuleId))!.Definition.AutomaticCriterion);
         var restoredCalculation = (await target.Reader.ReadAssessmentAsync(calculatedId))!.Evaluation!;
         Assert.Equal(originalCalculation.Calculation, restoredCalculation.Calculation);
@@ -63,11 +67,13 @@ public sealed partial class TradingRulePersistenceTests
     }
 
     [Fact]
-    public async Task ExportVersionSevenRetainsExactRuleAssessmentReferencesAndAllExistingTables()
+    public async Task ExportVersionEightRetainsExactRuleAssessmentReferencesAndAllExistingTables()
     {
         await using var f = await Fixture.Create(); var trade = await f.Seed();
         var rule = await f.Rule(AutomaticDefinition(account: trade.TradingAccountId));
         var manual = await f.Rule(new TradingRuleDefinition("Manual principle"));
+        var catalog = await f.Reader.ReadCatalogAsync();
+        Assert.Equal(RuleMoveStatus.Saved, await f.Get<ITradingRuleOrderStore>().MoveAsync(new(manual.RuleId, rule.RuleId, catalog.CatalogVersion)));
         var a = Assess(rule, TradingRuleAssessmentTarget.ForTrade(trade.Id, trade.TradingAccountId), null,
             new TradingRuleEvidenceReference(TradingRuleEvidenceKind.Trade, trade.Id));
         Assert.True(await f.Assessments.TryAppendAsync(a, 1, null));
@@ -75,8 +81,12 @@ public sealed partial class TradingRulePersistenceTests
         var result = await f.Get<IPortableExportService>().CreateAsync(output);
         Assert.True(result.Succeeded, result.ToString());
         using var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(7, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(8, json.RootElement.GetProperty("version").GetInt32());
         var tables = json.RootElement.GetProperty("tables");
+        var positions = tables.GetProperty("tradingRulePositions").EnumerateArray().ToArray();
+        Assert.Equal(new[] { manual.RuleId, rule.RuleId }, positions.Select(p => p.GetProperty("ruleId").GetGuid()));
+        Assert.Equal(new long[] { 0, 1 }, positions.Select(p => p.GetProperty("position").GetInt64()));
+        Assert.Equal((await f.Reader.ReadCatalogAsync()).CatalogVersion, Assert.Single(tables.GetProperty("tradingRuleCatalogState").EnumerateArray()).GetProperty("version").GetInt64());
         var revisions = tables.GetProperty("tradingRuleRevisions").EnumerateArray().ToArray();
         Assert.Equal(2, revisions.Length);
         var revision = revisions.Single(r => r.GetProperty("ruleId").GetGuid() == rule.RuleId);

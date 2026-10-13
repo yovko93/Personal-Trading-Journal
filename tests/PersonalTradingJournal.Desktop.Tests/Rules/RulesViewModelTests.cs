@@ -18,7 +18,7 @@ public sealed class RulesViewModelTests
             f.Vm.CreateCommand.Execute(null); f.Vm.Fields[0].Text = text;
             await f.Vm.SaveCommand.ExecuteAsync(null); Assert.False(f.Vm.IsEditing);
         }
-        Assert.Equal(new[] { "Alpha", "Middle", "Zulu" }, f.Vm.Rules.Select(r => r.Name));
+        Assert.Equal(new[] { "Zulu", "Alpha", "Middle" }, f.Vm.Rules.Select(r => r.Name));
         Assert.Equal(new[] { 1, 2, 3 }, f.Vm.Rules.Select(r => r.DisplayNumber));
         Assert.All(f.Vm.Rules, r => Assert.False(r.HasStatement));
         var middle = f.Vm.Rules[1]; f.Dialogs.ConfirmationResult = true;
@@ -27,8 +27,8 @@ public sealed class RulesViewModelTests
         var saved = middle.Details.Revision;
         f.Data.Rows.Add(saved.Revise(1, new("Zulu revised"), DateTimeOffset.UtcNow));
         await f.Vm.RefreshCommand.ExecuteAsync(null);
-        Assert.Equal(middle.Id, f.Vm.Rules[1].Id); Assert.Equal(new[] { 1, 2 }, f.Vm.Rules.Select(r => r.DisplayNumber));
-        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules[1]);
+        Assert.Equal(middle.Id, f.Vm.Rules[0].Id); Assert.Equal(new[] { 1, 2 }, f.Vm.Rules.Select(r => r.DisplayNumber));
+        await f.Vm.EditRowCommand.ExecuteAsync(f.Vm.Rules[0]);
         Assert.Equal(middle.Id, f.Vm.EditingRuleId); Assert.Empty(f.Vm.Fields[1].Text);
         Assert.Equal("Rule", f.Vm.Fields[0].Label); Assert.Equal(120, f.Vm.Fields[0].Limit);
     }
@@ -241,9 +241,34 @@ internal sealed class RulesFixture
     public async Task Open(Guid id) { await Vm.ActivateAsync(); Vm.TrySelect(Vm.Rules.Single(r => r.Id == id)); await Vm.LoadTask; }
 }
 
-internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradingAccountReader
+internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradingAccountReader, ITradingRuleOrderStore
 {
     public List<TradingRuleRevision> Rows { get; } = [];
+    private readonly List<Guid> _order = [];
+    private string _fingerprint = "";
+    public long CatalogVersion { get; private set; }
+    private TradingRuleRevision[] Ordered()
+    {
+        var active = Rows.GroupBy(r => r.RuleId).Select(g => g.Last()).Where(r => r.IsActive && r.Definition.IsGlobal).ToArray();
+        string fingerprint = string.Join("|", active.Select(r => $"{r.RuleId}:{r.Revision}:{r.Definition.Name}:{r.Definition.Criterion}"));
+        if (fingerprint != _fingerprint) { CatalogVersion++; _fingerprint = fingerprint; }
+        _order.RemoveAll(id => active.All(r => r.RuleId != id));
+        _order.AddRange(active.Where(r => !_order.Contains(r.RuleId)).OrderBy(r => r.Definition.Name, StringComparer.Ordinal).ThenBy(r => r.RuleId).Select(r => r.RuleId));
+        return _order.Select(id => active.Single(r => r.RuleId == id)).ToArray();
+    }
+    public async Task<RuleMoveStatus> MoveAsync(MoveTradingRuleCommand command, CancellationToken cancellationToken = default)
+    {
+        if (WriteGate is not null) await WriteGate.Task.WaitAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested(); Ordered();
+        if (Failure == "cancel") throw new OperationCanceledException();
+        if (Failure == "failure") throw new IOException("Synthetic storage failure");
+        if (Failure == "conflict" || command.ExpectedCatalogVersion != CatalogVersion) return RuleMoveStatus.Conflict;
+        if (!_order.Contains(command.RuleId) || command.BeforeRuleId is Guid id && !_order.Contains(id)) return RuleMoveStatus.Unavailable;
+        if (command.RuleId == command.BeforeRuleId) return RuleMoveStatus.Saved;
+        _order.Remove(command.RuleId);
+        _order.Insert(command.BeforeRuleId is Guid target ? _order.IndexOf(target) : _order.Count, command.RuleId);
+        CatalogVersion++; return RuleMoveStatus.Saved;
+    }
     public Guid AccountId { get; } = Guid.NewGuid();
     public bool AccountAvailable { get; set; } = true;
     public string? Failure { get; set; }
@@ -273,8 +298,8 @@ internal sealed class RulesData : ITradingRuleReader, ITradingRuleStore, ITradin
         CatalogCalls.Add((page, pageSize));
         if (BeforeCatalogPage is not null) await BeforeCatalogPage(page, cancellationToken);
         if (ReadGate is not null) await ReadGate.Task;
-        var rows = Rows.GroupBy(r => r.RuleId).Select(g => g.Last()).Where(r => r.IsActive && r.Definition.IsGlobal).OrderBy(r => r.Definition.Name, StringComparer.Ordinal).ThenBy(r => r.RuleId).ToArray();
-        return new(rows.Skip((page - 1) * pageSize).Take(pageSize).Select(Details).ToArray(), rows.Length, page, pageSize);
+        var rows = Ordered();
+        return new(rows.Skip((page - 1) * pageSize).Take(pageSize).Select(Details).ToArray(), rows.Length, page, pageSize, CatalogVersion);
     }
     public async Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
     {

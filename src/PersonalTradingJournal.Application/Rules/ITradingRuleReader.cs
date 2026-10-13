@@ -6,7 +6,7 @@ public enum TradingRuleSourceState { Available = 1, Changed = 2, Unavailable = 3
 
 public sealed record TradingRuleDetails(TradingRuleRevision Revision, string? AccountNameAtRevision,
     bool AccountAvailable);
-public sealed record TradingRulePage(IReadOnlyList<TradingRuleDetails> Items, int TotalCount, int Page, int PageSize);
+public sealed record TradingRulePage(IReadOnlyList<TradingRuleDetails> Items, int TotalCount, int Page, int PageSize, long CatalogVersion = 0);
 public sealed record TradingRuleEvidenceDetails(TradingRuleEvidenceReference Reference, Guid? AccountId,
     string? AccountNameAtAssessment, Guid? TradeId, DateOnly? NewYorkDate, string? Currency,
     TradingRuleSourceState State);

@@ -32,11 +32,17 @@ public sealed class RulesSqliteTests
         await vm.RefreshCommand.ExecuteAsync(null); await vm.EditRowCommand.ExecuteAsync(vm.Rules.Single(r => r.Id == typed.RuleId));
         vm.Fields[1].Text = ""; await vm.SaveCommand.ExecuteAsync(null);
         Assert.False(vm.IsEditing); Assert.Equal(typed.Definition.AutomaticCriterion, vm.SelectedRule!.Details.Revision.Definition.AutomaticCriterion);
+        await vm.MoveBeforeAsync(typed.RuleId, emptyId);
+        Assert.Equal(new[] { typed.RuleId, emptyId }, vm.Rules.Select(r => r.Id));
+        await vm.RefreshCommand.ExecuteAsync(null);
+        Assert.Equal(new[] { typed.RuleId, emptyId }, vm.Rules.Select(r => r.Id));
         vm.Deactivate();
         await using var context = await db.ContextFactory.CreateDbContextAsync();
         var root = Path.GetDirectoryName(Path.GetDirectoryName(context.Database.GetDbConnection().DataSource))!;
         await using var restarted = new ServiceCollection().AddSingleton(TimeProvider.System).AddPersistence(new LocalApplicationPaths(root)).BuildServiceProvider();
         var fresh = Create(restarted); await fresh.ActivateAsync();
+        Assert.Equal(new[] { typed.RuleId, emptyId }, fresh.Rules.Select(r => r.Id));
+        Assert.Equal(new[] { 1, 2 }, fresh.Rules.Select(r => r.DisplayNumber));
         Assert.All(fresh.Rules, r => { Assert.Empty(r.Statement); Assert.False(r.HasStatement); });
         await fresh.EditRowCommand.ExecuteAsync(fresh.Rules.Single(r => r.Id == emptyId));
         Assert.Equal("Required Rule\nwith two lines", fresh.Fields[0].Text); Assert.Empty(fresh.Fields[1].Text);

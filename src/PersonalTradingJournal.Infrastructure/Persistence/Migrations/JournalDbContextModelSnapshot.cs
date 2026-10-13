@@ -907,6 +907,45 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleCatalogStateRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TradingRuleCatalogState", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TradingRuleCatalogState_Version", "Id = 1 AND typeof(Version) = 'integer' AND Version >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRulePositionRecord", b =>
+                {
+                    b.Property<Guid>("RuleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("InitialRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("RuleId");
+
+                    b.HasIndex("Position", "RuleId");
+
+                    b.HasIndex("RuleId", "InitialRevision");
+
+                    b.ToTable("TradingRulePositions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TradingRulePositions_Position", "InitialRevision = 1 AND typeof(Position) = 'integer' AND Position >= 0");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleRevisionRecord", b =>
                 {
                     b.Property<Guid>("RuleId")
@@ -1211,6 +1250,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleRevisionRecord", null)
                         .WithMany()
                         .HasForeignKey("RuleId", "RuleRevision")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRulePositionRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("RuleId", "InitialRevision")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

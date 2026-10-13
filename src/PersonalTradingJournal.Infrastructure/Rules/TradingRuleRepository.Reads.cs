@@ -18,8 +18,11 @@ public sealed partial class TradingRuleRepository
         var query = db.TradingRuleRevisions.AsNoTracking().Where(r => r.IsGlobal && r.IsActive &&
             !db.TradingRuleRevisions.Any(next => next.RuleId == r.RuleId && next.Revision > r.Revision));
         int total = await query.CountAsync(cancellationToken);
-        var rows = await query.OrderBy(r => r.Name).ThenBy(r => r.RuleId).Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(cancellationToken);
-        return new(await RuleDetails(db, rows, cancellationToken), total, page, pageSize);
+        long version = await db.TradingRuleCatalogState.Select(s => s.Version).SingleAsync(cancellationToken);
+        var ordered = from rule in query join position in db.TradingRulePositions on rule.RuleId equals position.RuleId
+                      orderby position.Position, rule.RuleId select rule;
+        var rows = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(cancellationToken);
+        return new(await RuleDetails(db, rows, cancellationToken), total, page, pageSize, version);
     }
 
     public async Task<TradingRulePage> ReadCurrentAsync(TradingRuleAccountScope? scope = null, bool? active = null,

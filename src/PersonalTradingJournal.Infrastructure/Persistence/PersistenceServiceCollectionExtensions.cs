@@ -72,6 +72,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingRuleStore, TradingRuleRepository>();
         services.AddTransient<ITradingRuleAssessmentStore, TradingRuleRepository>();
         services.AddTransient<ITradingRuleReader, TradingRuleRepository>();
+        services.AddTransient<ITradingRuleOrderStore, TradingRuleRepository>();
         services.AddTransient<IManualRuleAssessmentReader, TradingRuleRepository>();
         services.AddTransient<IAutomaticRuleChecks, TradingRuleRepository>();
         services.AddTransient<WriteTradingRuleUseCase>();

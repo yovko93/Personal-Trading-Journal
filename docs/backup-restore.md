@@ -1,5 +1,11 @@
 # Backup and restore — M16
 
+## Persisted Rule ordering compatibility
+
+Current schema adds `20261013102243_AddTradingRuleOrder` (19 migrations), with Rule positions and the catalog concurrency version. Complete v1 backups, preflight, offline restore and recovery retain this metadata alongside unchanged Rule revisions, assessments and saved analyses. Older-schema archives, including the prior optional-Criterion schema, remain rejected pending supported staged migration; normal installed-database migration initializes the previous name/ID order without rewriting Rule history.
+
+Portable JSON is now **v8**, adding `tradingRulePositions` (ruleId, initialRevision, position) and `tradingRuleCatalogState` (id, version). Positions are zero-based; UI numbers are one-based display positions, never identities. An empty dataset exports the one catalog-state metadata row. Existing detailed tables and four CSVs retain their fields; exports remain unencrypted and are not restorable backups. Credentials remain excluded. Synthetic regressions verify reordered Rules across backup/preflight/offline restore and the exact JSON positions/version.
+
 ## Global Rules catalog compatibility
 
 Current schema also requires `20261012214801_OptionalGlobalRuleEvidence` and `20261013090509_OptionalGlobalRuleCriterion`, allowing empty authored evidence descriptions and optional Criterion prose on global Rules. Required Rule text retains its 120-character limit. Historical descriptions, typed automatic conditions and assessments are copied unchanged with their guards retained. Complete archives preserve these values; old-schema archives (including the immediately preceding schema) remain unsupported until staged upgrading is implemented. JSON v7 keeps the same fields/types and represents absent global `requiredEvidence` / `criterion` as empty strings, never fabricated text. Downgrade is blocked if such rows cannot fit the older constraint. Synthetic backup/preflight/offline restore/recovery and export regressions cover an empty-Criterion Rule.

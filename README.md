@@ -1,6 +1,14 @@
 # Personal Trading Journal
 
-**Rules — optional Criterion and numbered list (before M18.6)**
+**Rules — persistent drag and keyboard ordering (before M18.6)**
+
+Planning → Rules displays **“Правилата са, за да се спазват!”** centered above Create/Refresh, without changing the shared page header. Drag a numbered ↕ handle to an insertion line, or focus it and press Up/Down (Shift+F10 also offers Move up/down). Only handles start drags. Existing unsaved-work protection applies. Display numbers follow persisted positions, never identities or revisions.
+
+Migration `20261013102243_AddTradingRuleOrder` initializes existing active global Rules in their prior name/ID order; new Rules append, prose edits keep position, and deletion closes the gap. Moves use a catalog-version check and one SQLite transaction; failure/cancellation reloads the actual order without inventing a local success. Current-schema backups preserve ordering; JSON export **v8** adds position/concurrency metadata. Earlier-schema archives still require unsupported staged migration. [Behavior, verification and exact files](docs/trading-rules.md#persistent-rule-order--13-october-2026).
+
+Verification: **272 focused + 10 schema-integrity tests passed**; automated Light/Dark normal/narrow-240-DPI renders inspected. Release build **0 warnings/errors**, EF consistency and whitespace checks pass. **Final full parallel Release: 3,952 passed / 86 failed / zero skipped.** All Rules checks passed; the failures propagate a Calendar native `WindowControlsRetainModalAndDraftThenCloseInEveryState(Light, Normal)` **45-second STA action timeout**, not its 120-second aggregate deadline. Full-suite acceptance remains open; no deadline or assertion was weakened. Thirty-three files are uncommitted on `develop`, HEAD `56fbc5d4a446a3b5ebbd23eb3f4d4788c355ac8c`. Live dragging/screen-reader and matching CI remain separate open checks. No production access or M18.6.
+
+**Rules — optional Criterion and numbered list (previous verification; ordering superseded above)**
 
 Planning → Rules now requires only **Rule** text (the unchanged 120-character limit). **Criterion** is optional, up to 4,000 characters; empty values save/reload without placeholder text and produce no empty list line. Both editors are equally wide, 100-DIP-high multiline fields with wrapping and vertical scrolling. Circular numbers identify display positions in deterministic catalog order, not database IDs, revisions or adherence. Edit/Delete and the guarded inline editor retain their existing behavior.
 

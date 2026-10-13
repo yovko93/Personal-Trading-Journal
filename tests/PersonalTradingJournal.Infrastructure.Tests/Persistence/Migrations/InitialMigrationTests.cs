@@ -35,6 +35,8 @@ public sealed partial class InitialMigrationTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedApplicationColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
+            ["TradingRuleCatalogState"] = ["Id", "Version"],
+            ["TradingRulePositions"] = ["RuleId", "InitialRevision", "Position"],
             ["TradingRuleRevisions"] =
             [
                 "RuleId", "Revision", "ContractVersion", "Name", "Criterion", "RequiredEvidence", "Applicability",
@@ -147,7 +149,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder"],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -159,7 +161,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(18L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(19L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -173,6 +175,7 @@ public sealed partial class InitialMigrationTests
                     "TradePlaybookAssociations" => ["TradeId", "Sequence"],
                     "PlaybookRevisions" => ["TradingSetupId", "Revision"],
                     "TradingRuleRevisions" => ["RuleId", "Revision"],
+                    "TradingRulePositions" => ["RuleId"],
                     "PlaybookExamples" => ["TradingSetupId", "Revision", "ExampleId"],
                     "TradovateImportedExecutions" => ["TradeExecutionId"],
                     "DailyJournalRevisions" => ["JournalId", "Revision"],
@@ -183,10 +186,10 @@ public sealed partial class InitialMigrationTests
                 foreach (string keyName in keyNames)
                 {
                     ColumnDefinition key = Assert.Single(columns, column => column.Name == keyName);
-                    Assert.Equal(keyName is "Revision" or "Sequence" ? "INTEGER" : "TEXT", key.StoreType);
+                    Assert.Equal(tableName == "TradingRuleCatalogState" || keyName is "Revision" or "Sequence" ? "INTEGER" : "TEXT", key.StoreType);
                     Assert.Null(key.DefaultValue);
                 }
-                Assert.Equal(0L, ReadRowCount(connection, tableName));
+                Assert.Equal(tableName == "TradingRuleCatalogState" ? 1L : 0L, ReadRowCount(connection, tableName));
             }
 
             Assert.DoesNotContain(
@@ -554,7 +557,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder"],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -691,7 +694,9 @@ public sealed partial class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(25, foreignKeys.Count); // Composite revision keys each have two columns.
+        Assert.Equal(27, foreignKeys.Count); // Composite revision keys each have two columns.
+        Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRulePositions" && f.DependentColumn == "RuleId" && f.PrincipalTable == "TradingRuleRevisions" && f.OnDelete == "RESTRICT");
+        Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRulePositions" && f.DependentColumn == "InitialRevision" && f.PrincipalColumn == "Revision" && f.OnDelete == "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRuleAssessments" && f.DependentColumn == "RuleId" && f.PrincipalTable == "TradingRuleRevisions" && f.OnDelete == "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRuleAssessments" && f.DependentColumn == "RuleRevision" && f.PrincipalColumn == "Revision" && f.PrincipalTable == "TradingRuleRevisions" && f.OnDelete == "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRuleAssessments" && f.DependentColumn == "SupersedesAssessmentId" && f.PrincipalTable == "TradingRuleAssessments" && f.OnDelete == "RESTRICT");
