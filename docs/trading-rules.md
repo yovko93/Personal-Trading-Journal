@@ -1,5 +1,25 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Concise Criterion cards and heading contrast — 13 October 2026
+
+Started on clean `develop`, HEAD `56560eeaea420a2822f8e9f9db8af091631ab840`; preceding changes were committed by the user and preserved. This presentation update supersedes older descriptions of a visible **Full criterion** disclosure.
+
+- Removed the disclosure control, its arrow and layout spacing from every Rule card. The optional Criterion keeps its existing three-line ellipsis preview. Its complete original value remains in the tooltip and automation name, including truncated text. Empty Criteria remain collapsed; short Criteria render normally. No replacement visible control was added.
+- Only the centered “Правилата са, за да се спазват!” heading overrides its accent foreground with the existing dynamic `PtjTextPrimaryBrush`: **#24242B** in Light and **#F2F2F7** in Dark. Theme changes update the same loaded view; wrapping and heading semantics are preserved. Other headings and card colors retain their existing styles.
+- Compiled WPF coverage checks empty/short/long Criteria, full tooltip and automation-peer names, absence of disclosure/extra content, heading contrast of at least **7:1**, switching themes on the same view, action visibility, keyboard guards and drag lifecycle. The drag regression uses unequal-height multiline Rule cards instead of the removed expanded disclosure, preserving its geometric, cancellation and write-count assertions. No production drag code, ViewModel, repository, schema, Rule/assessment or backup/export behavior changed.
+
+Verification: **12/12 focused tests passed**, zero failures/skips: compiled Rules view and drag probes, seven ordering regressions and three theme-resource tests. The connected WPF window verifies switching Light → Dark without recreating the view; detached render roots provide the normal/high-DPI geometry checks. Inspected automated Light/Dark renders at **960 DIP/96 DPI** and **480 DIP/240 DPI**, including the long Criterion preview and compact empty cards. Short Criteria, complete tooltip and automation-peer values, no reserved disclosure space, action visibility and existing drag/guard assertions passed. Release build: **0 warnings/errors**. `git diff --check` passed.
+
+Automated renders are in `artifacts/rules-criterion-preview-renders`; final test diagnostics are in `artifacts/m145-load/rules-criterion-preview-focused-final`. This scoped task does not rerun the complete Release suite; the preceding Daily Review child timeout remains an unresolved full-suite limitation, not a failure fixed by this UI change. No live mouse/screen-reader or matching GitHub Actions acceptance is claimed for these uncommitted changes. No production journal or provider access, Git writes, or M18.6 work. Final worktree: the five modified files below; branch/HEAD unchanged.
+
+Exact changed files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesDragPerformanceTests.cs`
+
 ## Prospective drag order — 13 October 2026
 
 Started on clean `develop`, HEAD `76cbf749e29eb8a42ce7ee64491b00edc524f468`. Previous work is preserved. This section supersedes the earlier descriptions of dashed source markers, target tint and immediate-only neighbor placement. No Rule definitions, assessments, revisions, ordering transactions, schema or backup/export contract changed; M18.6 has not started.

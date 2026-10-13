@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**Rules — concise Criterion cards and heading contrast (before M18.6)**
+
+The visible **Full criterion** disclosure, arrow and spacing are removed. Cards retain the three-line Criterion preview; the complete value remains in its tooltip and accessible name. Empty Criteria occupy no line. Only “Правилата са, за да се спазват!” now uses the dynamic primary-text theme brush: dark in Light theme and light in Dark theme, with its centered, wrapping layout preserved. Rule titles, drag behavior, ordering and data semantics are unchanged.
+
+[Verification and exact changed files](docs/trading-rules.md#concise-criterion-cards-and-heading-contrast--13-october-2026). Focused **12/12 passed**; Release build **0 warnings/errors**; whitespace check passed. Inspected Light/Dark renders at 960 DIP/96 DPI and 480 DIP/240 DPI, including empty cards. Full text remains available through the tooltip and automation peer, and switching themes was tested in a connected WPF window. No live mouse/screen-reader acceptance or new full-suite/CI result is claimed; the preceding Daily Review timeout remains open. Five modified files on `develop`, HEAD `56560eeaea420a2822f8e9f9db8af091631ab840`. No production access, Git writes or M18.6 work.
+
 **Rules — prospective drag order (before M18.6)**
 
 Dragging across original row midpoints now shifts all affected cards into their prospective positions using one shared 120-ms render-only animation. The lifted card follows the pointer; its insertion slot is empty space, with **no dashed marker or persistent line**. Reduced-motion settings use immediate placement. The bound catalog, numbers and database remain unchanged until a valid drop; no-op drops do not write. Escape, leaving the viewport and failed moves restore clean visuals. Existing guards, keyboard/context ordering, full Criterion disclosure and atomic persistence remain unchanged.

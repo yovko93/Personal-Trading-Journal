@@ -28,12 +28,13 @@ public sealed class RulesDragPerformanceTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             foreach (int dpi in new[] { 96, 240 })
-            foreach (bool expanded in new[] { false, true })
+            foreach (bool tallRows in new[] { false, true })
             {
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(dpi == 96 ? "Light" : "Dark");
                 var f = new RulesFixture();
                 for (int i = 0; i < 12; i++)
-                    f.Data.Rows.Add(TradingRuleRevision.Create(Guid.NewGuid(), new($"Synthetic rule {i:00}",
+                    f.Data.Rows.Add(TradingRuleRevision.Create(Guid.NewGuid(), new($"Synthetic rule {i:00}" +
+                        (tallRows && i % 3 == 0 ? "\nA wrapped Rule\nWith another line" : ""),
                         string.Join(" ", Enumerable.Repeat("Synthetic long Criterion for measuring drag layout.", 12))), DateTimeOffset.UtcNow));
                 Await(f.Vm.ActivateAsync());
                 var clock = new DragClock(); var view = new RulesView { DataContext = f.Vm, DragClock = clock, AnimateReordering = false };
@@ -41,8 +42,8 @@ public sealed class RulesDragPerformanceTests
                 void Layout() { view.Measure(new Size(800, 600)); view.Arrange(new Rect(0, 0, 800, 600)); view.UpdateLayout(); }
                 Layout();
                 var rows = Descendants(view).OfType<RuleReorderRow>().ToArray();
-                var source = rows[1]; var target = (Grid)rows[0].Child;
-                Descendants(target).OfType<Expander>().Single().IsExpanded = expanded; Layout();
+                var source = rows[1];
+                if (tallRows) Assert.True(rows[0].ActualHeight > source.ActualHeight);
                 var catalog = f.Vm.Rules; var ids = catalog.Select(r => r.Id).ToArray();
                 int reads = f.Data.CatalogCalls.Count;
                 Assert.True(view.BeginRowLift(source, new Point(180, 220))); Layout();
@@ -54,7 +55,7 @@ public sealed class RulesDragPerformanceTests
                     view.UpdateRowDrag(new Point(firstMidpoint.X + i % 4, firstMidpoint.Y - 1), 200);
                     view.UpdateLayout();
                 }
-                Console.WriteLine($"RulesDrag dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
+                Console.WriteLine($"RulesDrag dpi={dpi}; tallRows={tallRows}; {diagnostics.Snapshot()}");
                 Assert.Same(catalog, f.Vm.Rules); Assert.Equal(ids, f.Vm.Rules.Select(r => r.Id));
                 Assert.Equal(reads, f.Data.CatalogCalls.Count);
                 foreach (var counter in new[] { RuleDragCounter.CatalogReads, RuleDragCounter.MoveWrites,
@@ -67,7 +68,7 @@ public sealed class RulesDragPerformanceTests
                 view.LeaveRowDrag(new Point(200, 240));
                 Assert.Equal(Visibility.Visible, ((Border)view.FindName("LiftedRule")).Visibility); Assert.Equal(0, source.Opacity);
                 // Cross one and several original midpoints in both directions. Variable-height
-                // expanded Criteria retain their layout; every affected card occupies its final slot.
+                // multiline Rule cards retain their layout; every affected card occupies its final slot.
                 var list = (ItemsControl)view.FindName("RuleRows");
                 var tops = rows.Select(r => r.TranslatePoint(new Point(), list).Y - ((TranslateTransform)r.RenderTransform).Y).ToArray();
                 void CheckSlots(int index)
@@ -104,7 +105,7 @@ public sealed class RulesDragPerformanceTests
                 view.ShiftClock.Controller.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(120), TimeSeekOrigin.BeginTime);
                 CheckSlots(3);
                 view.UpdateLayout();
-                Console.WriteLine($"RulesDrag animated dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
+                Console.WriteLine($"RulesDrag animated dpi={dpi}; tallRows={tallRows}; {diagnostics.Snapshot()}");
                 Assert.Equal(2, diagnostics[RuleDragCounter.TargetChanges]); Assert.Equal(2, diagnostics[RuleDragCounter.Animations]);
                 foreach (var counter in new[] { RuleDragCounter.CatalogReads, RuleDragCounter.MoveWrites,
                     RuleDragCounter.CatalogPublishes, RuleDragCounter.PropertyNotifications, RuleDragCounter.CollectionChanges,
@@ -118,7 +119,7 @@ public sealed class RulesDragPerformanceTests
                     view.UpdateRowDrag(new Point(180, 590), 590);
                     view.UpdateLayout();
                 }
-                Console.WriteLine($"RulesDrag edge dpi={dpi}; expanded={expanded}; {diagnostics.Snapshot()}");
+                Console.WriteLine($"RulesDrag edge dpi={dpi}; tallRows={tallRows}; {diagnostics.Snapshot()}");
                 Assert.Equal(1, diagnostics[RuleDragCounter.ScrollRequests]);
                 clock.Advance(TimeSpan.FromMilliseconds(49)); view.UpdateRowDrag(new Point(180, 590), 590);
                 Assert.Equal(1, diagnostics[RuleDragCounter.ScrollRequests]);

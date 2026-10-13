@@ -3,7 +3,6 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
-using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -103,7 +102,8 @@ public sealed class RulesViewTests
                     Assert.Equal("Правилата са, за да се спазват!", motto.Text);
                     Assert.Equal(TextAlignment.Center, motto.TextAlignment); Assert.Equal(TextWrapping.Wrap, motto.TextWrapping);
                     Assert.True(motto.TranslatePoint(new Point(0, motto.ActualHeight), view).Y <= ((Button)view.FindName("CreateRule")).TranslatePoint(new Point(), view).Y);
-                    Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)motto.Foreground).Color);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)motto.Foreground).Color);
+                    Assert.True(Contrast(((SolidColorBrush)motto.Foreground).Color, ((SolidColorBrush)view.Background).Color) >= 7);
                     var surface = (Border)VisualTreeHelper.GetParent(rowGrid);
                     Assert.Equal(new CornerRadius(8), surface.CornerRadius); Assert.Equal(new Thickness(1), surface.BorderThickness);
                     Assert.True(scroller.AllowDrop); // Stationary drop zone includes the animated empty slots.
@@ -120,25 +120,24 @@ public sealed class RulesViewTests
                     Assert.Equal(TextTrimming.CharacterEllipsis, criterion.TextTrimming); Assert.Equal(66, criterion.MaxHeight);
                     Assert.Equal(criterion.Text, AutomationProperties.GetName(criterion));
                     Assert.True(criterion.Text.Length > 500);
-                    var details = Find<Expander>(rowGrid, "CriterionDetails");
-                    Assert.False(details.IsExpanded); Assert.Contains("Read full Criterion", AutomationProperties.GetName(details));
-                    Assert.False(RulesView.CanStartRowDrag(details, surface)); Assert.Null(view.RowCursor(details, surface));
-                    var fullText = Assert.IsType<TextBlock>(details.Content); // Collapsed Expander content is not yet in its visual tree.
-                    Assert.Equal(criterion.Text, fullText.Text); Assert.Equal(criterion.Text, AutomationProperties.GetName(fullText));
-                    var disclosure = Assert.IsAssignableFrom<IExpandCollapseProvider>(UIElementAutomationPeer.CreatePeerForElement(details)!.GetPattern(PatternInterface.ExpandCollapse));
-                    disclosure.Expand(); Flush(); Layout();
-                    Assert.True(details.IsExpanded, "Automation must expand the Criterion disclosure.");
-                    // This render-only root has no PresentationSource: IsVisible is false for
-                    // every element. Assert layout/pattern here and real window visibility below.
-                    Assert.Equal(Visibility.Visible, fullText.Visibility);
-                    Assert.Equal(ExpandCollapseState.Expanded, disclosure.ExpandCollapseState);
-                    Assert.Same(fullText, Find<TextBlock>(details, "FullCriterion"));
-                    Assert.True(fullText.ActualHeight > criterion.ActualHeight);
-                    // Expanded long text must not push the always-available actions below the title.
+                    Assert.Equal(criterion.Text, Assert.IsType<string>(criterion.ToolTip));
+                    Assert.Equal(criterion.Text, UIElementAutomationPeer.CreatePeerForElement(criterion)!.GetName());
+                    Assert.DoesNotContain(Descendants(rows).OfType<Expander>(), e => e.Name == "CriterionDetails" || Equals(e.Header, "Full criterion"));
+                    Assert.DoesNotContain(Descendants(rows).OfType<FrameworkElement>(), e => e.Name == "FullCriterion");
+                    Assert.InRange(criterion.ActualHeight, 1, 66);
+                    var shortCriterion = Descendants(rows).OfType<TextBlock>().Single(t => t.Name == "RuleCriterion" &&
+                        t.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
+                    Assert.Equal("Leave these rows unchanged", shortCriterion.Text);
+                    Assert.Equal(shortCriterion.Text, shortCriterion.ToolTip);
+                    Assert.Equal(shortCriterion.Text, UIElementAutomationPeer.CreatePeerForElement(shortCriterion)!.GetName());
+                    var emptyCriterion = Descendants(rows).OfType<TextBlock>().First(t => t.Name == "RuleCriterion" &&
+                        t.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && !r.HasStatement);
+                    Assert.Equal(Visibility.Collapsed, emptyCriterion.Visibility); Assert.Equal(0, emptyCriterion.ActualHeight);
+                    // The visible text column contains only the title, preview and typed condition.
+                    Assert.Equal(3, Assert.IsType<StackPanel>(VisualTreeHelper.GetParent(criterion)).Children.Count);
                     foreach (var button in rowButtons)
                         Assert.InRange(button.TranslatePoint(new Point(), rowGrid).Y, 0, 1);
-                    Assert.False(f.Vm.IsEditing); Render(view, theme, width, dpi, "full-criterion");
-                    disclosure.Collapse(); Flush(); Layout(); Assert.False(details.IsExpanded);
+                    Assert.False(f.Vm.IsEditing); Render(view, theme, width, dpi, "criterion-preview");
                     Assert.True(surface.Focusable); Assert.NotNull(surface.FocusVisualStyle);
                     Assert.Contains("Reorder rule", AutomationProperties.GetName(surface));
                     Assert.Contains("Alt+Up", AutomationProperties.GetHelpText(surface));
@@ -348,6 +347,16 @@ public sealed class RulesViewTests
             focusWindow.Show();
             try
             {
+                // A connected presentation source receives Application resource invalidation;
+                // detached render-only roots above do not represent live theme switching.
+                var loadedMotto = (TextBlock)focusView.FindName("RulesMotto");
+                foreach (string changedTheme in new[] { "Light", "Dark" })
+                {
+                    app.Resources = CalendarViewLayoutTests.SharedThemeResources(changedTheme);
+                    Flush(); focusWindow.UpdateLayout();
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjTextPrimaryBrush"]).Color, ((SolidColorBrush)loadedMotto.Foreground).Color);
+                    Assert.True(Contrast(((SolidColorBrush)loadedMotto.Foreground).Color, ((SolidColorBrush)focusView.Background).Color) >= 7);
+                }
                 focus.Vm.CreateCommand.Execute(null); Flush(); focusWindow.UpdateLayout();
                 focus.Vm.Fields[1].Text = "Optional text cannot replace the required Rule";
                 Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
@@ -360,10 +369,10 @@ public sealed class RulesViewTests
                 var scroll = (ScrollViewer)focusView.FindName("RulesScroller");
                 Assert.InRange(invalid.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - invalid.ActualHeight + 1);
                 focus.Fill(); Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
-                var shownDisclosure = Find<Expander>(focusView, "CriterionDetails");
-                shownDisclosure.IsExpanded = true; Flush(); focusWindow.UpdateLayout();
-                Assert.True(((TextBlock)shownDisclosure.Content).IsVisible);
-                shownDisclosure.IsExpanded = false; focusWindow.UpdateLayout();
+                var shownCriterion = Find<TextBlock>(focusView, "RuleCriterion");
+                Assert.True(shownCriterion.IsVisible);
+                Assert.Equal(shownCriterion.Text, shownCriterion.ToolTip);
+                Assert.Equal(shownCriterion.Text, UIElementAutomationPeer.CreatePeerForElement(shownCriterion)!.GetName());
                 Await(focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules))); Flush(); focusWindow.UpdateLayout();
                 var selectedRow = Descendants(focusView).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
                 Assert.InRange(selectedRow.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight);
@@ -387,6 +396,17 @@ public sealed class RulesViewTests
     }
     private static T Find<T>(DependencyObject root, string name) where T : FrameworkElement =>
         Descendants(root).OfType<T>().Single(e => e.Name == name);
+
+    private static double Contrast(Color foreground, Color background)
+    {
+        static double Luminance(Color color)
+        {
+            static double Channel(byte value) => value / 255d <= .04045 ? value / 255d / 12.92 : Math.Pow((value / 255d + .055) / 1.055, 2.4);
+            return .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
+        }
+        double a = Luminance(foreground), b = Luminance(background);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
+    }
 
     private static void Await(Task task)
     {
