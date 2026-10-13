@@ -45,15 +45,24 @@ public partial class RulesView
         var bitmap = new RenderTargetBitmap(Math.Max(1, (int)Math.Ceiling(source.ActualWidth * scale)),
             Math.Max(1, (int)Math.Ceiling(source.ActualHeight * scale)), 96 * scale, 96 * scale, PixelFormats.Pbgra32);
         var drawing = new DrawingVisual();
+        var cardBounds = new Rect(0, 0, source.ActualWidth, source.ActualHeight);
         using (var context = drawing.RenderOpen())
-            context.DrawRectangle(new VisualBrush(source) { Stretch = Stretch.Fill }, null,
-                new Rect(0, 0, source.ActualWidth, source.ActualHeight));
+            // Explicit bounds exclude shadow overflow and a collapsed disclosure's old
+            // descendant bounds. Stretching their union would squash the captured card.
+            context.DrawRectangle(new VisualBrush(source)
+            {
+                AutoLayoutContent = false, ViewboxUnits = BrushMappingMode.Absolute,
+                Viewbox = cardBounds, Stretch = Stretch.Fill
+            }, null, cardBounds);
         bitmap.Render(drawing); bitmap.Freeze();
         _liftSource = source; _originalOpacity = source.Opacity;
         Vector offset = pointer - source.TranslatePoint(new Point(), DragOverlay);
         _grabOffset = new Point(offset.X, offset.Y);
         LiftedRuleImage.Source = bitmap;
-        double fit = Math.Min(1, Math.Max(1, DragOverlay.ActualWidth - 24) / source.ActualWidth);
+        // Scale only the frozen image, never the stored card or its text layout. Respect
+        // reduced motion and clamp to the viewport; no neighbor animation or layout churn.
+        double liftScale = SystemParameters.ClientAreaAnimation ? 1.015 : 1;
+        double fit = Math.Min(liftScale, Math.Max(1, DragOverlay.ActualWidth - 16) / source.ActualWidth);
         LiftedRuleImage.Width = source.ActualWidth * fit; LiftedRuleImage.Height = source.ActualHeight * fit;
         _grabOffset = new Point(_grabOffset.X * fit, _grabOffset.Y * fit);
         MoveRowLift(pointer);

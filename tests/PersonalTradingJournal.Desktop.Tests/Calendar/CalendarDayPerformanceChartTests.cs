@@ -1,4 +1,5 @@
 using System.Windows;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -69,6 +70,14 @@ public sealed class CalendarDayPerformanceChartTests
                 Assert.True(next.Focus()); Pump();
                 Border[] targets = Targets(chart), regions = Regions(chart);
                 Line guide = Guide(chart);
+                void FocusState(string phase) => WpfStepDiagnostics.Write(
+                    $"ChartGuide {theme}/{width}/{dpi}; {phase}; active={window.IsActive}; state={window.WindowState}; " +
+                    $"keyboard={Keyboard.FocusedElement?.GetType().Name ?? "none"}; firstFocused={targets[0].IsKeyboardFocused}; " +
+                    $"chartFocus={chart.IsKeyboardFocusWithin}; guide={guide.Visibility}; " +
+                    $"dispatcherShutdown={window.Dispatcher.HasShutdownStarted}");
+                targets[0].GotKeyboardFocus += (_, _) => FocusState("first target got keyboard focus");
+                targets[0].LostKeyboardFocus += (_, _) => FocusState("first target lost keyboard focus");
+                window.Deactivated += (_, _) => FocusState("window deactivated");
                 Assert.False(chart.IsHitTestVisible);
                 Assert.False(chart.IsMouseOver || chart.IsKeyboardFocusWithin);
                 Assert.Equal(4, regions.Length);
@@ -117,7 +126,9 @@ public sealed class CalendarDayPerformanceChartTests
                 Leave(regions[2]);
                 Assert.Equal(Visibility.Collapsed, guide.Visibility);
 
-                Assert.True(targets[0].Focus()); Pump();
+                FocusState("before first target Focus");
+                bool focused = targets[0].Focus(); FocusState($"Focus returned {focused}");
+                Assert.True(focused); Pump(); FocusState("after focus pump");
                 AssertGuideAt(chart, targets[0]);
                 var keyboard = (ToolTip)targets[0].ToolTip;
                 Assert.True(keyboard.IsOpen);

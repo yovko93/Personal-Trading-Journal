@@ -21,7 +21,7 @@ public partial class RulesView
         for (var current = source; current is not null; current = DragParent(current))
         {
             if (ReferenceEquals(current, row)) return true;
-            if (current is ButtonBase or TextBoxBase or PasswordBox or Selector or ScrollBar or Thumb or Hyperlink ||
+            if (current is ButtonBase or TextBoxBase or PasswordBox or Selector or ScrollBar or Thumb or Hyperlink or Expander ||
                 current is FrameworkElement { Name: "InlineEditorHost" }) return false;
         }
         return false;
@@ -81,7 +81,7 @@ public partial class RulesView
     private void OnRuleDragOver(object sender, DragEventArgs e)
     {
         e.Handled = true; ClearDropHighlights(); e.Effects = DragDropEffects.None;
-        if (!TryDrop(e, out _) || sender is not Grid grid) { HideRowLift(); return; }
+        if (!TryDrop(e, out _) || sender is not Border { Child: Grid grid }) { HideRowLift(); return; }
         e.Effects = DragDropEffects.Move;
         MoveRowLift(e.GetPosition(DragOverlay));
         ShowDropHighlight(grid);
@@ -95,7 +95,7 @@ public partial class RulesView
     private async void OnRuleDrop(object sender, DragEventArgs e)
     {
         e.Handled = true; EndRowDrag();
-        if (!TryDrop(e, out Guid source) || sender is not Grid { DataContext: RuleRow target } grid) return;
+        if (!TryDrop(e, out Guid source) || sender is not Border { Child: Grid { DataContext: RuleRow target } grid }) return;
         await DropRuleAsync(source, target.Id, e.GetPosition(grid).Y >= grid.RowDefinitions[0].ActualHeight / 2);
     }
     internal async Task DropRuleAsync(Guid source, Guid target, bool after)

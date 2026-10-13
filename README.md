@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**Rules — compact cards (before M18.6)**
+
+Rules now use rounded, theme-aware cards with soft shadows, a six-dot grip and numbered circles. Rule text wraps; Criterion previews stop at three lines, with a keyboard-accessible **Full criterion** disclosure for the exact text. Edit/Delete remain at the top-right even with long details open. Drag from the grip, number, text or card padding; buttons, disclosures and editor controls keep their normal input. The lifted DPI-aware snapshot has a modest scale and stronger shadow, with temporary source/target markers. Stable immediate placement avoids neighbor animations; reduced-motion settings disable the extra scale. Existing guarded, atomic ordering and quiet success remain unchanged.
+
+[Verification, exact changed files and limitations](docs/trading-rules.md#compact-rule-cards--13-october-2026). Final focused **77/77**; final complete parallel Release **4,038/4,038**, zero failures/skips. Release build **0 warnings/errors**, EF consistency and whitespace checks pass. Light/Dark automated normal/narrow-240-DPI renders inspected. Calendar native passed **87/87 in 104.132 s**, leaving **15.868 s** to the unchanged deadline; the prior focus failure did not recur but is not claimed fixed. Nine modified files remain uncommitted on `develop`, HEAD `fdf68456735ee9fe5d425a0e9cdae555e20702fc`. No persistence, schema, assessment, backup/export or M18.6 changes. Live mouse/keyboard and matching CI acceptance remain separate from automated WPF checks.
+
 **Rules — lifted drag preview (before M18.6)**
 
 Draggable Rule text, numbers and row background show a hand cursor; pressing/dragging uses a closed-hand cursor. Edit/Delete and inline editor controls retain their normal input and cursors. A DPI-aware snapshot of the actual row follows the pointer with a theme-accent outline and subtle shadow; its original slot remains marked with a dashed outline and dimmed content. The noninteractive preview is confined to the Rules viewport and disappears on leaving the drop area, cancellation, drop or failure. No persistent insertion line or successful-move banner returns. Alt+Up/Down, context-menu moves, guards and atomic ordering are unchanged.

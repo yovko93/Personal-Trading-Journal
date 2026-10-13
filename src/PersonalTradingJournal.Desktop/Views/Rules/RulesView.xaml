@@ -94,39 +94,56 @@
             <ContentControl x:Name="CreateEditorHost" Content="{Binding NewRuleEditor}" Style="{StaticResource EditorHostStyle}" Margin="0,8,0,12" />
             <ItemsControl x:Name="RuleRows" ItemsSource="{Binding Rules}" Margin="0,8,0,12">
                 <ItemsControl.ItemTemplate><DataTemplate>
-                    <local:RuleReorderRow x:Name="RuleRowSurface" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,0,0,1" Padding="12,8" Background="{DynamicResource PtjSurfaceBrush}"
+                    <local:RuleReorderRow x:Name="RuleRowSurface" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="8" Margin="4,0,4,10" Padding="12" Background="{DynamicResource PtjSurfaceBrush}"
                             Focusable="True" FocusVisualStyle="{StaticResource RuleRowFocusStyle}" KeyboardNavigation.IsTabStop="True"
                             Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             PreviewMouseLeftButtonDown="OnRowDown" PreviewMouseMove="OnRowMove" PreviewMouseLeftButtonUp="OnRowUp"
+                            AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop"
                             PreviewKeyDown="OnRowKey" QueryContinueDrag="OnQueryContinueDrag" GiveFeedback="OnDragFeedback" QueryCursor="OnRowQueryCursor" Unloaded="OnRowUnloaded"
                             AutomationProperties.Name="{Binding Name, StringFormat=Reorder rule {0}}"
                             AutomationProperties.HelpText="Drag the Rule row to reorder. Alt+Up or Alt+Down moves a focused Rule; Shift+F10 opens move actions."
                             AutomationProperties.ItemStatus="{Binding PositionDescription}">
+                        <Border.Effect><DropShadowEffect Color="{DynamicResource PtjCardShadowColor}" BlurRadius="6" ShadowDepth="1" Opacity="0.10" /></Border.Effect>
                         <Border.ContextMenu><ContextMenu>
                             <MenuItem Header="Move up" Command="{Binding PlacementTarget.Tag.MoveUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                             <MenuItem Header="Move down" Command="{Binding PlacementTarget.Tag.MoveDownCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                         </ContextMenu></Border.ContextMenu>
-                        <Grid x:Name="RuleRowLayout" AllowDrop="True" DragOver="OnRuleDragOver" DragLeave="OnRuleDragLeave" Drop="OnRuleDrop">
+                        <Grid x:Name="RuleRowLayout">
                             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <Border x:Name="DropHighlight" Grid.ColumnSpan="3" Background="{DynamicResource PtjAccentBrush}" Opacity="0.10"
-                                    CornerRadius="4" Visibility="Collapsed" IsHitTestVisible="False" />
+                            <Border x:Name="DropHighlight" Grid.ColumnSpan="3" Background="{DynamicResource PtjAccentBrush}" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="1" Opacity="0.10"
+                                    CornerRadius="6" Visibility="Collapsed" IsHitTestVisible="False" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Top">
+                            <Canvas x:Name="RuleGrip" Width="10" Height="20" Margin="0,6,10,0" IsHitTestVisible="False" Focusable="False">
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="0" Canvas.Top="0" />
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="6" Canvas.Top="0" />
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="0" Canvas.Top="7" />
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="6" Canvas.Top="7" />
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="0" Canvas.Top="14" />
+                                <Ellipse Width="3" Height="3" Fill="{DynamicResource PtjTextMutedBrush}" Canvas.Left="6" Canvas.Top="14" />
+                            </Canvas>
                             <Border x:Name="RuleNumberBadge" MinWidth="32" MinHeight="32" Height="{Binding ActualWidth, RelativeSource={RelativeSource Self}}" CornerRadius="100" Padding="6,0" Margin="0,0,12,0" VerticalAlignment="Top"
                                     Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="1" Focusable="False" IsHitTestVisible="False">
                                 <TextBlock x:Name="RuleMarker" Text="{Binding DisplayNumber}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource PtjAccentBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Focusable="False" IsHitTestVisible="False" AutomationProperties.Name="{Binding PositionDescription}" />
                             </Border>
+                            </StackPanel>
                             <StackPanel Grid.Column="1" Margin="0,0,16,0">
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource Heading}" Margin="0,0,0,4" />
-                                <TextBlock x:Name="RuleCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" MaxHeight="72" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" />
+                                <TextBlock x:Name="RuleTitle" Text="{Binding Name}" Style="{StaticResource Heading}" FontSize="20" Margin="0,0,0,4" />
+                                <TextBlock x:Name="RuleCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" LineHeight="22" MaxHeight="66" TextTrimming="CharacterEllipsis" ToolTip="{Binding Statement}" AutomationProperties.Name="{Binding Statement}" Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" />
+                                <Expander x:Name="CriterionDetails" Header="Full criterion" FontSize="13" Margin="0,4,0,0" Foreground="{DynamicResource PtjTextSecondaryBrush}"
+                                          Visibility="{Binding HasStatement, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="{Binding Name, StringFormat=Read full Criterion for {0}}"
+                                          AutomationProperties.HelpText="Expand to read the complete Criterion without editing the Rule.">
+                                    <TextBlock x:Name="FullCriterion" Text="{Binding Statement}" Style="{StaticResource Body}" Margin="0,8,0,4" AutomationProperties.Name="{Binding Statement}" />
+                                </Expander>
                                 <TextBlock Text="{Binding AutomaticCondition}" Style="{StaticResource Body}" Margin="0,6,0,0"
                                            Visibility="{Binding HasAutomaticCondition, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="{Binding AutomaticCondition}" />
                             </StackPanel>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                <Button Content="Edit" Margin="0,0,8,0" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
-                                <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Margin="0" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" HorizontalAlignment="Right">
+                                <Button Content="Edit" Style="{StaticResource PtjPlaybookRefreshButtonStyle}" Padding="10,6" MinHeight="34" FontSize="14" Margin="0,0,6,0" Command="{Binding DataContext.EditRowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Edit rule {0}}" />
+                                <Button Content="Delete" Style="{StaticResource PtjDangerButtonStyle}" Padding="10,6" MinHeight="34" FontSize="14" Margin="0" Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Name, StringFormat=Delete rule {0}}" />
                             </StackPanel>
                             <ContentControl x:Name="InlineEditorHost" Grid.Row="1" Grid.ColumnSpan="3" Style="{StaticResource EditorHostStyle}" Margin="0,12,0,0">
                                 <ContentControl.Content>
@@ -150,8 +167,8 @@
     </ScrollViewer>
     <Canvas x:Name="DragOverlay" Grid.Row="1" IsHitTestVisible="False" ClipToBounds="True">
         <Border x:Name="LiftedRule" Visibility="Collapsed" BorderBrush="{DynamicResource PtjAccentBrush}"
-                BorderThickness="2" CornerRadius="4" Background="{DynamicResource PtjSurfaceBrush}" IsHitTestVisible="False">
-            <Border.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="4" Opacity="0.3" /></Border.Effect>
+                BorderThickness="2" CornerRadius="8" Background="{DynamicResource PtjSurfaceBrush}" IsHitTestVisible="False">
+            <Border.Effect><DropShadowEffect Color="{DynamicResource PtjCardShadowColor}" BlurRadius="16" ShadowDepth="5" Opacity="0.28" /></Border.Effect>
             <Image x:Name="LiftedRuleImage" Stretch="Fill" RenderOptions.BitmapScalingMode="HighQuality" IsHitTestVisible="False" />
         </Border>
     </Canvas>

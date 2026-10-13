@@ -4,6 +4,7 @@
     <Color x:Key="PtjColorSurface">#2C2236</Color>
     <Color x:Key="PtjColorSurfaceElevated">#333047</Color>
     <Color x:Key="PtjColorBorder">#51485F</Color>
+    <Color x:Key="PtjCardShadowColor">#000000</Color>
     <Color x:Key="PtjColorTextPrimary">#F2F2F7</Color>
     <Color x:Key="PtjColorTextSecondary">#C5C5D4</Color>
     <Color x:Key="PtjColorTextMuted">#A3A4B8</Color>

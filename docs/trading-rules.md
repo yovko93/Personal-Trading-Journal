@@ -1,5 +1,39 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Compact Rule cards — 13 October 2026
+
+Started on clean `develop`, HEAD `fdf68456735ee9fe5d425a0e9cdae555e20702fc`. The previous work had already been committed; it is preserved. These changes extend the existing view and drag lifecycle, not the ordering repository or ViewModel.
+
+- Cards use shared surface, border, accent and shadow-color resources in Light/Dark, an 8-DIP radius, 10-DIP separation and a soft shadow. A decorative six-dot grip is left of the numbered circle. Numbers remain list positions, never IDs, revisions or adherence claims. The Bulgarian heading stays above Create/Refresh.
+- Rule text wraps; optional Criterion has a three-line, ellipsized preview. The full exact text remains in the automation name, tooltip and keyboard/automation-accessible **Full criterion** disclosure. The expanded text uses the page scroller rather than a nested scrolling region. Edit/Delete remain visible at the card's top-right, including when a long Criterion is expanded. Inline editing remains beneath its own Rule; Create remains above the list.
+- The whole noninteractive card, including padding and grip, participates in dragging. Buttons, disclosure controls, selectable/editable text controls and the editor are excluded. Hand/grabbing cursors, Alt+Up/Down and context-menu moves, unsaved-work protection, quiet success and persisted-order rollback are retained.
+- The frozen DPI-aware lifted bitmap gets at most 1.5% extra scale and a stronger shadow, without transforming/reflowing the source card. Windows reduced-motion settings disable that extra scale. Neighbor placement remains immediate: no input-sensitive reflow animation was introduced. The source slot is faint/dashed; the target has a temporary faint tint/outline, not a persistent green line. Leave, cancellation, drop and failure use the existing cleanup path.
+- Render inspection demonstrated that WPF's automatic VisualBrush bounds could include stale expanded-content/shadow bounds after collapsing Criterion, vertically compressing the lifted row. Capture now uses the card's explicit local bounds. A DPI-aware bitmap test checks the numbered-circle pixel position and a non-first-row capture. No screenshot/source file is stored or sent anywhere.
+
+### Verification and limits
+
+Initial final focused checks passed **31 Desktop + 46 Infrastructure** tests. Existing SQLite ordering tests cover migration, restart, unchanged revisions, concurrent moves, stale catalog versions, transaction rollback and cancellation; no competing ordering implementation or redundant database tests were added. Compiled WPF covers card/resources, grip/text/background hit filters, interactive exclusions, full-text disclosure through UI Automation and an attached window, shadow/scale, bitmap bounds, placeholder cleanup, keyboard moves, failure feedback and inline guards. Render-only roots have no PresentationSource, so their disclosure tests assert actual layout and automation state; attached-window tests also assert visibility.
+
+The first complete parallel Release run passed **4,038/4,038**, zero failures/skips: **490 Domain, 753 Application, 1,249 Infrastructure, 1,546 Desktop**, `artifacts/m145-load/rules-cards-full`. Calendar native passed **87/87 in 89.432 seconds**, leaving **30.568 seconds** to the unchanged 120-second aggregate deadline. The previous chart-focus failure did not recur: bounded test-only breadcrumbs show `Focus()` returned true, window active, first target keyboard-focused and guide Visible after the dispatcher pump in all four theme/size cases. This is not proof that the prior intermittent failure is fixed. No Calendar production behavior, assertion, deadline, concurrency, retry or skip changed.
+
+Final focused verification after the render-driven top-right action correction: **77/77 passed** (31 Desktop, 46 Infrastructure), `artifacts/m145-load/rules-cards-final-focused`, latest TRX files at 15:59:57/16:00:02 local time (earlier development TRX files in that folder are not part of this final result). Release build: **0 warnings/errors**. EF: **no pending model changes**, using the isolated design-time context. Whitespace check passes.
+
+**Final complete parallel Release: 4,038/4,038 passed, zero failures/skips**, `artifacts/m145-load/rules-cards-final-parallel`: 490 Domain, 753 Application, 1,249 Infrastructure, 1,546 Desktop. Calendar native passed **87/87 in 104.132 seconds**, leaving **15.868 seconds** to its unchanged deadline. All four chart-focus cases again recorded an active window, focused first target and Visible guide after the pump. No Calendar/Journal timeout or focus assertion failed in either full run this turn. Prior intermittent native timing/focus risk remains unproven, not fixed by this presentation work. The only Calendar change adds bounded content-free diagnostics; there are no retries, skips, assertion changes or relaxed deadlines. Final branch/HEAD remain the baseline above; **nine modified files, none new**, with no Git writes.
+
+Automated Light/Dark renders in `artifacts/rules-cards-renders-final-actions` cover **960 DIP / 96 DPI** and **480 DIP / 240 DPI**, expanded/collapsed Criterion, lifted/target states, double-digit markers, create/edit, validation and move errors. Catalog, expanded Criterion, lifted and target-highlight examples were visually inspected across both themes and sizes. Physical dragging, edge scrolling, screen-reader behavior and native focus remain live checks; renders and routed/automation tests are not manual interaction. No production data, AI providers or Git writes. Uncommitted changes cannot have matching GitHub Actions acceptance. M18.6 is not started.
+
+Exact changed files (all modified, none new):
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.DragVisuals.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayPerformanceChartTests.cs` (bounded diagnostics only)
+
 ## Lifted Rule drag preview — 13 October 2026
 
 Started on clean `develop`, HEAD `4125a979385838bc501bbca1bc99adc521ec1a8a`; the previous quiet-reorder work was committed and preserved. This is a presentation-only change.

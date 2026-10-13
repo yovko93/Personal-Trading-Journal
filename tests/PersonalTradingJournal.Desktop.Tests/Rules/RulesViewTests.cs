@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -50,7 +51,7 @@ public sealed class RulesViewTests
                         f.Data.Rows[i] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, old.Revision, old.Definition, old.IsActive, old.RecordedAtUtc);
                     }
                     f.Data.Rows[^1] = PersonalTradingJournal.Domain.Rules.TradingRuleRevision.Rehydrate(id, 12,
-                        new("A longer synthetic rule name to check wrapping", "A short statement that remains readable beside the right-aligned actions.", "Retained evidence",
+                        new("A longer synthetic rule name to check wrapping", string.Join(" ", Enumerable.Repeat("A synthetic Criterion remains readable and retains its complete optional text.", 12)), "Retained evidence",
                             new(PersonalTradingJournal.Domain.Rules.RuleProfitBasis.StrictNet, 123.456m, "EUR", capability: PersonalTradingJournal.Domain.Rules.RuleCheckCapability.ClosedDayLoss)),
                         true, DateTimeOffset.UtcNow.AddDays(-1));
                     var secondId = Guid.Parse("00000000-0000-0000-0000-000000000002");
@@ -104,6 +105,40 @@ public sealed class RulesViewTests
                     Assert.True(motto.TranslatePoint(new Point(0, motto.ActualHeight), view).Y <= ((Button)view.FindName("CreateRule")).TranslatePoint(new Point(), view).Y);
                     Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)motto.Foreground).Color);
                     var surface = (Border)VisualTreeHelper.GetParent(rowGrid);
+                    Assert.Equal(new CornerRadius(8), surface.CornerRadius); Assert.Equal(new Thickness(1), surface.BorderThickness);
+                    Assert.True(surface.AllowDrop); // Includes the card's padding, not just its inner content grid.
+                    Assert.Equal(10, surface.Margin.Bottom);
+                    Assert.Equal(((SolidColorBrush)app.Resources["PtjSurfaceBrush"]).Color, ((SolidColorBrush)surface.Background).Color);
+                    var cardShadow = Assert.IsType<System.Windows.Media.Effects.DropShadowEffect>(surface.Effect);
+                    Assert.Equal((Color)app.Resources["PtjCardShadowColor"], cardShadow.Color);
+                    Assert.InRange(cardShadow.Opacity, .05, .12); Assert.InRange(cardShadow.BlurRadius, 4, 8);
+                    var grip = Find<Canvas>(rowGrid, "RuleGrip");
+                    Assert.Equal(6, grip.Children.OfType<System.Windows.Shapes.Ellipse>().Count());
+                    Assert.False(grip.IsHitTestVisible); Assert.False(grip.Focusable);
+                    Assert.True(grip.TranslatePoint(new Point(grip.ActualWidth, 0), rowGrid).X < marker.TranslatePoint(new Point(), rowGrid).X);
+                    var criterion = Find<TextBlock>(rowGrid, "RuleCriterion");
+                    Assert.Equal(TextTrimming.CharacterEllipsis, criterion.TextTrimming); Assert.Equal(66, criterion.MaxHeight);
+                    Assert.Equal(criterion.Text, AutomationProperties.GetName(criterion));
+                    Assert.True(criterion.Text.Length > 500);
+                    var details = Find<Expander>(rowGrid, "CriterionDetails");
+                    Assert.False(details.IsExpanded); Assert.Contains("Read full Criterion", AutomationProperties.GetName(details));
+                    Assert.False(RulesView.CanStartRowDrag(details, surface)); Assert.Null(view.RowCursor(details, surface));
+                    var fullText = Assert.IsType<TextBlock>(details.Content); // Collapsed Expander content is not yet in its visual tree.
+                    Assert.Equal(criterion.Text, fullText.Text); Assert.Equal(criterion.Text, AutomationProperties.GetName(fullText));
+                    var disclosure = Assert.IsAssignableFrom<IExpandCollapseProvider>(UIElementAutomationPeer.CreatePeerForElement(details)!.GetPattern(PatternInterface.ExpandCollapse));
+                    disclosure.Expand(); Flush(); Layout();
+                    Assert.True(details.IsExpanded, "Automation must expand the Criterion disclosure.");
+                    // This render-only root has no PresentationSource: IsVisible is false for
+                    // every element. Assert layout/pattern here and real window visibility below.
+                    Assert.Equal(Visibility.Visible, fullText.Visibility);
+                    Assert.Equal(ExpandCollapseState.Expanded, disclosure.ExpandCollapseState);
+                    Assert.Same(fullText, Find<TextBlock>(details, "FullCriterion"));
+                    Assert.True(fullText.ActualHeight > criterion.ActualHeight);
+                    // Expanded long text must not push the always-available actions below the title.
+                    foreach (var button in rowButtons)
+                        Assert.InRange(button.TranslatePoint(new Point(), rowGrid).Y, 0, 1);
+                    Assert.False(f.Vm.IsEditing); Render(view, theme, width, dpi, "full-criterion");
+                    disclosure.Collapse(); Flush(); Layout(); Assert.False(details.IsExpanded);
                     Assert.True(surface.Focusable); Assert.NotNull(surface.FocusVisualStyle);
                     Assert.Contains("Reorder rule", AutomationProperties.GetName(surface));
                     Assert.Contains("Alt+Up", AutomationProperties.GetHelpText(surface));
@@ -117,7 +152,7 @@ public sealed class RulesViewTests
                     Assert.DoesNotContain(Descendants(rowGrid).OfType<TextBlock>(), t => t.Text == "↕");
                     Assert.DoesNotContain(Descendants(rowGrid).OfType<FrameworkElement>(), e => e.Name is "RuleDragHandle" or "InsertionIndicator");
                     // Background, number and both text areas share the real drag-source hit filter.
-                    foreach (var hit in new DependencyObject[] { surface, rowGrid, marker, condition, Find<TextBlock>(rowGrid, "RuleCriterion") })
+                    foreach (var hit in new DependencyObject[] { surface, rowGrid, grip, grip.Children[0], marker, condition, Find<TextBlock>(rowGrid, "RuleCriterion") })
                         Assert.True(RulesView.CanStartRowDrag(hit, surface));
                     foreach (var button in rowButtons)
                     {
@@ -145,9 +180,21 @@ public sealed class RulesViewTests
                     Assert.InRange(snapshot.DpiX, dpi, dpi + 0.01);
                     Assert.True(snapshot.IsFrozen); Assert.InRange(snapshot.PixelWidth * (long)snapshot.PixelHeight, 1, 8_100_000);
                     Assert.Equal(surface.ActualWidth, snapshot.Width, 0); Assert.Equal(surface.ActualHeight, snapshot.Height, 0);
+                    var markerBadge = (Border)VisualTreeHelper.GetParent(marker);
+                    Point badgePixel = markerBadge.TranslatePoint(new Point(5, markerBadge.ActualHeight / 2), surface);
+                    var capturedBadge = new byte[4];
+                    snapshot.CopyPixels(new Int32Rect((int)(badgePixel.X * snapshot.DpiX / 96), (int)(badgePixel.Y * snapshot.DpiY / 96), 1, 1), capturedBadge, 4, 0);
+                    var badgeColor = ((SolidColorBrush)markerBadge.Background).Color;
+                    Assert.Equal(255, capturedBadge[3]);
+                    byte[] expectedBadge = [badgeColor.B, badgeColor.G, badgeColor.R];
+                    for (int channel = 0; channel < 3; channel++)
+                        Assert.InRange(Math.Abs(expectedBadge[channel] - capturedBadge[channel]), 0, 2); // Raster/effect rounding only; a displaced badge samples the distinctly different card background.
                     Assert.Equal(Visibility.Visible, lift.Visibility); Assert.Equal(Visibility.Visible, origin.Visibility);
                     Assert.Equal(0.55, surface.Opacity); Assert.False(overlay.IsHitTestVisible); Assert.True(overlay.ClipToBounds);
-                    Assert.IsType<System.Windows.Media.Effects.DropShadowEffect>(lift.Effect);
+                    var liftShadow = Assert.IsType<System.Windows.Media.Effects.DropShadowEffect>(lift.Effect);
+                    Assert.True(liftShadow.Opacity > cardShadow.Opacity); Assert.True(liftShadow.ShadowDepth > cardShadow.ShadowDepth);
+                    Assert.InRange(liftImage.Width / surface.ActualWidth, 0.9, SystemParameters.ClientAreaAnimation ? 1.0151 : 1.0001);
+                    Assert.Equal(Transform.Identity, surface.LayoutTransform); Assert.Equal(Transform.Identity, surface.RenderTransform);
                     Assert.Equal(new Thickness(2), lift.BorderThickness);
                     double firstY = Canvas.GetTop(lift);
                     view.MoveRowLift(new Point(start.X, start.Y + 24)); Layout();
@@ -167,8 +214,9 @@ public sealed class RulesViewTests
                         b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
                     Assert.True(view.BeginRowLift(nextSurface, start));
                     var nextSnapshot = Assert.IsType<RenderTargetBitmap>(liftImage.Source);
-                    var cornerPixel = new byte[4]; nextSnapshot.CopyPixels(new Int32Rect(1, 1, 1, 1), cornerPixel, 4, 0);
-                    Assert.Equal(255, cornerPixel[3]); // Entire opaque row, not an offset blank visual.
+                    var interiorPixel = new byte[4]; int inset = (int)(12 * nextSnapshot.DpiX / 96);
+                    nextSnapshot.CopyPixels(new Int32Rect(inset, inset, 1, 1), interiorPixel, 4, 0);
+                    Assert.Equal(255, interiorPixel[3]); // Opaque card interior, not rounded corner/shadow or an offset blank visual.
                     view.EndRowDrag();
                     RulesView.ShowDropHighlight(rowGrid); Layout();
                     var highlight = Find<Border>(rowGrid, "DropHighlight");
@@ -309,6 +357,10 @@ public sealed class RulesViewTests
                 var scroll = (ScrollViewer)focusView.FindName("RulesScroller");
                 Assert.InRange(invalid.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight - invalid.ActualHeight + 1);
                 focus.Fill(); Await(focus.Vm.SaveCommand.ExecuteAsync(null)); Flush(); focusWindow.UpdateLayout();
+                var shownDisclosure = Find<Expander>(focusView, "CriterionDetails");
+                shownDisclosure.IsExpanded = true; Flush(); focusWindow.UpdateLayout();
+                Assert.True(((TextBlock)shownDisclosure.Content).IsVisible);
+                shownDisclosure.IsExpanded = false; focusWindow.UpdateLayout();
                 Await(focus.Vm.EditRowCommand.ExecuteAsync(Assert.Single(focus.Vm.Rules))); Flush(); focusWindow.UpdateLayout();
                 var selectedRow = Descendants(focusView).OfType<Grid>().Single(g => g.Name == "RuleRowLayout");
                 Assert.InRange(selectedRow.TranslatePoint(new Point(), scroll).Y, 0, scroll.ViewportHeight);
