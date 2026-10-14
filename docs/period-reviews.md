@@ -1,4 +1,4 @@
-# Weekly and Monthly Review — M19.1
+# Weekly and Monthly Review — M19.1–M19.3
 
 ## Scope and boundary
 
@@ -150,4 +150,74 @@ Exact files:
 - `src/PersonalTradingJournal.Application/DailyReview/DailyReviewStatisticsCalculator.cs` — internal reusable range calculation; existing formulas/public Daily behavior preserved.
 - `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodReviewStatisticsCalculatorTests.cs`.
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewStatisticsIntegrationTests.cs`.
+- `README.md` and `docs/period-reviews.md`.
+
+## M19.3 — Rules coverage and recorded mistake patterns
+
+`PeriodReviewPatternsCalculator.Calculate` consumes the **complete M19.1 snapshot**, returning `PeriodPatternsResult` (`Ready` or `LimitExceeded`, with no partial patterns on excess). `PeriodReviewPatterns.ContractVersion` is `period-patterns.v1`. It is pure Application code: no database queries, writes, automatic checks, provider requests, UI or saved review. The result retains the original evidence object; Journal fields/revisions, frozen Playbook context, currencies and nullable economics are unchanged. No migration or existing evidence-contract change is needed.
+
+### Rule identity, corrections and outcomes
+
+A coverage target is the tuple **Rule ID + exact revision + target kind + exact target identity + Account scope**. Trade targets retain their Trade and Account IDs. Day targets retain their explicit New York date and exact Account or explicit All-accounts scope. For each tuple, the assessment with the **highest durable sequence** is effective, not the latest timestamp and not preferentially the manual or automatic record. Equal recording times are valid. The entire ascending-sequence history retains IDs, supersedes links, original explanation, Rule text/revision, UTC time, source references, source states and automatic evaluator/calculation metadata. A correction on a newer Rule revision does not rewrite the old revision's recorded result.
+
+| Summary outcome | Meaning |
+| --- | --- |
+| Compliant | Latest assessment recorded **No violation**. An assessment result, not a fresh certification of the Trade or period. |
+| Confirmed violation | Latest assessment recorded a violation, retaining whether evidence-backed or explicitly user-entered. |
+| Cannot evaluate | Latest recorded assessment had missing/ambiguous evidence; not a pass or a violation. |
+| Not assessed | No assessment for that exact revision/target. Never stored, inferred as compliance, or confused with Cannot evaluate. |
+
+`LatestManual` and `LatestAutomatic` count effective results by recorded origin; older corrections remain in each target's history. Current source availability is independent of recorded outcome: `UnavailableTargets`, `ChangedTargets` and `TargetsWithChangedOrUnavailableEvidence` expose limitations without rewriting old results. An old pass whose source was deleted remains an old recorded pass with an unavailable source, not proof about a replacement record. No wording or Setup/Playbook association is interpreted as adherence.
+
+### Populations and denominators
+
+No combined adherence percentage is provided. Every `PeriodRuleSummary` is one Rule revision, one Trade/day target kind, one Account scope and one explicitly labeled denominator:
+
+- **CurrentAssessmentOpportunities:** for each active current global Rule, one target per selected Trade (both closure-attributed Trades and separate open/partial activity), grouped by that Trade's exact Account; and one target per calendar date in the requested week/month at the **request's exact scope**. Zero-Trade dates remain possible manual review targets. These are current-catalog assessment opportunities, **not required checks, automatic eligibility, available-evidence guarantees, or historical as-of obligations**. A Rule created/revised after the period is not claimed to have existed during it. Current Rules are manually assessable against either kind of target under the existing assessment contract.
+- **RecordedTargetsOnly:** retained old revisions, legacy Rules, absent-current Rules, targets outside the current selected Trade population (including deleted Trades), and exact-account day records returned within an All-accounts query. Only distinct recorded targets are counted; no missing assessments are invented for these cohorts. This denominator is not comparable to complete coverage of all possible Account/day combinations.
+
+For each group, `TargetCount = Compliant + ConfirmedViolation + CannotEvaluate + NotAssessed`, and `Assessed = TargetCount - NotAssessed`. Corrections count once, not once per history row. A day assessment counts once regardless of its number of Trades. An All-accounts day and a P 21 day are different targets; their results are **not merged or multiplied**. Aggregate queries include each Trade once under its original Account. Exact queries exclude other Account and All-accounts day records.
+
+Manual-only Rules have no automatic capability. `HasAutomaticCapability` only indicates that the **current global** Rule has a typed check matching this Trade/day kind; it does not run the check or assert that costs, currency, lifecycle or other required evidence are sufficient. Unrun checks remain Not assessed. Already-recorded automatic Cannot evaluate results retain their original coverage/evaluator facts. There is no implicit Net calculation or FX conversion.
+
+Version states are `CurrentGlobal`, `SupersededGlobal` (same Rule has a different active current revision), `NotInActiveGlobalCatalog`, and `LegacyScoped`. M19.1 only supplies the active current catalog, so an absent historical Rule cannot reliably be distinguished as archived versus deleted; the result explicitly uses **Not in active global catalog**, not an invented deletion reason. Legacy scoped definitions retain their original applicability/Account text and receive recorded-only coverage, never promotion into a new global population. Archived/deleted/old Rules without any retained period assessment do not produce current opportunities.
+
+Trade assessment date attribution is inherited unchanged from M19.1 (frozen source date where unambiguous, documented live fallback otherwise). `UnattributedTradeAssessments` are retained separately and excluded from every period outcome count; they may belong outside this period and are not guessed from their recording timestamp.
+
+### Recorded mistake observations
+
+Mistakes group by **mistake ID**, never by display name. Frequency means distinct selected Trades with that recorded mistake; multiple executions do not increase it. Each observation keeps its assignment ID/audit times, Trade ID, Account reference and closed/activity inclusion. Each Account subgroup exposes sorted closed-Trade and open/partial/unavailable-lifecycle activity Trade IDs. Overall frequency is the sum of these disjoint populations, with `ClosedFrequency` and `ActivityFrequency` available separately. Counts contain no monetary aggregation and do not erase currency boundaries in the retained evidence.
+
+Inactive and unavailable mistake/Account labels remain explicit. Same-name replacement identities stay separate. No recorded mistake is **not** a verified mistake-free Trade; observed frequency is **not** a cause of losses, a Rule assessment or a mistake rate over executions. Deleted Trades have no invented current mistake assignments. No correlation, profitability claim or loss attribution is calculated.
+
+### Bounds, determinism and verification
+
+The reader's existing bounds remain. The calculator independently rejects excess source rows (10,000 Trades, Rules or assignments; 5,000 attributed plus unattributed assessments) and caps expanded Rule/revision/target rows at **100,000**, configurable downward for tests. Checked preallocation counting rejects excessive current Cartesian populations before expansion; retained historical additions obey the same cap. Cancellation throws without publishing a partial result. Malformed duplicate IDs/sequences, inconsistent mistake metadata, wrong scope or out-of-range day assessments throw rather than silently deduplicate potentially contradictory evidence. Valid summaries sort by Rule ID/revision, target kind, scope, denominator and date/Trade ID; mistakes sort by identity, Account and Trade ID, independent of input order or culture.
+
+Regression coverage includes latest-sequence corrections at equal timestamps; mixed manual/calculated origin; newer Rule revisions; explicit Cannot evaluate; empty/DST/leap-month calendar denominators; exact/aggregate day separation; old/legacy/archived Rules; deleted/replaced sources; inactive/unavailable mistakes; closed versus partial activity; same-name identities; stable ordering; bounded expansion; cancellation and unchanged input. Synthetic SQLite cases exercise real automatic checks followed by manual correction, deduplicated reruns, scope filters, deletion retention, fresh service-provider/restart reads, legacy-schema migration reads and concurrent assessment/mistake appends during one read snapshot. Calculation adds **zero reads/writes** to the observed reader operations.
+
+Focused period tests passed **74/74** (Application **52**, Infrastructure **22**), including **19 new M19.3 cases** (14 Application, 5 SQLite). The first SQLite restart test exposed an incorrect test-setup assumption that `IApplicationPaths` was registered by `AddPersistence`; the fixture now recreates services using the verified synthetic connection path. This was a test setup correction, not a production persistence defect. Final focused results are in `artifacts/m193-focused/application-final.trx` and `infrastructure-final.trx`.
+
+Release build passed with **0 warnings/errors**; EF reports no pending model changes, and whitespace checks include all new files. The final complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m193-release` gate finished **4,121 passed, 1 failed, 0 skipped (4,122 total)**:
+
+| Project | Passed / total | Result |
+| --- | --- | --- |
+| Domain | 490 / 490 | Passed |
+| Application | 798 / 798 | Passed |
+| Infrastructure | 1,273 / 1,273 | Passed |
+| Desktop (88 exclusive + 1,473 parallel) | 1,560 / 1,561 | One cleanup failure |
+
+The failure is the existing `JournalFormAccountTests.RevisionConflictAfterTargetCollisionCannotBeClearedByChangingTheFormAccount`: `System.IO.IOException` deleting the fixture's temporary `journal.db` because it remained in use (`JournalSqliteTests.JournalTestDatabase.DisposeAsync`, line 308). The trace is teardown after the test body (line 159), not a failed period-pattern or Journal conflict assertion. The handle owner/root cause is **not proven**; no speculative Desktop change, retry, skip or deadline adjustment was made. **M19.3 implementation/focused verification is complete; full-suite acceptance remains open.**
+
+Calendar native exited successfully in **102.386 seconds**, leaving **17.614 seconds** to its unchanged 120-second deadline. The isolated Journal editor test passed in **15.341 seconds** (child process 21.203 seconds); neither Calendar nor Journal hit a deadline. These single-run timings do not eliminate previously documented variability. Full evidence: `artifacts/m193-release/release-20261014-190334-cca614043847403ab204e8fb650e9579/summary.json`, top-level TRX files and child supervision logs.
+
+Branch **develop**, HEAD **`7e29aa802a3e63045d89c164d5923dee2a943272`**; initial worktree clean, final state two modified documentation files and five new source/test files. No production journal/provider access or Git writes. Local automated evidence is separate from live interaction and matching GitHub CI; no UI was added or manually accepted, and uncommitted M19.3 changes cannot have a matching CI run.
+
+Exact M19.3 files:
+
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewPatterns.cs` — result, denominator and provenance contracts.
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewPatternsCalculator.cs` — pure bounded calculation.
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodReviewPatternsCalculatorTests.cs`.
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewPatternsIntegrationTests.cs`.
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/PeriodLegacyRulePatternsTests.cs`.
 - `README.md` and `docs/period-reviews.md`.
