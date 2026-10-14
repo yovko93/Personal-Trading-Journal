@@ -74,9 +74,9 @@ public sealed class AccountBulkDeletionTests
         Assert.Equal(1, store.Deletes);
     }
 
-    internal static AccountsViewModel Create(Store store, IDialogService dialogs, FakeTradeScreenshotFileStorage files)
+    internal static AccountsViewModel Create(Store store, IDialogService dialogs, FakeTradeScreenshotFileStorage files, FakeTradingAccountReader? reader = null)
     {
-        var reader = new FakeTradingAccountReader();
+        reader ??= new FakeTradingAccountReader();
         var account = new AccountListItem(store.Account, "Synthetic exact Account", TradingAccountType.Personal, null, null, "USD", 0m, true);
         reader.EnqueueResult([account]); reader.EnqueueResult([account]);
         var accounts = new FakeTradingAccountStore();

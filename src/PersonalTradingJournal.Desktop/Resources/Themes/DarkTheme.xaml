@@ -4,6 +4,7 @@
     <Color x:Key="PtjColorSurface">#2C2236</Color>
     <Color x:Key="PtjColorSurfaceElevated">#333047</Color>
     <Color x:Key="PtjColorBorder">#51485F</Color>
+    <Color x:Key="PtjCardShadowColor">#000000</Color>
     <Color x:Key="PtjColorTextPrimary">#F2F2F7</Color>
     <Color x:Key="PtjColorTextSecondary">#C5C5D4</Color>
     <Color x:Key="PtjColorTextMuted">#A3A4B8</Color>
@@ -29,6 +30,8 @@
     <SolidColorBrush x:Key="PtjCalendarTodayBrush" Color="#0077B5" />
     <SolidColorBrush x:Key="PtjOnCalendarTodayBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjOnAccentBrush" Color="#173E3A" />
+    <SolidColorBrush x:Key="PtjInformationBrush" Color="#A4D0F4" />
+    <SolidColorBrush x:Key="PtjInformationSurfaceBrush" Color="#28394E" />
     <SolidColorBrush x:Key="PtjSuccessBrush" Color="{StaticResource PtjColorSuccess}" />
     <SolidColorBrush x:Key="PtjDangerBrush" Color="{StaticResource PtjColorDanger}" />
     <SolidColorBrush x:Key="PtjWarningBrush" Color="{StaticResource PtjColorWarning}" />

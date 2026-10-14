@@ -67,6 +67,7 @@
                 Background="{DynamicResource PtjSurfaceBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1">
             <StackPanel>
                 <TextBlock Text="Day Performance" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+                <Button Content="Assess day Rules…" Command="{Binding AssessDayRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for selected New York date and explicit Account scope" />
                 <TextBlock Text="{Binding SelectedDateLabel}" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap"
                            Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Text="{Binding DayTradeCountText}" Margin="0,4,0,0" Foreground="{DynamicResource PtjTextSecondaryBrush}" />

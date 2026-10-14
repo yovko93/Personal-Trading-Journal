@@ -292,7 +292,8 @@ public sealed partial class TradesViewModel : ObservableObject
         IDialogService? dialogService = null,
         ITradePlaybookAssociationStore? playbookAssociations = null,
         ITradePlaybookContextStore? playbookContexts = null,
-        IPlaybookExampleImages? playbookImages = null)
+        IPlaybookExampleImages? playbookImages = null,
+        IRuleAssessmentDialog? ruleAssessments = null)
     {
         ArgumentNullException.ThrowIfNull(referenceDataReader);
         ArgumentNullException.ThrowIfNull(tradingSetupReader);
@@ -337,6 +338,11 @@ public sealed partial class TradesViewModel : ObservableObject
         _playbookAssociations = playbookAssociations;
         _playbookContexts = playbookContexts;
         _playbookImages = playbookImages;
+        AssessRulesCommand = new RelayCommand(() =>
+        {
+            if (SelectedTradeDetail is { } detail && !IsSaving && !IsTradingSetupSaving)
+                ruleAssessments?.ShowTarget(PersonalTradingJournal.Domain.Rules.TradingRuleAssessmentTarget.ForTrade(detail.Id, detail.TradingAccountId));
+        }, () => ruleAssessments is not null);
         LoadPlaybookHistoryCommand = new AsyncRelayCommand(LoadPlaybookHistoryAsync);
         RefreshAssociationPreviewCommand = new AsyncRelayCommand(PrepareAssociationAsync);
         LoadOlderAssociationsCommand = new AsyncRelayCommand(token => HasOlderAssociations ? LoadAssociationPageAsync(_associationCursor, token) : Task.CompletedTask);
@@ -1884,6 +1890,7 @@ public sealed partial class TradesViewModel : ObservableObject
 
     public IAsyncRelayCommand<TradeListItem> ShowTradeEditCommand { get; }
 
+    public IRelayCommand AssessRulesCommand { get; }
     public IAsyncRelayCommand ShowSelectedTradeEditCommand { get; }
 
     public IRelayCommand CancelTradeEditCommand { get; }

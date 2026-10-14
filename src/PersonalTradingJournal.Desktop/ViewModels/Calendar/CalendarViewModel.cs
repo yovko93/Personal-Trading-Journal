@@ -120,9 +120,17 @@ public sealed partial class CalendarViewModel : ObservableObject
         IDailyJournalStatusReader? journalStatusReader = null,
         IDailyJournalRepository? journalRepository = null,
         PersonalTradingJournal.Desktop.Dialogs.IDialogService? journalDialogs = null,
-        IDailyJournalDayReader? journalDayReader = null)
+        IDailyJournalDayReader? journalDayReader = null,
+        PersonalTradingJournal.Desktop.Dialogs.IRuleAssessmentDialog? ruleAssessments = null)
     {
         _reader = reader;
+        AssessDayRulesCommand = new RelayCommand(() =>
+        {
+            if (SelectedDate is DateOnly date)
+                ruleAssessments?.ShowTarget(PersonalTradingJournal.Domain.Rules.TradingRuleAssessmentTarget.ForNewYorkDay(date,
+                    SelectedAccount.Id is Guid id ? PersonalTradingJournal.Domain.Rules.TradingRuleAccountScope.ForAccount(id)
+                        : PersonalTradingJournal.Domain.Rules.TradingRuleAccountScope.AllAccounts));
+        }, () => ruleAssessments is not null);
         _dayReader = dayReader;
         _accountReader = accountReader;
         _timeProvider = timeProvider;
@@ -220,6 +228,7 @@ public sealed partial class CalendarViewModel : ObservableObject
     public IRelayCommand CancelDayCommand { get; }
     public IAsyncRelayCommand<TradeListItem> ViewTradeCommand { get; }
     public Task DayLoadTask { get; private set; } = Task.CompletedTask;
+    public IRelayCommand AssessDayRulesCommand { get; }
     public DateOnly? SelectedDate => _selectedDate;
     public bool HasSelectedDate => SelectedDate.HasValue;
     public string SelectedDateLabel => SelectedDate?.ToString("dddd, MMMM d, yyyy", CultureInfo.CurrentCulture) ?? "";

@@ -142,11 +142,12 @@ public sealed partial class CalendarViewModel
 
     public bool TryCloseInlineJournal()
     {
-        if (_deletingDayJournal) return false;
-        if (InlineJournal is { } journal && !journal.TryLeave()) return false;
+        if (!CanCloseInlineJournal()) return false;
         ReleaseInlineJournal();
         return true;
     }
+
+    private bool CanCloseInlineJournal() => !_deletingDayJournal && (InlineJournal?.TryLeave() ?? true);
 
     private void ReleaseInlineJournal()
     {

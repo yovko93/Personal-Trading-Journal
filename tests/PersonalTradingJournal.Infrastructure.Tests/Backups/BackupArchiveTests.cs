@@ -386,7 +386,15 @@ public sealed class BackupArchiveTests
         internal static async Task<Fixture> Create()
         {
             var f = new Fixture();
-            try { await f.Services.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync(); return f; }
+            using var timing = SyntheticFixtureTiming.Start("backup initializer");
+            try
+            {
+                await MigratedBackupTestDatabase.CreateAsync(f.Paths.DatabasePath);
+                // Keep the actual startup path: it checks migrations and runs
+                // reconciliation against this fixture's own database.
+                await f.Services.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
+                return f;
+            }
             catch { await f.DisposeAsync(); throw; }
         }
         internal JournalDbContext Context() => Services.GetRequiredService<IDbContextFactory<JournalDbContext>>().CreateDbContext();

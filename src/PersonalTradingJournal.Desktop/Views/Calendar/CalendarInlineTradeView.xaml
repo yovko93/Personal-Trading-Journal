@@ -10,6 +10,7 @@
     </UserControl.Resources>
     <StackPanel>
         <TextBlock Text="Trade Details" Style="{DynamicResource PtjSectionTitleTextStyle}" />
+        <Button Content="Assess Trading Rules…" Command="{Binding AssessRulesCommand}" HorizontalAlignment="Left" Margin="0,8" Style="{DynamicResource PtjSecondaryButtonStyle}" AutomationProperties.Name="Manual assessments and deterministic checks for this exact Trade and Account" />
         <TextBlock Text="Loading Trade details…" Visibility="{Binding IsTradeDetailLoading, Converter={StaticResource BoolVisibility}}"
                    Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.LiveSetting="Polite" />
         <TextBlock Text="Trade no longer available." Visibility="{Binding IsTradeDetailNotFound, Converter={StaticResource BoolVisibility}}"

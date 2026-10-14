@@ -18,6 +18,8 @@ using PersonalTradingJournal.Domain.Journals;
 
 namespace PersonalTradingJournal.Desktop.Tests.Journals;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class JournalViewTests
 {
     // Owned only by this test's STA and released before that dispatcher shuts down.

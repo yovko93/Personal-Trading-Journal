@@ -1,0 +1,102 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Rules.RuleAssessmentView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation" FontSize="16" Background="{DynamicResource PtjBackgroundBrush}">
+ <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="VisibleIf" />
+  <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}"/>
+  <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="FontSize" Value="16"/><Setter Property="LineHeight" Value="23"/><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,4"/></Style>
+  <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Margin" Value="0,4,8,4"/></Style>
+  <Style x:Key="ExplanationStyle" TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
+   <Style.Triggers><Trigger Property="validation:FormValidation.IsInvalid" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}"/><Setter Property="BorderThickness" Value="2"/></Trigger></Style.Triggers>
+  </Style>
+ </UserControl.Resources>
+ <Grid Margin="12">
+  <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" PreviewMouseWheel="OnWheel" AutomationProperties.Name="Manual and calculated Rule assessment content">
+   <StackPanel Margin="0,0,12,0">
+    <TextBlock Text="Rule assessments" Style="{DynamicResource PtjSectionTitleTextStyle}" AutomationProperties.HeadingLevel="Level1"/>
+    <TextBlock x:Name="TargetLabel" Text="{Binding TargetLabel}" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+    <TextBlock Text="Manual user assessments are not calculated facts. Assess saved records only; unfinished Trade or Journal edits are not included." Style="{StaticResource Body}"/>
+    <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="Assessment operation status"/>
+    <WrapPanel>
+     <Button x:Name="RunChecks" Content="Run checks" Command="{Binding RunChecksCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Run deterministic checks for this exact target" AutomationProperties.HelpText="Evaluates all applicable typed criteria against saved data. Never executes free-text rules or modifies manual assessments."/>
+     <Button Content="Refresh" Command="{Binding RefreshCommand}" AutomationProperties.Name="Refresh assessments with unsaved change protection"/>
+     <Button Content="Rule assessment history" Command="{Binding RuleHistoryCommand}" AutomationProperties.Name="Read all retained assessments for this rule"/>
+     <Button Content="Cancel operation" Command="{Binding CancelCommand}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" AutomationProperties.Name="Cancel assessment loading or saving"/>
+    </WrapPanel>
+    <StackPanel Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}">
+     <Label Content="_Rule" Target="{Binding ElementName=RuleSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+     <ComboBox x:Name="RuleSelector" ItemsSource="{Binding Rules}" DisplayMemberPath="Label" SelectedValuePath="Id" SelectedValue="{Binding SelectedRule.Id, Mode=OneWay}" SelectionChanged="OnRuleChanged" Style="{DynamicResource PtjComboBoxStyle}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Applicable or previously assessed Rule"/>
+     <WrapPanel><Button Content="Previous rules" Command="{Binding PreviousRulesCommand}"/><Button Content="Next rules" Command="{Binding NextRulesCommand}"/></WrapPanel>
+    </StackPanel>
+    <Border Style="{DynamicResource PtjCardStyle}" Margin="0,8">
+     <StackPanel>
+      <TextBlock Text="{Binding SelectedRule.Name}" Style="{DynamicResource PtjSectionTitleTextStyle}"/>
+      <TextBlock Text="{Binding SelectedRule.Version}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding SelectedRule.CheckSummary}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding SelectedRule.Details.Revision.Definition.Criterion}" Style="{StaticResource Body}"/>
+      <TextBlock Text="Required evidence" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding SelectedRule.Details.Revision.Definition.RequiredEvidence}" Style="{StaticResource Body}"/>
+      <TextBlock x:Name="LatestState" Text="{Binding LatestLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}"/>
+      <TextBlock Text="{Binding Latest.Attribution}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Latest.Details.Assessment.Explanation}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Latest.Coverage}" Style="{StaticResource Body}"/>
+     </StackPanel>
+    </Border>
+    <StackPanel x:Name="AssessmentEditor" Visibility="{Binding HasTarget, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanEdit}">
+     <TextBlock Text="New assessment / correction" Style="{DynamicResource PtjSectionTitleTextStyle}"/>
+     <Label Content="_Outcome" Target="{Binding ElementName=OutcomeSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+     <ComboBox x:Name="OutcomeSelector" ItemsSource="{Binding Outcomes}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Outcome}" Style="{DynamicResource PtjComboBoxStyle}" AutomationProperties.Name="Manual assessment outcome"/>
+     <CheckBox Content="I explicitly report this violation (Confirmed violation only)" IsChecked="{Binding ExplicitViolation}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,8" AutomationProperties.Name="Explicit user-entered violation">
+      <CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></CheckBox.ContentTemplate>
+     </CheckBox>
+     <CheckBox Content="I evaluated the selected recorded sources and have sufficient evidence" IsChecked="{Binding Sufficient}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,8" AutomationProperties.Name="Manual declaration of sufficient evidence">
+      <CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap"/></DataTemplate></CheckBox.ContentTemplate>
+     </CheckBox>
+     <Label Content="For Cannot evaluate" Target="{Binding ElementName=GapSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+     <ComboBox x:Name="GapSelector" ItemsSource="{Binding Gaps}" DisplayMemberPath="Label" SelectedValuePath="Value" SelectedValue="{Binding Gap}" Style="{DynamicResource PtjComboBoxStyle}" AutomationProperties.Name="Missing or ambiguous evidence"/>
+     <Label Content="_Explanation (required)" Target="{Binding ElementName=Explanation}" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+     <TextBlock Text="Explain how the evidence supports your outcome; for Cannot evaluate, name the missing or ambiguous facts. Unknown costs are not zero. A Setup association alone never proves adherence." Style="{StaticResource Body}"/>
+     <TextBox x:Name="Explanation" Text="{Binding Explanation, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="100" MaxHeight="190" VerticalScrollBarVisibility="Auto" Style="{StaticResource ExplanationStyle}"
+      validation:FormValidation.IsInvalid="{Binding HasValidation}" AutomationProperties.Name="Assessment explanation" AutomationProperties.IsRequiredForForm="True" AutomationProperties.ItemStatus="{Binding Validation}" AutomationProperties.HelpText="{Binding Validation}"/>
+     <TextBlock x:Name="Validation" Text="{Binding Validation}" Foreground="{DynamicResource PtjDangerBrush}" TextWrapping="Wrap" Margin="0,6" AutomationProperties.LiveSetting="Assertive"/>
+     <TextBlock Text="Available recorded sources (select explicitly)" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+     <ItemsControl ItemsSource="{Binding Kinds}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel><ItemsControl.ItemTemplate><DataTemplate>
+      <Button Content="{Binding Label}" Command="{Binding DataContext.EvidenceKindCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"/>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <TextBlock Text="{Binding SelectedSources}" Style="{StaticResource Body}"/>
+     <ItemsControl x:Name="EvidenceRows" ItemsSource="{Binding Evidence}"><ItemsControl.ItemTemplate><DataTemplate>
+      <StackPanel Margin="0,4">
+       <CheckBox IsChecked="{Binding Selected}" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="{Binding Option.Label}"><TextBlock Text="{Binding Option.Label}" TextWrapping="Wrap"/></CheckBox>
+       <Expander Header="Recorded source facts" Foreground="{DynamicResource PtjTextPrimaryBrush}"><TextBlock Text="{Binding Option.Description}" Style="{StaticResource Body}"/></Expander>
+      </StackPanel>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <WrapPanel><Button Content="Previous sources" Command="{Binding PreviousEvidenceCommand}"/><Button Content="Next sources" Command="{Binding NextEvidenceCommand}"/></WrapPanel>
+     <Button x:Name="SaveAssessment" Content="Record manual assessment…" Command="{Binding SaveCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" HorizontalAlignment="Left" Margin="0,12" AutomationProperties.Name="Confirm and append manual Rule assessment"/>
+    </StackPanel>
+    <TextBlock Text="Recorded assessment history · newest first" Style="{DynamicResource PtjSectionTitleTextStyle}" Margin="0,12"/>
+    <TextBlock Text="{Binding Pages}" Style="{StaticResource Body}"/>
+    <ItemsControl x:Name="HistoryRows" ItemsSource="{Binding History}"><ItemsControl.ItemTemplate><DataTemplate>
+     <Border Style="{DynamicResource PtjCardStyle}" Margin="0,6"><StackPanel>
+      <TextBlock Text="{Binding Heading}" Style="{StaticResource Body}" FontWeight="SemiBold"/>
+      <TextBlock Text="{Binding Target}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Attribution}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding State}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Details.Assessment.RuleRevision.Definition.Criterion}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Details.Assessment.Explanation}" Style="{StaticResource Body}"/>
+      <TextBlock Text="{Binding Coverage}" Style="{StaticResource Body}"/>
+      <Expander Header="Recorded provenance and UTC time" Foreground="{DynamicResource PtjTextPrimaryBrush}"><StackPanel>
+       <TextBlock Text="{Binding Utc}" Style="{StaticResource Body}"/>
+       <TextBlock Text="{Binding Details.Assessment.Basis}" Style="{StaticResource Body}"/><TextBlock Text="{Binding Details.Assessment.EvidenceSufficiency}" Style="{StaticResource Body}"/>
+       <TextBlock Text="{Binding Evidence}" Style="{StaticResource Body}"/>
+       <TextBlock Text="{Binding CalculationSources}" Style="{StaticResource Body}"/>
+      </StackPanel></Expander>
+      <Button Content="Open exact target / correction" HorizontalAlignment="Left" Command="{Binding DataContext.OpenTargetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Target}"/>
+     </StackPanel></Border>
+    </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+    <WrapPanel><Button Content="Newer assessments" Command="{Binding NewerCommand}"/><Button Content="Older assessments" Command="{Binding OlderCommand}"/></WrapPanel>
+   </StackPanel>
+  </ScrollViewer>
+  <Button x:Name="CloseAssessment" Grid.Row="1" Content="Close" Command="{Binding CloseCommand}" HorizontalAlignment="Right" AutomationProperties.Name="Close manual assessments with unsaved change protection"/>
+ </Grid>
+</UserControl>

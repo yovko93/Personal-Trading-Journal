@@ -18,6 +18,7 @@ public partial class CalendarDayDialogWindow
         owner.SizeChanged += OnOwnerSizeChanged;
         owner.LocationChanged += OnOwnerLocationChanged;
         owner.StateChanged += OnOwnerStateChanged;
+        owner.Closing += OnOwnerClosing;
     }
 
     private void DetachOwner()
@@ -26,6 +27,7 @@ public partial class CalendarDayDialogWindow
         owner.SizeChanged -= OnOwnerSizeChanged;
         owner.LocationChanged -= OnOwnerLocationChanged;
         owner.StateChanged -= OnOwnerStateChanged;
+        owner.Closing -= OnOwnerClosing;
         _subscribedOwner = null;
     }
 

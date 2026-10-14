@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -28,7 +30,10 @@ public sealed class AccountBulkDeletionLayoutTests
         if (Environment.GetEnvironmentVariable("PTJ_ACCOUNT_BULK_HOST") != "1") { await Host.Value; return; }
         var store = new AccountBulkDeletionTests.Store();
         var dialogs = new FakeDialogService();
-        var vm = AccountBulkDeletionTests.Create(store, dialogs, new());
+        var reader = new FakeTradingAccountReader();
+        reader.EnqueueDetailResult(new(store.Account, "Synthetic exact Account", PersonalTradingJournal.Domain.Accounts.TradingAccountType.Personal,
+            null, null, "USD", 0m, true, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+        var vm = AccountBulkDeletionTests.Create(store, dialogs, new(), reader);
         await vm.EnsureLoadedAsync();
         await vm.DeleteAllTradesCommand.ExecuteAsync(store.Account); // Capture cancelled confirmation only.
         await CalendarStaTest.RunAsync(() =>
@@ -37,16 +42,23 @@ public sealed class AccountBulkDeletionLayoutTests
             app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
             var view = new AccountsView { DataContext = vm };
             var root = new Border { Child = view };
+            VisualTreeHelper.SetRootDpi(root, new DpiScale(dpi / 96d, dpi / 96d));
             root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
             root.Measure(new(width, 760)); root.Arrange(new(0, 0, width, 760)); root.UpdateLayout();
             var button = Descendants(view).OfType<Button>().Single(b => b.ContextMenu is not null && b.DataContext is PersonalTradingJournal.Application.Accounts.AccountListItem);
             var menu = button.ContextMenu!;
-            menu.PlacementTarget = button;
-            menu.IsOpen = true;
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(menu.IsOpen); Assert.Same(button, menu.PlacementTarget);
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
             // Popup's normal DataContext binding references its PlacementTarget.
             menu.ApplyTemplate(); menu.Measure(new(width, 760)); menu.Arrange(new(0, 0, menu.DesiredSize.Width, menu.DesiredSize.Height));
             var items = menu.Items.OfType<MenuItem>().ToArray();
+            var edit = Assert.Single(items, i => Equals(i.Header, "Edit"));
+            Assert.Same(vm.EditAccountCommand, edit.Command); Assert.Equal(store.Account, edit.CommandParameter);
+            Assert.Equal(vm.EditAccountCommand.CanExecute(store.Account), edit.IsEnabled);
+            Assert.True(edit.Focusable); Assert.Contains("Synthetic exact Account", AutomationProperties.GetName(edit));
+            Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => b.DataContext is PersonalTradingJournal.Application.Accounts.AccountListItem && ReferenceEquals(b.Command, vm.EditAccountCommand));
+            Assert.Contains(Descendants(view).OfType<Button>(), b => b.DataContext is PersonalTradingJournal.Application.Accounts.AccountListItem && ReferenceEquals(b.Command, vm.ViewAccountCommand));
             var bulk = items.Single(i => Equals(i.Header, "Delete All Trades"));
             var delete = items.Single(i => Equals(i.Header, "Delete"));
             Assert.Equal(Array.IndexOf(items, bulk) + 1, Array.IndexOf(items, delete));
@@ -57,8 +69,22 @@ public sealed class AccountBulkDeletionLayoutTests
             Assert.NotSame(bulk.Style, delete.Style);
             Assert.Contains("Trades", AutomationProperties.GetName(bulk));
             Assert.True(menu.DesiredSize.Width <= width);
+            store.Pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var busy = vm.DeleteAllTradesCommand.ExecuteAsync(store.Account);
+            Assert.True(vm.IsDeleting); Assert.False(edit.IsEnabled);
+            store.Pending.SetResult(store.Plan); Await(busy); store.Pending = null;
+            Assert.True(edit.IsEnabled); Assert.Equal(0, store.Deletes);
             Render(root, theme, width, dpi, "accounts");
             Render(menu, theme, (int)Math.Ceiling(menu.ActualWidth), dpi, "menu");
+            FocusManager.SetFocusedElement(menu, edit); Assert.Same(edit, FocusManager.GetFocusedElement(menu));
+            var invoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            edit.Click += (_, _) => invoked.TrySetResult();
+            var peer = UIElementAutomationPeer.CreatePeerForElement(edit)!;
+            ((IInvokeProvider)peer.GetPattern(PatternInterface.Invoke)!).Invoke();
+            Await(invoked.Task); if (vm.EditAccountCommand.ExecutionTask is { } task) Await(task);
+            Assert.Equal(1, reader.DetailCallCount); Assert.Equal(store.Account, vm.SelectedAccount!.Id);
+            Assert.True(vm.IsEditFormVisible); Assert.Equal("Synthetic exact Account", vm.EditAccountName);
+            vm.CancelEditCommand.Execute(null); Assert.False(vm.IsEditFormVisible);
             menu.IsOpen = false;
             var dialog = new PtjDialogWindow(dialogs.ConfirmationRequest!);
             try
@@ -90,6 +116,16 @@ public sealed class AccountBulkDeletionLayoutTests
             var child = VisualTreeHelper.GetChild(root, i); yield return child;
             foreach (var nested in Descendants(child)) yield return nested;
         }
+    }
+    private static void Await(Task task)
+    {
+        if (!task.IsCompleted)
+        {
+            var frame = new DispatcherFrame(); var dispatcher = Dispatcher.CurrentDispatcher;
+            _ = task.ContinueWith(_ => dispatcher.BeginInvoke(new Action(() => frame.Continue = false)), TaskScheduler.Default);
+            Dispatcher.PushFrame(frame);
+        }
+        task.GetAwaiter().GetResult();
     }
     private static void Render(FrameworkElement root, string theme, int width, int dpi, string name)
     {

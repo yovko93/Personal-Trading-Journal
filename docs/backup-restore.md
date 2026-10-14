@@ -1,5 +1,31 @@
 # Backup and restore — M16
 
+## Persisted Rule ordering compatibility
+
+Current schema adds `20261013102243_AddTradingRuleOrder` (19 migrations), with Rule positions and the catalog concurrency version. Complete v1 backups, preflight, offline restore and recovery retain this metadata alongside unchanged Rule revisions, assessments and saved analyses. Older-schema archives, including the prior optional-Criterion schema, remain rejected pending supported staged migration; normal installed-database migration initializes the previous name/ID order without rewriting Rule history.
+
+Portable JSON is now **v8**, adding `tradingRulePositions` (ruleId, initialRevision, position) and `tradingRuleCatalogState` (id, version). Positions are zero-based; UI numbers are one-based display positions, never identities. An empty dataset exports the one catalog-state metadata row. Existing detailed tables and four CSVs retain their fields; exports remain unencrypted and are not restorable backups. Credentials remain excluded. Synthetic regressions verify reordered Rules across backup/preflight/offline restore and the exact JSON positions/version.
+
+## Global Rules catalog compatibility
+
+Current schema also requires `20261012214801_OptionalGlobalRuleEvidence` and `20261013090509_OptionalGlobalRuleCriterion`, allowing empty authored evidence descriptions and optional Criterion prose on global Rules. Required Rule text retains its 120-character limit. Historical descriptions, typed automatic conditions and assessments are copied unchanged with their guards retained. Complete archives preserve these values; old-schema archives (including the immediately preceding schema) remain unsupported until staged upgrading is implemented. JSON v7 keeps the same fields/types and represents absent global `requiredEvidence` / `criterion` as empty strings, never fabricated text. Downgrade is blocked if such rows cannot fit the older constraint. Synthetic backup/preflight/offline restore/recovery and export regressions cover an empty-Criterion Rule.
+
+Current schema additionally requires `20261012205801_GlobalTradingRuleCatalog`. Complete v1 archives retain both new global Rules and immutable legacy scoped definitions/assessments, including deleted-rule tombstones and typed check capabilities. Migration does not broaden old definitions. Preflight and offline restore still require the exact current schema; earlier archives need the deferred staged-upgrade path and are rejected safely. A database downgrade with global Rules is blocked rather than silently assigning old Trade/Account semantics.
+
+Portable JSON export **v7** includes `isGlobal` and `checkCapability` on Rule revisions. Legacy applicability/scope columns remain exact historical data; their fixed compatibility values on global rows are not ownership or assessment filters. Four CSVs are unchanged. Exports remain unencrypted, screenshot-metadata-only and **not restorable backups**. See [Rules compatibility and verification](trading-rules.md#global-catalog-refinement--before-m186).
+
+## M18.5 — Deterministic Rule evidence (historical)
+
+Current schema adds `20261012194059_AddDeterministicRuleChecks`: nullable typed criterion/evaluation metadata and idempotency fingerprints on the retained Rules tables. Complete **v1** backup/preflight/offline restore and recovery preserve these alongside immutable manual history; no calculation is rerun by restore. Older-schema archives, including M18.4 archives, require the deferred staged-upgrade path and are rejected before replacement. Installed-database migration is additive and does not imply old-archive restore support.
+
+Logical export is **v6**: Rules JSON now includes `automaticCriterionJson`, `evaluationJson` and `evaluationFingerprint` with exact decimal facts, original Trade/Account/currency identity, execution IDs, coverage and evaluator version. Four CSVs remain unchanged; screenshot binaries remain excluded from logical export. Earlier exports remain readable documents, not restorable backups. Exports/archives remain unencrypted and exclude credentials. [Definitions and verification](trading-rules.md#m185--deterministic-checks).
+
+## M18.2 — Trading Rules data (historical)
+
+Current schema adds `20261012163222_AddTradingRules`. Complete **v1** archives preserve the entire Rule revision/assessment history, historical Account identities and source metadata with the rest of the database. Synthetic backup → preflight → offline restore and retained recovery-archive round trips verify these records. Restore requires the exact current migration sequence; pre-M18 archives are recognized as requiring staged migration and rejected without touching installed data. Support for upgrading older archives remains deferred.
+
+Logical export is now **v5**, adding JSON-only `tradingRuleRevisions` and `tradingRuleAssessments`, including reference metadata, UTC instants and explicit New York dates. The four CSVs, metadata-only screenshot policy, credential exclusions, and unencrypted warning remain unchanged. Versions 1–4 retain their original meaning but omit Rules; no logical export is a restorable backup. [Rules retention policy](trading-rules.md#source-retention-and-deletion) explains why deleted sources remain historical identities with explicit unavailable states. The entries below document earlier versions.
+
 ## Playbook eligible revision deletion
 
 Current schema additionally includes `20261011220636_AllowUnreferencedPlaybookRevisionDeletion`. It changes only two metadata-deletion triggers: current revisions and revisions referenced by retained Trade captures/association history remain protected; eligible older revisions can be deleted with atomic checks. Existing records and no-update guards are preserved. Revision gaps are valid and survive backup/preflight and logical export. Shared images are never deleted by that action; files with no remaining database reference are not included in a new complete archive, consistent with the existing referenced-file inventory.

@@ -12,6 +12,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Import;
 using PersonalTradingJournal.Desktop.ViewModels.Journals;
 using PersonalTradingJournal.Desktop.ViewModels.Mistakes;
 using PersonalTradingJournal.Desktop.ViewModels.Setups;
+using PersonalTradingJournal.Desktop.ViewModels.Rules;
 using PersonalTradingJournal.Desktop.ViewModels.Settings;
 using PersonalTradingJournal.Desktop.ViewModels.Trades;
 
@@ -29,6 +30,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly TradingMistakesViewModel _tradingMistakesViewModel;
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly PlaybookViewModel? _playbookViewModel;
+    private readonly RulesViewModel? _rulesViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly IThemeService _themeService;
     private readonly TradesViewModel _tradesViewModel;
@@ -56,7 +58,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         IThemeService themeService,
         TopstepImportChangeTracker? topstepChanges = null,
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReviewViewModel = null,
-        PlaybookViewModel? playbookViewModel = null)
+        PlaybookViewModel? playbookViewModel = null,
+        RulesViewModel? rulesViewModel = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
@@ -80,6 +83,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradingMistakesViewModel = tradingMistakesViewModel;
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _playbookViewModel = playbookViewModel;
+        _rulesViewModel = rulesViewModel;
         _tradesViewModel = tradesViewModel;
         _settingsViewModel = settingsViewModel;
         _themeService = themeService;
@@ -223,22 +227,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (!CanCloseWindow()) return false;
+        CompleteWindowClose();
+        return true;
+    }
+
+    internal bool CanCloseWindow()
+    {
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
         if (CurrentDestination == NavigationDestination.Playbook)
             return _playbookViewModel?.TryLeave() != false;
+        if (CurrentDestination == NavigationDestination.Rules)
+            return _rulesViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.DailyReview)
         {
-            _dailyReviewViewModel?.Deactivate();
             return true;
         }
         if (CurrentDestination == NavigationDestination.Calendar)
-            return _calendarViewModel.TryCloseDayDialog();
+            return _calendarViewModel.CanCloseDayDialog();
 
         if (CurrentDestination != NavigationDestination.Journal) return true;
-        if (!_journalViewModel.TryLeave()) return false;
+        return _journalViewModel.TryLeave();
+    }
 
-        _journalViewModel.Deactivate();
-        return true;
+    internal void CompleteWindowClose()
+    {
+        if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.CompleteDayDialogClose();
+        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
     }
 
     public void Dispose()
@@ -258,6 +274,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _journalViewModel.Deactivate();
         _dailyReviewViewModel?.Deactivate();
         _playbookViewModel?.Deactivate();
+        _rulesViewModel?.Deactivate();
         if (_dailyReviewViewModel is not null)
         {
             _dailyReviewViewModel.OpenTradeAsync = null;
@@ -361,6 +378,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Playbook &&
             _playbookViewModel?.TryLeave() == false) return;
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Rules &&
+            _rulesViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Calendar &&
             !_calendarViewModel.TryCloseInlineJournal()) return;
         if (destination != CurrentDestination &&
@@ -386,6 +405,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
         if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Playbook) _playbookViewModel?.Deactivate();
+        if (CurrentDestination == NavigationDestination.Rules) _rulesViewModel?.Deactivate();
         CurrentDestination = destination;
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
@@ -400,6 +420,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Mistakes => _tradingMistakesViewModel,
             NavigationDestination.Setups => _tradingSetupsViewModel,
             NavigationDestination.Playbook when _playbookViewModel is not null => _playbookViewModel,
+            NavigationDestination.Rules when _rulesViewModel is not null => _rulesViewModel,
             NavigationDestination.Trades => _tradesViewModel,
             NavigationDestination.Settings => _settingsViewModel,
             _ => new PlaceholderViewModel(ContentPlaceholder),
@@ -410,6 +431,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Playbook && _playbookViewModel is not null)
             _ = _playbookViewModel.ActivateAsync();
+
+        if (destination == NavigationDestination.Rules && _rulesViewModel is not null)
+            _ = _rulesViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Journal)
             _ = _journalViewModel.ActivateAsync();

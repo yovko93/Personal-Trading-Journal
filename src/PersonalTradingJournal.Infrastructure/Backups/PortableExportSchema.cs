@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-4 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-8 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -18,6 +18,17 @@ internal static class PortableExportSchema
     private static ExportColumn Y(string n, string alias) => new(n, ExportValueKind.NewYorkDate, alias);
     internal static readonly ExportTable[] Tables =
     [
+        new("tradingRulePositions", "TradingRulePositions", "Position,RuleId", false,
+            [I("RuleId"), N("InitialRevision"), N("Position")]),
+        new("tradingRuleCatalogState", "TradingRuleCatalogState", "Id", false, [N("Id"), N("Version")]),
+        new("tradingRuleRevisions", "TradingRuleRevisions", "RuleId,Revision", false,
+            [I("RuleId"), N("Revision"), N("ContractVersion"), B("IsGlobal"), N("CheckCapability"), T("Name"), T("Criterion"), T("RequiredEvidence"),
+             N("Applicability"), N("ScopeKind"), I("AccountId"), T("AccountNameAtRevision"), N("EvaluationMode"), T("AutomaticCriterionJson"), B("IsActive"), U("RecordedAtUtc")]),
+        new("tradingRuleAssessments", "TradingRuleAssessments", "RuleId,TargetKey,Sequence", false,
+            [I("Id"), I("RuleId"), N("RuleRevision"), N("Sequence"), T("TargetKey"), N("TargetKind"), I("TradeId"),
+             Y("NewYorkDate", "newYorkDate"), N("ScopeKind"), I("AccountId"), T("AccountNameAtAssessment"), T("TargetFingerprint"),
+             N("Outcome"), N("Source"), N("Basis"), N("EvidenceSufficiency"), T("Explanation"), T("EvidenceJson"),
+             I("SupersedesAssessmentId"), U("RecordedAtUtc"), T("EvaluationJson"), T("EvaluationFingerprint")]),
         new("accounts", "TradingAccounts", "Id", true,
             [I("Id"), T("Name"), N("AccountType"), T("ProviderName"), T("ExternalAccountId"), T("Currency"), D("StartingBalance"), B("IsActive"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
         new("instruments", "Instruments", "Id", false,

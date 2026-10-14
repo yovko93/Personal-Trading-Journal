@@ -8,15 +8,35 @@ namespace PersonalTradingJournal.Desktop.Views.Calendar;
 public partial class CalendarDayDialogWindow : Window
 {
     private bool _backdropPressed;
+    private bool _acceptedOwnerClose;
     public CalendarDayDialogWindow()
     {
         InitializeComponent();
         Loaded += (_, _) => { AttachOwner(); FitToOwner(); };
         Closed += (_, _) => DetachOwner();
-        Closing += (_, e) =>
-        {
-            if (DataContext is ViewModels.Calendar.CalendarViewModel vm && !vm.TryCloseDayDialog()) e.Cancel = true;
-        };
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        // Closing subscribers and guards already accepted in the ancestor's attempt.
+        if (_acceptedOwnerClose) return;
+        Dialogs.WindowCloseAttempt.Run(this, e, () => base.OnClosing(e),
+            () => DataContext is not ViewModels.Calendar.CalendarViewModel vm || vm.CanCloseDayDialog(),
+            () => { if (DataContext is ViewModels.Calendar.CalendarViewModel vm) vm.CompleteDayDialogClose(); });
+    }
+
+    private void OnOwnerClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (e.Cancel || sender is not Window owner) return;
+        if (!Dialogs.WindowCloseAttempt.PrepareOwned(owner, this, args => base.OnClosing(args),
+            () => DataContext is not ViewModels.Calendar.CalendarViewModel vm || vm.CanCloseDayDialog(),
+            () =>
+            {
+                _acceptedOwnerClose = true;
+                try { Close(); } // Explicitly end the Day Performance modal frame as well.
+                finally { _acceptedOwnerClose = false; }
+                if (DataContext is ViewModels.Calendar.CalendarViewModel vm) vm.CompleteDayDialogClose();
+            })) e.Cancel = true;
     }
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
