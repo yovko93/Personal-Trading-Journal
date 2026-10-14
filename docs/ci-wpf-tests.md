@@ -1,5 +1,66 @@
 # Windows WPF test diagnostics
 
+## M18.6 — Calendar aggregate deadline and repeated fixture setup (14 October 2026)
+
+Started on clean `develop`, **`1d99a7a5570bad2ebeb853d04edfd32839187b6e`**. The preceding acceptance report remains evidence of a failed full run; an isolated pass is not a substitute. This follow-up changes only synthetic test setup, bounded diagnostics and documentation. No production journal, provider, Git write or M19 work.
+
+### Controlled measurements before the correction
+
+Run directories below are under ignored `artifacts/m145-load/`. Every run uses Release `--no-build`, TRX, the existing 3-minute VSTest inactivity diagnostic, numeric process samples and `PTJ_CALENDAR_TIMINGS=1`. Native isolation remains **120 seconds aggregate / 45 seconds per action**, Desktop **two** concurrent collections, Infrastructure **four**, with assemblies parallel. No retries, skips, sleeps, increased deadlines or reduced concurrent-writer coverage.
+
+- `m186a-native-alone`: one outer supervisor test invokes the entire native suite; **87/87**, **82.946 s**, **37.054 s headroom**.
+- `m186a-competing-baseline`: add all Infrastructure `Backups` and `Persistence.Rules` cases, Journal compiled-editor and Calendar grid cases. Native timed out at 120 s after **80/86 STA actions**; Infrastructure **260/260**, Application **37/37**, other Desktop **5/5** passed. The final action had only just entered when termination began; no individual action timeout.
+- `m186a-setup-measurement`: same workload with a bounded fixture-initialization timer added, not a retry to select a green result. Again a native timeout: **83/86 actions** completed, Infrastructure **260/260** and other selected cases passed. **233** backup/export/restore fixture initializations consumed **188.560 aggregate seconds**, mean **809.270 ms**, max **5,109.126 ms**. These durations overlap across collections; they are not exclusive suite elapsed time or CPU. Each fixture previously replayed the full empty-database migration chain.
+
+| Native measurement | Alone | Competing baseline | Competing setup measurement | Corrected competing workload |
+| --- | ---: | ---: | ---: | ---: |
+| Child wall / headroom, s | 82.946 / 37.054 | 120 deadline / none | 120 deadline / none | 118.188 / 1.812 |
+| Startup to first STA, s | 4.069 | 5.887 | 6.464 | 8.232 |
+| Completed STA actions | 86 | 80 | 83 | 86 |
+| Completed action wall sum, s | 74.029 | 101.881 | 101.835 | 99.439 |
+| Completed action process CPU delta sum, s | 100.875 | 103.406 | 104.219 | 114.063 |
+| Action-boundary peak working set, MiB | 734.00 | 690.43 | 689.75 | 714.71 |
+| Owner `Show`, 12 calls, s | 9.97 | 17.49 | 16.97 | 16.15 |
+| Owner initial dispatcher drain, 12 calls, s | 1.03 | 0.82 | 0.91 | 0.69 |
+| Owner explicit `UpdateLayout`, 12 calls, s | <0.01 | <0.01 | <0.01 | <0.01 |
+| Modal open/interaction/return, 12 calls, s | 6.55 | 12.61 | 12.94 | 11.52 |
+| Day read completion, 12 calls, s | 0.09 | 0.13 | 0.14 | 0.13 |
+| Dialog explicit layout, 12 calls, s | 1.15 | 2.74 | 2.72 | 2.19 |
+| Inline Trade read/bind, 12 calls, s | 0.07 | 0.10 | 0.10 | 0.09 |
+| Inline dispatcher drain, 12 calls, s | 1.56 | 2.97 | 3.53 | 2.62 |
+| Chart layout / bitmap, 21 each, s | 1.26 / 0.48 | 1.30 / 0.53 | 1.63 / 0.54 | 1.46 / 0.47 |
+| Theme parsing, two calls, s | 0.66 | 1.00 | 0.72 | 1.01 |
+| Native dispatcher scheduled-wait sum, s | 0.18 | 0.34 | 0.27 | 0.25 |
+
+Scopes are inclusive: dispatcher pumps overlap modal actions and must not be added. Native action-gate waits (24.55 s alone, 30.47/36.72/29.80 s in the loaded runs) wait outside the dispatcher behind another native action, not an additional stall. The gate continues to prevent nested `ShowDialog` dispatcher-frame reentry. Low scheduled-wait totals do not measure OS scheduler/GPU waits *inside* `Window.Show`/layout. Process CPU is multi-threaded and cannot be subtracted from wall time to calculate scheduler delay.
+
+This establishes cumulative slower native window/layout/interaction work under load, not one stuck test or a product deadlock. Theme parsing is already cached twice per native child; explicit owner layout and fake-reader completion are small. Infrastructure was a measured competing workload: sampled CPU **358.547 s over 187.370 s** in baseline and **350.313 over 187.455** in setup measurement; grid and Journal children also overlap. The measurements do not distinguish every OS/storage/rendering contribution.
+
+### Narrow correction and preserved isolation
+
+Only `BackupArchiveTests.Fixture`, shared by backup/preflight/restore/export tests, uses the new template. The template is generated once per test process from the current real migrations/initializer, captured using SQLite's backup facility (including WAL), and held as private immutable bytes. All template files/connections are disposed and removed. Each fixture writes a **new, unique** database with `CreateNew`, owns its own service provider/connections/screenshots/root, and still calls the production initializer for migration checks and browse reconciliation. No production database is copied; no mutable connection or records are shared. Dedicated migration/previous-schema fixtures remain unchanged; per-database pool cleanup is retained rather than globally clearing another fixture's handles.
+
+Two regressions verify four simultaneously created fixtures have complete applied migrations, no pending migrations, integrity, foreign keys and isolated seeded rows; dropping a table or adding data cannot contaminate a later clone. A separate case proves an existing fixture database is never overwritten. Existing concurrency, rollback, WAL, corruption, cancellation, backup/recovery/export assertions all continue to execute.
+
+`SyntheticFixtureTiming` is opt-in with `PTJ_CALENDAR_TIMINGS=1` and `PTJ_TEST_RESULTS_DIRECTORY`, bounded to **4,096** records/process. It writes only fixed phase names and elapsed milliseconds to `synthetic-fixture-timings.jsonl`, never seeded content or local database paths. Calendar timings now split broad owner/inline scopes without changing their operation order.
+
+### Verification and remaining risk
+
+`m186a-fixture-regressions`: **2/2 passed**. `m186a-competing-template`: **305/305 outer tests**, zero failures/skips (Application 37, Infrastructure 262, Desktop 6; native 87 and grid 36 child cases are not double-counted). Backup initialization **68.914 aggregate seconds / 239 calls**, mean **288.345 ms**, including the initial shared build wait; snapshot build **5.345 s**, 240 clone attempts **4.781 s** total. The extra attempted clone is the overwrite-protection regression. Infrastructure sampled CPU **334.484 s over 175.111 s**, peak **360.88 MiB** (baseline 368.85 / measurement 350.07 MiB). These support less repeated setup, not a claim that migrations explain all native slowdown. Grid passed in **57.255 s**; Journal editor **28.059 s** (STA **19.740 s**).
+
+The corrected native child passed **87/87 in 118.188 s**, but **1.812 s** remaining is marginal. This was followed by one complete parallel run of the corrected tree, not repeated unchanged full runs until green.
+
+**Final complete parallel Release (`m186a-final-full`): 3,957 passed / 87 failed / zero skipped, 4,044 total.** Domain **490/490**, Application **753/753**, Infrastructure **1,251/1,251**; Desktop **1,463 passed / 87 failed**. The two new Infrastructure regressions account for the increase from 4,042 cases. Release build **zero warnings/errors**; EF reports no pending model changes using the in-memory design-time factory; tracked/new-file whitespace checks passed.
+
+- **Calendar: still failing.** Started **14:39:22.478582 UTC**, deadline **14:41:22.451507**, process-tree cleanup confirmed **14:41:22.849331**. Completed **85/86 STA actions**, completed wall sum **99.184 s**, process CPU deltas **106.266 s**, longest action **3.624 s**, boundary peak **680.00 MiB**. Startup **5.685 s**. The final `ClosedModalRetainsDateFocusAcrossCompetingWindowActivation` entered at **14:41:22.143469**, only **0.308 s** before termination; it is not demonstrated to have stalled. All **86** Calendar failures propagate this shared timeout; no chart-focus assertion or individual 45-second action timeout was recorded. **Zero deadline headroom**.
+- Final native measured phases: 12 owner `Show` calls **15.17 s**, initial drain **0.78 s**, explicit owner layout <0.01 s; modal interaction **8.96 s**; dialog layout **1.84 s**; inline drain **2.01 s**, read **0.08 s**; chart layout/bitmap **1.09/0.39 s**; two theme parses **0.90 s**; scheduled dispatcher wait **0.13 s**; 61 fixture preparations **2.75 s**. Approximately 14.82 s lies outside completed STA actions/startup/the final partial action, including test transitions, setup, boundary diagnostics and reporting; it is **not measured OS scheduler wait**. Native sampled CPU **113.688 s over 112.676 s**, peak **716.92 MiB**; concurrent Infrastructure **196.625 over 117.046 s**, peak **381.82 MiB**. Grid and other Desktop children overlap; the data does not isolate one OS/GPU/storage bottleneck.
+- **Journal: separate unresolved failure.** `JournalViewTests.CompiledEditorBindingsScopeVetoAndLightDarkNormalHighDpiLayouts` was aborted by the child's existing **30-second VSTest inactivity** diagnostic. Child wall **45.811 s**, launch-to-STA **9.158 s**, with a hang dump and phases showing continued progress during collection: layout ended at STA elapsed **30.239 s**, bitmap at **33.682 s**, and next Dark view construction began at **33.698 s**. Completed phases include 22 view constructions **5.18 s**, 22 measures **6.76 s**, 22 layouts **4.50 s**, 28 bitmap renders **7.00 s**, plus arrangements and resource/input work. Those inclusive timings do not prove one view deadlocked; no speculative Journal code/assertion/deadline change was made. Its earlier targeted pass does not close the full-load failure.
+- Grid **36/36 in 64.649 s**, Journal History **27.897 s** (STA **18.117 s**). Full-run backup setup **60.544 aggregate s / 239 calls**, template **1.019 s**, clones **6.751 s / 240 attempts**. The setup improvement persists, but does not solve the native or Journal deadline risk.
+
+**M18.6 automated acceptance remains blocked.** The demonstrated redundant-fixture cost was reduced without changing concurrency or coverage, but remaining cumulative WPF/window/test-transition contention is unresolved. Future work needs more narrowly attributed CPU/off-CPU/native creation and inter-action diagnostics, not a longer deadline or selecting a passing rerun. Live acceptance and GitHub Actions for this uncommitted tree are also open; this task makes no new live/CI claim.
+
+Raw supervision/phase/timing/TRX/process logs and `native-actions.csv` are retained in the named run directories. Exact changes: `README.md`, `docs/ci-wpf-tests.md`, `docs/trading-rules.md`, `tests/PersonalTradingJournal.Desktop.Tests/Calendar/CalendarDayModalWindowTests.cs`, `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/BackupArchiveTests.cs`, new `Backups/MigratedBackupTestDatabase.cs`, new `Backups/MigratedBackupTestDatabaseTests.cs`, and new `Persistence/SyntheticFixtureTiming.cs` under the Infrastructure test project.
+
 ## Quiet Rules reordering — Calendar follow-up (13 October 2026)
 
 Started on clean `develop` at `35f9f48149174fc4c9629a6057dac0b0a60dbe19`. The preceding ordering task's failing Calendar case was `WindowControlsRetainModalAndDraftThenCloseInEveryState(Light, Normal)` at its **45-second STA action** deadline, not the 120-second aggregate limit. This task adds only bounded phase breadcrumbs to that test: owner creation/layout, modal invocation, day/Trade loading, editor opening, maximize/minimize/restore, resize, dirty close veto, final dismissal, focus and cleanup. It does not change Calendar production code, assertions, action/child deadlines, two-collection Desktop concurrency or four-collection Infrastructure concurrency.

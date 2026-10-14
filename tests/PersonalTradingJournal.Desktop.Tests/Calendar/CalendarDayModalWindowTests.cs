@@ -60,7 +60,11 @@ public sealed partial class CalendarDayModalTests
             try
             {
                 using (CalendarStaTest.Timing("owner show and initial layout"))
-                { owner.Show(); Pump(); owner.UpdateLayout(); }
+                {
+                    using (CalendarStaTest.Timing("owner Show")) owner.Show();
+                    using (CalendarStaTest.Timing("owner initial dispatcher drain")) Pump();
+                    using (CalendarStaTest.Timing("owner explicit UpdateLayout")) owner.UpdateLayout();
+                }
                 var cell = Descendants(view).OfType<CalendarDayHost>().Single(c => ((CalendarDayCell)c.DataContext).Date == date);
                 using var focus = new CalendarFocusProbe(owner, cell, $"InitialOwnedPanel/{theme}/{width}/{dpi}/{longName}");
                 dispatcher.BeginInvoke(new Action(async () =>
@@ -70,7 +74,10 @@ public sealed partial class CalendarDayModalTests
                         var dialog = view.DayDialog!;
                         focus.ObserveDialog(dialog);
                         using (CalendarStaTest.Timing("day read and dialog layout"))
-                        { await vm.DayLoadTask; dialog.UpdateLayout(); }
+                        {
+                            using (CalendarStaTest.Timing("day read completion")) await vm.DayLoadTask;
+                            using (CalendarStaTest.Timing("dialog explicit UpdateLayout")) dialog.UpdateLayout();
+                        }
                         var panel = (Border)dialog.FindName("DayPanel");
                         var content = (CalendarDayDetailsView)dialog.FindName("DayContent");
                         var header = (Grid)content.FindName("DayTradesHeader");
@@ -133,7 +140,11 @@ public sealed partial class CalendarDayModalTests
                             $"viewport before={beforeViewport:F2}, after={scroll.ViewportWidth:F2}; table before={beforeTable:F2}, after={table.ActualWidth:F2}; " +
                             $"Action fits={actionFits}; trailing gap={gap:F2}; columns={string.Join(", ", header.ColumnDefinitions.Select(c => c.ActualWidth.ToString("F2")))}";
                         using (CalendarStaTest.Timing("inline view and layout"))
-                        { await vm.ViewTradeCommand.ExecuteAsync(row); Pump(); dialog.UpdateLayout(); }
+                        {
+                            using (CalendarStaTest.Timing("inline Trade read and binding")) await vm.ViewTradeCommand.ExecuteAsync(row);
+                            using (CalendarStaTest.Timing("inline dispatcher drain")) Pump();
+                            using (CalendarStaTest.Timing("inline explicit UpdateLayout")) dialog.UpdateLayout();
+                        }
                         Assert.True(Assert.Single(vm.DayTrades).IsExpanded);
                         Assert.Same(editor, Descendants(content).OfType<CalendarInlineTradeView>().Single().DataContext);
                         if (renderDirectory is { Length: > 0 } output)
