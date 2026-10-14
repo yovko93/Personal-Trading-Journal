@@ -221,3 +221,44 @@ Exact M19.3 files:
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewPatternsIntegrationTests.cs`.
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/PeriodLegacyRulePatternsTests.cs`.
 - `README.md` and `docs/period-reviews.md`.
+
+## Journal fixture lifetime follow-up (14 October 2026)
+
+The M19.3 implementation was already committed at **`b70fd65229ef4ec8354329b498bee131bc76e7f9`** on `develop` when this investigation began; the worktree was clean. Its calculations and tests are preserved. The following evidence supersedes the earlier unresolved-cleanup finding without erasing that failed full run.
+
+### Proven ownership and failure sequence
+
+`JournalFormAccountTests.RevisionConflictAfterTargetCollisionCannotBeClearedByChangingTheFormAccount` changes the form Account, encounters a destination collision, encounters a newer persisted revision, and changes the Account back. Each form Account change starts `JournalTradeContextViewModel.SetScopeAsync`. This cancels the previous read and replaces `LoadTask`; cancellation is **not** completion of its native SQLite operation.
+
+An opt-in test interceptor holds the real Calendar Trade query immediately after it has obtained a `DbDataReader`, before EF consumes/releases it. It logs bounded ownership/state only: DbContext instance ID, connection/reader state, explicit-transaction presence, cancellation, old/latest task completion and worker-thread ID. It asserts that the connection belongs to the fixture's exact synthetic database without logging the path or any source text/SQL. The conflict scenario then proceeds unchanged.
+
+Observed before cleanup: **connection Open; reader not closed; cancellation requested; older task incomplete; latest task complete; no explicit transaction**. An exclusive file-open probe confirms that this very fixture still holds the file. The read runs on the ViewModel's `Task.Run` worker; no actual WPF window/dispatcher lifetime is involved in this test. `TradingCalendarDayReader` owns its factory-created DbContext with `await using`; the reader and its implicit SQLite read lifecycle keep the connection alive until the cancelled operation unwinds. The factory/DI provider does not dispose or join an already-running factory-created context. `SqliteConnection.ClearPool` clears idle entries but cannot make an active reader disappear.
+
+With original teardown order, the controlled regression reproduces **the same `IOException` at `Directory.Delete`**, both alone and under verified concurrent Infrastructure load. It is the test's own superseded reader, not a different fixture or M19.3 period calculation. The uninstrumented original conflict case passed in these targeted runs; that does not erase the original load-sensitive failure or prove the original race impossible.
+
+### Correction and safety
+
+`JournalFixtureConnections` is a **test-only, per-fixture EF connection interceptor**. It registers opening connections before native opening begins, so teardown cannot miss an opening-in-progress. After ViewModel deactivation/cancellation, fixture teardown seals new connection opens, awaits all existing connections' closed/disposed/failed-open notifications, then awaits current editor/context tasks, disposes the provider, clears the exact owned SQLite pool and deletes the fixture directory. A failed close with a still-open connection does not release the barrier. A ten-second bounded drain fails explicitly rather than ignoring a leaked handle or retrying deletion. No global pool clearing, test serialization, production lifetime changes, sleeps, retries or existing deadline changes.
+
+The held-reader regression verifies that teardown waits, a late connection open is rejected **before database access**, release disposes the reader/DbContext, stale results do not publish, the database and directory are actually removed, and the executed-query count does not increase after shutdown. Three further cases cover opening-in-progress, failed-open, close and disposal notifications, including refusal to treat an open handle as released after a failure. This is resource quiescence, not an assumption that the latest UI task represents all previous work.
+
+### Experiments and results
+
+| Experiment | Evidence | Result |
+| --- | --- | --- |
+| Isolated original ordering | `artifacts/m193-lifetime-before/before.trx` | Controlled regression fails with locked temporary database; owned cancelled reader remains open. |
+| Original ordering with actual overlap | `artifacts/m193-lifetime-before-concurrent/desktop.trx`, `infrastructure.trx` | Desktop 6 passed / 1 expected reproduction failure; Infrastructure 103 passed. Runs overlap 20:03:27–20:03:34 UTC. |
+| Corrected ordering under the same competitors | `artifacts/m193-lifetime-after-concurrent/desktop.trx`, `infrastructure.trx` | **16/16 Desktop and 103/103 Infrastructure passed**, zero skips. Runs overlap 20:05:10–20:05:18 UTC; Desktop test duration ~7 s, Infrastructure ~31 s. |
+| Release build / EF consistency | Normal isolated design-time verification | **0 warnings/errors**, no pending model changes. |
+| Exclusive WPF phase | Calendar native + Journal editor, unchanged scheduling/deadlines | **88/88 passed**. Calendar native **77.349 s**, **42.651 s** headroom to 120 s; Journal editor test **7.097 s**. This run's margin is not a guarantee against host-load variability. |
+| Complete Release gate | `artifacts/m193-lifetime-release/release-20261014-200645-55f750ae76bd424c8016a4ca0918d0c1/summary.json` and TRX | **4,126/4,126 passed, zero failures/skips**: Domain 490, Application 798, Infrastructure 1,273, Desktop 1,565 (88 exclusive + 1,477 parallel). Original conflict test and all four new regressions passed. No Calendar/Journal timeout. |
+| Whitespace / final worktree | Tracked and new files checked | Passed. Three modified files plus two new test files; branch/HEAD unchanged. |
+
+The earlier M19.3 **local full-gate blocker is resolved** by this measured fixture-only correction. The historical failed run above remains part of the chronology, not the final result. Only synthetic databases were opened; no production journal or AI provider was accessed. A local pass is not matching GitHub CI acceptance; this fix remains uncommitted. Native timing remains host-load-sensitive; no claim of live UI acceptance or elimination of every possible file-lock cause is made. No M19.4 work was started.
+
+Exact follow-up files:
+
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalSqliteTests.cs` — ordered fixture shutdown and optional diagnostic injection.
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalFixtureConnections.cs` — fixture-local connection barrier.
+- `tests/PersonalTradingJournal.Desktop.Tests/Journals/JournalFixtureLifetimeTests.cs` — owned-reader reproduction and four regression cases.
+- `README.md` and `docs/period-reviews.md`.
