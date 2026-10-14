@@ -227,6 +227,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public bool TryCloseWindow()
     {
+        if (!CanCloseWindow()) return false;
+        CompleteWindowClose();
+        return true;
+    }
+
+    internal bool CanCloseWindow()
+    {
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
         if (CurrentDestination == NavigationDestination.Playbook)
             return _playbookViewModel?.TryLeave() != false;
@@ -234,17 +241,20 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return _rulesViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.DailyReview)
         {
-            _dailyReviewViewModel?.Deactivate();
             return true;
         }
         if (CurrentDestination == NavigationDestination.Calendar)
-            return _calendarViewModel.TryCloseDayDialog();
+            return _calendarViewModel.CanCloseDayDialog();
 
         if (CurrentDestination != NavigationDestination.Journal) return true;
-        if (!_journalViewModel.TryLeave()) return false;
+        return _journalViewModel.TryLeave();
+    }
 
-        _journalViewModel.Deactivate();
-        return true;
+    internal void CompleteWindowClose()
+    {
+        if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.CompleteDayDialogClose();
+        if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate();
+        if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
     }
 
     public void Dispose()

@@ -24,15 +24,22 @@ public sealed class WpfRuleAssessmentDialog(Func<RuleAssessmentViewModel> create
         bool acceptedOwnerClose = false;
         var owners = new List<Window>();
         for (var ancestor = owner; ancestor is not null; ancestor = ancestor.Owner) owners.Add(ancestor);
-        CancelEventHandler ownerClosing = (_, e) =>
+        void CloseAfterAcceptance()
+        {
+            acceptedOwnerClose = true;
+            window.Close(); // End ShowDialog only after the ancestor's final consent.
+        }
+        CancelEventHandler ownerClosing = (sender, e) =>
         {
             if (e.Cancel || acceptedOwnerClose) return;
-            acceptedOwnerClose = vm.TryLeave();
-            if (!acceptedOwnerClose) e.Cancel = true;
-            else window.Close(); // End this modal frame before WPF destroys owned windows.
-            // Another owner guard may veto after ours. Consent is for this closing event only.
-            window.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send,
-                new Action(() => acceptedOwnerClose = false));
+            if (!WindowCloseAttempt.Check(vm, vm.TryLeave)) { e.Cancel = true; return; }
+            if (sender is Window ancestor && !WindowCloseAttempt.AfterAcceptance(ancestor, window, CloseAfterAcceptance))
+            {
+                // An unknown owner cannot expose its final cancellation result before
+                // WPF destroys owned windows. Fail closed; close this dialog first.
+                e.Cancel = true;
+                vm.ExplainUncoordinatedOwnerClose();
+            }
         };
         // WPF does not raise Closing for an owned window when its ancestor closes.
         // Include the main owner even when this dialog was opened inside Day Performance.

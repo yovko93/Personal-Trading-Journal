@@ -84,14 +84,27 @@ public sealed partial class CalendarViewModel
 
     public bool TryCloseDayDialog()
     {
+        if (!CanCloseDayDialog()) return false;
+        CompleteDayDialogClose();
+        return true;
+    }
+
+    internal bool CanCloseDayDialog() => Dialogs.WindowCloseAttempt.Check(this, CanCloseDayDialogCore);
+
+    private bool CanCloseDayDialogCore()
+    {
         if (HasInlineWork)
         {
             DayErrorMessage = "Finish loading, or Save or Cancel your Trade edits before closing.";
             return false;
         }
-        if (!TryCloseInlineJournal()) return false;
+        return CanCloseInlineJournal();
+    }
+
+    internal void CompleteDayDialogClose()
+    {
+        ReleaseInlineJournal();
         CloseInlineDetails();
-        return true;
     }
 
     private void CloseInlineDetails()

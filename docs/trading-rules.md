@@ -1,5 +1,39 @@
 # Trading Rules — contracts, persistence and assessments
 
+## PR #21 — Owned assessment close coordination (14 October 2026)
+
+Started from clean `develop`, HEAD `5d345b64edeafdf8a4b36bf6f2f79dc1c80a1de2`. All verification uses synthetic fixtures; no production data, provider calls, persistence/schema changes or Git writes.
+
+### Finding, reproduction and correction
+
+The committed assessment dialog's ancestor `Closing` subscriber accepted its own discard guard and immediately called `window.Close()`. MainWindow's later Calendar guard could still veto. Merely moving that guard earlier would be unsafe too: `TryCloseDayDialog` released the inline Journal when it accepted, even if another guard later declined. A queued dispatcher callback cannot establish the final close result.
+
+A controlled replay of HEAD's `WpfRuleAssessmentDialog` against the new real-window regression reproduced **six failures**, not a hypothetical event-order issue: MainWindow/Day Performance remained visible while the assessment became invisible after Trade-work, declined-Journal, or later-subscriber vetoes. The replay retained the new coordinator/test so it specifically isolates the premature assessment handler. Evidence: `artifacts/pr21-original-handler`, child `calendar-owner-close.trx` and bounded `wpf-interactions.log`; the other nine child cases passed. The outer ten selected theory cases propagate that one child result and must not be counted as ten distinct defects.
+
+Closing now uses a dispatcher-local, attempt-scoped prepare/commit coordinator. Day Performance prepares its own closing subscribers and guards when its main owner closes. Assessment and Calendar consent are non-destructive and memoized only for that attempt, so the same dirty editor is not prompted twice through two ancestors. Only after every subscriber and ViewModel guard accepts are the assessment and Day Performance explicitly closed, ending both nested modal frames before WPF destroys owned HWNDs. Inline state is released only in the accepted phase. Vetoed/reentrant attempts discard consent, not editor state. The existing public ViewModel close methods keep their prior consent-plus-cleanup behavior for direct callers; navigation guards are unchanged.
+
+For an owner without the final-close coordination hook, the assessment fails closed with an actionable “close assessments first” message. Waiting until a generic owner's `Closed` event was experimentally too late to end its already-destroyed owned modal frame; that approach is not used. The existing generic-owner WPF fixture now exercises the same final-close hook as the real hosts, without removing its assertions. The new regression uses actual `MainWindow`, `CalendarDayDialogWindow.ShowDialog`, and `WpfRuleAssessmentDialog.ShowTarget`, not just ViewModel calls. Its harness accounts for `EnterThreadModal` firing only for the outermost frame and disposes UI-bound fixtures on their STA; no deadline, retry, skip or concurrency changes.
+
+### Acceptance evidence
+
+| Scenario | Automated result / evidence | Remaining live check |
+|---|---|---|
+| MainWindow and Day close with assessment consent but inline Trade work veto | Passed; all three windows remain visible, explanation/evidence/selection retained, editor remains usable | Native mouse close with the runner-independent user desktop |
+| MainWindow and Day close with assessment consent but declined Journal discard | Passed; both drafts and selected day survive, no writes | Real confirmation-dialog focus restoration |
+| Assessment veto; late ancestor `Closing` subscriber veto | Passed; even previously granted Journal consent does not release its state | None beyond manual close smoke check |
+| Accepted close after a veto | Passed; one prompt per dirty editor for the new attempt, both modal frames return, zero assessment/Journal writes | Application exit smoke check |
+| Direct assessment X/Close command | Passed; veto retains draft; acceptance closes only assessment, leaving Day and Journal open | Keyboard Escape smoke check; existing compiled dialog binds Escape to this same path |
+| Clean Calendar and standalone Journal close guards | Passed in existing real MainWindow tests | No new live acceptance claimed |
+| Focus / deactivation | Logical focus remains usable in the assessment; post-veto evidence and command state remain available even after draining deferred dispatcher work | Actual keyboard activation on another desktop/session is not inferred from logical focus |
+
+Focused navigation/assessment Release tests: **221/221 passed**, zero failures/skips, including **15/15** Calendar owner-close cases (ten new cases). Artifacts: `artifacts/pr21-final-focused`. Release build **0 warnings/errors**; EF model consistency (in-memory design-time context) and tracked/new-file whitespace checks passed.
+
+**Final complete Release gate: 4,055/4,055 passed, zero failures/skips**, using `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/pr21-release`. Domain **490**, Application **753**, Infrastructure **1,251**, Desktop **1,561** (88 exclusive WPF + 1,473 parallel). Gate wall time **320.031 s**. Calendar native **87/87**, **67.686 s / 52.314 s headroom** under its unchanged 120-second deadline. Journal editor child **9.655 s**; the owner-close child passed all **15/15** under competing load in **27.898 s / 32.102 s headroom** under its unchanged 60-second deadline. No Calendar/Journal timeout or assertion failure in this final gate. No assertions, retries, skips, deadlines or concurrency settings changed. Raw summary/TRX/supervisor logs: `artifacts/pr21-release/release-20261014-155018-cf6e69cbf7d44d8fbd38ee3594a5d2f0`.
+
+Exact files changed: `README.md`; `docs/trading-rules.md`; `src/PersonalTradingJournal.Desktop/Dialogs/WindowCloseAttempt.cs` (new); `src/PersonalTradingJournal.Desktop/Dialogs/WpfRuleAssessmentDialog.cs`; `src/PersonalTradingJournal.Desktop/MainWindow.xaml.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineTrade.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/Calendar/CalendarViewModel.InlineJournal.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RuleAssessmentViewModel.cs`; `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDialogWindow.xaml.cs`; `src/PersonalTradingJournal.Desktop/Views/Calendar/CalendarDayDialogWindow.Chrome.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Navigation/AssessmentOwnerCloseTests.cs` (new); `tests/PersonalTradingJournal.Desktop.Tests/Rules/ManualAssessmentViewTests.cs`.
+
+These changes are uncommitted, so no GitHub Actions run can verify their exact resulting commit yet. Local automated WPF windows are not manual/live interaction or matching CI acceptance. Forced process termination/OS shutdown cannot provide an interactive discard guarantee. The safe manual follow-up is to use an isolated synthetic journal, keep both drafts dirty, decline each owner-close confirmation in turn, verify focus and text, then accept and reopen the app; do not use the production journal for this check.
+
 ## M18.6 — Rules & Violations acceptance — 14 October 2026
 
 This is the current acceptance record; earlier dated sections below are historical implementation reports. Started with a **clean `develop` worktree at `0f3905e28438bfa3c977f628a10ba069b0247486`**, including the committed Accounts Edit-menu and Current Balance changes. The audit uses synthetic fixtures and the explicitly isolated `artifacts/rules-drag-live/isolated` app directory. No production journal or AI provider is accessed. Rules and assessments remain outside Daily Review, AI evidence packets, prompts and saved analyses; this task adds no such integration.

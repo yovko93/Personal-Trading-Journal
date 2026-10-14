@@ -19,8 +19,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        base.OnClosing(e);
-        if (!e.Cancel && DataContext is MainWindowViewModel viewModel)
-            e.Cancel = !viewModel.TryCloseWindow();
+        Dialogs.WindowCloseAttempt.Run(this, e, () => base.OnClosing(e),
+            () => DataContext is not MainWindowViewModel vm || vm.CanCloseWindow(),
+            () => { if (DataContext is MainWindowViewModel vm) vm.CompleteWindowClose(); });
     }
 }

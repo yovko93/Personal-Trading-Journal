@@ -76,8 +76,8 @@ public sealed class ManualAssessmentViewTests
             var fixture = new AssessmentFixture(); fixture.Dialogs.ConfirmationResult = false;
             using var dialogPhase = CalendarStaTest.Phase("owned manual dialog lifecycle");
             var focusButton = new Button { Content = "Synthetic origin" };
-            var root = new Window { Width = 900, Height = 740, ShowActivated = false }; root.Show();
-            var owner = new Window { Owner = root, Content = focusButton, Width = 800, Height = 680, ShowActivated = false };
+            var root = new CoordinatedTestOwner { Width = 900, Height = 740, ShowActivated = false }; root.Show();
+            var owner = new CoordinatedTestOwner { Owner = root, Content = focusButton, Width = 800, Height = 680, ShowActivated = false };
             app.MainWindow = owner; owner.Show(); FocusManager.SetFocusedElement(owner, focusButton);
             Exception? error = null;
             Action interact = () =>
@@ -115,6 +115,11 @@ public sealed class ManualAssessmentViewTests
     private static void Flush()
     {
         var frame = new DispatcherFrame(); Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => frame.Continue = false)); Dispatcher.PushFrame(frame);
+    }
+    private sealed class CoordinatedTestOwner : Window
+    {
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e) =>
+            WindowCloseAttempt.Run(this, e, () => base.OnClosing(e), () => true, () => { });
     }
     private static void Render(FrameworkElement view, string theme, int width, int dpi, string state)
     {

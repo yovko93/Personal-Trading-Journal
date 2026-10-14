@@ -184,6 +184,7 @@ public sealed class RuleAssessmentViewModel : ObservableObject
         if (_writing) { Message = "Wait for the assessment save to finish or cancel it before closing."; return false; }
         return !HasUnsavedChanges || _dialogs.Confirm(new("Discard assessment changes?", "Discard the unsaved explanation and evidence selection? Recorded assessments remain unchanged.", "Discard changes", isDestructive: true));
     }
+    internal void ExplainUncoordinatedOwnerClose() => Message = "Close Rule assessments before closing this window. Your unsaved explanation and evidence are still available.";
     public void Deactivate() { ++_generation; _read?.Cancel(); RunChecksCommand.Cancel(); _read = null; _loading = false; Changed(); }
     private void CaptureEvidence()
     {
