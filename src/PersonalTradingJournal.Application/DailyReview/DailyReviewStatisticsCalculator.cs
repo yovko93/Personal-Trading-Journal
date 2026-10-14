@@ -13,23 +13,34 @@ public static class DailyReviewStatisticsCalculator
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(evidence.Query);
+        var calculated = CalculateTrades(evidence.Trades, evidence.Query.TradingAccountId,
+            evidence.Query.FromUtc, evidence.Query.BeforeUtc, cancellationToken);
+        return new(evidence.Query, calculated.Population, calculated.Currencies);
+    }
+
+    // Shared with period statistics; the public daily contract keeps its exact one-day bounds.
+    internal static (DailyReviewPopulation Population, IReadOnlyList<DailyReviewCurrencyStatistics> Currencies)
+        CalculateTrades(IReadOnlyList<DailyReviewTradeEvidence> evidence, Guid? accountId,
+            DateTimeOffset fromUtc, DateTimeOffset beforeUtc, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(evidence);
         cancellationToken.ThrowIfCancellationRequested();
         var identities = new HashSet<Guid>();
         var trades = new List<DailyReviewTradeEvidence>();
-        foreach (var trade in evidence.Trades)
+        foreach (var trade in evidence)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (trade.TradeId == Guid.Empty || !identities.Add(trade.TradeId) ||
                 trade.Account.Id == Guid.Empty || !Enum.IsDefined(trade.Inclusion) ||
-                evidence.Query.TradingAccountId is { } account && trade.Account.Id != account)
+                accountId is { } account && trade.Account.Id != account)
                 throw new ArgumentException("Supply unique Trade identities in the requested Account scope.", nameof(evidence));
             if (string.IsNullOrWhiteSpace(trade.PricingCurrency) ||
                 trade.PricingCurrency != trade.PricingCurrency.Trim().ToUpperInvariant())
                 throw new ArgumentException("Supply the canonical historical pricing currency.", nameof(evidence));
             if (trade.Inclusion == DailyReviewTradeInclusion.ClosedOnDate &&
                 (trade.Facts is not { Status: TradeStatus.Closed, ClosedAtUtc: { } close } ||
-                 close < evidence.Query.FromUtc || close >= evidence.Query.BeforeUtc))
-                throw new ArgumentException("Closed evidence must belong to the requested New York closure date.", nameof(evidence));
+                 close < fromUtc || close >= beforeUtc))
+                throw new ArgumentException("Closed evidence must belong to the requested New York closure interval.", nameof(evidence));
             trades.Add(trade);
         }
         // Source order must not affect arithmetic order, provenance or metadata selection.
@@ -54,7 +65,7 @@ public static class DailyReviewStatisticsCalculator
         }
         var population = Population(ordered, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        return new(evidence.Query, population, currencies.AsReadOnly());
+        return (population, currencies.AsReadOnly());
     }
 
     private static DailyReviewPopulation Population(DailyReviewTradeEvidence[] trades, CancellationToken token)

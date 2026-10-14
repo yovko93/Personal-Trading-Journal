@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M19.2 — Period statistics and coverage (14 October 2026)**
+
+`PeriodReviewStatisticsCalculator` computes deterministic weekly/monthly closed-Trade statistics from the complete M19.1 snapshot. It reuses Daily Review's strict-cost eligibility and the Dashboard/Calendar P&L accumulator, with separate Account/currency groups, active New York closure dates, source IDs and explicit exclusions. Incomplete Gross/Net coverage never supplies a complete total, ratio, average or best/worst Trade. Journal, frozen Playbook and Rules/assessment evidence is carried unchanged; no adherence or mistake-pattern calculation is added. [Exact definitions, changed files, verification and limits](docs/period-reviews.md#m192--period-statistics-and-coverage). No UI, provider call, saved analysis, migration or data write.
+
+Focused **92/92 passed** (Application 62; Infrastructure 30). Complete `pwsh -File scripts/Test-Release.ps1` gate **4,103/4,103 passed**, zero failures/skips: Domain **490**, Application **784**, Infrastructure **1,268**, Desktop **1,561**. Calendar native **69.056 s / 50.944 s headroom**; no Calendar/Journal timeout. Release build **0 warnings/errors**, EF model consistency and whitespace passed. Seven files changed on `develop`, HEAD `d38ff0456dec263818873a81fb34d7f7a4acd2e9`; no production access, live AI calls or Git writes. Results are local synthetic automated verification, not matching GitHub CI acceptance.
+
 **M19.1 — Weekly/monthly period evidence (14 October 2026)**
 
 `IPeriodReviewEvidenceReader` now reads a complete Monday–Sunday week or calendar month in New York for an exact Account or All accounts. One bounded SQLite read snapshot includes closure-attributed Trades, separate open/partial activity, current Journals and retained revisions, frozen Playbook transitions, global Rules and recorded Trade/day assessments. Identities, nullable costs, currencies, manual/calculated origin and deleted-source states stay explicit; absent assessments never imply compliance. Existing assessment records without a recoverable Trade date are exposed separately, not guessed into a period. [Contract, attribution limits, exact files and verification](docs/period-reviews.md). No UI, AI call, saved analysis, migration or data-write behavior is added.

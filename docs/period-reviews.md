@@ -81,4 +81,73 @@ Branch **develop**, HEAD **`c8e6c9d25e23bf38581b9434189f389744f60af3`**, initial
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewEvidenceReaderTests.cs`
 - `README.md` and this document.
 
-Weekly/Monthly UI, further statistics, provider requests and saved analyses are deferred to later milestones. No database migration or backup/export format change is needed for this read-only contract.
+Weekly/Monthly UI, provider requests and saved analyses are deferred to later milestones. M19.2 adds the statistics below. No database migration or backup/export format change is needed for these read-only contracts.
+
+## M19.2 — Period statistics and coverage
+
+`PeriodReviewStatisticsCalculator.Calculate(evidence, cancellationToken)` is a pure Application calculation over a complete M19.1 snapshot. It makes **no database or provider request**, recalculates no Trade economics and mutates no source record. `PeriodReviewStatistics.Evidence` carries the original evidence unchanged, including Journal content/revisions, frozen Playbooks, global Rules, recorded assessments and unattributed/deleted-source states. M19.3, not this milestone, will calculate Rule adherence and mistake patterns. A missing assessment still means not assessed.
+
+The shared `DailyReviewStatisticsCalculator.CalculateTrades` core performs identity, Account/currency and closure-bound validation and strict Gross/Net eligibility; its public Daily Review entry point retains its existing one-day boundaries. Both use the existing `PnlAccumulator`/`PnlMetrics` formulas shared with Dashboard and Calendar. Calendar's **Effective Net** may include estimates and is intentionally **not** a period Net result. No missing commission/fee becomes zero.
+
+### Groups, definitions and denominators
+
+There is one group per historical pricing currency, with nested exact Account-ID groups. Currency-level amounts aggregate unique Trades across Accounts in that same currency only. A complete Account group can have valid Net even if another Account makes the enclosing currency Net incomplete. Overall population and active-day counts are nonmonetary; there is **no cross-currency money total**, conversion, equity return or broker-balance calculation. Inactive/unavailable reference metadata and quality flags remain accessible; a same-name Account is not an identity substitute.
+
+| Field | Definition and availability |
+| --- | --- |
+| `Population.Closed` | Unique closure-attributed Trade IDs/count, including break-evens and unavailable monetary outcomes. Open/partial activity is excluded. |
+| `ActiveDays` | Distinct **New York closure dates** with at least one closed Trade, ordered ascending, each with its contributing IDs. Unknown P&L still counts as activity. Journal-only days, open activity, idle calendar days and holidays without closures do not count. Across Accounts/currencies, a shared date counts once, not once per group. |
+| `Gross.Outcomes` / `Net.Outcomes` | Basis-labeled `PnlMetrics` and ordered known/unavailable/win/loss/breakeven Trade-ID sets. Positive/negative/zero refers to that basis; a Gross winner can be a Net loser. Outcome counts concern known values only; the coverage denominator always includes **every** closed Trade in the group. |
+| `Metrics.Total` | Sum of authoritative recorded Gross or strict Net, present only with complete coverage. No Trades or all-unknown values return null, distinct from a genuine complete zero. |
+| Strict Net eligibility | Requires eligible known Gross, every execution's commission/fees known, known nonnegative total costs and eligible recorded Net. Missing executions or quality flags block Net even if a projection happens to contain a numeric value. Uses the existing Daily Review rule, never a reconstructed estimate. |
+| `Metrics.KnownSubtotal`, known profit/loss sums | Explicit known-subset evidence; **not a complete period total** when coverage is partial. Loss sum is a positive magnitude. All-unknown/empty selections have null subtotals. Consumers must retain the accompanying coverage label. |
+| `Metrics.WinRatePercent` | 100 × wins / **all closed Trades**, including break-evens; null for empty/incomplete coverage. |
+| `Metrics.ProfitFactor` | Positive profit sum / positive loss magnitude, same currency/basis and complete coverage only. No-loss, all-breakeven, no-Trade and incomplete states have no invented numeric sentinel. |
+| `Metrics.AverageWin` / `AverageLoss` | Profit sum / winning Trade count; positive loss magnitude / losing Trade count. Exclude break-evens and require complete population coverage. Explicit no-wins/no-losses/no-Trades/incomplete statuses. |
+| `AveragePerClosedTrade` | Complete total / **all closed Trade count**, including break-evens. |
+| `AveragePerActiveDay` | Complete total / **distinct active closure dates in that group**, not seven days, month length, trading sessions or a count summed across Accounts. |
+| `BestTrade` / `WorstTrade` | Maximum/minimum **individual Trade** result, not best/worst day or account return. Only complete coverage in one currency/basis; includes every tied Trade ID in stable order. A best result can be negative. Empty/incomplete groups return null. |
+
+### Coverage and exclusions for later presentation
+
+`MetricCoverage` explicitly distinguishes **Empty**, **Complete**, **Partial**, and **Unavailable**, with closed/known/unknown counts. Any unknown value suppresses complete totals, win rate, profit factor, all averages and extrema on that basis. Gross may remain complete while Net is unavailable. No statistically selected known-Net subset is presented as the whole period.
+
+`PeriodGroupStatistics.Costs` contains **closed-Trade counts and IDs**, not execution counts: `MissingCommissionTrades`, `MissingFeeTrades`, and `MissingCostTrades`. The latter is the union/unknown-cost population, not the sum of overlapping component counts; unavailable total costs can also block Net. `Population.UnknownCommissions`/`UnknownFees` additionally retain context Trade quality, whereas `Costs` restricts its counts to realized candidates. Relevant evidence is available to explain unsupported/missing projection, unknown Gross/Net, missing executions and unavailable Account/Instrument/Setup/mistake sources through `Population.SourceQuality`, the basis-specific unavailable IDs and the original evidence. Missing data is neither a realized zero nor a Rule outcome.
+
+`ExcludedOpenActivity` and `ExcludedUnavailableLifecycle` retain separate contributing IDs/counts. Partial exits do not become final realized P&L or active closure days; open/partial context is a current snapshot, not a historical as-of position reconstruction. A now-closed Trade outside the selected period is not treated as in-period open activity. New York boundary and DST rules remain M19.1's.
+
+### Determinism, precision and limits
+
+Trades and monetary accumulation use stable ID order, currencies ordinal order, Accounts ID order and dates ascending order. Every aggregate has contributing IDs, including tied extrema and date denominators. Reordering the input does not change calculated groups; the original evidence remains intact rather than being rewritten to that calculation order. Decimal values are not rounded for presentation; division retains .NET decimal precision. Checked arithmetic (including profit/loss sums and ratios) throws `OverflowException` without returning a partial result. It never wraps, clamps or reclassifies overflow as missing evidence. Cancellation likewise returns no partial statistics.
+
+Duplicate IDs, wrong exact scope/currency format, out-of-period closures, invalid closed/context bucket assignment and context without in-period executions are rejected. The combined Trade population must fit M19.1's 10,000-Trade ceiling. The evidence reader's additional text/history/source limits still apply; this calculator cannot make an oversized or failed read valid. Existing missing-source and unrecoverable historical-attribution limitations remain unchanged.
+
+### M19.2 verification and changed files
+
+Focused tests cover mixed Account/currency groups; component-level unknown costs and inconsistent numeric Net; zero/breakeven and one-sided outcomes; active-day denominators and tied extrema; empty and open/partial-only periods; missing projections and unavailable sources; cross-midnight/DST/year/month boundaries; deterministic ordering, decimal precision, overflow, invalid evidence and cancellation. Synthetic migrated SQLite tests compare a month with **one active date** against the existing Daily Review and Calendar strict Gross/Net results across both DST transitions, known/unknown costs and exact/All accounts scopes. The period contract itself remains week/month only; no artificial one-day period kind was introduced. Calculation adds zero queries/writes and preserves source evidence.
+
+Verification on **14 October 2026**:
+
+| Check | Result |
+| --- | --- |
+| Focused Application period/Daily Review/Dashboard formulas | **62/62 passed** |
+| Focused SQLite evidence/statistics regressions | **30/30 passed** |
+| Complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m192-release` | **4,103/4,103 passed**, zero failures/skips: Domain **490**, Application **784**, Infrastructure **1,268**, Desktop **1,561** (88 exclusive WPF + 1,473 parallel) |
+| Calendar / Journal | Both passed unchanged deadlines; Calendar native process **69.056 s**, **50.944 s** headroom to 120 seconds |
+| Release build | **0 warnings/errors** |
+| EF consistency | No model changes; checked with the in-memory design-time context |
+| Whitespace | Tracked diff and all new files passed |
+| Live UI / provider / CI | No new UI or live provider call. No matching CI acceptance claimed for uncommitted changes. |
+
+There are **26 new cases** (22 Application, 4 SQLite). Focused TRX files: `artifacts/m192-focused/application-final.trx` and `infrastructure.trx`. Complete evidence: `artifacts/m192-release/release-20261014-164648-449b013e484b4a249e11cb21dbe98b9a/summary.json` and its stage/child logs. Gate elapsed **314.859 s**. No assertion, deadline, concurrency or isolation changes.
+
+Started clean on **develop**, HEAD **`d38ff0456dec263818873a81fb34d7f7a4acd2e9`**. Final worktree: **three modified and four new files**, below; no commit, push or merge. Existing M19.1 source/history ceilings and unrecoverable historical-attribution limits still apply. Arithmetic overflow fails explicitly rather than returning a misleading partial metric. UI, AI contracts/calls, saved analyses and M19.3 adherence/pattern work remain deferred. No production data was accessed.
+
+Exact files:
+
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewStatistics.cs` — result/coverage contracts.
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewStatisticsCalculator.cs` — pure period calculation.
+- `src/PersonalTradingJournal.Application/DailyReview/DailyReviewStatisticsCalculator.cs` — internal reusable range calculation; existing formulas/public Daily behavior preserved.
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodReviewStatisticsCalculatorTests.cs`.
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewStatisticsIntegrationTests.cs`.
+- `README.md` and `docs/period-reviews.md`.
