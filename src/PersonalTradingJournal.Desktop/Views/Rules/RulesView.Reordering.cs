@@ -16,6 +16,7 @@ public partial class RulesView
     private Border? _dragRow;
     private int _edgeDirection;
     private long? _lastEdgeScroll;
+    private bool _committingDrop;
     internal TimeProvider DragClock { get; set; } = TimeProvider.System;
 
     internal static bool CanStartRowDrag(DependencyObject? source, Border row)
@@ -70,6 +71,9 @@ public partial class RulesView
     }
     internal void EndRowDrag()
     {
+        // Native DoDragDrop returns while the async persistence/readback is still pending.
+        // Mouse-up, native-finally and container events must not remove that preview early.
+        if (_committingDrop) return;
         _dragRow = null;
         _lastEdgeScroll = null; _edgeDirection = 0;
         HideRowLift();
@@ -110,6 +114,7 @@ public partial class RulesView
     private void OnRuleDragLeave(object sender, DragEventArgs e) => LeaveRowDrag(e.GetPosition(DragOverlay));
     internal void LeaveRowDrag(Point pointer)
     {
+        if (_committingDrop) return;
         if (!new Rect(0, 0, DragOverlay.ActualWidth, DragOverlay.ActualHeight).Contains(pointer))
         {
             HideRowLift(); _lastEdgeScroll = null; _edgeDirection = 0;
@@ -123,24 +128,25 @@ public partial class RulesView
         UpdateProspectiveOrder(e.GetPosition(DragOverlay));
         await DropProspectiveOrderAsync();
     }
-    internal async Task DropRuleAsync(Guid source, Guid target, bool after)
-    {
-        EndRowDrag();
-        if (DataContext is not RulesViewModel vm) return;
-        int index = vm.Rules.ToList().FindIndex(r => r.Id == target);
-        if (index < 0 || source == target) return;
-        Guid? before = after ? index + 1 < vm.Rules.Count ? vm.Rules[index + 1].Id : null : target;
-        await CommitDropAsync(source, before);
-    }
     private async Task CommitDropAsync(Guid source, Guid? before)
     {
+        double offset = RulesScroller.VerticalOffset;
+        var focus = IsKeyboardFocusWithin ? Keyboard.FocusedElement : null;
+        _committingDrop = true;
         try
         {
             if (DataContext is not RulesViewModel vm) return;
+            StopShiftClock(); ApplyShiftProgress(1);
             await vm.MoveBeforeAsync(source, before);
-            FocusRow(source);
+            // Settle the retained cards in their verified layout underneath the lift, within
+            // one dispatcher turn. No BringIntoView: it would jump the user's scroll context.
+            ClearVisualOrder();
+            UpdateLayout();
+            if (focus is UIElement element && element.IsVisible && !ReferenceEquals(Keyboard.FocusedElement, focus)) element.Focus();
+            RulesScroller.ScrollToVerticalOffset(offset);
+            UpdateLayout();
         }
-        finally { EndRowDrag(); DragDiagnostics?.Report(RuleDragPhase.DropCompleted); }
+        finally { _committingDrop = false; EndRowDrag(); DragDiagnostics?.Report(RuleDragPhase.DropCompleted); }
     }
     private async void OnRowKey(object sender, KeyEventArgs e)
     {

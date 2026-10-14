@@ -1,5 +1,59 @@
 # Trading Rules — contracts, persistence and assessments
 
+## Drop transition with retained cards — 14 October 2026
+
+Started on clean `develop`, HEAD `f902fb0645215d12c6879135e269cef11d2f9d68`. All preceding Rules work is preserved. This correction addresses the transition after drop; prospective pointer movement, native isolation, concurrency bounds and test deadlines remain unchanged.
+
+### Reproduced cause
+
+The synthetic compiled-WPF probe held the write behind a completion gate and inspected the actual drop entry point before and after verified readback. At both 96 and 240 DPI, with regular and unequal-height cards, `DropProspectiveOrderAsync` cleared the lift/transforms **before** awaiting persistence. The native `DoDragDrop` finally path could also clear them while the asynchronous drop was pending. Readback then replaced `Rules` with a new array and new row objects, causing ItemsSource replacement, one **Reset**, and recreation of all twelve card controls. This is a demonstrated product transition defect, not a claim based on a passing rerun or on Loaded/Unloaded events from detached render roots. A separate measurement found that the busy Cancel operation button inserted **44.62 DIPs** above the list during persistence.
+
+| Twelve-card drop measurement | Before | After |
+| --- | --- | --- |
+| Preview during gated write/readback | Collapsed; original card restored early | Visible; original card remains covered until final layout |
+| ItemsSource replaced | Yes | No |
+| Collection events | One Reset | One Move; zero Resets |
+| Existing card containers retained | 0/12 | 12/12 |
+| Move store invocations | 1 | 1 |
+| Bounded catalog page reads | 1 | 1 |
+| Busy-control vertical displacement | 44.62 DIPs | 0 DIPs |
+
+Read/write counts are repository operations, not individual SQL statements. The production move still uses the existing atomic, expected-version transaction; a catalog longer than twenty rows still uses bounded readback pages. Raw baseline evidence is in ignored `artifacts/m145-load/rules-drop-baseline`; busy-control measurement in `rules-drop-chrome-probe`; corrected evidence in `rules-drop-final-focused`. Opt-in numeric drag diagnostics now distinguish collection Move/Reset and ItemsSource notifications. They continue to exclude Rule text, identities and database paths.
+
+The smooth movement path is also remeasured: **60 pointer updates** still produce **zero reads/writes, collection/property notifications, row measures/arrangements or view-layout notifications**, with one prospective target change. Drop necessarily arranges the retained cards into their final positions; the fix does not claim that a committed reorder needs no layout work. Four synthetic gated-drop elapsed samples were 253–510 ms before and 45–246 ms after, under separate schedules; these are observations, not a latency guarantee. Container/event identity and visibility/offset assertions establish the correction.
+
+### Correction and coverage
+
+- Only reorder readback reconciles the existing observable list. It reuses rows whose immutable revision content and account metadata match, moves the affected item once in the normal case, and notifies changed display numbers. Genuine concurrent additions/removals/content changes reconcile only affected rows. SQLite rehydration creates new revision instances, so matching compares their values rather than object references. Explicit Refresh and ordinary authoring retain their existing load behavior.
+- The committing-drop state keeps the lifted bitmap and prospective geometry through persistence/readback, including native mouse-up/finally and leave callbacks. The final retained cards are arranged beneath the preview in the same dispatcher continuation; the preview is removed only after that layout completes. Focus is retained without a drop-triggered BringIntoView, and the outer scroll offset is restored. Existing text scrollers remain the same instances and retain their offsets.
+- Cancel operation occupies a stable, responsive action-row slot (hidden and inaccessible when idle). Quiet successful moves no longer dismiss an unrelated feedback box; its original ten-second timer remains authoritative. Failures still replace feedback with the existing error/recovery message.
+- No-op drops make zero read/write calls and produce zero collection events. Failed/conflicting/cancelled writes read back actual persisted order, preserve unchanged controls, clear all drag visuals and keep unsaved fields. The obsolete test-only alternate drop helper was removed so layout tests exercise the same prospective-drop path used by the UI.
+- Coverage includes held write **and** held readback, native-finally cleanup while pending, identity of every card and text scroller, sequential numbering, page/inner offsets, no-op/failure/conflict/cancellation, unsaved-edit veto, native/logical focus, and synthetic SQLite readback plus fresh-service restart. Existing pointer movement, geometry, keyboard/context actions, guards and persistence tests still run.
+
+Final focused Desktop Rules tests: **72/72 passed**, zero failures/skips. Connected-window focus was initially granted and retained on the exact same row; logical focus was also retained. Inspected automated Light/Dark renders at **960 DIP/96 DPI** and **480 DIP/240 DPI**, including pending and committed states with scrolled long Criteria (`artifacts/rules-drop-renders`). Release build: **0 warnings/errors**. EF: no pending model changes. Tracked and new-file whitespace checks pass. These are automated WPF checks, not physical mouse/touchpad or screen-reader acceptance. No live input helper or provider call was used, and no production data was accessed. Matching CI cannot cover these uncommitted changes yet. M18.6 remains unstarted.
+
+The first complete parallel run (`rules-drop-full`) finished **4,010 passed / 32 failed / zero skipped**. Desktop had 31 credential-dependent or propagated failures: the first shared Daily Review layout failure expected credential source `Saved` but observed `None` at `DailyReviewViewTests.cs:289`; both Daily Review acceptance cases stopped before their fake transport because the synthetic saved key was unavailable. Infrastructure's one failure was `BackupArchiveTests.LinkedScreenshotRootIsRejectedWithoutPackagingOutsideBytes`: creating its synthetic symlink reported that the required privilege was not held. Domain 490/490 and Application 753/753 passed. Calendar native passed **87/87 in 107.804 seconds**, with **12.196 seconds** remaining to its unchanged 120-second limit; its earlier focus assertion did not recur.
+
+The execution restriction was tested independently: an in-memory, synthetic `CurrentUser` DPAPI protect/unprotect probe threw `CryptographicException` (HResult `-2146233087`) inside the restricted context and succeeded in the normal Windows context. It read no stored key or journal. Without code changes, normal-context credential/Daily Review checks passed **29/29** (`rules-drop-credential-context`), and the isolated backup symlink test passed **1/1** (`rules-drop-link-context`). This supports an execution-context cause for those failures. The final complete run uses that normal context; the failed run remains recorded. No retries inside tests, skips, sleeps, assertion weakening, concurrency changes or longer deadlines were introduced.
+
+**Final complete parallel Release: 4,042/4,042 passed, zero failures/skips** (`artifacts/m145-load/rules-drop-final-full`): Domain **490**, Application **753**, Infrastructure **1,249**, Desktop **1,550**. Calendar native passed **87/87 in 99.967 seconds**, with **20.033 seconds** remaining to the original deadline. No Calendar chart-focus assertion or aggregate timeout recurred. This result does not claim to eliminate previously documented scheduling variability. Local automated verification is green; live physical interaction and GitHub Actions for the resulting uncommitted tree remain open. Branch/HEAD unchanged; final worktree has twelve modified files and one new test file below.
+
+Exact changed files:
+
+- `README.md`
+- `docs/trading-rules.md`
+- `src/PersonalTradingJournal.Desktop/Diagnostics/RulesDragDiagnostics.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Rules/RulesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.ProspectiveOrder.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.Reordering.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Rules/RulesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesDragPerformanceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesDropTransitionTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesOrderTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Rules/RulesViewTests.cs`
+
 ## Complete Rule and Criterion text — 14 October 2026
 
 Started on clean `develop`, HEAD `a2d375a5c5c5f20dc6471f5970c9a301c7ccc5c4`; all preceding work is preserved. This section supersedes earlier three-line/ellipsis descriptions.

@@ -113,7 +113,6 @@ public partial class RulesView
         Guid source = _dragSlots[_sourceIndex].Id;
         var others = _dragSlots.Where((_, i) => i != _sourceIndex).ToArray();
         Guid? before = ProspectiveIndex < others.Length ? others[ProspectiveIndex].Id : null;
-        EndRowDrag();
         await CommitDropAsync(source, before);
     }
 }

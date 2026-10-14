@@ -9,18 +9,23 @@ public sealed class RulesOrderTests
     public async Task UnchangedSlotsNeverWriteOrReloadAndRealMovePublishesExactlyOnce()
     {
         var f = new RulesFixture(); for (int i = 0; i < 3; i++) f.Data.Seed(1);
-        await f.Vm.ActivateAsync(); var original = f.Vm.Rules; int reads = f.Data.CatalogCalls.Count, published = 0;
+        await f.Vm.ActivateAsync(); var original = f.Vm.Rules.ToArray(); var collection = f.Vm.Rules;
+        int reads = f.Data.CatalogCalls.Count, published = 0; string feedback = f.Vm.Message;
+        var changes = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
+        ((System.Collections.Specialized.INotifyCollectionChanged)collection).CollectionChanged += (_, e) => changes.Add(e.Action);
         f.Vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(f.Vm.Rules)) published++; };
         await f.Vm.MoveBeforeAsync(original[0].Id, original[1].Id);
         await f.Vm.MoveBeforeAsync(original[1].Id, original[1].Id);
         await f.Vm.MoveBeforeAsync(original[^1].Id, null);
         Assert.Equal(0, f.Data.MoveCalls); Assert.Equal(reads, f.Data.CatalogCalls.Count);
-        Assert.Same(original, f.Vm.Rules); Assert.Equal(0, published);
+        Assert.Same(collection, f.Vm.Rules); Assert.Equal(0, published); Assert.Empty(changes);
         await f.Vm.MoveBeforeAsync(original[1].Id, original[0].Id);
-        Assert.Equal(1, f.Data.MoveCalls); Assert.Equal(reads + 1, f.Data.CatalogCalls.Count); Assert.Equal(1, published);
+        Assert.Equal(1, f.Data.MoveCalls); Assert.Equal(reads + 1, f.Data.CatalogCalls.Count); Assert.Equal(0, published);
+        Assert.Same(collection, f.Vm.Rules); Assert.Equal([System.Collections.Specialized.NotifyCollectionChangedAction.Move], changes);
+        Assert.All(original, row => Assert.Same(row, f.Vm.Rules.Single(r => r.Id == row.Id)));
         Assert.Equal(new[] { original[1].Id, original[0].Id, original[2].Id }, f.Vm.Rules.Select(r => r.Id));
         Assert.Equal(new[] { 1, 2, 3 }, f.Vm.Rules.Select(r => r.DisplayNumber));
-        Assert.Empty(f.Vm.Message); f.Vm.Deactivate();
+        Assert.Equal(feedback, f.Vm.Message); f.Vm.Deactivate();
     }
 
     [Fact]
@@ -43,13 +48,14 @@ public sealed class RulesOrderTests
     {
         var f = new RulesFixture(); for (int i = 0; i < 3; i++) f.Data.Seed(1);
         await f.Vm.ActivateAsync(); var original = f.Vm.Rules.Select(r => r.Id).ToArray();
+        string feedback = f.Vm.Message;
         Assert.False(f.Vm.MoveUpCommand.CanExecute(f.Vm.Rules[0]));
         Assert.False(f.Vm.MoveDownCommand.CanExecute(f.Vm.Rules[^1]));
         await f.Vm.MoveBeforeAsync(original[1], original[0]);
-        Assert.Empty(f.Vm.Message); Assert.False(f.Vm.HasMessage);
+        Assert.Equal(feedback, f.Vm.Message);
         Assert.Equal(new[] { original[1], original[0], original[2] }, f.Vm.Rules.Select(r => r.Id));
         await f.Vm.MoveDownCommand.ExecuteAsync(f.Vm.Rules[0]);
-        Assert.Empty(f.Vm.Message); Assert.False(f.Vm.HasMessage);
+        Assert.Equal(feedback, f.Vm.Message);
         Assert.Equal(original, f.Vm.Rules.Select(r => r.Id));
         await f.Vm.MoveBeforeAsync(original[0], null);
         await f.Vm.RefreshCommand.ExecuteAsync(null); f.Vm.Deactivate(); await f.Vm.ActivateAsync();

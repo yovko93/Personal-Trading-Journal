@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Collections.ObjectModel;
 using PersonalTradingJournal.Application.Rules;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.Diagnostics;
@@ -25,8 +26,15 @@ public sealed class RuleField(string label, int limit, bool required = true) : O
 public enum RuleFeedbackKind { Information, Success, Error }
 
 public sealed record RuleChoice<T>(T Value, string Label);
-public sealed record RuleRow(TradingRuleDetails Details, int DisplayNumber = 0)
+public sealed class RuleRow(TradingRuleDetails details, int displayNumber = 0) : ObservableObject
 {
+    public TradingRuleDetails Details { get; } = details;
+    private int _displayNumber = displayNumber;
+    public int DisplayNumber
+    {
+        get => _displayNumber;
+        internal set { if (SetProperty(ref _displayNumber, value)) OnPropertyChanged(nameof(PositionDescription)); }
+    }
     public Guid Id => Details.Revision.RuleId;
     public string Name => Details.Revision.Definition.Name;
     public string Statement => Details.Revision.Definition.Criterion;
@@ -263,12 +271,36 @@ public sealed class RulesViewModel : ObservableObject
         finally { IsWriting = false; }
     }
     private sealed record Catalog(IReadOnlyList<TradingRuleDetails> Items, long Version);
-    private void PublishCatalog(Catalog catalog)
+    private void PublishCatalog(Catalog catalog, Guid? movedRule = null)
     {
         DragDiagnostics?.Count(RuleDragCounter.CatalogPublishes);
         _catalogVersion = catalog.Version;
-        Rules = catalog.Items.Select((r, i) => new RuleRow(r, i + 1)).ToArray();
+        if (movedRule is not null && Rules is ObservableCollection<RuleRow> rows)
+        {
+            // Reconcile only verified data. Preserve unchanged row objects and their controls,
+            // including when a failed move reads back exactly the same persisted order.
+            var desired = catalog.Items.Select(r => r.Revision.RuleId).ToHashSet();
+            for (int i = rows.Count - 1; i >= 0; i--) if (!desired.Contains(rows[i].Id)) rows.RemoveAt(i);
+            int from = rows.ToList().FindIndex(r => r.Id == movedRule);
+            int to = catalog.Items.ToList().FindIndex(r => r.Revision.RuleId == movedRule);
+            if (from >= 0 && to >= 0 && to < rows.Count && from != to) rows.Move(from, to);
+            for (int i = 0; i < catalog.Items.Count; i++)
+            {
+                var item = catalog.Items[i];
+                int existing = rows.ToList().FindIndex(r => r.Id == item.Revision.RuleId);
+                if (existing < 0) rows.Insert(i, new(item));
+                else if (existing != i) rows.Move(existing, i);
+                if (!SameRowContent(rows[i].Details, item)) rows[i] = new(item);
+                rows[i].DisplayNumber = i + 1;
+            }
+        }
+        else Rules = new ObservableCollection<RuleRow>(catalog.Items.Select((r, i) => new RuleRow(r, i + 1)));
     }
+    private static bool SameRowContent(TradingRuleDetails left, TradingRuleDetails right) =>
+        left.Revision.RuleId == right.Revision.RuleId && left.Revision.Revision == right.Revision.Revision &&
+        left.Revision.Definition == right.Revision.Definition && left.Revision.IsActive == right.Revision.IsActive &&
+        left.Revision.RecordedAtUtc == right.Revision.RecordedAtUtc &&
+        left.AccountNameAtRevision == right.AccountNameAtRevision && left.AccountAvailable == right.AccountAvailable;
     private Task<Catalog> CatalogAsync(CancellationToken token) => Task.Run(async () =>
     {
         // SQLite async calls may complete synchronously. Keep bounded reads off the UI thread.
@@ -336,9 +368,11 @@ public sealed class RulesViewModel : ObservableObject
         try
         {
             // Read after cancellation too: a commit may already have completed. Never invent a local order.
-            PublishCatalog(await CatalogAsync(CancellationToken.None));
+            PublishCatalog(await CatalogAsync(CancellationToken.None), ruleId);
             if (saved) IsEditing = false;
-            Feedback(message, kind);
+            // A quiet move must not collapse an unrelated feedback box and shift the list.
+            // Its existing ten-second lifetime remains unchanged. Errors still replace it.
+            if (!saved) Feedback(message, kind);
         }
         catch (Exception)
         {

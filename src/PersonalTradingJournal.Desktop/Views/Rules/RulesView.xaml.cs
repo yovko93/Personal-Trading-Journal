@@ -21,7 +21,12 @@ public partial class RulesView : UserControl
         if (RulesDragDiagnostics.Enabled)
         {
             LayoutUpdated += (_, _) => DragDiagnostics?.Count(RuleDragCounter.ViewLayouts);
-            ((INotifyCollectionChanged)RuleRows.Items).CollectionChanged += (_, _) => DragDiagnostics?.Count(RuleDragCounter.CollectionChanges);
+            ((INotifyCollectionChanged)RuleRows.Items).CollectionChanged += (_, e) =>
+            {
+                DragDiagnostics?.Count(RuleDragCounter.CollectionChanges);
+                if (e.Action == NotifyCollectionChangedAction.Reset) DragDiagnostics?.Count(RuleDragCounter.CollectionResets);
+                if (e.Action == NotifyCollectionChangedAction.Move) DragDiagnostics?.Count(RuleDragCounter.CollectionMoves);
+            };
         }
     }
     private void OnRowLoaded(object sender, RoutedEventArgs e) => DragDiagnostics?.Count(RuleDragCounter.RowsLoaded);
@@ -38,6 +43,7 @@ public partial class RulesView : UserControl
     }
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(RulesViewModel.Rules)) DragDiagnostics?.Count(RuleDragCounter.ItemsSourceChanges);
         if (e.PropertyName is not (nameof(RulesViewModel.ValidationAttempt) or nameof(RulesViewModel.IsEditing))) return;
         Dispatcher.BeginInvoke(() =>
         {

@@ -272,11 +272,11 @@ public sealed class RulesViewTests
                     Assert.Equal(0, view.ProspectiveIndex); Assert.Equal(Visibility.Visible, lift.Visibility);
                     Render(view, theme, width, dpi, "prospective-order");
                     view.EndRowDrag(); Layout(); Assert.Equal(Transform.Identity, surface.RenderTransform);
-                    Assert.True(view.BeginRowLift(surface, start));
-                    Await(view.DropRuleAsync(secondId, id, after: false)); Layout();
+                    Assert.True(view.BeginRowLift(nextSurface, start)); view.SetProspectiveIndex(0);
+                    string feedbackBeforeMove = f.Vm.Message;
+                    Await(view.DropProspectiveOrderAsync()); Layout();
                     Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Null(liftImage.Source); Assert.Equal(1, surface.Opacity);
-                    Assert.False(f.Vm.HasMessage);
-                    Assert.Equal(Visibility.Collapsed, feedback.Visibility);
+                    Assert.Equal(feedbackBeforeMove, f.Vm.Message); // Quiet move keeps the prior message on its original timer.
                     Assert.All(Descendants(view).OfType<RuleReorderRow>(), b => Assert.Equal(Transform.Identity, b.RenderTransform));
                     Assert.Equal(secondId, f.Vm.Rules[0].Id); Assert.Equal(1, f.Vm.Rules[0].DisplayNumber);
                     var movedRow = Descendants(rows).OfType<Border>().Single(b => b.Name == "RuleRowSurface" && b.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == secondId);
@@ -286,14 +286,14 @@ public sealed class RulesViewTests
                         movedRow.RaiseEvent(key); Assert.True(key.Handled);
                     });
                     Await(f.Vm.MoveDownCommand.ExecutionTask!); Layout();
-                    Assert.False(f.Vm.HasMessage);
+                    Assert.Equal(feedbackBeforeMove, f.Vm.Message);
                     Assert.Equal(id, f.Vm.Rules[0].Id); Assert.Equal(secondId, f.Vm.Rules[1].Id);
                     // Failure clears temporary feedback without hiding the actionable error.
                     rowGrid = Descendants(rows).OfType<Grid>().Single(g => g.Name == "RuleRowLayout" && g.DataContext is PersonalTradingJournal.Desktop.ViewModels.Rules.RuleRow r && r.Id == id);
                     f.Data.Failure = "failure";
                     var failedSource = (Border)VisualTreeHelper.GetParent(rowGrid);
-                    Assert.True(view.BeginRowLift(failedSource, start));
-                    Await(view.DropRuleAsync(secondId, id, after: false)); Layout(); f.Data.Failure = null;
+                    Assert.True(view.BeginRowLift(failedSource, start)); view.SetProspectiveIndex(1);
+                    Await(view.DropProspectiveOrderAsync()); Layout(); f.Data.Failure = null;
                     Assert.Equal(Visibility.Collapsed, lift.Visibility); Assert.Null(liftImage.Source); Assert.Equal(1, failedSource.Opacity);
                     Assert.Contains("could not be moved", f.Vm.Message); Assert.Equal(id, f.Vm.Rules[0].Id);
                     Assert.All(Descendants(view).OfType<RuleReorderRow>(), b => Assert.Equal(Transform.Identity, b.RenderTransform));
@@ -479,7 +479,7 @@ public sealed class RulesViewTests
     {
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++) { var child = VisualTreeHelper.GetChild(root, i); yield return child; foreach (var nested in Descendants(child)) yield return nested; }
     }
-    private static void Render(FrameworkElement view, string theme, int width, int dpi, string state)
+    internal static void Render(FrameworkElement view, string theme, int width, int dpi, string state)
     {
         var bitmap = new RenderTargetBitmap(width * dpi / 96, (int)view.ActualHeight * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(view);
         if (Environment.GetEnvironmentVariable("PTJ_RULES_RENDER_DIRECTORY") is not { Length: > 0 } output) return;

@@ -32,7 +32,10 @@ public sealed class RulesSqliteTests
         await vm.RefreshCommand.ExecuteAsync(null); await vm.EditRowCommand.ExecuteAsync(vm.Rules.Single(r => r.Id == typed.RuleId));
         vm.Fields[1].Text = ""; await vm.SaveCommand.ExecuteAsync(null);
         Assert.False(vm.IsEditing); Assert.Equal(typed.Definition.AutomaticCriterion, vm.SelectedRule!.Details.Revision.Definition.AutomaticCriterion);
+        var rowsBeforeMove = vm.Rules.ToArray(); var listBeforeMove = vm.Rules;
         await vm.MoveBeforeAsync(typed.RuleId, emptyId);
+        Assert.Same(listBeforeMove, vm.Rules);
+        Assert.All(rowsBeforeMove, row => Assert.Same(row, vm.Rules.Single(r => r.Id == row.Id)));
         Assert.Equal(new[] { typed.RuleId, emptyId }, vm.Rules.Select(r => r.Id));
         await vm.RefreshCommand.ExecuteAsync(null);
         Assert.Equal(new[] { typed.RuleId, emptyId }, vm.Rules.Select(r => r.Id));
