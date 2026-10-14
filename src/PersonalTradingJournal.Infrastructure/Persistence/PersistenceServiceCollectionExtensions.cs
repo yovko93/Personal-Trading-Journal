@@ -122,6 +122,8 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<ITradingCalendarReader, TradingCalendarReader>();
         services.AddTransient<ITradingCalendarDayReader, TradingCalendarDayReader>();
         services.AddTransient<IDailyReviewEvidenceReader, DailyReviewEvidenceReader>();
+        services.AddTransient<PersonalTradingJournal.Application.PeriodReviews.IPeriodReviewEvidenceReader,
+            PersonalTradingJournal.Infrastructure.PeriodReviews.PeriodReviewEvidenceReader>();
         services.AddTransient<ICoachingAnalysisRepository, CoachingAnalysisRepository>();
         services.AddTransient<ITradeDetailReader, TradeDetailReader>();
         services.AddTransient<ITradeExistenceReader, TradeExistenceReader>();

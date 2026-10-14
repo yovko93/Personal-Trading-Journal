@@ -94,7 +94,7 @@ public sealed partial class TradingRuleRepository
             r.AccountId is null || available.Contains(r.AccountId.Value))).ToArray());
     }
 
-    private static async Task<IReadOnlyList<TradingRuleAssessmentDetails>> AssessmentDetails(JournalDbContext db,
+    internal static async Task<IReadOnlyList<TradingRuleAssessmentDetails>> AssessmentDetails(JournalDbContext db,
         TradingRuleAssessmentRecord[] rows, CancellationToken token)
     {
         if (rows.Length == 0) return Array.Empty<TradingRuleAssessmentDetails>();

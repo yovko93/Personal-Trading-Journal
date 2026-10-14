@@ -23,16 +23,18 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
         // taking SQLite's immediate writer reservation or allowing inter-query mixed revisions.
         await using var snapshot = ((SqliteConnection)context.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await using var enlisted = await context.Database.UseTransactionAsync(snapshot, cancellationToken);
+        return await ReadSnapshotAsync(context, query, query.Date, query.BeforeUtc, cancellationToken);
+    }
 
+    // Shared by period evidence under its already-open read transaction and preflight limits.
+    internal static async Task<DailyReviewEvidence> ReadSnapshotAsync(JournalDbContext context,
+        DailyReviewQuery query, DateOnly throughDate, DateTimeOffset beforeUtc, CancellationToken cancellationToken)
+    {
+        var candidateIds = CandidateTradeIds(context, query.TradingAccountId, query.FromUtc, beforeUtc);
         var candidates = from trade in context.Trades.AsNoTracking()
                          join browse in context.TradeBrowse.AsNoTracking() on trade.Id equals browse.TradeId into projections
                          from browse in projections.DefaultIfEmpty()
-                         where (query.TradingAccountId == null || trade.TradingAccountId == query.TradingAccountId) &&
-                             ((browse != null && browse.Status == TradeStatus.Closed &&
-                               browse.ClosedAtUtc >= query.FromUtc && browse.ClosedAtUtc < query.BeforeUtc) ||
-                              ((browse == null || browse.Status != TradeStatus.Closed || browse.ClosedAtUtc == null) &&
-                               context.TradeExecutions.Any(e => e.TradeId == trade.Id &&
-                                   e.ExecutedAtUtc >= query.FromUtc && e.ExecutedAtUtc < query.BeforeUtc)))
+                         where candidateIds.Contains(trade.Id)
                          select new { Trade = trade, Browse = browse };
         var selected = await (from row in candidates
             join account in context.TradingAccounts.AsNoTracking() on row.Trade.TradingAccountId equals account.Id into accounts
@@ -84,9 +86,9 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
         var journals = await (from journal in context.DailyJournals.AsNoTracking()
             join account in context.TradingAccounts.AsNoTracking() on journal.TradingAccountId equals (Guid?)account.Id into accounts
             from account in accounts.DefaultIfEmpty()
-            where journal.TradingDate == query.Date &&
+            where journal.TradingDate >= query.Date && journal.TradingDate <= throughDate &&
                 (query.TradingAccountId == null || journal.TradingAccountId == query.TradingAccountId)
-            orderby journal.TradingAccountId != null, journal.TradingAccountId, journal.Id
+            orderby journal.TradingDate, journal.TradingAccountId != null, journal.TradingAccountId, journal.Id
             select new DailyReviewJournalEvidence(journal.Id, journal.TradingDate, journal.TradingAccountId,
                 account == null ? null : account.Name,
                 journal.TradingAccountId == null ? DailyJournalAccountState.AllAccounts :
@@ -170,4 +172,15 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
                     e.Image is not null || e.SourceScreenshotId is not null)).ToArray()));
         }
     }
+
+    internal static IQueryable<Guid> CandidateTradeIds(JournalDbContext context, Guid? accountId,
+        DateTimeOffset fromUtc, DateTimeOffset beforeUtc) =>
+        from trade in context.Trades.AsNoTracking()
+        join browse in context.TradeBrowse.AsNoTracking() on trade.Id equals browse.TradeId into projections
+        from browse in projections.DefaultIfEmpty()
+        where (accountId == null || trade.TradingAccountId == accountId) &&
+            ((browse != null && browse.Status == TradeStatus.Closed && browse.ClosedAtUtc >= fromUtc && browse.ClosedAtUtc < beforeUtc) ||
+             ((browse == null || browse.Status != TradeStatus.Closed || browse.ClosedAtUtc == null) &&
+              context.TradeExecutions.Any(e => e.TradeId == trade.Id && e.ExecutedAtUtc >= fromUtc && e.ExecutedAtUtc < beforeUtc)))
+        select trade.Id;
 }

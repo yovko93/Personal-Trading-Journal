@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M19.1 — Weekly/monthly period evidence (14 October 2026)**
+
+`IPeriodReviewEvidenceReader` now reads a complete Monday–Sunday week or calendar month in New York for an exact Account or All accounts. One bounded SQLite read snapshot includes closure-attributed Trades, separate open/partial activity, current Journals and retained revisions, frozen Playbook transitions, global Rules and recorded Trade/day assessments. Identities, nullable costs, currencies, manual/calculated origin and deleted-source states stay explicit; absent assessments never imply compliance. Existing assessment records without a recoverable Trade date are exposed separately, not guessed into a period. [Contract, attribution limits, exact files and verification](docs/period-reviews.md). No UI, AI call, saved analysis, migration or data-write behavior is added.
+
+Focused **81/81 passed** (Application 9; Infrastructure 72). Complete `pwsh -File scripts/Test-Release.ps1` gate **4,077/4,077 passed**, zero failures/skips: Domain **490**, Application **762**, Infrastructure **1,264**, Desktop **1,561**. Calendar native **61.015 s / 58.985 s headroom**; no Calendar/Journal timeout. Release build **0 warnings/errors**, EF model consistency and whitespace checks passed. Ten files changed on `develop`, HEAD `c8e6c9d25e23bf38581b9434189f389744f60af3`; no production/provider access or Git writes. These are local synthetic automated results, not matching CI or live UI acceptance.
+
 **PR #21 — Preserve Rule assessment drafts when an ancestor close is vetoed (14 October 2026)**
 
 MainWindow and Day Performance now prepare the entire owned-window close before committing it. Assessment consent no longer closes its dialog inside an ancestor's `Closing` subscriber. Calendar consent does not release its inline Journal or Trade state until all guards and closing subscribers accept; accepted closing explicitly ends both modal frames. Consent is scoped to one attempt, avoiding duplicate discard prompts. Direct assessment Close/X/Escape retain their own guard. An unsupported, uncoordinated owner is blocked with a close-assessments-first message instead of guessing acceptance from a dispatcher callback.
