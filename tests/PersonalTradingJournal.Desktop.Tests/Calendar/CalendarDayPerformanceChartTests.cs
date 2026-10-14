@@ -13,6 +13,8 @@ using PersonalTradingJournal.Desktop.Views.Dashboard;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class CalendarDayPerformanceChartTests
 {
     [Theory]

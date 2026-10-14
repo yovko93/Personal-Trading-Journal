@@ -19,6 +19,8 @@ using PersonalTradingJournal.Desktop.Tests.Trades;
 
 namespace PersonalTradingJournal.Desktop.Tests.CalendarPage;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed partial class CalendarDayModalTests
 {
     [Theory]
