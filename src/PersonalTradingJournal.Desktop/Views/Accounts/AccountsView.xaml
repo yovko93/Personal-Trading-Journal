@@ -7,6 +7,7 @@
     <UserControl.Resources>
         <converters:TradingAccountTypeDisplayConverter x:Key="AccountTypeDisplayConverter" />
         <converters:AccountBalanceDisplayConverter x:Key="AccountBalanceDisplayConverter" />
+        <GridLength x:Key="AccountCurrentBalanceColumnWidth">2.2*</GridLength>
         <Style x:Key="AccountBulkDeleteMenuItemStyle" TargetType="{x:Type MenuItem}"
                BasedOn="{StaticResource PtjDeleteMenuItemStyle}">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -593,7 +594,7 @@
                         <ColumnDefinition Width="1.1*" />
                         <ColumnDefinition Width="0.65*" />
                         <ColumnDefinition Width="1.3*" />
-                        <ColumnDefinition Width="2.2*" />
+                        <ColumnDefinition Width="{StaticResource AccountCurrentBalanceColumnWidth}" />
                         <ColumnDefinition Width="0.75*" />
                         <ColumnDefinition Width="2.2*" />
                     </Grid.ColumnDefinitions>
@@ -615,7 +616,7 @@
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Starting Balance" />
                     <TextBlock Grid.Column="5"
-                               HorizontalAlignment="Right"
+                               HorizontalAlignment="Stretch" TextAlignment="Center" Margin="12,0,12,0"
                                Style="{StaticResource AccountColumnHeaderStyle}"
                                Text="Current Balance"
                                ToolTip="Trade-based calculation, not a broker balance. Fully closed Trades in the Account currency only; excludes unrecorded deposits, withdrawals, payouts and other adjustments." />
@@ -645,7 +646,7 @@
                                             <ColumnDefinition Width="1.1*" />
                                             <ColumnDefinition Width="0.65*" />
                                             <ColumnDefinition Width="1.3*" />
-                                            <ColumnDefinition Width="2.2*" />
+                                            <ColumnDefinition Width="{StaticResource AccountCurrentBalanceColumnWidth}" />
                                             <ColumnDefinition Width="0.75*" />
                                             <ColumnDefinition Width="2.2*" />
                                         </Grid.ColumnDefinitions>
@@ -668,7 +669,7 @@
                                                    Style="{StaticResource AccountCellTextStyle}"
                                                    Text="{Binding StartingBalance, StringFormat={}{0:N2}, TargetNullValue=—}" />
                                         <StackPanel Grid.Column="5" Margin="12,0,12,0" DataContext="{Binding Converter={StaticResource AccountBalanceDisplayConverter}}">
-                                            <TextBlock x:Name="CurrentBalanceValue" Text="{Binding ValueText}" TextWrapping="Wrap" TextAlignment="Right"
+                                            <TextBlock x:Name="CurrentBalanceValue" Text="{Binding ValueText}" TextWrapping="Wrap" TextAlignment="Center"
                                                        Focusable="True" AutomationProperties.Name="{Binding Description}"
                                                        ToolTip="{Binding Description}">
                                                 <TextBlock.Style>
@@ -681,7 +682,7 @@
                                                     </Style>
                                                 </TextBlock.Style>
                                             </TextBlock>
-                                            <TextBlock Text="{Binding SupportingText}" TextWrapping="Wrap" TextAlignment="Right" Style="{StaticResource PtjCaptionTextStyle}" />
+                                            <TextBlock x:Name="CurrentBalanceCoverage" Text="{Binding SupportingText}" TextWrapping="Wrap" TextAlignment="Center" Style="{StaticResource PtjCaptionTextStyle}" />
                                         </StackPanel>
                                         <TextBlock Grid.Column="6"
                                                    HorizontalAlignment="Right">
@@ -720,22 +721,6 @@
                                                 </StackPanel>
                                             </Button>
                                             <Button Margin="4,0,0,0"
-                                                    Command="{Binding DataContext.EditAccountCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
-                                                    CommandParameter="{Binding Id}"
-                                                    Style="{StaticResource PtjEntityActionButtonStyle}"
-                                                    ToolTip="Edit account">
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Viewbox Width="14" Height="14">
-                                                        <Path Data="{StaticResource PtjIconEdit}"
-                                                              Fill="{x:Null}"
-                                                              Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
-                                                              StrokeLineJoin="Round"
-                                                              StrokeThickness="1.7" />
-                                                    </Viewbox>
-                                                    <TextBlock Margin="6,0,0,0" Text="Edit" />
-                                                </StackPanel>
-                                            </Button>
-                                            <Button Margin="4,0,0,0"
                                                     AutomationProperties.Name="More account actions"
                                                     interactions:EntityActionMenu.OpensContextMenu="True"
                                                     Style="{StaticResource PtjIconButtonStyle}"
@@ -744,6 +729,17 @@
                                                 <Button.ContextMenu>
                                                     <ContextMenu DataContext="{Binding PlacementTarget, RelativeSource={RelativeSource Self}}"
                                                                  Style="{StaticResource PtjEntityActionMenuStyle}">
+                                                        <MenuItem Header="Edit" Command="{Binding Tag.EditAccountCommand}"
+                                                                  CommandParameter="{Binding DataContext.Id}"
+                                                                  AutomationProperties.Name="{Binding DataContext.Name, StringFormat=Edit account {0}}"
+                                                                  Style="{StaticResource PtjEntityActionMenuItemStyle}">
+                                                            <MenuItem.Icon>
+                                                                <Viewbox><Path Data="{StaticResource PtjIconEdit}" Fill="{x:Null}"
+                                                                    Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type MenuItem}}}"
+                                                                    StrokeLineJoin="Round" StrokeThickness="1.7" /></Viewbox>
+                                                            </MenuItem.Icon>
+                                                        </MenuItem>
+                                                        <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}" />
                                                         <MenuItem Command="{Binding Tag.ActivateAccountCommand}"
                                                                   CommandParameter="{Binding DataContext}"
                                                                   Header="Activate">

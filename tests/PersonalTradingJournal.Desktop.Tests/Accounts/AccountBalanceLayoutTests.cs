@@ -34,6 +34,7 @@ public sealed class AccountBalanceLayoutTests
             app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
             var view = new AccountsView { DataContext = vm };
             var root = new Border { Child = view }; root.SetResourceReference(Border.BackgroundProperty, "PtjBackgroundBrush");
+            VisualTreeHelper.SetRootDpi(root, new DpiScale(dpi / 96d, dpi / 96d));
             root.Measure(new(width, 700)); root.Arrange(new(0, 0, width, 700)); root.UpdateLayout();
             var elements = Descendants(root).ToArray();
             var scroll = Assert.IsType<ScrollViewer>(view.FindName("AccountTableScroll"));
@@ -43,6 +44,7 @@ public sealed class AccountBalanceLayoutTests
             Assert.Equal(Grid.GetColumn(starting) + 1, Grid.GetColumn(header));
             var values = elements.OfType<TextBlock>().Where(t => t.Name == "CurrentBalanceValue").ToArray();
             Assert.Equal(3, values.Length);
+            Assert.Equal(TextAlignment.Center, header.TextAlignment);
             string[] colors = ["PtjSuccessBrush", "PtjDangerBrush", "PtjTextPrimaryBrush"];
             for (int i = 0; i < values.Length; i++)
             {
@@ -50,12 +52,20 @@ public sealed class AccountBalanceLayoutTests
                 Assert.True(values[i].Focusable);
                 Assert.Contains("Not a broker balance", AutomationProperties.GetName(values[i]));
                 if (i < 2) Assert.StartsWith("Estimated", values[i].Text);
-                double headerRight = header.TranslatePoint(new(header.ActualWidth, 0), scroll).X;
-                double valueRight = values[i].TranslatePoint(new(values[i].ActualWidth, 0), scroll).X;
+                double headerCenter = header.TranslatePoint(new(header.ActualWidth / 2, 0), scroll).X;
+                double valueCenter = values[i].TranslatePoint(new(values[i].ActualWidth / 2, 0), scroll).X;
                 var headerGrid = (Grid)header.Parent;
                 var rowGrid = (Grid)((StackPanel)values[i].Parent).Parent;
-                Assert.True(Math.Abs(headerRight - valueRight - 12) <= 2,
-                    $"Header edge {headerRight}; value edge {valueRight}; header width {headerGrid.ActualWidth}, row {rowGrid.ActualWidth}; header columns {string.Join(',', headerGrid.ColumnDefinitions.Select(c => c.ActualWidth))}; row columns {string.Join(',', rowGrid.ColumnDefinitions.Select(c => c.ActualWidth))}");
+                Assert.Equal(headerGrid.ColumnDefinitions[5].ActualWidth, rowGrid.ColumnDefinitions[5].ActualWidth, 2);
+                Assert.Equal(headerCenter, valueCenter, 2);
+                Assert.Equal(TextAlignment.Center, values[i].TextAlignment);
+                var coverage = ((StackPanel)values[i].Parent).Children.OfType<TextBlock>().Single(t => t.Name == "CurrentBalanceCoverage");
+                Assert.Equal(headerCenter, coverage.TranslatePoint(new(coverage.ActualWidth / 2, 0), scroll).X, 2);
+                Assert.Equal(TextAlignment.Center, coverage.TextAlignment);
+                Assert.Equal(0, values[i].TranslatePoint(new(), (StackPanel)values[i].Parent).Y, 2);
+                double coverageTop = coverage.TranslatePoint(new(), (StackPanel)values[i].Parent).Y;
+                Assert.Equal(values[i].ActualHeight, coverageTop, 2); // TranslatePoint can differ by floating-point roundoff (18.62 vs 18.619999999999976).
+                Assert.Equal(i < 2, coverage.Text.Length > 0);
             }
             Assert.Equal(width < 1120, scroll.ScrollableWidth > 0);
             scroll.ScrollToRightEnd(); root.UpdateLayout();

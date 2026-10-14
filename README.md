@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+**Accounts — Edit menu and centered Current Balance (14 October 2026)**
+
+Account rows keep **View** visible and expose **Edit** once in their existing ⋯ Actions menu. The menu uses the same Edit command and exact Account ID, including its busy-state enablement and existing workflow guards. The separate Account details action is unchanged. Current Balance's heading and each amount/currency/Estimated prefix are centered within one shared column-width resource. Unknown-cost supporting text wraps below the amount in that same column without shifting the primary value; narrow layouts retain the existing horizontal table scrolling.
+
+Focused Accounts checks **43/43 passed**, zero failures/skips. Compiled WPF tests open the Actions menu through its button, verify one Edit item/no duplicate row button, exact identity, disabled/enabled busy states, accessible focus and automation invocation into the existing editor, plus centered header/value/coverage geometry for estimated and known-cost rows. Inspected synthetic Light/Dark renders at **1280 DIP/96 DPI** (balance), **960 DIP/96 DPI** (menu), and **480 DIP/240 DPI**, with actual root DPI set for high-DPI layout. Release build **0 warnings/errors**; whitespace check passed. Results: `artifacts/m145-load/accounts-menu-balance-final`; renders: `artifacts/accounts-menu-balance-renders`. Physical mouse/keyboard and matching CI acceptance remain unverified; this presentation-only task does not rerun the complete suite. No production access, Git writes or M18.6 work. Started on clean `develop`, HEAD `cb47b8cfb5f068adefa9d3e265e9c0e27ef549da`.
+
+Exact changed files: `README.md`; `src/PersonalTradingJournal.Desktop/Views/Accounts/AccountsView.xaml`; `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBalanceLayoutTests.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBulkDeletionLayoutTests.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Accounts/AccountBulkDeletionTests.cs` (synthetic fixture reader injection only).
+
 **Rules — stable drop-to-saved-order transition (before M18.6)**
 
 Reordering now keeps the lifted preview until persistence and verified readback finish, then moves the retained card in place. A valid single-row move produces one collection **Move**, no Reset or ItemsSource replacement, and retains card controls, focus and long-text/page scroll offsets. Pending cancellation controls no longer insert height above the list. Successful moves remain quiet and leave unrelated feedback on its existing expiry timer; no-op drops perform no read/write. Failed/conflicting moves reconcile the verified persisted order and retain actionable feedback.
