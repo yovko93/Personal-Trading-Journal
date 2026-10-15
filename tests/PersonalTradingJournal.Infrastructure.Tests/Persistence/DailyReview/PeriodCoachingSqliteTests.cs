@@ -35,7 +35,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
             await writer.SaveChangesAsync(token);
             using var packetDoc = System.Text.Json.JsonDocument.Parse(json);
             string id = packetDoc.RootElement.GetProperty("packetId").GetString()!;
-            var sources = packetDoc.RootElement.GetProperty("content").GetProperty("sources");
+            var sources = packetDoc.RootElement.GetProperty("sources");
             Assert.Equal(exact ? 1 : 2, sources.EnumerateArray().Count(s => s.GetProperty("period").GetString() == "current" && s.GetProperty("kind").GetString() == "Trade"));
             var prototype = PeriodCoachingProviderTests.Packet(PeriodCoachingProviderTests.Evidence(kind));
             string response = PeriodCoachingProviderTests.Review(prototype).Replace(prototype.PacketId, id);
@@ -57,19 +57,30 @@ public sealed partial class DailyReviewEvidenceReaderTests
         Assert.DoesNotContain("Later observation", submitted.Json);
     }
 
-    [Fact]
-    public async Task LargerPeriodRejectedByGroqLeavesAllSqliteRecordsUnchanged()
+    [Theory] [InlineData(31, false)] [InlineData(300, true)]
+    public async Task LargerPeriodsRespectSnapshotLimitsWithoutPartialSave(int count, bool tooLarge)
     {
         await using var db = await ReaderTestDatabase.CreateAsync(); var (account, instrument) = await References(db);
         var query = new PeriodReviewQuery(ReviewPeriodKind.Week, Day, account);
-        await Add(db, Enumerable.Range(0, 31).Select(i => TradeFact(account, instrument, query.FromUtc.AddHours(i + 1))).ToArray());
-        var handler = new PeriodCoachingProviderTests.Handler((_, _) => throw new Exception("Must not send oversized evidence"));
+        await Add(db, Enumerable.Range(0, count).Select(i => TradeFact(account, instrument, query.FromUtc.AddDays(i % 5).AddHours(12))).ToArray());
+        var handler = new PeriodCoachingProviderTests.Handler(async (request, token) =>
+        {
+            Assert.False(tooLarge);
+            using var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(token));
+            using var packet = System.Text.Json.JsonDocument.Parse(body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
+            var prototype = PeriodCoachingProviderTests.Packet(PeriodCoachingProviderTests.Evidence());
+            var response = PeriodCoachingProviderTests.Review(prototype).Replace(prototype.PacketId, packet.RootElement.GetProperty("packetId").GetString()!);
+            return PeriodCoachingProviderTests.Response(200, PeriodCoachingProviderTests.Envelope(true, response).ToJsonString());
+        });
         using var client = new HttpClient(handler);
-        var result = await new PeriodCoachingGenerationService(db.ServiceProvider.GetRequiredService<IPeriodComparisonEvidenceReader>(),
-            new GroqCoachingProvider(client, new(), () => "synthetic"), new(), TimeProvider.System).GenerateAsync(query);
-        Assert.Equal(PeriodCoachingStatus.TooLarge, result.Status); Assert.Null(result.Packet); Assert.Null(result.Review); Assert.Equal(0, handler.Calls);
+        var generator = new PeriodCoachingGenerationService(db.ServiceProvider.GetRequiredService<IPeriodComparisonEvidenceReader>(),
+            new GroqCoachingProvider(client, new(), () => "synthetic"), new(), TimeProvider.System);
+        var result = await new GenerateAndSavePeriodReviewService(generator, db.ServiceProvider.GetRequiredService<IPeriodReviewRepository>(), TimeProvider.System).GenerateAsync(query);
+        Assert.Equal(tooLarge ? PeriodCoachingStatus.TooLarge : PeriodCoachingStatus.Success, result.GenerationStatus);
+        Assert.Equal(!tooLarge, result.Review is not null); Assert.Equal(tooLarge ? 0 : 1, handler.Calls);
         await using var verify = await db.ContextFactory.CreateDbContextAsync();
-        Assert.Equal(31, await verify.Trades.CountAsync()); Assert.Equal(62, await verify.TradeExecutions.CountAsync());
+        Assert.Equal(count, await verify.Trades.CountAsync()); Assert.Equal(count * 2, await verify.TradeExecutions.CountAsync());
+        Assert.Equal(tooLarge ? 0 : 1, await verify.PeriodReviews.CountAsync());
         Assert.Equal(0, await verify.CoachingAnalyses.CountAsync()); Assert.Equal(0, await verify.DailyJournals.CountAsync());
     }
 }

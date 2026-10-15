@@ -19,7 +19,13 @@ public sealed record PeriodCitation(string Label, string Detail, Guid? TradeId =
     public bool HasTrade => TradeId.HasValue;
     public bool HasJournal => Journal is not null;
 }
-public sealed record PeriodFinding(string Basis, string Text, IReadOnlyList<PeriodCitation> Citations);
+public sealed record PeriodFinding(string Basis, string Text, IReadOnlyList<PeriodCitation> Citations)
+{
+    // Editorial presentation only: preserve every character of the provider's validated text.
+    private int Break => Text.IndexOf(". ", StringComparison.Ordinal) is > 0 and < 120 ? Text.IndexOf(". ", StringComparison.Ordinal) + 1 : 0;
+    public string Title => Break > 0 ? Text[..Break] : Basis;
+    public string Explanation => Break > 0 ? Text[Break..].TrimStart() : Text;
+}
 public sealed record PeriodCard(string Heading, string Note, IReadOnlyList<PeriodFinding> Findings);
 
 public sealed class PeriodCurrentPresentation
@@ -82,8 +88,8 @@ public sealed class PeriodReport
     public static bool Matches(PeriodReviewSummary s, PeriodReviewQuery q) => s.Kind == q.Kind && s.FirstDate == q.FirstDate && s.LastDate == q.LastDate && s.Scope.AccountId == q.Scope.AccountId;
     public static PeriodReport Read(SavedPeriodReview saved)
     {
-        if (saved.EvidenceContractVersion != "period-coaching.v1" || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
-            Encoding.UTF8.GetByteCount(saved.EvidenceJson) > PeriodCoachingContract.MaximumPacketBytes || Encoding.UTF8.GetByteCount(saved.ResponseJson) > PeriodCoachingContract.MaximumResponseBytes)
+        if (saved.EvidenceContractVersion is not ("period-coaching.v1" or "period-coaching.v2") || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
+            Encoding.UTF8.GetByteCount(saved.EvidenceJson) > (saved.EvidenceContractVersion == "period-coaching.v1" ? PeriodCoachingContract.MaximumPacketBytes : PeriodCoachingContract.MaximumSnapshotBytes) || Encoding.UTF8.GetByteCount(saved.ResponseJson) > PeriodCoachingContract.MaximumResponseBytes)
             throw new InvalidDataException("Unsupported saved period contract.");
         using var doc = JsonDocument.Parse(saved.EvidenceJson, new() { MaxDepth = 64 });
         var root = doc.RootElement; var content = root.GetProperty("content"); var period = content.GetProperty("currentPeriod");
@@ -92,7 +98,15 @@ public sealed class PeriodReport
             S(period, "kind") != saved.Summary.Kind.ToString() || DateOnly.Parse(S(period, "firstDate")) != saved.Summary.FirstDate || DateOnly.Parse(S(period, "lastDate")) != saved.Summary.LastDate ||
             Id(period.GetProperty("scope"), "accountId") != saved.Summary.Scope.AccountId) throw new InvalidDataException("Saved identity mismatch.");
         var sources = content.GetProperty("sources").Deserialize<PeriodCoachingSource[]>(JsonOptions) ?? throw new InvalidDataException();
-        var map = sources.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        if (saved.EvidenceContractVersion == "period-coaching.v2" &&
+            (S(root.GetProperty("providerProjection"), "packetId") != saved.PacketId ||
+             S(root.GetProperty("providerProjection"), "contractVersion") != saved.EvidenceContractVersion))
+            throw new InvalidDataException("Saved projection identity mismatch.");
+        // v2 citations can reference only the provider projection, never local-only examples.
+        var supplied = saved.EvidenceContractVersion == "period-coaching.v2"
+            ? root.GetProperty("providerProjection").GetProperty("sources").Deserialize<PeriodCoachingSource[]>(JsonOptions)!
+            : sources;
+        var map = supplied.ToDictionary(s => s.Id, StringComparer.Ordinal);
         PeriodCitation Cite(string id)
         {
             if (!map.TryGetValue(id, out var source)) throw new InvalidDataException("Unknown saved citation.");
@@ -138,6 +152,14 @@ public sealed class PeriodReport
             }
             if (source.Kind == PeriodCoachingSourceKind.RuleRevision) return new($"{side} · Rule · {S(c.GetProperty("definition"), "name")} · revision {S(c, "revision")}",
                 S(c.GetProperty("definition"), "criterion") + "\nA Rule definition alone is not an assessment or proof of adherence.");
+            if (source.Kind == PeriodCoachingSourceKind.CalculatedStatistics && c.TryGetProperty("accounts", out var accounts))
+                return new($"{side} · Saved calculated statistics", $"{S(c.GetProperty("population"), "closed")} closed Trades · {S(c, "activeDays")} New York trading days.\n" +
+                    string.Join("\n", accounts.EnumerateArray().Select(a =>
+                    {
+                        var values = a.GetProperty("values"); var gross = values.GetProperty("gross").GetProperty("metrics").GetProperty("total");
+                        var net = values.GetProperty("net").GetProperty("metrics").GetProperty("total");
+                        return $"{S(a.GetProperty("account"), "name")} · {S(a, "currency")} · Gross {(gross.ValueKind == JsonValueKind.Null ? "Unavailable" : gross.ToString())} · Net {(net.ValueKind == JsonValueKind.Null ? "Unavailable" : net.ToString())} · Missing-cost Trades: {S(values, "missingCosts")}";
+                    })) + "\nThese supplied aggregates cover the complete population; individual examples are bounded. Missing costs are not zero.");
             return new($"{side} · Saved {(source.Kind == PeriodCoachingSourceKind.Comparison ? "period comparison" : source.Kind == PeriodCoachingSourceKind.CalculatedPatterns ? "Rule coverage and recorded mistake patterns" : "calculated statistics")}",
                 "Calculated from the complete saved evidence with Account/currency boundaries. Unknown costs are not zero; unassessed Rules are not compliant. This source remains the snapshot used at generation.");
         }

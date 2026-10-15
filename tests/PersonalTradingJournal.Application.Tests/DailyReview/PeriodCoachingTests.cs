@@ -16,6 +16,33 @@ namespace PersonalTradingJournal.Application.Tests.DailyReview;
 
 public sealed class PeriodCoachingTests
 {
+    [Fact]
+    public void CompactProjectionRetainsFullLocalSourcesButRejectsLocalOnlyCitations()
+    {
+        var pair = Evidence(new(ReviewPeriodKind.Week, Day));
+        var trades = Enumerable.Range(0, 8).Select(i => Trade(pair.Current.Query, i % 2 == 0 ? "USD" : "EUR", missing: i == 0)).ToArray();
+        pair = pair with { Current = pair.Current with { ClosedTrades = trades } };
+        var p = Packet(pair);
+        Assert.Equal(8, p.Sources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));
+        Assert.Equal(2, p.SuppliedSources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));
+        Assert.DoesNotContain(p.SuppliedSources, s => s.Kind == PeriodCoachingSourceKind.Execution);
+        using var local = JsonDocument.Parse(p.Json); using var wire = JsonDocument.Parse(p.ProviderJson);
+        Assert.Equal(local.RootElement.GetProperty("providerProjection").GetRawText(), wire.RootElement.GetRawText());
+        Assert.Contains("not representative", p.ProviderJson);
+        var stat = p.SuppliedSources.Single(s => s.Id == "current:statistics").Content;
+        Assert.Equal(8, stat.GetProperty("population").GetProperty("closed").GetInt32());
+        var usd = stat.GetProperty("accounts").EnumerateArray().Single(a => a.GetProperty("currency").GetString() == "USD");
+        Assert.Equal(JsonValueKind.Null, usd.GetProperty("values").GetProperty("net").GetProperty("metrics").GetProperty("total").ValueKind);
+        var missing = p.Sources.First(s => s.Kind == PeriodCoachingSourceKind.Trade && !p.SuppliedSources.Any(x => x.Id == s.Id));
+        var json = JsonNode.Parse(Review(p))!;
+        json["strengths"]!["findings"]![0]!["basis"] = "RecordedEvidence";
+        json["strengths"]!["findings"]![0]!["sourceIds"]![0] = missing.Id;
+        Assert.False(PeriodCoachingResponseValidator.Validate(json.ToJsonString(), p).IsValid);
+        json["strengths"]!["findings"]![0]!["sourceIds"]![0] = p.SuppliedSources.First(s => s.Kind == PeriodCoachingSourceKind.Trade).Id;
+        Assert.True(PeriodCoachingResponseValidator.Validate(json.ToJsonString(), p).IsValid);
+        var reordered = Packet(pair with { Current = pair.Current with { ClosedTrades = trades.Reverse().ToArray() } });
+        Assert.Equal(p.ProviderJson, reordered.ProviderJson);
+    }
     private static readonly Guid Account = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly DateOnly Day = new(2026, 10, 8);
 
@@ -76,6 +103,13 @@ public sealed class PeriodCoachingTests
         Assert.Equal(0, day.GetProperty("compliant").GetInt32());
         var recorded = Assert.Single(packet.Sources, s => s.Kind == PeriodCoachingSourceKind.Assessment);
         Assert.Equal("Unavailable", recorded.Content.GetProperty("targetState").GetString());
+        Assert.True(packet.SuppliedSources.Single(s => s.Kind == PeriodCoachingSourceKind.Assessment).Content.GetProperty("effectiveForCoverage").GetBoolean());
+        var correction = TradingRuleAssessment.Record(Guid.NewGuid(), rule, target, TradingRuleAssessmentOutcome.CannotEvaluate,
+            TradingRuleAssessmentSource.Manual, TradingRuleAssessmentBasis.RecordedEvidence, TradingRuleEvidenceSufficiency.Missing,
+            "A later recorded correction", [], null, q.FromUtc.AddHours(1));
+        var corrected = Packet(pair with { Current = pair.Current with { Assessments = [details,
+            new(correction, 2, null, TradingRuleSourceState.Unavailable, [])] } });
+        Assert.False(corrected.SuppliedSources.Single(s => s.Kind == PeriodCoachingSourceKind.Assessment && s.Content.GetProperty("assessment").GetProperty("id").GetGuid() == assessment.Id).Content.GetProperty("effectiveForCoverage").GetBoolean());
         var historical = Packet(pair with { Current = pair.Current with { ApplicableRules = [] } });
         Assert.Contains("NotInActiveGlobalCatalog", historical.Json);
     }

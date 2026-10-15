@@ -86,7 +86,8 @@ public sealed class PeriodCoachingGenerationService(IPeriodComparisonEvidenceRea
             PeriodCoachingStatus.InvalidEvidence => "Period evidence or source consistency is invalid. Nothing was sent; refresh current data before trying again.",
             PeriodCoachingStatus.EvidenceFailure => "Period evidence could not be read. No review was generated. Refresh before trying again.",
             PeriodCoachingStatus.CalculationOverflow => "Period calculations exceed decimal capacity. Nothing was sent.",
-            PeriodCoachingStatus.TooLarge when metadata is null => "Complete selected and previous-period evidence exceeds the packet limits. Nothing was sent or truncated. A complete period cannot fit this contract.",
+            PeriodCoachingStatus.TooLarge when metadata is null => "The local snapshot or projection exceeds a safety limit (2 MiB snapshot, 256 KiB per source/projection, 10,000 sources, or calculation limits). Nothing was sent. Keep this period review local.",
+            PeriodCoachingStatus.TooLarge when metadata.InputBudget is { } b => $"This projection needs about {b.EstimatedInputTokens:N0} input tokens; {metadata.Provider}’s limit is {b.InputLimit:N0}. Nothing was sent. Keep this review local, or choose a higher-budget provider in Settings.",
             _ => DailyCoachingGenerationService.Result(status == PeriodCoachingStatus.TooLarge ? CoachingGenerationStatus.InputTooLarge :
                 Enum.Parse<CoachingGenerationStatus>(status.ToString()), metadata).Message.Replace("complete day", "complete period", StringComparison.OrdinalIgnoreCase),
         };

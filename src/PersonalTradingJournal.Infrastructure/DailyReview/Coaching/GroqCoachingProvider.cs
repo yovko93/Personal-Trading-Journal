@@ -15,7 +15,7 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
         GenerateCoreAsync(packet.Json, OpenAiCoachingContract.Instructions, "daily_coaching_v2", OpenAiCoachingContract.Schema(), false, cancellationToken);
 
     public Task<CoachingProviderReply> GenerateAsync(PeriodCoachingPacket packet, CancellationToken cancellationToken) =>
-        GenerateCoreAsync(packet.Json, PeriodCoachingWireContract.Instructions, PeriodCoachingWireContract.Name, PeriodCoachingWireContract.Schema(), true, cancellationToken);
+        GenerateCoreAsync(packet.ProviderJson, PeriodCoachingWireContract.Instructions, PeriodCoachingWireContract.Name, PeriodCoachingWireContract.Schema(), true, cancellationToken);
 
     private async Task<CoachingProviderReply> GenerateCoreAsync(string packetJson, string instructions, string schemaName,
         System.Text.Json.Nodes.JsonObject schema, bool period, CancellationToken cancellationToken)

@@ -30,7 +30,7 @@ public static class PeriodCoachingResponseValidator
             if (Duplicates(doc.RootElement)) return Invalid("duplicate-properties");
             var r = JsonSerializer.Deserialize<PeriodCoachingResponse>(json, PeriodCoachingContract.JsonOptions);
             if (r is null || r.ContractVersion != packet.ContractVersion || r.PacketId != packet.PacketId) return Invalid("packet-identity");
-            var sources = packet.Sources.ToDictionary(s => s.Id, StringComparer.Ordinal);
+            var sources = packet.SuppliedSources.ToDictionary(s => s.Id, StringComparer.Ordinal);
             bool Text(string? value) => !string.IsNullOrWhiteSpace(value) && value.Length <= PeriodCoachingContract.MaximumTextLength;
             bool Refs(IReadOnlyList<string>? ids) => ids is { Count: >= 1 and <= 16 } && ids.All(id => id is not null && sources.ContainsKey(id)) &&
                 ids.Distinct(StringComparer.Ordinal).Count() == ids.Count;

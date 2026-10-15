@@ -6,7 +6,7 @@ namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
 internal static class PeriodCoachingWireContract
 {
-    internal const string Name = "period_coaching_v1";
+    internal const string Name = "period_coaching_v2";
     internal const string Instructions = """
         Produce one Weekly or Monthly coaching review for currentPeriod and its immediately preceding
         equivalent New York period in the supplied packet. Copy packetId and contractVersion exactly.
@@ -18,6 +18,7 @@ internal static class PeriodCoachingWireContract
         The action plan contains at most three specific next steps, each with action, measurable measure,
         timeframe and sourceIds. If insufficient, provide a cited explanation and zero steps.
         All text fields must be nonblank and at most 1000 characters. Do not produce partial output.
+        Begin each finding with a concise headline sentence, then explain its evidence in plain language.
         CalculatedFact findings cite only CalculatedStatistics, CalculatedPatterns or Comparison.
         UserObservation cites only Journal, JournalRevision, PlaybookAssociation or RuleRevision.
         RecordedEvidence cites only Trade, Execution, Assessment, UnattributedAssessment or RuleRevision.
@@ -31,7 +32,10 @@ internal static class PeriodCoachingWireContract
         adherence. Mistakes are recorded observations, not proven causes. Unattributed assessments cannot
         be assigned to either period. Absent prior data is not zero performance or evidence of progress.
         Use frozen Playbook context, not current definitions. No chart images were supplied or inspected.
-        Every supplied source is complete; do not claim to review additional or omitted Trades.
+        This is a compact projection: aggregates cover the complete populations; examples are bounded.
+        Cite aggregates only for their supplied calculated fields. Individual claims require supplied
+        individual example IDs. Do not claim to inspect executions, charts, omitted individual Trades,
+        omitted observations or local-only details. Example selection is not representative sampling.
         Suggest process improvements, not buy/sell recommendations or promises of profits.
         """;
     internal static JsonObject Schema()
@@ -66,7 +70,7 @@ internal static class PeriodCoachingWireContract
     }
     internal static string OpenAiRequest(PeriodCoachingPacket packet, OpenAiCoachingOptions options) => JsonSerializer.Serialize(new
     {
-        model = options.Model, instructions = Instructions, input = new[] { new { role = "user", content = packet.Json } },
+        model = options.Model, instructions = Instructions, input = new[] { new { role = "user", content = packet.ProviderJson } },
         text = new { format = new { type = "json_schema", name = Name, strict = true, schema = Schema() } },
         max_output_tokens = options.MaximumOutputTokens, store = false, stream = false, background = false, truncation = "disabled",
     });

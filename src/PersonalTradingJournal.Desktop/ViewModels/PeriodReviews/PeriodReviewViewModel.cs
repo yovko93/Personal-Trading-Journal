@@ -103,11 +103,12 @@ public sealed class PeriodReviewViewModel : ObservableObject
     public bool CanSelect => !_deleting;
     public bool NeedsConfiguration => _credentials.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
     public string Provider => (_credentials as ICoachingConfiguration)?.SelectedProvider switch { CoachingProviderKind.Groq => "Groq", CoachingProviderKind.Unavailable => "the configured provider (unavailable)", _ => "OpenAI" };
-    public string Disclosure => $"Only Generate sends the selected and previous period’s Trade facts, Journal observations, Playbook text and Rule evidence to {Provider}.";
-    public string Privacy => "No chart images are sent. Content may be sensitive; generation can incur charges. Groq Free tier has limits and upgraded accounts may be billed. Cancelling locally may not prevent charges or undo an already committed save. No automatic retry or provider fallback. Saved reviews are local, unencrypted snapshots; citations do not prove an AI claim is true.";
+    public string Disclosure => $"Generate sends period summaries and selected source examples to {Provider}. Usage may incur charges.";
+    public string Privacy => "Selected and previous period aggregates cover all included Trades. At most two examples per source kind and period supply Trade facts, Journal observations, captured Playbook and Rule text; other individual details remain local. Examples are not representative sampling. No chart images are sent. Content may be sensitive. Groq Free tier has limits and upgraded accounts may be billed. Cancelling locally may not prevent charges or undo an already committed save. No automatic retry or provider fallback. Saved reviews retain the complete local evidence and exact supplied projection, unencrypted; citations do not prove an AI claim is true.";
     public string Availability => _account.IsHistorical ? "Generation is unavailable for this historical Account. Its saved reviews remain readable." : "";
     public PeriodCurrentPresentation? Current { get; private set; }
     public PeriodReport? Report { get; private set; }
+    public bool ShowIntroduction => Report is null && string.IsNullOrEmpty(Message) && !IsBusy;
     public PeriodCitation? Citation { get; private set; }
     public IReadOnlyList<PeriodHistoryRow> History { get; private set; } = [];
     public string? Message { get; private set; }
@@ -230,7 +231,7 @@ public sealed class PeriodReviewViewModel : ObservableObject
             if (!PeriodReport.Matches(saved.Summary, q)) { Message = "Saved result did not match this selection. Refresh history; no substitute was displayed."; return; }
             _page = 1; await (LoadTask = LoadAsync(generated: true));
             if (!Valid()) return;
-            try { Report = PeriodReport.Read(saved); Message = "Review saved and opened. Monetary cost unknown; no verified pricing configuration."; }
+            try { Report = PeriodReport.Read(saved); Message = "Review saved and opened."; }
             catch (Exception) { Message = "Review saved, but its snapshot could not be displayed. Reopen history; do not regenerate automatically."; }
         }
         catch (OperationCanceledException) { if (Valid()) Message = "Generation cancelled. No automatic retry."; }

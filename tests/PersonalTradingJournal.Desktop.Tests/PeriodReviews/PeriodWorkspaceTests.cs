@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.Rules;
@@ -14,6 +15,17 @@ namespace PersonalTradingJournal.Desktop.Tests.PeriodReviews;
 
 public sealed class PeriodWorkspaceTests
 {
+    [Fact]
+    public void SavedV1ReportStillReadsWithoutProjectionOrCurrentSources()
+    {
+        var saved = PeriodFixture.Saved(new(ReviewPeriodKind.Week, ReviewFixture.Day));
+        var root = JsonNode.Parse(saved.EvidenceJson)!; root.AsObject().Remove("providerProjection"); root["contractVersion"] = "period-coaching.v1";
+        var response = JsonNode.Parse(saved.ResponseJson)!; response["contractVersion"] = "period-coaching.v1";
+        var legacy = saved with { EvidenceContractVersion = "period-coaching.v1", ResponseContractVersion = "period-coaching.v1",
+            EvidenceJson = root.ToJsonString(), ResponseJson = response.ToJsonString() };
+        var report = PeriodReport.Read(legacy); Assert.Equal(5, report.Cards.Count);
+        Assert.Equal(root.ToJsonString(), legacy.EvidenceJson);
+    }
     [Fact]
     public async Task HistoricalScopesArePagedAndShrinkingLastPageIsReconciled()
     {
@@ -208,7 +220,7 @@ internal sealed class PeriodFixture
         internal static CoachingProviderReply Success(PeriodCoachingPacket p) => new(CoachingGenerationStatus.Success, Json(p), new("Fake", "synthetic", "client", Usage: new(10, 0, 5, 15)));
         internal static string Json(PeriodCoachingPacket p)
         {
-            var section = new PeriodCoachingSection(false, [new(PeriodFindingBasis.Interpretation, "Synthetic interpretation. Verify against the recorded evidence; no adherence is inferred.", p.Sources.Take(12).Select(s => s.Id).ToArray())]);
+            var section = new PeriodCoachingSection(false, [new(PeriodFindingBasis.Interpretation, "Synthetic interpretation. Verify against the recorded evidence; no adherence is inferred.", p.SuppliedSources.Take(12).Select(s => s.Id).ToArray())]);
             var response = new PeriodCoachingResponse(p.ContractVersion, p.PacketId, section, section, section, section,
                 new(false, "Plan a measurable review of recorded activity.", ["current:statistics"], [new("Review one entry", "One recorded review", "Next session", ["current:statistics"])]));
             return JsonSerializer.Serialize(response, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, Converters = { new JsonStringEnumConverter() } });

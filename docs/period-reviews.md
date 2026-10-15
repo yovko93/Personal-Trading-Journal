@@ -1,5 +1,75 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## M19.7 correction — compact projection and report-first layout
+
+### Reproduction and measured cause
+
+Starting state: clean `develop`, HEAD `58f36ac8eef7dabd2812f802d03beb21d89552ee`. No production journal was opened. A deterministic synthetic week with 25 closed USD Trades, one execution fact per Trade and no Journals reproduced **TooLarge before HTTP**. The v1 packet was 214,107 UTF-8 bytes: comparison 143,322; calculated statistics 27,815; Trades 24,650; separately repeated executions 10,825; patterns 52; the remainder was identity, coverage and framing. Repeated complete group statistics and source memberships in comparisons dominated, not fixed instructions or schema. This fixture models the reported population, not the user's private 25 records.
+
+| Local Groq estimate | v1: 25 Trades, no prior Trades | v2: 25 Trades, no prior Trades | v2: 25 + 25 prior Trades |
+|---|---:|---:|---:|
+| Instructions | 445 | 509 | 509 |
+| Strict response schema | 626 | 626 | 626 |
+| Evidence | 85,033 | 2,223 | 3,215 |
+| Request framing | 83 | 83 | 83 |
+| 10% safety margin | 8,619 | 345 | 444 |
+| Reserve | 512 | 512 | 512 |
+| Total estimated input | **95,318** | **4,298** | **5,389** |
+| Configured input / output | 6,800 / 1,000 | unchanged | unchanged |
+| HTTP / validated result | 0 / TooLarge | 1 fake / Success | 1 fake / Success |
+
+These are the existing tokenizer's decoded-message/schema estimates, not live Groq billing or remaining organization TPM. No provider limit, timeout or token estimator was raised. The response remains bounded by 1,000 Groq output tokens; a genuinely incomplete or over-budget response still fails validation.
+
+### v2 projection and immutable local snapshot
+
+* `PeriodCoachingPacket.Json` retains every original local source, execution, Journal revision, frozen Playbook association, assessment/correction, calculated metric and contributing membership, plus the exact `providerProjection`. Local complete snapshots are bounded at **2 MiB**, with **10,000 source records** and the existing calculation limits. Individual unaggregated sources remain bounded at **256 KiB**. This local-storage limit is distinct from the unchanged provider budget; it accommodates both selected and prior periods without putting repeated memberships on the wire.
+* `ProviderJson` is the only period payload supplied to either provider. Its version/identity bind the complete local snapshot, projection policy, selected examples and coverage. Both adapters use the dedicated period v2 schema. Daily Review is unchanged.
+* Every closed Trade and excluded activity record contributes to complete calculated population/coverage and exact Account/currency statistics. Gross/strict Net metrics retain nulls, known-subset labels, coverage, means and extremes. No FX or economic recalculation is introduced. Comparison changes retain missing-baseline/coverage statuses. Breakdown membership counts are supplied; detailed breakdown metrics and memberships stay local.
+* Rule summaries preserve exact revision, lifecycle/version status, Trade/day target, scope, denominator, compliant/violation/Cannot-evaluate/not-assessed counts, manual/automatic origin counts and unavailable/changed-source counts. Assessment examples identify whether they are effective for current coverage; an older correction is not presented as the latest assessment. Mistake frequencies retain Account boundaries and are observations, not causes.
+* Individual examples are the **first two ordinal source IDs per kind and period**, for Trades, current Journals, frozen Playbook associations, Rule revisions and assessments. Selection is deterministic, not representative or performance-based. A Trade example includes its facts/classifications, not execution details. Coverage explicitly counts complete local sources versus supplied examples; an absent kind means no records, not an empty field. Journal absence is also explicit. No screenshot binaries, paths or Trade notes are sent.
+* The provider is told what remains local and may not claim to inspect omitted individual Trades, executions, observations or chart images. Text is untrusted evidence, never instructions. Aggregate IDs support only supplied aggregate facts. **The validator rejects individual IDs that exist locally but were not supplied.** It still cannot prove that an AI claim is true or that wording faithfully describes a citation.
+* A provider-budget rejection reports the estimated input and configured limit, with zero requests/saves; it does not suggest narrowing an already exact scope. Local snapshot/projection safety-limit rejection is separate. Nothing is silently truncated and there is no retry/fallback. Long selected examples, many groups or large snapshots can still be too large. The 31-Trade synthetic SQLite case now succeeds; a 300-Trade full snapshot fails its local bound without a request or history row.
+* Saved v1 JSON is not rewritten or revalidated under v2. The version-specific reader supports both. New reviews atomically save the full local snapshot **and** exact supplied projection/response; saved citations are restricted to the stored projection catalog. Backup/export already carry opaque versioned saved-period JSON, so no migration, export field or schema compatibility change is required.
+
+### Reference and automated visual observations
+
+Compared with the supplied `review.png`: a compact date/Account toolbar replaces large navigation buttons; the selected New York period sits at the top beside Generate on wide windows. Strengths and Areas for Improvement use separate green and amber finding cards with a bold first sentence and readable explanation. Mistakes Observed, Progress and the short Action Plan follow. The image's mascot and automatic-update promise were not copied. Provider/privacy details, statistics and saved history are collapsed below the report; coverage warnings remain available and unknown Net is never a total.
+
+Compiled WPF checks cover pre-generation, a successful report with three findings in each primary column, TooLarge, database loading, generation progress/cancellation, saved history, citations and scrolling. Light/Dark renders at **1100 DIP / 96 DPI** and **480 DIP / 240 DPI** are in `artifacts/m197-correction-renders/`. Each state has a named PNG; the two-column report stacks at narrow width, actions wrap, and there is one page scroll viewer. Contrast assertions require at least 4.5:1 for card body and accent headings. These are automated offscreen renders, **not live mouse/keyboard or screen-reader acceptance**.
+
+### Verification and remaining gates
+
+Final focused checks: **328/328** — Application **64**, Infrastructure **39**, Desktop/navigation **225**. Four compiled-WPF cases also regenerated **28** final-state PNGs. Initial sandboxed broader navigation checks had two Daily Review acceptance failures: disposable saved credentials were unavailable before fake transport. The same tests in the normal Windows-user context passed (225/225 focused, and in the complete gate). No credential/provider code, deadline or assertion was weakened; this sandbox limitation is not reported as a product fix.
+
+The final complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m197-correction-release` gate passed **4,305/4,305**, zero failures/skips: Domain **490**, Application **880**, Infrastructure **1,332**, Desktop **1,603** (88 exclusive WPF + 1,515 parallel). Calendar native child **58.398 seconds**, **61.602 seconds headroom** against its unchanged 120-second deadline; Journal child **10.918 seconds** including startup. No Calendar focus failure or Calendar/Journal timeout occurred. Results: `artifacts/m197-correction-release/release-20261015-121147-3f4dec736af5415dbbba73211f041dd0/summary.json`. Release build **0 warnings/errors**; EF `has-pending-model-changes` reports no changes; tracked and new-file whitespace checks passed.
+
+The final synthetic 25-Trade local snapshot is **222,548 bytes**, versus **8,359 bytes** actually supplied; with 25 prior Trades these are **419,207** and **11,481 bytes**. Measurements are retained in `artifacts/m197-correction-focused/period-infrastructure-final.trx`. Eight additional cases cover the new boundaries; existing assertions remain in the complete gate. All 19 listed files remain uncommitted on the starting `develop` HEAD. There is no resulting commit for GitHub Actions to verify; no matching CI acceptance is claimed.
+
+Selected render evidence: [Light report](../artifacts/m197-correction-renders/period-Light-1100-96-cards.png), [Dark report](../artifacts/m197-correction-renders/period-Dark-1100-96-top.png), [narrow/240-DPI report](../artifacts/m197-correction-renders/period-Dark-480-240-cards.png), [TooLarge](../artifacts/m197-correction-renders/period-Light-480-240-too-large.png). Visual inspection confirmed separate finding tiles, readable themed text, stacked narrow cards, reachable cancellation/actions, concise failure feedback without the introduction panel, and collapsed secondary sections. Real keyboard/mouse, screen-reader behavior, actual provider output quality/token accounting and matching CI remain unverified.
+
+Synthetic SQLite-backed week/month tests exercise 25 Trades with 50 executions and a missing commission: explicit Generate → real Groq wire adapter with fake HTTP → strict validation → one atomic saved row → five visible report sections → immutable reload. An unsupplied individual citation must yield no saved row. Application coverage includes deterministic projection, mixed currencies, nullable Net, correction markers, prompt-like text, old v1 display, unknown citations and cancellation. No live/paid request or production access is authorized or performed. Matching CI cannot verify uncommitted changes; M19.8 acceptance remains out of scope.
+
+### Exact changed files
+
+* `README.md`; `docs/period-reviews.md`
+* `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingGeneration.cs`
+* `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingPacket.cs`
+* `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingProjection.cs` (new)
+* `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingResponse.cs`
+* `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs`
+* `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/PeriodCoachingWireContract.cs`
+* `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+* `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+* `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodPresentation.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodReviewViewModel.cs`
+* `src/PersonalTradingJournal.Desktop/Views/PeriodReviews/PeriodReviewView.xaml`
+* `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodCoachingTests.cs`
+* `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingProviderTests.cs`
+* `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingSqliteTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodSqliteTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodViewTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodWorkspaceTests.cs`
+
 ## M19.7 — Weekly/Monthly Desktop workspace
 
 ### Selection, interpretation and history

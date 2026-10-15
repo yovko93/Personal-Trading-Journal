@@ -1,6 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Color x:Key="PtjColorBackground">#F4F6F8</Color>
+    <SolidColorBrush x:Key="PtjReviewStrengthSurfaceBrush" Color="#D7EDE2" />
+    <SolidColorBrush x:Key="PtjReviewStrengthAccentBrush" Color="#14543A" />
+    <SolidColorBrush x:Key="PtjReviewImproveSurfaceBrush" Color="#F5E2D2" />
+    <SolidColorBrush x:Key="PtjReviewImproveAccentBrush" Color="#82400E" />
+    <SolidColorBrush x:Key="PtjReviewProgressSurfaceBrush" Color="#DFE8F5" />
+    <SolidColorBrush x:Key="PtjReviewPlanSurfaceBrush" Color="#E9E2F4" />
     <Color x:Key="PtjColorSurface">#FFFFFF</Color>
     <Color x:Key="PtjColorSurfaceElevated">#EAF3F2</Color>
     <Color x:Key="PtjColorBorder">#CBD7D8</Color>

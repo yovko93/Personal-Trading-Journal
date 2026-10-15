@@ -32,6 +32,19 @@
   <Style x:Key="CancelAction" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
    <Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><Trigger Property="IsEnabled" Value="True"><Setter Property="Visibility" Value="Visible" /></Trigger></Style.Triggers>
   </Style>
+  <Style x:Key="ToolbarAction" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+   <Setter Property="Padding" Value="10,6" /><Setter Property="MinHeight" Value="32" /><Setter Property="MinWidth" Value="32" /><Setter Property="VerticalAlignment" Value="Bottom" />
+  </Style>
+  <Style x:Key="FindingSurface" TargetType="Border">
+   <Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="16" /><Setter Property="Margin" Value="0,0,0,10" />
+   <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="Strengths"><Setter Property="Background" Value="{DynamicResource PtjReviewStrengthSurfaceBrush}" /></DataTrigger>
+    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="Areas for Improvement"><Setter Property="Background" Value="{DynamicResource PtjReviewImproveSurfaceBrush}" /></DataTrigger>
+    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="Progress"><Setter Property="Background" Value="{DynamicResource PtjReviewProgressSurfaceBrush}" /></DataTrigger>
+    <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="Action Plan"><Setter Property="Background" Value="{DynamicResource PtjReviewPlanSurfaceBrush}" /></DataTrigger>
+   </Style.Triggers>
+  </Style>
   <Style TargetType="Expander"><Setter Property="Margin" Value="0,8" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
    <Setter Property="HeaderTemplate"><Setter.Value><DataTemplate><TextBlock Text="{Binding}" Style="{StaticResource Body}" /></DataTemplate></Setter.Value></Setter>
   </Style>
@@ -54,26 +67,29 @@
     <TextBlock Text="{Binding Label}" TextWrapping="Wrap" />
    </Button>
   </DataTemplate>
-  <DataTemplate DataType="{x:Type vm:PeriodFinding}"><StackPanel Margin="0,6,0,12">
-   <TextBlock Text="{Binding Basis}" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="14" />
-   <TextBlock Text="{Binding Text}" Style="{StaticResource Body}" MaxWidth="780" HorizontalAlignment="Left" />
-   <Expander Header="Saved evidence citations" AutomationProperties.Name="Saved evidence citations"><ItemsControl ItemsSource="{Binding Citations}" /></Expander>
-  </StackPanel></DataTemplate>
+  <DataTemplate DataType="{x:Type vm:PeriodFinding}"><Border Style="{StaticResource FindingSurface}"><StackPanel>
+   <TextBlock Text="{Binding Title}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+   <TextBlock Text="{Binding Explanation}" Style="{StaticResource Body}" MaxWidth="780" HorizontalAlignment="Left" />
+   <Expander Header="Saved evidence citations" AutomationProperties.Name="Saved evidence citations"><StackPanel><TextBlock Text="{Binding Basis}" Style="{StaticResource Body}" FontSize="14" /><ItemsControl ItemsSource="{Binding Citations}" /></StackPanel></Expander>
+  </StackPanel></Border></DataTemplate>
   <DataTemplate DataType="{x:Type vm:PeriodCard}">
-   <Border Margin="0,0,12,12" Padding="18" CornerRadius="10" BorderThickness="1" BorderBrush="{DynamicResource PtjBorderBrush}" Background="{DynamicResource PtjSurfaceBrush}">
-    <StackPanel><Border BorderThickness="4,0,0,0" BorderBrush="{DynamicResource PtjAccentBrush}" Padding="10,0,0,0">
-     <TextBlock Text="{Binding Heading}" Style="{StaticResource Heading}" /></Border>
+   <Border Margin="0,0,12,12">
+    <StackPanel><TextBlock Text="{Binding Heading}" Margin="4,0,0,8"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Heading}"><Style.Triggers>
+     <DataTrigger Binding="{Binding Heading}" Value="Strengths"><Setter Property="Foreground" Value="{DynamicResource PtjReviewStrengthAccentBrush}" /></DataTrigger>
+     <DataTrigger Binding="{Binding Heading}" Value="Areas for Improvement"><Setter Property="Foreground" Value="{DynamicResource PtjReviewImproveAccentBrush}" /></DataTrigger>
+    </Style.Triggers></Style></TextBlock.Style></TextBlock>
      <TextBlock Text="{Binding Note}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="14" />
-     <ItemsControl ItemsSource="{Binding Findings}" />
+     <ItemsControl ItemsSource="{Binding Findings}" Tag="{Binding Heading}" />
     </StackPanel>
    </Border>
   </DataTemplate>
   <DataTemplate DataType="{x:Type vm:PeriodReport}"><StackPanel>
-   <TextBlock Text="{Binding Heading}" Style="{StaticResource Heading}" />
-   <TextBlock Text="{Binding Metadata}" Style="{StaticResource Body}" /><TextBlock Text="{Binding Notice}" Style="{StaticResource Body}" />
+   <TextBlock Text="AI coaching report" Style="{StaticResource Heading}" />
+   <TextBlock Text="{Binding Heading}" Style="{StaticResource Body}" FontSize="14" />
    <ItemsControl ItemsSource="{Binding Cards}" Margin="0,12,0,0" AutomationProperties.Name="Saved coaching report cards">
     <ItemsControl.ItemsPanel><ItemsPanelTemplate><local:ReviewCardsPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
    </ItemsControl>
+   <Expander Header="Generation and saved snapshot details"><StackPanel><TextBlock Text="{Binding Metadata}" Style="{StaticResource Body}" /><TextBlock Text="{Binding Notice}" Style="{StaticResource Body}" /></StackPanel></Expander>
    <Expander Header="Saved calculated statistics and coverage" AutomationProperties.Name="Saved calculated statistics and coverage"><ItemsControl ItemsSource="{Binding Metrics}" /></Expander>
    <Button Content="Close saved review" Command="{Binding DataContext.CloseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" Style="{DynamicResource PtjButtonStyle}" HorizontalAlignment="Left" />
   </StackPanel></DataTemplate>
@@ -90,35 +106,40 @@
  <ScrollViewer x:Name="PeriodScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" Padding="16" AutomationProperties.Name="Weekly or monthly review content">
   <StackPanel>
    <WrapPanel IsEnabled="{Binding CanSelect}" Margin="0,0,0,12">
-    <StackPanel Width="190" Margin="0,0,12,8"><Label Content="Date in New York" Foreground="{DynamicResource PtjTextPrimaryBrush}" Target="{Binding ElementName=PeriodDate}" />
+    <StackPanel Width="170" Margin="0,0,10,8"><Label Content="Date in New York" Foreground="{DynamicResource PtjTextPrimaryBrush}" Target="{Binding ElementName=PeriodDate}" />
      <DatePicker x:Name="PeriodDate" Style="{StaticResource PeriodDateStyle}" SelectedDate="{Binding SelectedDate}" DateValidationError="OnDateError" AutomationProperties.Name="Date within New York week or month" /></StackPanel>
-    <StackPanel Width="260" Margin="0,0,12,8"><Label Content="Account scope" Foreground="{DynamicResource PtjTextPrimaryBrush}" Target="{Binding ElementName=PeriodAccount}" />
+    <StackPanel Width="230" Margin="0,0,10,8"><Label Content="Account scope" Foreground="{DynamicResource PtjTextPrimaryBrush}" Target="{Binding ElementName=PeriodAccount}" />
      <ComboBox x:Name="PeriodAccount" Style="{DynamicResource PtjComboBoxStyle}" MaxDropDownHeight="320" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Label" ToolTip="{Binding ScopeIdentity}" AutomationProperties.Name="Period Account scope" /></StackPanel>
-     <Button Content="Previous period" Command="{Binding PreviousPeriodCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,2,6,2" />
-     <Button Content="Next period" Command="{Binding NextPeriodCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,2,6,2" />
-     <Button Content="Today" Command="{Binding TodayCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,2,6,2" />
-     <Button Content="Refresh" Command="{Binding RefreshCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,2" />
+     <Button Content="‹" ToolTip="Previous period" AutomationProperties.Name="Previous period" Command="{Binding PreviousPeriodCommand}" Style="{StaticResource ToolbarAction}" Margin="0,2,6,8" />
+     <Button Content="›" ToolTip="Next period" AutomationProperties.Name="Next period" Command="{Binding NextPeriodCommand}" Style="{StaticResource ToolbarAction}" Margin="0,2,6,8" />
+     <Button Content="Today" Command="{Binding TodayCommand}" Style="{StaticResource ToolbarAction}" Margin="0,2,6,8" />
+     <Button Content="Refresh" Command="{Binding RefreshCommand}" Style="{StaticResource ToolbarAction}" Margin="0,2,0,8" />
    </WrapPanel>
    <TextBlock Text="{Binding ScopePaging}" Style="{StaticResource Message}" />
    <WrapPanel><Button Content="Previous saved scopes" Command="{Binding PreviousScopesCommand}" Style="{StaticResource CancelAction}" Margin="0,0,8,6" />
     <Button Content="More saved scopes" Command="{Binding NextScopesCommand}" Style="{StaticResource CancelAction}" Margin="0,0,0,6" /></WrapPanel>
-   <Border Style="{DynamicResource PtjCardStyle}" Background="{DynamicResource PtjSurfaceElevatedBrush}"><StackPanel>
+   <Border Padding="4,0,4,8"><local:ReviewCardsPanel>
+    <StackPanel Margin="0,0,12,4">
     <TextBlock x:Name="PeriodHeading" Text="{Binding Heading}" Style="{StaticResource Heading}" />
     <TextBlock Text="{Binding Scope}" Style="{StaticResource Body}" />
     <TextBlock Text="{Binding Current.Summary}" Style="{StaticResource Body}" FontWeight="SemiBold" />
-    <TextBlock Text="{Binding Current.Coverage}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjWarningBrush}" />
+    </StackPanel><StackPanel>
     <WrapPanel Margin="0,8"><Button x:Name="Generate" Content="Generate AI Review" Command="{Binding GenerateCommand}" Style="{DynamicResource PtjJournalSaveButtonStyle}" Margin="0,3,8,3" AutomationProperties.Name="Generate and save AI period review" />
      <Button Content="Cancel generation" Command="{Binding CancelGenerationCommand}" Style="{StaticResource CancelAction}" Margin="0,3,8,3" />
      <Button Content="Cancel loading" Command="{Binding CancelLoadCommand}" Style="{StaticResource CancelAction}" Margin="0,3" /></WrapPanel>
     <ProgressBar IsIndeterminate="True" Height="4" Visibility="{Binding IsBusy, Converter={StaticResource Visible}}" AutomationProperties.Name="Period review operation in progress" />
     <TextBlock Text="{Binding Disclosure}" Style="{StaticResource Body}" MaxWidth="900" HorizontalAlignment="Left" />
-    <Expander Header="Privacy, provider limits and charges"><TextBlock Text="{Binding Privacy}" Style="{StaticResource Body}" MaxWidth="780" HorizontalAlignment="Left" /></Expander>
     <Button Content="Configure AI in Settings" Command="{Binding ConfigureCommand}" Visibility="{Binding NeedsConfiguration, Converter={StaticResource Visible}}" Style="{DynamicResource PtjButtonStyle}" HorizontalAlignment="Left" />
     <TextBlock Text="{Binding Availability}" Style="{StaticResource Message}" />
-   </StackPanel></Border>
+   </StackPanel></local:ReviewCardsPanel></Border>
    <TextBlock Text="{Binding Message}" Style="{StaticResource Message}" AutomationProperties.Name="Period review status" />
    <TextBlock Text="{Binding CurrentError}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjDangerBrush}" />
    <TextBlock Text="{Binding ScopeError}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjDangerBrush}" />
+   <Border Padding="20" Margin="0,8" CornerRadius="10" Background="{DynamicResource PtjSurfaceElevatedBrush}" x:Name="BeforeReport" Visibility="{Binding ShowIntroduction, Converter={StaticResource Visible}}">
+    <StackPanel><TextBlock Text="Your period, in perspective" Style="{StaticResource Heading}" />
+     <TextBlock Text="Generate a review for strengths, areas to improve and a short action plan—or open a saved review below. Nothing is sent until you choose Generate." Style="{StaticResource Body}" MaxWidth="760" HorizontalAlignment="Left" />
+    </StackPanel>
+   </Border>
    <ContentControl x:Name="SavedReport" Content="{Binding Report}" Margin="0,16" />
    <ContentControl x:Name="CitationDetail" Content="{Binding Citation}" Focusable="True" AutomationProperties.Name="Saved citation detail"><ContentControl.Style><Style TargetType="ContentControl"><Style.Triggers><Trigger Property="Content" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers></Style></ContentControl.Style><ContentControl.ContentTemplate><DataTemplate><Border Style="{DynamicResource PtjCardStyle}"><StackPanel>
     <TextBlock Text="{Binding Label}" Style="{StaticResource Heading}" /><TextBlock Text="{Binding Detail}" Style="{StaticResource Body}" MaxWidth="820" HorizontalAlignment="Left" />
@@ -127,17 +148,20 @@
      <Button Content="Open current Journal" Style="{DynamicResource PtjButtonStyle}" Margin="0,4" Visibility="{Binding HasJournal, Converter={StaticResource Visible}}"
       Command="{Binding DataContext.OpenJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="Open exact Journal for saved citation" /></WrapPanel>
    </StackPanel></Border></DataTemplate></ContentControl.ContentTemplate></ContentControl>
+   <Expander Header="Privacy, provider limits and charges"><TextBlock Text="{Binding Privacy}" Style="{StaticResource Body}" MaxWidth="780" HorizontalAlignment="Left" /></Expander>
+   <TextBlock Text="{Binding Current.Coverage}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjWarningBrush}" />
    <Expander Header="Current calculated statistics and data coverage"><ItemsControl ItemsSource="{Binding Current.Metrics}" /></Expander>
    <Expander Header="Current Journal observations · user-written"><StackPanel><TextBlock Text="{Binding Current.JournalNotice}" Style="{StaticResource Body}" /><ItemsControl ItemsSource="{Binding Current.Journals}" /></StackPanel></Expander>
    <Expander Header="Current comparisons with the previous period"><ItemsControl ItemsSource="{Binding Current.Comparison}" /></Expander>
    <Expander Header="Current Rule coverage · not assessed is not compliant"><StackPanel><TextBlock Text="{Binding Current.RuleNotice}" Style="{StaticResource Body}" /><ItemsControl ItemsSource="{Binding Current.Rules}" /></StackPanel></Expander>
    <Expander Header="Current recorded mistakes · observations, not causes"><ItemsControl ItemsSource="{Binding Current.Mistakes}" /></Expander>
-   <TextBlock Text="{Binding HistoryHeading}" Style="{StaticResource Heading}" Margin="0,18,0,4" />
+   <Expander x:Name="HistorySection" Header="{Binding HistoryHeading}" AutomationProperties.Name="Saved period review history"><StackPanel>
    <TextBlock Text="{Binding HistoryScope}" Style="{StaticResource Body}" /><TextBlock Text="{Binding EmptyHistory}" Style="{StaticResource Message}" />
    <TextBlock Text="{Binding HistoryError}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjDangerBrush}" />
    <ItemsControl ItemsSource="{Binding History}" AutomationProperties.Name="Saved period history" />
    <WrapPanel HorizontalAlignment="Right"><Button Content="Previous reviews" Command="{Binding PreviousHistoryCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,4,8,4" />
     <Button Content="Next reviews" Command="{Binding NextHistoryCommand}" Style="{DynamicResource PtjButtonStyle}" Margin="0,4" /></WrapPanel>
+   </StackPanel></Expander>
   </StackPanel>
  </ScrollViewer>
 </UserControl>

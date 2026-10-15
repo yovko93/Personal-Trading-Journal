@@ -14,6 +14,47 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.DailyReview;
 
 public sealed class PeriodCoachingProviderTests(ITestOutputHelper output)
 {
+    [Theory] [InlineData(false)] [InlineData(true)]
+    public async Task TwentyFiveTradeBudgetMeasurement(bool previousPopulated)
+    {
+        var pair = TwentyFiveTrades();
+        if (previousPopulated)
+        {
+            var prior = pair.Current.ClosedTrades.Select((t, i) => t with {
+                TradeId = new Guid(i + 2000, 0, 0, new byte[8]),
+                Facts = t.Facts! with { OpenedAtUtc = t.Facts.OpenedAtUtc.AddDays(-7), ClosedAtUtc = t.Facts.ClosedAtUtc!.Value.AddDays(-7) },
+                Executions = t.Executions.Select(e => e with { Id = new Guid(i + 3000, 0, 0, new byte[8]), ExecutedAtUtc = e.ExecutedAtUtc.AddDays(-7) }).ToArray() }).ToArray();
+            pair = pair with { Previous = pair.Previous with { ClosedTrades = prior } };
+        }
+        var packet = Packet(pair);
+        var handler = new Handler((_, _) => Task.FromResult(Response(200, Envelope(true, Review(packet)).ToJsonString())));
+        using var client = new HttpClient(handler);
+        var result = await Service(pair, Provider(true, client)).GenerateAsync(pair.Current.Query);
+        output.WriteLine($"25 Trades, previous populated={previousPopulated}: local bytes={packet.Utf8ByteCount}; provider bytes={Encoding.UTF8.GetByteCount(packet.ProviderJson)}; status={result.Status}; requests={handler.Calls}");
+        foreach (var group in packet.Sources.GroupBy(s => s.Kind))
+            output.WriteLine($"{group.Key}: count={group.Count()}, bytes={group.Sum(s => Encoding.UTF8.GetByteCount(s.Content.GetRawText()))}");
+        LogBudget(result.Metadata!.InputBudget!);
+        Assert.Equal(PeriodCoachingStatus.Success, result.Status);
+        Assert.Equal(1, handler.Calls);
+        Assert.Equal(previousPopulated ? 50 : 25, packet.Sources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));
+        Assert.Equal(previousPopulated ? 4 : 2, packet.SuppliedSources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));
+    }
+
+    internal static PeriodComparisonEvidence TwentyFiveTrades()
+    {
+        var pair = Evidence(); var q = pair.Current.Query;
+        var trades = Enumerable.Range(1, 25).Select(i =>
+        {
+            var close = q.FromUtc.AddDays(i % 5).AddHours(12);
+            return new DailyReviewTradeEvidence(new Guid(i, 0, 0, new byte[8]), new(new Guid(100, 0, 0, new byte[8]), "Synthetic", true),
+                new(new Guid(200, 0, 0, new byte[8]), "NQ", true), null, "USD", 1, close, close,
+                DailyReviewTradeInclusion.ClosedOnDate,
+                new(1, Domain.Trades.TradeStatus.Closed, Domain.Trades.TradeDirection.Long, close.AddHours(-1), close, 0, 100, 101, 0, 1, 1),
+                [new Application.Trades.TradeExecutionDetailItem(new Guid(i + 1000, 0, 0, new byte[8]), 1, close,
+                    Domain.Trades.ExecutionSide.Sell, 1, 101, 0, 0, 0, null, null, null)], [], DailyReviewTradeQuality.None);
+        }).ToArray();
+        return pair with { Current = pair.Current with { ClosedTrades = trades, Journals = [] } };
+    }
     [Theory]
     [InlineData(false, ReviewPeriodKind.Week)] [InlineData(true, ReviewPeriodKind.Week)]
     [InlineData(false, ReviewPeriodKind.Month)] [InlineData(true, ReviewPeriodKind.Month)]
@@ -27,9 +68,9 @@ public sealed class PeriodCoachingProviderTests(ITestOutputHelper output)
             Assert.True(request.Headers.Authorization?.Parameter == (groq ? "synthetic-groq" : "synthetic-openai"));
             string requestJson = await request.Content!.ReadAsStringAsync(ct); requestBytes = Encoding.UTF8.GetByteCount(requestJson);
             var body = JsonNode.Parse(requestJson)!;
-            Assert.Equal(packet.Json, groq ? body["messages"]![1]!["content"]!.GetValue<string>() : body["input"]![0]!["content"]!.GetValue<string>());
+            Assert.Equal(packet.ProviderJson, groq ? body["messages"]![1]!["content"]!.GetValue<string>() : body["input"]![0]!["content"]!.GetValue<string>());
             var format = groq ? body["response_format"]!["json_schema"]! : body["text"]!["format"]!;
-            Assert.True(format["strict"]!.GetValue<bool>()); Assert.Equal("period_coaching_v1", format["name"]!.GetValue<string>());
+            Assert.True(format["strict"]!.GetValue<bool>()); Assert.Equal("period_coaching_v2", format["name"]!.GetValue<string>());
             CheckSchema(format["schema"]!);
             Assert.Contains("untrusted source content", (groq ? body["messages"]![0]!["content"] : body["instructions"])!.GetValue<string>());
             Assert.False(body["stream"]!.GetValue<bool>()); Assert.Null(body["tools"]);

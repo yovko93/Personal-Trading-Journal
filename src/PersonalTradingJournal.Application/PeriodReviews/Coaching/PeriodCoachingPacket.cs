@@ -10,8 +10,9 @@ namespace PersonalTradingJournal.Application.PeriodReviews.Coaching;
 
 public static class PeriodCoachingContract
 {
-    public const string Version = "period-coaching.v1";
+    public const string Version = "period-coaching.v2";
     public const int MaximumPacketBytes = 262_144;
+    public const int MaximumSnapshotBytes = 2_097_152;
     public const int MaximumSources = 10_000;
     public const int MaximumResponseBytes = 65_536;
     public const int MaximumFindings = 6;
@@ -48,6 +49,9 @@ public sealed class PeriodCoachingPacket
     public string Json { get; }
     public int Utf8ByteCount { get; }
     public IReadOnlyList<PeriodCoachingSource> Sources { get; }
+    /// <summary>Only this projection is sent. Json retains complete local sources and this exact projection.</summary>
+    public string ProviderJson { get; internal init; } = string.Empty;
+    public IReadOnlyList<PeriodCoachingSource> SuppliedSources { get; internal init; } = [];
     public override string ToString() => $"PeriodCoachingPacket: {ContractVersion}, {Utf8ByteCount} bytes";
 }
 public sealed record PeriodCoachingPacketResult(CoachingPacketBuildStatus Status, PeriodCoachingPacket? Packet);
@@ -81,21 +85,36 @@ public static class PeriodCoachingPacketBuilder
                     NoPreviousTrades = evidence.Previous.ClosedTrades.Count + evidence.Previous.ActivityContext.Count == 0,
                     NoPreviousJournals = evidence.Previous.Journals.Count == 0,
                     SessionsUnknown = true, TradeNotesSupplied = false, ChartImagesSupplied = false,
-                    TradeRevisionLimitation = "Audit timestamps are not durable Trade revisions; exact supplied facts are retained here.",
+                    TradeRevisionLimitation = "Audit timestamps are not durable Trade revisions; complete local facts are retained here. ProviderProjection identifies the fields actually supplied.",
                 }, Sources = ordered };
-            var hash = Canonical(new { ContractVersion = PeriodCoachingContract.Version, Content = content }, token);
+            var supplied = PeriodCoachingProjection.Build(comparison, ordered, token);
+            var coverage = ordered.GroupBy(s => new { s.Period, s.Kind }).Select(g => new { g.Key.Period, g.Key.Kind,
+                LocalSourceCount = g.Count(), SuppliedSourceCount = supplied.Count(s => s.Kind == g.Key.Kind && s.Period == g.Key.Period) }).ToArray();
+            var hash = Canonical(new { ContractVersion = PeriodCoachingContract.Version, Content = content,
+                ProjectionPolicy = PeriodCoachingProjection.Policy, SuppliedSources = supplied, Coverage = coverage }, token);
             string id = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(hash)));
-            string json = Canonical(new { ContractVersion = PeriodCoachingContract.Version, PacketId = id, Content = content }, token);
+            var projection = new { ContractVersion = PeriodCoachingContract.Version, PacketId = id,
+                CurrentPeriod = evidence.Current.Query, PreviousPeriod = evidence.Previous.Query,
+                ContentHandling = PeriodCoachingProjection.Policy,
+                NoCurrentJournals = evidence.Current.Journals.Count == 0, NoPreviousJournals = evidence.Previous.Journals.Count == 0,
+                Coverage = coverage,
+                Sources = supplied };
+            string providerJson = Canonical(projection, token, PeriodCoachingContract.MaximumPacketBytes);
+            string json = Canonical(new { ContractVersion = PeriodCoachingContract.Version, PacketId = id, Content = content,
+                ProviderProjection = projection }, token);
             token.ThrowIfCancellationRequested();
-            return new(CoachingPacketBuildStatus.Ready, new(evidence.Current.Query, id, json, Encoding.UTF8.GetByteCount(json), ordered));
+            return new(CoachingPacketBuildStatus.Ready, new(evidence.Current.Query, id, json, Encoding.UTF8.GetByteCount(json), ordered)
+                { ProviderJson = providerJson, SuppliedSources = supplied });
 
             void Add(string id, PeriodCoachingSourceKind kind, string period, object value)
             {
                 token.ThrowIfCancellationRequested();
                 if (sources.Count >= PeriodCoachingContract.MaximumSources) throw new LimitException();
-                string json = Canonical(value, token);
+                string json = Canonical(value, token, kind is PeriodCoachingSourceKind.CalculatedStatistics or
+                    PeriodCoachingSourceKind.CalculatedPatterns or PeriodCoachingSourceKind.Comparison
+                    ? PeriodCoachingContract.MaximumSnapshotBytes : PeriodCoachingContract.MaximumPacketBytes);
                 sourceBytes = checked(sourceBytes + Encoding.UTF8.GetByteCount(json));
-                if (sourceBytes > PeriodCoachingContract.MaximumPacketBytes) throw new LimitException();
+                if (sourceBytes > PeriodCoachingContract.MaximumSnapshotBytes) throw new LimitException();
                 using var doc = JsonDocument.Parse(json);
                 sources.Add(new(period + ":" + id, kind, period, doc.RootElement.Clone()));
             }
@@ -143,9 +162,9 @@ public static class PeriodCoachingPacketBuilder
 
     // All fields are retained. Canonical array order makes caller list order/culture irrelevant;
     // executions, transitions and corrections retain their explicit sequence/date fields.
-    private static string Canonical(object value, CancellationToken token)
+    private static string Canonical(object value, CancellationToken token, int limit = PeriodCoachingContract.MaximumSnapshotBytes)
     {
-        using var stream = new LimitedStream(token);
+        using var stream = new LimitedStream(token, limit);
         JsonSerializer.Serialize(stream, value, PeriodCoachingContract.JsonOptions);
         using var doc = JsonDocument.Parse(stream.ToArray(), new() { MaxDepth = 64 });
         JsonNode? Sort(JsonElement e)
@@ -167,10 +186,10 @@ public static class PeriodCoachingPacketBuilder
         return Encoding.UTF8.GetString(stream.ToArray());
     }
     private sealed class LimitException : Exception;
-    private sealed class LimitedStream(CancellationToken token) : MemoryStream
+    private sealed class LimitedStream(CancellationToken token, int limit) : MemoryStream
     {
         public override void Write(byte[] buffer, int offset, int count) { Check(count); base.Write(buffer, offset, count); }
         public override void Write(ReadOnlySpan<byte> buffer) { Check(buffer.Length); base.Write(buffer.ToArray(), 0, buffer.Length); }
-        private void Check(int count) { token.ThrowIfCancellationRequested(); if (Length + count > PeriodCoachingContract.MaximumPacketBytes) throw new LimitException(); }
+        private void Check(int count) { token.ThrowIfCancellationRequested(); if (Length + count > limit) throw new LimitException(); }
     }
 }
