@@ -31,6 +31,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly TradingSetupsViewModel _tradingSetupsViewModel;
     private readonly PlaybookViewModel? _playbookViewModel;
     private readonly RulesViewModel? _rulesViewModel;
+    private readonly PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? _periodReviews;
+    private PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewViewModel? ActivePeriod => CurrentDestination switch
+    {
+        NavigationDestination.WeeklyReview => _periodReviews?.Weekly,
+        NavigationDestination.MonthlyReview => _periodReviews?.Monthly,
+        _ => null,
+    };
     private readonly SettingsViewModel _settingsViewModel;
     private readonly IThemeService _themeService;
     private readonly TradesViewModel _tradesViewModel;
@@ -59,7 +66,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         TopstepImportChangeTracker? topstepChanges = null,
         PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReviewViewModel = null,
         PlaybookViewModel? playbookViewModel = null,
-        RulesViewModel? rulesViewModel = null)
+        RulesViewModel? rulesViewModel = null,
+        PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periodReviews = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
@@ -84,6 +92,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradingSetupsViewModel = tradingSetupsViewModel;
         _playbookViewModel = playbookViewModel;
         _rulesViewModel = rulesViewModel;
+        _periodReviews = periodReviews;
         _tradesViewModel = tradesViewModel;
         _settingsViewModel = settingsViewModel;
         _themeService = themeService;
@@ -151,6 +160,12 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
         _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
+        foreach (var period in _periodReviews?.All ?? [])
+        {
+            period.OpenTradeAsync = OpenReviewTradeAsync;
+            period.OpenJournalAsync = OpenPeriodJournalAsync;
+            period.OpenSettings = () => Navigate(NavigationDestination.Settings);
+        }
         if (_dailyReviewViewModel is not null)
         {
             _dailyReviewViewModel.OpenTradeAsync = OpenReviewTradeAsync;
@@ -235,6 +250,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     internal bool CanCloseWindow()
     {
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
+        if (ActivePeriod?.TryLeave() == false) return false;
         if (CurrentDestination == NavigationDestination.Playbook)
             return _playbookViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.Rules)
@@ -252,6 +268,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     internal void CompleteWindowClose()
     {
+        ActivePeriod?.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.CompleteDayDialogClose();
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
@@ -259,6 +276,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        foreach (var period in _periodReviews?.All ?? [])
+        { period.Deactivate(); period.OpenTradeAsync = null; period.OpenJournalAsync = null; period.OpenSettings = null; }
         _disposed = true;
         _themeService.ThemeChanged -= OnThemeChanged;
         _importViewModel.ImportCommitted -= OnImportCommitted;
@@ -350,6 +369,16 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             await _journalViewModel.LoadTask;
     }
 
+    private async Task OpenPeriodJournalAsync(PersonalTradingJournal.Application.DailyReview.DailyReviewJournalEvidence journal)
+    {
+        if (_disposed || !_journalViewModel.TryOpenScope(journal.TradingDate, journal.TradingAccountId,
+            journal.AccountName ?? "Unavailable account")) return;
+        // Carry identity through the editor's independent read, not only the citation precheck.
+        Navigate(NavigationDestination.Journal, journal.JournalId);
+        if (!_disposed && CurrentDestination == NavigationDestination.Journal)
+            await _journalViewModel.LoadTask;
+    }
+
     private async Task OpenCalendarJournalAsync(DateOnly date, CalendarAccountOption account)
     {
         if (_disposed || !_journalViewModel.TryOpenScope(date, account.Id, account.Name)) return;
@@ -373,9 +402,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             await _tradesViewModel.ShowTradeDetailCommand.ExecuteAsync(trade);
     }
 
-    private void Navigate(NavigationDestination destination)
+    private void Navigate(NavigationDestination destination) => Navigate(destination, null);
+
+    private void Navigate(NavigationDestination destination, Guid? expectedJournalId)
     {
+        if (destination == CurrentDestination && ActivePeriod is not null) return;
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
+        if (destination != CurrentDestination && ActivePeriod?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Playbook &&
             _playbookViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Rules &&
@@ -401,6 +434,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
 
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
+        ActivePeriod?.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
         if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
@@ -414,6 +448,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             NavigationDestination.Calendar => _calendarViewModel,
             NavigationDestination.Journal => _journalViewModel,
             NavigationDestination.DailyReview when _dailyReviewViewModel is not null => _dailyReviewViewModel,
+            NavigationDestination.WeeklyReview when _periodReviews is not null => _periodReviews.Weekly,
+            NavigationDestination.MonthlyReview when _periodReviews is not null => _periodReviews.Monthly,
             NavigationDestination.Accounts => _accountsViewModel,
             NavigationDestination.Instruments => _instrumentsViewModel,
             NavigationDestination.Import => _importViewModel,
@@ -428,6 +464,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Calendar)
             _ = _calendarViewModel.ActivateAsync();
+        if (ActivePeriod is { } period) _ = period.ActivateAsync();
 
         if (destination == NavigationDestination.Playbook && _playbookViewModel is not null)
             _ = _playbookViewModel.ActivateAsync();
@@ -436,7 +473,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _rulesViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Journal)
-            _ = _journalViewModel.ActivateAsync();
+            _ = _journalViewModel.ActivateAsync(loadTradeContext: true, expectedJournalId: expectedJournalId);
 
         if (destination == NavigationDestination.DailyReview && _dailyReviewViewModel is not null)
             _ = _dailyReviewViewModel.ActivateAsync();
@@ -537,6 +574,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _journalViewModel.TradeContext.OnDataCommitted();
         // Calendar's dedicated editor refreshes the modal after its save/reload completes.
         _dailyReviewViewModel?.OnDataCommitted();
+        ActivePeriod?.OnDataCommitted();
     }
 
     private void OnAccountTradesDeleted(object? sender, EventArgs e)
@@ -558,6 +596,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _calendarViewModel.OnDataCommitted();
         _journalViewModel.TradeContext.OnDataCommitted();
         _dailyReviewViewModel?.OnDataCommitted();
+        ActivePeriod?.OnDataCommitted();
     }
 
     private void OnJournalDataCommitted(object? sender, EventArgs e)
@@ -570,5 +609,6 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         }
         _calendarViewModel.OnJournalCommitted();
         _dailyReviewViewModel?.OnDataCommitted();
+        ActivePeriod?.OnDataCommitted();
     }
 }

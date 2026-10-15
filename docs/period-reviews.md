@@ -1,4 +1,74 @@
-# Weekly and Monthly Review — M19.1–M19.6
+# Weekly and Monthly Review — M19.1–M19.7
+
+## M19.7 — Weekly/Monthly Desktop workspace
+
+### Selection, interpretation and history
+
+The existing Weekly Review and Monthly Review destinations now use distinct ViewModel instances and one shared WPF view. Each initially selects the current New York week (Monday–Sunday) or calendar month and All accounts. Date entry chooses the containing period; previous/next period, Today and Refresh are explicit local operations. Returning to each destination retains its own selected period, Account and history page. No load, navigation, scope change, Settings change, history operation or Refresh generates AI content.
+
+The scope summary shows New York boundaries, original Account label, closed-Trade/active-day/Journal counts and relevant coverage warnings. Current statistics, user-written Journal observations, previous-period comparisons, Rule coverage and recorded mistakes are separate collapsed sections. Account/currency groups reuse M19.2 and Daily presentation; incomplete Net remains unavailable, not a known-subset total. Rules retain exact revision/target/scope denominators, distinguish manual/calculated origin and explicitly label compliant, confirmed violation, Cannot evaluate and not assessed. Changed/unavailable targets and unattributable retained assessments are not silently counted as current compliance.
+
+Saved AI interpretation is presented in Strengths, Areas for Improvement, Mistakes Observed, Progress and Action Plan cards (at most three steps), with generation time in New York including UTC offset, provider/model and available token usage. Monetary cost remains unknown without verified pricing. Two balanced columns become one below 840 DIP of usable card width; prose wraps and the page has one vertical scroll surface. Theme resources, accessible headings, labeled controls and keyboard-focusable actions are reused. No raw packet/JSON/technical-ID panel is added.
+
+Saved report details read only the stored `period-coaching.v1` packet and response, not current sources. Expandable citations open the exact supplied Trade/Journal, frozen Playbook text or Rule-assessment context. Playbook guidance is labeled as captured association, not proof of adherence; no chart image is implied. Assessment detail retains its recorded rule revision, outcome, origin, explanation, timestamp and target availability. Optional **Open current Trade / Journal** links use existing guarded navigation; Journal navigation additionally verifies the original ID at its exact saved date/scope and refuses a moved/deleted/same-scope replacement. Captured Playbook and assessment details are read-only within the report, not a shortcut to create a new assessment or substitute current guidance. Saved evidence remains readable when a live source is unavailable.
+
+History is ten rows per page and exact-scope: All accounts history contains aggregate reviews, not every Account's individual history. Account discovery combines live/inactive Accounts with **25 saved scopes per page** for the selected period; More/Previous saved scopes make historical/unavailable identities discoverable without loading all analyses. Deleted Accounts retain their saved labels and original IDs (identity is available in the selector tooltip), never a same-name replacement. Generation is disabled for unavailable scopes; current evidence is queried only under that exact original identity. Empty last history/discovery pages reconcile after deletion. Confirmed Delete removes one saved review only, leaving source data and other history untouched.
+
+### Generation and lifecycle safeguards
+
+Generate captures the selected query, rechecks Account availability and invokes M19.6's fresh evidence → packet → captured provider → validation → atomic save workflow once. The nearby disclosure names the Settings provider and explicitly includes both selected and previous-period Trade facts, Journal observations, Playbook text and Rule evidence. An expandable explanation covers sensitive content, charges, Groq limits, no images/retries/fallback and local cancellation limits. Missing/unreadable credentials expose Configure AI in Settings; opening Settings performs no request.
+
+Progress and Cancel actions are shown only for relevant operations. Duplicate Generate invocations are suppressed. Date/scope changes, Refresh and accepted navigation cancel the local request; version checks reject late reads/details/results, including a noncooperative fake provider. A save committed before cancellation remains discoverable in matching history; cancellation cannot promise to undo a provider charge or committed transaction. Navigation/window-close veto keeps the request active; cancellation occurs only when deactivation is accepted. Re-clicking the active destination is a no-op. Confirmed deletion blocks selection/navigation until its outcome is known. Failure messages come from the existing sanitized service outcomes; database failure never exposes an unsaved report as historical success. Complete oversized evidence remains rejected without truncation or requests.
+
+### Verification and limits
+
+| Scenario | Automated evidence | Live / remaining gate |
+| --- | --- | --- |
+| Week/month independence; New York midnight/DST defaults; exact/aggregate scope | ViewModel and shell-navigation regressions | Live date picker / keyboard traversal not exercised |
+| Explicit-only generation, fresh immutable packet, five cards, token metadata | Fake provider with real M19.5/M19.6 orchestration | No live provider call authorized or made |
+| Duplicate clicks; cancel, change selection, Refresh, owner-close/navigation veto; late reads/details | Controlled task-completion regressions, no sleeps/retries | Actual native closing interaction not manually exercised |
+| Missing credentials, rate/quota/model/timeout/invalid/incomplete/oversize/storage errors | Fake outcomes and real oversized-packet preflight; zero saved success for failure | Provider/project-specific live behavior unverified |
+| Current strict Net and currencies; cannot-evaluate versus not-assessed; frozen Playbook / assessment citations | Presentation regressions using exact recorded source contracts | Citation validation is not proof that an AI claim is true |
+| Ten-row history; 26 historical scopes; deletion decline/confirm; shrinking pages | Bounded fake repository tests | Long real-world history performance not manually measured |
+| Weekly and monthly save/reopen after Account/Journal deletion and same-name replacement | Two migrated SQLite tests with fresh ViewModels and repository reads; exact saved JSON unchanged | Fresh services/ViewModels, not a launched-app restart |
+| Responsive cards, accessible names, action bounds, collapsed/expanded sections, full-page scrolling | Four compiled-WPF cases and twelve PNGs in `artifacts/m197-renders` (Light/Dark; 1100/96 and 480/240) | Automated raster-DPI checks, not physical monitor changes or live screen-reader acceptance |
+| Complete Release gate / build / EF / whitespace | 4,297/4,297; zero build warnings/errors; no pending EF changes; whitespace passed | Uncommitted changes cannot have a matching GitHub Actions run |
+
+The first new SQLite report-opening regression exposed a presentation mapping error: stored `DailyJournalRevision.Review` was read as `answers`. The mapping now deserializes that revision contract and preserves absent review fields. An initial new WPF test also deactivated its bound ViewModel off the owning STA during teardown; cleanup now runs on that STA. Render inspection caught and corrected a clipped date label and an unthemed selector. Aggregate assessment and Journal-revision citation labels now identify the saved Account scope explicitly.
+
+A final source-navigation regression reproduced a replacement race (`artifacts/m197-focused/source-race-before.trx`): after the period citation prechecked the original Journal ID, the shell activated its editor using only date/scope, and the independent editor read displayed a newly created replacement. Period navigation now passes the saved ID to the existing editor load-time guard. The regression verifies no replacement text/ID is published and no write occurs. An explicit subsequent date/filter selection clears that old citation constraint, so unrelated Journal navigation still works. Daily's existing navigation path is unchanged. No fix required changing provider, storage, schema, test deadlines or pre-existing assertions.
+
+Focused period + existing shell-navigation checks: **221 passed, zero failed/skipped**, including **34 new M19.7 cases**, `artifacts/m197-focused/period-navigation-final.trx`. Release build **0 warnings/errors**; EF in-memory design-time check reports no pending changes. Two earlier complete gates passed 4,296/4,296 before the added replacement-race regression; they are not substituted for the final run after that correction.
+
+Final complete gate: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m197-verified-release`, results in `artifacts/m197-verified-release/release-20261015-104038-da3d9e3d274d4c2481b6140c699b77e0/summary.json` and TRX:
+
+| Project | Passed / total | Failures / skips |
+| --- | --- | --- |
+| Domain | 490 / 490 | 0 / 0 |
+| Application | 879 / 879 | 0 / 0 |
+| Infrastructure | 1,329 / 1,329 | 0 / 0 |
+| Desktop (88 exclusive + 1,511 parallel) | 1,599 / 1,599 | 0 / 0 |
+| **Complete set** | **4,297 / 4,297** | **0 / 0** |
+
+Calendar native child: **72.565 seconds**, **47.435 seconds headroom** to its unchanged 120-second aggregate deadline. The parent Journal editor case passed in **11.572 seconds** (includes child startup); no Calendar/Journal timeout or assertion failed. Timings are measurements of this host/run, not guarantees under arbitrary load. Existing scheduling, concurrency, assertions and deadlines were unchanged. Tracked/new-file whitespace checks passed. Initial worktree was clean at `develop` / `6827f0f50c84cc5016c0cd39597c248afde9dde3`; final state is **7 modified + 8 new files**, no staged changes or Git writes. All data and provider responses are synthetic. **Zero live/paid provider requests**, no production journal or credential value accessed. Live Windows mouse/keyboard/screen-reader and real-monitor DPI checks, live provider behavior, and matching CI remain open. Complete large periods can still exceed unchanged packet/provider limits; they are rejected rather than truncated. No M19.8 work.
+
+Exact M19.7 files (paths relative to the repository):
+
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Journals/JournalViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/Views/PeriodReviews/PeriodReviewView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/PeriodReviews/PeriodReviewView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowPeriodReviewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodViewTests.cs`
+- `README.md`
+- `docs/period-reviews.md`
 
 ## M19.6 — Saved period reviews and history
 
