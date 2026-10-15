@@ -39,6 +39,12 @@ public sealed class CoachingAnalysisSnapshot
     private CoachingAnalysisSnapshot(SavedCoachingAnalysis analysis) => Analysis = analysis;
     public SavedCoachingAnalysis Analysis { get; }
 
+    public static CoachingAnalysisSnapshot FromManual(ManualReviewDraft draft, CancellationToken token = default)
+    {
+        var validation = ManualReviewContract.Validate(draft, token);
+        return validation.Valid && validation.Daily is { } saved ? new(saved) : throw new ArgumentException("Manual review is not valid.");
+    }
+
     public static CoachingAnalysisSnapshot Create(CoachingEvidencePacket packet, CoachingGenerationResult generation,
         DateTimeOffset generatedAtUtc, CancellationToken cancellationToken = default)
     {

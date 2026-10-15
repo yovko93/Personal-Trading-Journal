@@ -151,6 +151,8 @@ public partial class App : System.Windows.Application
                 WpfTradeScreenshotDeleteConfirmation>();
             builder.Services.AddTransient<AccountsViewModel>();
             builder.Services.AddTransient<DashboardViewModel>();
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.DailyReview.Coaching.IManualReviewService, PersonalTradingJournal.Infrastructure.DailyReview.Coaching.ManualReviewService>();
+            builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.DailyReview.IReviewClipboard, PersonalTradingJournal.Desktop.Views.DailyReview.WpfReviewClipboard>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces>();
             builder.Services.AddTransient<CalendarViewModel>();

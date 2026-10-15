@@ -68,7 +68,7 @@ public sealed class PeriodViewTests
                 Assert.Equal(0, scroll.ScrollableWidth);
                 Assert.Equal(state == "before" ? Visibility.Visible : Visibility.Collapsed, ((Border)view.FindName("BeforeReport")).Visibility);
                 Assert.Equal(vm.IsLoading, Descendants(view).OfType<Button>().Any(b => b.Visibility == Visibility.Visible && Equals(b.Content, "Cancel loading")));
-                Assert.Equal(vm.IsGenerating, Descendants(view).OfType<Button>().Any(b => b.Visibility == Visibility.Visible && Equals(b.Content, "Cancel generation")));
+                Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => Equals(b.Content, "Generate AI Review") || Equals(b.Content, "Cancel generation"));
                 Assert.False(((Expander)view.FindName("HistorySection")).IsExpanded);
                 if (state == "too-large") { Assert.Contains("6,800", vm.Message); Assert.Empty(vm.History); Assert.Null(vm.Report); }
                 Render(root, theme, width, dpi, state);
@@ -80,7 +80,7 @@ public sealed class PeriodViewTests
             Assert.DoesNotContain(texts, s => s.Contains(f.Provider.Packet!.PacketId) || s.Contains("current:statistics") || s.Contains("Source details"));
             foreach (var button in Descendants(view).OfType<Button>().Where(b => b.IsVisible && b.Content is string))
             { Assert.True(button.Focusable && button.IsTabStop); Assert.InRange(button.TranslatePoint(new(button.ActualWidth, 0), view).X, 0, width); }
-            Assert.Equal("Generate and save AI period review", AutomationProperties.GetName((Button)view.FindName("Generate")));
+            Assert.Equal("Prepare ChatGPT Prompt locally", AutomationProperties.GetName(Assert.Single(Descendants(view).OfType<Button>(), b => Equals(b.Content, "Prepare ChatGPT Prompt"))));
             Assert.Contains("New York", ((TextBlock)view.FindName("PeriodHeading")).Text);
             Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => b.Visibility == Visibility.Visible && Equals(b.Content, "Cancel generation"));
             Render(root, theme, width, dpi, "top");

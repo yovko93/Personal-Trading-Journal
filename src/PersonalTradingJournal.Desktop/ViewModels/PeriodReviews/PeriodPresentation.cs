@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PersonalTradingJournal.Application.DailyReview;
+using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Application.PeriodReviews;
 using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 using PersonalTradingJournal.Desktop.ViewModels.DailyReview;
@@ -11,7 +12,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.PeriodReviews;
 
 public sealed record PeriodHistoryRow(PeriodReviewSummary Source)
 {
-    public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {Source.Provider} / {Source.Model}";
+    public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {ReviewDisplay.Provider(Source.Provider, Source.Model)}";
     public string Scope => Source.Scope.AccountId.HasValue ? $"Exact Account: {Source.AccountDisplayName ?? "Historical Account"}" : "All accounts · aggregate review";
 }
 public sealed record PeriodCitation(string Label, string Detail, Guid? TradeId = null, DailyReviewJournalEvidence? Journal = null)
@@ -175,7 +176,7 @@ public sealed class PeriodReport
         return new()
         {
             Heading = $"{saved.Summary.FirstDate:dd MMM yyyy} – {saved.Summary.LastDate:dd MMM yyyy} · New York · {new PeriodHistoryRow(saved.Summary).Scope}",
-            Metadata = $"Generated {ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {saved.Metadata.Provider} / {saved.Metadata.Model}\nTokens: input {usage?.InputTokens?.ToString() ?? "unknown"}, output {usage?.OutputTokens?.ToString() ?? "unknown"}, total {usage?.TotalTokens?.ToString() ?? "unknown"}. Monetary cost unknown.",
+            Metadata = $"{(saved.Metadata.Provider == ManualReviewContract.ProviderId ? "Prepared" : "Generated")} {ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {ReviewDisplay.Provider(saved.Metadata.Provider, saved.Metadata.Model)}\nTokens: input {usage?.InputTokens?.ToString() ?? "unknown"}, output {usage?.OutputTokens?.ToString() ?? "unknown"}, total {usage?.TotalTokens?.ToString() ?? "unknown"}. Monetary cost unknown.",
             Metrics = PeriodCurrentPresentation.MetricsFor(currencies),
             Cards = [Card("Strengths", response.Strengths), Card("Areas for Improvement", response.AreasForImprovement), Card("Mistakes Observed", response.MistakesObserved), Card("Progress", response.ProgressVersusPreviousPeriod), new("Action Plan", response.ActionPlan.InsufficientEvidence ? "Evidence insufficient" : "At most three measurable next steps", plan)],
         };

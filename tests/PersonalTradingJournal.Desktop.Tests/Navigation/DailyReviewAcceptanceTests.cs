@@ -133,11 +133,9 @@ public sealed partial class MainWindowViewModelTests
             await Ui(() =>
             {
                 Layout(1280, 96);
-                var generate = (Button)view.FindName("GenerateReview");
-                Assert.True(generate.IsEnabled && generate.Focusable && generate.IsTabStop);
-                Assert.Contains("selected New York date", AutomationProperties.GetName(generate));
-                Assert.Contains("Groq", ((TextBlock)view.FindName("ProviderSummary")).Text);
-                generate.Command!.Execute(null);
+                // Retained legacy provider orchestration compatibility, not a visible page action.
+                Assert.DoesNotContain(ReviewDescendants(view).OfType<Button>(), b => Equals(b.Content, "Generate AI Review"));
+                vm.GenerateCommand.Execute(null);
                 generation = vm.GenerateCommand.ExecutionTask!;
             });
             await Task.WhenAny(handler.Started.Task, generation).WaitAsync(TimeSpan.FromSeconds(15));
@@ -145,8 +143,8 @@ public sealed partial class MainWindowViewModelTests
             await Ui(() =>
             {
                 Layout(1280, 96);
-                Assert.False(((Button)view.FindName("GenerateReview")).IsEnabled);
-                Assert.Equal(Visibility.Visible, ((Button)view.FindName("CancelGeneration")).Visibility);
+                Assert.False(vm.GenerateCommand.CanExecute(null));
+                Assert.DoesNotContain(ReviewDescendants(view).OfType<Button>(), b => Equals(b.Content, "Cancel generation"));
                 vm.GenerateCommand.Execute(null);
             });
             Assert.Equal(1, handler.Calls);
@@ -219,7 +217,7 @@ public sealed partial class MainWindowViewModelTests
                 var scroll = (ScrollViewer)view.FindName("ReviewScroll");
                 scroll.ScrollToHome(); Layout(width, dpi);
                 Assert.Equal(0, scroll.ScrollableWidth);
-                var generate = (Button)view.FindName("GenerateReview");
+                var generate = Assert.Single(ReviewDescendants(view).OfType<Button>(), b => Equals(b.Content, "Prepare ChatGPT Prompt"));
                 Assert.InRange(generate.TranslatePoint(new(generate.ActualWidth, 0), view).X, 0, view.ActualWidth);
                 Render("top");
                 scroll.ScrollToEnd(); Layout(width, dpi);

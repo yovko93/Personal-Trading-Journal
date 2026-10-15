@@ -22,7 +22,7 @@
                 <StackPanel>
                     <TextBlock Text="AI Coaching" Style="{StaticResource PtjSectionTitleTextStyle}" />
                     <TextBlock Margin="0,8,0,12" TextWrapping="Wrap" Style="{StaticResource PtjBodyTextStyle}"
-                               Text="Choose who receives your evidence. Each provider has its own key. Switching providers or saving a key never generates a review; there is no automatic fallback." />
+                               Text="Reviews now use Prepare ChatGPT Prompt and a pasted response. No API key is required and PTJ sends nothing. The settings below retain existing API configuration only; they do not select a service for pasted responses." />
                     <Label Content="AI provider" Target="{Binding ElementName=ProviderSelector}" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                     <ComboBox x:Name="ProviderSelector" ItemsSource="{Binding AvailableProviders}" SelectedItem="{Binding SelectedProvider}"
                               Style="{DynamicResource PtjComboBoxStyle}"
@@ -44,7 +44,7 @@
                     <TextBlock Text="{Binding CredentialMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
                                Style="{StaticResource PtjBodyTextStyle}" AutomationProperties.LiveSetting="Polite" />
                     <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Style="{StaticResource PtjSecondaryTextStyle}"
-                               Text="Keys are protected for this Windows user with DPAPI, outside journal data and backups. Enter them again on another computer. Stored keys are never displayed. Generate AI Review sends Trade facts and Journal text to the selected provider. Groq Free tier has limits and upgraded accounts may be billed; OpenAI usage may incur charges." />
+                               Text="Keys are protected for this Windows user with DPAPI, outside journal data and backups. Enter them again on another computer. Stored keys are never displayed. Review pages do not use these keys. Copying a prepared prompt is explicit; it may contain sensitive Trade and Journal text. You decide whether to share it with an external service." />
                 </StackPanel>
             </Border>
             <TextBlock Style="{StaticResource PtjSectionTitleTextStyle}"

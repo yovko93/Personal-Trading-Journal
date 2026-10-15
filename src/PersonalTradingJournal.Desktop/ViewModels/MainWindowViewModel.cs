@@ -257,7 +257,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return _rulesViewModel?.TryLeave() != false;
         if (CurrentDestination == NavigationDestination.DailyReview)
         {
-            return true;
+            return _dailyReviewViewModel?.TryLeave() != false;
         }
         if (CurrentDestination == NavigationDestination.Calendar)
             return _calendarViewModel.CanCloseDayDialog();
@@ -362,6 +362,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task OpenReviewJournalAsync(PersonalTradingJournal.Application.DailyReview.DailyReviewJournalEvidence journal)
     {
+        if (CurrentDestination == NavigationDestination.DailyReview && _dailyReviewViewModel?.TryLeave() == false) return;
         if (_disposed || !_journalViewModel.TryOpenScope(journal.TradingDate, journal.TradingAccountId,
             journal.AccountName ?? "Unavailable account")) return;
         Navigate(NavigationDestination.Journal);
@@ -371,6 +372,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private async Task OpenPeriodJournalAsync(PersonalTradingJournal.Application.DailyReview.DailyReviewJournalEvidence journal)
     {
+        if (ActivePeriod?.TryLeave() == false) return;
         if (_disposed || !_journalViewModel.TryOpenScope(journal.TradingDate, journal.TradingAccountId,
             journal.AccountName ?? "Unavailable account")) return;
         // Carry identity through the editor's independent read, not only the citation precheck.
@@ -409,6 +411,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (destination == CurrentDestination && ActivePeriod is not null) return;
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
         if (destination != CurrentDestination && ActivePeriod?.TryLeave() == false) return;
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.DailyReview && _dailyReviewViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Playbook &&
             _playbookViewModel?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Rules &&

@@ -1,5 +1,40 @@
 # Daily Review with AI Coaching — M15
 
+## Manual ChatGPT workflow — 15 October 2026
+
+The visible direct API action is replaced by **Prepare ChatGPT Prompt**, **Copy Prompt**, **Paste ChatGPT Response**, **Validate response**, then **Save Review**. No Review action uploads data, resolves an API key or automatically accesses the clipboard. Settings retains existing credentials/configuration but explains they are not required or used by this workflow. Old analyses, provider identities and keys are not deleted or rewritten.
+
+Prepare captures fresh daily evidence once and freezes the New York date and exact Account scope (including the distinct aggregate scope). The exact prompt includes `daily-coaching.v2` evidence, untrusted-source instructions and the existing response schema. Read the preview before explicitly copying sensitive Trade, Journal and captured Playbook text to another service. No chart images are copied. Daily retains its established summary, execution/behavior observations, suggestions and uncertainties; it does not invent period Rule coverage. The complete prompt is bounded at **300,000 UTF-8 bytes** and its actual size is displayed. Existing evidence limits remain; ChatGPT may impose a smaller limit. TooLarge does not truncate or send anything.
+
+Paste one JSON object, optionally wrapped in a single Markdown `json` fence, with no other prose. Identity/version, sections, text bounds and allowed citations must match the frozen packet. Maximum pasted response is **65,536 UTF-8 bytes**. Errors retain the text; no sections or sources are fabricated. Validation produces a read-only preview, not history. Save revalidates and atomically stores the prepared snapshot and structured response with **Pasted external AI response** provenance (`external-paste` / `unverified`). PTJ cannot verify the service/model, truth of claims, token usage or cost. The recorded timestamp is local snapshot preparation, not an asserted external generation time.
+
+### Durable pending work and safety
+
+One pending slot per Daily/Weekly/Monthly workspace is retained under `pending-review-prompts` in the selected app data root. Atomic file replacement, corruption hashes, an exclusive slot lease and expected pending revisions protect against partial or concurrent edits. Files are bounded at 16 MiB before deserialization. Changing the browsing scope does not replace the pending prompt. Explicit **Keep response draft** preserves pasted text, including invalid JSON, across restart; unsaved text blocks navigation/window closing until kept or discarded. Discard confirms the frozen scope and never deletes saved analyses. A corrupt working file fails closed, not silently replaced.
+
+The pending ID is also the saved analysis ID. Repeating Save or recovering after database commit cannot create a second review. A different response cannot overwrite the committed row. Local cancellation before commit saves nothing; if cancellation coincides with a completed commit, history remains authoritative. Save failures retain text/preview and permit explicit retry. Clipboard failures leave all prepared evidence intact.
+
+Pending files contain sensitive **unencrypted** content and are deliberately **excluded from portable backups, exports and restore**; they are unfinished local conversations, not portable journal records. Completed reviews use the existing database snapshot/history and remain fully backed up/exported/restorable. Restore never retargets a retained local pending prompt. No migration or export version change is needed. Live UI/clipboard and matching CI verification remain distinct from synthetic automated tests; final results follow below.
+
+### Manual-workflow verification
+
+| Scenario | Automated evidence | Result / remaining gate |
+|---|---|---|
+| Daily/Weekly/Monthly prepare, restart, frozen exact/aggregate scope, fenced response, validate/save | `ManualReviewTests.PrepareRestartValidateAndSaveFrozenScopeOnce` (six SQLite cases) | Passed; source Journal deletion does not rewrite prepared or saved evidence |
+| Wrong packet/scope, malformed/multiple JSON, unknown citations | `InvalidResponsesRemainPendingAndNeverSave` | Passed; text retained, zero accepted rows |
+| Empty evidence, size/cancellation, pending revision conflict | `EmptyDayCreatesNoPendingWork`, `CancellationOversizeAndConflictsPreservePendingFiles` | Passed; no partial pending/history output |
+| Commit acknowledgement loss and duplicate Save | `InterruptedSaveReconcilesAlreadyCommittedRowWithoutDuplicates` | Passed for all three workspaces; stable saved ID reconciles on restart |
+| Clipboard failure, explicit-only copy/paste, preview, sanitized storage failure | `ManualReviewWorkspaceTests`, `ManualReviewViewTests` | Passed with fake clipboard; no actual clipboard was accessed |
+| Navigation/owner-close and selection changes | `ManualResponseGuardProtectsNavigationAndOwnerClose`, `ExplicitCopyValidationDraftGuardAndDuplicateSave` | Passed; dirty response stays usable; frozen scope unchanged |
+| No provider route from production-wired review commands | `ProductionHostWiringDisablesLegacyProviderCommands` | Passed; all new manual paths have zero provider requests; legacy provider compatibility tests use fake HTTP only |
+| Backup/preflight/offline restore/export | `ManualReviewPortabilityTests` | Passed; completed Daily/Weekly/Monthly snapshots preserved; unfinished local files deliberately excluded |
+| Light/Dark, normal and 480-DIP/240-DPI controls/cards | compiled WPF checks and `artifacts/manual-review/renders-final/` | 28 renders generated; representative states visually inspected. These are offscreen renders, not live input acceptance |
+| Real clipboard, ChatGPT response quality, live screen reader/input, matching CI | Not exercised | Open; no live/paid request, production access or resulting commit |
+
+Focused checks: **15 Infrastructure** and **33 Desktop/navigation/WPF** passed, zero skips/failures. Initial WPF checks found an obsolete disclosure-count expectation and missing theme Foreground on new expanders; both were corrected and the focused set passed. Final complete Release gate: **4,335/4,335**, zero failures/skips — Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618 (88 exclusive WPF + 1,530 parallel). Calendar native **82.577 seconds**, **37.423 seconds headroom** against its unchanged 120-second deadline; Journal editor child **12.374 seconds**. No Calendar/Journal timeout occurred. Release build: zero warnings/errors. EF model consistency: no pending changes. Tracked/new-file whitespace checks passed.
+
+Gate evidence: `artifacts/manual-review/release/release-20261015-151936-5e4d7531f5124736b29d5442eaa668fe/summary.json`; focused TRX files and renders are under `artifacts/manual-review/`. These are synthetic local automated results, not live clipboard/ChatGPT or matching GitHub Actions acceptance. Zero live/paid requests and no production access. All 29 changed/new files remain uncommitted on `develop`, HEAD `31ffd0ecabea66e9512b66a3a6659ba94373015c`. Exact changed files: [manual workflow inventory](period-reviews.md#manual-workflow-file-inventory). M19.8 acceptance has not started.
+
 ## M17.6 — Frozen Playbook evidence
 
 This section supersedes v1-only and four-query descriptions in the historical milestone notes below. New packets and responses use **daily-coaching.v2**. The saved-analysis table needs no migration: it already retains versioned immutable evidence/response JSON. Desktop reads v1 and v2 without rebuilding the evidence or running the current validator on historical content; only newly generated responses are validated against v2.

@@ -17,10 +17,11 @@ public sealed class PeriodReviewWorkspaces
 {
     public PeriodReviewWorkspaces(IPeriodComparisonEvidenceReader reader, IPeriodReviewRepository history,
         ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
-        GenerateAndSavePeriodReviewService generator, ICoachingCredentials credentials, IDailyJournalRepository journals)
+        GenerateAndSavePeriodReviewService generator, ICoachingCredentials credentials, IDailyJournalRepository journals,
+        IManualReviewService? manualReviews = null, IReviewClipboard? clipboard = null)
     {
-        Weekly = new(ReviewPeriodKind.Week, reader, history, accounts, dialogs, clock, generator.GenerateAsync, credentials, journals);
-        Monthly = new(ReviewPeriodKind.Month, reader, history, accounts, dialogs, clock, generator.GenerateAsync, credentials, journals);
+        Weekly = new(ReviewPeriodKind.Week, reader, history, accounts, dialogs, clock, generator.GenerateAsync, credentials, journals, manualReviews, clipboard);
+        Monthly = new(ReviewPeriodKind.Month, reader, history, accounts, dialogs, clock, generator.GenerateAsync, credentials, journals, manualReviews, clipboard);
     }
     public PeriodReviewWorkspaces(PeriodReviewViewModel weekly, PeriodReviewViewModel monthly) { Weekly = weekly; Monthly = monthly; }
     public PeriodReviewViewModel Weekly { get; }
@@ -50,10 +51,15 @@ public sealed class PeriodReviewViewModel : ObservableObject
     public PeriodReviewViewModel(ReviewPeriodKind kind, IPeriodComparisonEvidenceReader reader, IPeriodReviewRepository history,
         ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
         Func<PeriodReviewQuery, CancellationToken, Task<SavedPeriodGenerationResult>> generate,
-        ICoachingCredentials credentials, IDailyJournalRepository? journals = null)
+        ICoachingCredentials credentials, IDailyJournalRepository? journals = null,
+        IManualReviewService? manualReviews = null, IReviewClipboard? clipboard = null)
     {
         Kind = kind; _reader = reader; _history = history; _accounts = accounts; _dialogs = dialogs; _clock = clock;
         _generate = generate; _credentials = credentials; _journals = journals; _date = Today.ToDateTime(TimeOnly.MinValue);
+        if (manualReviews is not null)
+            Manual = new(manualReviews, kind == ReviewPeriodKind.Week ? ManualReviewKind.Weekly : ManualReviewKind.Monthly,
+                () => Query is { } q && !_account.IsHistorical ? new(kind == ReviewPeriodKind.Week ? ManualReviewKind.Weekly : ManualReviewKind.Monthly, q.FirstDate, q.Scope.AccountId, _account.Label) : null,
+                dialogs, clipboard ?? new Views.DailyReview.WpfReviewClipboard(), () => LoadAsync());
         RefreshCommand = new AsyncRelayCommand(() => LoadTask = LoadAsync(), () => !_deleting, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         TodayCommand = new RelayCommand(() => SelectedDate = Today.ToDateTime(TimeOnly.MinValue), () => !_deleting);
         PreviousPeriodCommand = new RelayCommand(() => MovePeriod(-1), () => !_deleting);
@@ -63,7 +69,7 @@ public sealed class PeriodReviewViewModel : ObservableObject
         PreviousScopesCommand = new AsyncRelayCommand(() => ScopePage(-1), () => !IsBusy && _scopePage > 1);
         NextScopesCommand = new AsyncRelayCommand(() => ScopePage(1), () => !IsBusy && (long)_scopePage * 25 < (_scopes?.TotalCount ?? 0));
         CancelLoadCommand = new RelayCommand(() => { CancelLoad(); Message = "Loading cancelled. Refresh to load this selection."; Notify(); }, () => IsLoading);
-        GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => _active && !IsBusy && Query is not null && !_account.IsHistorical && !NeedsConfiguration);
+        GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => Manual is null && _active && !IsBusy && Query is not null && !_account.IsHistorical && !NeedsConfiguration);
         CancelGenerationCommand = new RelayCommand(CancelGeneration, () => _generating && _request?.IsCancellationRequested == false);
         ConfigureCommand = new RelayCommand(() => OpenSettings?.Invoke());
         OpenCommand = new AsyncRelayCommand<PeriodHistoryRow>(OpenAsync, row => row is not null && !_deleting, AsyncRelayCommandOptions.AllowConcurrentExecutions);
@@ -101,7 +107,7 @@ public sealed class PeriodReviewViewModel : ObservableObject
     public bool IsGenerating => _generating;
     public bool IsBusy => IsLoading || _generating || _deleting;
     public bool CanSelect => !_deleting;
-    public bool NeedsConfiguration => _credentials.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
+    public bool NeedsConfiguration => Manual is null && _credentials.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
     public string Provider => (_credentials as ICoachingConfiguration)?.SelectedProvider switch { CoachingProviderKind.Groq => "Groq", CoachingProviderKind.Unavailable => "the configured provider (unavailable)", _ => "OpenAI" };
     public string Disclosure => $"Generate sends period summaries and selected source examples to {Provider}. Usage may incur charges.";
     public string Privacy => "Selected and previous period aggregates cover all included Trades. At most two examples per source kind and period supply Trade facts, Journal observations, captured Playbook and Rule text; other individual details remain local. Examples are not representative sampling. No chart images are sent. Content may be sensitive. Groq Free tier has limits and upgraded accounts may be billed. Cancelling locally may not prevent charges or undo an already committed save. No automatic retry or provider fallback. Saved reviews retain the complete local evidence and exact supplied projection, unencrypted; citations do not prove an AI claim is true.";
@@ -142,9 +148,11 @@ public sealed class PeriodReviewViewModel : ObservableObject
     public IAsyncRelayCommand<PeriodCitation> OpenTradeCommand { get; }
     public IAsyncRelayCommand<PeriodCitation> OpenJournalCommand { get; }
 
-    public Task ActivateAsync() { _active = true; return LoadTask = LoadAsync(); }
+    public ManualReviewViewModel? Manual { get; }
+    public async Task ActivateAsync() { _active = true; await (LoadTask = LoadAsync()); if (Manual is not null) await Manual.LoadAsync(); }
     public bool TryLeave()
     {
+        if (Manual?.TryLeave() == false) return false;
         if (_deleting) { Message = "Wait for deletion to finish before leaving."; Notify(); return false; }
         return !_generating || _dialogs.Confirm(new("Leave while generating?", "Leaving cancels this local request. An accepted provider request may still incur charges; a completed save remains in history.", "Cancel generation and leave"));
     }
@@ -216,7 +224,7 @@ public sealed class PeriodReviewViewModel : ObservableObject
     }
     private async Task GenerateAsync()
     {
-        if (!_active || IsBusy || _account.IsHistorical || NeedsConfiguration || Query is not { } q) return;
+        if (Manual is not null || !_active || IsBusy || _account.IsHistorical || NeedsConfiguration || Query is not { } q) return;
         long request = ++_requestVersion; using var cts = new CancellationTokenSource(); _request = cts; _generating = true;
         Message = "Reading fresh evidence, generating, validating and saving…"; Notify();
         bool Valid() => _active && request == _requestVersion && !cts.IsCancellationRequested && Query == q;

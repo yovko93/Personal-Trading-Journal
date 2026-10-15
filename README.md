@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+**Manual ChatGPT reviews — 15 October 2026 (before M19.8)**
+
+Daily, Weekly and Monthly pages now offer **Prepare ChatGPT Prompt → Copy Prompt → Paste ChatGPT Response → Validate response → Save Review**. Preparation freezes one selected scope locally; no review-page action contacts an API or requires a key. Clipboard access is explicit. Prompts contain sensitive Trade/Journal information. Existing identity/version, section, size and citation validation remains mandatory. Saved provenance is **Pasted external AI response**, not a verified provider identity; old analyses and credentials remain unchanged.
+
+Each workspace retains one pending prompt/snapshot and explicitly kept response across restart. Selectors do not retarget pending work. **Keep response draft** or explicit discard is required before leaving with changed response text. Pending working files are unencrypted and deliberately excluded from portable backup/export/restore; completed reviews retain normal database portability. [Daily workflow](docs/daily-review.md), [period workflow](docs/period-reviews.md). M19.8 acceptance has not started.
+
+Local verification: **48/48 focused checks**, then the complete `scripts/Test-Release.ps1` gate **4,335/4,335**, zero failures/skips (Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618). Calendar native **82.577 s / 37.423 s headroom**; Journal editor child **12.374 s**. Release build has zero warnings/errors; EF reports no model changes; whitespace checks pass. Automated Light/Dark normal/narrow240 renders were inspected; live clipboard, keyboard/screen-reader and ChatGPT interaction remain unverified. **29 changed/new files** on `develop`, HEAD `31ffd0ecabea66e9512b66a3a6659ba94373015c`; [exact inventory](docs/period-reviews.md#manual-workflow-file-inventory). No live/paid provider requests or production-data access. No resulting commit exists for matching CI acceptance.
+
 **M19.7 correction — compact coaching and report-first layout (15 October 2026)**
 
 Weekly/Monthly coaching now uses **`period-coaching.v2`**: complete Account/currency aggregates and explicit coverage, with at most two identifiable examples per source kind and period. Only supplied examples may receive individual citations. The complete immutable local evidence and exact provider projection are saved together; old v1 reviews remain readable. Groq's 6,800-input / 1,000-output limits, strict validation, explicit generation and atomic save remain unchanged. No schema or Daily Review contract change. The 25-Trade reproduction and measured component budgets are recorded in [the correction report](docs/period-reviews.md#m197-correction--compact-projection-and-report-first-layout).

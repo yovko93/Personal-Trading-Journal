@@ -19,6 +19,11 @@ public sealed class PeriodReviewSnapshot
 {
     private PeriodReviewSnapshot(SavedPeriodReview review) => Review = review;
     public SavedPeriodReview Review { get; }
+    public static PeriodReviewSnapshot FromManual(ManualReviewDraft draft, CancellationToken token = default)
+    {
+        var validation = ManualReviewContract.Validate(draft, token);
+        return validation.Valid && validation.Period is { } saved ? new(saved) : throw new ArgumentException("Manual review is not valid.");
+    }
     public static PeriodReviewSnapshot Create(PeriodCoachingResult generation, DateTimeOffset generatedAtUtc,
         CancellationToken cancellationToken = default)
     {

@@ -1,5 +1,9 @@
 # Backup and restore — M16
 
+## Pending manual review working files
+
+Daily/Weekly/Monthly ChatGPT prompt drafts in `pending-review-prompts` are intentionally excluded from portable backup, restore and logical export. They contain unencrypted sensitive local working evidence and explicitly kept pasted responses; copying them to another computer is not promised. Completed external-response reviews are normal database analysis snapshots and remain included with their exact evidence, validated response and accurate provenance. Restore leaves any local pending work frozen to its original captured dataset; it must never retarget that work to restored/current sources. No schema/archive/export version change is needed. API credentials remain separately excluded.
+
 ## M19.6 — Saved Weekly/Monthly review compatibility
 
 The current schema includes **`20261015091425_AddSavedPeriodReviews`**, migration **20**. Complete v1 archives retain the independent `PeriodReviews` table, including exact evidence/response snapshots, original Account identity/label, New York period dates, UTC boundaries and generation time, versions and sanitized provider/token metadata. Preflight's analysis count includes Daily plus period reviews, with a separate period count; offline verification compares both. Synthetic backup/preflight/restore and interrupted-recovery tests retain these records without substituting current sources.

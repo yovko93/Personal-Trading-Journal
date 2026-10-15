@@ -1,6 +1,7 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.DailyReview.DailyReviewView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:manual="clr-namespace:PersonalTradingJournal.Desktop.Views.DailyReview"
              xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.DailyReview"
              Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="16">
     <UserControl.Resources>
@@ -139,36 +140,7 @@
                     <TextBlock x:Name="SelectedScopeHeading" Style="{StaticResource Heading}" Margin="0,0,0,8" Text="{Binding ScopeHeading}" />
                     <TextBlock x:Name="ScopeCounts" Style="{StaticResource ReviewBody}" FontWeight="SemiBold" Text="{Binding Current.Counts}" />
                     <TextBlock x:Name="ScopeCoverage" Style="{StaticResource Message}" Text="{Binding Current.CoverageSummary}" />
-                    <WrapPanel>
-                        <Button x:Name="GenerateReview" Content="Generate AI Review" Command="{Binding GenerateCommand}"
-                                Style="{DynamicResource PtjPrimaryButtonStyle}" Margin="0,8,8,8"
-                                AutomationProperties.Name="Generate AI Review for selected New York date and Account scope" />
-                        <Button x:Name="CancelGeneration" Content="Cancel generation" Command="{Binding CancelGenerationCommand}"
-                                Style="{StaticResource CancellableAction}" Margin="0,8,0,8" />
-                    </WrapPanel>
-                    <TextBlock x:Name="ProviderSummary" Style="{StaticResource Prose}" Text="{Binding ProviderSummary}" />
-                    <Expander x:Name="GenerationHelp" Header="Privacy, provider limits and charges" Margin="0,8"
-                              Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="AI transmission, limits, charges and local cancellation details">
-                        <TextBlock Style="{StaticResource Prose}" Text="{Binding ProviderDisclosure}" />
-                    </Expander>
-                    <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
-                                 Visibility="{Binding IsGenerating, Converter={StaticResource BoolVisibility}}"
-                                 AutomationProperties.Name="AI review generation in progress" />
-                    <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationAvailability}" />
-                    <TextBlock Style="{StaticResource Message}" Text="{Binding GenerationMessage}" AutomationProperties.LiveSetting="Polite" />
-                    <Button Content="Configure AI in Settings" Command="{Binding ConfigureAiCommand}" HorizontalAlignment="Left"
-                            Margin="0,8,0,0" AutomationProperties.Name="Configure AI in Settings">
-                        <Button.Style>
-                            <Style TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding NeedsAiConfiguration}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                    <manual:ManualReviewView DataContext="{Binding Manual}" />
                 </StackPanel>
             </Border>
             <TextBlock Text="{Binding AccountNotice}" Style="{StaticResource Message}" />

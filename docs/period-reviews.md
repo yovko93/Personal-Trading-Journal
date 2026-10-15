@@ -1,5 +1,57 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## Manual ChatGPT workflow — 15 October 2026
+
+This supersedes visible direct Generate/API actions without rewriting saved v1/v2 reviews. **Prepare ChatGPT Prompt** reads one fresh selected/prior-period snapshot and freezes its exact New York boundaries and Account scope. `manual-review-prompt.v1` carries the existing strict response schema and compact `period-coaching.v2` projection. Complete aggregates cover all included Trades and preserve Account/currency, strict Net, missing data, Rule outcome/provenance and comparison boundaries. Bounded individual examples and omitted details remain explicitly identified. Only supplied sources may be cited; the full immutable local evidence is retained.
+
+**Copy Prompt** and **Paste ChatGPT Response** touch the clipboard only on explicit clicks. The prompt may contain sensitive Trade/Journal information; PTJ performs no upload and needs no API key. Inspect its exact preview and byte count first. A single JSON response or optional Markdown `json` fence is accepted. The original identity/version, five required sections, citation/basis rules, three-action maximum and response bounds still apply. Validation displays Strengths, Areas for Improvement, Mistakes, Progress and Action Plan cards without creating history. **Save Review** revalidates and atomically saves the frozen evidence/response. Provenance is **Pasted external AI response**; originating service/model, token usage, cost and truth of claims are unverified. The timestamp records local preparation, not claimed external generation.
+
+Weekly and Monthly have separate pending slots, independent of browsing selection. Navigation and restart retain prompts and explicitly kept response text. Unsaved response text blocks leaving until **Keep response draft** or confirmed **Discard pending work**. A stable saved identity prevents duplicate rows after a save interruption. Concurrent working-copy changes fail rather than overwrite. Cancellation, malformed JSON and invalid citations never produce an accepted historical review.
+
+The existing 2 MiB local snapshot / 256 KiB projection/source limits remain. The whole prompt is bounded at **300,000 UTF-8 bytes**; external ChatGPT limits may be smaller. Responses remain bounded at **65,536 UTF-8 bytes**. No silent truncation, automatic retries, provider fallback or provider requests occur. Pending unencrypted files in `pending-review-prompts` are deliberately excluded from portable backup/export/restore, while completed reviews retain existing portability and v1/v2 compatibility. See [Daily workflow](daily-review.md#manual-chatgpt-workflow--15-october-2026) for durable-storage, cancellation and corruption behavior. No schema/export change is required. Final automated results and remaining live/CI gaps are recorded below; M19.8 is not acceptance-tested here.
+
+### Manual-workflow verification
+
+Focused checks passed **48/48** (15 Infrastructure and 33 Desktop/navigation/WPF), including Daily/Weekly/Monthly restart, exact/aggregate frozen scope, clipboard failure, malformed/fenced JSON, citation validation, duplicate-save reconciliation, navigation guards and completed-snapshot portability. The complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/manual-review/release` gate passed **4,335/4,335**, zero failures/skips: Domain **490**, Application **880**, Infrastructure **1,347**, Desktop **1,618** (88 exclusive WPF + 1,530 parallel). Calendar native **82.577 s / 37.423 s headroom** against 120 seconds; Journal editor child **12.374 s**. Existing deadlines and concurrency scheduling are unchanged; no Calendar/Journal failure occurred.
+
+Release build: **0 warnings/errors**. EF model consistency: no changes; no migration. Tracked and new-file whitespace checks passed. Results: `artifacts/manual-review/release/release-20261015-151936-5e4d7531f5124736b29d5442eaa668fe/summary.json`. The 28 automated renders in `artifacts/manual-review/renders-final/` cover themed normal/narrow240 prompt and report states; representative Light Weekly cards, Dark narrow Monthly prompt and Light narrow Daily cards were visually inspected. Wrapped actions and reading sections remain reachable. These are offscreen WPF observations, not actual clipboard, mouse/keyboard or screen-reader acceptance.
+
+The [scenario matrix](daily-review.md#manual-workflow-verification) distinguishes synthetic automated evidence from remaining live gates. New manual paths assert **zero provider requests**; retained legacy provider compatibility tests use fake HTTP only. No live/paid request or production data was accessed. Real ChatGPT output quality and live UI/clipboard remain unverified. The changes are uncommitted, so there is no matching resulting commit for GitHub Actions; local green is not CI acceptance. M19.8 has not started.
+
+### Manual-workflow file inventory
+
+The following 29 files implement and verify the manual workflow (starting clean `develop` at `31ffd0ecabea66e9512b66a3a6659ba94373015c`; no commit/push/merge):
+
+* `README.md`
+* `docs/backup-restore.md`
+* `docs/daily-review.md`
+* `docs/period-reviews.md`
+* `src/PersonalTradingJournal.Application/DailyReview/Coaching/SavedCoachingAnalysis.cs`
+* `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/SavedPeriodReview.cs`
+* `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodPresentation.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodReviewViewModel.cs`
+* `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+* `src/PersonalTradingJournal.Desktop/Views/PeriodReviews/PeriodReviewView.xaml`
+* `src/PersonalTradingJournal.Desktop/Views/Settings/SettingsView.xaml`
+* `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/DailyReviewViewTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/Navigation/DailyReviewAcceptanceTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodViewTests.cs`
+* `src/PersonalTradingJournal.Application/DailyReview/Coaching/ManualReview.cs`
+* `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ManualReviewViewModel.cs`
+* `src/PersonalTradingJournal.Desktop/Views/DailyReview/ManualReviewView.xaml`
+* `src/PersonalTradingJournal.Desktop/Views/DailyReview/ManualReviewView.xaml.cs`
+* `src/PersonalTradingJournal.Desktop/Views/DailyReview/WpfReviewClipboard.cs`
+* `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/ManualReviewService.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/ManualReviewViewTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/DailyReview/ManualReviewWorkspaceTests.cs`
+* `tests/PersonalTradingJournal.Desktop.Tests/Navigation/ManualReviewNavigationTests.cs`
+* `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/ManualReviewPortabilityTests.cs`
+* `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/ManualReviewTests.cs`
+
 ## M19.7 correction — compact projection and report-first layout
 
 ### Reproduction and measured cause
