@@ -198,9 +198,9 @@ public sealed class PeriodCoachingTests
         Assert.False(string.IsNullOrWhiteSpace(result.Message));
     }
 
-    private static PeriodCoachingPacket Packet(PeriodComparisonEvidence pair)
+    internal static PeriodCoachingPacket Packet(PeriodComparisonEvidence pair)
     { var result = PeriodCoachingPacketBuilder.Build(pair); Assert.Equal(CoachingPacketBuildStatus.Ready, result.Status); return result.Packet!; }
-    private static PeriodComparisonEvidence Evidence(PeriodReviewQuery q)
+    internal static PeriodComparisonEvidence Evidence(PeriodReviewQuery q)
     {
         PeriodReviewEvidence Empty(PeriodReviewQuery p) => new(p, [], [], [], [], [], [], []);
         return new(Empty(PeriodComparisonEvidence.PreviousQuery(q)), Empty(q) with { Journals = [Journal(q, q.Scope.AccountId, "Synthetic observation")] }, PeriodSourceConsistency.SingleReadTransaction);
@@ -215,7 +215,7 @@ public sealed class PeriodCoachingTests
             DailyReviewTradeInclusion.ClosedOnDate, new(1, TradeStatus.Closed, TradeDirection.Long, close.AddHours(-1), close, 0, 100, 101, missing ? null : 0, 1, missing ? null : 1),
             [new TradeExecutionDetailItem(Guid.NewGuid(), 1, close, ExecutionSide.Sell, 1, 101, missing ? null : 0, 0, missing ? null : 0, null, null, null)], [], missing ? DailyReviewTradeQuality.UnknownCommission : DailyReviewTradeQuality.None);
     }
-    private static string Review(PeriodCoachingPacket p)
+    internal static string Review(PeriodCoachingPacket p)
     {
         var section = new { insufficientEvidence = true, findings = new[] { new { basis = "CalculatedFact", text = "Insufficient recorded evidence.", sourceIds = new[] { "current:statistics" } } } };
         return JsonSerializer.Serialize(new { contractVersion = p.ContractVersion, packetId = p.PacketId, strengths = section, areasForImprovement = section,

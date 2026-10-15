@@ -23,6 +23,7 @@ public sealed class JournalDbContext : DbContext
     public DbSet<DailyJournalRecord> DailyJournals => Set<DailyJournalRecord>();
 
     public DbSet<CoachingAnalysisRecord> CoachingAnalyses => Set<CoachingAnalysisRecord>();
+    public DbSet<PeriodReviewRecord> PeriodReviews => Set<PeriodReviewRecord>();
 
     public DbSet<DailyJournalRevisionRecord> DailyJournalRevisions => Set<DailyJournalRevisionRecord>();
 
@@ -62,6 +63,7 @@ public sealed class JournalDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TradingRuleAssessmentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new DailyJournalRecordConfiguration());
         modelBuilder.ApplyConfiguration(new CoachingAnalysisRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new PeriodReviewRecordConfiguration());
         modelBuilder.ApplyConfiguration(new DailyJournalRevisionRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingSetupRecordConfiguration());
         modelBuilder.ApplyConfiguration(new PlaybookRevisionRecordConfiguration());

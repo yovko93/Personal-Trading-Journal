@@ -1,4 +1,88 @@
-# Weekly and Monthly Review — M19.1–M19.5
+# Weekly and Monthly Review — M19.1–M19.6
+
+## M19.6 — Saved period reviews and history
+
+### Explicit generation and atomic storage
+
+`GenerateAndSavePeriodReviewService.GenerateAsync` wraps M19.5 without changing Daily generation, provider selection, budgets or validation. It generates at most once, revalidates the complete response against that exact immutable packet, and submits a `PeriodReviewSnapshot` to `IPeriodReviewRepository.SaveAsync`. Snapshot creation never rereads Trades, Journals, Accounts or other mutable sources after generation. The packet's canonical JSON is retained byte-for-byte as text; the validated structured response is serialized separately. Original New York first/last dates and half-open UTC boundaries, week/month kind, exact Account ID or explicit aggregate scope, original display name, UTC generation time, packet ID and contract versions are saved together. Account labels come only from supplied current-period sources, then previous-period sources; unavailable labels remain unknown rather than being replaced by a same-name Account.
+
+One transaction inserts the entire record, including allowlisted provider/model/request IDs and nullable token usage. No raw HTTP diagnostics, credentials, retries or partially successful responses are stored. Failed, invalid, mismatched, oversized or pre-commit cancelled requests produce no row. A failed insert rolls back. Cancellation is checked immediately before commit; once commit begins it is completed without cancellation and a durable save is reported as saved, not falsely reported as cancelled. An ambiguous storage failure gives no usable saved review and advises checking history before another explicit, potentially billable generation. Existing Daily metadata validation was factored into a shared helper without changing its allowlist or stored contract.
+
+### Separate history, identity and retention
+
+- `PeriodReviews` is independent of Daily `CoachingAnalyses`, with no foreign keys or cascades to mutable sources. Historical detail reads return stored versioned JSON, not current sources or a newly validated/reinterpreted packet. Source edits/deletion, provider/key changes and Account replacement cannot rewrite a snapshot.
+- History is filtered in SQLite by exact week/month boundaries and exact scope, ordered by generation UTC descending, then immutable review ID ascending. Pages are 1–100 rows (default 20); summaries do not load evidence/response bodies. Count and page share one SQLite read transaction. Separate page requests may observe subsequent writes; cross-page snapshot isolation is not promised.
+- **All accounts history means aggregate analyses only**, not a merge of exact-account histories. `BrowseScopesAsync` provides separately paged, deterministic discovery of scopes with saved reviews for the period, including unavailable Accounts. It reads no current Account catalog or evidence payloads; original IDs and the newest saved label distinguish same-name replacements. The later UI must label unavailable identities explicitly.
+- Confirmed deletion takes one immutable saved-review ID. Declining is write-free; missing IDs return `NotFound`. Deletion is transactional and cannot affect other analyses, source records or files. No retention schedule or bulk delete is added. Saved snapshots are immutable through the application repository; this does not protect against direct external database editing.
+
+### Portability and confidentiality
+
+Additive migration **`20261015091425_AddSavedPeriodReviews`** is migration 20. Existing Daily analyses and all source tables remain unchanged; normal installed-database migration preserves them. Complete archive v1 already contains the entire validated SQLite snapshot: preflight now reports total AI analyses plus a separate period count, and offline restore verifies both. Synthetic tests cover successful replacement and interrupted replacement recovering the original period history from the retained recovery dataset.
+
+Restore still requires the exact current schema. Archives from migration 19 or earlier are rejected as requiring the deferred supported staged upgrade; adding this migration does **not** make older-schema archives restorable. Portable JSON advances from v8 to **v9**, adding `periodReviews` with every persisted column, exact evidence/response JSON, versions, metadata, Account identity and explicit dates/UTC boundaries. Four CSVs remain unchanged; period details are JSON-only, screenshots remain metadata-only, and logical exports are **not restorable backups**. Older exports retain their original meaning and omit period reviews; no export import is introduced.
+
+Export fields are `id`, `kind` (0 Week, 1 Month), `firstDateNewYork`, `lastDateNewYork`, `fromUtc`, `beforeUtc`, `scopeKind` (0 All accounts, 1 exact Account), nullable `accountId` / `accountDisplayName`, `generatedAtUtc`, `provider`, `model`, `evidenceContractVersion`, `responseContractVersion`, `packetId`, `evidenceJson`, `responseJson` and `metadataJson`. JSON strings retain their versioned inner documents; no source identity, nullable economics or coverage field is flattened into an invented value.
+
+These saved packets may contain sensitive Journal text, Trade facts, Playbook annotations and Rule assessment explanations. The SQLite database, archives and logical exports are **unencrypted**; DPAPI keys, environment credentials, logs and unrelated diagnostics remain excluded. No provider call is made by history, deletion, backup or export.
+
+### Verification and remaining limits
+
+Focused checks passed **625/625**: Application **242**; Infrastructure **383** (378 period/coaching/backup/migration checks, two post-delete rollback cases and three schema-inventory checks). There are **38 new cases**: 22 Application and 16 SQLite. Coverage includes exact/aggregate scope and 20/21/40-row boundaries; count/page consistency during a concurrent commit; source changes while generation is pending; deletion and same-name replacement; fresh context/service reads; duplicate-ID rejection; cancellation and fault injection after INSERT/DELETE; confirmed-delete isolation; previous-schema migration; exact JSON v9 export; successful offline restore and interrupted replacement/recovery. All providers are fake.
+
+The first broad Infrastructure run exposed two outdated initializer migration lists. The first complete gate then finished **4,260 passed / 3 failed / 0 skipped**: the remaining old full migration list, latest-migration assertion and EF entity allowlist had not yet included the new table. These expectations were updated, not removed; their three focused reruns passed. No product lifetime or WPF deadline failure was observed.
+
+The **final complete gate passed 4,263/4,263, zero failures/skips**:
+
+| Project / stage | Passed |
+| --- | ---: |
+| Domain | 490 |
+| Application | 879 |
+| Infrastructure | 1,329 |
+| Desktop exclusive WPF | 88 |
+| Desktop parallel remainder | 1,477 |
+| Desktop combined | 1,565 |
+
+Command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m196-release-final`. Results: `artifacts/m196-release-final/release-20261015-093914-475967823f0346abba1d3f2d67eb9423/summary.json` and per-stage TRX/diagnostics. Calendar native child **77.208 seconds**, **42.792 seconds** remaining against the unchanged 120-second deadline; Journal editor case **7.445 seconds**. No Calendar/Journal timeout; scheduling, assertions, concurrency tests and deadlines are unchanged.
+
+Release build: **0 warnings/errors**. EF `has-pending-model-changes`: no changes. Whitespace checks include tracked and new files. Branch `develop`, HEAD `62455c5f28d4b57e254f8b1f7a713dac14627244`; initial worktree clean, **35 changed files** (22 modified, 13 new). No Weekly/Monthly UI, automatic generation, live/paid provider request, production-data access or Git write is included. Local synthetic tests do not establish live UI/provider acceptance or matching GitHub Actions acceptance of uncommitted work.
+
+### Exact M19.6 changed files
+
+- `README.md`
+- `docs/backup-restore.md`
+- `docs/period-reviews.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Backups/IRestorePreflightService.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/SavedCoachingAnalysis.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/JournalRestoreService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/RestorePreflightService.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodCoachingTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/SavedCoachingMetadata.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/GenerateAndSavePeriodReviewService.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/SavedPeriodReview.cs`
+- `src/PersonalTradingJournal.Infrastructure/PeriodReviews/PeriodReviewRepository.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/PeriodReviewRecordConfiguration.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261015091425_AddSavedPeriodReviews.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261015091425_AddSavedPeriodReviews.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/PeriodReviewRecord.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/SavedPeriodReviewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewRepositoryTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/SavedPeriodSourceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/PeriodReviewMigrationTests.cs`
 
 ## M19.5 — Weekly/Monthly coaching contract and explicit generation
 

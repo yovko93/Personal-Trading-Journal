@@ -37,6 +37,8 @@ public static class CoachingServiceCollectionExtensions
             : s.GetRequiredService<OpenAiCoachingProvider>());
         services.AddTransient(s => new PeriodCoachingGenerationService(s.GetRequiredService<IPeriodComparisonEvidenceReader>(),
             s.GetRequiredService<IPeriodCoachingProvider>(), s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
+        services.AddTransient(s => new GenerateAndSavePeriodReviewService(s.GetRequiredService<PeriodCoachingGenerationService>(),
+            s.GetRequiredService<IPeriodReviewRepository>(), TimeProvider.System));
         services.AddTransient(s => new GenerateAndSaveCoachingService(s.GetRequiredService<DailyCoachingGenerationService>(),
             s.GetRequiredService<ICoachingAnalysisRepository>(), TimeProvider.System));
         return services;

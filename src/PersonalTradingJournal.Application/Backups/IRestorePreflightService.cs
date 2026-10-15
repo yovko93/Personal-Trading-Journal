@@ -16,7 +16,11 @@ public enum RestorePreflightWarning { UnencryptedSensitiveData, AiCredentialsExc
 public sealed record RestorePreflightSummary(DateTimeOffset CreatedAtUtc, int ArchiveVersion, string LatestMigration,
     int MigrationCount, long AccountCount, long TradeCount, long JournalCount, long JournalRevisionCount,
     long AnalysisCount, long ScreenshotCount, int ScreenshotFileCount, long PayloadBytes, long ArchiveBytes,
-    string ArchiveSha256, ImmutableArray<RestorePreflightWarning> Warnings);
+    string ArchiveSha256, ImmutableArray<RestorePreflightWarning> Warnings, long PeriodAnalysisCount = 0)
+{
+    // AnalysisCount includes both independent histories; the existing Settings total remains accurate.
+    public long DailyAnalysisCount => AnalysisCount - PeriodAnalysisCount;
+}
 
 public sealed record RestorePreflightResult(Guid OperationId, RestorePreflightPhase Phase,
     BackupValidationCode? Failure, BackupSchemaCompatibility Compatibility = BackupSchemaCompatibility.Unsupported,
