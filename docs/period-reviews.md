@@ -1,5 +1,21 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## M19.8 CI #95 follow-up — 15 October 2026
+
+**OPEN pending matching corrected CI and remaining live checks.** The [updated shared matrix](daily-review.md#m198-ci-95-follow-up--15-october-2026) supersedes the earlier no-CI-run status. CI #95 failed on PR #22 merge `13588c00d192db3bca8f1b0d4436324d3a2bc70e`, incorporating develop `52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`. Playbook's Save assertions passed before its child crashed after STA shutdown with a runtime thread-teardown assertion; the parent reported that nonzero exit. Infrastructure continued progressing until the separate ten-minute Actions cutoff. No claim that one defect explains both.
+
+| Scenario | Result / limit |
+| --- | --- |
+| Preserve human Daily/Weekly/Monthly ChatGPT round-trip and restart | Unchanged; no product/manual-workflow edits or provider calls |
+| Corrected Playbook and reader-fixture load verification | **19 Desktop + 124 Infrastructure passed**, including immutable snapshot/concurrent writer checks and WAL/schema/isolation/cleanup regressions |
+| Complete local gate | **4,337/4,337 passed**, zero failures/skips, exit 0, about 5m43s. Domain 490, Application 880, Infrastructure 1,349, Desktop 1,618. CI CoreCLR 10.0.13 / WPF 10.0.12; see shared matrix for raw evidence |
+| Final WPF margin | Calendar **72.125 s / 47.875 s headroom**; Journal STA **6.995 s / 23.005 s headroom**. Both Playbook SQLite children exited normally, with complete task/window cleanup |
+| Native crash reproduction | Not reproduced locally, including CI CoreCLR 10.0.13; process-owned STA avoids the evidenced short-lived teardown path, but CI verification remains required |
+| Release build / EF consistency / whitespace | Passed: zero warnings/errors, no model changes, clean whitespace checks |
+| Matching corrected CI / live UI | Still open; no CI run can include uncommitted corrections, and automated tests do not replace remaining physical input/accessibility checks |
+
+Only test fixtures, diagnostic collection and documentation change; period evidence, immutable saved analyses, contracts and database are unchanged. Exact eight-file list and development failure chronology are in the shared matrix. No retries/skips, deadline/concurrency reductions, production access, AI request, Git write or M20 work.
+
 ## M19.8 timeout follow-up — 15 October 2026
 
 **Final local Release gate: 4,335/4,335 passed, zero failures/skips. Overall M19.8 remains OPEN for live/CI checks and unexplained host-load variability.** The [updated acceptance matrix](daily-review.md#m198-timeout-follow-up--15-october-2026) supersedes the earlier failed-gate result below without erasing it. No Weekly/Monthly/Daily product behavior, saved data, manual ChatGPT contract, test assertions, deadlines or concurrency settings changed.

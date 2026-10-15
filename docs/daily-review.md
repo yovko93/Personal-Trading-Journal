@@ -1,5 +1,32 @@
 # Daily Review with AI Coaching — M15
 
+## M19.8 CI #95 follow-up — 15 October 2026
+
+**Acceptance remains OPEN.** Matching [CI #95](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38792076087) failed for develop **`52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`**, tested as PR #22 merge **`13588c00d192db3bca8f1b0d4436324d3a2bc70e`**. This supersedes earlier statements that no matching run existed. [Detailed timeline, ownership and causal limits](ci-wpf-tests.md#m198--ci-95-child-shutdown-and-unfinished-infrastructure-15-october-2026).
+
+The Playbook write child saved and displayed revisions 1 and 2 and completed all assertions before dispatcher shutdown and a CoreCLR native-thread-teardown assertion. The parent exit-code assertion at lines 45–47 reported that crash; it was not a failed Save/readback assertion. Separately, Infrastructure was still completing cases (1,215 reported passes, four recently started active cases) when the ten-minute Test step ended. No Infrastructure TRX or native crash dump was available. Do not treat these as a single Save failure or a proven SQLite deadlock.
+
+Test-only corrections: keep the native Playbook STA owned by its supervised child process, drain real image work before DI/file cleanup, assert closed windows/completed tasks, and retain per-child TRX/VSTest/crash diagnostics. Reader fixtures reuse the existing immutable migrated SQLite template, preserving WAL and independent connections/data; dedicated migration and concurrency tests are unchanged. No product behavior, saved review, manual ChatGPT workflow, provider, schema, deadline, assertion or concurrency bound changes.
+
+| Acceptance check | Result | Evidence / limit |
+| --- | --- | --- |
+| CI #95 exact source/merge | Failed | Exclusive 88/88; Domain 490/490, Application 880/880; parallel Desktop 1,529/1. Infrastructure unfinished; action timed out at 10 minutes |
+| Original Playbook isolated / CI runtime | Passed locally, crash not reproduced | 3/3 on local CoreCLR 10.0.12 and 3/3 on privately staged 10.0.13 + WPF 10.0.12; native callback identity remains unproven without a dump |
+| Final corrected competing workload | Passed | **19 Desktop + 124 Infrastructure**, zero failures/skips; synthetic data, CI runtime and four reported logical processors |
+| Development regression and recovery | Corrected before final gate | First template clone retained DELETE mode: 119 passed / 5 concurrent-snapshot failures. Restoring WAL fixed all five; no assertions or timeouts were weakened |
+| Reader fixture overhead | Reduced measured work | Before: 59 initializers, 33.698 aggregate seconds. After: 65 initializers, 9.299 s plus 7.546 s template acquisition. Expanded focused set and runtime differ; this is not a claimed CI wall-time speedup |
+| Complete local Release gate | Passed | `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults`: **4,337/4,337**, zero failures/skips, exit 0, about **5m43s**. Domain 490, Application 880, Infrastructure 1,349, Desktop 1,618 (88 exclusive + 1,530 parallel); CI CoreCLR 10.0.13, WPF 10.0.12, four reported logical processors |
+| Final child lifetime / deadlines | Passed | Playbook write/restart children exit 0 in **12.250 / 10.188 s**, both record zero windows/pending image work. Calendar **72.125 s / 47.875 s headroom** to 120 s; Journal STA **6.995 s / 23.005 s headroom** to 30 s (whole child 10.095 s) |
+| Release build / EF consistency | Passed | 0 warnings/errors; no pending model changes using the in-memory design-time factory |
+| Whitespace | Passed | `git diff --check` and new fixture-file trailing-whitespace check |
+| User-verified manual Daily/Weekly/Monthly flow | Preserved | No production implementation changes or new automatic ChatGPT/API request |
+| Live accessibility and edge cases | Still open | Prior helper capture/input limits remain; no new human/screen-reader acceptance claimed |
+| CI for these corrections | Not run | Changes are uncommitted; failed CI #95 does not verify the corrections, and local green is not CI acceptance |
+
+Final raw gate evidence: `TestResults/release-20261015-195452-11768bd6028640ea88397c66ad7771fd/summary.json` with project TRX and child diagnostics. Infrastructure completed in 3m37s; parallel Desktop in 4m06s. Rechecking GitHub after completion still returns failed CI #95 for the unchanged head; no corrected commit exists.
+
+Exact changed files: `README.md`, `docs/ci-wpf-tests.md`, `docs/daily-review.md`, `docs/period-reviews.md`, `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/IsolatedTestProcess.cs`, `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/ReaderTestDatabase.cs`, and new `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/ReaderTestDatabaseTests.cs`. Clean start on develop; existing committed work is preserved. No production journal access, live/paid provider calls, commit/push/merge or M20 work.
+
 ## M19.8 timeout follow-up — 15 October 2026
 
 This follow-up supersedes the earlier complete-gate result; the failed run remains in the chronology. **The local gate is green; the original slowdown's specific cause remains unproven.** Start: clean `develop`, HEAD **`d3a2e60ff9e9cb30763769130f708def596a7a51`**. No product, test, runner, schema or manual ChatGPT workflow changed. The only differences from the previously tested implementation were acceptance documentation.
