@@ -1,5 +1,55 @@
 # Windows WPF test diagnostics
 
+## M19.8 — Controlled timeout investigation (15 October 2026)
+
+Started clean on `develop`, `d3a2e60ff9e9cb30763769130f708def596a7a51`. Compared with the prior green `37c1aaa` implementation, only acceptance documentation changed. The recorded **4,172 passed / 163 failed** run is retained at `artifacts/m198/release/release-20261015-154338-fa57050015614cda98015537756906d8`. Its first underlying failures group as follows; outer propagation must not be counted as separate product defects:
+
+| Child / first failure | Outer failures |
+| --- | ---: |
+| Calendar native, aggregate 120 s | 86 |
+| Journal editor, STA/inactivity 30 s | 1 |
+| Calendar grid, aggregate 120 s | 36 |
+| Calendar owner-close, aggregate 60 s | 14 |
+| Calendar healthy STA probe, aggregate 30 s | 6 |
+| Unhandled-native probe, aggregate 30 s instead of the expected original exception | 1 |
+| Import-resource/native-tooltip isolation, aggregate 120 s | 1 |
+| Daily Review layout, aggregate 120 s | 10 |
+| Period Review layout, child inactivity 30 s | 4 |
+| Journal History, child inactivity 30 s | 1 |
+| Rules drop and Rules view, STA 30 s | 2 |
+| Tradovate bound preview, child inactivity 30 s | 1 |
+
+Calendar completed 40 action blocks, then began another only about 2.6 s before termination. At the last completed boundary: process CPU 155.359 s, working set about 579 MiB. Twelve owner `Show` calls totaled **35.181 s**, versus **12.328 s** in the earlier green run; theme loading was 2.351 versus 0.548 s. Dispatcher scheduling waits totaled only 0.291 s. Journal continued from a flush at 29.687 s into another construction/layout phase at 30.698 s after its timeout at 30.411 s. These logs demonstrate cumulative progress and deadline exhaustion, not a proven individual hang.
+
+### Supervised experiments, unchanged binaries and deadlines
+
+The synthetic Desktop app was not running. No separate build overlapped these experiments. Opt-in `PTJ_CALENDAR_TIMINGS=1`, existing phase logs, supervision timestamps and TRX were sufficient; no new timing hooks or test behavior were needed. The competing run deliberately overlaps work that the complete runner normally separates; it is a diagnostic experiment, not the acceptance command.
+
+| Measurement | Isolated exclusive lane | Same lane with layout + Infrastructure competitors |
+| --- | ---: | ---: |
+| Calendar native process wall time / 120 s headroom | 63.075 / 56.925 s | 105.529 / 14.471 s |
+| Completed native actions | 86 | 86 |
+| Summed STA action elapsed time | 57.475 s | 81.982 s |
+| First STA start to last STA completion | 60.217 s | 102.682 s |
+| Process start to first STA action (startup + initial fixture) | 2.409 s | 2.258 s |
+| Twelve owner `Show` calls | 8.588 s | 10.272 s |
+| Modal dispatcher pumps | 6.988 s | 9.791 s |
+| Fixture create/activate | 0.604 s | 2.641 s |
+| Native dispatcher scheduled waits | 0.239 s | 0.059 s |
+| Native child CPU at final action boundary | 87.516 s | 106.203 s |
+| Journal process wall time | 10.925 s | 15.550 s |
+| Journal STA elapsed / 30 s headroom | 7.795 / 22.205 s | 10.836 / 19.164 s |
+| Journal Measure / bitmap render | 1.317 / 1.114 s | 1.803 / 1.552 s |
+| Result | 88/88 | 88/88 + 52/52 layout + 232/232 Infrastructure |
+
+Evidence: `artifacts/m198-timeout/isolated/` and `artifacts/m198-timeout/overlap/{exclusive,layout,infrastructure}/`. The layout competitor selects Calendar grid, Daily and Period view tests; Infrastructure selects `Backups` and `PeriodReview`. All three overlap from 16:25:15 to 16:26:22 UTC. Between-action time increases by about 18 s, spread over many boundaries (largest observed gap 1.033 s), not one stalled action. Individual modal/layout action groups also slow. Timing scopes overlap: do not add nested scope totals or equate process CPU with STA CPU.
+
+A bounded ten-second process sample found native testhost CPU 14.31 s alone; during overlap three testhosts consumed 21.14, 10.03 and 8.00 CPU seconds. Other Windows/app processes were active in both samples. This confirms competing execution, **not** the identity of the cause of the earlier failed run. No off-CPU trace was captured, so OS scheduling, synchronous/native window work and filesystem effects cannot be apportioned exactly. The original 35.181-second owner-Show slowdown and 163 failures were not reproduced in these controlled experiments. An isolated or subsequent green run cannot prove that variability is fixed.
+
+No speculative product, harness or runner correction is justified by this evidence. Keep the existing exclusive Calendar/Journal lane, parallel remainder, explicit concurrency tests, assertions, limits and deadlines. Run the complete gate without a simultaneous app acceptance session, build or second test run. This is operational isolation of verification, not a claim that a particular external app caused the failures. Final complete-gate results and remaining acceptance gates are recorded in the [Daily Review matrix](daily-review.md#m198-timeout-follow-up--15-october-2026).
+
+Final unchanged gate: **4,335/4,335 passed, zero failures/skips, exit 0**, about 5m51s. Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618 (88 exclusive + 1,530 parallel). Native child **75.015 s / 44.985 s headroom**, owner Show 9.262 s, scheduling waits 0.104 s. Journal child 10.299 s, STA **7.183 s / 22.817 s headroom**. Parallel grid 29.57 s, owner-close 34.02 s, Daily layout 23.18 s, Period layout 13.17 s, Journal History 15.37 s; the previously timed-out child groups passed. Evidence: `artifacts/m198-timeout/final/release-20261015-162933-80f236b8cc0d44458dd5a1659cddbb7a/summary.json`. Build 0 warnings/errors; in-memory EF model consistency and whitespace passed. Four documentation files changed; no new regression test is warranted without a reproduced mechanism. The original exclusive failure occurred without other assemblies from its own gate, so the overlap experiment is not a complete causal explanation. Local green does not establish matching CI, live acceptance or elimination of host-load variability.
+
 ## M18.6 — Resource-aware complete Release gate (14 October 2026)
 
 Started on clean `develop` **`7323f8da6b07ed118897ab42a7e102a1d0b3cef8`**: the previous fixture optimization and failure report were already committed and are preserved. This supersedes the prior all-assembly-overlap command as the acceptance gate, not the historical measurements below. No production/test assertions, operation deadlines, schema, Rule semantics, provider behavior or explicit concurrency tests change.

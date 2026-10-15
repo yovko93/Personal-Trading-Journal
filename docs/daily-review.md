@@ -1,5 +1,28 @@
 # Daily Review with AI Coaching — M15
 
+## M19.8 timeout follow-up — 15 October 2026
+
+This follow-up supersedes the earlier complete-gate result; the failed run remains in the chronology. **The local gate is green; the original slowdown's specific cause remains unproven.** Start: clean `develop`, HEAD **`d3a2e60ff9e9cb30763769130f708def596a7a51`**. No product, test, runner, schema or manual ChatGPT workflow changed. The only differences from the previously tested implementation were acceptance documentation.
+
+The 163 propagated failures were grouped by their first child failure: Calendar native 86, Journal editor 1, Calendar grid 36, owner-close 14, STA probes 8, Daily layout 10, Period layout 4, Journal History 1, Rules 2 and Tradovate preview 1. They were deadline/inactivity failures, including an expected-unhandled-exception assertion receiving a timeout instead. The existing bounded diagnostics show progress, not a demonstrated single-action hang. [Measurements and exact child groups](ci-wpf-tests.md#m198--controlled-timeout-investigation-15-october-2026) compare owner-window `Show`, dispatcher work, fixture setup, process CPU and action boundaries.
+
+Controlled synthetic verification passed **88/88** isolated native/Journal cases; the same **88/88**, **52/52** layout competitors and **232/232** SQLite/backup/period cases passed with actual overlap. Calendar was **63.075 s** alone and **105.529 s** under deliberate overlap, with **56.925 / 14.471 s** headroom. Journal STA work was **7.795 / 10.836 s** against 30 s. This demonstrates contention sensitivity, but does not reproduce or identify the cause of the original 35.181-second owner-Show total. No product defect or durable harness fix is claimed from a pass. No retries, sleeps in tests, skips, deadline increases, assertion changes or concurrency reductions were introduced.
+
+| Follow-up acceptance item | Observed result | Evidence / remaining limitation |
+| --- | --- | --- |
+| Targeted isolated and competing-load checks | Passed, automated | 88 isolated; 372 overlapping cases; unchanged tests and deadlines |
+| Final complete Release gate | Passed, automated | **4,335/4,335**, zero failures/skips, exit 0. Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618 (88 exclusive + 1,530 parallel). About 5m51s; Infrastructure test duration 4m02s, parallel Desktop 4m10s |
+| Final Calendar / Journal deadlines | Passed, automated | Calendar child **75.015 s / 44.985 s headroom** to 120 s. Journal child 10.299 s; STA work **7.183 s / 22.817 s headroom** to its 30 s deadline. No propagated deadline failures |
+| Release build / EF consistency | Passed | 0 warnings/errors; in-memory design-time factory reports no model changes |
+| Whitespace | Passed | `git diff --check`; documentation-only changes |
+| Human Daily/Weekly/Monthly round-trip and restart | Preserved, user-reported | The previously verified synthetic workflows were not changed or repeated automatically |
+| Live edge cases and accessibility | Still open | Physical focus/scrolling, clipboard failure, screen reader and previously listed manual edge cases were not newly observed |
+| Matching CI | Not verified | Exact-HEAD PR-run lookup returned no runs; connector covers PR-triggered first-page results. Workflow is push to main / PR targeting main. Uncommitted report changes have no resulting commit to test |
+
+Only documentation is changed: `README.md`, `docs/daily-review.md`, `docs/period-reviews.md`, `docs/ci-wpf-tests.md`. Raw synthetic timing/TRX evidence remains under ignored `artifacts/m198-timeout/`. No production journal, prompts, credentials or provider were accessed; zero live/paid API requests. No commit, push, merge or M20 work. M19.8 overall acceptance remains open for the explicitly unverified live/CI gates and unexplained host-load variability; a green local run does not establish their acceptance.
+
+Final command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m198-timeout/final`; authoritative results: `artifacts/m198-timeout/final/release-20261015-162933-80f236b8cc0d44458dd5a1659cddbb7a/summary.json` and top-level TRX. All cases ran once within this gate. Final native owner `Show` total was **9.262 s** across 12 calls; scheduling waits 0.104 s. The final parallel grid took 29.57 s, owner-close 34.02 s, Daily layout 23.18 s, Period layout 13.17 s and Journal History 15.37 s. These are child wall times, not interchangeable with per-operation or inactivity deadlines. The existing resource-aware schedule is retained. The failed run's exclusive phase already excluded competing assemblies from that gate, so deliberate-overlap results alone cannot explain its failure.
+
 ## M19.8 acceptance — 15 October 2026
 
 **Status: OPEN.** Start state was clean `develop`, HEAD `37c1aaa809165ec10821c4a9bb387fd9d25920b5`. Only synthetic data is in scope. The actual Release executable was launched with `--isolated-data-root` pointing to `artifacts/m198/live/isolated`, with API-key environment fallbacks removed from that child process. The fresh journal has two synthetic Accounts, four closed Trades/eight executions across two days/currencies, known USD costs, missing EUR costs, and two account/null-scoped Journals. No existing journal or credentials were read. Apphost SHA-256: `DED6C4ED7843ACB3A6D8378A7223606D9D331704CB1FDCC049FAC07707B31C13` (an apphost fingerprint is not a substitute for the assembly/commit identity).

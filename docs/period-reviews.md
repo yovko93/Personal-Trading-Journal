@@ -1,5 +1,22 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## M19.8 timeout follow-up — 15 October 2026
+
+**Final local Release gate: 4,335/4,335 passed, zero failures/skips. Overall M19.8 remains OPEN for live/CI checks and unexplained host-load variability.** The [updated acceptance matrix](daily-review.md#m198-timeout-follow-up--15-october-2026) supersedes the earlier failed-gate result below without erasing it. No Weekly/Monthly/Daily product behavior, saved data, manual ChatGPT contract, test assertions, deadlines or concurrency settings changed.
+
+| Scenario | Result | Evidence / limit |
+| --- | --- | --- |
+| Group original 163 failures by first child failure | Completed | [Native/Journal and parallel-child chronology](ci-wpf-tests.md#m198--controlled-timeout-investigation-15-october-2026); no individual hung action or product defect demonstrated |
+| Isolated versus deliberate competing load | Passed, automated | 88 isolated; 88 + 52 layout + 232 Infrastructure overlapping tests. Calendar 63.075 versus 105.529 s; Journal STA 7.795 versus 10.836 s. Contention sensitivity measured, original cause not established |
+| Complete unchanged Release gate | Passed, automated | Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618; all 4,335 passed. `artifacts/m198-timeout/final/release-20261015-162933-80f236b8cc0d44458dd5a1659cddbb7a/summary.json` |
+| Final deadline margin | Passed, automated | Calendar **75.015 s / 44.985 s headroom**; Journal STA **7.183 s / 22.817 s headroom**. No timeout in the final gate |
+| Release build / EF / whitespace | Passed | 0 warnings/errors, no pending model changes, `git diff --check` clean |
+| Human manual ChatGPT round-trip and restart | Preserved | Previous user confirmation remains valid evidence; no automatic submission, provider request or production access |
+| Physical input, screen reader, live edge cases | Still open | No new live interaction claimed; automated renders are not human interaction |
+| Matching GitHub Actions | Not verified | No PR-triggered run returned for exact HEAD `d3a2e60ff9e9cb30763769130f708def596a7a51`; uncommitted documentation has no resulting commit. Existing workflow remains unchanged |
+
+Exact files changed: `README.md`, `docs/daily-review.md`, `docs/period-reviews.md`, `docs/ci-wpf-tests.md`. Start was clean `develop`; only these reports are now uncommitted. No speculative source correction or new test was added without a reproduced mechanism. The local gate failure is no longer reproduced, but this is **not** a claim that intermittent timing variability has been permanently fixed. No M20 work, Git write or paid/API call.
+
 ## M19.8 acceptance — 15 October 2026
 
 **Acceptance remains OPEN.** The [shared Daily/Weekly/Monthly matrix](daily-review.md#m198-acceptance--15-october-2026) separates automated, user-reported, blocked live and CI evidence. Start: clean `develop` at `37c1aaa809165ec10821c4a9bb387fd9d25920b5`. No evidence/provider/persistence contracts changed during this acceptance pass.
