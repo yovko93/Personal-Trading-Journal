@@ -3,18 +3,25 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
+using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 
 namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
 /// <summary>One non-streaming Responses POST, no retries, tools, conversation state or body logging.
 /// HttpClient is owned by DI/caller. Credential accessor runs only on explicit generation.</summary>
 public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOptions options,
-    Func<string?> credentialAccessor) : ICoachingProvider
+    Func<string?> credentialAccessor) : ICoachingProvider, IPeriodCoachingProvider
 {
     private const int MaximumEnvelopeBytes = 1_048_576;
     private static readonly Uri Endpoint = new("https://api.openai.com/v1/responses");
 
-    public async Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken)
+    public Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken) =>
+        GenerateCoreAsync(() => OpenAiCoachingContract.RequestJson(packet, options), false, cancellationToken);
+
+    public Task<CoachingProviderReply> GenerateAsync(PeriodCoachingPacket packet, CancellationToken cancellationToken) =>
+        GenerateCoreAsync(() => PeriodCoachingWireContract.OpenAiRequest(packet, options), true, cancellationToken);
+
+    private async Task<CoachingProviderReply> GenerateCoreAsync(Func<string> requestBody, bool period, CancellationToken cancellationToken)
     {
         var metadata = new CoachingRequestMetadata("OpenAI", OpenAiCoachingOptions.SupportedModel, Guid.NewGuid().ToString("N"));
         CoachingProviderReply Reply(CoachingGenerationStatus status, string? body = null) => new(status, body, metadata);
@@ -29,7 +36,7 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
             if (key.Any(char.IsWhiteSpace) || key.Any(c => c < 33 || c > 126))
                 return Reply(CoachingGenerationStatus.AuthenticationFailed);
             metadata = metadata with { Phase = CoachingGenerationPhase.EvidencePreflight };
-            string body = OpenAiCoachingContract.RequestJson(packet, options);
+            string body = requestBody();
             // Conservative local ceiling: request UTF-8 bytes (including schema and escaped data)
             // plus 16K framing reserve. Not a tokenizer count; server context rejection is also handled.
             if ((long)Encoding.UTF8.GetByteCount(body) + 16_384 > options.InputTokenBudget)
@@ -66,6 +73,7 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
             using var document = JsonDocument.Parse(bytes, new() { MaxDepth = 64 });
             var root = document.RootElement;
             metadata = metadata with { ResponseId = SafeId(String(root, "id"), "resp_", key), Usage = Usage(root) };
+            if (period && metadata.Usage?.OutputTokens > options.MaximumOutputTokens) return Reply(CoachingGenerationStatus.InvalidResponse);
             if (String(root, "model") != options.Model) return Reply(CoachingGenerationStatus.InvalidResponse);
             string? status = String(root, "status");
             if (status == "incomplete") return Reply(CoachingGenerationStatus.IncompleteResponse);
@@ -85,6 +93,8 @@ public sealed class OpenAiCoachingProvider(HttpClient client, OpenAiCoachingOpti
             if (String(part, "type") != "output_text" || String(part, "text") is not { } json)
                 return Reply(CoachingGenerationStatus.InvalidResponse);
             if (Encoding.UTF8.GetByteCount(json) > CoachingContract.MaximumResponseBytes)
+                return Reply(CoachingGenerationStatus.InvalidResponse);
+            if (period && CoachingTokenCounter.Count(json) > options.MaximumOutputTokens)
                 return Reply(CoachingGenerationStatus.InvalidResponse);
             cancellationToken.ThrowIfCancellationRequested();
             return Reply(CoachingGenerationStatus.Success, json);

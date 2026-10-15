@@ -1,4 +1,92 @@
-# Weekly and Monthly Review — M19.1–M19.4
+# Weekly and Monthly Review — M19.1–M19.5
+
+## M19.5 — Weekly/Monthly coaching contract and explicit generation
+
+### Scope, identity and complete evidence
+
+`PeriodCoachingGenerationService.GenerateAsync(query, cancellationToken)` is an **explicit-only, read-only operation**. It captures the currently selected Groq/OpenAI route before awaiting `IPeriodComparisonEvidenceReader`, reads both equivalent periods in one SQLite transaction, calculates M19.2–M19.4 facts without changing their formulas, builds one packet, invokes at most one provider request, then validates the complete response. There is no timer, startup/Refresh hook, UI action, saved-period review, migration or Trade/Journal/Rule write in M19.5. A successful result says **not saved**; it contains the exact immutable packet for a later persistence milestone. Failure never returns a usable review or packet as a successful result.
+
+The separate evidence/response contract is **`period-coaching.v1`**; it does not repurpose Daily `daily-coaching.v1/v2` or change existing saved analyses. Whole Monday–Sunday weeks, calendar months, prior equivalents, exact original Account IDs, aggregate/null-scoped Journals and DST boundaries reuse M19.1/M19.4. Independently read periods are rejected, not compared as if consistent. Both sides describe the same current database snapshot, not historical as-of reconstruction.
+
+The packet includes all selected evidence, including open/partial context, complete execution facts, current Journal fields/state/revision plus retained revisions, frozen Playbook transitions/guidance/example annotations, current global Rules, full assessment correction history and separate unattributed/deleted-source context. It also includes calculated Account/currency statistics and coverage, prior-period comparisons and breakdowns, Rule denominators/outcomes/origins and recorded mistake patterns. Nothing is reduced to a lossy summary to fit a provider. Null costs/Net remain null; currencies never merge. Not assessed, Cannot evaluate, compliant and confirmed violation remain distinct. Absent previous data is not evidence of progress. Mistakes are observations, not causes of losses; a Setup link is not adherence.
+
+Sources have stable, explicit IDs: `current:` or `previous:` plus `trade:{id}`, `execution:{id}`, `journal:{id}:{revision}`, `journal-revision:{id}:{revision}`, `trade:{id}:playbook:{sequence}`, `rule:{id}:{revision}`, `assessment:{id}` or `unattributed:{id}`; calculated sources use `statistics`, `patterns` and `both:comparison`. IDs use the original identifiers, not names or list positions. Historical assessment content retains its embedded exact Rule revision even when it is absent from the active catalog. Source payloads include enough saved facts and availability information for later citations without substituting today's catalog. Playbook includes text annotations/provenance IDs **only**, no image bytes or local file paths; the model is explicitly told it has not inspected chart images. Trade notes were never part of this read contract and are not implied to have been supplied.
+
+The builder owns canonical JSON and cloned read-only source payloads. Object names and arrays sort ordinally for deterministic identity independent of caller list order/culture; array positions are **not chronology**—execution sequence, revision, transition sequence and timestamps retain their meanings. Exact text, decimal values and explicit dates are preserved. `packetId` is SHA-256 of the versioned canonical content before adding that ID. This is an identity fingerprint, not authentication. Subsequent source edits cannot mutate a completed packet.
+
+### Bounded input and structured response
+
+The entire canonical packet, including IDs/handling labels/framing, is limited to **262,144 UTF-8 bytes and 10,000 sources**. Input copying is size-checked before potentially large comparison expansion. Existing reader and M19.3/M19.4 bounds also apply. Cancellation, invalid evidence, arithmetic overflow and oversized evidence are distinct outcomes; no partial packet escapes. An entirely empty current period (no Trade/activity/assessment and no meaningful Journal field) returns `NoEvidence` without a request, even if the prior period has data. Journal-only and Trade-only reviews are supported when the **whole** packet fits.
+
+All five response properties are required:
+
+| Card | Contract |
+| --- | --- |
+| Strengths | One to six cited findings; explicit evidence basis. |
+| Areas for Improvement | Same, without inventing missing costs/adherence. |
+| Mistakes Observed | Recorded observations, not proven causes. |
+| Progress versus previous period | Same-period comparison coverage/revision limits stay explicit. |
+| Action Plan | A cited explanation and **one to three** steps, each with action, measurable measure, timeframe and source references; or explicit insufficient evidence with zero steps. |
+
+Each finding declares `CalculatedFact`, `RecordedEvidence`, `UserObservation` or `Interpretation`. A declared calculated fact can cite only calculated statistics/patterns/comparison; user observations cite Journal/revision/Playbook/Rule prose; recorded evidence cites Trade/execution/assessment/Rule sources. Interpretations must cite supplied evidence but are not labeled calculated facts. Every substantive finding/step has 1–16 distinct valid source references and nonblank text up to 1,000 characters. An insufficient-evidence card has exactly one cited limitation finding. Complete output is bounded to **65,536 UTF-8 bytes**, depth 32, and the configured provider output budget. Token usage above the output ceiling or a local `o200k_base` output estimate exceeding it is rejected, including absent/misleading usage metadata; the local count is not authoritative billing/Harmony accounting.
+
+Validation rejects unknown/duplicate fields, missing sections, invalid enums, wrong version/packet identity, unsupported/duplicate citations, inappropriate source-kind/basis combinations, empty findings, incomplete/refused output and oversized responses. It returns defensive read-only collections. **Structure and citation membership cannot prove the truth of AI wording, causal claims, measurement feasibility or complete immunity to prompt injection.** Journal, Playbook, Rule, assessment and all other source strings are untrusted data, never instructions. No automatic adherence judgment or recalculation is delegated to AI.
+
+### Provider selection, privacy and budgets
+
+The dedicated period schema uses existing OpenAI Responses and Groq Chat Completions transports, not a URL swap. Both retain strict schema output, bounded non-streaming envelopes, no tools/retries/redirects or automatic cross-provider fallback. OpenAI's [structured-output contract](https://developers.openai.com/api/docs/guides/structured-outputs) requires separate handling of refusals/incomplete output; a schema-shaped response still goes through Application identity/citation validation. No provider SDK/model or credential-storage change was needed.
+
+Settings provider selection is captured once; its separate credential is resolved only when generation is explicitly invoked. Switching providers during evidence loading cannot reroute the request. Saved-key precedence, environment development fallback **within that provider**, sanitized allowlisted status/code/request IDs, `Retry-After`, bounded 90-second default timeout (maximum 180), cancellation and unknown monetary cost are reused. The deadline includes evidence loading, packet construction, HTTP and validation. Late completions are discarded; cancellation cannot guarantee that an already accepted request was not billed. No raw source text, key, request/response body or provider error message is logged. Available token metadata is returned, not invented or priced without verified configuration.
+
+Existing profiles remain unchanged: Groq `openai/gpt-oss-120b`, **6,800 input / 1,000 output**, local decoded-content/schema/framing token estimate plus 10% and 512 reserve; OpenAI `gpt-4.1-mini-2025-04-14`, **300,000 input / 8,192 output**, conservative complete HTTP UTF-8 byte ceiling plus 16,384 reserve. Both full periods, retained Journal history and Rule target expansion can exceed these limits quickly, especially Groq's small profile. `TooLarge` sends **zero requests**, omits nothing and suggests only an explicit supported higher-budget provider choice where appropriate—not an impossible narrower date within the selected period. No limit increase, automatic fallback or retry was added.
+
+Measured synthetic preflight (fixed source identity, fake HTTP only):
+
+| Groq fixture | Packet bytes | Instructions | Schema | Evidence | Framing | 10% margin | Reserve | Total / input limit | Outcome |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Journal-only week, empty prior | 3,736 | 445 | 626 | 974 | 83 | 213 | 512 | 2,853 / 6,800 | One fake request; validated five-card response |
+| Journal-only month, empty prior | 3,738 | 445 | 626 | 968 | 83 | 213 | 512 | 2,847 / 6,800 | One fake request; validated five-card response |
+| Long Journal week | 27,591 | 445 | 626 | 14,968 | 83 | 1,613 | 512 | 18,247 / 6,800 | `TooLarge`, zero requests |
+
+The equivalent OpenAI week/month request bodies are **11,076 / 11,078 bytes**, yielding conservative ceilings **27,460 / 27,462** after reserve against the unchanged 300,000 profile. These are byte ceilings, **not actual token counts**. A 31-Trade migrated SQLite fixture is also rejected without a request; all 31 Trades/62 executions remain and no analysis is stored. Packet/calculation limits may reject an oversized period before provider preflight. No source count alone guarantees that a period fits: retained revisions, Rules, annotations and text lengths matter.
+
+### Verification and remaining limits
+
+Tests cover weekly/monthly/DST/year boundaries, exact/aggregate scope, mixed currencies and unknown Net, Journal history and prompt-like text, frozen Playbook revisions, Cannot evaluate/not-assessed Rules and unavailable/historical sources, deterministic immutable construction, missing prior periods, identity/source/basis validation, bounded actions/output, cancellation/timeout/late completion, safe errors and captured provider routing. Fake HTTP exercises both strict wire schemas, separate keys, token metadata, refusals/incomplete/malformed replies, rate/model/authentication errors and no retries. Synthetic migrated SQLite generation uses the real paired snapshot reader, observes zero writer operations from it, and proves concurrent source changes cannot rewrite the sent packet or response. Generation creates no analysis row. Existing Daily request shape, errors, saved v1/v2 snapshots and restart tests remain in the complete regression set.
+
+| Verification | Final observed result |
+| --- | --- |
+| Focused Application period/coaching tests | **220/220 passed** |
+| Focused Infrastructure period/coaching/SQLite tests | **137/137 passed** |
+| New M19.5 cases | **74**: 41 Application, 33 Infrastructure |
+| Complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m195-release` | **4,225/4,225 passed, zero failures/skips** |
+| Project totals | Domain **490**, Application **857**, Infrastructure **1,313**, Desktop **1,565** (88 exclusive + 1,477 parallel) |
+| Calendar / Journal | Native **71.838 s**, **48.162 s** headroom to unchanged 120 s; Journal editor **7.666 s**. No timeout. A single pass does not eliminate host-load variability. |
+| Release build / EF | **0 warnings/errors**, no pending model changes; isolated design-time context |
+| Whitespace | Tracked diff and all nine new files pass |
+| Live/provider/production | **Zero live or paid provider calls**, no production access; no new UI to accept |
+| GitHub Actions | Uncommitted changes have no matching CI result; local gate is not CI acceptance |
+
+Focused evidence: `artifacts/m195-focused/application-final.trx` and `infrastructure-final.trx`. Full evidence: `artifacts/m195-release/release-20261015-085657-8e18b1c631b64e208ae6d8109f818a9f/summary.json`, top-level TRX and child diagnostics. Early focused runs found two test expectation issues (duplicate synthetic null-scoped Journal selection; expecting Groq-only budget metadata from the unchanged OpenAI byte-ceiling path); corrected fixtures/assertions now match the real contracts. No production defect, deadline/concurrency change, skip or retry was needed.
+
+Branch **develop**, HEAD **`fb82a29b6919505569d369b6466ddd42abcd4d03`**; the initial worktree was clean and final state is **six modified plus nine new files**, listed below. Existing M19.1–M19.4 work is preserved. No commit/push/merge. Remaining limits: conservative complete-evidence budgets (especially Groq), local token-estimate versus provider accounting differences, inability to prove AI semantics from citations, provider account/model access and real-world response quality remain unverified by fake HTTP. Weekly/Monthly UI, consent interaction and saved-review persistence are later work; no claim of live or matching-CI acceptance is made.
+
+Exact M19.5 files:
+
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingPacket.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingResponse.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingGeneration.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingGeneration.cs` — sanitized message helper exposed internally; Daily behavior unchanged.
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/PeriodCoachingWireContract.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/SelectedPeriodCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingTokenCounter.cs` — shared existing bundled tokenizer, no download.
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/CoachingServiceCollectionExtensions.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodCoachingTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingProviderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingSqliteTests.cs`
+- `README.md` and `docs/period-reviews.md`.
 
 ## Scope and boundary
 

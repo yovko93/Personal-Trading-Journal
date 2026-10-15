@@ -105,7 +105,7 @@ public sealed class DailyCoachingGenerationService(ICoachingProvider provider,
         }
     }
 
-    private static CoachingGenerationResult Result(CoachingGenerationStatus status, CoachingRequestMetadata? metadata = null) =>
+    internal static CoachingGenerationResult Result(CoachingGenerationStatus status, CoachingRequestMetadata? metadata = null) =>
         new(status, null, metadata, status switch
         {
             CoachingGenerationStatus.MissingCredentials => "Configure AI in Settings. The selected provider's key is missing or its saved storage cannot be read.",

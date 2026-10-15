@@ -1,19 +1,24 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using Microsoft.ML.Tokenizers;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
+using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 using static PersonalTradingJournal.Infrastructure.DailyReview.Coaching.OpenAiCoachingProvider;
 
 namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
 /// <summary>Dedicated Chat Completions wire protocol. No tools, streaming, retries or cross-provider fallback.</summary>
 public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions options,
-    Func<string?> credentialAccessor) : ICoachingProvider
+    Func<string?> credentialAccessor) : ICoachingProvider, IPeriodCoachingProvider
 {
-    // Vocabulary ships with the application. Token counting never downloads data or contacts a provider.
-    private static readonly Lazy<TiktokenTokenizer> Tokenizer = new(() => TiktokenTokenizer.CreateForEncoding("o200k_base"));
-    public async Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken)
+    public Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken) =>
+        GenerateCoreAsync(packet.Json, OpenAiCoachingContract.Instructions, "daily_coaching_v2", OpenAiCoachingContract.Schema(), false, cancellationToken);
+
+    public Task<CoachingProviderReply> GenerateAsync(PeriodCoachingPacket packet, CancellationToken cancellationToken) =>
+        GenerateCoreAsync(packet.Json, PeriodCoachingWireContract.Instructions, PeriodCoachingWireContract.Name, PeriodCoachingWireContract.Schema(), true, cancellationToken);
+
+    private async Task<CoachingProviderReply> GenerateCoreAsync(string packetJson, string instructions, string schemaName,
+        System.Text.Json.Nodes.JsonObject schema, bool period, CancellationToken cancellationToken)
     {
         var metadata = new CoachingRequestMetadata("Groq", GroqCoachingOptions.SupportedModel, Guid.NewGuid().ToString("N"));
         CoachingProviderReply Reply(CoachingGenerationStatus status, string? json = null) => new(status, json, metadata);
@@ -30,10 +35,10 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
             string body = JsonSerializer.Serialize(new
             {
                 model = options.Model,
-                messages = new[] { new { role = "system", content = OpenAiCoachingContract.Instructions },
-                    new { role = "user", content = packet.Json } },
+                messages = new[] { new { role = "system", content = instructions },
+                    new { role = "user", content = packetJson } },
                 response_format = new { type = "json_schema", json_schema = new {
-                    name = "daily_coaching_v2", strict = true, schema = OpenAiCoachingContract.Schema() } },
+                    name = schemaName, strict = true, schema } },
                 max_completion_tokens = options.MaximumOutputTokens, reasoning_effort = "low", stream = false, n = 1,
             });
             // HTTP JSON escaping is transport, not model input. Count decoded message content and
@@ -72,6 +77,7 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
                 root.TryGetProperty("error", out var providerError) && providerError.ValueKind != JsonValueKind.Null)
                 return Reply(CoachingGenerationStatus.InvalidResponse);
             metadata = metadata with { ResponseId = SafeId(String(root, "id"), "chatcmpl-", key), Usage = GroqUsage(root) };
+            if (period && metadata.Usage?.OutputTokens > options.MaximumOutputTokens) return Reply(CoachingGenerationStatus.InvalidResponse);
             if (String(root, "model") != options.Model || String(root, "object") != "chat.completion")
                 return Reply(CoachingGenerationStatus.InvalidResponse);
             if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() != 1)
@@ -87,6 +93,8 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
                 return Reply(CoachingGenerationStatus.InvalidResponse);
             if (String(message, "content") is not { } json || Encoding.UTF8.GetByteCount(json) > CoachingContract.MaximumResponseBytes)
                 return Reply(CoachingGenerationStatus.InvalidResponse);
+            if (period && CoachingTokenCounter.Count(json) > options.MaximumOutputTokens)
+                return Reply(CoachingGenerationStatus.InvalidResponse);
             cancellationToken.ThrowIfCancellationRequested();
             return Reply(CoachingGenerationStatus.Success, json);
         }
@@ -100,14 +108,14 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
     {
         var request = System.Text.Json.Nodes.JsonNode.Parse(body)!;
         var messages = request["messages"]!;
-        int instructions = Tokenizer.Value.CountTokens(messages[0]!["content"]!.GetValue<string>());
-        int evidence = Tokenizer.Value.CountTokens(messages[1]!["content"]!.GetValue<string>());
+        int instructions = CoachingTokenCounter.Count(messages[0]!["content"]!.GetValue<string>());
+        int evidence = CoachingTokenCounter.Count(messages[1]!["content"]!.GetValue<string>());
         var schema = request["response_format"]!["json_schema"]!;
-        int schemaTokens = Tokenizer.Value.CountTokens(schema["schema"]!.ToJsonString());
+        int schemaTokens = CoachingTokenCounter.Count(schema["schema"]!.ToJsonString());
         messages[0]!["content"] = "";
         messages[1]!["content"] = "";
         schema["schema"] = null;
-        int framing = Tokenizer.Value.CountTokens(request.ToJsonString());
+        int framing = CoachingTokenCounter.Count(request.ToJsonString());
         int total = instructions + evidence + schemaTokens + framing;
         return new(instructions, schemaTokens, evidence, framing, (int)Math.Ceiling(total * .1),
             512, options.InputTokenBudget, options.MaximumOutputTokens);
