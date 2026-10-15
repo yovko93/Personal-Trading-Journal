@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M19.8 manual-workflow acceptance — 15 October 2026: OPEN**
+
+Acceptance uses a new isolated synthetic journal only. Focused checks passed **26 Infrastructure + 56 Desktop** in the normal Windows-user context. Final complete Release gate: **4,172 passed / 163 failed / 0 skipped**, out of 4,335. Domain **490/490**, Application **880/880**, Infrastructure **1,347/1,347** passed; Desktop **1,455 passed / 163 failed**. The exclusive stage had **86 propagated Calendar 120-second failures + one Journal 30-second failure**; parallel Desktop added 76 child deadline/inactivity failures. Full failure groups and timing evidence are in the acceptance matrix; focused success is not full acceptance. Release build **0 warnings/errors**, EF consistency and whitespace passed. No deadlines, assertions or concurrency protections were changed.
+
+The user reported completing the synthetic Daily, Weekly and Monthly Prepare/Copy/manual ChatGPT/Paste/Validate/Save flows, then reopening all three saved reviews and retained working copies after application restart. Local inspection confirms **one Daily and two period records**, with frozen pending copies marked saved. Windows accessibility enumeration works, but capture times out, clicking reports unavailable coordinate geometry and Tab showed no focus change; automated renders are not live input evidence. No Actions run exists for tested HEAD `37c1aaa809165ec10821c4a9bb387fd9d25920b5`. [Acceptance matrix and manual steps](docs/daily-review.md#m198-acceptance--15-october-2026), [period evidence](docs/period-reviews.md#m198-acceptance--15-october-2026). No production data, API/paid provider calls or Git writes; M20 has not started.
+
 **Manual ChatGPT reviews — 15 October 2026 (before M19.8)**
 
 Daily, Weekly and Monthly pages now offer **Prepare ChatGPT Prompt → Copy Prompt → Paste ChatGPT Response → Validate response → Save Review**. Preparation freezes one selected scope locally; no review-page action contacts an API or requires a key. Clipboard access is explicit. Prompts contain sensitive Trade/Journal information. Existing identity/version, section, size and citation validation remains mandatory. Saved provenance is **Pasted external AI response**, not a verified provider identity; old analyses and credentials remain unchanged.
