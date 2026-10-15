@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M19.4 — Period comparisons and breakdowns (15 October 2026)**
+
+`IPeriodComparisonEvidenceReader` reads the selected whole New York week/month and its immediately preceding equivalent period in **one SQLite read transaction**. `PeriodReviewComparisonCalculator` reuses existing statistics and Rule/mistake coverage, returning source-linked Account/currency comparisons and bounded Instrument, frozen/legacy Setup, unknown-session and recorded-mistake breakdowns. Incomplete Net never yields a delta; percentages require complete, compatible coverage and a positive baseline. Independent snapshots are explicitly marked and yield no deltas. Rule revisions/denominators stay separate; mistake groups may overlap but period totals do not. No UI, provider call, saved review, schema change or source write. [Definitions, examples, verification and limitations](docs/period-reviews.md#m194--period-comparisons-and-breakdowns).
+
+M19.4 focused checks passed **100/100** (Application 70, Infrastructure 30), including **25 new comparison cases**. The complete `pwsh -File scripts/Test-Release.ps1` gate passed **4,151/4,151**, zero failures/skips: Domain 490, Application 816, Infrastructure 1,280, Desktop 1,565. Calendar native **73.143 s / 46.857 s headroom**; Journal editor **7.344 s**. Release build **0 warnings/errors**, EF consistency and whitespace passed. Eight files changed on `develop`, HEAD `51f28c2a7ee8962989f70c5a98633a7c8a97f908`; no Git writes. These local results do not constitute matching GitHub Actions or live UI acceptance; the changes remain uncommitted.
+
 **M19.3 follow-up — Journal fixture SQLite lifetime (14 October 2026)**
 
 The locked temporary `journal.db` was reproduced with a cancelled, superseded Journal Trade-context read still holding its own SQLite reader/connection after the newest `LoadTask` completed. Fixture teardown previously awaited only that newest task; disposing DI and clearing idle pools did not join the older read. A fixture-local connection barrier now rejects new opens, drains existing/in-progress opens, then disposes DI, clears only its owned pool and removes the synthetic directory. Production Journal/Calendar/M19.3 code is unchanged. [Ownership evidence and verification](docs/period-reviews.md#journal-fixture-lifetime-follow-up-14-october-2026).

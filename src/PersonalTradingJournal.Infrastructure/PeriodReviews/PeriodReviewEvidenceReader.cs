@@ -12,7 +12,7 @@ using PersonalTradingJournal.Infrastructure.Rules;
 namespace PersonalTradingJournal.Infrastructure.PeriodReviews;
 
 public sealed class PeriodReviewEvidenceReader(IDbContextFactory<JournalDbContext> factory,
-    PeriodEvidenceLimits? limits = null) : IPeriodReviewEvidenceReader
+    PeriodEvidenceLimits? limits = null) : IPeriodReviewEvidenceReader, IPeriodComparisonEvidenceReader
 {
     public async Task<PeriodEvidenceResult> ReadAsync(PeriodReviewQuery query, CancellationToken cancellationToken = default)
     {
@@ -23,6 +23,34 @@ public sealed class PeriodReviewEvidenceReader(IDbContextFactory<JournalDbContex
         await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await using var enlisted = await db.Database.UseTransactionAsync(transaction, cancellationToken);
         var budget = new ReadBudget(limits ?? new());
+        return await ReadSnapshotAsync(db, query, budget, cancellationToken);
+    }
+
+    public async Task<PeriodComparisonEvidenceResult> ReadComparisonAsync(PeriodReviewQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        var previousQuery = PeriodComparisonEvidence.PreviousQuery(query);
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
+        await using var enlisted = await db.Database.UseTransactionAsync(transaction, cancellationToken);
+        // One transaction, including all preflight aggregates and provenance. Text budget is shared;
+        // row limits apply to each period. Never return half a comparison on cancellation/excess.
+        var budget = new ReadBudget(limits ?? new());
+        var previous = await ReadSnapshotAsync(db, previousQuery, budget, cancellationToken);
+        if (previous.Evidence is null) return new(previous.Status, null, previous.LimitCode);
+        var current = await ReadSnapshotAsync(db, query, budget, cancellationToken);
+        if (current.Evidence is null) return new(current.Status, null, current.LimitCode);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(PeriodEvidenceStatus.Ready, new(previous.Evidence, current.Evidence,
+            PeriodSourceConsistency.SingleReadTransaction), null);
+    }
+
+    private static async Task<PeriodEvidenceResult> ReadSnapshotAsync(JournalDbContext db, PeriodReviewQuery query,
+        ReadBudget budget, CancellationToken cancellationToken)
+    {
         try
         {
             Guid? account = query.Scope.AccountId;

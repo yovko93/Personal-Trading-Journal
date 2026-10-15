@@ -1,4 +1,4 @@
-# Weekly and Monthly Review — M19.1–M19.3
+# Weekly and Monthly Review — M19.1–M19.4
 
 ## Scope and boundary
 
@@ -150,6 +150,80 @@ Exact files:
 - `src/PersonalTradingJournal.Application/DailyReview/DailyReviewStatisticsCalculator.cs` — internal reusable range calculation; existing formulas/public Daily behavior preserved.
 - `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodReviewStatisticsCalculatorTests.cs`.
 - `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewStatisticsIntegrationTests.cs`.
+- `README.md` and `docs/period-reviews.md`.
+
+## M19.4 — Period comparisons and breakdowns
+
+`IPeriodComparisonEvidenceReader.ReadComparisonAsync(selectedPeriod)` returns `PeriodComparisonEvidenceResult` (`Ready` or `LimitExceeded`, no half-result). The preceding period is the complete week/month containing **selected FirstDate minus one day**, with the same exact Account or All-accounts scope. Weeks remain Monday–Sunday, months remain calendar months; month lengths need not match. The two half-open UTC ranges are adjacent even across DST, leap days and years. Closure attribution, cross-midnight lifecycles and separate open/partial activity remain M19.1 semantics, not a futures-session rollover or as-of position reconstruction.
+
+### Source consistency and boundaries
+
+The Infrastructure reader opens one separate DbContext/connection and a deferred SQLite read transaction, reads **both** periods (including preflight counts, catalog/revision reads and source-availability checks), then disposes the transaction. Concurrent WAL commits cannot insert newer source state into the second period. No data is written, no migration/check/AI operation runs, and no query is issued per day or Trade. A controlled test commits Trade, Journal/revision and Rule changes **between the last previous-period SELECT and first current-period SELECT**: both returned periods retain the old state; a fresh read sees the new state.
+
+`PeriodComparisonEvidence.Consistency` defaults to `IndependentReads`. The reader explicitly supplies `SingleReadTransaction`. A caller combining independently captured snapshots must retain that default: the calculator still exposes labeled side-by-side evidence/statistics, but withholds **all absolute and percentage changes**, including Rule outcome changes, as `IndependentSnapshots`. The marker describes how a trusted reader obtained the snapshots, not a cryptographic proof or a durable historical database version. Nonadjacent periods or unequal scopes are rejected.
+
+The two periods are current read views of past dates, **not** historical database reconstructions. Later source edits, retrospective Playbook associations, corrections and catalog changes remain visible under M19.1 rules. Retained unavailable-source information and unattributed assessments stay in the unchanged source snapshots; unattributed records do not enter either period's totals.
+
+### Comparisons and coverage
+
+Contract version: **`period-comparison.v1`**. `PeriodReviewComparisonCalculator.Calculate` is deterministic, read-only Application code. It carries both original M19.1 evidence objects, M19.2 statistics and M19.3 patterns unchanged, plus the comparisons. Amounts retain decimal precision; arithmetic overflow or cancellation throws without returning a partial result. No presentation rounding or FX conversion.
+
+| Result | Definition / eligibility |
+| --- | --- |
+| Closed Trades / active days | Current minus previous counts; active days are distinct NY closure dates, never summed Account/day counts. Empty counts are genuine zero. |
+| Account/currency groups | Each original Account ID and pricing currency has its own comparison, plus one currency-level aggregate. Account ID `null` in a comparison means **currency aggregate**, not a null-owned Trade or Journal. No cross-currency monetary total. Original labels/availability remain in the side statistics and evidence. |
+| Gross change | Current complete Gross total minus previous complete Gross total, in the same currency. Missing/empty populations and incomplete coverage give an unavailable delta, not inferred zero. |
+| Net change | Same calculation, only when **every closed Trade on both sides** has strict known-cost Net coverage. A known subtotal is never used in a delta or percentage. |
+| Percent | `100 × (current − previous) / previous`, only for a **positive** baseline, comparable complete amounts and the same observed Account/currency population. Zero and negative baselines have explicit unavailable reasons; negative-baseline percentages are deliberately withheld, not called improvement. Counts also expose their baseline and Account/currency compatibility. |
+| Coverage changes | Separate changes in missing-commission, missing-fee and missing-either-cost Trade counts; the union is not a sum. Open/partial activity and unavailable lifecycle counts remain excluded from realized totals. Both underlying Gross/Net coverage objects and contributing/unknown Trade IDs remain attached. |
+| Different recorded populations | Both ordered Account lists remain available. A complete same-currency absolute change may still be calculated across a changed Account population, but its percentage is withheld. A new/absent group is `MissingPopulation`; a present group without closed/known outcomes is `IncompleteCoverage`. These are data differences, not evidence of a performance trend. |
+
+Example: an exact Account records USD Gross 40 in the previous week and 60 in the selected week: change **+20 USD, +50%**. If one selected-week Trade has unknown fees, Gross can still be complete but **Net change is unavailable**, with the missing-fee count shown. If another Account joins the aggregate USD population, the complete USD absolute difference can be shown with the changed Account sets, but not a percentage. A previous Gross of zero or −40 has no percentage. February versus March retains 28 versus 31 possible calendar days rather than pretending equal exposure.
+
+### Bounded, traceable breakdowns
+
+Every bucket keeps sorted previous/current Trade IDs and the same Account/currency statistics and coverage comparisons. All original Account/Instrument/Setup/mistake labels, active/unavailable states, exact capture metadata and assignment identities are accessible through the retained evidence. Display names are **never** keys; same-name replacement catalog entries do not merge.
+
+- **Instrument:** original Instrument ID, including an unavailable catalog reference. Its missing label does not erase its identity.
+- **Setup:** current associated **frozen Setup ID + exact Playbook revision** when captured; otherwise the currently recorded classification ID explicitly labeled `LegacyClassification` (no captured revision). No selected Setup is `NoAssociation`. Removed/replaced captures stay in evidence but do not place a Trade in additional performance buckets. Renaming/archiving a Setup does not replace frozen guidance or merge revision 1 with revision 2. A legacy classification is not falsely described as the Setup definition at Trade execution time; a link is never adherence.
+- **New York session:** **Unknown session**. The application defines NY civil closure dates but has no authoritative persisted session taxonomy. M19.4 does not invent Asia/London/New York/RTH buckets, infer them from clock time, or call a date a session. This deliberately remains an unavailable breakdown dimension until a defensible definition exists.
+- **Recorded mistake:** one bucket per recorded mistake ID; `NoRecordedMistake` means no recorded assignment, not verified mistake-free execution. A Trade with two mistakes appears once in each applicable bucket, but **once only in period totals**. Mistake buckets must not be summed to reconstruct period P&L. These are recorded associations, not proven causes of losses. Closed versus open/partial context remains separate.
+
+There is no extra database access for breakdowns. Two M19.1 row limits apply (maximum 10,000 per source set per period, 5,000 scoped assessments); the reader shares the **8,000,000-character** budget across both reads, conservatively counting repeated catalogs/history twice. Oversize returns no comparison evidence. Calculation additionally caps 2,000 distinct breakdown buckets, 80,000 total Trade/bucket memberships and 80,000 output Account/currency groups, plus the existing 100,000 Rule targets **per period**. Limits can be lowered, not raised, by tests/callers. Bounded excess returns `LimitExceeded` with a safe code, never silent truncation. Source ordering cannot affect bucket order: kind, context, source ID, revision; monetary groups use ordinal currency then Account identity. No unbounded collection query was introduced.
+
+### Rule comparisons are coverage, not an improvement score
+
+Only identical **Rule ID + exact revision + version state + Trade/day target kind + Account scope + denominator kind** pair. Side summaries retain current/old/legacy/absent-current labels, latest-effective outcomes, manual/automatic origin, unavailable/changed targets, all correction histories and contributing source references. New revisions never inherit an older revision's pass. Archived/deleted definitions remain explicitly outside the active global catalog rather than being asserted active; M19.1 cannot distinguish those two absence causes.
+
+Absolute assessed/compliant/violation/Cannot-evaluate/not-assessed count changes are exposed only when both matching cohorts have the **same target count** and the pair is transactionally consistent. Different target counts, absent cohorts or independent reads produce explicit statuses and side-by-side counts with no delta. No adherence percentage, cross-revision aggregate or improvement score exists. An All-accounts day remains distinct from each exact-Account day; a day result is never multiplied by its Trades. Current opportunities remain current-catalog opportunities, not historical obligations; recorded-only cohorts remain recorded-only. No check is executed and no missing assessment becomes compliance.
+
+### M19.4 verification and changed files
+
+Tests cover adjacent DST/week/month/leap/year boundaries, scope and null-scoped Journals, complete/partial/unknown economics, empty/zero/negative baselines, new Account/currency populations, missing Instruments, open activity, multiple mistakes, frozen/legacy/removed Setup contexts, Rule revisions and unequal denominators, cancellation, bounds, ordering, overflow, concurrent WAL writes, read-only query counts and fresh service-provider restart with archived Setup/Rule and deleted Trade source retention. All fixtures are synthetic. No production database, provider, UI or paid request is involved.
+
+Final focused checks passed **100/100**: Application **70**, Infrastructure **30** (the Infrastructure filter also includes one existing import comparison regression). The **25 new cases** are 18 Application and 7 SQLite cases. Evidence: `artifacts/m194-focused/application-final.trx` and `infrastructure-complete.trx`. Initial compilation caught a test mapper namespace typo and an xUnit assertion-style analyzer violation; both were corrected before the final build/tests. No focused test assertion failed and no product lifetime, UI or test-harness change was required.
+
+The complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m194-release` gate passed **4,151/4,151**, **zero failures/skips**:
+
+| Project | Passed / total |
+| --- | --- |
+| Domain | 490 / 490 |
+| Application | 816 / 816 |
+| Infrastructure | 1,280 / 1,280 |
+| Desktop (88 exclusive WPF + 1,477 parallel) | 1,565 / 1,565 |
+
+Calendar native completed in **73.143 seconds**, **46.857 seconds** below its unchanged 120-second deadline. The Journal editor layout test passed in **7.344 seconds** (child process **10.752 seconds**). No Calendar/Journal timeout or fixture cleanup failure occurred. These observed margins do not guarantee every host-load condition. Existing isolation, deadlines, concurrency tests and the complete gate's scheduling remain unchanged. Full evidence: `artifacts/m194-release/release-20261014-211411-3439f241e77c4bd19fbff59b67e3dbfc/summary.json`, project/child TRX and supervision logs (artifact timestamps are UTC; verification date is 15 October locally).
+
+Release build passed with **0 warnings/errors**; EF reports **no pending model changes**. Whitespace checks passed for tracked and new files. Branch **develop**, HEAD **`51f28c2a7ee8962989f70c5a98633a7c8a97f908`**; initial worktree clean, final state **four modified and four new files**, listed below. Existing committed M19.1–M19.3 and fixture-lifetime work is preserved. No commits, pushes, merges, production-data access or provider calls. M19.4 local automated verification is green; no UI/live acceptance is claimed, and uncommitted changes cannot have matching GitHub Actions acceptance. Earlier M19.1–M19.3 results and the Journal lifetime chronology below remain historical evidence rather than claims for this worktree.
+
+Exact files:
+
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewComparison.cs` — pair/result, coverage, limits and reader contracts.
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewComparisonCalculator.cs` — deterministic comparison and breakdowns.
+- `src/PersonalTradingJournal.Infrastructure/PeriodReviews/PeriodReviewEvidenceReader.cs` — shared transaction/budget for both periods; single-period behavior retained.
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs` — comparison reader registration.
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/PeriodReviewComparisonTests.cs`.
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodReviewComparisonIntegrationTests.cs`.
 - `README.md` and `docs/period-reviews.md`.
 
 ## M19.3 — Rules coverage and recorded mistake patterns
