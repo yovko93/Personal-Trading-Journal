@@ -119,6 +119,71 @@ public sealed class BreakdownAccessibilityViewTests
                     Assert.NotNull(AutomationProperties.GetLabeledBy(element)); Assert.NotEmpty(AutomationProperties.GetName(element));
                 }
                 var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Apply"));
+                var notice = (Border)view.FindName("UnappliedInformation");
+                var message = (TextBlock)view.FindName("UnappliedMessage");
+                var announcement = System.ComponentModel.DependencyPropertyDescriptor.FromProperty(LiveAnnouncement.TextProperty, typeof(TextBlock));
+                int announcements = 0;
+                EventHandler onAnnouncement = (_, _) => { if (LiveAnnouncement.GetText(message) is { Length: > 0 }) announcements++; };
+                announcement.AddValueChanged(message, onAnnouncement);
+                try
+                {
+                    var applied = f.Vm.Result;
+                    int reads = f.Reader.Calls.Count;
+                    Assert.False(notice.IsVisible);
+                    f.Vm.Grouping = PersonalTradingJournal.Application.Analytics.Breakdown.BreakdownGrouping.Direction; Idle();
+                    Assert.True(notice.IsVisible); Assert.Equal(1, announcements);
+                    Assert.Equal("Unapplied filters. Select Apply to update the results.", new TextBlockAutomationPeer(message).GetName());
+                    f.Vm.Grouping = PersonalTradingJournal.Application.Analytics.Breakdown.BreakdownGrouping.Account; Idle();
+                    Assert.Equal(1, announcements); // Further draft edits do not repeat the same announcement.
+                    Assert.Same(applied, f.Vm.Result); Assert.Equal(reads, f.Reader.Calls.Count);
+                    Assert.Same(period, FocusManager.GetFocusedElement(view));
+                    f.Vm.Grouping = PersonalTradingJournal.Application.Analytics.Breakdown.BreakdownGrouping.Instrument; Idle();
+                    Assert.False(notice.IsVisible); Assert.Equal(1, announcements);
+                }
+                finally { announcement.RemoveValueChanged(message, onAnnouncement); }
+                // Exercise the real shared button template via routed keyboard input,
+                // not setters that pretend a hover/press occurred. More filters is UI-only.
+                var moreAction = (Button)view.FindName("MoreFiltersButton");
+                foreach (string stateTheme in new[] { "Light", "Dark" })
+                {
+                    app.Resources = CalendarViewLayoutTests.SharedThemeResources(stateTheme); Idle();
+                    int reads = f.Reader.Calls.Count;
+                    var normal = CaptureAction("normal");
+                    FocusManager.SetFocusedElement(view, moreAction); Idle();
+                    Assert.Same(moreAction, FocusManager.GetFocusedElement(view));
+                    var source = PresentationSource.FromVisual(moreAction);
+                    moreAction.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyDownEvent });
+                    Idle(); Assert.True(moreAction.IsPressed);
+                    Assert.False(normal.SequenceEqual(CaptureAction("pressed")));
+                    moreAction.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyUpEvent });
+                    Idle(); Assert.False(moreAction.IsPressed);
+                    Assert.True(((Expander)view.FindName("MoreFilters")).IsExpanded);
+                    ((Expander)view.FindName("MoreFilters")).IsExpanded = false; Idle();
+                    moreAction.IsEnabled = false; Idle();
+                    Assert.False(new ButtonAutomationPeer(moreAction).IsEnabled());
+                    Assert.False(normal.SequenceEqual(CaptureAction("disabled")));
+                    moreAction.ClearValue(UIElement.IsEnabledProperty); Idle();
+                    Assert.Equal(reads, f.Reader.Calls.Count);
+
+                    byte[] CaptureAction(string state)
+                    {
+                        Assert.True(Contrast(((SolidColorBrush)moreAction.Foreground).Color, ((SolidColorBrush)moreAction.Background).Color) >= 4.5,
+                            $"{stateTheme}/{state}: action text must retain contrast.");
+                        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(moreAction.ActualWidth), (int)Math.Ceiling(moreAction.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+                        var drawing = new DrawingVisual();
+                        using (var context = drawing.RenderOpen())
+                            context.DrawRectangle(new VisualBrush(moreAction) { Stretch = Stretch.None }, null, new Rect(moreAction.RenderSize));
+                        bitmap.Render(drawing);
+                        byte[] pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+                        bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+                        string directory = Path.Combine(AppContext.BaseDirectory, "breakdown-consistency-renders"); Directory.CreateDirectory(directory);
+                        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        using var file = File.Create(Path.Combine(directory, $"{stateTheme}-action-{state}.png")); encoder.Save(file);
+                        return pixels;
+                    }
+                }
+                app.Resources = CalendarViewLayoutTests.SharedThemeResources("Light");
+                FocusManager.SetFocusedElement(view, period); Idle();
                 f.Vm.Currency = "";
                 PressSpace(apply); Idle();
                 Assert.NotNull(f.Vm.CurrencyValidation); Assert.Same(currency, FocusManager.GetFocusedElement(view));
@@ -204,6 +269,12 @@ public sealed class BreakdownAccessibilityViewTests
         var source = PresentationSource.FromVisual(button);
         button.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyDownEvent });
         button.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyUpEvent });
+    }
+    private static double Contrast(Color a, Color b)
+    {
+        static double Linear(byte value) { double c = value / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
+        static double L(Color c) => .2126 * Linear(c.R) + .7152 * Linear(c.G) + .0722 * Linear(c.B);
+        return (Math.Max(L(a), L(b)) + .05) / (Math.Min(L(a), L(b)) + .05);
     }
     private static void Idle() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle);
     private static void Pump(Task task)

@@ -11,6 +11,33 @@
         <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,5" /><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /></Style>
         <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}" />
         <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="12,5" /><Setter Property="FontSize" Value="13" /></Style>
+        <!-- Reuse opaque shared action templates: fading the whole button reduces text contrast. -->
+        <Style x:Key="ApplyAction" TargetType="Button" BasedOn="{StaticResource PtjPlaybookCreateButtonStyle}">
+            <Setter Property="FontSize" Value="14" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="14,5" />
+        </Style>
+        <Style x:Key="InformationAction" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+            <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="12,5" />
+        </Style>
+        <Style x:Key="ResetAction" TargetType="Button" BasedOn="{StaticResource InformationAction}">
+            <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PtjTextSecondaryBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /></Trigger>
+                <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPageHeaderSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ViewTradesAction" TargetType="Button" BasedOn="{StaticResource ResetAction}">
+            <Setter Property="Background" Value="{DynamicResource PtjPageHeaderSurfaceBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PtjPageHeaderBorderBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /></Trigger>
+                <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPageHeaderBorderBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+                <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
         <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" /><Setter Property="FontSize" Value="14" /><Setter Property="Padding" Value="0,0,0,6" /></Style>
         <Style x:Key="Filter" TargetType="StackPanel"><Setter Property="Width" Value="176" /><Setter Property="Margin" Value="0,0,10,6" /></Style>
@@ -20,7 +47,7 @@
         <Style x:Key="KpiValue" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="FontSize" Value="26" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
         <Style x:Key="GroupChip" TargetType="ListBoxItem">
             <Setter Property="Padding" Value="12,7" /><Setter Property="Margin" Value="0,0,6,6" />
-            <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="Background" Value="{DynamicResource PtjPageHeaderSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /><Setter Property="AutomationProperties.Name" Value="{Binding Name}" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
                 <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}">
@@ -28,8 +55,8 @@
                 </Border>
             </ControlTemplate></Setter.Value></Setter>
             <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /></Trigger>
-                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></Trigger>
+                <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+                <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjOnAccentBrush}" /><Setter Property="FontWeight" Value="SemiBold" /></Trigger>
                 <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
                 <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.6" /></Trigger>
             </Style.Triggers>
@@ -39,7 +66,7 @@
             <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers>
         </Style>
         <Style x:Key="Number" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
-            <Setter Property="TextAlignment" Value="Right" /><Setter Property="Margin" Value="8" />
+            <Setter Property="TextAlignment" Value="Left" /><Setter Property="Margin" Value="7,8" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
         <Style x:Key="Money" TargetType="TextBlock" BasedOn="{StaticResource Number}">
@@ -57,6 +84,7 @@
             </Style.Triggers>
         </Style>
         <Style TargetType="DataGridColumnHeader">
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /><Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="Padding" Value="8" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Focusable" Value="True" />
@@ -75,6 +103,7 @@
             </Style.Triggers>
         </Style>
         <Style TargetType="DataGridCell">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="TextBlock.TextAlignment" Value="Left" />
             <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
             <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="Transparent" />
             <Style.Triggers>
@@ -119,10 +148,10 @@
                     </ComboBox>
                 </StackPanel>
                 <WrapPanel Margin="0,25,0,6">
-                    <Button Content="Apply" Command="{Binding ApplyCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" MinHeight="32" Padding="14,5" Margin="0,0,8,0" AutomationProperties.Name="Apply Breakdown filters" />
-                    <Button x:Name="RefreshButton" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,0" ToolTip="Reread the last submitted filters. Does not apply draft changes." AutomationProperties.HelpText="Reread the last submitted filters without applying draft changes." />
-                    <Button Content="Reset" Command="{Binding ResetCommand}" Margin="0,0,8,0" ToolTip="All history, All accounts, All instruments, Instrument grouping, Net preferred and default currency; load once." />
-                    <Button x:Name="MoreFiltersButton" Content="More filters" Click="OnMoreFilters" AutomationProperties.Name="More Breakdown filters" AutomationProperties.HelpText="Show Currency and Calculation mode." />
+                    <Button Content="Apply" Command="{Binding ApplyCommand}" Style="{StaticResource ApplyAction}" Margin="0,0,8,0" AutomationProperties.Name="Apply Breakdown filters" />
+                    <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource InformationAction}" Command="{Binding RefreshCommand}" Margin="0,0,8,0" ToolTip="Reread the last submitted filters. Does not apply draft changes." AutomationProperties.HelpText="Reread the last submitted filters without applying draft changes." />
+                    <Button Content="Reset" Style="{StaticResource ResetAction}" Command="{Binding ResetCommand}" Margin="0,0,8,0" ToolTip="All history, All accounts, All instruments, Instrument grouping, Net preferred and default currency; load once." />
+                    <Button x:Name="MoreFiltersButton" Content="More filters" Style="{StaticResource InformationAction}" Click="OnMoreFilters" AutomationProperties.Name="More Breakdown filters" AutomationProperties.HelpText="Show Currency and Calculation mode." />
                 </WrapPanel>
             </WrapPanel>
             <Expander x:Name="MoreFilters" Header="Currency and calculation mode" IsExpanded="False" Margin="0,2,0,6"
@@ -155,7 +184,22 @@
             </WrapPanel>
             <TextBlock Style="{StaticResource OptionalText}" Text="{Binding DateValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
             <TextBlock Style="{StaticResource OptionalText}" Text="{Binding LookupWarning}" Foreground="{DynamicResource PtjDangerBrush}" />
-            <TextBlock Text="{Binding DraftStatus}" Visibility="{Binding HasUnappliedChanges, Converter={StaticResource Visible}}" Margin="0,2,0,6" Foreground="{DynamicResource PtjWarningBrush}" />
+            <Border x:Name="UnappliedInformation" Visibility="{Binding HasUnappliedChanges, Converter={StaticResource Visible}}"
+                    Margin="0,2,0,6" Padding="10,6" CornerRadius="4" BorderThickness="3,1,1,1"
+                    Background="{DynamicResource PtjInformationSurfaceBrush}" BorderBrush="{DynamicResource PtjInformationBrush}">
+                <DockPanel>
+                    <TextBlock Text="ⓘ" FontSize="18" Margin="0,0,8,0" Foreground="{DynamicResource PtjInformationBrush}" IsHitTestVisible="False" />
+                    <TextBlock x:Name="UnappliedMessage" Foreground="{DynamicResource PtjInformationBrush}"
+                               AutomationProperties.Name="Unapplied filters. Select Apply to update the results." AutomationProperties.LiveSetting="Polite">
+                        <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                            <Style.Triggers><Trigger Property="IsVisible" Value="True">
+                                <Setter Property="interactions:LiveAnnouncement.Text" Value="Unapplied filters. Select Apply to update the results." />
+                            </Trigger></Style.Triggers>
+                        </Style></TextBlock.Style>
+                        <Bold>Unapplied filters</Bold><Run Text=" — Select Apply to update the results." />
+                    </TextBlock>
+                </DockPanel>
+            </Border>
             <Button Content="Cancel loading" Command="{Binding CancelCommand}" HorizontalAlignment="Left" Margin="0,2,0,6" Visibility="{Binding IsLoading, Converter={StaticResource Visible}}" />
             <TextBlock x:Name="OperationStatus" Text="{Binding StatusMessage}" interactions:LiveAnnouncement.Text="{Binding StatusMessage}" AutomationProperties.LiveSetting="Polite" Margin="0,2,0,6">
                 <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
@@ -240,7 +284,7 @@
                             </UniformGrid>
                             <TextBlock Text="{Binding Group.Metrics.Coverage}" Style="{StaticResource Caption}" ToolTip="{Binding Group.Metrics.CoverageDetails}" AutomationProperties.HelpText="{Binding Group.Metrics.CoverageDetails}" />
                             <TextBlock Text="{Binding Group.Metrics.Sample}" Style="{StaticResource OptionalText}" Foreground="{DynamicResource PtjWarningBrush}" ToolTip="Fewer than 20 evaluable Trades; a display heuristic, not statistical confidence." />
-                            <Button x:Name="SelectedTradesButton" Content="{Binding ViewTradesLabel}" Margin="0,8,0,0" HorizontalAlignment="Left" Foreground="{DynamicResource PtjAccentBrush}" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Group}" AutomationProperties.Name="{Binding Group.Label, StringFormat=View contributing Trades for {0}}" />
+                            <Button x:Name="SelectedTradesButton" Content="{Binding ViewTradesLabel}" Style="{StaticResource ViewTradesAction}" Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Group}" AutomationProperties.Name="{Binding Group.Label, StringFormat=View contributing Trades for {0}}" />
                             <Expander Header="Metric details" Margin="0,6,0,0" Foreground="{DynamicResource PtjTextSecondaryBrush}" AutomationProperties.Name="Selected group metric definitions and coverage">
                                 <StackPanel Margin="0,6,0,0">
                                     <TextBlock Text="{Binding Outcomes}" /><TextBlock Text="{Binding Averages}" />
@@ -265,7 +309,7 @@
                           AutomationProperties.Name="Breakdown group comparison" AutomationProperties.HelpText="Read-only groups. Use column headers to sort and arrow keys to select. Scroll horizontally to reach all columns.">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Group" SortMemberPath="Group" Width="*" MinWidth="170">
-                            <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Margin="8,5">
+                            <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Margin="7,5">
                                 <TextBlock Text="{Binding Label}" TextWrapping="Wrap" ToolTip="{Binding Label}" />
                                 <TextBlock Text="{Binding Metrics.Sample}" Style="{StaticResource OptionalText}" Foreground="{DynamicResource PtjWarningBrush}" />
                             </StackPanel></DataTemplate></DataGridTemplateColumn.CellTemplate>
@@ -275,9 +319,9 @@
                         <DataGridTemplateColumn Header="P&amp;L" SortMemberPath="Pnl" Width="145"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Metrics.Pnl}" Style="{StaticResource Money}" ToolTip="{Binding Metrics.Pnl}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Average trade" SortMemberPath="Average" Width="145"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Metrics.Average}" Style="{StaticResource Money}" ToolTip="{Binding Metrics.Average}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Profit Factor" SortMemberPath="ProfitFactor" Width="110"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Text="{Binding Metrics.ProfitFactor}" Style="{StaticResource Number}" ToolTip="{Binding Metrics.FactorExplanation}" AutomationProperties.HelpText="{Binding Metrics.FactorExplanation}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                        <DataGridTemplateColumn Header="Basis / Coverage" SortMemberPath="Coverage" Width="210"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Margin="8" Text="{Binding Metrics.Coverage}" TextWrapping="Wrap" ToolTip="{Binding Metrics.CoverageDetails}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Basis / Coverage" SortMemberPath="Coverage" Width="210"><DataGridTemplateColumn.CellTemplate><DataTemplate><TextBlock Margin="7,8" Text="{Binding Metrics.Coverage}" TextWrapping="Wrap" ToolTip="{Binding Metrics.CoverageDetails}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Action" Width="108" CanUserSort="False"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-                            <Button Content="View trades" Padding="8,3" MinHeight="28" Margin="4,2" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Label, StringFormat=View contributing Trades for {0}}" />
+                            <Button Content="View trades" Style="{StaticResource ViewTradesAction}" HorizontalAlignment="Left" Padding="8,3" MinHeight="28" Margin="7,2" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Label, StringFormat=View contributing Trades for {0}}" />
                         </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                     </DataGrid.Columns>
                 </DataGrid>

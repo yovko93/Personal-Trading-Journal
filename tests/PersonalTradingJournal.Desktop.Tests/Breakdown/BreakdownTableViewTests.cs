@@ -91,6 +91,7 @@ public sealed class BreakdownTableViewTests
                     Assert.Same(f.Vm.Result, f.Vm.Presentation!.Source);
                     // Return to first row for long label/fallback rendering; sort state stays intact.
                     var longRow = f.Vm.GroupRows.Single(r => r.Key == BreakdownPresentationTests.Key(1));
+                    var checkedColumns = new HashSet<int>();
                     var inner = Descendants<ScrollViewer>(table).First();
                     inner.ScrollToVerticalOffset(f.Vm.GroupRows.ToList().IndexOf(longRow)); Layout();
                     inner.ScrollToHorizontalOffset(0); Layout();
@@ -98,17 +99,46 @@ public sealed class BreakdownTableViewTests
                         $"Horizontal extent {inner.ExtentWidth}, viewport {inner.ViewportWidth}, table {table.ActualWidth}, view {view.ActualWidth}, columns {string.Join(",", table.Columns.Select(c => c.ActualWidth))}.");
                     Assert.True(Descendants<TextBlock>(table).Any(t => t.Text == longRow.Label),
                         $"Target row not realized: viewport {width}, offset {inner.VerticalOffset}, container {table.ItemContainerGenerator.ContainerFromItem(longRow)?.GetType().Name ?? "none"}.");
-                    Render("left");
+                    CheckCellStarts(longRow); Render("left");
                     inner.ScrollToHorizontalOffset(inner.ScrollableWidth); Layout();
                     Assert.InRange(inner.HorizontalOffset - inner.ScrollableWidth, -1, 1);
                     Assert.Contains(Descendants<TextBlock>(table), t => t.Text.Contains("Gross fallback"));
-                    Render("right");
+                    CheckCellStarts(longRow); Render("right");
                     var unavailable = f.Vm.GroupRows.First(r => r.Source.Metrics.Selected.Total is null);
                     inner.ScrollToVerticalOffset(f.Vm.GroupRows.ToList().IndexOf(unavailable)); Layout();
                     Pump(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle).Task); Layout();
                     Assert.Contains(Descendants<TextBlock>(table), t => t.Text.Contains("1 unavailable"));
-                    Render("unavailable");
+                    CheckCellStarts(unavailable); Render("unavailable");
+                    Assert.Equal(8, checkedColumns.Count);
                     Assert.Equal(0, page.ScrollableWidth);
+                    // Compare actual glyph/control coordinates, not alignment/padding setters.
+                    // Includes negative, zero and unavailable values after sort/refresh/scroll.
+                    void CheckCellStarts(BreakdownGroupPresentation item)
+                    {
+                        var row = Assert.IsType<DataGridRow>(table.ItemContainerGenerator.ContainerFromItem(item));
+                        foreach (var cell in Descendants<DataGridCell>(row))
+                        {
+                            var columnHeader = Descendants<DataGridColumnHeader>(table).SingleOrDefault(h => h.Column == cell.Column);
+                            if (columnHeader is null) continue;
+                            var caption = Descendants<TextBlock>(columnHeader).First(t => t.Text == columnHeader.Content.ToString());
+                            double headerStart = caption.TranslatePoint(caption.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward).TopLeft, table).X;
+                            double valueStart;
+                            if (cell.Column.CanUserSort)
+                            {
+                                var value = Descendants<TextBlock>(cell).First(t => !string.IsNullOrEmpty(t.Text));
+                                valueStart = value.TranslatePoint(value.ContentStart.GetCharacterRect(System.Windows.Documents.LogicalDirection.Forward).TopLeft, table).X;
+                            }
+                            else
+                            {
+                                var action = Assert.Single(Descendants<Button>(cell));
+                                valueStart = action.TranslatePoint(new(), table).X;
+                                Assert.True(action.TranslatePoint(new(action.ActualWidth, 0), cell).X <= cell.ActualWidth);
+                            }
+                            Assert.True(Math.Abs(valueStart - headerStart) <= 1.1,
+                                $"{theme}/{width}/{dpi}: {cell.Column.Header} value starts at {valueStart:F2}, header at {headerStart:F2}.");
+                            checkedColumns.Add(cell.Column.DisplayIndex);
+                        }
+                    }
                     void Layout() { view.Measure(new(width, 800)); view.Arrange(new(0, 0, width, 800)); view.UpdateLayout(); }
                     void Render(string side)
                     {

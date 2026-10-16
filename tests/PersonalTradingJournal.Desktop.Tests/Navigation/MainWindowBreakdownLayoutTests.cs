@@ -58,11 +58,14 @@ public sealed partial class MainWindowViewModelTests
                 VisualTreeHelper.SetRootDpi(root, new(dpi / 96d, dpi / 96d));
                 Layout();
                 var title = (TextBlock)window.FindName("PageTitleText");
-                Assert.Equal("Breakdown Analytics", title.Text);
-                Assert.Equal(TextAlignment.Left, title.TextAlignment);
+                Assert.Equal("Breakdown", title.Text);
                 Assert.Equal(AutomationHeadingLevel.Level1, AutomationProperties.GetHeadingLevel(title));
-                Assert.Equal(Visibility.Visible, ((TextBlock)window.FindName("BreakdownSubtitle")).Visibility);
-                Assert.InRange(title.TranslatePoint(new(), area).X, 31.9, 32.1);
+                Assert.InRange(Math.Abs(title.TranslatePoint(new(title.ActualWidth / 2, 0), area).X - area.ActualWidth / 2), 0, .6);
+                var titleStyle = title.Style;
+                var titleFont = title.FontSize;
+                var treatment = (Border)window.FindName("PageTitleTreatment");
+                var titleSurface = treatment.Background;
+                Assert.Single(Descendants<TextBlock>(root), t => AutomationProperties.GetHeadingLevel(t) == AutomationHeadingLevel.Level1);
                 var toggle = (ToggleButton)window.FindName("PageThemeToggle");
                 Assert.True(title.TranslatePoint(new(title.ActualWidth, 0), area).X <= toggle.TranslatePoint(new(), area).X);
                 var more = (Expander)view.FindName("MoreFilters");
@@ -103,10 +106,16 @@ public sealed partial class MainWindowViewModelTests
                     Assert.InRange(table.ActualWidth - table.Columns.Sum(c => c.ActualWidth), 0, 22);
                 int reads = f.Reader.Calls.Count;
                 var originalTitle = f.Vm.ChartHeading;
+                var notice = (Border)view.FindName("UnappliedInformation");
+                Assert.Equal(Visibility.Collapsed, notice.Visibility);
                 chips.SelectedValue = BreakdownGrouping.Direction; Layout();
                 Assert.True(f.Vm.HasUnappliedChanges);
                 Assert.Equal(originalTitle, f.Vm.ChartHeading); Assert.Equal(reads, f.Reader.Calls.Count);
+                Assert.Equal(Visibility.Visible, notice.Visibility);
+                Assert.InRange(notice.ActualHeight, 25, 65);
+                Render("unapplied");
                 chips.SelectedValue = BreakdownGrouping.TradingSetup;
+                Layout(); Assert.Equal(Visibility.Collapsed, notice.Visibility);
                 ((Button)view.FindName("MoreFiltersButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Layout();
                 Assert.True(more.IsExpanded);
                 Assert.Equal("Expanded", AutomationProperties.GetItemStatus((Button)view.FindName("MoreFiltersButton")));
@@ -128,17 +137,32 @@ public sealed partial class MainWindowViewModelTests
                 Pump(f.Vm.RefreshAsync()); Layout();
                 Assert.Empty(f.Vm.GroupRows); Assert.Null(f.Vm.SelectedDetails); Render("empty");
                 fixture.Main.NavigateCommand.Execute(NavigationDestination.Dashboard); Layout();
-                Assert.Equal(TextAlignment.Center, title.TextAlignment);
-                Assert.Equal(Visibility.Collapsed, ((TextBlock)window.FindName("BreakdownSubtitle")).Visibility);
+                Assert.Same(titleStyle, title.Style); Assert.Equal(titleFont, title.FontSize); Assert.Same(titleSurface, treatment.Background);
+                Assert.InRange(Math.Abs(title.TranslatePoint(new(title.ActualWidth / 2, 0), area).X - area.ActualWidth / 2), 0, .6);
+                Render("dashboard-header");
 
                 int Height() => width == 1280 ? 800 : 992;
                 void Layout() { root.Measure(new(width, Height())); root.Arrange(new(0, 0, width, Height())); root.UpdateLayout(); }
                 void Render(string state)
                 {
-                    string directory = Path.Combine(AppContext.BaseDirectory, "breakdown-alignment-renders");
+                    string directory = Path.Combine(AppContext.BaseDirectory, "breakdown-consistency-renders");
                     Directory.CreateDirectory(directory);
-                    var bitmap = new RenderTargetBitmap(width * dpi / 96, Height() * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
-                    bitmap.Render(root);
+                    // Header-only comparison: this fixture deliberately injects the Breakdown
+                    // page without App templates, so do not label its body as Dashboard content.
+                    FrameworkElement surface = state == "dashboard-header" ? (FrameworkElement)window.FindName("PageHeader") : root;
+                    var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.ActualWidth * dpi / 96), (int)Math.Ceiling(surface.ActualHeight * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
+                    if (ReferenceEquals(surface, root)) bitmap.Render(root);
+                    else
+                    {
+                        var drawing = new DrawingVisual();
+                        using (var context = drawing.RenderOpen())
+                        {
+                            context.DrawRectangle(window.Background, null, new Rect(surface.RenderSize));
+                            context.DrawRectangle(new VisualBrush(surface) { AutoLayoutContent = false, ViewboxUnits = BrushMappingMode.Absolute,
+                                Viewbox = new Rect(surface.RenderSize), Stretch = Stretch.Fill }, null, new Rect(surface.RenderSize));
+                        }
+                        bitmap.Render(drawing);
+                    }
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                     using var file = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(file);
                 }
@@ -179,5 +203,15 @@ public sealed partial class MainWindowViewModelTests
             Dispatcher.PushFrame(frame);
         }
         task.GetAwaiter().GetResult();
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T found) yield return found;
+            foreach (var descendant in Descendants<T>(child)) yield return descendant;
+        }
     }
 }

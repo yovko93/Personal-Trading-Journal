@@ -1,5 +1,36 @@
 # Breakdown Analytics — M20
 
+## Final UI consistency corrections — 17 October 2026
+
+Starting state: **clean `develop`, HEAD `59a82e3e48a05d02a0fdbfa07f2bc379b3f221c6`**. Existing M20.11 work was preserved except for the explicitly superseded header decision. Only four presentation corrections were made:
+
+1. **Shared heading:** removed the Breakdown-only shell overrides and subtitle. The single `PageTitle` now uses the very same `PageTitleTreatment`, `PtjShellPageTitleTextStyle`, centered teal surface and underline as Dashboard. Other destinations are unchanged; Breakdown's compact body spacing remains.
+2. **Local action colors:** strong teal Apply/selected chip, blue-tinted Refresh/More filters, restrained neutral Reset, tinted unselected chips and consistent teal View trades in both locations. Local styles reuse the shared opaque Journal/Playbook action templates and existing theme resources, including hover/pressed/disabled colors and focus outline. No global button styles or command/enablement rules changed. The generic opacity-based pressed treatment would reduce the blue action's Light-theme text contrast to approximately **3.48:1**; reusing the opaque template avoids fading its text. The exercised blue action states meet **4.5:1** contrast in both themes.
+3. **Unapplied information box:** the same `HasUnappliedChanges` condition controls an information icon, compact blue-tinted bordered box, **Unapplied filters** and **Select Apply to update the results.** Text wraps. A visible transition supplies one polite announcement; subsequent edits while already visible do not repeat it or steal focus. Validation, loading, cancellation, failures and the last applied scope remain independent and visible.
+4. **Aligned table:** actual text starts and action-button edges align with their headers in all eight columns. Cell containers and text alignment are explicit; spacing accounts for cell focus borders. Raw sorting, formatting, financial colors, coverage labels, stable selection, virtualization, horizontal scrolling and exact-group navigation are unchanged.
+
+### Verification and renders
+
+- **97/97 relevant Desktop tests passed**, zero failed/skipped, exit 0, **1m 5s**: `artifacts/m20-consistency/complete-focused/breakdown.trx`. The filter covers all Breakdown tests plus shared-header and Breakdown navigation/return tests. Existing deadlines/assertions remain intact. New assertions compare rendered glyph/control coordinates (including negative, zero and unavailable rows), not brush names or alignment setters; they also check draft-only announcements, focus retention, applied-result identity/read counts, shared Dashboard header reuse, and real routed-key press/release with distinct rendered button states.
+- **Release solution build: 0 warnings/errors, 7.04 seconds**. EF's design-time in-memory model check reports **no pending changes**. `git diff --check` and **153** local README/Breakdown documentation links pass. The full Release gate was **not rerun for this four-item presentation-only follow-up**; the earlier 4,562-pass M20.11 result below remains historical evidence, not acceptance of these new uncommitted changes.
+- Automated compiled-WPF renders inspected in **Light and Dark**, 1586×992 and 1280×800 DIP / 96 DPI, and narrow 1000×992 DIP / **240 DPI**. Applied/unapplied, retained failure, empty, unavailable, multiple positive/negative groups, horizontally scrolled table and button normal/pressed/focused/disabled samples are covered. Separate 700-DIP / 240-DPI table checks retain access to the action and coverage columns. Header-only Dashboard renders confirm the shared presentation; they do not substitute Breakdown content for Dashboard evidence.
+- Test development caught an incorrect TextBlock character-coordinate API and a sub-control capture that included parent offsets. These test-only helpers were corrected, including explicit visual capture bounds; the final focused run passes. No product behavior was changed to accommodate them.
+
+Render directory: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/breakdown-consistency-renders/` (50 PNGs, ignored build artifacts). Useful samples: `Light-1586-96-four-groups.png`, `Dark-1586-96-unapplied.png`, `Light-1000-240-unapplied.png`, `Dark-1000-240-four-groups-bottom.png`, `Light-1586-96-dashboard-header.png`, and `Light-action-pressed.png`. Table negative/unavailable/scroll samples remain in the sibling `breakdown-table-renders/` directory.
+
+No clipping or overlap was observed in the inspected final samples. At narrow widths the table intentionally scrolls horizontally and chart/details stack as before. These are **automated renders, WPF routed input and automation peers**, not actual human mouse/keyboard or screen-reader testing. Live hover/focus perception, Narrator/NVDA announcements and matching CI remain unverified; no claim of full M20 acceptance is made. No provider call, production-journal access, branch switch, commit or push occurred.
+
+### Exact follow-up files
+
+1. `README.md`
+2. `docs/breakdown-analytics.md`
+3. `src/PersonalTradingJournal.Desktop/MainWindow.xaml`
+4. `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+5. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs`
+6. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownTableViewTests.cs`
+7. `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowBreakdownLayoutTests.cs`
+8. `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowHeaderTests.cs`
+
 ## M20.11 — visual alignment
 
 Starting state: **clean `develop`, HEAD `59c8a7c1c36b80396b8c9698f5d3bc7412000a56`**. The reference is the attachment named **Visual target.png**; **Current implementation.png** is the prior UI. The numbered descriptions in the pasted request were reversed. No existing work was discarded.
@@ -8,7 +39,7 @@ This deliberately supersedes M20.6's **single compact-summary card**. The four n
 
 ### Layout and retained behavior
 
-- The shared shell has a **Breakdown-only** left-aligned “Breakdown Analytics” heading and one subtitle. Its old centered pill is not duplicated. Other destinations retain their centered heading treatment and the sidebar is unchanged.
+- Initial M20.11 header decision (**superseded by the final consistency corrections above**): a Breakdown-only left-aligned “Breakdown Analytics” heading and one subtitle. The other M20.11 layout decisions below remain in place.
 - Period, Account, Instrument, Apply, Refresh, Reset and More filters share a compact toolbar. Currency/calculation mode start collapsed; invalid currency reveals the field before the existing guarded focus request. Custom date inputs, labels, draft indication and explicit Apply semantics remain. Normal “Breakdown loaded” / “Filters match” prose is hidden; errors, cancellation, stale/retained results and loading controls remain visible.
 - Four approximately 88-DIP cards show source-labeled P&L, closed Trades, Win Rate and Profit Factor. **Net, Net/Gross, Gross fallback, Gross and unavailable remain distinct**. Empty/incomplete financial populations have an explicit explanation; no missing value becomes zero.
 - Seven grouping chips edit the existing draft state, not the displayed result. Instrument is still the default; Strategy remains deferred. Chart metric changes remain local. The concise chart heading uses the **applied** grouping and source basis.
