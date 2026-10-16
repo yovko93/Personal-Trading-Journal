@@ -1,6 +1,12 @@
 # Personal Trading Journal
 
+**M20.3 — Breakdown group metrics and data quality (16 October 2026)**
+
+The pure Application calculator now filters and groups the complete candidate Trade population across all seven supported dimensions. The user-approved **Net preferred** default replaces Breakdown's earlier strict-Net-only mode: each Trade uses known actual Net (including zero), otherwise supplied Gross. Explicit Gross remains available. Source counts distinguish **Net**, **Net/Gross**, **Gross fallback** and **Gross**; no estimated costs or stored Net values are introduced. Summary/group metrics reuse shared numeric rules, preserve unknown values and coverage, and reconcile by stable Trade IDs without averaging group ratios. **M20.3 complete:** 94/94 focused, complete Application 974/974 and Domain 490/490 passed; Release build 0 warnings/errors; EF, whitespace and documentation links passed. [Contract, formulas, exact files and verification](docs/breakdown-analytics.md#m203--group-metrics-and-data-quality). M20.4 SQL and all Desktop work remain pending; full WPF/Infrastructure, visual/live and matching CI acceptance are not claimed.
+
 **M20.2 — Breakdown filters and grouping contracts (16 October 2026)**
+
+Historical checkpoint: M20.3 above supersedes this section's strict-Net-only Breakdown policy; grouping/time/selection definitions remain in force.
 
 Application `Analytics/Breakdown` now defines a validated immutable query, stable typed group keys, six exact UTC holding-duration buckets and a future drill-down selection retaining the complete original filter. Instrument is the default; Setup, Direction, New York entry weekday/hour, Account and duration are supported. Strategy is deferred for M20. Gross and **strict Net** are supported; estimated Net is rejected without changing Dashboard/Calendar. Dates retain New York **closure** membership, currencies stay separate, and missing costs remain unknown. **M20.2 complete:** 41/41 focused tests, complete Application 921/921 and Domain 490/490 passed; Release build 0 warnings/errors; EF consistency, whitespace and local documentation links passed. [Semantics, exact files and verification](docs/breakdown-analytics.md#m202--filters-grouping-and-exact-selection-contracts). M20.3 aggregation, SQL and Desktop remain pending. Full WPF/Infrastructure, visual/live and matching CI acceptance are not claimed for this contract step.
 

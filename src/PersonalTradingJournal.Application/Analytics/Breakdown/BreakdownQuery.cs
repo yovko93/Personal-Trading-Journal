@@ -2,6 +2,9 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Application.Analytics.Breakdown;
 
+/// <summary>Breakdown policy only. Gross fallback is not stored or described as actual/estimated Net.</summary>
+public enum BreakdownCalculationMode { Gross = 1, NetPreferred = 2 }
+
 /// <summary>
 /// Filters one complete population of fully closed Trades with a non-null closure instant.
 /// Period membership uses New York closure dates; entry-time grouping never changes it.
@@ -15,13 +18,13 @@ public sealed record BreakdownQuery
         Guid? instrumentId = null,
         DateOnly? closedFromNewYork = null,
         DateOnly? closedThroughNewYork = null,
-        PnlBasis basis = PnlBasis.Net,
+        BreakdownCalculationMode mode = BreakdownCalculationMode.NetPreferred,
         BreakdownGrouping grouping = BreakdownGrouping.Instrument)
     {
         // Reuse the established identifier/range validation and DST-aware UTC bounds.
         TradeFilter = new(tradingAccountId, instrumentId, closedFromNewYork, closedThroughNewYork);
-        if (basis is not (PnlBasis.Gross or PnlBasis.Net))
-            throw new ArgumentOutOfRangeException(nameof(basis), "Breakdown supports Gross or strict Net, not estimated Net.");
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode), "Select Gross or Net preferred for Breakdown.");
         if (!Enum.IsDefined(grouping))
             throw new ArgumentOutOfRangeException(nameof(grouping), "Select a supported Breakdown grouping; Strategy is deferred.");
         if (string.IsNullOrWhiteSpace(currency))
@@ -33,7 +36,7 @@ public sealed record BreakdownQuery
             throw new ArgumentOutOfRangeException(nameof(currency), "The currency cannot exceed 8 characters.");
 
         Currency = normalized;
-        Basis = basis;
+        Mode = mode;
         Grouping = grouping;
     }
 
@@ -41,8 +44,8 @@ public sealed record BreakdownQuery
     public DashboardAnalyticsQuery TradeFilter { get; }
     /// <summary>Exact historical pricing currency; no Account-currency substitution or FX.</summary>
     public string Currency { get; }
-    /// <summary>Net always means authoritative Net with complete required costs.</summary>
-    public PnlBasis Basis { get; }
+    /// <summary>Net preferred uses each Trade's known actual Net, otherwise its Gross; never estimated costs.</summary>
+    public BreakdownCalculationMode Mode { get; }
     public BreakdownGrouping Grouping { get; }
     public TradeStatus IncludedStatus => TradeStatus.Closed;
 }

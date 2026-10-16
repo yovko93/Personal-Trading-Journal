@@ -16,7 +16,7 @@ public sealed class BreakdownGroupSelectionTests
             BreakdownGroupKey.ForHoldingDuration(HoldingDurationBucket.OneToFiveMinutes)];
         foreach (var key in keys)
         {
-            var query = new BreakdownQuery("EUR", account, instrument, new(2026, 11, 1), new(2026, 11, 1), PnlBasis.Net, key.Grouping);
+            var query = new BreakdownQuery("EUR", account, instrument, new(2026, 11, 1), new(2026, 11, 1), BreakdownCalculationMode.NetPreferred, key.Grouping);
             var selection = new BreakdownGroupSelection(query, key);
             Assert.Same(query, selection.Query);
             Assert.Same(key, selection.Key);

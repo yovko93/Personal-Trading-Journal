@@ -16,7 +16,7 @@ public sealed class BreakdownQueryTests
         Assert.Equal(new TradePricingSnapshot(1m, input).Currency, query.Currency);
         Assert.Equal(expected, query.Currency);
         Assert.Equal(BreakdownGrouping.Instrument, query.Grouping);
-        Assert.Equal(PnlBasis.Net, query.Basis);
+        Assert.Equal(BreakdownCalculationMode.NetPreferred, query.Mode);
         Assert.Equal(new DashboardAnalyticsQuery(), query.TradeFilter);
         Assert.Equal(query, new BreakdownQuery(expected));
     }
@@ -41,10 +41,10 @@ public sealed class BreakdownQueryTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new BreakdownQuery("USD", closedThroughNewYork: DateOnly.MaxValue));
 
         Guid account = Guid.NewGuid(), instrument = Guid.NewGuid();
-        var query = new BreakdownQuery("USD", account, instrument, new(2026, 10, 1), new(2026, 10, 31), PnlBasis.Gross);
+        var query = new BreakdownQuery("USD", account, instrument, new(2026, 10, 1), new(2026, 10, 31), BreakdownCalculationMode.Gross);
         Assert.Equal(new DashboardAnalyticsQuery(account, instrument, new(2026, 10, 1), new(2026, 10, 31)), query.TradeFilter);
-        Assert.NotEqual(query, new BreakdownQuery("EUR", account, instrument, new(2026, 10, 1), new(2026, 10, 31), PnlBasis.Gross));
-        Assert.NotEqual(query, new BreakdownQuery("USD", account, instrument, new(2026, 10, 1), new(2026, 10, 31), PnlBasis.Net));
+        Assert.NotEqual(query, new BreakdownQuery("EUR", account, instrument, new(2026, 10, 1), new(2026, 10, 31), BreakdownCalculationMode.Gross));
+        Assert.NotEqual(query, new BreakdownQuery("USD", account, instrument, new(2026, 10, 1), new(2026, 10, 31), BreakdownCalculationMode.NetPreferred));
     }
 
     [Fact]
@@ -59,12 +59,14 @@ public sealed class BreakdownQueryTests
     }
 
     [Theory]
-    [InlineData(PnlBasis.EffectiveNet)]
-    [InlineData((PnlBasis)(-1))]
-    [InlineData((PnlBasis)99)]
-    public void RejectsEstimatedAndUnsupportedBases(PnlBasis basis)
+    [InlineData((BreakdownCalculationMode)0)]
+    [InlineData((BreakdownCalculationMode)(-1))]
+    [InlineData((BreakdownCalculationMode)99)]
+    public void RejectsUnsupportedCalculationModes(BreakdownCalculationMode mode)
     {
-        Assert.Equal("basis", Assert.Throws<ArgumentOutOfRangeException>(() => new BreakdownQuery("USD", basis: basis)).ParamName);
+        Assert.Equal("mode", Assert.Throws<ArgumentOutOfRangeException>(() => new BreakdownQuery("USD", mode: mode)).ParamName);
+        Assert.False(Enum.TryParse<BreakdownCalculationMode>("EffectiveNet", out _));
+        Assert.False(Enum.TryParse<BreakdownCalculationMode>("Net", out _));
     }
 
     [Theory]

@@ -1,8 +1,105 @@
 # Breakdown Analytics — M20
 
+## M20.3 — group metrics and data quality
+
+Implemented **16 October 2026**, starting clean on `develop`, HEAD `e7f718cb0c705572a18514a092e7fc6ec7a81925`. **The user-approved M20.3 Net-preferred policy supersedes the strict-Net-only Breakdown decision recorded in M20.2 below.** Shared strict-Net/estimated-Net contracts and existing Dashboard, Calendar, Trades, Daily and Period Review behavior are unchanged. No SQL, WPF, chart, persisted analytics or executed drill-down is added.
+
+### Calculation modes and provenance
+
+`BreakdownQuery.Mode` now uses the Breakdown-specific `BreakdownCalculationMode`, replacing its former shared `PnlBasis` selection:
+
+| Mode | Per-Trade selected value |
+| --- | --- |
+| **Net preferred (default)** | Known **actual Net**, including exactly zero; otherwise supplied **Gross**; otherwise unavailable |
+| **Gross** | Supplied Gross; otherwise unavailable. Explicit Gross is never counted as fallback |
+
+Resolution happens once per eligible Trade, before aggregation. A group never switches wholesale to Gross because one member has unknown Net. No costs are estimated or coerced to zero, individually known costs are not subtracted again, and Gross is never stored as Net. **Gross fallback is a separately identified source value, not estimated Net.** Net preferred may be financially complete even when actual-Net coverage is partial, provided every missing Net has available Gross.
+
+`BreakdownFinancialCoverage` carries the selected mode, eligible count, Net-used, Gross-fallback, explicit-Gross-used and unavailable counts. Its `Source` gives enough metadata for future UI labels:
+
+| Source | Meaning |
+| --- | --- |
+| `Net` | Every evaluable selected value uses actual Net |
+| `NetGross` | Evaluable values include both actual Net and Gross fallback; label **Net/Gross** |
+| `GrossFallback` | Every evaluable value uses Gross because actual Net is unknown; label **Gross fallback** |
+| `Gross` | Explicit Gross mode, including empty/unavailable selections |
+| `NoEvaluableValues` | Net-preferred selection has no available Net or Gross value |
+
+Source labeling is independent of completeness. A `Net` or `NetGross` source with an unavailable Trade still has an unavailable complete total. In Net preferred, **Net-used + Gross-fallback + unavailable = eligible**; in Gross, **explicit-Gross-used + unavailable = eligible**, with Net-used/fallback both zero.
+
+### Input, filtering and grouping
+
+[`BreakdownTradeFact`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownTradeFact.cs) composes existing `TradeAnalyticsFact` with exact Account/Instrument IDs, Domain direction and optional reference names/activity. Gross, actual Net, nullable total costs, original pricing currency, lifecycle instants and current Setup ID remain authoritative projected facts. This does not reuse a saved coaching packet or reconstruct economics from prices.
+
+The caller supplies the **complete candidate population**, not a display page or execution join. [`BreakdownMetricCalculator.Calculate`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownMetricCalculator.cs) validates unique IDs across the entire supplied input, including excluded candidates; duplicates fail instead of silently inflating or being deduplicated. Validated lifecycle/currency/economic inputs follow the existing analytics projection contract: UTC timestamps, consistent Closed/closure state, closure not before opening, valid identities/direction, canonical currency, nonnegative known costs, no final P&L on open Trades, and known actual Net backed by known Gross/costs. A closed projection with unavailable/invalid duration fails clearly without returning a partial result or assigning a fake bucket. A valid open Trade remains excluded.
+
+It applies all original Account, Instrument, historical currency and New York **closure** bounds before grouping. Open/partially exited Trades are excluded; missing financial values do not remove an otherwise eligible closed Trade. The seven M20.2 grouping definitions are reused exactly: stable Instrument/Account/Setup IDs, Unclassified only for null Setup ID, Long/Short, New York entry weekday/hour and the six UTC elapsed-duration buckets. Repeated autumn hours share their hour group; each Trade belongs to exactly one selected group. Strategy remains deferred.
+
+Eligible Trades are sorted by Trade ID before arithmetic and group metadata selection; groups use the stable key order. Labels come from the lowest-Trade-ID member's optional metadata, with the established inactive/missing fallbacks. Metadata should describe one consistent read snapshot; it never changes membership. Identical display names do not merge distinct IDs, and missing Setup names do not convert retained classifications to Unclassified.
+
+### Results, formulas and coverage
+
+[`BreakdownAnalyticsSnapshot`, `BreakdownMetrics`, `BreakdownPnlMetrics` and coverage records](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownMetrics.cs) return the original query, summary, keyed group results/labels, selected-mode and Gross metrics, financial/classification coverage and ordered contributing Trade IDs. Published lists are read-only. Monetary values are numeric decimals, not formatted strings or WPF types.
+
+For each summary/group, **N** is every eligible closed Trade and **K** is every Trade with an available selected value. The calculator reuses unchanged `PnlAccumulator` arithmetic, `MetricCoverage`, `ProfitFactorMetric`, `AveragePnlMetric` and shared average/outcome rules; its internal basis tag is not exported as Breakdown provenance. `BreakdownPnlMetrics` deliberately carries neither a shared strict-Net basis nor an estimated-Net flag. Average Trade is the small additional derivation from a complete shared sum/count.
+
+- **Selected P&L:** sum resolved values. `Total` is available only for a nonempty complete population; `KnownSubtotal` can describe K/N, never a complete result.
+- **Outcomes:** unrounded selected value greater than / less than / equal to zero. **Wins + losses + break-even = K**. A positive Gross with negative known Net is a Net-preferred loss; unknown Net with positive Gross is a Gross-fallback win.
+- **Win Rate:** `100 × wins / N`, including break-even in the denominator, available only with complete nonempty coverage.
+- **Average Trade:** complete selected total / N. **Average Win:** positive selected-value sum / wins. **Average Loss:** absolute negative selected-value sum / losses, the existing positive-magnitude convention. All averages require complete population coverage; no wins/no losses remain distinct unavailable reasons.
+- **Profit Factor:** positive selected-value sum / absolute negative selected-value sum. All losers gives defined zero; positive profits without losses gives `NoLosses` with no capped numeric sentinel; all break-even gives `AllBreakEven`; empty and incomplete states stay distinct.
+- **Gross:** a separate bundle over supplied Gross on the same full eligible population, regardless of selected mode.
+
+`BreakdownDataCoverage` exposes independent actual-Net, Gross, known-total-cost and Setup-classification coverage, plus missing Setup metadata count. A retained Setup ID counts as classified even if inactive or unavailable; Unclassified is only a null ID. Missing-cost count uses each Trade once when authoritative `TotalCosts` is absent. The current input does not promise separate commission/fee component counts or infer missing-cost cause merely from missing Net. Empty, Complete, Partial and Unavailable use established `MetricCoverage` semantics. A real zero stays zero; both financial values absent leaves the Trade counted with no inferred outcome. No R-multiple is derived.
+
+Arithmetic uses checked decimal sums, decimal division and no presentation rounding. Invalid input, overflow or cancellation publishes no partial snapshot. Input is enumerated once; output and contributing IDs are deterministic across input order. Memory scales with the complete supplied population; M20.4 must enforce its reader/size policy without silently paging or truncating the metric population.
+
+### Reconciliation and limits
+
+For each dimension, group eligible/evaluable/source/classification/cost counts and contributing IDs reconcile to the summary, with disjoint group membership. Complete additive selected/Gross totals reconcile. Known subtotals are partial evidence, not totals. Summary ratios/averages are recalculated from underlying Trades, never averages of groups with unequal sizes.
+
+Reconcile against another service only for the same population, filters, original currency, closure-date rule and value policy. All-known-Net populations can match shared strict Net; explicit Gross can match shared Gross. With fallback, strict Net remains incomplete elsewhere. Dashboard EffectiveNet can happen to have identical numeric precedence, but its estimated-Net interpretation and coverage metadata are different; Breakdown does not relabel that product or require a semantic equivalence.
+
+### M20.3 verification and changed files
+
+**M20.3 complete.** Final verification on the unchanged develop HEAD plus these uncommitted changes:
+
+| Check | Result / evidence |
+| --- | --- |
+| Focused Breakdown Release checks | **94/94 passed**, zero failures/skips: 41 existing/updated contract cases and 53 new calculation/input cases |
+| Complete Application Release project | **974/974 passed**, zero failures/skips, including existing Dashboard/Calendar/Daily/Period strict/estimated policies |
+| Complete Domain Release project | **490/490 passed**, zero failures/skips |
+| Release solution build | **0 warnings / 0 errors** |
+| EF consistency | No model changes since the last migration; in-memory design-time factory |
+| Whitespace / documentation links | Passed; tracked diff and new C# file checks, 147 local Markdown targets |
+| Full WPF/Infrastructure gate, visual/live acceptance | Not run: no Infrastructure, persistence or Desktop behavior was changed in this Application-only step |
+| Matching CI | Unverified for these uncommitted changes; no resulting commit or CI acceptance claimed |
+
+Commands: `dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~.Analytics.Breakdown.'` for focused checks; complete Application/Domain project runs use `-c Release --no-build --no-restore` with no filter. `dotnet build PersonalTradingJournal.sln -c Release --no-restore`; EF `migrations has-pending-model-changes` against `JournalDbContext` in Release, no-build. TRX evidence is under ignored `artifacts/m203/focused-complete/`, `artifacts/m203/application/`, `artifacts/m203/domain/`. Focused cases are included in the complete Application count, not additional unique tests.
+
+Development's first focused run was 84 passed / 2 failed: test expectations incorrectly used −18 instead of −16 for a five-Trade average, and expected one `decimal.MinValue` to overflow despite its representability. Those expectations were corrected, genuine positive/negative overflow checks retained, and eight further mode/currency reconciliation cases added before the final 94/94 run. No production calculation was changed to accommodate either mistaken expectation.
+
+Final tests cover per-Trade precedence/zero/sign reversal, fallback labels and count partitions, all seven dimensions in both modes, unequal group sizes, disjoint exact IDs, duplicate names, inactive/missing Setup, closed/open/partial eligibility, currencies, New York date/entry/DST and duration integration, unavailable coverage, decimal precision/overflow, cancellation, duplicates, single-pass input and read-only results. This step adds no Infrastructure/WPF behavior; automated results are not visual/live or matching CI acceptance.
+
+Exact changed files (11):
+
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownQuery.cs`
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownTradeFact.cs` (new)
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownMetrics.cs` (new)
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownMetricCalculator.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownQueryTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownGroupSelectionTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownMetricCalculatorTests.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownInputTests.cs` (new)
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+
+M20.4 remains next: one consistent read-only database query supplying this complete projection, batched metadata/coverage, cancellation and explicit size handling. No production-journal access, provider request, migration, UI, branch switch, reset, commit, push or merge.
+
 ## M20.2 — filters, grouping and exact selection contracts
 
-Implemented **16 October 2026**, starting clean on `develop`, HEAD `d9320697c3ac669a25890f4699a431913d0d9d6e`. The committed M20.1 audit is retained below. This step adds pure Application contracts and helpers only; aggregation/results, SQL, Desktop controls, charts and executed drill-down belong to later M20 milestones.
+Implemented **16 October 2026**, starting clean on `develop`, HEAD `d9320697c3ac669a25890f4699a431913d0d9d6e`. This is the historical M20.2 checkpoint; **M20.3 above supersedes its strict-Net-only mode and future metric obligations**. Grouping, time, currency and exact selection definitions remain in force. SQL, Desktop controls, charts and executed drill-down belong to later M20 milestones.
 
 ### Scope decisions
 
