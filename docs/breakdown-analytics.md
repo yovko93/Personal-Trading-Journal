@@ -1,5 +1,88 @@
 # Breakdown Analytics — M20
 
+## M20.10 — reconciliation and acceptance review
+
+Reviewed **16 October 2026**, clean `develop` at **`ebea74a860b85dd7b0d52e65c2a51d2b287151bf`**, not the reported `92864ad` baseline. History isolates all nine M20.1–M20.9 commits after `4864305`: **55 files, 5,727 insertions and 32 deletions**. The review includes the final Application contracts/calculator, SQLite readers and DI, Desktop state/navigation/presentation/focus, their regression tests and documentation—not just M20.9. There were no pre-existing tracked or untracked changes to preserve. No production journal, credential, provider, Git write or next milestone was used.
+
+**Review finding:** no actionable implementation defect was demonstrated in this scope. No speculative product, financial, persistence, test-harness or scheduling change was made. Existing regression coverage already exercises the required boundaries; the added opt-in measurement program closes the missing large-history measurement boundary and checks reconciliation at each size. Live keyboard/assistive acceptance and matching CI remain open; implementation completion is not full M20 acceptance.
+
+### Final behavior (supersedes historical proposals below)
+
+- Seven partitions: Instrument (default), current Trading Setup, Direction, New York entry weekday/hour, Account and UTC elapsed holding duration. Strategy remains deferred. Null Setup means Unclassified; a retained missing or inactive ID is not Unclassified. Names never determine identity.
+- Membership is fully closed Trades in the selected **New York closure-date** range and one historical pricing currency. Entry-time groups do not change membership; duration uses UTC even across DST. Six duration buckets end in four hours or more.
+- **Net preferred** (default) uses each known actual Net, including zero; otherwise supplied Gross. Explicit Gross uses Gross independently. Net, Net/Gross, Gross fallback, Gross and unavailable sources stay distinguishable. Gross fallback is neither actual nor estimated Net. Missing values retain their coverage denominator; incomplete totals/ratios are unavailable. Shared numeric accumulators operate on the complete eligible population, not table pages or averages of group ratios.
+- One no-tracking SQLite statement snapshots financial projections and labels; no execution/screenshot collection join can multiply Trades. Its context closes before calculation. Desktop captures requests, keeps draft and successful-result scopes separate, ignores stale completion, and does not read SQLite for local chart metric, sorting or selection changes.
+- Drill-down freezes **original contributing IDs** and shows **current records**. Edited originals remain; new matches stay excluded; deleted records are not replaced. Empty membership means no Trades. Count/page/position data share a read transaction with one JSON ID parameter. Back refreshes the last successful Breakdown query without applying draft edits; Exit restores ordinary Trades state.
+- View-owned focus callbacks reject replacement/unload/new input. View subscriptions detach on unload; scoped reads and detail callbacks have navigation ownership. Live announcements are opt-in status/error changes, not a guarantee about any screen reader.
+
+The initial strict-Net-only policy in M20.1/M20.2 is historical and superseded by M20.3. The initial live-predicate drill-down proposal is superseded by M20.8's frozen-ID/current-record policy. Earlier milestone “next/unverified” statements below describe their checkpoints, not current implementation gaps.
+
+### Reconciliation and integrated acceptance matrix
+
+| Scenario | Automated evidence reused in this gate | Live boundary |
+| --- | --- | --- |
+| Seven dimensions × Gross/Net preferred; disjoint counts/IDs, additive P&L, source coverage, outcomes and denominators | `BreakdownMetricCalculatorTests.EveryDimensionHasExactDisjointMembershipReconciliationAndInputIndependentOrder`; SQLite reader's 14-case matrix with multiple executions/screenshots | No production-data comparison |
+| Zero Net, mixed fallback, both values absent, unequal groups, empty/one-sided/overflow | Calculator, input and presentation tests; strict-Net comparison only when all actual Net is known | No forced equality to differently defined Dashboard estimates |
+| Historical currency, inactive/missing/duplicate labels, Unclassified | Query/key/selection and SQLite reader tests; stable identity independent of text | Live screen-reader naming pending |
+| Overnight, NY midnight, skipped/repeated DST hours, duration ticks | Query/key/duration/calculator and SQLite boundary tests | Not a futures-session inference |
+| Snapshot under concurrent write; cancellation/error disposal | Reader interceptors coordinate WAL writes before materialization, assert old consistent result then fresh result and disposed contexts | No long-running transaction spans UI navigation |
+| Apply/Refresh/Reset/Cancel/retry; retained failures, draft edits and stale completion | `BreakdownViewModelTests`, compiled filters and shell navigation tests | Actual keyboard loop blocked by helper initialization |
+| Local numeric/chronological sort, chart metric/selection/details consistency | Presentation/chart/ViewModel and bound-WPF tests count reads and preserve keys | Physical monitor/assistive checks pending |
+| Exact scoped paging, current edit/delete/missing/empty, Back and Exit | `TradeListCohortTests` (methods in partial `TradeListPagingTests`), `TradesViewModelBreakdownTests`, `MainWindowBreakdownTests`, bound drill-down/focus tests | Real mouse/keyboard edit/delete loop not performed |
+| Delayed focus and newer user input | `BreakdownAccessibilityViewTests` uses real synthetic HWND, automation peers and routed input | Automated input is not human keyboard or Narrator evidence |
+
+### Large-history measurements
+
+Reproduce with `dotnet run --project scripts/BreakdownMeasurements -c Release`. This small console harness is **not another test project or a benchmark framework**. It accepts no existing database path, creates fresh unique temporary databases, applies all migrations, batches Domain-derived Trade/execution/browse records in groups of 500, awaits every operation and deletes its owned root. `--live-fixture` instead retains a newly created 1k fixture for the existing `--isolated-data-root` Desktop switch; it cannot select the installed journal.
+
+Environment: Windows 10 build 19045, Intel i7-7700HQ **4 cores / 8 logical CPUs**, **17,031,376,896 bytes RAM** (about 15.86 GiB), .NET **10.0.12**, SDK **10.0.302**, Release, warnings as errors. No complete test gate was competing with the measurements. These are local synthetic observations, not a production SLA, cold-disk benchmark or UI frame-time measurement.
+
+Each size is a separate migrated database: ten Accounts, twenty Instruments, eight Setups (one inactive), approximately one seventh unclassified, two executions per closed Trade, varied long/short, 280 closure dates and 1–1,500-minute durations. Historical currency is 80% USD / 20% EUR. The USD query uses Direction to obtain two large cohorts; 75% uses actual Net, 25% Gross fallback, including known-zero Net cases. One warm-up is excluded from the three measured samples (the initial population/cohort lookup is also untimed). Presentation measures actual formatting, numeric sorting, accessible descriptions and chart preparation for **two groups**, not a WPF window/render or high-cardinality table.
+
+| Stored closed Trades (USD eligible / cohort) | Fixture including migrations | Reader + calculator ms: median [min–max] | Presentation ms: median [min–max] | First 20-row cohort page ms | Last 20-row cohort page ms |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 (800 / 400) | 4.846 s | 26.564 [22.767–29.395] | 0.067 [0.057–0.123] | 13.858 [11.997–17.721] | page 20: 12.819 [12.226–13.933] |
+| 10,000 (8,000 / 4,000) | 7.720 s | 175.541 [131.363–195.325] | 0.068 [0.056–0.403] | 57.491 [51.648–65.337] | page 200: 70.771 [61.833–88.922] |
+| 50,000 (40,000 / 20,000) | 38.982 s | 827.883 [776.608–851.410] | 0.089 [0.071–0.091] | 292.904 [260.453–330.499] | page 1,000: 490.451 [461.078–571.953] |
+
+Each sample checks group count/P&L reconciliation, unique contributing membership and first/last cohort count/page presence. Measured reader allocation ranges (`GC.GetTotalAllocatedBytes`, process-wide) are **1.396–1.401 MB**, **12.641–12.652 MB**, **65.640–65.648 MB** respectively (decimal MB). Per-page allocations grow from about **0.377 MB** to **1.64 MB** to **7.22 MB**, because complete ID membership must be encoded on each request. Sampled working set ranges are **117.25–118.03 MB**, **135.37–137.08 MB**, **126.34–169.16 MB**; managed heap fluctuates with collection and is not a retained-memory/peak claim. Formatting allocations are about 3.5–3.9 KB for two groups.
+
+Remaining performance limits: full selected facts/IDs use **linear memory**; large ID JSON and SQLite count/order/offset work repeat per scoped page. The final page is measurably slower at 50k. VM work is dispatched off the UI thread, but publication and group presentation remain UI work; these measurements do **not** establish worst-case UI latency for thousands of groups or slow storage. No unsupported performance fix or new index was introduced.
+
+### Verification, visual/live and CI status
+
+Final command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m2010/gate`, normal Windows token for synthetic DPAPI/filesystem/native WPF fixtures. **Exit 0; 4,556 unique tests passed, zero failed/skipped.** Four actual test projects discovered; the process probe is a test helper, not an omitted test project. Existing exclusive-WPF then parallel scheduling and every assertion/deadline remain unchanged. No successful gate was repeated, and overlapping focused/child cases were not added to the aggregate.
+
+| Project / partition | Passed | Failed | Skipped | Reported test duration |
+| --- | --- | --- | --- | --- |
+| Desktop exclusive WPF | 88 | 0 | 0 | 1m 28s |
+| Desktop parallel | 1,620 | 0 | 0 | 4m 57s |
+| Application | 976 | 0 | 0 | 6s |
+| Domain | 490 | 0 | 0 | 4s |
+| Infrastructure | 1,382 | 0 | 0 | 3m 47s |
+| Unique total | **4,556** | **0** | **0** | gate wall time about 6m 43s |
+
+Evidence root (ignored): `artifacts/m2010/gate/release-20261016-201358-83658b085fb4404cbba8ac0bc6a9262d/`, containing `summary.json`, top-level per-project TRX, test output, VSTest diagnostics and supervised child logs. Both stage runners exited normally. Calendar native child: **76.045 s / 120 s** (43.955 s headroom); Journal editor child **11.413 s**, its STA **8.220 s / 30 s**. No Calendar/Journal deadline failure occurred. These observations do not guarantee timing on another runner. Release solution build: **0 warnings/errors**, 14.34 s. Final measurement-project build: **0 warnings/errors**, 3.04 s. EF `has-pending-model-changes` using the design-time in-memory factory: **no changes**. `git diff --check`, new-file trailing whitespace and **162 local documentation file links** passed. Initial measurement restore was blocked only by sandbox access to NuGet's vulnerability feed (NU1900); normal-permission restore succeeded without disabling audit/warnings. That restore failure was not a test failure.
+
+Automated renders were regenerated by this complete gate under `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/breakdown-{chart,table,drilldown,accessibility}-renders/`. Inspected chart selection in **both themes at 1280×900 DIP / 96 DPI (1280×900 pixels)** and **700×900 DIP / 240 DPI (1750×2250 pixels)**, plus Dark narrow selected details, Light normal retained error, Dark narrow validation, Light populated cohort and Dark missing cohort. Positive/negative/zero/unavailable and mixed Net/Gross labels remain distinguishable; long text wraps, narrow details stack, Back/Exit are visible and table columns remain reachable via their explicit horizontal scrollbar. Fixture chart-only View buttons are deliberately disabled without navigation callbacks; the separate bound drill-down fixture verifies enabled actions. No new visual defect was observed in these samples. Off-screen render DPI is not an actual monitor-scaling check.
+
+| Acceptance category | Final status |
+| --- | --- |
+| M20 implementation review | **Complete**, no demonstrated product defect requiring a fix |
+| Local automated acceptance | **Passed**, full gate/build/EF/whitespace/links above; existing reconciliation and integrated regressions reused |
+| Automated visual acceptance | **Passed for inspected samples**, both themes and declared sizes; not every live monitor/font combination |
+| Performance measurement | **Complete for 1k/10k/50k synthetic histories**, with linear-memory/paging and two-group presentation limitations above |
+| Live keyboard/mouse and assistive technology | **Blocked / unverified**, helper initialization failure; manual checklist below |
+| Matching CI | **Pending**, exact HEAD lookup empty and final acceptance changes uncommitted |
+
+**M20 is not fully accepted while the live and CI items remain open.**
+
+The Windows computer-use skill was attempted on a newly seeded 1k synthetic application. The runtime failed before input/capture with **“failed to write kernel assets: The system cannot find the path specified. (os error 3)”**, including after reset. The synthetic app process was stopped without interaction before the gate. Live keyboard/mouse and Narrator/NVDA checks are **blocked/unperformed**, not failed product assertions. Manual follow-up: Tab/Shift+Tab through filters and popups; validation/cancel focus; chart arrows/table sorting and virtualized row actions; cohort paging/details/edit/delete/Back/Exit; rapid navigation while reads complete; announcement order/frequency, full coverage and unavailable labels; physical 250% scaling.
+
+GitHub lookup for exact HEAD `ebea74a860b85dd7b0d52e65c2a51d2b287151bf` returned **no workflow runs** on 16 October. The workflow triggers pushes to `main` or PRs targeting `main`, not ordinary `develop` pushes. No matching tested merge revision was established. These uncommitted M20.10 documents/measurement tool additionally have no resulting commit or matching CI run. The user must commit/push through their normal PR workflow; no publication was performed here.
+
+Exact M20.10 changed files (five): `README.md`, `docs/architecture.md`, `docs/breakdown-analytics.md`, `scripts/BreakdownMeasurements/BreakdownMeasurements.csproj`, `scripts/BreakdownMeasurements/Program.cs`. No product, test, schema, gate, CI, financial policy or existing assertions changed.
+
 ## M20.9 — Desktop UX and accessibility
 
 Implemented **16 October 2026**, starting from clean `develop` at `92864ad177400d6558a6941eb7986815b1076b1f` (committed M20.8, newer than the reported `ca6c4fa` baseline). This is a focused Desktop change: no calculation, cohort membership, query, persistence, migration, request ownership or navigation-guard changes. No production journal, live provider or Git write was used. Next scope: **M20.10 — Reconciliation, Acceptance & Documentation**.
