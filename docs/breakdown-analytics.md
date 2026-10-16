@@ -1,5 +1,51 @@
 # Breakdown Analytics — M20
 
+## M20.6 — compact summary and group comparison table
+
+Implemented **16 October 2026**, starting from clean `develop` at `b31bab7779a2c851c3f8579b1ad783688e519203` (committed M20.5, newer than the request's reported baseline). Desktop presentation only: calculation policy, filtering, SQL snapshot consistency, request ownership, database and other analytics screens are unchanged.
+
+### What the page displays
+
+The retained **last successful** scope now has a small wrapping strip: eligible closed Trades, selected-mode P&L, Win Rate and Profit Factor. The summary wraps the supplied `Summary` directly; it never totals displayed rows. Currency, calculation mode and financial source remain attached to the applied query, not editable filters. Source coverage is shown once beside the summary, with specific Setup-classification coverage for Setup grouping and New York entry-time clarification for weekday/hour groups.
+
+A read-only native WPF **DataGrid** displays every returned group: Group, Trades, Win Rate, P&L, Average trade, Profit Factor, Basis / Coverage. Existing Desktop tables are bespoke ItemsControl/Grid layouts; there is no reusable sortable, virtualized table wrapper. This uses WPF's built-in table rather than a new control framework, styled locally with existing theme/financial/selection resources. The Group column has a resizable 260-DIP initial width and wraps; numeric columns align right, retain full formatted values in tooltips and row accessibility descriptions, and scroll horizontally at narrow widths. The bounded table viewport recycles rows/columns; an exhausted inner wheel scroll continues into the page. Short tables grow naturally up to 340 DIP, rather than reserving large KPI panels. No chart, selected-group detail panel or inactive View Trades action is added.
+
+Each row uses **its own** returned Net, Net/Gross, Gross fallback, Gross or unavailable classification. Evaluable/eligible counts and any fallback/unavailable counts are visible, not tooltip-only. Supporting help gives Net-used, fallback, explicit Gross, unavailable and missing-total-cost counts. Gross fallback is not estimated Net. Incomplete financial coverage displays unavailable totals/rates/averages; it never substitutes a known subtotal. Unknown Net with available Gross is separate from values missing in both sources.
+
+Formatting reuses the Dashboard monetary formatter (`N2` plus explicit currency), one-decimal percentages and two-decimal ratios. Numeric zero stays numeric. Unavailable values use **—** with an explanation. Only explicit `ProfitFactorStatus.NoLosses` displays **∞**, meaning positive profits with zero losses; empty, incomplete and all-break-even ratios remain undefined/unavailable with distinct help. Positive/negative money uses shared success/danger colors, zero/unavailable neutral; signs and text remain available independently of color. Trades-page policies are untouched.
+
+**Small sample** means **1–19 financially evaluable Trades**, a UI heuristic, not statistical confidence. A zero-evaluable group is marked unavailable rather than merely small. Every group remains displayed. This implements the M20.6 requested threshold; the earlier audit's proposed eligible-count threshold was not an implemented policy. Setup assignment counts retained Setup IDs even if metadata is missing, while null Setup remains Unclassified; IDs, not labels, distinguish such rows.
+
+### Sorting, selection and atomic publication
+
+Initial order is exactly the calculator's deterministic order. Header activation (including keyboard/UI Automation) sorts raw numeric counts, totals, percentages, averages or ratios, never formatted strings. Group sorting uses stable chronological keys for Monday–Sunday, 00–23 and duration buckets; other labels use ordinal case-insensitive order. Basis / Coverage sorts by source label. Ties always use ascending `BreakdownGroupKey`. Missing numeric values stay **last in both directions**; explicit unbounded Profit Factor sorts above finite ratios and before unavailable values in descending order. There is no numeric infinity sentinel.
+
+The ViewModel retains sort choice/direction and selected **key**, not label or row position, for the session. Sorting requires no read. Refresh retains selection only if the exact key remains; changing the applied grouping or losing that key clears it even if another row has the same name. Editing a grouping filter alone does not invalidate the still-displayed successful result. Navigation preserves the M20.5 state and the table sort. Native ItemsSource replacement cannot silently move selection to a same-name group.
+
+`BreakdownPresentation` wraps the complete snapshot and its metric records. It does not enumerate/copy contributing Trade IDs or inspect Trades to calculate values. Summary, rows and selection are prepared and assigned before publication under the existing request-ownership check. Older callbacks, loading, invalid drafts, cancellation and failures cannot replace only part of the successful presentation. Mapping costs scale with group count; full-population performance remains unmeasured.
+
+### Verification
+
+Final focused Desktop/M20.5 tests: **50/50 passed**, no skipped cases (10 seconds); this includes 24 new presentation/bound-WPF cases and the 26 existing selected M20.5 cases. Relevant shell, Dashboard-filter/ViewModel and resource regressions: **252/252 passed**, no skipped cases (58 seconds, normal Windows token for synthetic DPAPI fixtures); two shell cases overlap the focused selection. Solution Release build: **0 warnings, 0 errors** (11.43 seconds). EF design-time consistency: **no pending model changes**, using the in-memory factory. Whitespace and local documentation-link checks passed. TRX evidence is in `artifacts/m206/final-verified` and `artifacts/m206/regression` (local, ignored artifacts).
+
+Focused tests include supplied-summary mapping without enumerating source IDs, all basis labels, partial coverage, zero/undefined/unbounded formats, 0/1/19/20 sample boundaries, raw numeric/chronological sorting, ties, duplicate labels, Unclassified versus missing Setup, navigation/refresh selection, no-read sorting and stale/failure retention. Compiled WPF checks invoke a real column-header automation item, preserve selection through sorting/refresh, exercise an 80-group virtualized population, and reach the rightmost coverage column and unavailable rows. Fixtures use synthetic data only. During development, the new test's detached-tree scrolling/automation setup was corrected; its narrow-width assertion also caught star sizing compressing numeric columns to 20 DIP. Stable initial column widths now retain horizontal reachability. An overlapping test/build attempt encountered a locked output DLL; the final build/test ran after that test process exited. No existing assertions, deadlines or production financial behavior were changed.
+
+Table render viewports: **1280×800 DIP at 96 DPI** and **700×800 DIP at 240 DPI**, Light/Dark, both horizontal ends and unavailable rows. Existing M20.5 filter renders additionally cover **980×570 / 96 DPI** and **700×570 / 240 DPI**. Automated rendering is not live mouse/keyboard or screen-reader acceptance. Full solution gate, matching CI and large-history performance are not claimed. No production journal, live provider, schema change or Git write was used.
+
+Exact changed files (9):
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownPresentation.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownPresentationTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownTableViewTests.cs` (new)
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+
+Next: **M20.7 — Comparison Chart & Selected-Group Details**; executed Trades drill-down remains M20.8.
+
 ## M20.5 — Desktop filters and page state
 
 Implemented **16 October 2026**, from clean `develop` HEAD `db445629ec8623a673c293379f37cc790bce6301`. This is the actual committed M20.4 baseline, newer than the request's reported SHA. The Breakdown destination now uses the real `IBreakdownAnalyticsReader` through a retained Desktop ViewModel. The Application calculator, Infrastructure reader, single-statement snapshot, economics and schema are unchanged. No fabricated chart/table figures are displayed.

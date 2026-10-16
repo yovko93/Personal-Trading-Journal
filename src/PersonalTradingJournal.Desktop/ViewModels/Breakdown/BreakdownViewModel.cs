@@ -32,6 +32,11 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     private IReadOnlyList<BreakdownReferenceOption> _accountOptions = [], _instrumentOptions = [];
     private IReadOnlyList<string> _currencies = [];
     private BreakdownAnalyticsSnapshot? _result;
+    private BreakdownPresentation? _presentation;
+    private IReadOnlyList<BreakdownGroupPresentation> _groupRows = [];
+    private BreakdownGroupKey? _selectedGroupKey;
+    private BreakdownSortColumn? _sortColumn;
+    private bool _sortDescending;
     private BreakdownQuery? _submitted;
     private string _status = "Apply filters to load Breakdown.";
     private string? _error, _dateError, _currencyError;
@@ -79,6 +84,35 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     public string? DateValidation { get => _dateError; private set => SetProperty(ref _dateError, value); }
     public string? CurrencyValidation { get => _currencyError; private set => SetProperty(ref _currencyError, value); }
     public BreakdownAnalyticsSnapshot? Result => _result;
+    public BreakdownPresentation? Presentation => _presentation;
+    public IReadOnlyList<BreakdownGroupPresentation> GroupRows => _groupRows;
+    public BreakdownGroupKey? SelectedGroupKey => _selectedGroupKey;
+    public BreakdownGroupPresentation? SelectedGroup
+    {
+        get => _groupRows.FirstOrDefault(r => r.Key == _selectedGroupKey);
+        set
+        {
+            // ItemsSource replacement can temporarily clear native selection. Identity is owned here.
+            if (value is null || !_groupRows.Contains(value)) return;
+            _selectedGroupKey = value.Key;
+            OnPropertyChanged(); OnPropertyChanged(nameof(SelectedGroupKey));
+        }
+    }
+    public BreakdownSortColumn? SortColumn => _sortColumn;
+    public bool SortDescending => _sortDescending;
+    public void SortGroups(BreakdownSortColumn column)
+    {
+        if (_presentation is null || !Enum.IsDefined(column)) return;
+        _sortDescending = _sortColumn == column && !_sortDescending;
+        _sortColumn = column;
+        _groupRows = _presentation.Sort(column, _sortDescending);
+        NotifyTable();
+    }
+    private void NotifyTable()
+    {
+        foreach (string name in new[] { nameof(GroupRows), nameof(SelectedGroup), nameof(SelectedGroupKey), nameof(SortColumn), nameof(SortDescending) })
+            OnPropertyChanged(name);
+    }
     public bool HasResult => Result is not null;
     public bool IsEmpty => Result?.Summary.EligibleTradeCount == 0;
     public bool HasUnappliedChanges => !TryQuery(out var query, out _, out _) || query != Result?.Query;
@@ -191,11 +225,16 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
             // Catalogs populate the controls only; result metadata still comes from the coherent reader snapshot.
             var result = await Task.Run(() => _reader.GetAsync(loaded.effective, cancellation.Token), cancellation.Token);
             if (!Owns(generation)) return;
+            var presentation = new BreakdownPresentation(result);
+            var rows = presentation.Sort(_sortColumn, _sortDescending);
             _resultAccount = loaded.accounts.FirstOrDefault(a => a.Id == loaded.effective.TradeFilter.TradingAccountId)?.Name
                 ?? (loaded.effective.TradeFilter.TradingAccountId is null ? "All accounts" : "Unavailable Account (exact scope)");
             _resultInstrument = loaded.instruments.FirstOrDefault(i => i.Id == loaded.effective.TradeFilter.InstrumentId)?.Symbol
                 ?? (loaded.effective.TradeFilter.InstrumentId is null ? "All instruments" : "Unavailable Instrument (exact scope)");
             _result = result;
+            _presentation = presentation;
+            _groupRows = rows;
+            if (!rows.Any(r => r.Key == _selectedGroupKey)) _selectedGroupKey = null;
             IsStale = false;
             StatusMessage = IsEmpty ? "Loaded an empty population." : "Breakdown loaded.";
             NotifyResult();
@@ -219,6 +258,8 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     }
     private void NotifyResult()
     {
+        OnPropertyChanged(nameof(Presentation));
+        NotifyTable();
         foreach (var property in new[] { nameof(Result), nameof(HasResult), nameof(IsEmpty), nameof(AppliedContext),
                      nameof(ResultStatus), nameof(CoverageStatus), nameof(HasUnappliedChanges), nameof(DraftStatus), nameof(LookupWarning) })
             OnPropertyChanged(property);
