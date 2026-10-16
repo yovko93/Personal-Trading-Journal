@@ -1,5 +1,9 @@
 # Personal Trading Journal
 
+**M20 remaining acceptance — 17 October 2026**
+
+The M20.10 documents and measurement tool are now committed and published on `develop` at **`7ade629049a517435df10437137a3b0ad098cfb8`**; the starting worktree was clean. Product/tests/runner are unchanged, so the **4,556-pass local gate**, builds, EF, renders and performance measurements below are reused rather than repeated. The supported Windows helper still cannot initialize after reset; **actual keyboard and screen-reader acceptance remain pending**. GitHub's exact-SHA, all-event Actions lookup returns **zero runs**, and no PR is associated with this commit. CI's `validate` job requires a `main` push or PR targeting `main`; no workflow or publication was triggered. [Current evidence, manual checklist and separate acceptance statuses](docs/breakdown-analytics.md#remaining-acceptance-check--17-october-2026). **Implementation complete; acceptance pending.** Only this README and the Breakdown acceptance notes changed in this follow-up, and these documentation updates remain uncommitted.
+
 **M20.10 — Breakdown reconciliation and acceptance review (16 October 2026)**
 
 Reviewed the complete nine-commit M20 implementation on clean `develop`, `ebea74a860b85dd7b0d52e65c2a51d2b287151bf` (55 changed files since `4864305`). No concrete product defect was found; established calculations, cohort membership, guards and test deadlines are unchanged. Added an opt-in synthetic measurement harness: at 1k/10k/50k stored Trades, median reader-plus-calculator times for the 80% USD population were **26.6 / 175.5 / 827.9 ms**; the 50k dataset's 20k-ID cohort last page took **490.5 ms** median. Full-population memory and per-page ID encoding remain linear. These are not UI frame times or a production SLA. [Acceptance matrix, exact five-file inventory, measurements, final gate evidence and remaining checks](docs/breakdown-analytics.md#m2010--reconciliation-and-acceptance-review).

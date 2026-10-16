@@ -1,5 +1,41 @@
 # Breakdown Analytics — M20
 
+## Remaining acceptance check — 17 October 2026
+
+Actual starting state was **clean `develop` at `7ade629049a517435df10437137a3b0ad098cfb8`**. The five M20.10 files previously reported as uncommitted are now committed and published at that SHA; GitHub's `develop` branch reports the same head. Compared with `ebea74a`, this commit adds only the three acceptance documents and two measurement-tool files. Application code, tests, Release runner and CI configuration are unchanged. The recorded **4,556 passed / 0 failed / 0 skipped, exit 0** local gate and its retained `summary.json` were reused; no repeat build, EF check, render run or full test gate was justified by this documentation-only follow-up.
+
+### Live evidence and manual checklist
+
+The supported **computer-use** skill was retried. Initialization again failed with **“failed to write kernel assets: The system cannot find the path specified. (os error 3)”**. Reset succeeded but initialization failed identically afterward. No app was launched, no window captured, and no input or clipboard operation was performed in this follow-up. This is a tooling blocker, not a demonstrated Breakdown defect. Actual keyboard interaction, live UI automation and Narrator/NVDA acceptance remain separate and unverified; existing routed-input/automation-peer tests and renders cannot close them.
+
+Use only an app explicitly launched with `--isolated-data-root` pointing at synthetic data (the measurement tool's `--live-fixture` mode creates a fresh suitable fixture). Never launch the normal journal for these checks. Record **pass / fail / not exercised**, theme/scaling, observed focus and any announcement for each item:
+
+1. **Filters:** Tab/Shift+Tab through labels/inputs and actions; operate dropdowns with arrows/Enter. Submit an empty currency or reversed dates: the relevant input receives focus, the error is readable and the old result retains its original scope. Correct it, Apply, then edit drafts and Refresh (must not apply drafts); Reset restores defaults.
+2. **Chart/table:** change chart metric, sort numeric and chronological columns with the keyboard, and select groups through both chart and table. Selection and details agree; unavailable values do not become zero; focus stays visible and scrolling reaches virtualized rows.
+3. **Cohort:** View trades, page, Refresh, open/close a Trade detail. Back to Breakdown refreshes the last applied query and preserves draft filters; Exit Breakdown scope instead restores ordinary Trades state. Confirm each action's focus destination.
+4. **Recovery:** cancel a load while it is active and exercise a safely controlled synthetic read failure. Retained results keep their original scope, retry is usable and delayed completion does not steal newer focus. If the fixture loads too quickly or no safe error scenario is available, leave that case pending rather than reporting a pass.
+5. **Deletion:** delete only a disposable synthetic cohort Trade through the normal confirmation. The original is not replaced by a newly matching Trade; focus returns to a remaining row or Refresh after reload, without overriding intervening keyboard input.
+6. **Screen reader, separately:** with Narrator or NVDA actually running, verify input names, group/value/coverage descriptions, selected and sorted states, action names, and meaningful validation/loading/error/cancel announcements. Confirm reading order and no excessive repeated announcements. Repeat keyboard reachability in Light/Dark and narrow/250% scaling; record the actual reader and display settings.
+
+### Read-only CI provenance
+
+GitHub confirms [published commit `7ade629`](https://github.com/yovko93/Personal-Trading-Journal/commit/7ade629049a517435df10437137a3b0ad098cfb8). The direct Actions API query for that **exact `head_sha`, without an event filter**, returned **`total_count: 0`**. The commit's associated-PR endpoint returned **`[]`**. This complements the connector's empty PR-event-only result and avoids mistaking that narrower lookup for all events. There is no matching workflow run, tested merge SHA, job conclusion or CI failure to investigate. No older green run was substituted.
+
+The configured workflow is **CI**, with one **`validate`** job on `windows-latest`: Restore, Release Build, the complete `scripts/Test-Release.ps1 -ResultsDirectory TestResults` gate (10-minute Test action), and always-upload diagnostics. Its triggers are `push` to `main` and pull requests targeting `main`; publishing only to `develop` does not trigger it. Remaining CI work is a user-created/updated PR targeting `main` containing this source, followed by inspection of its exact checkout/merge SHA and `validate` conclusion. This task did not create a PR, publish, trigger or rerun anything. The two documentation updates from this follow-up are themselves uncommitted and are not covered by any CI run.
+
+| Acceptance area | Current status |
+| --- | --- |
+| Implementation | **Complete**; no new concrete defect |
+| Local automated acceptance | **Passed / reused**, 4,556 tests, exit 0; previous zero-warning builds and EF result retained |
+| Automated visual inspection | **Passed for previously inspected samples / reused**, Light/Dark normal and narrow/240 DPI |
+| Performance | **Measured / reused**, 1k/10k/50k; linear memory, per-page cohort encoding and two-group presentation limits remain |
+| Actual live keyboard | **Pending**, tool initialization blocked; checklist results not yet supplied |
+| Live UI automation | **Blocked**, no new input/capture; existing compiled-WPF evidence only |
+| Screen reader | **Pending**, no Narrator/NVDA session observed or reported |
+| Matching CI | **Pending**, published head verified but no matching run or associated PR |
+
+**Implementation complete; M20 acceptance pending.** Only `README.md` and `docs/breakdown-analytics.md` changed in this follow-up. Documentation links and `git diff --check` were checked; no code, assertions, deadlines, data or provider behavior changed. No production-data access, provider call, commit, push, branch switch or next milestone.
+
 ## M20.10 — reconciliation and acceptance review
 
 Reviewed **16 October 2026**, clean `develop` at **`ebea74a860b85dd7b0d52e65c2a51d2b287151bf`**, not the reported `92864ad` baseline. History isolates all nine M20.1–M20.9 commits after `4864305`: **55 files, 5,727 insertions and 32 deletions**. The review includes the final Application contracts/calculator, SQLite readers and DI, Desktop state/navigation/presentation/focus, their regression tests and documentation—not just M20.9. There were no pre-existing tracked or untracked changes to preserve. No production journal, credential, provider, Git write or next milestone was used.
