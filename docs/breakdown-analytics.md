@@ -1,5 +1,65 @@
 # Breakdown Analytics — M20
 
+## M20.9 — Desktop UX and accessibility
+
+Implemented **16 October 2026**, starting from clean `develop` at `92864ad177400d6558a6941eb7986815b1076b1f` (committed M20.8, newer than the reported `ca6c4fa` baseline). This is a focused Desktop change: no calculation, cohort membership, query, persistence, migration, request ownership or navigation-guard changes. No production journal, live provider or Git write was used. Next scope: **M20.10 — Reconciliation, Acceptance & Documentation**.
+
+### Findings and corrections
+
+| Finding | Correction / retained behavior |
+| --- | --- |
+| Visible filter labels lacked explicit automation relationships; invalid Apply left focus at the action | All nine selectors/inputs now have `LabeledBy`; invalid Apply requests the relevant input and exposes its validation as ItemStatus without reading or replacing the successful result |
+| Page entry, cancellation and scoped detail return had no view-owned focus restoration | Breakdown enters at Period or the retained selected-group action (metric selector fallback); Cancel returns to Refresh. Scoped Trades enters at Back, opens at the detail heading, closes to the same live row or a remaining row/Refresh, and exits to ordinary Refresh |
+| Removed rows/details could retain detached focus or fall back to the page scroll viewer | Resolve current row buttons by exact Trade ID, not recycled instances. A committed detail deletion waits for the authoritative list reload to enable actions. New keyboard, mouse or wheel input cancels that restoration |
+| Deferred focus could outlive its page or interrupt new input | One-shot `PageFocus` checks loaded/visible owner, DataContext, generation, current input and enabled target. Unload invalidates pending requests; newer input wins. Normal asynchronous read completion does not request focus |
+| Chart names omitted the selected metric; row actions repeated generic names | Chart names include group, metric, formatted value/unavailable, source and coverage. Native ListBox selection semantics remain; one composite Tab entry preserves native arrows. Group actions name their group; Trade View actions name their Instrument and describe Account |
+| Sort state was only a visual glyph; header focus was weak | Sortable native headers retain Space/Enter activation, expose Ascending/Descending/Not sorted ItemStatus and a theme-accent focus border. The non-sortable action header does not claim sorting |
+| Status LiveSetting alone did not emit a change event; scoped errors could be far below the banner | Opt-in, nonempty visible status/error changes raise WPF LiveRegionChanged when a listener exists. Scoped read errors also appear by Back/Exit. Sort/selection is not made a live announcement |
+| Trades paging controls used a fixed horizontal arrangement | Counts and paging actions wrap at the right edge. No new keyboard handler consumes control keys, changes paging, or interferes with dialogs |
+
+The existing read-only virtualized DataGrid remains the chart's numeric alternative. Shared theme controls already supply native button/ComboBox behavior, focus and disabled states. Chart/table selection, sorting, virtualized row access, wheel forwarding at boundaries, long-label wrapping and selected-details reflow remain intact. The concise mode explanation is **“Net preferred uses actual Net when known; otherwise Gross.”** Net, Net/Gross, Gross fallback, explicit Gross, unavailable and real zero retain existing labels and values. Applied scope stays attached to retained results after invalid filters, cancellation or failure. Scoped Trades continues to mean original membership with current records, not a historical snapshot or new matches.
+
+### Verification and evidence
+
+Final relevant Release verification: **672/672 passed**, zero failures/skips — **Desktop 524/524** (81 seconds), **Application 108/108**, **SQLite/Infrastructure 40/40** (26 seconds). The Desktop run includes all **11 new** tests; these are not counted twice. Release solution build: **0 warnings / 0 errors** (16.54 seconds). EF: **no pending model changes**, using the existing design-time in-memory configuration. Whitespace (tracked and new files) and local documentation file links passed. Evidence is synthetic only, under ignored `artifacts/m209/tests/{desktop-final,application-final,infrastructure}.trx` and Desktop test-output render directories. No full Release-gate or live-assistive acceptance is inferred from these checks.
+
+Reproduction filters (each uses `dotnet test <project> -c Release --no-build --no-restore`, TRX output under `artifacts/m209/tests`):
+
+- Desktop: `(FullyQualifiedName~.Breakdown.|FullyQualifiedName~TradesViewModelTests|FullyQualifiedName~MainWindowViewModelTests|FullyQualifiedName~.Dashboard.DashboardFilterTests|FullyQualifiedName~.Dashboard.DashboardViewModelTests|FullyQualifiedName~.Resources.)&Workload!=ExclusiveWpf`. Normal Windows token for existing synthetic DPAPI fixtures; no real credentials or live provider calls.
+- Application: `FullyQualifiedName~Breakdown|FullyQualifiedName~TradeIdCohort|FullyQualifiedName~TradeListQueryTests`.
+- Infrastructure: `FullyQualifiedName~BreakdownAnalyticsReaderTests|FullyQualifiedName~TradeListCohortTests|FullyQualifiedName~TradeListPagingTests`.
+
+Build: `dotnet build PersonalTradingJournal.sln -c Release --no-restore`. EF: `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`. Source formatting: `git diff --check` plus the four new files. Branch/HEAD remain unchanged; only the 13 files below are modified/new. **M20.9 implementation complete** with the explicitly unperformed acceptance checks below.
+
+New tests cover invalid currency/start/end/reversed-date focus without reads, cancellation versus late results, all three chart metric descriptions, native bound Space activation, automation label/selection/sort contracts, newer-input/DataContext/unload focus protection, scoped entry/detail return/missing row/Exit, and delayed post-delete recovery with and without intervening input. Existing regressions retain exact cohort paging, failure/cancellation, post-commit reloads, guards, draft/applied queries, stable-key selection and ordinary Trades behavior.
+
+Development checks caught two real focus-transition gaps in the new implementation: a row detached before its collection notification was observed, and a collapsed detail automatically focused its ancestor before a delayed deletion reload completed. The focused tests retain those assertions and cover the corrected paths. An early broader run had **521 passed / 2 failed** (both wrappers reported the same new scoped-focus case); this was not an existing economics or persistence failure. The render fixture was also corrected to use fresh off-screen roots rather than crop a previously HWND-arranged view. No deadlines, assertions, retries, skips or suite scheduling changed.
+
+| Evidence type | Configuration / observed result | Remaining boundary |
+| --- | --- | --- |
+| Automated WPF behavior | Real synthetic HWND plus routed keyboard events, automation peers and logical focus assertions; explicit action and delayed-result checks | Not human keyboard input or proof of every screen reader's behavior |
+| Automated renders | Light/Dark **1280×900 DIP at 96 DPI → 1280×900 pixels**, **700×900 DIP at 240 DPI → 1750×2250 pixels**. Twelve new validation/retained-error/empty images; existing chart/detail/table and populated/missing-cohort matrix regenerated | DPI is explicitly set for off-screen WPF; not a physical monitor/OS scaling check |
+| Visual inspection | Representative Light normal retained error, Dark narrow validation/empty, Light normal and Dark narrow selected chart (negative, zero, unavailable, mixed Net/Gross), Light populated and Dark missing cohort. Filters/actions wrap; applied/error text remains readable; chart/details reflow and tables scroll | Inspect physical focus contrast and minimum shell with actual keyboard in M20.10 |
+| Live keyboard/mouse | **Not performed** for M20.9 | Tab/Shift+Tab through filters, popups, metric, chart/table, sort, virtualized View actions, paging, details, Back/Exit; test rapid navigation/cancel/delete |
+| Assistive technology | Automation properties/patterns checked; live-event wiring implemented | Narrator/NVDA reading order, selection/sort/coverage announcements and announcement frequency **unverified** |
+| Complete gate / performance / CI | Not claimed by this focused milestone | Full `scripts/Test-Release.ps1`, large-history latency/memory, and CI matching a resulting commit remain for M20.10; uncommitted changes have no matching CI acceptance |
+
+### Exact changed files (13)
+
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+- `src/PersonalTradingJournal.Desktop/Interactions/PageFocus.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Interactions/LiveAnnouncement.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownChartPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs` (new)
+
 ## M20.8 — Trade drill-down and navigation
 
 Implemented **16 October 2026**, starting from clean `develop` at `ca6c4fa3b1f82fe0201cdfb7889314d7128d9631` (committed M20.7, newer than the request's reported baseline). No branch switch, migration, financial recalculation, production data, provider request or Git write. Only M20.8 is implemented; next scope is **M20.9 — Desktop UX & Accessibility**.

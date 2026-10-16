@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.Breakdown"
+             xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              Background="{DynamicResource PtjBackgroundBrush}">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="Visible" />
@@ -40,6 +41,10 @@
             <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /><Setter Property="BorderThickness" Value="0,0,1,1" />
             <Setter Property="Padding" Value="8" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Focusable" Value="True" />
             <Setter Property="AutomationProperties.HelpText" Value="Press Space or Enter to sort. Repeated activation reverses direction; unavailable values remain last." />
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="BorderThickness" Value="2" /></Trigger>
+                <DataTrigger Binding="{Binding Column.CanUserSort, RelativeSource={RelativeSource Self}}" Value="False"><Setter Property="Focusable" Value="False" /><Setter Property="AutomationProperties.HelpText" Value="Row actions" /></DataTrigger>
+            </Style.Triggers>
         </Style>
         <Style TargetType="DataGridRow">
             <Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
@@ -76,46 +81,46 @@
     </UserControl.Resources>
     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,12">
         <StackPanel>
-            <TextBlock Text="Explore closed Trades by their New York closure dates. Edit filters, then Apply." Margin="0,0,0,12" />
+            <TextBlock Text="Explore closed Trades by their New York closure dates. Edit filters, then Apply. Net preferred uses actual Net when known; otherwise Gross." Margin="0,0,0,12" />
             <WrapPanel x:Name="FilterToolbar">
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Period" Target="{Binding ElementName=PeriodFilter}" />
-                    <ComboBox x:Name="PeriodFilter" ItemsSource="{Binding Periods}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Period}" AutomationProperties.Name="Breakdown period" />
+                    <Label x:Name="PeriodLabel" Content="Period" Target="{Binding ElementName=PeriodFilter}" />
+                    <ComboBox x:Name="PeriodFilter" ItemsSource="{Binding Periods}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Period}" AutomationProperties.Name="Breakdown period" AutomationProperties.LabeledBy="{Binding ElementName=PeriodLabel}" />
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Account" Target="{Binding ElementName=AccountFilter}" />
-                    <ComboBox x:Name="AccountFilter" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutomationProperties.Name="Breakdown Account" AutomationProperties.HelpText="{Binding SelectedAccount.Name}" ToolTip="{Binding SelectedAccount.Name}">
+                    <Label x:Name="AccountFilterLabel" Content="Account" Target="{Binding ElementName=AccountFilter}" />
+                    <ComboBox x:Name="AccountFilter" AutomationProperties.LabeledBy="{Binding ElementName=AccountFilterLabel}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutomationProperties.Name="Breakdown Account" AutomationProperties.HelpText="{Binding SelectedAccount.Name}" ToolTip="{Binding SelectedAccount.Name}">
                         <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                     </ComboBox>
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Instrument" Target="{Binding ElementName=InstrumentFilter}" />
-                    <ComboBox x:Name="InstrumentFilter" ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}" AutomationProperties.Name="Breakdown Instrument" AutomationProperties.HelpText="{Binding SelectedInstrument.Name}" ToolTip="{Binding SelectedInstrument.Name}">
+                    <Label x:Name="InstrumentFilterLabel" Content="Instrument" Target="{Binding ElementName=InstrumentFilter}" />
+                    <ComboBox x:Name="InstrumentFilter" AutomationProperties.LabeledBy="{Binding ElementName=InstrumentFilterLabel}" ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}" AutomationProperties.Name="Breakdown Instrument" AutomationProperties.HelpText="{Binding SelectedInstrument.Name}" ToolTip="{Binding SelectedInstrument.Name}">
                         <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                     </ComboBox>
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Currency" Target="{Binding ElementName=CurrencyFilter}" />
-                    <TextBox x:Name="CurrencyFilter" Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding CurrencySuggestions}" AutomationProperties.Name="Historical pricing currency" AutomationProperties.HelpText="{Binding CurrencySuggestions}" />
+                    <Label x:Name="CurrencyLabel" Content="Currency" Target="{Binding ElementName=CurrencyFilter}" />
+                    <TextBox x:Name="CurrencyFilter" Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding CurrencySuggestions}" AutomationProperties.Name="Historical pricing currency" AutomationProperties.HelpText="{Binding CurrencySuggestions}" AutomationProperties.LabeledBy="{Binding ElementName=CurrencyLabel}" AutomationProperties.ItemStatus="{Binding CurrencyValidation}" />
                     <TextBlock Style="{StaticResource OptionalText}" Text="{Binding CurrencyValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Group by" Target="{Binding ElementName=GroupingFilter}" />
-                    <ComboBox x:Name="GroupingFilter" ItemsSource="{Binding Groupings}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Grouping}" AutomationProperties.Name="Breakdown grouping" />
+                    <Label x:Name="GroupingFilterLabel" Content="Group by" Target="{Binding ElementName=GroupingFilter}" />
+                    <ComboBox x:Name="GroupingFilter" AutomationProperties.LabeledBy="{Binding ElementName=GroupingFilterLabel}" ItemsSource="{Binding Groupings}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Grouping}" AutomationProperties.Name="Breakdown grouping" />
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Calculation mode" Target="{Binding ElementName=ModeFilter}" />
-                    <ComboBox x:Name="ModeFilter" ItemsSource="{Binding Modes}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Mode}" AutomationProperties.Name="Breakdown calculation mode" />
+                    <Label x:Name="ModeFilterLabel" Content="Calculation mode" Target="{Binding ElementName=ModeFilter}" />
+                    <ComboBox x:Name="ModeFilter" AutomationProperties.LabeledBy="{Binding ElementName=ModeFilterLabel}" ItemsSource="{Binding Modes}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Mode}" AutomationProperties.Name="Breakdown calculation mode" />
                 </StackPanel>
             </WrapPanel>
             <WrapPanel Visibility="{Binding IsCustom, Converter={StaticResource Visible}}">
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="From (yyyy-MM-dd)" Target="{Binding ElementName=FromDate}" />
-                    <TextBox x:Name="FromDate" Text="{Binding StartDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First New York closure date" />
+                    <Label x:Name="FromDateLabel" Content="From (yyyy-MM-dd)" Target="{Binding ElementName=FromDate}" />
+                    <TextBox x:Name="FromDate" AutomationProperties.LabeledBy="{Binding ElementName=FromDateLabel}" Text="{Binding StartDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label Content="Through (yyyy-MM-dd)" Target="{Binding ElementName=ThroughDate}" />
-                    <TextBox x:Name="ThroughDate" Text="{Binding EndDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last New York closure date" />
+                    <Label x:Name="ThroughDateLabel" Content="Through (yyyy-MM-dd)" Target="{Binding ElementName=ThroughDate}" />
+                    <TextBox x:Name="ThroughDate" AutomationProperties.LabeledBy="{Binding ElementName=ThroughDateLabel}" Text="{Binding EndDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
                 </StackPanel>
             </WrapPanel>
             <TextBlock Style="{StaticResource OptionalText}" Text="{Binding DateValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
@@ -123,12 +128,12 @@
             <TextBlock Text="{Binding DraftStatus}" Margin="0,4,0,12" />
             <WrapPanel>
                 <Button Content="Apply filters" Command="{Binding ApplyCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Apply Breakdown filters" />
-                <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8" ToolTip="Reread the last submitted filters. Does not apply draft changes." AutomationProperties.HelpText="Reread the last submitted filters without applying draft changes." />
+                <Button x:Name="RefreshButton" Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8" ToolTip="Reread the last submitted filters. Does not apply draft changes." AutomationProperties.HelpText="Reread the last submitted filters without applying draft changes." />
                 <Button Content="Reset" Command="{Binding ResetCommand}" Margin="0,0,8,8" ToolTip="All history, All accounts, All instruments, Instrument grouping, Net preferred and default currency; load once." />
                 <Button Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,0,8,8" Visibility="{Binding IsLoading, Converter={StaticResource Visible}}" />
             </WrapPanel>
-            <TextBlock Text="{Binding StatusMessage}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,8" />
-            <TextBlock Style="{StaticResource OptionalText}" Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" Margin="0,0,0,8" />
+            <TextBlock x:Name="OperationStatus" Text="{Binding StatusMessage}" interactions:LiveAnnouncement.Text="{Binding StatusMessage}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,8" />
+            <TextBlock x:Name="OperationError" Style="{StaticResource OptionalText}" Text="{Binding ErrorMessage}" interactions:LiveAnnouncement.Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" Margin="0,0,0,8" />
             <TextBlock Text="Recorded Trade data changed; this result needs Refresh." Visibility="{Binding IsStale, Converter={StaticResource Visible}}" Margin="0,0,0,8" />
             <Border Style="{StaticResource PtjCardStyle}" Visibility="{Binding HasResult, Converter={StaticResource Visible}}">
                 <StackPanel>
@@ -139,7 +144,7 @@
                         <StackPanel Margin="0,0,24,8"><TextBlock Text="Win Rate" /><TextBlock Text="{Binding WinRate}" FontSize="18" FontWeight="SemiBold" /></StackPanel>
                         <StackPanel Margin="0,0,0,8" ToolTip="{Binding FactorExplanation}"><TextBlock Text="Profit Factor" /><TextBlock Text="{Binding ProfitFactor}" FontSize="18" FontWeight="SemiBold" AutomationProperties.HelpText="{Binding FactorExplanation}" /></StackPanel>
                     </WrapPanel>
-                    <TextBlock Text="{Binding Presentation.Summary.Coverage}" ToolTip="{Binding Presentation.Summary.CoverageDetails}" />
+                    <TextBlock Text="{Binding Presentation.Summary.Coverage}" ToolTip="{Binding Presentation.Summary.CoverageDetails}" AutomationProperties.HelpText="{Binding Presentation.Summary.CoverageDetails}" />
                     <TextBlock Text="{Binding Presentation.Summary.UnavailableExplanation}" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
                     <TextBlock Style="{StaticResource OptionalText}" Text="{Binding Presentation.SetupCoverage}" />
                     <TextBlock Style="{StaticResource OptionalText}" Text="{Binding Presentation.GroupingNote}" />
@@ -151,13 +156,14 @@
                 <Border x:Name="ChartCard" Style="{StaticResource PtjCardStyle}">
                     <StackPanel>
                         <WrapPanel Margin="0,0,0,8">
-                            <Label Content="Chart metric" Target="{Binding ElementName=ChartMetricSelector}" Margin="0,0,12,0" />
-                            <ComboBox x:Name="ChartMetricSelector" Width="180" ItemsSource="{Binding ChartMetrics}" SelectedValuePath="Value" DisplayMemberPath="Name" SelectedValue="{Binding ChartMetric}" AutomationProperties.Name="Comparison chart metric" AutomationProperties.HelpText="Changes only the chart; does not apply filters or load data." />
+                            <Label x:Name="ChartMetricSelectorLabel" Content="Chart metric" Target="{Binding ElementName=ChartMetricSelector}" Margin="0,0,12,0" />
+                            <ComboBox x:Name="ChartMetricSelector" AutomationProperties.LabeledBy="{Binding ElementName=ChartMetricSelectorLabel}" Width="180" ItemsSource="{Binding ChartMetrics}" SelectedValuePath="Value" DisplayMemberPath="Name" SelectedValue="{Binding ChartMetric}" AutomationProperties.Name="Comparison chart metric" AutomationProperties.HelpText="Changes only the chart; does not apply filters or load data." />
                         </WrapPanel>
                         <TextBlock Text="{Binding Chart.Title}" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{Binding Chart.AxisDescription}" Foreground="{DynamicResource PtjTextSecondaryBrush}" Margin="0,4,0,6" />
                         <TextBlock Text="{Binding Chart.EmptyMessage}" Style="{StaticResource OptionalText}" />
                         <ListBox x:Name="ComparisonChart" ItemsSource="{Binding Chart.Rows}" SelectedItem="{Binding SelectedChartRow, Mode=TwoWay}"
+                                 KeyboardNavigation.TabNavigation="Once"
                                  MaxHeight="320" MinHeight="40" BorderThickness="0" Background="Transparent" ItemContainerStyle="{StaticResource ChartItem}"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True"
@@ -194,7 +200,7 @@
                             <TextBlock Text="{Binding Group.Metrics.FactorExplanation}" Foreground="{DynamicResource PtjTextSecondaryBrush}" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding Group.Metrics.Sample}" Style="{StaticResource OptionalText}" Foreground="{DynamicResource PtjWarningBrush}" />
                             <TextBlock Text="{Binding Classification}" Style="{StaticResource OptionalText}" />
-                            <Button Content="View trades" Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Group}" AutomationProperties.Name="View selected group's contributing Trades" />
+                            <Button x:Name="SelectedTradesButton" Content="View trades" Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Group}" AutomationProperties.Name="{Binding Group.Label, StringFormat=View contributing Trades for {0}}" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -212,8 +218,8 @@
                           Sorting="OnSorting" Loaded="OnTableLoaded" PreviewMouseWheel="OnTableWheel"
                           AutomationProperties.Name="Breakdown group comparison" AutomationProperties.HelpText="Read-only groups. Use column headers to sort and arrow keys to select. Scroll horizontally to reach all columns.">
                     <DataGrid.Columns>
-                        <DataGridTemplateColumn Header="Action" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate>
-                            <Button Content="View trades" Margin="6" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="View this group's contributing Trades" />
+                        <DataGridTemplateColumn Header="Action" Width="120" CanUserSort="False"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                            <Button Content="View trades" Margin="6" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Label, StringFormat=View contributing Trades for {0}}" />
                         </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Group" SortMemberPath="Group" Width="260" MinWidth="220">
                             <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Margin="8">

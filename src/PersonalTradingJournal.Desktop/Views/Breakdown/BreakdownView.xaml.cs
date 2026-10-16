@@ -4,12 +4,49 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using PersonalTradingJournal.Desktop.ViewModels.Breakdown;
+using PersonalTradingJournal.Desktop.Interactions;
+using System.Windows.Automation;
+using System.Windows.Controls.Primitives;
 
 namespace PersonalTradingJournal.Desktop.Views.Breakdown;
 
 public partial class BreakdownView : UserControl
 {
-    public BreakdownView() => InitializeComponent();
+    private readonly PageFocus _focus;
+    private BreakdownViewModel? _observed;
+    public BreakdownView()
+    {
+        InitializeComponent();
+        FocusManager.SetIsFocusScope(this, true);
+        _focus = new(this);
+        Loaded += (_, _) => { Observe(); _focus.Request(ReturnTarget); };
+        Unloaded += (_, _) => { _focus.Invalidate(); Unobserve(); };
+        DataContextChanged += (_, _) => { _focus.Invalidate(); Unobserve(); if (IsLoaded) Observe(); };
+    }
+    private FrameworkElement ReturnTarget()
+    {
+        if (DataContext is BreakdownViewModel { SelectedGroup: not null })
+            return SelectedTradesButton.IsEnabled ? SelectedTradesButton : ChartMetricSelector;
+        return PeriodFilter;
+    }
+    private void Observe()
+    {
+        if (DataContext is not BreakdownViewModel vm || ReferenceEquals(vm, _observed)) return;
+        _observed = vm; vm.FocusRequested += OnFocusRequested; vm.PropertyChanged += OnStateChanged;
+    }
+    private void Unobserve()
+    {
+        if (_observed is not { } vm) return;
+        vm.FocusRequested -= OnFocusRequested; vm.PropertyChanged -= OnStateChanged; _observed = null;
+    }
+    private void OnFocusRequested(string name) => _focus.Request(() => FindName(name) as FrameworkElement);
+    private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(BreakdownViewModel.SelectedGroup) or nameof(BreakdownViewModel.Chart) && _observed?.SelectedGroup is null &&
+            (ComparisonChart.IsKeyboardFocusWithin || GroupTable.IsKeyboardFocusWithin || SelectedTradesButton.IsKeyboardFocused ||
+             ReferenceEquals(FocusManager.GetFocusedElement(this), SelectedTradesButton)))
+            _focus.Request(() => ChartMetricSelector);
+    }
     private void OnComparisonSizeChanged(object sender, SizeChangedEventArgs e)
     {
         bool narrow = e.NewSize.Width < 1000;
@@ -42,6 +79,17 @@ public partial class BreakdownView : UserControl
         foreach (var column in GroupTable.Columns)
             column.SortDirection = column.SortMemberPath == vm.SortColumn?.ToString()
                 ? vm.SortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending : null;
+        foreach (var header in Headers(GroupTable))
+            AutomationProperties.SetItemStatus(header, header.Column?.SortDirection?.ToString() ?? "Not sorted");
+    }
+    private static IEnumerable<DataGridColumnHeader> Headers(DependencyObject parent)
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is DataGridColumnHeader header) yield return header;
+            foreach (var nested in Headers(child)) yield return nested;
+        }
     }
     private void OnTableWheel(object sender, MouseWheelEventArgs e)
         => ForwardWheelAtEdge(GroupTable, e);

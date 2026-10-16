@@ -10,7 +10,8 @@ public sealed record BreakdownChartRow(BreakdownGroupPresentation Group, decimal
 {
     public double ZeroPosition => -Minimum / (Maximum - Minimum);
     public double? ValuePosition => Value is { } v ? ((double)v - Minimum) / (Maximum - Minimum) : null;
-    public string AccessibleDescription => $"{Group.Label}. {ValueText}. {Group.Metrics.Coverage}.";
+    public string MetricName { get; init; } = "Selected P&L";
+    public string AccessibleDescription => $"{Group.Label}. {MetricName}: {ValueText}. {Group.Metrics.Coverage}. {Group.Metrics.UnavailableExplanation}";
 }
 
 public sealed class BreakdownChartPresentation
@@ -32,7 +33,8 @@ public sealed class BreakdownChartPresentation
                 if (Value(group) is { } value) { min = Math.Min(min, (double)value); max = Math.Max(max, (double)value); }
         if (min == max) max = 1; // Known zero and empty/unavailable populations have a finite zero-origin scale.
         Minimum = min; Maximum = max;
-        Rows = groups.Select(g => new BreakdownChartRow(g, Value(g), Text(g), min, max)).ToArray();
+        Rows = groups.Select(g => new BreakdownChartRow(g, Value(g), Text(g), min, max)
+        { MetricName = metric switch { BreakdownChartMetric.Trades => "Eligible closed Trades", BreakdownChartMetric.WinRate => "Win Rate", _ => "Selected P&L" } }).ToArray();
         AxisDescription = metric switch
         {
             BreakdownChartMetric.WinRate => "Common scale: 0–100%. — means unavailable, not 0%.",

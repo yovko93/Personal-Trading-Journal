@@ -211,6 +211,11 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         if (!valid)
         {
             InvalidateLoad(); ErrorMessage = "Correct the filters and apply again."; StatusMessage = "Filters were not applied.";
+            FocusRequested?.Invoke(currency is not null ? "CurrencyFilter"
+                : !Enum.IsDefined(Period) ? "PeriodFilter"
+                : !Enum.IsDefined(Grouping) ? "GroupingFilter"
+                : !Enum.IsDefined(Mode) ? "ModeFilter"
+                : !ParseDate(StartDateText, out _) ? "FromDate" : "ThroughDate");
             return Task.CompletedTask;
         }
         return LoadTask = LoadAsync(query!);
@@ -229,7 +234,9 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     private void Cancel()
     {
         InvalidateLoad(); ErrorMessage = null; StatusMessage = "Loading cancelled. Last successful result retained; Apply or Refresh to try again.";
+        FocusRequested?.Invoke("RefreshButton");
     }
+    public event Action<string>? FocusRequested;
     private void InvalidateLoad()
     {
         ++_generation;

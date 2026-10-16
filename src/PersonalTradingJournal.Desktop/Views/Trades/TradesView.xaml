@@ -72,8 +72,11 @@
             <Border x:Name="BreakdownScopeBanner" Style="{StaticResource PtjCardStyle}" Margin="0,0,0,12" Visibility="{Binding HasBreakdownScope, Converter={StaticResource CohortVisible}}">
                 <StackPanel>
                     <TextBlock Text="{Binding BreakdownScopeSummary}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                    <TextBlock Text="{Binding TradeListErrorMessage}" TextWrapping="Wrap" Margin="0,6,0,0"
+                               Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasTradeListError, Converter={StaticResource CohortVisible}}"
+                               AutomationProperties.LiveSetting="Assertive" interactions:LiveAnnouncement.Text="{Binding TradeListErrorMessage}" />
                     <WrapPanel Margin="0,8,0,0">
-                        <Button Content="Back to Breakdown" Command="{Binding BackToBreakdownCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                        <Button x:Name="BackToBreakdownButton" Content="Back to Breakdown" Command="{Binding BackToBreakdownCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Return to the analysis and refresh its applied filters; keep your unapplied edits." />
                         <Button Content="Exit Breakdown scope" Command="{Binding ExitBreakdownScopeCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" AutomationProperties.HelpText="Restore your previous ordinary Trades page and sorting." />
                     </WrapPanel>
                 </StackPanel>
@@ -88,7 +91,7 @@
                 <TextBlock VerticalAlignment="Center"
                            Style="{StaticResource PtjSecondaryTextStyle}"
                            Text="Record and manage trading activity." />
-                <Button Grid.Column="1"
+                <Button x:Name="TradesRefreshButton" Grid.Column="1"
                         Margin="12,0,0,0"
                         Command="{Binding RefreshCommand}"
                         Content="Refresh"
@@ -180,7 +183,7 @@
 
             <ContentControl Content="{Binding}" ContentTemplate="{DynamicResource TradeEntryFormTemplate}" />
 
-            <Border Margin="0,16,0,0"
+            <Border x:Name="TradeDetailCard" Margin="0,16,0,0"
                     Padding="24">
                 <Border.Style>
                     <Style TargetType="{x:Type Border}"
@@ -203,7 +206,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock VerticalAlignment="Center"
+                        <TextBlock x:Name="TradeDetailsHeading" VerticalAlignment="Center" Focusable="True" KeyboardNavigation.IsTabStop="False" AutomationProperties.HeadingLevel="Level2"
                                    Style="{StaticResource PtjSectionTitleTextStyle}"
                                    Text="Trade Details" />
                         <Button Grid.Column="1"
@@ -2094,6 +2097,7 @@
                                                         Orientation="Horizontal">
                                                 <Button Command="{Binding DataContext.ShowTradeDetailCommand, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}"
                                                         CommandParameter="{Binding}"
+                                                        AutomationProperties.Name="{Binding InstrumentSymbol, StringFormat=View {0} Trade details}" AutomationProperties.HelpText="{Binding TradingAccountName}"
                                                         Style="{StaticResource PtjEntityActionButtonStyle}"
                                                         ToolTip="View trade details">
                                                     <StackPanel Orientation="Horizontal">
@@ -2161,20 +2165,16 @@
                             </StackPanel>
                         </ScrollViewer>
 
-                        <Grid Margin="0,4,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                        <WrapPanel Margin="0,4,0,0" HorizontalAlignment="Right">
 
-                            <TextBlock VerticalAlignment="Center"
+                            <TextBlock VerticalAlignment="Center" Margin="0,0,12,0"
                                        Style="{StaticResource PtjCaptionTextStyle}"
                                        Text="{Binding TotalTradesText}" />
 
-                            <StackPanel Grid.Column="1"
+                            <WrapPanel
                                         Orientation="Horizontal">
-                                <StackPanel.Style>
-                                    <Style TargetType="{x:Type StackPanel}">
+                                <WrapPanel.Style>
+                                    <Style TargetType="{x:Type WrapPanel}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasMultipleTradePages}" Value="True">
@@ -2182,7 +2182,7 @@
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </StackPanel.Style>
+                                </WrapPanel.Style>
                                 <Button AutomationProperties.Name="Previous trade page"
                                         Command="{Binding PreviousTradePageCommand}"
                                         Content="Previous"
@@ -2195,8 +2195,8 @@
                                         Command="{Binding NextTradePageCommand}"
                                         Content="Next"
                                         Style="{StaticResource PtjSecondaryButtonStyle}" />
-                            </StackPanel>
-                        </Grid>
+                            </WrapPanel>
+                        </WrapPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>
