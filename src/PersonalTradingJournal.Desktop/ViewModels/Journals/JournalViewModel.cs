@@ -350,6 +350,9 @@ public sealed class JournalViewModel : ObservableObject
     private void ScopeChanged()
     {
         CancelLoad();
+        // An explicit date/filter change is a new selection, not the citation's old identity.
+        // Targeted activation installs its expected ID after selecting its exact scope.
+        _expectedJournalId = null;
         _entry = null;
         _loadedAccount = _editorAccount = SelectedAccount;
         _targetCollision = false;

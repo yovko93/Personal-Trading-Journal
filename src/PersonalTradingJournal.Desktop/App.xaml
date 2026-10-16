@@ -13,6 +13,8 @@
              xmlns:journalViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Journals"
              xmlns:reviewViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.DailyReview"
              xmlns:reviewViews="clr-namespace:PersonalTradingJournal.Desktop.Views.DailyReview"
+             xmlns:periodViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.PeriodReviews"
+             xmlns:periodViews="clr-namespace:PersonalTradingJournal.Desktop.Views.PeriodReviews"
              xmlns:converters="clr-namespace:PersonalTradingJournal.Desktop.Converters"
              xmlns:instrumentViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Instruments"
              xmlns:instrumentViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Instruments"
@@ -58,6 +60,9 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type reviewViewModels:DailyReviewViewModel}">
                 <reviewViews:DailyReviewView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type periodViewModels:PeriodReviewViewModel}">
+                <periodViews:PeriodReviewView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type instrumentViewModels:InstrumentsViewModel}">

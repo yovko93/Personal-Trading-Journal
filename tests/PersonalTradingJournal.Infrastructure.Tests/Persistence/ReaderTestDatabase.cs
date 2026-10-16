@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Infrastructure.Persistence;
 using PersonalTradingJournal.Infrastructure.Persistence.Initialization;
 using PersonalTradingJournal.Infrastructure.Storage;
+using PersonalTradingJournal.Infrastructure.Tests.Backups;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence;
 
@@ -39,16 +40,34 @@ internal sealed class ReaderTestDatabase : IAsyncDisposable
 
         try
         {
+            // Reader assertions need independent current-schema databases, not another
+            // replay of every historical migration. The existing SQLite-backup template
+            // shares immutable bytes only; dedicated migration tests still start empty.
+            using (SyntheticFixtureTiming.Start("reader template acquisition"))
+                await MigratedBackupTestDatabase.CreateAsync(applicationPaths.DatabasePath);
             var services = new ServiceCollection();
             services.AddPersistence(applicationPaths);
             serviceProvider = services.BuildServiceProvider();
 
             JournalDatabaseInitializer initializer =
                 serviceProvider.GetRequiredService<JournalDatabaseInitializer>();
-            await initializer.InitializeAsync();
+            using (SyntheticFixtureTiming.Start("reader initializer"))
+                await initializer.InitializeAsync();
 
             IDbContextFactory<JournalDbContext> contextFactory =
                 serviceProvider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
+
+            // The portable template is deliberately standalone DELETE-mode. Fresh EF
+            // databases use WAL; restore that reader/writer concurrency behavior before
+            // returning the fixture (not when a concurrent-read assertion is underway).
+            await using (var context = await contextFactory.CreateDbContextAsync())
+            {
+                await context.Database.OpenConnectionAsync();
+                using var command = context.Database.GetDbConnection().CreateCommand();
+                command.CommandText = "PRAGMA journal_mode=WAL;";
+                if (!string.Equals(await command.ExecuteScalarAsync() as string, "wal", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("The synthetic reader fixture must use WAL mode.");
+            }
 
             return new ReaderTestDatabase(
                 testDirectory,

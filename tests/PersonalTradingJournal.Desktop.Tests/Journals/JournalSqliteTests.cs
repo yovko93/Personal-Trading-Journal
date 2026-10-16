@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PersonalTradingJournal.Application.Accounts;
 using PersonalTradingJournal.Application.Calendar;
@@ -232,24 +233,32 @@ public sealed class JournalSqliteTests
         private readonly List<JournalViewModel> _editors = [];
         private readonly List<JournalTradeContextViewModel> _tradeContexts = [];
 
-        private JournalTestDatabase(string root, LocalApplicationPaths paths, ServiceProvider provider)
+        private JournalTestDatabase(string root, LocalApplicationPaths paths, ServiceProvider provider, JournalFixtureConnections connections)
         {
             _root = root;
             _paths = paths;
             Provider = provider;
+            Connections = connections;
         }
 
         public ServiceProvider Provider { get; }
         public IDailyJournalRepository Repository => Provider.GetRequiredService<IDailyJournalRepository>();
         public IDbContextFactory<JournalDbContext> ContextFactory => Provider.GetRequiredService<IDbContextFactory<JournalDbContext>>();
+        internal string DatabasePath => _paths.DatabasePath;
+        internal string Root => _root;
+        internal JournalFixtureConnections Connections { get; }
 
-        public static async Task<JournalTestDatabase> CreateAsync()
+        public static async Task<JournalTestDatabase> CreateAsync(IInterceptor? diagnostic = null)
         {
             string root = Path.Combine(Path.GetTempPath(), $"PTJ-Journal-Editor-{Guid.NewGuid():N}");
             var paths = new LocalApplicationPaths(root);
             paths.EnsureDirectoriesExist();
-            ServiceProvider provider = new ServiceCollection().AddPersistence(paths).BuildServiceProvider();
-            var database = new JournalTestDatabase(root, paths, provider);
+            var services = new ServiceCollection().AddPersistence(paths);
+            var connections = new JournalFixtureConnections();
+            services.ConfigureDbContext<JournalDbContext>(options => options.AddInterceptors(connections));
+            if (diagnostic is not null) services.ConfigureDbContext<JournalDbContext>(options => options.AddInterceptors(diagnostic));
+            ServiceProvider provider = services.BuildServiceProvider();
+            var database = new JournalTestDatabase(root, paths, provider, connections);
             try
             {
                 await provider.GetRequiredService<JournalDatabaseInitializer>().InitializeAsync();
@@ -297,6 +306,10 @@ public sealed class JournalSqliteTests
         {
             foreach (JournalViewModel editor in _editors) editor.Deactivate();
             foreach (JournalTradeContextViewModel tradeContext in _tradeContexts) tradeContext.Deactivate();
+            // Cancellation is not completion. Seal new opens, then drain ALL fixture-owned
+            // SQLite connections (including superseded reads) before DI/pool/file teardown.
+            await Connections.StopAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await Task.WhenAll(_editors.Select(editor => editor.LoadTask));
             await Task.WhenAll(_tradeContexts.Select(tradeContext => tradeContext.LoadTask));
             await Provider.DisposeAsync();
             using var connection = new SqliteConnection(new SqliteConnectionStringBuilder

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
+using PersonalTradingJournal.Application.PeriodReviews;
+using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 
 namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
@@ -30,6 +32,13 @@ public static class CoachingServiceCollectionExtensions
             : s.GetRequiredService<OpenAiCoachingProvider>());
         services.AddTransient(s => new DailyCoachingGenerationService(s.GetRequiredService<ICoachingProvider>(),
             s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
+        services.AddSingleton<IPeriodCoachingProvider>(s => s.GetService<ICoachingConfiguration>() is { } configuration
+            ? new SelectedPeriodCoachingProvider(configuration, s.GetRequiredService<OpenAiCoachingProvider>(), s.GetRequiredService<GroqCoachingProvider>())
+            : s.GetRequiredService<OpenAiCoachingProvider>());
+        services.AddTransient(s => new PeriodCoachingGenerationService(s.GetRequiredService<IPeriodComparisonEvidenceReader>(),
+            s.GetRequiredService<IPeriodCoachingProvider>(), s.GetRequiredService<CoachingGenerationOptions>(), TimeProvider.System));
+        services.AddTransient(s => new GenerateAndSavePeriodReviewService(s.GetRequiredService<PeriodCoachingGenerationService>(),
+            s.GetRequiredService<IPeriodReviewRepository>(), TimeProvider.System));
         services.AddTransient(s => new GenerateAndSaveCoachingService(s.GetRequiredService<DailyCoachingGenerationService>(),
             s.GetRequiredService<ICoachingAnalysisRepository>(), TimeProvider.System));
         return services;

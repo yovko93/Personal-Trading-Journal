@@ -55,11 +55,16 @@ public sealed class DailyReviewViewModel : ObservableObject
 
     public DailyReviewViewModel(IDailyReviewEvidenceReader reader, ICoachingAnalysisRepository history,
         ITradingAccountReader accounts, IDialogService dialogs, TimeProvider clock,
-        GenerateAndSaveCoachingService? generator = null, ICoachingCredentials? credentials = null)
+        GenerateAndSaveCoachingService? generator = null, ICoachingCredentials? credentials = null,
+        IManualReviewService? manualReviews = null, IReviewClipboard? clipboard = null)
     {
         _reader = reader; _history = history; _accounts = accounts; _dialogs = dialogs; _clock = clock;
         _generator = generator;
         _credentials = credentials;
+        if (manualReviews is not null)
+            Manual = new(manualReviews, ManualReviewKind.Daily,
+                () => SelectedDate is { } d && !SelectedAccount.IsHistorical ? new(ManualReviewKind.Daily, DateOnly.FromDateTime(d), SelectedAccount.Id, SelectedAccount.Label) : null,
+                dialogs, clipboard ?? new Views.DailyReview.WpfReviewClipboard(), () => StartLoadAsync(true));
         ConfigureAiCommand = new RelayCommand(() => OpenAiSettings?.Invoke());
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, CanGenerate);
         CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsGenerating && _generationRequest?.IsCancellationRequested == false);
@@ -155,12 +160,15 @@ public sealed class DailyReviewViewModel : ObservableObject
     public IAsyncRelayCommand<ReviewTradeRow> OpenTradeCommand { get; }
     public IAsyncRelayCommand<ReviewJournalRow> OpenJournalCommand { get; }
 
-    public Task ActivateAsync()
+    public ManualReviewViewModel? Manual { get; }
+    public bool TryLeave() => Manual?.TryLeave() != false;
+    public async Task ActivateAsync()
     {
         _active = true;
         OnPropertyChanged(nameof(ProviderDisclosure));
-        NeedsAiConfiguration = _credentials?.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
-        return LoadTask = StartLoadAsync(false);
+        NeedsAiConfiguration = Manual is null && _credentials?.GetSource() is CoachingCredentialSource.None or CoachingCredentialSource.Unreadable;
+        await (LoadTask = StartLoadAsync(false));
+        if (Manual is not null) await Manual.LoadAsync();
     }
     public void Deactivate() { _active = false; CancelGeneration(); CancelLoad(); }
     public void OnDataCommitted() { if (_active) LoadTask = StartLoadAsync(false); }
@@ -252,7 +260,7 @@ public sealed class DailyReviewViewModel : ObservableObject
         }
     }
 
-    private bool CanGenerate() => _active && _generator is not null && !_generating && !_loading &&
+    private bool CanGenerate() => Manual is null && _active && _generator is not null && !_generating && !_loading &&
         !_scopeLoading && SelectedDate.HasValue && !SelectedAccount.IsHistorical &&
         (SelectedAccount.Id is null || _liveAccounts.Any(a => a.Id == SelectedAccount.Id));
 

@@ -27,6 +27,8 @@ public sealed record ReviewCitation(string Label, ReviewTradeRow? Trade = null, 
 
 public static class ReviewDisplay
 {
+    public static string Provider(string provider, string model) => provider == ManualReviewContract.ProviderId
+        ? ManualReviewContract.Provenance + " · service/model unverified" : provider + " / " + model;
     public static string Amount(decimal? value, string currency) => value is { } amount
         ? $"{amount:N2} {currency}" : $"Unavailable ({currency})";
     public static string Time(DateTimeOffset value) => TradingTimestampFormatter.FormatNewYork(value,
@@ -133,7 +135,7 @@ public sealed class ReviewEvidencePresentation(DailyReviewEvidence evidence, Dai
 
 public sealed record ReviewAnalysisRow(CoachingAnalysisSummary Source)
 {
-    public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {Source.Provider} / {Source.Model}";
+    public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {ReviewDisplay.Provider(Source.Provider, Source.Model)}";
     public string Scope => ReviewDisplay.Scope(Source);
     public string Identity => $"Analysis {Source.Id} · {Source.ReviewDate:dd MMM yyyy} · New York";
     public string Details => JsonSerializer.Serialize(Source, ReviewSnapshot.JsonOptions);
@@ -252,7 +254,7 @@ public sealed class ReviewSnapshot
         return new()
         {
             Heading = $"Saved analysis · {ReviewDisplay.Scope(saved.Summary)}",
-            Metadata = $"{ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {saved.Summary.Provider} / {saved.Summary.Model}\n" +
+            Metadata = $"{ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {ReviewDisplay.Provider(saved.Summary.Provider, saved.Summary.Model)}\n" +
                 $"Tokens: input {Token(usage?.InputTokens)}, cached {Token(usage?.CachedInputTokens)}, output {Token(usage?.OutputTokens)}, total {Token(usage?.TotalTokens)}. Cost unknown.",
             SourceDetails = JsonSerializer.Serialize(new { saved.Summary, saved.Metadata, saved.PacketId, saved.EvidenceContractVersion, saved.ResponseContractVersion }, JsonOptions),
             Evidence = new(new(content.Query, content.RecordedTradeFacts, content.UntrustedJournalObservations), content.CalculatedFacts),

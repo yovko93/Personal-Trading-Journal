@@ -183,7 +183,7 @@ internal static class IsolatedTestProcess
         catch (Exception error) { outputFailure.TrySetResult(error); throw; }
     }
 
-    private static string CreateResultsDirectory(string name) => Path.Combine(
+    internal static string CreateResultsDirectory(string name) => Path.Combine(
         Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") ?? Path.Combine(AppContext.BaseDirectory, "TestResults"),
         $"{SafeName(name)}-{DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{Guid.NewGuid():N}");
 

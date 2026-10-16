@@ -146,7 +146,7 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
           (target.AccountScope.AccountId?.ToString("D") ?? "all");
     private static void ValidateId(Guid id) { if (id == Guid.Empty) throw new ArgumentException("An identity is required."); }
     private static TradingRuleAccountScope Scope(Guid? id) => id is Guid account ? TradingRuleAccountScope.ForAccount(account) : TradingRuleAccountScope.AllAccounts;
-    private static TradingRuleRevision ToDomain(TradingRuleRevisionRecord r)
+    internal static TradingRuleRevision ToDomain(TradingRuleRevisionRecord r)
     {
         if (r.ContractVersion != TradingRuleRevision.ContractVersion) throw new InvalidDataException("Unsupported Rule contract.");
         var criterion = r.AutomaticCriterionJson is null ? null : JsonSerializer.Deserialize<AutomaticRuleCriterion>(r.AutomaticCriterionJson);
@@ -168,7 +168,7 @@ public sealed partial class TradingRuleRepository(IDbContextFactory<JournalDbCon
     private static TradingRuleAssessmentTarget Target(TradingRuleAssessmentRecord r) => r.TargetKind == (int)TradingRuleTargetKind.Trade
         ? TradingRuleAssessmentTarget.ForTrade(r.TradeId!.Value, r.AccountId!.Value)
         : TradingRuleAssessmentTarget.ForNewYorkDay(r.NewYorkDate!.Value, Scope(r.AccountId));
-    private static RuleEvidenceSnapshot[] Sources(TradingRuleAssessmentRecord r) =>
+    internal static RuleEvidenceSnapshot[] Sources(TradingRuleAssessmentRecord r) =>
         JsonSerializer.Deserialize<RuleEvidenceSnapshot[]>(r.EvidenceJson, RuleEvidenceSnapshots.Json)
         ?? throw new InvalidDataException("Assessment source metadata is unavailable.");
     private static TradingRuleAssessment ToDomain(TradingRuleAssessmentRecord r, TradingRuleRevision rule) =>

@@ -39,6 +39,12 @@ public sealed class CoachingAnalysisSnapshot
     private CoachingAnalysisSnapshot(SavedCoachingAnalysis analysis) => Analysis = analysis;
     public SavedCoachingAnalysis Analysis { get; }
 
+    public static CoachingAnalysisSnapshot FromManual(ManualReviewDraft draft, CancellationToken token = default)
+    {
+        var validation = ManualReviewContract.Validate(draft, token);
+        return validation.Valid && validation.Daily is { } saved ? new(saved) : throw new ArgumentException("Manual review is not valid.");
+    }
+
     public static CoachingAnalysisSnapshot Create(CoachingEvidencePacket packet, CoachingGenerationResult generation,
         DateTimeOffset generatedAtUtc, CancellationToken cancellationToken = default)
     {
@@ -54,24 +60,7 @@ public sealed class CoachingAnalysisSnapshot
         if (!CoachingResponseValidator.Validate(responseJson, packet, cancellationToken).IsValid)
             throw new ArgumentException("Response does not validate against the exact supplied packet.", nameof(generation));
         var metadata = generation.Metadata;
-        static bool Identifier(string? value, int maximum) => value is { Length: > 0 } && value.Length <= maximum &&
-            value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.' or ':');
-        // Some providers use one namespaced model ID (e.g. openai/gpt-oss-120b).
-        // Only the model field accepts a slash; neither component may be empty.
-        static bool ModelIdentifier(string? value) => Identifier(value, 128) ||
-            value is { Length: <= 128 } && value.Split('/') is [var owner, var model] &&
-            Identifier(owner, 128) && Identifier(model, 128);
-        if (!Identifier(metadata.Provider, 64) || !ModelIdentifier(metadata.Model) ||
-            !Identifier(metadata.ClientRequestId, 128) ||
-            metadata.RequestId is not null && !Identifier(metadata.RequestId, 128) ||
-            metadata.ResponseId is not null && !Identifier(metadata.ResponseId, 128))
-            throw new ArgumentException("Provider metadata contains invalid identifiers.", nameof(generation));
-        var usage = metadata.Usage;
-        if (usage is not null && (usage.InputTokens < 0 || usage.CachedInputTokens < 0 || usage.OutputTokens < 0 ||
-            usage.TotalTokens < 0 || usage.CachedInputTokens > usage.InputTokens ||
-            usage.InputTokens is { } input && usage.OutputTokens is { } output && usage.TotalTokens is { } total &&
-            (decimal)input + output != total))
-            throw new ArgumentException("Provider usage is inconsistent.", nameof(generation));
+        var savedMetadata = SavedCoachingMetadata.Create(metadata);
         var scope = new CoachingAnalysisScope(packet.Content.Query.TradingAccountId);
         // Names are taken from the supplied snapshot, never looked up after generation.
         string? name = scope.Kind == CoachingAnalysisScopeKind.AllAccounts ? "All accounts" :
@@ -81,8 +70,7 @@ public sealed class CoachingAnalysisSnapshot
             generatedAtUtc, metadata.Provider, metadata.Model);
         cancellationToken.ThrowIfCancellationRequested();
         return new(new(summary, packet.ContractVersion, generation.Review.ContractVersion, packet.PacketId,
-            packet.Json, responseJson, new(metadata.Provider, metadata.Model, metadata.ClientRequestId,
-                metadata.RequestId, metadata.ResponseId, usage)));
+            packet.Json, responseJson, savedMetadata));
     }
 
     public override string ToString() => $"CoachingAnalysisSnapshot: {Analysis.Summary.Id}";

@@ -37,11 +37,17 @@ public sealed class PlaybookSqliteViewTests
             string root = Path.GetDirectoryName(Path.GetDirectoryName(context.Database.GetDbConnection().DataSource))!;
             foreach (string phase in new[] { "write", "restart-read" })
             {
+                string results = IsolatedTestProcess.CreateResultsDirectory("playbook-sqlite-" + phase);
+                Directory.CreateDirectory(results);
                 var start = new ProcessStartInfo("dotnet");
                 start.ArgumentList.Add("vstest"); start.ArgumentList.Add(typeof(PlaybookSqliteViewTests).Assembly.Location);
                 start.ArgumentList.Add("/TestCaseFilter:FullyQualifiedName=" + typeof(PlaybookSqliteViewTests).FullName + "." + nameof(CompiledSaveCreatesAndRevisesWithRealSqliteAndSurvivesReactivation));
+                start.ArgumentList.Add("/Logger:trx;LogFileName=playbook-sqlite.trx");
+                start.ArgumentList.Add("/ResultsDirectory:" + results);
+                start.ArgumentList.Add("/Diag:" + Path.Combine(results, "vstest.log"));
+                start.ArgumentList.Add("/Blame:CollectDump;DumpType=Mini");
                 start.Environment[Host] = "1"; start.Environment[Host + "_ROOT"] = root; start.Environment[Host + "_PHASE"] = phase;
-                var result = await IsolatedTestProcess.RunAsync(start, "playbook-sqlite-" + phase, TimeSpan.FromSeconds(90));
+                var result = await IsolatedTestProcess.RunAsync(start, "playbook-sqlite-" + phase, TimeSpan.FromSeconds(90), resultsDirectory: results);
                 Assert.True(result.ExitCode == 0, result.StandardOutput + result.StandardError);
             }
             return;
@@ -49,12 +55,18 @@ public sealed class PlaybookSqliteViewTests
         await using var provider = new ServiceCollection().AddPersistence(new LocalApplicationPaths(
             Environment.GetEnvironmentVariable(Host + "_ROOT") ?? throw new InvalidOperationException("Synthetic root required"))).BuildServiceProvider();
         var setup = Assert.Single(await provider.GetRequiredService<ITradingSetupReader>().GetAllAsync());
+        Thread? nativeOwner = null;
+        Dispatcher? nativeDispatcher = null;
         await CalendarStaTest.RunAsync(() =>
         {
+            nativeOwner = Thread.CurrentThread;
+            nativeDispatcher = Dispatcher.CurrentDispatcher;
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown,
                 Resources = CalendarViewLayoutTests.SharedThemeResources("Light") };
-            var vm = Create(provider, realImageReader: true);
+            var images = new TrackedImages(new PlaybookExampleImages(provider.GetRequiredService<IPlaybookImageStorage>(),
+                provider.GetRequiredService<ITradeScreenshotContentReader>()));
+            var vm = Create(provider, images: images);
             var view = new PlaybookView { DataContext = vm };
             var window = new Window { Content = view, Width = 1000, Height = 750 };
             window.Show();
@@ -142,8 +154,28 @@ public sealed class PlaybookSqliteViewTests
                     Assert.Equal(revision, vm.DisplayedRevision?.Revision);
                 }
             }
-            finally { view.DataContext = null; window.Close(); vm.Deactivate(); }
-        });
+            finally
+            {
+                // Cancellation alone is not completion of image/file work. Keep its UI
+                // continuation owner alive until every started operation has settled.
+                vm.Deactivate();
+                try
+                {
+                    Await(images.DrainAsync());
+                    Await(Dispatcher.CurrentDispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle).Task);
+                }
+                finally { view.DataContext = null; window.Close(); }
+                Assert.True(images.IsIdle);
+                Assert.True(vm.LoadTask.IsCompleted);
+                Assert.False(vm.SaveCommand.IsRunning);
+                Assert.Empty(app.Windows.Cast<Window>());
+                WpfStepDiagnostics.Write("Playbook cleanup: windows=0; imageWork=0; loadComplete=True; saveRunning=False; native STA retained until child exit");
+            }
+        }, shutdownDispatcher: false);
+        // Match the app's process-owned UI lifetime. Returning a short-lived text-input
+        // STA can invoke native callbacks after CoreCLR thread teardown (CI #95).
+        Assert.True(nativeOwner!.IsAlive);
+        Assert.False(nativeDispatcher!.HasShutdownStarted);
     }
 
     [Theory]
@@ -187,16 +219,34 @@ public sealed class PlaybookSqliteViewTests
         vm.Deactivate(); other.Deactivate();
     }
 
-    private static PlaybookViewModel Create(IServiceProvider provider, bool realImageReader = false)
+    private static PlaybookViewModel Create(IServiceProvider provider, IPlaybookExampleImages? images = null)
     {
         var save = new SaveTradingSetupPlaybookUseCase(provider.GetRequiredService<ITradingSetupStore>(),
             provider.GetRequiredService<ITradingSetupPlaybookStore>(), TimeProvider.System);
         return new(provider.GetRequiredService<ITradingSetupReader>(), provider.GetRequiredService<ITradingSetupPlaybookStore>(),
             provider.GetRequiredService<ITradingSetupPlaybookHistoryReader>(), save,
             new TradingSetupLifecycleUseCase(provider.GetRequiredService<ITradingSetupStore>(), TimeProvider.System), new FakeDialogService(),
-            exampleImages: realImageReader ? new PlaybookExampleImages(provider.GetRequiredService<IPlaybookImageStorage>(),
-                provider.GetRequiredService<ITradeScreenshotContentReader>()) : null,
+            exampleImages: images,
             saveExamples: new SavePlaybookExamplesUseCase(save, provider.GetRequiredService<IPlaybookImageStorage>()));
+    }
+
+    private sealed class TrackedImages(IPlaybookExampleImages inner) : IPlaybookExampleImages
+    {
+        private readonly List<Task> _work = [];
+        internal bool IsIdle => _work.All(task => task.IsCompleted);
+        public Task<PlaybookExampleItem?> PickAsync(CancellationToken token) => Track(inner.PickAsync(token));
+        public Task<ImageSource> ThumbnailAsync(PlaybookExampleItem example, CancellationToken token) => Track(inner.ThumbnailAsync(example, token));
+        public Task ShowAsync(PlaybookExampleItem example, CancellationToken token)
+        { Task task = inner.ShowAsync(example, token); _work.Add(task); return task; }
+        private Task<T> Track<T>(Task<T> task) { _work.Add(task); return task; }
+        internal async Task DrainAsync()
+        {
+            foreach (Task task in _work)
+            {
+                try { await task; }
+                catch (OperationCanceledException) when (task.IsCanceled) { }
+            }
+        }
     }
 
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

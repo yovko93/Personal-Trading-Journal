@@ -63,6 +63,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(DailyJournalRecord),
             typeof(DailyJournalRevisionRecord),
             typeof(CoachingAnalysisRecord),
+            typeof(PeriodReviewRecord),
             typeof(PlaybookRevisionRecord),
             typeof(PlaybookExampleRecord),
             typeof(TradePlaybookContextRecord),

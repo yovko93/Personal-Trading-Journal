@@ -200,10 +200,11 @@ public sealed class RestorePreflightService : IRestorePreflightService
             check(RestorePreflightPhase.Summary);
             long Count(string table) { token.ThrowIfCancellationRequested(); using var command = database.CreateCommand();
                 command.CommandText = "SELECT COUNT(*) FROM " + table; return (long)command.ExecuteScalar()!; }
+            long periodCount = Count("PeriodReviews");
             var summary = new RestorePreflightSummary(manifest.CreatedAtUtc, manifest.ArchiveVersion, migrations[^1], migrations.Length,
-                Count("TradingAccounts"), Count("Trades"), Count("DailyJournals"), Count("DailyJournalRevisions"), Count("CoachingAnalyses"),
+                Count("TradingAccounts"), Count("Trades"), Count("DailyJournals"), Count("DailyJournalRevisions"), checked(Count("CoachingAnalyses") + periodCount),
                 Count("TradeScreenshots"), expected.Count, payloads.Sum(p => p.SizeBytes), archiveBytes, archiveHash,
-                [RestorePreflightWarning.UnencryptedSensitiveData, RestorePreflightWarning.AiCredentialsExcluded, RestorePreflightWarning.RevalidationRequired]);
+                [RestorePreflightWarning.UnencryptedSensitiveData, RestorePreflightWarning.AiCredentialsExcluded, RestorePreflightWarning.RevalidationRequired], periodCount);
             token.ThrowIfCancellationRequested();
             return summary;
         }

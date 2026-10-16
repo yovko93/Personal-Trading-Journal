@@ -1,5 +1,17 @@
 # Backup and restore — M16
 
+## Pending manual review working files
+
+Daily/Weekly/Monthly ChatGPT prompt drafts in `pending-review-prompts` are intentionally excluded from portable backup, restore and logical export. They contain unencrypted sensitive local working evidence and explicitly kept pasted responses; copying them to another computer is not promised. Completed external-response reviews are normal database analysis snapshots and remain included with their exact evidence, validated response and accurate provenance. Restore leaves any local pending work frozen to its original captured dataset; it must never retarget that work to restored/current sources. No schema/archive/export version change is needed. API credentials remain separately excluded.
+
+## M19.6 — Saved Weekly/Monthly review compatibility
+
+The current schema includes **`20261015091425_AddSavedPeriodReviews`**, migration **20**. Complete v1 archives retain the independent `PeriodReviews` table, including exact evidence/response snapshots, original Account identity/label, New York period dates, UTC boundaries and generation time, versions and sanitized provider/token metadata. Preflight's analysis count includes Daily plus period reviews, with a separate period count; offline verification compares both. Synthetic backup/preflight/restore and interrupted-recovery tests retain these records without substituting current sources.
+
+Current-schema-only restore remains intentional: archives from migration 19 or earlier require the deferred supported staged-migration path and are rejected before replacement. Normal installed-database migration is additive and preserves Daily analyses and source records; this does not imply older archive restore support.
+
+Portable JSON is now **v9**, adding JSON-only `periodReviews` with all persisted fields. Its evidence, response and metadata fields retain exact serialized JSON strings; the four CSVs are unchanged. Older export versions omit period reviews and remain their original documents, not import/restore inputs. Screenshots remain metadata-only in export. Archives and exports are unencrypted, may contain sensitive historical source text, and exclude AI credentials. The compatibility sections below describe earlier milestones. See [period history contract and verification](period-reviews.md#m196--saved-period-reviews-and-history).
+
 ## Persisted Rule ordering compatibility
 
 Current schema adds `20261013102243_AddTradingRuleOrder` (19 migrations), with Rule positions and the catalog concurrency version. Complete v1 backups, preflight, offline restore and recovery retain this metadata alongside unchanged Rule revisions, assessments and saved analyses. Older-schema archives, including the prior optional-Criterion schema, remain rejected pending supported staged migration; normal installed-database migration initializes the previous name/ID order without rewriting Rule history.

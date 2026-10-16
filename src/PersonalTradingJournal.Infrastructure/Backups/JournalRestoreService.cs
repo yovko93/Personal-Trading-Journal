@@ -254,7 +254,7 @@ public sealed class JournalRestoreService : IJournalRestoreService
             expected.ArchiveSha256, _ => token.ThrowIfCancellationRequested(), token);
         if (actualCounts.AccountCount != expected.AccountCount || actualCounts.TradeCount != expected.TradeCount ||
             actualCounts.JournalCount != expected.JournalCount || actualCounts.JournalRevisionCount != expected.JournalRevisionCount ||
-            actualCounts.AnalysisCount != expected.AnalysisCount || actualCounts.ScreenshotCount != expected.ScreenshotCount ||
+            actualCounts.AnalysisCount != expected.AnalysisCount || actualCounts.PeriodAnalysisCount != expected.PeriodAnalysisCount || actualCounts.ScreenshotCount != expected.ScreenshotCount ||
             actualCounts.ScreenshotFileCount != expected.ScreenshotFileCount) throw new IOException();
     }
     private static string PayloadPath(string directory, BackupFileEntry entry) => entry.Kind switch

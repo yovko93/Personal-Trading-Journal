@@ -245,6 +245,85 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PeriodReviewRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AccountDisplayName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("BeforeUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceContractVersion")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly>("FirstDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("FromUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("LastDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MetadataJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PacketId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseContractVersion")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResponseJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ScopeKind")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind", "FirstDate", "LastDate", "ScopeKind", "AccountId", "GeneratedAtUtc", "Id");
+
+                    b.ToTable("PeriodReviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PeriodReviews_Period", "Kind IN (0,1) AND FirstDate <= LastDate AND FromUtc < BeforeUtc");
+
+                            t.HasCheckConstraint("CK_PeriodReviews_Scope", "(ScopeKind = 0 AND AccountId IS NULL) OR (ScopeKind = 1 AND AccountId IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookExampleRecord", b =>
                 {
                     b.Property<Guid>("TradingSetupId")

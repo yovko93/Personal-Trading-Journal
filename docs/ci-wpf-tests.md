@@ -1,5 +1,101 @@
 # Windows WPF test diagnostics
 
+## M19.8 — CI #95 child shutdown and unfinished Infrastructure (15 October 2026)
+
+Investigation started on clean `develop`, **`52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`**. [CI #95](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38792076087) failed for PR #22: checkout actually tested merge **`13588c00d192db3bca8f1b0d4436324d3a2bc70e`**, incorporating that develop head and main `c8e6c9d25e23bf38581b9434189f389744f60af3`. This is matching **failed** CI evidence, superseding the earlier no-run lookup. No workflow rerun or Git write was requested or performed.
+
+### First failure and separate timeout
+
+The uploaded artifact has 240 files, SHA-256 `167521e6ac0fc6ac6bcdd464d476684412ad0c7b8b299f34a9fe3877c9ca4dca`. It includes outer TRX/VSTest host/datacollector logs and child phase/output/supervision logs, but **no crash dump or blame Sequence XML**. Original evidence is retained under ignored `artifacts/ci95/download/`; do not infer a native stack from an assertion string.
+
+| UTC | Observed event |
+| --- | --- |
+| 19:15:45 | Complete Release script begins exclusive WPF phase |
+| 19:16:32 | Exclusive **88/88 passed**; parallel phase begins |
+| 19:16:40 | Domain 490 and Application 880 passed |
+| 19:22:13.554 | `playbook-sqlite-write` supervisor starts dotnet PID 8784, unchanged 90 s deadline |
+| 19:22:16.362 | Child testhost PID 5828 starts STA; .NET 10.0.13, WPF 10.0.12, four logical CPUs |
+| 19:22:17.976 / 18.365 | Save commands completed, displayed revisions **1 / 2**, no active write, editor collapsed |
+| 19:22:18.415 | **All child assertions completed**, including reactivation/readback |
+| 19:22:18.456 | Dispatcher shutdown finished (`True/True`), STA elapsed **2.117 s** |
+| By 19:22:18.592 | CoreCLR fail-fast in PID 5828, native thread 7148: managed callback after runtime thread-state destruction; dotnet exits 1 after **5.038 s** |
+| 19:22:18.729 | Parent reports failure at Playbook test lines 45–47: its **exit-code assertion**, not a failed Save/content assertion; restart-read phase was never launched |
+| 19:23:07 | Outer Desktop completes **1,529 passed / 1 failed** in its parallel partition |
+| 19:25:43.998 | Infrastructure PID 2680 is **still making progress**: 1,215 completed results, all passed; another case starts |
+| 19:25:44.931 | Actions terminates Test at unchanged **10 minutes**; Infrastructure has no final TRX and the runner never completes its parallel summary |
+
+The Playbook parent failure is explained by the child crash. The later action timeout is **not** a Playbook STA deadline or a demonstrated Infrastructure deadlock. Last active Infrastructure cases were Tradovate ambiguity-after-preview, snapshot cancellation at Copy, Trade detail inactive-Setup history, and optional-Criterion migration. All had started within the last 0.81 s of the final diagnostic record. 132 of the expected 1,347 results were not reported before cutoff. The three-minute inactivity watchdog did not fire because cases continued completing.
+
+### Ownership and bounded correction
+
+The parent owns an isolated `JournalTestDatabase`; its context at lines 35–36 only obtains the synthetic path, and is disposed with that fixture. Each child owns a separate DI provider. Saves await their SQLite transaction, verified revision readback and reload. UI commands and catalog `LoadTask` are complete at the logged boundary; no SQLite lock/transaction error appears in CI. The child closes its window and deactivates the ViewModel, but previously returned its short-lived STA after `Dispatcher.InvokeShutdown`. WPF text-input/native callbacks may outlive that managed dispatcher shutdown. The upstream [WPF secondary-STA teardown issue](https://github.com/dotnet/wpf/issues/11785) reports the same CoreCLR assertion during native thread cleanup. This is corroborating evidence, **not proof of the exact native callback in CI #95**, for which no dump exists.
+
+Only this native Playbook SQLite test now uses the existing **process-owned background STA/dispatcher**, already used by Calendar and other native WPF children. Windows still close; the same Save, validation, focus, SQLite, revision and restart assertions execute. Test-only image-operation tracking drains actual thumbnail work after cancellation while its dispatcher is alive, before provider/file teardown. Added assertions require zero windows, completed image/load/save work, and a still-live non-shutdown native dispatcher after the action. The outer supervisor still requires normal child exit and preserves fatal-error handling. No runtime assertion suppression or success-on-crash behavior is introduced. Each write/restart child now retains its own TRX, VSTest diagnostics and best-effort mini crash dump collection; the previous custom launch omitted these collectors. Existing 30 s STA / 90 s child deadlines remain unchanged.
+
+Infrastructure repeatedly migrated a fresh schema in `ReaderTestDatabase` even though those tests target current-schema readers. In CI, long initial cases took 52.117 s (period comparison), 48.063 s (Saturday Calendar reader), and 34.151 s (manual Trade references); the separately instrumented backup template took 58.191 s to migrate once. These elapsed values alone do not identify CPU, storage or security-scanner attribution. Controlled local instrumentation measured **59 reader initializations totaling 33.698 s** alongside layout/backup work. Reader fixtures now reuse the existing immutable SQLite-backup template, while retaining separate paths/providers/connections/data and the real initializer. Dedicated migration tests remain unchanged. No production initializer, database durability setting or concurrency bound changes.
+
+The first clone implementation incorrectly retained the portable template's DELETE journal mode. **Five existing concurrent-snapshot assertions failed with SQLite busy** (119 passed / 5 failed). This was an introduced fixture defect, not the CI failure. It was corrected by restoring and checking **WAL before returning each reader fixture**, matching fresh EF-created databases. New tests check concurrent clone isolation, complete applied migration history, WAL, foreign keys, integrity, independent mutable data, exact cleanup and template immutability. Those five concurrency assertions remain intact.
+
+### Verification and limits
+
+Original Playbook fixture passed isolated **3/3** on local CoreCLR 10.0.12 and **3/3** on a privately staged CI CoreCLR 10.0.13 with the same WPF 10.0.12. Original competing workload passed **19 Desktop + 120 Infrastructure**. Thus the intermittent native crash was **not reproduced locally**; the lifetime correction avoids the evidenced teardown path, but matching CI must validate it. The staged runtime is under ignored artifacts; installed runtimes and OS settings are untouched. `DOTNET_PROCESSOR_COUNT=4` matches runtime processor reporting, not the hosted runner's Windows Server 2025 hardware/IO performance.
+
+Final competing verification: **19 Desktop + 124 Infrastructure passed**. Reader initialization totals dropped from 33.698 s (59 calls) to 9.299 s (65 calls), plus 7.546 s for template acquisition including one 3.189 s migration. The focused set gained four fixture cases and used a different runtime patch; these are measured setup costs, not a controlled CI wall-time speedup claim.
+
+Final complete `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults` gate: **4,337/4,337 passed**, zero failures/skips, exit 0. Domain 490, Application 880, Infrastructure 1,349, Desktop 1,618 (88 exclusive + 1,530 parallel). UTC 19:54:52.705–20:00:36.133, **5m43.428s** total. Infrastructure test duration 3m37s; parallel Desktop 4m06s. Calendar child **72.125 s / 47.875 s headroom** to 120 s. Journal child 10.095 s, STA **6.995 s / 23.005 s headroom** to 30 s. Playbook write/restart children **12.250 / 10.188 s**, both exit 0 with zero windows/image work and complete load/save work. Crash collectors add startup work; the original local write/restart had taken 6.751 / 5.299 s without collectors, so this is not a claimed Playbook speedup.
+
+Raw final evidence: `TestResults/release-20261015-195452-11768bd6028640ea88397c66ad7771fd/` (summary, TRX, phase, interaction and process logs). Build passed with zero warnings/errors; EF model and whitespace checks passed. Final GitHub lookup still reports failed #95; these eight uncommitted files have no matching CI run. Native crash recurrence on the hosted runner remains unverified. Final results and file inventory are in the [Daily acceptance matrix](daily-review.md#m198-ci-95-follow-up--15-october-2026). Product/manual ChatGPT workflows, assertions, deadlines, test isolation, explicit concurrency tests and the local/CI Release script are unchanged. No production data, provider requests, retries, skips, Git writes or M20 work.
+
+## M19.8 — Controlled timeout investigation (15 October 2026)
+
+Started clean on `develop`, `d3a2e60ff9e9cb30763769130f708def596a7a51`. Compared with the prior green `37c1aaa` implementation, only acceptance documentation changed. The recorded **4,172 passed / 163 failed** run is retained at `artifacts/m198/release/release-20261015-154338-fa57050015614cda98015537756906d8`. Its first underlying failures group as follows; outer propagation must not be counted as separate product defects:
+
+| Child / first failure | Outer failures |
+| --- | ---: |
+| Calendar native, aggregate 120 s | 86 |
+| Journal editor, STA/inactivity 30 s | 1 |
+| Calendar grid, aggregate 120 s | 36 |
+| Calendar owner-close, aggregate 60 s | 14 |
+| Calendar healthy STA probe, aggregate 30 s | 6 |
+| Unhandled-native probe, aggregate 30 s instead of the expected original exception | 1 |
+| Import-resource/native-tooltip isolation, aggregate 120 s | 1 |
+| Daily Review layout, aggregate 120 s | 10 |
+| Period Review layout, child inactivity 30 s | 4 |
+| Journal History, child inactivity 30 s | 1 |
+| Rules drop and Rules view, STA 30 s | 2 |
+| Tradovate bound preview, child inactivity 30 s | 1 |
+
+Calendar completed 40 action blocks, then began another only about 2.6 s before termination. At the last completed boundary: process CPU 155.359 s, working set about 579 MiB. Twelve owner `Show` calls totaled **35.181 s**, versus **12.328 s** in the earlier green run; theme loading was 2.351 versus 0.548 s. Dispatcher scheduling waits totaled only 0.291 s. Journal continued from a flush at 29.687 s into another construction/layout phase at 30.698 s after its timeout at 30.411 s. These logs demonstrate cumulative progress and deadline exhaustion, not a proven individual hang.
+
+### Supervised experiments, unchanged binaries and deadlines
+
+The synthetic Desktop app was not running. No separate build overlapped these experiments. Opt-in `PTJ_CALENDAR_TIMINGS=1`, existing phase logs, supervision timestamps and TRX were sufficient; no new timing hooks or test behavior were needed. The competing run deliberately overlaps work that the complete runner normally separates; it is a diagnostic experiment, not the acceptance command.
+
+| Measurement | Isolated exclusive lane | Same lane with layout + Infrastructure competitors |
+| --- | ---: | ---: |
+| Calendar native process wall time / 120 s headroom | 63.075 / 56.925 s | 105.529 / 14.471 s |
+| Completed native actions | 86 | 86 |
+| Summed STA action elapsed time | 57.475 s | 81.982 s |
+| First STA start to last STA completion | 60.217 s | 102.682 s |
+| Process start to first STA action (startup + initial fixture) | 2.409 s | 2.258 s |
+| Twelve owner `Show` calls | 8.588 s | 10.272 s |
+| Modal dispatcher pumps | 6.988 s | 9.791 s |
+| Fixture create/activate | 0.604 s | 2.641 s |
+| Native dispatcher scheduled waits | 0.239 s | 0.059 s |
+| Native child CPU at final action boundary | 87.516 s | 106.203 s |
+| Journal process wall time | 10.925 s | 15.550 s |
+| Journal STA elapsed / 30 s headroom | 7.795 / 22.205 s | 10.836 / 19.164 s |
+| Journal Measure / bitmap render | 1.317 / 1.114 s | 1.803 / 1.552 s |
+| Result | 88/88 | 88/88 + 52/52 layout + 232/232 Infrastructure |
+
+Evidence: `artifacts/m198-timeout/isolated/` and `artifacts/m198-timeout/overlap/{exclusive,layout,infrastructure}/`. The layout competitor selects Calendar grid, Daily and Period view tests; Infrastructure selects `Backups` and `PeriodReview`. All three overlap from 16:25:15 to 16:26:22 UTC. Between-action time increases by about 18 s, spread over many boundaries (largest observed gap 1.033 s), not one stalled action. Individual modal/layout action groups also slow. Timing scopes overlap: do not add nested scope totals or equate process CPU with STA CPU.
+
+A bounded ten-second process sample found native testhost CPU 14.31 s alone; during overlap three testhosts consumed 21.14, 10.03 and 8.00 CPU seconds. Other Windows/app processes were active in both samples. This confirms competing execution, **not** the identity of the cause of the earlier failed run. No off-CPU trace was captured, so OS scheduling, synchronous/native window work and filesystem effects cannot be apportioned exactly. The original 35.181-second owner-Show slowdown and 163 failures were not reproduced in these controlled experiments. An isolated or subsequent green run cannot prove that variability is fixed.
+
+No speculative product, harness or runner correction is justified by this evidence. Keep the existing exclusive Calendar/Journal lane, parallel remainder, explicit concurrency tests, assertions, limits and deadlines. Run the complete gate without a simultaneous app acceptance session, build or second test run. This is operational isolation of verification, not a claim that a particular external app caused the failures. Final complete-gate results and remaining acceptance gates are recorded in the [Daily Review matrix](daily-review.md#m198-timeout-follow-up--15-october-2026).
+
+Final unchanged gate: **4,335/4,335 passed, zero failures/skips, exit 0**, about 5m51s. Domain 490, Application 880, Infrastructure 1,347, Desktop 1,618 (88 exclusive + 1,530 parallel). Native child **75.015 s / 44.985 s headroom**, owner Show 9.262 s, scheduling waits 0.104 s. Journal child 10.299 s, STA **7.183 s / 22.817 s headroom**. Parallel grid 29.57 s, owner-close 34.02 s, Daily layout 23.18 s, Period layout 13.17 s, Journal History 15.37 s; the previously timed-out child groups passed. Evidence: `artifacts/m198-timeout/final/release-20261015-162933-80f236b8cc0d44458dd5a1659cddbb7a/summary.json`. Build 0 warnings/errors; in-memory EF model consistency and whitespace passed. Four documentation files changed; no new regression test is warranted without a reproduced mechanism. The original exclusive failure occurred without other assemblies from its own gate, so the overlap experiment is not a complete causal explanation. Local green does not establish matching CI, live acceptance or elimination of host-load variability.
+
 ## M18.6 — Resource-aware complete Release gate (14 October 2026)
 
 Started on clean `develop` **`7323f8da6b07ed118897ab42a7e102a1d0b3cef8`**: the previous fixture optimization and failure report were already committed and are preserved. This supersedes the prior all-assembly-overlap command as the acceptance gate, not the historical measurements below. No production/test assertions, operation deadlines, schema, Rule semantics, provider behavior or explicit concurrency tests change.
