@@ -194,6 +194,7 @@
                             <TextBlock Text="{Binding Group.Metrics.FactorExplanation}" Foreground="{DynamicResource PtjTextSecondaryBrush}" Margin="0,4,0,0" />
                             <TextBlock Text="{Binding Group.Metrics.Sample}" Style="{StaticResource OptionalText}" Foreground="{DynamicResource PtjWarningBrush}" />
                             <TextBlock Text="{Binding Classification}" Style="{StaticResource OptionalText}" />
+                            <Button Content="View trades" Margin="0,8,0,0" HorizontalAlignment="Left" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Group}" AutomationProperties.Name="View selected group's contributing Trades" />
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -211,6 +212,9 @@
                           Sorting="OnSorting" Loaded="OnTableLoaded" PreviewMouseWheel="OnTableWheel"
                           AutomationProperties.Name="Breakdown group comparison" AutomationProperties.HelpText="Read-only groups. Use column headers to sort and arrow keys to select. Scroll horizontally to reach all columns.">
                     <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="Action" Width="120"><DataGridTemplateColumn.CellTemplate><DataTemplate>
+                            <Button Content="View trades" Margin="6" Command="{Binding DataContext.ViewTradesCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="View this group's contributing Trades" />
+                        </DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                         <DataGridTemplateColumn Header="Group" SortMemberPath="Group" Width="260" MinWidth="220">
                             <DataGridTemplateColumn.CellTemplate><DataTemplate><StackPanel Margin="8">
                                 <TextBlock Text="{Binding Label}" TextWrapping="Wrap" ToolTip="{Binding Label}" />

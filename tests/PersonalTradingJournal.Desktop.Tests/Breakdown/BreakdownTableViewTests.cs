@@ -69,7 +69,7 @@ public sealed class BreakdownTableViewTests
                     Assert.Equal(80, table.Items.Count);
                     Assert.InRange(Descendants<DataGridRow>(table).Count(), 1, 79);
                     Assert.Equal("Breakdown group comparison", AutomationProperties.GetName(table));
-                    Assert.Equal(7, table.Columns.Count);
+                    Assert.Equal(8, table.Columns.Count);
                     int reads = f.Reader.Calls.Count;
                     table.SelectedItem = f.Vm.GroupRows.Single(r => r.Key == BreakdownPresentationTests.Key(2));
                     Assert.Equal(BreakdownPresentationTests.Key(2), f.Vm.SelectedGroupKey);

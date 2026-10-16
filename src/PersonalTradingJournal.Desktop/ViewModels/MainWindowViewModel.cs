@@ -161,6 +161,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _tradesViewModel.TradeDataCommitted += OnTradeDataCommitted;
         _accountsViewModel.TradeDataCommitted += OnAccountTradesDeleted;
         _dashboardViewModel.OpenTradeAsync = OpenReadOnlyTradeAsync;
+        if (_breakdownViewModel is not null) _breakdownViewModel.OpenTradesAsync = OpenBreakdownTradesAsync;
+        _tradesViewModel.ReturnToBreakdownAsync = ReturnToBreakdownAsync;
         _calendarViewModel.TradeDataCommitted += OnCalendarTradeCommitted;
         _calendarViewModel.OpenJournalAsync = OpenCalendarJournalAsync;
         _journalViewModel.JournalDataCommitted += OnJournalDataCommitted;
@@ -253,6 +255,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     internal bool CanCloseWindow()
     {
+        if (CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return false;
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
         if (ActivePeriod?.TryLeave() == false) return false;
         if (CurrentDestination == NavigationDestination.Playbook)
@@ -272,6 +275,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     internal void CompleteWindowClose()
     {
+        _tradesViewModel.DeactivateBrowse();
         _breakdownViewModel?.Deactivate();
         ActivePeriod?.Deactivate();
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.CompleteDayDialogClose();
@@ -281,6 +285,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _tradesViewModel.DisposeBrowse(); _tradesViewModel.ReturnToBreakdownAsync = null;
+        if (_breakdownViewModel is not null) _breakdownViewModel.OpenTradesAsync = null;
         _breakdownViewModel?.Dispose();
         foreach (var period in _periodReviews?.All ?? [])
         { period.Deactivate(); period.OpenTradeAsync = null; period.OpenJournalAsync = null; period.OpenSettings = null; }
@@ -356,6 +362,18 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     }
 
     private Task _tradeNavigationLoad = Task.CompletedTask;
+    private async Task OpenBreakdownTradesAsync(BreakdownTradeContext context)
+    {
+        if (_disposed || CurrentDestination != NavigationDestination.Breakdown) return;
+        Navigate(NavigationDestination.Trades, null, context);
+        if (!_disposed && CurrentDestination == NavigationDestination.Trades) await _tradeNavigationLoad;
+    }
+    private Task ReturnToBreakdownAsync()
+    {
+        if (_disposed || CurrentDestination != NavigationDestination.Trades) return Task.CompletedTask;
+        Navigate(NavigationDestination.Breakdown);
+        return CurrentDestination == NavigationDestination.Breakdown ? _breakdownViewModel?.LoadTask ?? Task.CompletedTask : Task.CompletedTask;
+    }
 
     private async Task OpenReviewTradeAsync(Guid id)
     {
@@ -412,8 +430,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination) => Navigate(destination, null);
 
-    private void Navigate(NavigationDestination destination, Guid? expectedJournalId)
+    private void Navigate(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null)
     {
+        if (_disposed) return;
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return;
         if (destination == CurrentDestination && ActivePeriod is not null) return;
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
         if (destination != CurrentDestination && ActivePeriod?.TryLeave() == false) return;
@@ -442,6 +462,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             return;
         }
 
+        bool returningToBreakdown = destination == NavigationDestination.Breakdown && CurrentDestination == NavigationDestination.Trades && _tradesViewModel.HasBreakdownScope;
+        if (breakdownScope is not null && !_tradesViewModel.SetBreakdownScope(breakdownScope)) return;
+        if (CurrentDestination == NavigationDestination.Trades) _tradesViewModel.DeactivateBrowse();
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Breakdown) _breakdownViewModel?.Deactivate();
         ActivePeriod?.Deactivate();
@@ -476,7 +499,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (destination == NavigationDestination.Calendar)
             _ = _calendarViewModel.ActivateAsync();
         if (destination == NavigationDestination.Breakdown && _breakdownViewModel is not null)
+        {
             _ = _breakdownViewModel.ActivateAsync();
+            if (returningToBreakdown) _ = _breakdownViewModel.RefreshAppliedAsync();
+        }
         if (ActivePeriod is { } period) _ = period.ActivateAsync();
 
         if (destination == NavigationDestination.Playbook && _playbookViewModel is not null)
@@ -523,6 +549,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Trades)
         {
+            _tradesViewModel.ActivateBrowse();
             _tradesViewModel.ResetTransientState();
             _tradeNavigationLoad = _tradesViewModel.EnsureLoadedAsync();
         }

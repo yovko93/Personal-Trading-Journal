@@ -1,7 +1,8 @@
 namespace PersonalTradingJournal.Application.Analytics.Breakdown;
 
 /// <summary>
-/// Exact future drill-down: the entire original filter AND this typed group predicate.
+/// Original analytics query/group identity. M20.8 drill-down freezes contributing IDs separately;
+/// these predicates describe their original attribution, not continuously reevaluated membership.
 /// Entry keys describe New York opening time, duration keys describe UTC elapsed time,
 /// and null Setup identity means unassigned, never a missing reference label.
 /// No label, displayed metric, page or cached count can broaden this selection.

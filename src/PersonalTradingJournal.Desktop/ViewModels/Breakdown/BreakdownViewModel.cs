@@ -7,6 +7,8 @@ using PersonalTradingJournal.Application.Analytics.Breakdown;
 using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.Instruments;
 using PersonalTradingJournal.Desktop.ViewModels.Dashboard;
+using PersonalTradingJournal.Desktop.Navigation;
+using PersonalTradingJournal.Application.Trades;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.Breakdown;
 
@@ -54,6 +56,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        ViewTradesCommand = new AsyncRelayCommand<BreakdownGroupPresentation>(ViewTradesAsync, CanViewTrades);
     }
 
     public IReadOnlyList<BreakdownChoice<DashboardPeriod>> Periods { get; } =
@@ -86,6 +89,24 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     public string? DateValidation { get => _dateError; private set => SetProperty(ref _dateError, value); }
     public string? CurrencyValidation { get => _currencyError; private set => SetProperty(ref _currencyError, value); }
     public BreakdownAnalyticsSnapshot? Result => _result;
+    public Func<BreakdownTradeContext, Task>? OpenTradesAsync { get; set; }
+    private bool _openingTrades;
+    public IAsyncRelayCommand<BreakdownGroupPresentation> ViewTradesCommand { get; }
+    private bool CanViewTrades(BreakdownGroupPresentation? row) => _active && !_disposed && !_openingTrades &&
+        OpenTradesAsync is not null && row is not null && _groupRows.Any(r => ReferenceEquals(r, row)) && row.Source.Metrics.TradeIds.Count > 0;
+    private async Task ViewTradesAsync(BreakdownGroupPresentation? row)
+    {
+        if (!CanViewTrades(row) || _result is not { } result || OpenTradesAsync is not { } open) return;
+        var context = new BreakdownTradeContext(Guid.NewGuid(), new(result.Query, row!.Key), row.Label,
+            AppliedContext, row.Metrics.Basis, new TradeIdCohort(row.Source.Metrics.TradeIds));
+        _openingTrades = true;
+        ViewTradesCommand.NotifyCanExecuteChanged();
+        try { await open(context); }
+        catch (Exception) { if (_active && !_disposed) ErrorMessage = "The contributing Trades could not be opened. Try View trades again."; }
+        finally { _openingTrades = false; ViewTradesCommand.NotifyCanExecuteChanged(); }
+    }
+    public Task RefreshAppliedAsync() => !_active || _disposed ? Task.CompletedTask
+        : _result is null ? RefreshAsync() : LoadTask = LoadAsync(_result.Query);
     public BreakdownPresentation? Presentation => _presentation;
     public IReadOnlyList<BreakdownGroupPresentation> GroupRows => _groupRows;
     public BreakdownGroupKey? SelectedGroupKey => _selectedGroupKey;
@@ -135,6 +156,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     }
     private void NotifyTable()
     {
+        ViewTradesCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(Chart)); NotifySelection();
         foreach (string name in new[] { nameof(GroupRows), nameof(SelectedGroup), nameof(SelectedGroupKey), nameof(SortColumn), nameof(SortDescending) })
             OnPropertyChanged(name);

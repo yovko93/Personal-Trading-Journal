@@ -1,5 +1,58 @@
 # Breakdown Analytics — M20
 
+## M20.8 — Trade drill-down and navigation
+
+Implemented **16 October 2026**, starting from clean `develop` at `ca6c4fa3b1f82fe0201cdfb7889314d7128d9631` (committed M20.7, newer than the request's reported baseline). No branch switch, migration, financial recalculation, production data, provider request or Git write. Only M20.8 is implemented; next scope is **M20.9 — Desktop UX & Accessibility**.
+
+### Membership and navigation
+
+**View trades** in the selected details and each comparison row freezes that displayed successful group's contributing IDs, including financially unavailable Trades. It captures the applied `BreakdownQuery`, typed stable group key, original label/financial/period context and count, plus a navigation identity. The action does not read draft filters or later selection after awaiting. Replaced row objects and duplicate submissions are rejected; duplicate display names never identify a cohort.
+
+The scoped list is **original membership with current persisted records**, not a historical Trade snapshot or a continuously reevaluated predicate. New matching Trades do not enter; edits remain visible even after Account or classification changes; deleted originals disappear and are not replaced. Closure-date attribution is not reapplied as an Opened-date filter. Refresh retains the same frozen IDs. An empty/deleted cohort remains explicitly scoped. Current values need not equal the earlier analysis; refresh Breakdown to rebuild the analytics and choose a new cohort.
+
+`TradeIdCohort` defensively copies valid unique IDs. A null query cohort is ordinary browsing; an empty one is zero rows. SQLite filters before count and pagination with **one parameterized JSON array**, not a variable per ID or an in-memory page filter. A deferred read transaction keeps count, rows, labels, projection and position-size metadata coherent within one call. Ordering retains the existing Trade-ID tie-breaker. No transaction is retained across pages or navigation. Existing Account filtering remains available to ordinary reader clients; scoped Desktop queries use the exact IDs without an extra Account/date predicate.
+
+The banner identifies Breakdown, grouping/label, original period/currency/source context and available/original counts, with **Back to Breakdown** and **Exit Breakdown scope**. Existing details/edit/delete commands remain in the Trades workflow; closing details retains page/sort. Deletion corrects an invalid final page without losing the cohort. Ordinary page/sort is retained separately and restored on Exit. Scoped navigation/exit/owner close requires an open Trade form or operation to be finished/cancelled first; it never silently discards entered fields. MainWindow retains existing Journal/Calendar/other destination guards.
+
+Back refreshes the **last successful** Breakdown query, including after a later Apply failed. Editable draft/validation, unapplied-change indication, chart metric and table sort remain intact. Selection is rebound by stable key, or cleared if absent, never substituted by label. Scope replacement, exit, deactivation and disposal invalidate obsolete loads; a failed/cancelled read has no unscoped fallback. Ordinary post-commit authoritative reloads retain their existing non-cancellable contract.
+
+### Verification and limits
+
+Final relevant verification: **661/661 passed**, zero failures/skips: Application **108/108**, Infrastructure **40/40** (25 seconds), Desktop **513/513** (56 seconds, normal Windows token for isolated synthetic DPAPI fixtures). The Desktop selection includes Breakdown, Trades ViewModel/paging, MainWindow navigation/guards, Dashboard filters/ViewModel and shared resource regressions. Release solution build: **0 warnings/errors**. EF consistency: **no pending model changes**, using the design-time in-memory database. Whitespace (including new files) and local Markdown-link checks passed. Ignored TRX evidence: `artifacts/m208/tests/application.trx`, `infrastructure-final.trx`, and `desktop-verified.trx`.
+
+Migrated synthetic SQLite tests exercise 33,025 supplied IDs, deterministic multi-page ties, deleted/entirely deleted cohorts, empty versus absent scope, current edits, overnight identity and cancellation. A coordinated WAL writer deletes a member between count and page reads: the active read retains coherent count, row and size; the next read sees deletion, and connections are disposed. Desktop tests cover all seven grouping dimensions, unavailable money, duplicate/retained Setup identities, stale rows and duplicate clicks, failed Apply versus successful-query return, preserved draft/chart/sort/selection, details/delete page recovery, failure/cancellation retry and late responses after replacement/exit/deactivation/disposal.
+
+Compiled WPF checks exercise bound commands through automation peers, row-specific parameters, scoped/ordinary visibility, wrapped banner actions and reachable table actions. Automated render viewports are **1280×900 DIP / 96 DPI** and **700×900 DIP / 240 DPI**, Light/Dark. Both populated and missing-record scope states are included. These are automated off-screen WPF renders, not live mouse, keyboard or screen-reader observations.
+
+The initial regression identified and corrected a newly introduced ordinary post-commit cancellation-token regression without changing assertions. The sandbox run also had two synthetic DPAPI credential-fixture failures; the normal-token run verifies these without real credentials or provider requests. New render-fixture setup was corrected to include the app's shared converter/form resources and inspect arranged visibility rather than HWND visibility. No test deadlines, retries or skips were introduced.
+
+**Remaining acceptance:** complete solution Release gate, live navigation/edit/delete interaction, actual screen-reader behavior, large-history latency/memory benchmarks and matching CI remain unverified. A 33,025-ID correctness test is not a large-history performance claim. Changes remain uncommitted, so no CI run can verify this resulting worktree. Cohorts and return display state are session-only, not a new persisted feature.
+
+### Exact changed files (22)
+
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownGroupSelection.cs`
+- `src/PersonalTradingJournal.Application/Trades/TradeIdCohort.cs` (new)
+- `src/PersonalTradingJournal.Application/Trades/TradeListQuery.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeListReader.cs`
+- `src/PersonalTradingJournal.Desktop/Navigation/BreakdownTradeContext.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.Breakdown.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Trades/TradesViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+- `tests/PersonalTradingJournal.Application.Tests/Trades/TradeIdCohortTests.cs` (new)
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Trades/TradeListCohortTests.cs` (new)
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Trades/TradeListPagingTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownDrillDownTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownDrillDownViewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownTableViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Trades/TradesViewModelBreakdownTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowBreakdownTests.cs`
+
 ## M20.7 — comparison chart and selected-group details
 
 Implemented **16 October 2026**, from clean `develop` at `419ebea7eea9742fb2359c32bf95bf11cf5be104` (committed M20.6). Presentation only; the Application calculator, database reader, financial policies, filters and request ownership are unchanged. Executed Trades drill-down remains **M20.8**; no inactive navigation buttons are shown.

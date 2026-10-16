@@ -6,6 +6,31 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 public sealed partial class MainWindowViewModelTests
 {
     [Fact]
+    public async Task DrillDownAndBackKeepDraftAndRefreshAppliedQueryThroughShell()
+    {
+        using var breakdown = new BreakdownFixture();
+        var f = CreateFixture(breakdown: breakdown.Vm); using var main = f.Main;
+        main.NavigateCommand.Execute(NavigationDestination.Breakdown); await breakdown.Vm.LoadTask;
+        var applied = breakdown.Vm.Result!.Query;
+        var row = Assert.Single(breakdown.Vm.GroupRows);
+        breakdown.Vm.SelectedGroup = row; breakdown.Vm.Currency = "JPY";
+        await breakdown.Vm.ViewTradesCommand.ExecuteAsync(row);
+        Assert.Equal(NavigationDestination.Trades, main.CurrentDestination);
+        Assert.Equal(row.Source.Metrics.TradeIds, Assert.Single(f.TradeListReader.RequestedQueries).Cohort!.TradeIds);
+        Assert.True(f.Trades.HasBreakdownScope);
+        f.Trades.ShowManualEntryCommand.Execute(null); f.Trades.QuantityText = "7";
+        await f.Trades.BackToBreakdownCommand.ExecuteAsync(null);
+        Assert.Equal(NavigationDestination.Trades, main.CurrentDestination); Assert.Equal("7", f.Trades.QuantityText);
+        Assert.False(main.CanCloseWindow());
+        f.Trades.ResetTransientState();
+        await f.Trades.BackToBreakdownCommand.ExecuteAsync(null);
+        Assert.Equal(NavigationDestination.Breakdown, main.CurrentDestination);
+        Assert.Same(applied, breakdown.Reader.Calls.Last().Query);
+        Assert.Equal("JPY", breakdown.Vm.Currency); Assert.True(breakdown.Vm.HasUnappliedChanges);
+        Assert.Equal(row.Key, breakdown.Vm.SelectedGroupKey);
+    }
+
+    [Fact]
     public async Task BreakdownNavigationRetainsDraftAndResultAndHonorsJournalVeto()
     {
         using var breakdown = new BreakdownFixture();

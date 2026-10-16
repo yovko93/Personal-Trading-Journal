@@ -7,6 +7,7 @@
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="CohortVisible" />
         <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
         <converters:TradeRowOutcomeConverter x:Key="TradeRowOutcomeConverter" />
         <converters:NetPnLUnavailableVisibilityConverter x:Key="NetPnLUnavailableVisibilityConverter" />
@@ -68,6 +69,15 @@
         </ScrollViewer.Resources>
 
         <StackPanel>
+            <Border x:Name="BreakdownScopeBanner" Style="{StaticResource PtjCardStyle}" Margin="0,0,0,12" Visibility="{Binding HasBreakdownScope, Converter={StaticResource CohortVisible}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding BreakdownScopeSummary}" Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button Content="Back to Breakdown" Command="{Binding BackToBreakdownCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+                        <Button Content="Exit Breakdown scope" Command="{Binding ExitBreakdownScopeCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" AutomationProperties.HelpText="Restore your previous ordinary Trades page and sorting." />
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -1703,7 +1713,7 @@
 
                     <TextBlock Margin="0,20,0,4"
                                HorizontalAlignment="Center"
-                               Text="No trades recorded yet.">
+                               Text="{Binding EmptyTradeListMessage}" TextWrapping="Wrap">
                         <TextBlock.Style>
                             <Style TargetType="{x:Type TextBlock}"
                                    BasedOn="{StaticResource PtjSecondaryTextStyle}">

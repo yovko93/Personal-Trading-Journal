@@ -7,7 +7,8 @@ public sealed record TradeListQuery
         int pageSize,
         TradeListSortColumn sortColumn,
         TradeListSortDirection sortDirection,
-        Guid? tradingAccountId = null)
+        Guid? tradingAccountId = null,
+        TradeIdCohort? cohort = null)
     {
         if (pageNumber < 1)
         {
@@ -45,6 +46,7 @@ public sealed record TradeListQuery
             throw new ArgumentException("Select a valid Account ID or omit the Account filter.", nameof(tradingAccountId));
 
         TradingAccountId = tradingAccountId;
+        Cohort = cohort;
         PageNumber = pageNumber;
         PageSize = pageSize;
         SortColumn = sortColumn;
@@ -53,6 +55,7 @@ public sealed record TradeListQuery
 
     public int PageNumber { get; }
     public Guid? TradingAccountId { get; }
+    public TradeIdCohort? Cohort { get; }
 
     public int PageSize { get; }
 
