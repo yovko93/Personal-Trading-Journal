@@ -1,5 +1,9 @@
 # Personal Trading Journal
 
+**M20.1 — Breakdown analytics audit (16 October 2026)**
+
+The [implementation map and shared metric contract](docs/breakdown-analytics.md) identify reusable Dashboard/Calendar/Period calculations, closure-date and currency rules, coverage and missing values, and the additions needed for Breakdown. Performance/Breakdown are currently placeholders. Strategy was removed from the schema and needs an explicit source decision before grouping can be implemented. Dashboard/Calendar's labeled Estimated Net differs from strict Daily/Period Net; Breakdown's Gross/Net design must preserve that distinction. **M20.1 complete:** 213 existing focused Release tests passed, zero failures/skips; Release build 0 warnings/errors; whitespace passed. This audit changes three documentation files only; M20.2 onward remains pending. No full-suite, Breakdown render/live or matching CI acceptance is claimed.
+
 **M19.8 CI #95 follow-up — 15 October 2026: OPEN pending corrected CI and live checks**
 
 [CI #95](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38792076087) failed for develop `52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`, tested as PR #22 merge `13588c00d192db3bca8f1b0d4436324d3a2bc70e`. Playbook saved both revisions and completed its assertions before a child runtime crash after STA shutdown; the parent reported the nonzero exit. Separately, Infrastructure was still progressing at the ten-minute Actions cutoff. Test-only corrections retain the Playbook native STA until child exit, drain image work before cleanup, capture child crash diagnostics, and remove repeated reader-fixture migrations using isolated clones of the existing migrated template with WAL preserved. No production/manual ChatGPT behavior, assertions, deadlines or concurrency limits change. [Timeline and causal limits](docs/ci-wpf-tests.md#m198--ci-95-child-shutdown-and-unfinished-infrastructure-15-october-2026).

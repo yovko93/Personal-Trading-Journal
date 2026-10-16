@@ -1,5 +1,7 @@
 # Architecture
 
+The M20.1 [Breakdown implementation map](breakdown-analytics.md) records shared analytics reuse, current metric/date/coverage contracts, absent Strategy data, and the read/navigation extensions required before implementing Breakdown. It introduces no new service, schema or UI in the audit step.
+
 ## Architectural Goals
 
 The architecture is designed for long-term maintainability, testability, correctness, clear dependency boundaries, extensibility, local-first desktop operation, and possible future web or SaaS evolution.
