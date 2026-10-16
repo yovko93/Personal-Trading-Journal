@@ -10,6 +10,8 @@ M20.6 adds Desktop-only `BreakdownPresentation` wrappers over the successful imm
 
 ## Architectural Goals
 
+M20.7 extends the same Desktop snapshot presentation with `BreakdownChartPresentation`, geometry-only `BreakdownBar`, and selected-group details. A virtualized native ListBox supplies category selection/accessibility rather than a new chart dependency; existing time-series controls are unchanged. The chart shares table order and authoritative key selection, validates row-instance ownership against replaced results, and consumes raw metric/coverage values without contributing-ID enumeration. Metric state is local; readers, financial calculations and query ownership are unchanged. [Chart contracts and verification](breakdown-analytics.md#m207--comparison-chart-and-selected-group-details).
+
 The architecture is designed for long-term maintainability, testability, correctness, clear dependency boundaries, extensibility, local-first desktop operation, and possible future web or SaaS evolution.
 
 Architectural decisions should avoid both short-term coupling and unnecessary enterprise-style abstractions. The repository favors explicit boundaries that provide current value without introducing distributed-system or framework complexity prematurely.

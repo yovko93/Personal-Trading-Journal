@@ -1,5 +1,44 @@
 # Breakdown Analytics — M20
 
+## M20.7 — comparison chart and selected-group details
+
+Implemented **16 October 2026**, from clean `develop` at `419ebea7eea9742fb2359c32bf95bf11cf5be104` (committed M20.6). Presentation only; the Application calculator, database reader, financial policies, filters and request ownership are unchanged. Executed Trades drill-down remains **M20.8**; no inactive navigation buttons are shown.
+
+### Chart and details
+
+The local **Chart metric** selector offers selected-mode P&L, eligible closed-Trade count and Win Rate. It never submits draft filters, changes calculation mode or invokes the reader. It persists for the retained page session. Labels/currency/basis come from the last successful result; loading, errors, cancellation and edited filters cannot relabel retained values.
+
+Existing Dashboard/Calendar charts are native WPF time-series controls, not category selection lists. The new chart therefore uses a native, recycling **ListBox** with a small `BreakdownBar` drawing surface per realized row, rather than another chart library or modifying those time-series controls. The list provides keyboard selection and automation names; the existing table remains the equivalent numeric view. Theme brushes distinguish gains/losses/zero, with signed P&L and visible values so color is not the only indication. Labels and coverage wrap. Below 1,000 DIP of content width, the details panel stacks below the chart; above it they share two columns. The chart viewport is bounded to 320 DIP, all groups remain scrollable, and wheel input at either edge continues through the page.
+
+P&L uses one common min/max range including zero across all returned groups. Count starts at zero; Win Rate stays on **0–100%**, using already percentage-scaled values unchanged. All-zero/empty P&L uses a finite 0–1 display range. A known zero is labeled numerically and drawn as a hollow marker on the zero baseline. Unavailable values show **— Unavailable**, remain selectable and have no numeric bar/marker; they do not influence the scale. Source decimals remain unchanged; only geometry uses double coordinates, including for extreme decimal values. This is coordinate normalization, not additional analytics. Axis range and metric units are visible.
+
+Chart rows follow the table's exact current order, including chronological sorts and deterministic identity ties. Changing the metric does not change sorting. Chart/table/details share the existing selected key. Refresh rebinds that identity to new result objects or clears it if absent; a duplicate name cannot substitute. Selection callbacks must originate from a current row instance, rejecting replaced chart/table objects even if their record values match. Selection scrolls only the chart's logical viewport, not the enclosing page (ordinary end clamping may occur when selected text changes page height).
+
+Details show the group/dimension, applied currency/mode and its own financial source, eligible/evaluable counts, known wins/losses/break-evens, P&L, Win Rate, average Trade/winner/loss magnitude, Profit Factor and its explicit defined/undefined/unbounded meaning, Net/fallback/unavailable/cost coverage, small-sample heuristic and Setup classification where relevant. They never enumerate contributing Trades, recalculate results, infer confidence or recommend trades. No selection displays a short prompt. All four sections are prepared from the same successful snapshot before notification; stale requests cannot update chart or details independently.
+
+### Verification and limits
+
+Final focused M20.5–M20.7 Desktop/shell checks: **60/60 passed**, zero failures/skips (15 seconds), including 10 new chart/detail cases. Relevant MainWindow navigation/guards, Dashboard filters/ViewModel and resource regressions: **252/252 passed**, zero failures/skips (53 seconds, normal Windows token for synthetic DPAPI fixtures). Two shell cases overlap the selections. Solution Release build: **0 warnings / 0 errors** (10.47 seconds). EF design-time consistency: **no pending model changes**, using the in-memory factory. Whitespace and local documentation-link checks passed. Local ignored TRX evidence: `artifacts/m207/final-complete/breakdown.trx` and `artifacts/m207/regression/desktop-regression.trx`.
+
+New tests cover signed/common/all-zero/extreme geometry; raw percentages and counts; unavailable/empty states; shared selection and ordering; duplicate names; updated refresh details; stale row callbacks/results; cancellation retention; local interactions without reads; applied-versus-draft currency/mode; group-specific coverage and exact average formatting. Compiled WPF tests cover both binding directions, selection accessibility, virtualization with 60 groups, horizontal table access through existing M20.6 tests, chart-only scroll positioning, responsive stacking, and wrapped long labels. An inspected first render revealed a clipped chart label; explicit wrapping and a multiline layout assertion corrected it. Empty detail fields collapse rather than retaining unused vertical space. The initial new scroll assertion was corrected to allow normal outer extent clamping when a shorter selected label reduces page height; no product deadlines or existing assertions changed.
+
+Automated chart render viewports are **1280×900 DIP / 96 DPI** and **700×900 DIP / 240 DPI**, Light/Dark, with signed/zero/unavailable rows, selected details and long labels. Additional renders show unselected and empty states. Existing M20.5/M20.6 renders remain part of focused regression coverage. These are automated WPF renders, not actual mouse, keyboard or screen-reader observations. Full solution gate, large-history performance and matching CI acceptance are not claimed. No production journal, provider call, schema change or Git write was used.
+
+Exact changed files (10):
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownChartPresentation.cs` (new)
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownBar.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownChartTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownChartViewTests.cs` (new)
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+
+Next: **M20.8 — Trade Drill-down & Navigation**.
+
 ## M20.6 — compact summary and group comparison table
 
 Implemented **16 October 2026**, starting from clean `develop` at `b31bab7779a2c851c3f8579b1ad783688e519203` (committed M20.5, newer than the request's reported baseline). Desktop presentation only: calculation policy, filtering, SQL snapshot consistency, request ownership, database and other analytics screens are unchanged.

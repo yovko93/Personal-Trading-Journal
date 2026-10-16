@@ -37,6 +37,8 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     private BreakdownGroupKey? _selectedGroupKey;
     private BreakdownSortColumn? _sortColumn;
     private bool _sortDescending;
+    private BreakdownChartMetric _chartMetric;
+    private BreakdownChartPresentation? _chart;
     private BreakdownQuery? _submitted;
     private string _status = "Apply filters to load Breakdown.";
     private string? _error, _dateError, _currencyError;
@@ -93,23 +95,47 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         set
         {
             // ItemsSource replacement can temporarily clear native selection. Identity is owned here.
-            if (value is null || !_groupRows.Contains(value)) return;
+            if (value is null || !_groupRows.Any(r => ReferenceEquals(r, value))) return;
             _selectedGroupKey = value.Key;
             OnPropertyChanged(); OnPropertyChanged(nameof(SelectedGroupKey));
+            NotifySelection();
         }
     }
     public BreakdownSortColumn? SortColumn => _sortColumn;
     public bool SortDescending => _sortDescending;
+    public IReadOnlyList<BreakdownChoice<BreakdownChartMetric>> ChartMetrics { get; } =
+        [new(BreakdownChartMetric.Pnl, "Selected P&L"), new(BreakdownChartMetric.Trades, "Eligible Trades"), new(BreakdownChartMetric.WinRate, "Win Rate")];
+    public BreakdownChartMetric ChartMetric
+    {
+        get => _chartMetric;
+        set { if (Enum.IsDefined(value) && SetProperty(ref _chartMetric, value)) { RebuildChart(); OnPropertyChanged(nameof(Chart)); NotifySelection(); } }
+    }
+    public BreakdownChartPresentation? Chart => _chart;
+    public BreakdownChartRow? SelectedChartRow
+    {
+        get => _chart?.Rows.FirstOrDefault(r => r.Group.Key == _selectedGroupKey);
+        set { if (value is not null && _chart?.Rows.Any(r => ReferenceEquals(r, value)) == true) SelectedGroup = value.Group; }
+    }
+    public BreakdownGroupDetails? SelectedDetails => SelectedGroup is { } group && _result is { } result
+        ? new(group, $"{Groupings.First(g => g.Value == result.Query.Grouping).Name} · {result.Query.Currency} · {Modes.First(m => m.Value == result.Query.Mode).Name} · {group.Metrics.Basis}") : null;
+    public string SelectionPrompt => SelectedGroup is null ? "Select a group in the chart or table to inspect its calculated results." : "";
+    private void RebuildChart() => _chart = _presentation is null ? null : new(_groupRows, _chartMetric, _presentation.Source.Query.Currency, _presentation.Summary.Basis);
+    private void NotifySelection()
+    {
+        OnPropertyChanged(nameof(SelectedChartRow)); OnPropertyChanged(nameof(SelectedDetails)); OnPropertyChanged(nameof(SelectionPrompt));
+    }
     public void SortGroups(BreakdownSortColumn column)
     {
         if (_presentation is null || !Enum.IsDefined(column)) return;
         _sortDescending = _sortColumn == column && !_sortDescending;
         _sortColumn = column;
         _groupRows = _presentation.Sort(column, _sortDescending);
+        RebuildChart();
         NotifyTable();
     }
     private void NotifyTable()
     {
+        OnPropertyChanged(nameof(Chart)); NotifySelection();
         foreach (string name in new[] { nameof(GroupRows), nameof(SelectedGroup), nameof(SelectedGroupKey), nameof(SortColumn), nameof(SortDescending) })
             OnPropertyChanged(name);
     }
@@ -235,6 +261,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
             _presentation = presentation;
             _groupRows = rows;
             if (!rows.Any(r => r.Key == _selectedGroupKey)) _selectedGroupKey = null;
+            RebuildChart();
             IsStale = false;
             StatusMessage = IsEmpty ? "Loaded an empty population." : "Breakdown loaded.";
             NotifyResult();
