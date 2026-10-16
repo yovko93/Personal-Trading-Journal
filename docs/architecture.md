@@ -1,6 +1,6 @@
 # Architecture
 
-The M20.1 [Breakdown implementation map](breakdown-analytics.md) records shared analytics reuse, current metric/date/coverage contracts, absent Strategy data, and the read/navigation extensions required before implementing Breakdown. It introduces no new service, schema or UI in the audit step.
+The [Breakdown implementation map](breakdown-analytics.md) records M20.1 analytics reuse and M20.2 filter/grouping decisions. Application `Analytics/Breakdown` owns immutable `BreakdownQuery`, typed `BreakdownGroupKey`, fixed `HoldingDurationRange` and `BreakdownGroupSelection`. It composes existing Dashboard identifier/New York closure-bound validation and uses Domain direction plus shared Gross/strict-Net types. Group identity excludes display metadata; no WPF or EF dependency, query implementation, aggregation, schema or UI is added in M20.2. Strategy and estimated Net are explicitly outside initial Breakdown scope. Future readers and Trades navigation must apply the complete original query and typed selection consistently.
 
 ## Architectural Goals
 

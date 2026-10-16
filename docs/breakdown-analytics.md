@@ -1,8 +1,113 @@
 # Breakdown Analytics — M20
 
+## M20.2 — filters, grouping and exact selection contracts
+
+Implemented **16 October 2026**, starting clean on `develop`, HEAD `d9320697c3ac669a25890f4699a431913d0d9d6e`. The committed M20.1 audit is retained below. This step adds pure Application contracts and helpers only; aggregation/results, SQL, Desktop controls, charts and executed drill-down belong to later M20 milestones.
+
+### Scope decisions
+
+- **Supported grouping:** Instrument (default), Trading Setup, Direction, Entry weekday, Entry hour, Account and Holding duration, one dimension at a time.
+- **Strategy is deferred for M20.** There is no authoritative source after its removal from the schema. No Strategy entity/field is recreated, and Setup names or Playbook text cannot substitute for it. Unsupported enum values fail validation.
+- **Basis:** Gross or **strict Net** (`PnlBasis.Gross` / `.Net`), default strict Net. `EffectiveNet` and unknown enum values are rejected. Dashboard/Calendar retain their existing, explicitly estimated Net presentation. Reconciliation must match population, filters, historical currency, closure-date basis and Gross/strict-Net semantics; an estimated Dashboard headline is not a strict-Net comparison.
+- **Currency:** exactly one required historical pricing currency, trimmed and uppercased invariantly, nonempty and at most eight characters, matching `TradePricingSnapshot`. This is not a new ISO currency registry and performs no conversion. Empty/missing currency is not an implicit combined-currency selection.
+
+### Contracts and population
+
+Namespace: `PersonalTradingJournal.Application.Analytics.Breakdown`.
+
+| Contract | Purpose |
+| --- | --- |
+| [`BreakdownQuery`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownQuery.cs) | Immutable filter context: one currency, basis, grouping and existing `DashboardAnalyticsQuery` as `TradeFilter` |
+| [`BreakdownGrouping`, `BreakdownGroupKey`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownGroupKey.cs) | Supported dimensions and validated typed keys; display labels/activity never participate in identity |
+| [`HoldingDurationBucket`, `HoldingDurationRange`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/HoldingDurationRange.cs) | Six explicit elapsed-time bucket identities, half-open bounds and pure boundary classification helpers |
+| [`BreakdownGroupSelection`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownGroupSelection.cs) | Original immutable query AND an exact typed group key for future drill-down; rejects a mismatched dimension or a group contradicting a specific Account/Instrument filter |
+
+`TradeFilter` reuses Dashboard's identifier validation and New York boundary conversion. Optional Account/Instrument IDs combine with AND; null means All accounts / All instruments, while `Guid.Empty` is invalid. A syntactically valid ID is not an existence/activity check: unavailable and inactive reference identity must remain representable. Dates use `DateOnly?`, not WPF/desktop period enums. Both absent means all history; a single absent bound leaves that side unrestricted. Future week/month/preset UI resolves its explicit dates using existing helpers, rather than adding another calendar-period implementation here.
+
+`IncludedStatus` is always Closed, with a required non-null closure instant. Open and partially exited Trades do not contribute realized monetary/outcome analytics. Missing Gross/Net/costs **do not remove an eligible closed Trade** or shrink the coverage denominator. Dashboard's persisted reader uses the same closed-only population; its excluded-open count of zero is not a census of open activity. The pure Dashboard calculator accepts open context separately, whereas Breakdown's query population is explicitly closed-only.
+
+### Time and stable identity
+
+Period membership uses **final `ClosedAtUtc`**, with inclusive New York dates converted to `[local midnight(first), local midnight(after last))` UTC bounds through `DashboardAnalyticsQuery`. Spring/fall days retain 23/25-hour lengths. Entry timestamp, broker TradeDay and futures-session rollover do not replace closure membership.
+
+| Dimension | Exact key / predicate and ordering |
+| --- | --- |
+| Instrument | Stable `InstrumentId`, never symbol/name; retained missing metadata remains the same ID |
+| Trading Setup | Current `TradingSetupId`; null key alone means **Unclassified**. A retained ID with unavailable name is a specific Setup, and inactive historical classifications stay eligible |
+| Account | Exact `TradingAccountId`, not name or an implicit null-scoped Journal identity |
+| Direction | Existing Domain `TradeDirection.Long` / `.Short` |
+| Entry weekday | Existing `DayOfWeek` from `OpenedAtUtc` converted by `TradingTimePolicy` to New York; natural key order is Monday–Sunday |
+| Entry hour | Integer 00–23 from that same New York opening instant; both autumn occurrences of 01 belong to group 01, each Trade once; natural order 00–23 |
+| Holding duration | Explicit bucket from `ClosedAtUtc − OpenedAtUtc` in UTC, ordered shortest to longest |
+
+A Trade opened Monday 23:30 New York and closed Tuesday 00:15 belongs to Tuesday's selected closure period, **Monday** entry weekday and hour **23**. Entry grouping cannot retarget its period. Date/time helpers require canonical zero-offset UTC instants, as existing Application time contracts do.
+
+Factories prevent malformed key payloads (empty IDs, invalid directions/weekdays/hours/buckets). `CompareTo` uses dimension then stable reference ID or chronological value, not display text. `GetLabel` takes current display metadata separately: a known name is shown with ` · inactive` when applicable; missing metadata falls back deterministically to `Missing Instrument (ID)`, `Missing Account (ID)` or `Missing Setup (ID)`, matching the existing missing-Setup convention. Duplicate names never merge groups, and a rename/archive changes no key, hash or selection. Weekday/duration labels are English like the current UI; hour labels explicitly identify New York.
+
+### Holding duration
+
+These six boundaries supersede the seven-bucket **proposal** recorded in M20.1:
+
+| Bucket ID | Label | Inclusive lower / exclusive upper |
+| --- | --- | --- |
+| `UnderOneMinute` | Under 1 minute | `[0, 1 minute)` |
+| `OneToFiveMinutes` | 1–5 minutes | `[1, 5 minutes)` |
+| `FiveToFifteenMinutes` | 5–15 minutes | `[5, 15 minutes)` |
+| `FifteenToSixtyMinutes` | 15–60 minutes | `[15, 60 minutes)` |
+| `OneToFourHours` | 1–4 hours | `[60, 240 minutes)` |
+| `FourHoursOrMore` | 4 hours or more | `[240 minutes, infinity)` |
+
+Zero duration belongs to Under 1 minute; every exact upper boundary belongs to the next bucket. UTC subtraction avoids distorted elapsed time across DST. Missing closure returns null/unavailable, never a valid bucket. Negative elapsed time, non-UTC instants and unsupported buckets throw parameter-specific argument exceptions. A future result must report unavailable/invalid source duration explicitly rather than assign it to a valid group or silently omit it; this step performs no database repair or result calculation.
+
+### Exact drill-down and coverage obligations
+
+`BreakdownGroupSelection` carries the original Account, Instrument, closure range, currency, basis and grouping unchanged, together with the exact typed key. It contains no mutable label, displayed count, rounded value or browse page. Future Trades paging must apply the **entire query AND the key** before counting/sorting/paging, including closed eligibility, historical currency, null Setup versus exact retained ID, New York **entry** weekday/hour, or the bucket's UTC elapsed-time bounds. It must preserve guarded navigation and Breakdown return state, and revalidate after source changes. The existing Account-only `TradeListQuery` cannot yet execute this descriptor; no approximate navigation or SQL predicate has been added.
+
+M20.3 results must reuse existing `MetricCoverage`/`PnlMetrics`/unavailable statuses to expose:
+
+- the full eligible closed count and independent Gross/strict-Net known counts;
+- missing-cost Trade coverage (the union, not commission count plus fee count), with component counts only when backed by actual execution evidence;
+- null-Setup/Unclassified count versus classified retained-ID count, with missing display metadata distinguished;
+- Empty, Partial, Unavailable and Complete metrics: a real zero stays zero, missing stays null, and a known subset is never the complete group total, rate or average.
+
+Unknown commission or fees never become zero or estimated Net. No R-multiple can be inferred without recorded risk. No aggregate result contract or calculation engine is introduced in M20.2.
+
+### M20.2 verification and file inventory
+
+**M20.2 complete.** Verification on the unchanged develop HEAD plus these uncommitted changes:
+
+| Check | Result / evidence |
+| --- | --- |
+| New focused Breakdown contracts | **41/41 passed**, zero failures/skips; filter validation/normalization, identity/labels, chronological ordering, entry DST/midnight, exact duration boundaries, unavailable/invalid durations and selection conflicts |
+| Complete Application Release project | **921/921 passed**, zero failures/skips; includes the 41 new cases and existing Dashboard/Calendar/Daily/Period contracts/calculations |
+| Complete Domain Release project | **490/490 passed**, zero failures/skips |
+| Release solution build | **0 warnings / 0 errors**, `dotnet build PersonalTradingJournal.sln -c Release --no-restore` |
+| EF model consistency | No model changes since the last migration; in-memory design-time `JournalDbContext` check, no production database |
+| Whitespace / documentation links | Passed; `git diff --check`, new C# file whitespace and 143 local Markdown target checks |
+| Full WPF/Infrastructure Release gate, visual/live acceptance | Not run for this pure Application-contract change; no SQL, Desktop or existing production behavior modified |
+| Matching CI | Unverified for these uncommitted changes; no resulting commit or CI acceptance claimed |
+
+Test commands use `dotnet test <project> -c Release --no-build --no-restore --logger trx --results-directory <isolated directory>`. The focused Application filter was `FullyQualifiedName~.Analytics.Breakdown.`; the broader Application and Domain runs had no filter. Raw TRX: ignored `artifacts/m202/focused/breakdown.trx`, `artifacts/m202/application/application.trx`, `artifacts/m202/domain/domain.trx`. The 41 focused cases are included in 921, not additional unique tests. No database/provider access is used by these new tests.
+
+Exact changed files (11):
+
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownQuery.cs` (new)
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownGroupKey.cs` (new)
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/HoldingDurationRange.cs` (new)
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/BreakdownGroupSelection.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownQueryTests.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownGroupKeyTests.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/HoldingDurationRangeTests.cs` (new)
+- `tests/PersonalTradingJournal.Application.Tests/Analytics/Breakdown/BreakdownGroupSelectionTests.cs` (new)
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+
+M20.3 remains next: implement group metrics and average Trade on the established shared formulas, with eligible/known/missing-cost/Unclassified coverage and unavailable states. SQL, UI and executed drill-down remain in their later milestones. No migration, production-journal access, provider request, branch switch, reset, commit, push or merge.
+
 ## M20.1 — existing analytics audit and shared calculation contract
 
-Audited on **16 October 2026**, `develop`, HEAD `4864305e51be4d519cd20b90047daa5ceab51540`, with a clean starting worktree. M20 is delivered one submilestone at a time. This step documents the existing behavior and the implementation map; M20.2–M20.10 are not implemented. Trading Plan, Notebook and new AI analysis remain separate work.
+Audited on **16 October 2026**, `develop`, HEAD `4864305e51be4d519cd20b90047daa5ceab51540`, with a clean starting worktree. This section retains the M20.1 checkpoint and proposals; the implemented M20.2 scope decisions above supersede its Strategy and duration proposals. Trading Plan, Notebook and new AI analysis remain separate work.
 
 The supplied Breakdown screenshot guides layout, not calculation inputs. Its corrected Unclassified average is **−360 USD / 12 Trades = −30 USD**. Its four group P&Ls sum to 2,460 USD and counts to 120; these illustrative figures must never become application data. The written requirement for a compact summary takes precedence over the screenshot's large KPI cards. Retain the shared shell heading rather than duplicating it inside the page.
 
@@ -13,7 +118,7 @@ The supplied Breakdown screenshot guides layout, not calculation inputs. Its cor
 | Authoritative economics | [`Trade`](../src/PersonalTradingJournal.Domain/Trades/Trade.cs), [`TradeExecution`](../src/PersonalTradingJournal.Domain/Trades/TradeExecution.cs), captured pricing snapshot | Reuse final Gross, costs and Net; never reconstruct from rounded prices or current Instrument specifications |
 | Persisted analytics facts | [`TradeBrowsePersistenceMapper`](../src/PersonalTradingJournal.Infrastructure/Persistence/Mapping/TradeBrowsePersistenceMapper.cs), one browse row per Trade | Reuse the transactionally maintained projection and historical `PricingCurrency`; no analytics table or migration needed for these facts |
 | Filter validation / date bounds | [`DashboardAnalyticsQuery`](../src/PersonalTradingJournal.Application/Analytics/DashboardAnalyticsQuery.cs), [`TradingTimePolicy`](../src/PersonalTradingJournal.Application/Common/Time/TradingTimePolicy.cs) | Reuse inclusive New York closure dates and UTC half-open bounds; add explicit currency and grouping/metric selection in Breakdown contracts |
-| Shared metrics / coverage | [`DashboardMetricCalculator`](../src/PersonalTradingJournal.Application/Analytics/DashboardPerformanceData.cs), [`PnlAccumulator`](../src/PersonalTradingJournal.Application/Analytics/PnlAccumulator.cs), [`PnlMetrics`](../src/PersonalTradingJournal.Application/Analytics/PnlMetrics.cs) | Reuse formulas, decimal precision, coverage and unavailable reasons. Expose a narrow reusable closed-population summary rather than repeatedly calculating unused day/week series for every group |
+| Shared metrics / coverage | [`DashboardMetricCalculator`](../src/PersonalTradingJournal.Application/Analytics/DashboardMetricCalculator.cs), [`PnlAccumulator`](../src/PersonalTradingJournal.Application/Analytics/PnlAccumulator.cs), [`PnlMetrics`](../src/PersonalTradingJournal.Application/Analytics/PnlMetrics.cs) | Reuse formulas, decimal precision, coverage and unavailable reasons. Expose a narrow reusable closed-population summary rather than repeatedly calculating unused day/week series for every group |
 | Complete persisted population | [`DashboardAnalyticsReader`](../src/PersonalTradingJournal.Infrastructure/Analytics/DashboardAnalyticsReader.cs), `IDashboardAnalyticsReader` | Reuse scalar, no-tracking SQL projection patterns. Current returned snapshot has aggregated metrics and only ten recent facts per currency; it cannot provide complete group drill-down membership |
 | Current grouping | `DashboardMetricCalculator`: currency, Setup ID, New York closure day, Monday-start week | Extend with stable Instrument/Account IDs, direction, entry weekday/hour and UTC holding duration. Keep missing classifications visible |
 | Period breakdowns | [`PeriodReviewComparisonCalculator`](../src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewComparisonCalculator.cs), `PeriodBreakdownKey` and bounded memberships | Reuse stable-key, contributing-ID, cancellation and size-limit patterns. Existing groups include Instrument, frozen-or-legacy Setup, unknown Session and multi-valued recorded Mistake. The whole calculator requires two adjacent week/month evidence sets, Rule patterns and full coaching evidence; it is not a lightweight arbitrary-range Breakdown query |
