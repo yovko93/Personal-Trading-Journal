@@ -1,5 +1,69 @@
 # Breakdown Analytics — M20
 
+## M20.4 — consistent database reader
+
+Implemented **16 October 2026**, starting from a clean `develop` worktree at `45717fad0dbddf80488bbfd05ec8143431a04135` (the committed M20.3 implementation). No schema, stored economics, shared analytics policy or Desktop changes.
+
+### Boundary and authoritative projection
+
+[`IBreakdownAnalyticsReader.GetAsync(BreakdownQuery, CancellationToken)`](../src/PersonalTradingJournal.Application/Analytics/Breakdown/IBreakdownAnalyticsReader.cs) returns the existing `BreakdownAnalyticsSnapshot`. Application has no EF/SQLite dependency. [`BreakdownAnalyticsReader`](../src/PersonalTradingJournal.Infrastructure/Analytics/BreakdownAnalyticsReader.cs) is registered transiently through `AddPersistence`, using the existing `IDbContextFactory<JournalDbContext>` and maintenance/session lifetime rules.
+
+One no-tracking SQL SELECT reads:
+
+| Source | Fields / role |
+| --- | --- |
+| `Trades` | Stable Trade, Account and Instrument IDs, current Setup classification, historical `PricingCurrency` |
+| `TradeBrowse` (one-to-one by Trade ID) | Domain-derived status/direction, opening/final closure UTC instants, Gross, nullable total costs and actual Net |
+| Account / Instrument / Setup left joins | Current names or symbol and activity, in the same snapshot as the facts; never pricing or identity substitutes |
+
+This follows the initialized database's existing browse-projection invariant: Trade writes/imports maintain it transactionally and startup reconciles its version. This reader does not repair missing projections or reconstruct economics from executions. Missing financial values remain null; known actual Net zero remains zero. Projection never substitutes Gross for Net or introduces estimated Net. `BreakdownMetricCalculator` alone applies the existing per-Trade Gross/Net-preferred policy and calculates summary, groups, coverage and contributing IDs.
+
+### Filtering, population and consistency
+
+SQL requires `Closed` with non-null final closure and the query's exact historical pricing currency. Optional exact Account/Instrument predicates combine with AND. Inclusive New York closure dates reuse `DashboardAnalyticsQuery`'s UTC `[start, end)` bounds, including 23/25-hour DST days and tick precision. Missing sides are unrestricted. Entry weekday/hour and elapsed duration grouping happen in the calculator and cannot change closure membership. No active-reference filter is applied. Duplicate names do not merge identities; a missing Setup record leaves its retained ID distinct from null/Unclassified.
+
+There is **one contributing SQL statement**, with no separate count or metadata reads, unrelated cache, collection joins, paging, `LIMIT`, or per-Trade/per-group query. SQLite holds one statement read snapshot through result consumption. EF materializes scalar facts and optional labels, not tracked entities. Thus membership, economics, classification and all labels are coherent even when a WAL writer commits while that statement is being consumed. No explicit multi-statement transaction or global pragma/isolation change is needed. If a future implementation adds contributing statements, it must enclose them in the established deferred read transaction rather than extend this single-statement guarantee implicitly.
+
+All matching scalar inputs materialize before the context is asynchronously disposed; the CPU calculator runs **after** that scope ends. No deferred query or storage object escapes. Each call creates its own context; the next call observes newly committed changes without remembered filters or cached results. Cancellation is checked before context creation, propagated to EF/materialization and the calculator, and never converted into empty success. Provider-supported cancellation cannot promise immediate interruption of every synchronous SQLite operation. Database/calculation/overflow errors propagate without partial results; there is no retry.
+
+**Size policy:** complete selected-population aggregation, with memory proportional to matching scalar facts and contributing IDs. There is no arbitrary row cap or silent truncation, nor any promise of streaming constant-memory metrics. Narrowing filters reduces the selected population. This step loads no executions, screenshots, notes, Journal or coaching content. Very large all-history populations still need performance measurement before a future explicit limit or index is justified; no speculative migration/index is added.
+
+### Verification and exact files
+
+**M20.4 complete.** Focused SQLite checks pass **30/30** on independent migrated-template databases, including all dimensions/modes, full 123-Trade populations, direct calculator equality, independent/combined filters, historical currency, precise decimal values, six DST-adjacent closure dates, entry/closure separation, open/partial exclusion, known Net zero, mixed/all-Gross fallback, unavailable values, inactive/missing references, duplicate display names and multiple screenshot/execution rows.
+
+The three deterministic concurrency cases use a read-only, non-pooled reader connection and an EF command interceptor: after SQLite starts its one SELECT and before EF consumes it, a separate WAL writer atomically changes membership, economics, classification and Account/Instrument/Setup metadata. The original read retains old IDs/values/labels; the next read sees the committed population/labels. This tests statement consumption, not invented inter-query boundaries. No sleeps, retries or production hooks are used. Additional interception asserts one SELECT, no entity tracking, no collection loads or paging; cancellation before/during/after SQL, injected read failure and invalid calculation inputs release contexts/connections and permit a subsequent normal read.
+
+The first compiled focused run passed 25/26: a test compared JSON number spelling (`1` versus `1.0`) rather than decimal equality after SQLite round-trip. It now checks every metric/coverage record, group key/label and contributing ID numerically. Four further filter/lifetime/metadata cases were added before the final 30-case run. A preceding test compile error used an unsupported xUnit `TheoryData` constructor and was corrected to the repository's supported collection API. Neither required a production behavior change.
+
+The first complete Infrastructure run in the restricted process passed **1,378/1,379**, with one setup failure in existing `BackupArchiveTests.LinkedScreenshotRootIsRejectedWithoutPackagingOutsideBytes`: Windows denied `Directory.CreateSymbolicLink` at line 113, before the backup assertion. The same unmodified synthetic test passed **1/1 outside the sandbox**, followed by the final complete Infrastructure project **1,379/1,379**, zero failures/skips (2m07s test duration). No assertions, fixture rules, deadlines or product behavior were changed to accommodate the permission failure.
+
+| Final check | Result |
+| --- | --- |
+| New focused SQLite reader cases | **30/30 passed**, zero failures/skips |
+| Application Breakdown cases | **94/94 passed**, zero failures/skips |
+| Complete Infrastructure project | **1,379/1,379 passed**, including existing Dashboard/Calendar/Daily/Period readers, persistence and portability |
+| Complete Application project | **974/974 passed**, including existing strict/estimated policies |
+| Release solution build | **0 warnings / 0 errors** |
+| EF model consistency | No changes since last migration; in-memory design-time context |
+| Whitespace / documentation paths | Passed; tracked diff plus new-file whitespace, **150 local Markdown targets** |
+| Full solution test gate / WPF / visual / live | Not run; no Desktop behavior changed in this reader milestone |
+| Matching CI | Unverified for uncommitted changes; no resulting commit/CI acceptance claimed |
+
+Commands: `dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~BreakdownAnalyticsReaderTests` (focused); Application focused filter `FullyQualifiedName~.Analytics.Breakdown.` with `-c Release --no-build --no-restore`. Complete Infrastructure/Application projects use `-c Release --no-build --no-restore` without filters. `dotnet build PersonalTradingJournal.sln -c Release --no-restore`; `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`; `git diff --check`. Final TRX evidence: ignored `artifacts/m204/focused-final/breakdown.trx`, `application-focused/breakdown.trx`, `application/application.trx`, `infrastructure-final/infrastructure.trx`. Focused cases are included in their full project totals, not additional unique tests.
+
+Exact changed files (7):
+
+- `src/PersonalTradingJournal.Application/Analytics/Breakdown/IBreakdownAnalyticsReader.cs` (new)
+- `src/PersonalTradingJournal.Infrastructure/Analytics/BreakdownAnalyticsReader.cs` (new)
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Analytics/BreakdownAnalyticsReaderTests.cs` (new)
+- `README.md`
+- `docs/architecture.md`
+- `docs/breakdown-analytics.md`
+
+M20.5 remains next: independent page state, cancellation/latest-request publication and committed-data invalidation. WPF controls, charts, executed Trades drill-down and visual/live acceptance are outside M20.4. No production data, provider, Git writes or matching CI acceptance are involved.
+
 ## M20.3 — group metrics and data quality
 
 Implemented **16 October 2026**, starting clean on `develop`, HEAD `e7f718cb0c705572a18514a092e7fc6ec7a81925`. **The user-approved M20.3 Net-preferred policy supersedes the strict-Net-only Breakdown decision recorded in M20.2 below.** Shared strict-Net/estimated-Net contracts and existing Dashboard, Calendar, Trades, Daily and Period Review behavior are unchanged. No SQL, WPF, chart, persisted analytics or executed drill-down is added.
