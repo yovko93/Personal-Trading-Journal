@@ -128,7 +128,7 @@ public sealed partial class MainWindowViewModelTests
                 {
                     fixture.Main.NavigateCommand.Execute(destination);
                     root.Measure(new(1000, 650)); root.Arrange(new(0, 0, 1000, 650)); root.UpdateLayout();
-                    Assert.Equal(fixture.Main.PageTitle, title.Text);
+                    Assert.Equal(destination == NavigationDestination.Breakdown ? "Breakdown Analytics" : fixture.Main.PageTitle, title.Text);
                     Assert.False(string.IsNullOrWhiteSpace(title.Text));
                     Assert.Equal(AutomationHeadingLevel.Level1, AutomationProperties.GetHeadingLevel(title));
                 }

@@ -21,7 +21,12 @@ public partial class BreakdownView : UserControl
         _focus = new(this);
         Loaded += (_, _) => { Observe(); _focus.Request(ReturnTarget); };
         Unloaded += (_, _) => { _focus.Invalidate(); Unobserve(); };
-        DataContextChanged += (_, _) => { _focus.Invalidate(); Unobserve(); if (IsLoaded) Observe(); };
+        DataContextChanged += (_, _) =>
+        {
+            _focus.Invalidate(); Unobserve();
+            if (DataContext is BreakdownViewModel { CurrencyValidation: not null }) MoreFilters.IsExpanded = true;
+            if (IsLoaded) Observe();
+        };
     }
     private FrameworkElement ReturnTarget()
     {
@@ -39,9 +44,27 @@ public partial class BreakdownView : UserControl
         if (_observed is not { } vm) return;
         vm.FocusRequested -= OnFocusRequested; vm.PropertyChanged -= OnStateChanged; _observed = null;
     }
-    private void OnFocusRequested(string name) => _focus.Request(() => FindName(name) as FrameworkElement);
+    private void OnFocusRequested(string name)
+    {
+        if (name is "CurrencyFilter" or "ModeFilter") MoreFilters.IsExpanded = true;
+        _focus.Request(() => FindName(name) as FrameworkElement);
+    }
+    private void OnMoreFilters(object sender, RoutedEventArgs e) => MoreFilters.IsExpanded = !MoreFilters.IsExpanded;
+    private void OnMoreFiltersChanged(object sender, RoutedEventArgs e)
+        => AutomationProperties.SetItemStatus(MoreFiltersButton, MoreFilters.IsExpanded ? "Expanded" : "Collapsed");
+    private void OnKpiSizeChanged(object sender, SizeChangedEventArgs e)
+        => KpiCards.Columns = e.NewSize.Width < 480 ? 1 : e.NewSize.Width < 900 ? 2 : 4;
+    private void OnGroupingSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        bool narrow = e.NewSize.Width < 930;
+        Grid.SetColumn(MetricControls, narrow ? 0 : 1); Grid.SetRow(MetricControls, narrow ? 1 : 0);
+        MetricControls.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        MetricControls.Margin = new Thickness(narrow ? 0 : 10, 0, 0, 6);
+    }
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(BreakdownViewModel.CurrencyValidation) && _observed?.CurrencyValidation is not null)
+            MoreFilters.IsExpanded = true;
         if (e.PropertyName is nameof(BreakdownViewModel.SelectedGroup) or nameof(BreakdownViewModel.Chart) && _observed?.SelectedGroup is null &&
             (ComparisonChart.IsKeyboardFocusWithin || GroupTable.IsKeyboardFocusWithin || SelectedTradesButton.IsKeyboardFocused ||
              ReferenceEquals(FocusManager.GetFocusedElement(this), SelectedTradesButton)))
@@ -49,7 +72,7 @@ public partial class BreakdownView : UserControl
     }
     private void OnComparisonSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        bool narrow = e.NewSize.Width < 1000;
+        bool narrow = e.NewSize.Width < 900;
         ChartColumn.Width = new GridLength(narrow ? 1 : 2, GridUnitType.Star);
         DetailsColumn.Width = narrow ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
         Grid.SetColumn(DetailsCard, narrow ? 0 : 1); Grid.SetRow(DetailsCard, narrow ? 1 : 0);
@@ -73,6 +96,15 @@ public partial class BreakdownView : UserControl
         UpdateSortGlyphs();
     }
     private void OnTableLoaded(object sender, RoutedEventArgs e) => UpdateSortGlyphs();
+    private void OnTableSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Keep financial columns readable and the action at the right. A star column in a
+        // horizontally scrolling, virtualized DataGrid can retain its minimum after sorting.
+        var group = GroupTable.Columns.Single(c => c.SortMemberPath == nameof(BreakdownSortColumn.Group));
+        double otherWidths = GroupTable.Columns.Where(c => c != group).Sum(c => c.Width.Value);
+        group.Width = new DataGridLength(Math.Max(group.MinWidth,
+            e.NewSize.Width - otherWidths - 2 - SystemParameters.VerticalScrollBarWidth));
+    }
     private void UpdateSortGlyphs()
     {
         if (DataContext is not BreakdownViewModel vm) return;

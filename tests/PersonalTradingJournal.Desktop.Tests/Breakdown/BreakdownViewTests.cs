@@ -58,9 +58,9 @@ public sealed class BreakdownViewTests
                     var instrument = (ComboBox)view.FindName("InstrumentFilter");
                     account.SelectedItem = f.Vm.Accounts.Single(a => a.Id == BreakdownFixture.AccountId);
                     instrument.SelectedItem = f.Vm.Instruments.Single(i => i.Id == BreakdownFixture.InstrumentId);
-                    ((ComboBox)view.FindName("GroupingFilter")).SelectedValue = BreakdownGrouping.Account;
+                    ((ListBox)view.FindName("GroupingFilter")).SelectedValue = BreakdownGrouping.Account;
                     ((ComboBox)view.FindName("ModeFilter")).SelectedValue = BreakdownCalculationMode.Gross;
-                    var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Apply filters"));
+                    var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Apply"));
                     Assert.Same(f.Vm.ApplyCommand, apply.Command);
                     Pump(f.Vm.ApplyCommand.ExecuteAsync(null)); Layout();
                     Assert.False(f.Vm.HasUnappliedChanges);
@@ -72,7 +72,7 @@ public sealed class BreakdownViewTests
                     Assert.Equal(f.Vm.SelectedInstrument, instrument.SelectedItem);
                     Assert.Equal(f.Vm.SelectedAccount.Name, AutomationProperties.GetHelpText(account));
                     Assert.Equal(f.Vm.SelectedInstrument.Name, instrument.ToolTip);
-                    Assert.Contains(Descendants<TextBlock>(view), t => t.Text.Contains("Last successful result"));
+                    Assert.Equal(f.Vm.AppliedContext, ((TextBlock)view.FindName("AppliedScope")).ToolTip);
                     foreach (var control in Descendants<Control>(view).Where(c => c is ComboBox or TextBox || c is Button b && b.Command is not null))
                     {
                         if (!control.IsVisible) continue;

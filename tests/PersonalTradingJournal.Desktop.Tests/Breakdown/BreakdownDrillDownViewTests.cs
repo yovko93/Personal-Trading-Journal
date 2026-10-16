@@ -71,7 +71,8 @@ public sealed class BreakdownDrillDownViewTests
                     var page = (ScrollViewer)breakdownView.Content;
                     var detail = (Border)breakdownView.FindName("DetailsCard");
                     page.ScrollToVerticalOffset(detail.TranslatePoint(new(), breakdownView).Y + page.VerticalOffset); Layout(breakdownView);
-                    var action = Assert.Single(Descendants<Button>(detail), b => Equals(b.Content, "View trades"));
+                    var action = Assert.Single(Descendants<Button>(detail), b => b.Name == "SelectedTradesButton");
+                    Assert.Equal(f.Vm.SelectedDetails!.ViewTradesLabel, action.Content);
                     Assert.True(action.IsEnabled); Assert.True(action.Focusable);
                     Assert.Same(f.Vm.SelectedGroup, action.CommandParameter);
                     Invoke(action); Pump(f.Vm.ViewTradesCommand.ExecutionTask!);

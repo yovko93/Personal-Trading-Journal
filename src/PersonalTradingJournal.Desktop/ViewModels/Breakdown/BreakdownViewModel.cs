@@ -63,10 +63,10 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         [new(DashboardPeriod.All, "All history"), new(DashboardPeriod.Week, "Current week"),
          new(DashboardPeriod.Month, "Current month"), new(DashboardPeriod.Year, "Current year"), new(DashboardPeriod.Custom, "Custom dates")];
     public IReadOnlyList<BreakdownChoice<BreakdownGrouping>> Groupings { get; } =
-        [new(BreakdownGrouping.Instrument, "Instrument"), new(BreakdownGrouping.TradingSetup, "Trading setup"),
-         new(BreakdownGrouping.Direction, "Direction"), new(BreakdownGrouping.EntryWeekday, "Entry weekday"),
+        [new(BreakdownGrouping.TradingSetup, "Setup"), new(BreakdownGrouping.Instrument, "Instrument"),
+         new(BreakdownGrouping.Direction, "Direction"), new(BreakdownGrouping.EntryWeekday, "Weekday"),
          new(BreakdownGrouping.EntryHour, "Entry hour"), new(BreakdownGrouping.Account, "Account"),
-         new(BreakdownGrouping.HoldingDuration, "Holding duration")];
+         new(BreakdownGrouping.HoldingDuration, "Hold time")];
     public IReadOnlyList<BreakdownChoice<BreakdownCalculationMode>> Modes { get; } =
         [new(BreakdownCalculationMode.NetPreferred, "Net preferred"), new(BreakdownCalculationMode.Gross, "Gross")];
     public IReadOnlyList<BreakdownReferenceOption> Accounts { get => _accountOptions; private set => SetProperty(ref _accountOptions, value); }
@@ -129,7 +129,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     public BreakdownChartMetric ChartMetric
     {
         get => _chartMetric;
-        set { if (Enum.IsDefined(value) && SetProperty(ref _chartMetric, value)) { RebuildChart(); OnPropertyChanged(nameof(Chart)); NotifySelection(); } }
+        set { if (Enum.IsDefined(value) && SetProperty(ref _chartMetric, value)) { RebuildChart(); OnPropertyChanged(nameof(Chart)); OnPropertyChanged(nameof(ChartHeading)); NotifySelection(); } }
     }
     public BreakdownChartPresentation? Chart => _chart;
     public BreakdownChartRow? SelectedChartRow
@@ -169,6 +169,11 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         ? "A selected reference is unavailable. Its exact identity is retained; choose another explicitly or refresh this exact scope." : "";
     public string AppliedContext => Result is null ? "No successful result yet." :
         $"Last successful result · {Range(Result.Query)} · New York closure dates · {_resultAccount} · {_resultInstrument} · {Result.Query.Currency} · {Groupings.First(g => g.Value == Result.Query.Grouping).Name} · {Modes.First(m => m.Value == Result.Query.Mode).Name}";
+    // Concise presentation of the successful scope, never of unapplied controls.
+    public string CompactContext => Result is null ? "" :
+        $"{Range(Result.Query)} · {_resultAccount} · {_resultInstrument} · {Result.Query.Currency} · New York closure dates";
+    public string ChartHeading => Result is null ? "" :
+        $"{(ChartMetric == BreakdownChartMetric.Pnl ? Presentation!.Summary.Basis + " P&L" : ChartMetric == BreakdownChartMetric.Trades ? "Closed Trades" : "Win Rate")} by {Groupings.First(g => g.Value == Result.Query.Grouping).Name.ToLowerInvariant()}";
     public string ResultStatus => Result is null ? "" : IsEmpty ? "No matching closed Trades." :
         $"{Result.Summary.EligibleTradeCount} closed Trades · {Result.Groups.Count} groups · {Result.Query.Currency} · {SourceName(Result.Summary.FinancialSources.Source)}";
     public string CoverageStatus => Result is null ? "" :
@@ -317,7 +322,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Presentation));
         NotifyTable();
         foreach (var property in new[] { nameof(Result), nameof(HasResult), nameof(IsEmpty), nameof(AppliedContext),
-                     nameof(ResultStatus), nameof(CoverageStatus), nameof(HasUnappliedChanges), nameof(DraftStatus), nameof(LookupWarning) })
+                     nameof(CompactContext), nameof(ChartHeading), nameof(ResultStatus), nameof(CoverageStatus), nameof(HasUnappliedChanges), nameof(DraftStatus), nameof(LookupWarning) })
             OnPropertyChanged(property);
     }
     private bool TryQuery(out BreakdownQuery? query, out string? dateError, out string? currencyError)

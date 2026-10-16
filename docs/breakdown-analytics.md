@@ -1,5 +1,79 @@
 # Breakdown Analytics — M20
 
+## M20.11 — visual alignment
+
+Starting state: **clean `develop`, HEAD `59c8a7c1c36b80396b8c9698f5d3bc7412000a56`**. The reference is the attachment named **Visual target.png**; **Current implementation.png** is the prior UI. The numbered descriptions in the pasted request were reversed. No existing work was discarded.
+
+This deliberately supersedes M20.6's **single compact-summary card**. The four new equal-weight KPI cards format the existing supplied summary; no calculation, query, schema, cohort membership, navigation guard or persistence contract changes.
+
+### Layout and retained behavior
+
+- The shared shell has a **Breakdown-only** left-aligned “Breakdown Analytics” heading and one subtitle. Its old centered pill is not duplicated. Other destinations retain their centered heading treatment and the sidebar is unchanged.
+- Period, Account, Instrument, Apply, Refresh, Reset and More filters share a compact toolbar. Currency/calculation mode start collapsed; invalid currency reveals the field before the existing guarded focus request. Custom date inputs, labels, draft indication and explicit Apply semantics remain. Normal “Breakdown loaded” / “Filters match” prose is hidden; errors, cancellation, stale/retained results and loading controls remain visible.
+- Four approximately 88-DIP cards show source-labeled P&L, closed Trades, Win Rate and Profit Factor. **Net, Net/Gross, Gross fallback, Gross and unavailable remain distinct**. Empty/incomplete financial populations have an explicit explanation; no missing value becomes zero.
+- Seven grouping chips edit the existing draft state, not the displayed result. Instrument is still the default; Strategy remains deferred. Chart metric changes remain local. The concise chart heading uses the **applied** grouping and source basis.
+- Chart and selected-group cards use approximately **two-thirds / one-third** width and align vertically; narrow views stack. Teal/red bars retain the existing signed scale, zero baseline, unavailable values, virtualization and selection. Full scale/coverage text remains in help/tooltips; concise coverage is visible in selected details and the table/footer. Secondary definitions/outcomes/winner/loss averages are available through Metric details.
+- The table retains all eight columns, raw numeric/chronological sorting, stable group selection, exact View trades command parameters, virtualization and horizontal scrolling. Its row action is now at the right. No synthetic group or automatic selection is added to production.
+
+### Reference-based automated visual evidence
+
+The new compiled-shell fixture uses real `MainWindow.xaml` and `BreakdownView.xaml` with fake readers and the real calculator. A 120-Trade / four-Setup synthetic population reproduces the reference's broad composition (FVG, Liquidity sweep, CRT, Unclassified), with descending P&L chosen **in the fixture** and FVG selected. It also renders one MNQ group with mixed actual-Net/Gross fallback, empty, unavailable and retained-error states. All are synthetic; nothing reads the installed journal.
+
+Reference comparison uses a **1586×992-DIP client render at 96 DPI**, with about 1,270 DIP of page content, close to the target's approximately 1,265-pixel content region. The screenshot's monitor DPI is unknown: this is an explicit logical-viewport comparison, not a claim that the different-sized supplied screenshots are equivalent raw pixels. Additional samples use **1280×800 DIP / 96 DPI** and **1000×992 DIP / 240 DPI** (2500×2480 pixels), both themes. Narrow cards reflow 2×2 and chart/details stack; page/table scrolling reaches the remainder.
+
+Initial render inspection led to a left-alignment correction for the detail amount, stronger section/title hierarchy, and narrower responsive breakpoints so the ordinary 1280-DIP window retains a chart/details row. The target hierarchy is preserved while intentionally retaining explicit currency suffixes, Apply/Refresh/More filters, financial-source coverage, the theme toggle, and accessible selected/focused outlines. No Demo data badge, Strategy chip, fabricated values or altered sort default was added. The app's Dark palette/sidebar are retained rather than copied from the Light mockup.
+
+Local images: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/breakdown-alignment-renders/`; filenames include theme, client width, DPI and state. These are **automated off-screen renders**, not live mouse/keyboard or screen-reader observations.
+
+### Verification and acceptance
+
+Final focused run: **97/97 passed, zero failures/skips**, 53 seconds, `artifacts/m2011/focused-final-aligned/breakdown.trx`. This includes six new compiled-shell composition cases, existing Breakdown presentation/state/accessibility/drill-down tests and shared-header/navigation checks. The tests verify collapsed/expanded filters, invalid-field focus, draft-versus-applied heading, unchanged read counts on chip selection, KPI dimensions/reflow, chart/detail proportions, table/action placement, narrow scrolling, selected-source commands and restoration of other destinations' centered headings.
+
+Iteration checks caught an object-valued WPF button format that displayed only a count, an omitted visible empty-result explanation, and unused table width after virtualized source replacement. These presentation issues were corrected before the final focused run; changed selectors/assertions follow the requested new visible/accessible placement, not weakened financial/cohort behavior. An initial new-test compile also needed its existing STA-helper namespace import. Final solution Release build: **0 warnings/errors**, 16.15 seconds. EF design-time in-memory check: **no pending model changes**. `git diff --check`, new-file whitespace and **152 local documentation links** pass.
+
+The **single final complete Release gate passed: 4,562 unique tests, zero failures/skips, exit 0**. Command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m2011/gate`. Evidence root: `artifacts/m2011/gate/release-20261016-215028-b2bbf02dd83c4aec83b32d254d024f98/`, with top-level TRX, `summary.json`, VSTest diagnostics and supervised child logs. Focused/child overlap is not added to this total.
+
+| Project / partition | Passed | Failed / skipped | Reported duration |
+| --- | ---: | --- | --- |
+| Desktop exclusive WPF | 88 | 0 / 0 | 1m 31s |
+| Desktop parallel | 1,626 | 0 / 0 | 5m 17s |
+| Domain | 490 | 0 / 0 | 3s |
+| Application | 976 | 0 / 0 | 6s |
+| Infrastructure | 1,382 | 0 / 0 | 3m 26s |
+
+Calendar native child: **78.959 / 120 seconds**, **41.041 seconds headroom**. Journal editor child: **11.797 seconds**, its STA finished in **8.086 seconds** against the unchanged 30-second deadline. No Calendar focus/deadline or Journal failure occurred. These are observed local timings, not a guarantee for another runner. No deadlines, test scheduling or financial/cohort assertions changed.
+
+| Acceptance area | M20.11 result |
+| --- | --- |
+| Visual implementation | **Complete**, reference hierarchy inspected and iterated; intentional differences above |
+| Local automated | **Passed**, focused + final complete gate/build/EF/whitespace/links |
+| Automated visual | **Passed for inspected samples**, Light/Dark normal and narrow/240 DPI; not live input |
+| Calculations / queries / cohort behavior | **Unchanged**, existing full-gate regressions passed |
+| Performance | Existing M20.10 reader/cohort measurements retained; no new performance or frame-time claim |
+| Live keyboard / screen reader | **Pending**, no actual interaction or Narrator/NVDA acceptance added |
+| Matching CI | **Pending**, uncommitted work is not represented by a tested commit |
+
+Actual keyboard, Narrator/NVDA and matching CI remain **pending**. The prior supported helper failed initialization; no live interaction is claimed from these renders or WPF peers. Use the existing manual checklist with More filters/grouping chips included. These changes are uncommitted, so no workflow run can cover this final worktree; the workflow remains `CI / validate`, triggered by a `main` push or PR targeting `main`. No publication or provider request is made.
+
+### Exact changed files
+
+1. `README.md`
+2. `docs/breakdown-analytics.md`
+3. `src/PersonalTradingJournal.Desktop/MainWindow.xaml`
+4. `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+5. `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+6. `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+7. `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownPresentation.cs`
+8. `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownChartPresentation.cs`
+9. `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+10. `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs`
+11. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownViewTests.cs`
+12. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownChartViewTests.cs`
+13. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownDrillDownViewTests.cs`
+14. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs`
+15. `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowHeaderTests.cs`
+16. `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowBreakdownLayoutTests.cs` (new)
+
 ## Remaining acceptance check — 17 October 2026
 
 Actual starting state was **clean `develop` at `7ade629049a517435df10437137a3b0ad098cfb8`**. The five M20.10 files previously reported as uncommitted are now committed and published at that SHA; GitHub's `develop` branch reports the same head. Compared with `ebea74a`, this commit adds only the three acceptance documents and two measurement-tool files. Application code, tests, Release runner and CI configuration are unchanged. The recorded **4,556 passed / 0 failed / 0 skipped, exit 0** local gate and its retained `summary.json` were reused; no repeat build, EF check, render run or full test gate was justified by this documentation-only follow-up.

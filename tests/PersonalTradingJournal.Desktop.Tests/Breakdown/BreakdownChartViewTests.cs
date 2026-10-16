@@ -89,7 +89,7 @@ public sealed class BreakdownChartViewTests
                     page.ScrollToVerticalOffset(offset); Layout();
                     Assert.InRange(chart.ActualWidth, 200, width);
                     Assert.InRange(details.TranslatePoint(new(details.ActualWidth, 0), view).X, 0, width + 1);
-                    Assert.Contains(Descendants<TextBlock>(chart), t => t.Text.Contains("Gross fallback"));
+                    Assert.Contains(Descendants<ListBoxItem>(chart), item => AutomationProperties.GetName(item).Contains("Gross fallback"));
                     Assert.Contains(Descendants<TextBlock>(chart), t => t.Text.Contains("Unavailable"));
                     var longLabel = Assert.Single(Descendants<TextBlock>(chart), t => t.Text == f.Vm.GroupRows[0].Label);
                     Assert.Equal(TextWrapping.Wrap, longLabel.TextWrapping);

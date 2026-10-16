@@ -135,19 +135,42 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderAction" />
                     </Grid.ColumnDefinitions>
-                    <Border x:Name="PageTitleTreatment" Grid.Column="1"
-                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                            MaxWidth="760" Padding="18,7" CornerRadius="10"
-                            Background="{DynamicResource PtjPageHeaderSurfaceBrush}"
-                            BorderBrush="{DynamicResource PtjPageHeaderBorderBrush}" BorderThickness="1">
+                    <Border x:Name="PageTitleTreatment" VerticalAlignment="Center" CornerRadius="10">
+                        <Border.Style><Style TargetType="Border">
+                            <Setter Property="Grid.Column" Value="1" /><Setter Property="HorizontalAlignment" Value="Center" />
+                            <Setter Property="MaxWidth" Value="760" /><Setter Property="Padding" Value="18,7" />
+                            <Setter Property="Background" Value="{DynamicResource PtjPageHeaderSurfaceBrush}" />
+                            <Setter Property="BorderBrush" Value="{DynamicResource PtjPageHeaderBorderBrush}" /><Setter Property="BorderThickness" Value="1" />
+                            <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown">
+                                <Setter Property="Grid.Column" Value="0" /><Setter Property="Grid.ColumnSpan" Value="2" />
+                                <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="MaxWidth" Value="Infinity" />
+                                <Setter Property="Padding" Value="0,3" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+                            </DataTrigger></Style.Triggers>
+                        </Style></Border.Style>
                         <StackPanel>
                             <TextBlock x:Name="PageTitleText"
-                                       AutomationProperties.HeadingLevel="Level1"
-                                       Style="{StaticResource PtjShellPageTitleTextStyle}"
-                                       Text="{Binding PageTitle}" />
+                                       AutomationProperties.HeadingLevel="Level1">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource PtjShellPageTitleTextStyle}">
+                                    <Setter Property="Text" Value="{Binding PageTitle}" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown">
+                                        <Setter Property="Text" Value="Breakdown Analytics" /><Setter Property="TextAlignment" Value="Left" />
+                                        <Setter Property="FontSize" Value="28" />
+                                        <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+                                    </DataTrigger></Style.Triggers>
+                                </Style></TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock x:Name="BreakdownSubtitle" Text="Understand where your results come from" Margin="0,2,0,0"
+                                       TextWrapping="Wrap" Foreground="{DynamicResource PtjTextSecondaryBrush}">
+                                <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                </Style></TextBlock.Style>
+                            </TextBlock>
                             <Border Width="32" Height="2" Margin="0,5,0,0" CornerRadius="1"
                                     HorizontalAlignment="Center" IsHitTestVisible="False"
-                                    Background="{DynamicResource PtjAccentBrush}" />
+                                    Background="{DynamicResource PtjAccentBrush}">
+                                <Border.Style><Style TargetType="Border"><Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger></Style.Triggers></Style></Border.Style>
+                            </Border>
                         </StackPanel>
                     </Border>
                     <ToggleButton x:Name="PageThemeToggle" Grid.Column="2" Margin="12,0,0,0"
@@ -160,7 +183,10 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Padding="32,24">
+            <Border Grid.Row="1">
+                <Border.Style><Style TargetType="Border"><Setter Property="Padding" Value="32,24" />
+                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Padding" Value="32,16" /></DataTrigger></Style.Triggers>
+                </Style></Border.Style>
                 <ContentControl HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch"
                                 Content="{Binding CurrentContentViewModel}" />

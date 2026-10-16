@@ -67,6 +67,7 @@ public sealed class BreakdownChartPresentation
 
 public sealed record BreakdownGroupDetails(BreakdownGroupPresentation Group, string Context)
 {
+    public string ViewTradesLabel => $"View {Group.Metrics.Trades} trades →";
     public string Counts => $"{Group.Metrics.Trades} eligible · {Group.Source.Metrics.Selected.EvaluableTradeCount} financially evaluable";
     public string Outcomes => $"Known outcomes: {Group.Source.Metrics.Selected.Wins} wins · {Group.Source.Metrics.Selected.Losses} losses · {Group.Source.Metrics.Selected.BreakEvens} break-even";
     public string Averages => $"Average trade: {Group.Metrics.Average}\nAverage winner: {DashboardCurrencyPresentation.Money(Group.Source.Metrics.Selected.AverageWin.Value, Group.Currency)}\nAverage loss (magnitude): {DashboardCurrencyPresentation.Money(Group.Source.Metrics.Selected.AverageLoss.Value, Group.Currency)}";

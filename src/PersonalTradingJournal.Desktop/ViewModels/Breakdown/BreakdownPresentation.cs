@@ -26,6 +26,7 @@ public sealed record BreakdownMetricPresentation(BreakdownMetrics Source, string
     public string UnavailableExplanation => Trades == 0 ? "No matching closed Trades."
         : Source.Selected.Coverage.UnknownTradeCount > 0 ? "Unavailable metrics require complete financial coverage; no partial total is shown."
         : "Win Rate uses all eligible closed Trades, including break-evens; average uses the same population and selected basis.";
+    public string CoverageWarning => Trades == 0 || Source.Selected.Coverage.UnknownTradeCount > 0 ? UnavailableExplanation : "";
     public string Basis => Source.FinancialSources.Source switch
     {
         BreakdownFinancialSource.Net => "Net", BreakdownFinancialSource.NetGross => "Net/Gross",

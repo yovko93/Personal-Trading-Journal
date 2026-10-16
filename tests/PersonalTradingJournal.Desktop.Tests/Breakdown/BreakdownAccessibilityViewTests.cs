@@ -118,10 +118,11 @@ public sealed class BreakdownAccessibilityViewTests
                     var element = (FrameworkElement)view.FindName(name);
                     Assert.NotNull(AutomationProperties.GetLabeledBy(element)); Assert.NotEmpty(AutomationProperties.GetName(element));
                 }
-                var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Apply filters"));
+                var apply = Descendants<Button>(view).Single(b => Equals(b.Content, "Apply"));
                 f.Vm.Currency = "";
                 PressSpace(apply); Idle();
                 Assert.NotNull(f.Vm.CurrencyValidation); Assert.Same(currency, FocusManager.GetFocusedElement(view));
+                Assert.True(((Expander)view.FindName("MoreFilters")).IsExpanded);
                 Assert.Equal(f.Vm.CurrencyValidation, AutomationProperties.GetItemStatus(currency));
                 var status = (TextBlock)view.FindName("OperationStatus");
                 Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(status));
