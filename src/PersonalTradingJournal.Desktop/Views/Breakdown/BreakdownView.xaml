@@ -1,0 +1,83 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Breakdown.BreakdownView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource PtjBackgroundBrush}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="Visible" />
+        <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}" />
+        <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}" />
+        <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}" />
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+        <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" /><Setter Property="FontSize" Value="14" /><Setter Property="Padding" Value="0,0,0,6" /></Style>
+        <Style x:Key="Filter" TargetType="StackPanel"><Setter Property="Width" Value="216" /><Setter Property="Margin" Value="0,0,16,12" /></Style>
+        <Style TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+        <Style x:Key="OptionalText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+            <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,12">
+        <StackPanel>
+            <TextBlock Text="Explore closed Trades by their New York closure dates. Edit filters, then Apply." Margin="0,0,0,12" />
+            <WrapPanel x:Name="FilterToolbar">
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Period" Target="{Binding ElementName=PeriodFilter}" />
+                    <ComboBox x:Name="PeriodFilter" ItemsSource="{Binding Periods}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Period}" AutomationProperties.Name="Breakdown period" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Account" Target="{Binding ElementName=AccountFilter}" />
+                    <ComboBox x:Name="AccountFilter" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" AutomationProperties.Name="Breakdown Account" AutomationProperties.HelpText="{Binding SelectedAccount.Name}" ToolTip="{Binding SelectedAccount.Name}">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Instrument" Target="{Binding ElementName=InstrumentFilter}" />
+                    <ComboBox x:Name="InstrumentFilter" ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}" AutomationProperties.Name="Breakdown Instrument" AutomationProperties.HelpText="{Binding SelectedInstrument.Name}" ToolTip="{Binding SelectedInstrument.Name}">
+                        <ComboBox.ItemTemplate><DataTemplate><TextBlock Text="{Binding Name}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Currency" Target="{Binding ElementName=CurrencyFilter}" />
+                    <TextBox x:Name="CurrencyFilter" Text="{Binding Currency, UpdateSourceTrigger=PropertyChanged}" ToolTip="{Binding CurrencySuggestions}" AutomationProperties.Name="Historical pricing currency" AutomationProperties.HelpText="{Binding CurrencySuggestions}" />
+                    <TextBlock Style="{StaticResource OptionalText}" Text="{Binding CurrencyValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Group by" Target="{Binding ElementName=GroupingFilter}" />
+                    <ComboBox x:Name="GroupingFilter" ItemsSource="{Binding Groupings}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Grouping}" AutomationProperties.Name="Breakdown grouping" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Calculation mode" Target="{Binding ElementName=ModeFilter}" />
+                    <ComboBox x:Name="ModeFilter" ItemsSource="{Binding Modes}" DisplayMemberPath="Name" SelectedValuePath="Value" SelectedValue="{Binding Mode}" AutomationProperties.Name="Breakdown calculation mode" />
+                </StackPanel>
+            </WrapPanel>
+            <WrapPanel Visibility="{Binding IsCustom, Converter={StaticResource Visible}}">
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="From (yyyy-MM-dd)" Target="{Binding ElementName=FromDate}" />
+                    <TextBox x:Name="FromDate" Text="{Binding StartDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First New York closure date" />
+                </StackPanel>
+                <StackPanel Style="{StaticResource Filter}">
+                    <Label Content="Through (yyyy-MM-dd)" Target="{Binding ElementName=ThroughDate}" />
+                    <TextBox x:Name="ThroughDate" Text="{Binding EndDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last New York closure date" />
+                </StackPanel>
+            </WrapPanel>
+            <TextBlock Style="{StaticResource OptionalText}" Text="{Binding DateValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Style="{StaticResource OptionalText}" Text="{Binding LookupWarning}" Foreground="{DynamicResource PtjDangerBrush}" />
+            <TextBlock Text="{Binding DraftStatus}" Margin="0,4,0,12" />
+            <WrapPanel>
+                <Button Content="Apply filters" Command="{Binding ApplyCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.Name="Apply Breakdown filters" />
+                <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8" ToolTip="Reread the last submitted filters. Does not apply draft changes." AutomationProperties.HelpText="Reread the last submitted filters without applying draft changes." />
+                <Button Content="Reset" Command="{Binding ResetCommand}" Margin="0,0,8,8" ToolTip="All history, All accounts, All instruments, Instrument grouping, Net preferred and default currency; load once." />
+                <Button Content="Cancel loading" Command="{Binding CancelCommand}" Margin="0,0,8,8" Visibility="{Binding IsLoading, Converter={StaticResource Visible}}" />
+            </WrapPanel>
+            <TextBlock Text="{Binding StatusMessage}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,8" />
+            <TextBlock Style="{StaticResource OptionalText}" Text="{Binding ErrorMessage}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Assertive" Margin="0,0,0,8" />
+            <TextBlock Text="Recorded Trade data changed; this result needs Refresh." Visibility="{Binding IsStale, Converter={StaticResource Visible}}" Margin="0,0,0,8" />
+            <Border Style="{StaticResource PtjCardStyle}" Visibility="{Binding HasResult, Converter={StaticResource Visible}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding AppliedContext}" FontWeight="SemiBold" Margin="0,0,0,8" />
+                    <TextBlock Text="{Binding ResultStatus}" Margin="0,0,0,8" />
+                    <TextBlock Text="{Binding CoverageStatus}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

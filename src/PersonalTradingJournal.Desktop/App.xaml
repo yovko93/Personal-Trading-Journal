@@ -7,6 +7,8 @@
              xmlns:commonViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Common"
              xmlns:dashboardViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Dashboard"
              xmlns:dashboardViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Dashboard"
+             xmlns:breakdownViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Breakdown"
+             xmlns:breakdownViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Breakdown"
              xmlns:calendarViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Calendar"
              xmlns:calendarViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Calendar"
              xmlns:journalViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Journals"
@@ -49,6 +51,9 @@
 
             <DataTemplate DataType="{x:Type dashboardViewModels:DashboardViewModel}">
                 <dashboardViews:DashboardView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type breakdownViewModels:BreakdownViewModel}">
+                <breakdownViews:BreakdownView />
             </DataTemplate>
 
             <DataTemplate DataType="{x:Type calendarViewModels:CalendarViewModel}">

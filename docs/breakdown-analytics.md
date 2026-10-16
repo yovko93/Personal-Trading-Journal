@@ -1,5 +1,63 @@
 # Breakdown Analytics — M20
 
+## M20.5 — Desktop filters and page state
+
+Implemented **16 October 2026**, from clean `develop` HEAD `db445629ec8623a673c293379f37cc790bce6301`. This is the actual committed M20.4 baseline, newer than the request's reported SHA. The Breakdown destination now uses the real `IBreakdownAnalyticsReader` through a retained Desktop ViewModel. The Application calculator, Infrastructure reader, single-statement snapshot, economics and schema are unchanged. No fabricated chart/table figures are displayed.
+
+### Filters and actions
+
+- Defaults: **All history**, **All accounts**, **All instruments**, **Instrument** grouping and **Net preferred**. Initial currency is the ordinal-first distinct Account/Instrument catalog currency (the existing Desktop sorted-currency selection convention), or USD when catalogs contain none. The editable currency field permits historical pricing currencies absent from current catalogs; suggestions are in its tooltip/accessibility help. There is no FX conversion.
+- Period choices reuse `DashboardPeriod`: All, current Monday–Sunday week, calendar month, calendar year and Custom. Presets anchor to the New York date when selected/reset, not UTC or the machine's local date. Refresh preserves the submitted boundaries even across midnight. Custom inclusive closure-date bounds use `yyyy-MM-dd`; an empty side is unrestricted. `BreakdownQuery` validates the final date/identity/currency/mode/grouping request.
+- All seven supported groupings have readable labels; Strategy is absent. Net preferred and Gross submit the established modes, with actual Net (including zero), fallback and unavailable classifications coming solely from the returned metadata.
+- Catalogs include inactive references. Selection is by stable ID, never by name. A selected reference removed from the catalog remains a visibly unavailable exact-scope option; a same-name replacement cannot take its place.
+- **Apply filters** captures the valid draft once. Editing intermediate values does not read the database. Invalid input shows nearby validation and retains the last complete result.
+- **Refresh** reloads the **last submitted** query, including a failed/cancelled request, without applying edited draft values. Its tooltip/help makes the distinction explicit. **Reset** restores defaults and submits one request, not one per field. **Cancel loading** appears only during a cancellable operation and leaves the last successful result intact.
+
+### Ownership, lifecycle and presentation
+
+Draft controls are separate from `Result.Query`. Every displayed result is labeled **Last successful result** with its original period, Account/Instrument, currency, grouping and mode. Unapplied filters, stale data, empty population, unavailable financial values, failure and cancellation have distinct text states. The small result area shows eligible Trade/group counts, source label and Net/Gross/unavailable/missing-total-cost counts directly from the result. It does not recalculate economics or present later-milestone KPIs, tables, charts or drill-down controls.
+
+Each operation owns a cancellation source and generation. New requests cancel and invalidate earlier requests; older success, failure, cancellation and finally paths cannot publish or clear the new loading state. Both catalog loading and the complete reader/calculator run off the dispatcher, even where SQLite async executes synchronously. UI publications resume on the captured context. The resolved first currency is recorded **before** the reader starts, so cancelling the first read cannot retarget Refresh to a provisional currency. Catalog refresh supplies selector metadata only; contributing facts and result labels remain under M20.4's existing reader snapshot guarantee.
+
+The shell retains one page instance: first activation reads once, repeated activation does not duplicate it, and leaving/returning preserves draft filters and the last result. Accepted navigation/window close and disposal invalidate in-flight work. Existing Journal/other destination guards run unchanged before navigation. Existing Trade/import/bulk-delete and Calendar-Trade commit events mark the page stale and cancel obsolete work; they do not auto-apply a draft or auto-load. **Explicit Refresh** also reloads Account/Instrument catalogs after their edits; no new global event system is introduced. State is session-local, not a new persistence contract.
+
+### Verification and limits
+
+**M20.5 implemented and locally verified.** Tests use synthetic controllable readers, task barriers and the existing isolated WPF/STA harness, with no sleeps, test retries or deadline changes. Coverage includes exact queries/defaults/NY boundaries, invalid filters, metadata identity, empty/unavailable/fallback states, Reset, failure/cancel recovery, stale callbacks, first-load currency cancellation, unavailable IDs, retained navigation and owner shutdown. Bound compiled-WPF checks cover dispatcher publication, worker execution, actual filter bindings (including exact Account/Instrument after refreshed catalogs), validation, loading cancellation, wrapping, theme resources, accessible names and scroll reachability.
+
+| Final local check | Result |
+| --- | --- |
+| New Breakdown ViewModel, compiled WPF and shell cases | **26/26 passed**, zero failures/skips, 7 s |
+| Shared MainWindow navigation/guards, Dashboard filters/state and resource regression selection | **252/252 passed**, zero failures/skips, 59 s |
+| Release solution build | **0 warnings / 0 errors** |
+| `git diff --check` and new-file trailing-whitespace check | Passed |
+| Local links in the three changed documents | **152 targets checked, 0 missing** |
+| Interactive keyboard/mouse/screen reader; matching CI | Not performed; uncommitted changes have no matching CI claim |
+
+The focused and regression selections overlap in the two new shell cases; these are not 278 distinct tests. The first restricted-token regression run passed **250/252**: both existing `DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification` cases failed before their synthetic HTTP handler because the Settings credential path reported missing/unreadable credentials. They use temporary synthetic DPAPI storage, not real keys. The unchanged pair passed **2/2** outside the restricted token, followed by the same complete 252-case selection above. This establishes an environment-sensitive credential-test boundary; no production credential, provider behavior, assertion or deadline was changed to accommodate it. No native timeout occurred in these selections; the complete Calendar native/full solution gate was not run.
+
+Commands: `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~.Breakdown.|FullyQualifiedName~MainWindowViewModelTests.Breakdown'`; regression uses `--no-build --no-restore --filter '(FullyQualifiedName~.Navigation.MainWindowViewModelTests|FullyQualifiedName~.Dashboard.DashboardFilterTests|FullyQualifiedName~.Dashboard.DashboardViewModelTests|FullyQualifiedName~.Resources.)&Workload!=ExclusiveWpf'`. Result files are `artifacts/m205/final-readable/breakdown.trx` and `artifacts/m205/regression-final/desktop-regression.trx`; the first regression is retained under `artifacts/m205/regression`. The focused run additionally verified wrapped inactive-reference labels and full-name accessibility after final render inspection. Build: `dotnet build PersonalTradingJournal.sln -c Release --no-restore`. No EF/schema change was made and EF consistency was not rerun for this Desktop-only request.
+
+Automated renders are inspected at **980×570 DIP / 96 DPI** and **700×570 DIP / 240 DPI** in Light and Dark, including the bottom of the scroll area. Development render inspection caught missing local theme styles and an unsupported editable-ComboBox template: the page now reuses shared input/button/scrollbar styles and a styled currency text field. These checks are not live mouse/keyboard/screen-reader acceptance.
+
+Large-history performance remains **unmeasured**: the unchanged reader/calculator processes the complete matching population with memory proportional to facts and IDs. Cancellation does not promise interruption of every synchronous SQLite operation. Live interaction, complete solution gate and matching CI are not claimed; unrelated backend suites were not rerun for this Desktop-only step. No production data, provider request or Git write was used. **M20.6 — Compact Summary & Group Comparison Table remains next**, followed by charts/details and exact Trades navigation in later steps.
+
+Exact changed files (13):
+
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml` (new)
+- `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownViewModelTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownViewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowBreakdownTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs` (fixture injection only)
+- `README.md`
+- `docs/breakdown-analytics.md`
+- `docs/architecture.md`
+
 ## M20.4 — consistent database reader
 
 Implemented **16 October 2026**, starting from a clean `develop` worktree at `45717fad0dbddf80488bbfd05ec8143431a04135` (the committed M20.3 implementation). No schema, stored economics, shared analytics policy or Desktop changes.

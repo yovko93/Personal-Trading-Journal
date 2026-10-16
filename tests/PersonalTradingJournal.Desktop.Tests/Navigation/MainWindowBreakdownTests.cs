@@ -1,0 +1,39 @@
+using PersonalTradingJournal.Desktop.Navigation;
+using PersonalTradingJournal.Desktop.Tests.Breakdown;
+
+namespace PersonalTradingJournal.Desktop.Tests.Navigation;
+
+public sealed partial class MainWindowViewModelTests
+{
+    [Fact]
+    public async Task BreakdownNavigationRetainsDraftAndResultAndHonorsJournalVeto()
+    {
+        using var breakdown = new BreakdownFixture();
+        var f = CreateFixture(breakdown: breakdown.Vm);
+        using var main = f.Main;
+        main.NavigateCommand.Execute(NavigationDestination.Breakdown); await breakdown.Vm.LoadTask;
+        Assert.Same(breakdown.Vm, main.CurrentContentViewModel);
+        var result = breakdown.Vm.Result;
+        breakdown.Vm.Currency = "USD";
+        main.NavigateCommand.Execute(NavigationDestination.Dashboard);
+        main.NavigateCommand.Execute(NavigationDestination.Breakdown); await breakdown.Vm.LoadTask;
+        Assert.Same(result, breakdown.Vm.Result); Assert.Equal("USD", breakdown.Vm.Currency); Assert.Single(breakdown.Reader.Calls);
+        main.NavigateCommand.Execute(NavigationDestination.Journal); await f.Journal.LoadTask;
+        f.Journal.OpenEditorCommand.Execute(null); f.Journal.Text = "Synthetic unsaved Journal";
+        main.NavigateCommand.Execute(NavigationDestination.Breakdown);
+        Assert.Equal(NavigationDestination.Journal, main.CurrentDestination); Assert.Single(breakdown.Reader.Calls);
+    }
+
+    [Fact]
+    public async Task BreakdownAcceptedOwnerCloseCancelsReadAndNeverPublishesLateResult()
+    {
+        using var breakdown = new BreakdownFixture();
+        var f = CreateFixture(breakdown: breakdown.Vm); using var main = f.Main;
+        breakdown.Reader.Hold = true;
+        main.NavigateCommand.Execute(NavigationDestination.Breakdown);
+        var call = await breakdown.Reader.Next();
+        Assert.True(main.TryCloseWindow()); Assert.True(call.Token.IsCancellationRequested);
+        call.Completion.SetResult(BreakdownFixture.Snapshot(call.Query)); await breakdown.Vm.LoadTask;
+        Assert.Null(breakdown.Vm.Result); Assert.False(breakdown.Vm.IsLoading);
+    }
+}

@@ -1237,7 +1237,8 @@ public sealed partial class MainWindowViewModelTests
         DataBackupsViewModel? dataBackups = null,
         PlaybookViewModel? playbook = null,
         PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
-        PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periods = null)
+        PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periods = null,
+        PersonalTradingJournal.Desktop.ViewModels.Breakdown.BreakdownViewModel? breakdown = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1409,7 +1410,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges, dailyReview, playbook, rules, periods);
+            topstepChanges, dailyReview, playbook, rules, periods, breakdown);
 
         return new ViewModelFixture(
             main,
