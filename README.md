@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M21.1 — Trading Plan scope and behavioral contracts**
+
+The first Trading Plan slice defines exact Account/New York-date identity, bounded structured Draft content, explicit Ready validation, stand-aside-only preparation, optional unknown levels/limits, checklist invalidation, stale-transition guards and safe copy-forward resets. Session is metadata and cannot create another Plan for the same account/date. Existing catalog identities are reused; a Plan link is never proof of adherence. [Contract, required/optional fields, lifecycle, exact files and slice status](docs/trading-plan.md). Persistence, preserved Ready payloads, Session Brief UI and Daily Review integration are subsequent M21 slices; the placeholder is unchanged. **M21 acceptance remains pending.**
+
+M21.1 verification: **47 new cases** passed within complete **Domain 514/514** and **Application 999/999** Release runs, zero failures/skips. Release solution build: **0 warnings/errors**; EF model consistency, whitespace and **145 local documentation links** passed. No new full Desktop/Infrastructure gate or live/visual acceptance is claimed at this contract checkpoint. Nine changed/new files, uncommitted on `develop` at `c76d819`; matching CI is pending. Synthetic data only; no database, provider or Git writes.
+
 **M20 PR correction — Basis / Coverage sorting**
 
 Breakdown's Basis / Coverage column now sorts by **evaluable / eligible closed Trades** in the selected calculation basis, ascending or descending. Empty groups and groups with no evaluable coverage stay last in both directions; equal fractions use the stable group key. Basis labels and counts remain visible. [Reproduction, verification and exact files](docs/breakdown-analytics.md#basis--coverage-sort-correction). Calculations, source rules, filters, membership, chart values, drill-down and the separate Strategy decision are unchanged.
