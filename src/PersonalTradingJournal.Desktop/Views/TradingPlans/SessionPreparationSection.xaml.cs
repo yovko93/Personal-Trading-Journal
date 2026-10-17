@@ -30,14 +30,13 @@ public partial class SessionPreparationSection : UserControl
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(SessionPreparationViewModel.ValidationAttempt) || sender is not SessionPreparationViewModel vm) return;
+        if (vm.FirstInvalidField == vm.StandAside || vm.Scenarios.Any(s => s.Fields.Contains(vm.FirstInvalidField!))) return;
         // Errors in a nonselected context must be made visible, not silently saved from an older value.
-        if (!vm.Focus.IsInvalid)
-        {
-            var invalid = vm.Contexts.FirstOrDefault(c => c.Thesis.IsInvalid || c.Levels.Any(f => f.IsInvalid));
-            if (invalid is not null) vm.SelectedInstrument = invalid;
-        }
+        var field = vm.FirstInvalidField;
+        var invalid = vm.Contexts.FirstOrDefault(c => c.Fields.Contains(field!));
+        if (invalid is not null) vm.SelectedInstrument = invalid;
         // Wait for the selected context's bindings/layout and respect any newer user input.
-        _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(FormValidation.GetIsInvalid));
+        _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, field)));
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {

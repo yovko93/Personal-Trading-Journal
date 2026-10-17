@@ -1,5 +1,93 @@
 # Trading Plan
 
+## M21.5 — conditional scenarios and Playbook integration
+
+Actual baseline: **clean** `develop`, `53ad935b9ebb153efe4d1089212be1149ee2e858` (`Add reusable Trading Plan session preparation`). This supersedes the attachment's reported uncommitted M21.4 baseline. M21.4 is retained; its chronological report below is not a claim that its files are still uncommitted. No applicable repository/ancestor `AGENTS.md` was found. Only synthetic catalogs/SQLite fixtures and automated WPF components were used.
+
+### Shared editing ownership
+
+`SessionPreparationSection` and `ScenariosSection` bind **one `SessionPreparationViewModel` instance**. The scenarios partial owns no second aggregate, independent save version, repository or shadow Draft. `ScenarioEditor`/`PreparationField` are transient raw-input adapters over existing `TradingPlanScenario`/`TradingPlanContent`. One content builder combines all preparation and scenario fields; one Save/Refresh operation freezes editing, checks input, sends the exact optimistic token and accepts only verified store readback. Risk limits and Rule links remain unchanged/unowned by these sections. Changing a displayed instrument does not rewrite scenario associations. Unsaved Focus, thesis, raw levels and notes survive scenario edits and all rejected/cancelled operations.
+
+There is no automatic saving or loading on construction. The host explicitly invokes `LoadCatalogAsync`, configures existing Playbook services with `ConfigurePlaybooks`, and invokes `LoadPlaybooksAsync`/the section's Load Playbooks command. Existing Save/RefreshReferences/Cancel commands operate on the combined Draft. `IsDirty`, `HasValidationErrors`, `TryBuildContent`, `Confirmed`, `IsBusy`, exact Key/Token and status are shared. Meaningfully unchanged content retains confirmations/version through the established Domain/store semantics; raw formatting changes may still make an editor dirty. Invalid raw text blocks the entire save instead of persisting a previous value.
+
+M21.7 must compose the sections inside one page ScrollViewer, provide the complete toolbar and Start Draft/Ready operations, integrate scope/close/unsaved-work guards, and cancel **and await** operations before releasing services. This milestone does not replace the navigation placeholder or implement those host policies. All bound session invocation/disposal belongs on its UI thread.
+
+### Scenario and instrument semantics
+
+- Up to the existing **24** scenarios, stable IDs and explicit collection order. Add uses the currently displayed existing plan context (or first context); it seeds no condition/name/direction/Setup. The first new scenario defaults to Primary, subsequent ones to Alternative, both explicitly editable. Domain permits repeated designations and same-direction scenarios; no fabricated opposite-side pair or role-driven sort is imposed. Accessible Move earlier/later actions use one in-memory collection move; only explicit Save persists it. Boundary moves are disabled/no-ops.
+- Each card exposes name (**120** characters), designation, exact Instrument context, nullable Long/Short direction, IF observable condition, THEN intended response and INVALID IF cancellation condition (**4,000** each). Long/Short refers to Trade direction, not buy-side/sell-side liquidity. Text/line breaks remain exact. Blanks are valid incomplete Draft content; the unchanged Ready validator requires complete scenario text/direction. Oversized text remains visible with inline validation/automation HelpText/ItemStatus and a red field border.
+- Instruments are selected only from the existing plan contexts. Switching the preparation selector retains every scenario and field. Explicit reassignment changes only that scenario; removing a context checks **current unsaved scenarios**, not the originally loaded array. Context removal stays blocked until owning scenarios are explicitly reassigned/removed. No Instrument/Setup creation is exposed.
+- Reorder/removal/link/text edits flow through existing scenario-check invalidation. Other confirmations remain unless their own preparation changed. Save failures/conflicts preserve all raw fields and selected links; no newer stored Draft is silently loaded over them.
+
+### Optional Playbook links and retained context
+
+The existing Setup catalog is the sole source; cardinality remains one optional Setup link per scenario. Catalog choices list active Setups; **Select revision** requires current saved guidance (a Setup without guidance is rejected with a clear message). It reads the exact current Setup/Playbook and captures existing `TradingPlanSetupLink` identity, revision and Setup timestamp, then displays the five guidance sections for review before saving. Choosing a ComboBox candidate alone does not change the link. Unlink is explicit. No editor operation writes the Setup catalog, revisions or images.
+
+Load Playbooks reads the existing catalog once and only fetches guidance/current availability for distinct selected tokens (at most 24), not every catalog entry. These informational reads are **not** a transactional reference snapshot; the existing write-time SQLite reservation/fingerprint checks remain authoritative. Reloading shows changed/archived/unavailable references while retaining the original selected token and exact historical criteria. After a material change, explicitly select the intended current revision, review it, then use RefreshReferences and reconfirm all checks. A catalog reload alone never accepts a baseline. For multiple scenarios linking the same Setup, reselect each affected link consistently before refresh. Failed/cancelled selection retains the previous link/input.
+
+Ready/historical views use the frozen Setup name, exact revision and five guidance sections from `TradingPlanReferenceSnapshot`, not current catalog content. A missing live Setup disables navigation but cannot erase the saved criteria. Availability is displayed separately. Existing Plan snapshots still deliberately omit example/image metadata/binaries; no image retention, storage, backup or AI evidence contract changes are made.
+
+`PlaybookNavigation` is a host-supplied exact-Setup-ID asynchronous request returning accepted/vetoed. The component never clears input, saves, switches destinations or implements a competing guard. M21.7 must route it through the existing shell navigation and `PlaybookViewModel.TrySelectSetup` guard, rechecking live availability. Without a handler, Open Playbook is disabled. Veto/cancellation/errors retain Draft input; opening current Playbook is explicitly separate from reading frozen Ready criteria. Association is **not verified adherence**.
+
+### Stand Aside and responsive presentation
+
+Full-width Stand Aside uses the existing plan-level `StandAside` text and `Intent`. Opportunity plans may retain no-trade restrictions; the explicit stand-aside decision requires no fabricated scenarios, bias, thesis or Setup. Selecting it never automatically deletes existing scenarios: Draft retains them with a message; Ready requires their explicit removal and a meaningful reason, plus the existing session/Focus/instrument/checklist requirements. Earlier Ready revisions/timestamps remain immutable; editing still requires the existing Start Draft transition.
+
+Cards form two columns at 900 DIP of usable card width and predictable subsequent rows; narrow widths stack them in logical collection/tab order. Text inputs wrap and scroll within bounded heights; the host owns page scrolling. Labels and textual direction remain present with theme accents. Validation focus uses the shared guarded `PageFocus`: both sections consult the same first-invalid-field identity, so only its owning section requests focus/scroll after an explicit invalid Save. No focus movement occurs merely for a status message. Ready fields/commands remain read-only/disabled.
+
+### M21.5 verification
+
+Focused final verification: **39 passed**, zero failed/skipped (24 existing preparation cases + **15 new** scenario/shared-state/SQLite/WPF cases). Release solution build: **0 warnings, 0 errors** (12.86s). Component tests/renders are not full-page, human keyboard/Narrator or matching-CI acceptance. No assertions, deadlines or test scheduling are weakened.
+
+| Final local verification — 17 October 2026 | Result |
+| --- | --- |
+| Complete `scripts/Test-Release.ps1` gate | **4,745 passed**, zero failed/skipped, exit **0** |
+| Domain / Application / Infrastructure | **567 / 1,003 / 1,410 passed** |
+| Complete Desktop | **1,765 passed**: 88 exclusive WPF + 1,677 parallel; parallel phase **5m08s** |
+| Calendar native child | **71.474s**, **48.526s** headroom to unchanged 120s deadline |
+| Preparation / scenario native children | **5.953s / 7.336s**, successful process exit and cleanup |
+| EF / whitespace / documentation links | No pending model changes; tracked/new-file whitespace pass; **154** local links resolve |
+| Full-page / human keyboard / Narrator / matching CI | **Pending**; reusable component evidence only, source changes uncommitted |
+
+Final gate evidence: ignored `artifacts/m21-5/acceptance-gate/release-20261017-192817-53c3c60202c04b2199af2f5b33569220/summary.json`, parent/child TRX and supervision logs. The complete gate used normal Windows permissions needed by the existing synthetic screenshot-link safety fixture. There were no production-journal reads/writes, provider requests or Git publication operations. Worktree at handoff: **5 modified + 6 new files**, all listed below; branch/HEAD unchanged from this slice's actual baseline.
+
+Coverage includes raw shared edits saved together/reloaded from SQLite, context switching/reassignment and removal guards, order/role/direction boundaries, 24-scenario cap, blank Draft versus Ready, all text limits, Stand Aside, no-op confirmations, link/unlink and catalog disappearance, changed revision followed by explicit reference refresh, stale writes, read-only frozen context after live change/removal, navigation veto, cancellation and zero Setup writes. The compiled test exercises three cards, live bindings, accessible field names, reorder command binding, long-content scrolling, invalid-field recovery, read-only controls and a real synthetic owner with **both** sections: an explicit invalid Save focuses/scrolls to the shared first-invalid field. This is WPF automation, not human keyboard or screen-reader testing.
+
+Twenty scenario renders were generated under ignored `artifacts/m21-5/renders/`: `scenarios-{Light|Dark}-{1100-96|460-240}-{multiple|invalid|bottom|stand-aside|ready}.png`. Inspected representative renders in both themes and widths cover the two-column/stacked arrangement, loaded synthetic labels/Playbook criteria, Long/Short headings, long input, red inline errors, reachable lower actions/Stand Aside, and read-only Ready content. No horizontal page overflow or overlapping controls was observed. The remaining M21.4 focused test also regenerated its preparation renders. These are component views in a synthetic scroll host, **not the full Session Brief** or live accessibility acceptance.
+
+Two earlier complete builds passed **4,744** and **4,745** tests respectively. Final inspection then clarified changed-reference wording for Ready (start a Draft, never refresh the historical view), so the final source was rebuilt and verified again rather than reusing that earlier gate result. The first-invalid-field ordering regression and stale-candidate enablement check also remain in the final tests. No failed test was hidden by a retry/skip or weaker assertion.
+
+Commands used for this slice:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_PLAN_RENDER_DIRECTORY = Join-Path (Get-Location) 'artifacts/m21-5/renders'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans --logger 'trx;LogFileName=desktop.trx' --results-directory artifacts/m21-5/acceptance-focused
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m21-5/acceptance-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+New files were also checked with `git diff --no-index --check`; LF-to-CRLF notices are not whitespace failures. The local documentation link check resolves file targets in README, architecture and this document. These checks do not substitute for a matching published-commit CI run.
+
+### Exact M21.5 changed-file inventory
+
+New (6):
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/ScenarioEditor.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Scenarios.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenarioTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenariosViewTests.cs`
+
+Extended existing M21.4 files (2):
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs` — shared combined content, dirty/validation state, current scenario ownership and access notifications.
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml.cs` — coordinate first-invalid-field focus with the sibling section.
+
+Documentation (3): `README.md`, `docs/architecture.md`, `docs/trading-plan.md`. No Domain/Application/Infrastructure, migration/schema, JSON export v10, backup/restore, navigation or existing economics changes. No production data, providers, commit, push or merge. Full M21 acceptance and M21.7 host integration remain pending.
+
 ## M21.4 — session preparation and instrument context
 
 Implemented from **clean** `develop`, HEAD `6405469aaaf06d38a6c7cc341486e550195f0687`. Actual inspection superseded the attachment's reported dirty M21.3 baseline: those changes are now committed. No applicable `AGENTS.md` was found. No M21.3 files are overwritten or reimplemented; the earlier milestone reports below are historical checkpoints.

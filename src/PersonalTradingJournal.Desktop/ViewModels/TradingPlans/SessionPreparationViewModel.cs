@@ -10,7 +10,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.TradingPlans;
 
 /// <summary>One host-owned editing session for an exact Plan. No automatic saving/navigation.
 /// The M21.7 host owns scope changes and guards using IsDirty/IsBusy, and explicitly disposes it.</summary>
-public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
+public sealed partial class SessionPreparationViewModel : ObservableObject, IDisposable
 {
     private readonly ITradingPlanStore _store;
     private readonly IInstrumentReader _catalog;
@@ -44,7 +44,9 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
         News = new("News & Restricted Times — manual notes", _original.NewsAndRestrictions, TradingPlanContent.MaximumTextLength, false, _culture, () => CanEdit, Changed);
         Contexts = new(_contexts);
         foreach (var context in _original.Instruments) _contexts.Add(CreateEditor(context));
-        _selected = _contexts.FirstOrDefault(); _baseline = Fingerprint();
+        _selected = _contexts.FirstOrDefault();
+        InitializeScenarios();
+        _baseline = Fingerprint();
         AddInstrumentCommand = new RelayCommand(AddInstrument, () => CanEdit && InstrumentToAdd is { IsActive: true });
         RemoveInstrumentCommand = new RelayCommand(RemoveInstrument, () => CanEdit && SelectedInstrument is not null);
         SaveCommand = new AsyncRelayCommand(ct => SaveAsync(ct), () => CanEdit);
@@ -101,7 +103,8 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
             return copy.WorkingDraft!.Content.Confirmed;
         }
     }
-    private IEnumerable<PreparationField> Fields => new[] { Focus, News }.Concat(_contexts.SelectMany(c => c.Fields));
+    private IEnumerable<PreparationField> Fields => new[] { Focus }.Concat(_contexts.SelectMany(c => c.Fields))
+        .Append(News).Concat(_scenarios.SelectMany(s => s.Fields)).Append(StandAside);
 
     public async Task LoadCatalogAsync(CancellationToken cancellationToken = default)
     {
@@ -124,8 +127,8 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
     {
         content = null;
         if (HasValidationErrors) return false;
-        content = new(Session, Focus.Text, _original.Intent, _contexts.Select(c => c.Build()),
-            _original.Scenarios, News.Text, _original.StandAside, _original.RiskLimits, _original.Rules, _original.Confirmed);
+        content = new(Session, Focus.Text, Intent, _contexts.Select(c => c.Build()),
+            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, _original.RiskLimits, _original.Rules, _original.Confirmed);
         return true;
     }
 
@@ -183,7 +186,7 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
     private void RemoveInstrument()
     {
         if (!CanEdit || SelectedInstrument is not { } selected) return;
-        if (_original.Scenarios.Any(s => s.InstrumentId == selected.InstrumentId))
+        if (_scenarios.Any(s => s.InstrumentId == selected.InstrumentId))
         { Message = "This instrument owns scenarios. Remove or reassign those scenarios first; no content was discarded."; return; }
         _contexts.Remove(selected); SelectedInstrument = _contexts.FirstOrDefault(); Changed();
     }
@@ -198,7 +201,8 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
     }
     private string Fingerprint() => System.Text.Json.JsonSerializer.Serialize(new
     {
-        Session, Focus = Focus.Text, News = News.Text,
+        Session, Focus = Focus.Text, News = News.Text, Intent, StandAside = StandAside.Text,
+        Scenarios = _scenarios.Select(s => s.RawState),
         Instruments = _contexts.Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.Text) })
     });
     private CancellationTokenSource Begin(CancellationToken ct)
@@ -209,10 +213,14 @@ public sealed class SessionPreparationViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsBusy)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(IsReadOnly));
         OnPropertyChanged(nameof(CanSelectContext));
         foreach (var field in Fields) field.NotifyAccess();
+        NotifyScenarioAccess();
         AddInstrumentCommand.NotifyCanExecuteChanged(); RemoveInstrumentCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged(); RefreshReferencesCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
     }
     private void Changed()
-    { OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(HasValidationErrors)); OnPropertyChanged(nameof(Confirmed)); OnPropertyChanged(nameof(Token)); }
+    {
+        OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(HasValidationErrors)); OnPropertyChanged(nameof(Confirmed)); OnPropertyChanged(nameof(Token));
+        NotifyScenarioAccess();
+    }
     public void Dispose() { _disposed = true; _operation?.Cancel(); NotifyAccess(); }
 }
