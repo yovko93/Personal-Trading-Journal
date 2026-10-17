@@ -44,6 +44,13 @@ public sealed record TradingPlanLoadedState
     public TradingPlanExpectedState Token { get; }
     public TradingPlanStatus Status { get; }
     public int LatestReadyRevision { get; }
+
+    /// <summary>Expose the Domain lifecycle using the existing Application concurrency token.</summary>
+    public static TradingPlanLoadedState FromPlan(TradingPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return new(plan.Key, new(plan.Id, plan.Version), plan.Status, plan.LatestReadyRevision?.Id.Revision ?? 0);
+    }
 }
 
 /// <summary>Input to later transactional use cases. Scope is captured at submission; selected

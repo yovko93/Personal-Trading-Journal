@@ -60,6 +60,36 @@ public sealed record TradingPlanContent
         Instruments.Select(i => new TradingPlanInstrumentContext(i.InstrumentId)),
         Scenarios, riskLimits: RiskLimits, rules: Rules);
 
+    internal TradingPlanContent WithConfirmations(TradingPlanChecklist confirmed) => new(Session, Focus, Intent,
+        Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, confirmed);
+
+    // ImmutableArray record equality is backing-array equality. Authoring compares values instead,
+    // so rebuilding equivalent input collections neither changes the version nor clears checks.
+    internal bool HasSamePreparation(TradingPlanContent other) => Session == other.Session && Focus == other.Focus &&
+        Intent == other.Intent && Instruments.SequenceEqual(other.Instruments) && Scenarios.SequenceEqual(other.Scenarios) &&
+        NewsAndRestrictions == other.NewsAndRestrictions && StandAside == other.StandAside &&
+        RiskLimits == other.RiskLimits && Rules.SequenceEqual(other.Rules);
+
+    internal TradingPlanChecklist ConfirmationsAfterEdit(TradingPlanContent next)
+    {
+        var remaining = Confirmed;
+        void Changed(bool changed, TradingPlanEditArea area)
+        {
+            if (changed) remaining = TradingPlanChecklistPolicy.AfterEdit(remaining, area);
+        }
+        Changed(Session != next.Session, TradingPlanEditArea.Session);
+        Changed(Focus != next.Focus, TradingPlanEditArea.Focus);
+        Changed(!Instruments.Select(i => i.InstrumentId).Order().SequenceEqual(
+            next.Instruments.Select(i => i.InstrumentId).Order()), TradingPlanEditArea.Instruments);
+        Changed(Instruments.Any(i => next.Instruments.Any(n => n.InstrumentId == i.InstrumentId && n != i)),
+            TradingPlanEditArea.ContextAndLevels);
+        Changed(!Scenarios.SequenceEqual(next.Scenarios), TradingPlanEditArea.ScenariosAndSetups);
+        Changed(Intent != next.Intent || StandAside != next.StandAside, TradingPlanEditArea.StandAside);
+        Changed(RiskLimits != next.RiskLimits || !Rules.SequenceEqual(next.Rules), TradingPlanEditArea.RiskLimitsAndRules);
+        Changed(NewsAndRestrictions != next.NewsAndRestrictions, TradingPlanEditArea.News);
+        return remaining;
+    }
+
     internal static string Text(string value, string name, int limit = MaximumTextLength)
     {
         ArgumentNullException.ThrowIfNull(value, name);

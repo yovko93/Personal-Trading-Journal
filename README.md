@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M21.2 — preserved Ready revisions and subsequent Drafts**
+
+Trading Plan now has a Domain aggregate with explicit Draft-only, Ready and Draft-after-Ready states. Mark Ready validates the existing preparation/checklist and captures immutable reference context; starting from any retained Ready revision resets confirmations and preserves the latest Ready content. Actual edits invalidate the affected checks, while stale/repeated/invalid operations leave state unchanged. [Lifecycle, snapshots, verification, exact files and M21.3 requirements](docs/trading-plan.md#m212--preserved-ready-revisions-and-working-drafts).
+
+Local verification: **92/92 focused Trading Plan tests** (45 new), complete **Domain 557/557** and **Application 1,001/1,001** Release tests, zero failures/skips; Release build **0 warnings/errors**. EF consistency, tracked/new-file whitespace and **147 local documentation links** passed. Persistence, migrations, Desktop and Review integration remain pending. This is Domain acceptance only, not full integrated M21 or matching CI acceptance. Work started on clean `develop` at `317305e582036aa28ee9fd66d506bf9dcc6161f2`; changes remain uncommitted. Synthetic data only.
+
 **M21.1 — Trading Plan scope and behavioral contracts**
 
 The first Trading Plan slice defines exact Account/New York-date identity, bounded structured Draft content, explicit Ready validation, stand-aside-only preparation, optional unknown levels/limits, checklist invalidation, stale-transition guards and safe copy-forward resets. Session is metadata and cannot create another Plan for the same account/date. Existing catalog identities are reused; a Plan link is never proof of adherence. [Contract, required/optional fields, lifecycle, exact files and slice status](docs/trading-plan.md). Persistence, preserved Ready payloads, Session Brief UI and Daily Review integration are subsequent M21 slices; the placeholder is unchanged. **M21 acceptance remains pending.**
