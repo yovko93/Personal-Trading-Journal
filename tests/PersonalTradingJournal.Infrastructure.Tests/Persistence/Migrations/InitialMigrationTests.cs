@@ -36,6 +36,8 @@ public sealed partial class InitialMigrationTests
     private static readonly IReadOnlyDictionary<string, string[]> ExpectedApplicationColumns =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
         {
+            ["TradingPlans"] = ["Id", "AccountId", "NewYorkDate", "Version", "LatestReadyRevision", "DraftJson", "ReferenceStateJson", "CreatedAtUtc", "UpdatedAtUtc"],
+            ["TradingPlanReadyRevisions"] = ["PlanId", "Revision", "SnapshotJson", "ReadyAtUtc"],
             ["PeriodReviews"] =
             [
                 "Id", "Kind", "FirstDate", "LastDate", "FromUtc", "BeforeUtc", "ScopeKind", "AccountId", "AccountDisplayName",
@@ -155,7 +157,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans"],
                 context.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)context.Database.GetDbConnection();
@@ -167,7 +169,7 @@ public sealed partial class InitialMigrationTests
                 .OrderBy(name => name, StringComparer.Ordinal)
                 .ToArray();
             Assert.Equal(expectedTables, ReadTableNames(connection));
-            Assert.Equal(20L, ReadRowCount(connection, "__EFMigrationsHistory"));
+            Assert.Equal(21L, ReadRowCount(connection, "__EFMigrationsHistory"));
             Assert.Equal(0L, ReadRowCount(connection, "__EFMigrationsLock"));
 
             foreach ((string tableName, string[] expectedColumns) in ExpectedApplicationColumns)
@@ -181,6 +183,7 @@ public sealed partial class InitialMigrationTests
                     "TradePlaybookAssociations" => ["TradeId", "Sequence"],
                     "PlaybookRevisions" => ["TradingSetupId", "Revision"],
                     "TradingRuleRevisions" => ["RuleId", "Revision"],
+                    "TradingPlanReadyRevisions" => ["PlanId", "Revision"],
                     "TradingRulePositions" => ["RuleId"],
                     "PlaybookExamples" => ["TradingSetupId", "Revision", "ExampleId"],
                     "TradovateImportedExecutions" => ["TradeExecutionId"],
@@ -563,7 +566,7 @@ public sealed partial class InitialMigrationTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", PeriodReviewsMigrationId, "20261017152354_AddTradingPlans"],
                 readContext.Database.GetAppliedMigrations());
 
             var connection = (SqliteConnection)readContext.Database.GetDbConnection();
@@ -700,7 +703,8 @@ public sealed partial class InitialMigrationTests
             .SelectMany(table => ReadForeignKeys(connection, table))
             .ToList();
 
-        Assert.Equal(27, foreignKeys.Count); // Composite revision keys each have two columns.
+        Assert.Equal(28, foreignKeys.Count); // Composite revision keys each have two columns.
+        AssertForeignKey(foreignKeys, "TradingPlanReadyRevisions", "PlanId", "TradingPlans", "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRulePositions" && f.DependentColumn == "RuleId" && f.PrincipalTable == "TradingRuleRevisions" && f.OnDelete == "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRulePositions" && f.DependentColumn == "InitialRevision" && f.PrincipalColumn == "Revision" && f.OnDelete == "RESTRICT");
         Assert.Contains(foreignKeys, f => f.DependentTable == "TradingRuleAssessments" && f.DependentColumn == "RuleId" && f.PrincipalTable == "TradingRuleRevisions" && f.OnDelete == "RESTRICT");
@@ -761,7 +765,8 @@ public sealed partial class InitialMigrationTests
             .Where(index => index.IsUnique && index.Origin != "pk")
             .ToList();
 
-        Assert.Equal(10, uniqueIndexes.Count);
+        Assert.Equal(11, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.Table == "TradingPlans" && index.Columns.SequenceEqual(["AccountId", "NewYorkDate"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "TradingRuleAssessments" && index.Columns.SequenceEqual(["RuleId", "RuleRevision", "TargetKey", "EvaluationFingerprint"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "TradingRuleAssessments" && index.Columns.SequenceEqual(["RuleId", "TargetKey", "Sequence"]));
         Assert.Contains(uniqueIndexes, index => index.Table == "PlaybookExamples" &&

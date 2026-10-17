@@ -7,6 +7,18 @@ namespace PersonalTradingJournal.Application.Tests.TradingPlans;
 
 public sealed class TradingPlanRevisionContractTests
 {
+    [Theory]
+    [InlineData(TradingPlanWriteOperation.ConfirmChecklist)]
+    [InlineData(TradingPlanWriteOperation.RefreshReferences)]
+    public void ExplicitConfirmationAndReferenceRefreshRequireTheCurrentDraftToken(TradingPlanWriteOperation operation)
+    {
+        var (plan, account, instrument, clock) = Create();
+        var command = new TradingPlanWriteCommand(operation, plan.Key, plan.WorkingDraft!.Content, new(plan.Id, plan.Version));
+        Assert.Null(command.CheckTransition(TradingPlanLoadedState.FromPlan(plan)));
+        Ready(plan, account, instrument, clock);
+        Assert.Equal(TradingPlanWriteStatus.Conflict, command.CheckTransition(TradingPlanLoadedState.FromPlan(plan)));
+        Assert.Throws<ArgumentException>(() => new TradingPlanWriteCommand(operation, plan.Key, command.Content));
+    }
     [Fact]
     public void AggregateUsesExistingCommandVersionAndExposesDraftReadyAndPendingDraft()
     {

@@ -885,6 +885,76 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("TradingMistakes", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingPlanReadyRecord", b =>
+                {
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ReadyAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("PlanId", "Revision");
+
+                    b.ToTable("TradingPlanReadyRevisions", null, t =>
+                        {
+                            t.HasTrigger("TradingPlanReady_NoDelete");
+
+                            t.HasTrigger("TradingPlanReady_NoUpdate");
+
+                            t.HasTrigger("TradingPlanReady_Sequence");
+
+                            t.HasCheckConstraint("CK_TradingPlanReady_Revision", "Revision > 0");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingPlanRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DraftJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LatestReadyRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly>("NewYorkDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReferenceStateJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId", "NewYorkDate")
+                        .IsUnique();
+
+                    b.ToTable("TradingPlans", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TradingPlans_State", "Version > 0 AND LatestReadyRevision >= 0 AND ((DraftJson IS NOT NULL AND ReferenceStateJson IS NOT NULL) OR (DraftJson IS NULL AND ReferenceStateJson IS NULL AND LatestReadyRevision > 0))");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingRuleAssessmentRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1315,6 +1385,15 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeRecord", null)
                         .WithMany()
                         .HasForeignKey("TradeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingPlanReadyRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingPlanRecord", null)
+                        .WithMany()
+                        .HasForeignKey("PlanId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

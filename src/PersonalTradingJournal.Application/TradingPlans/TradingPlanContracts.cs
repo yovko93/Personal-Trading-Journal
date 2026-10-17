@@ -4,7 +4,11 @@ using PersonalTradingJournal.Domain.TradingPlans;
 
 namespace PersonalTradingJournal.Application.TradingPlans;
 
-public enum TradingPlanWriteOperation { CreateDraft = 1, SaveDraft = 2, MarkReady = 3, StartDraft = 4, CopyForward = 5 }
+public enum TradingPlanWriteOperation
+{
+    CreateDraft = 1, SaveDraft = 2, MarkReady = 3, StartDraft = 4, CopyForward = 5,
+    ConfirmChecklist = 6, RefreshReferences = 7
+}
 public enum TradingPlanWriteStatus
 {
     Success = 1, Invalid = 2, Conflict = 3, TargetAlreadyExists = 4,
@@ -53,8 +57,8 @@ public sealed record TradingPlanLoadedState
     }
 }
 
-/// <summary>Input to later transactional use cases. Scope is captured at submission; selected
-/// session and navigation never retarget a command. No persistence is implemented in M21.1.</summary>
+/// <summary>Input to transactional use cases. Scope is captured at submission; selected
+/// session and navigation never retarget a command.</summary>
 public sealed record TradingPlanWriteCommand
 {
     public TradingPlanWriteCommand(TradingPlanWriteOperation operation, TradingPlanKey key,
@@ -85,7 +89,7 @@ public sealed record TradingPlanWriteCommand
     public ImmutableArray<TradingPlanValidationIssue> ValidateContent() =>
         Operation == TradingPlanWriteOperation.MarkReady ? TradingPlanReadiness.Validate(Content) : [];
 
-    /// <summary>Run against freshly read state under the future store's writer reservation.
+    /// <summary>Run against freshly read state under the store's writer reservation.
     /// Null permits the transition; it does not imply that references validated or a write committed.</summary>
     public TradingPlanWriteStatus? CheckTransition(TradingPlanLoadedState? current)
     {
@@ -123,13 +127,14 @@ public static class TradingPlanDatePolicy
 public enum TradingPlanReferenceKind { Account = 1, Instrument = 2, Playbook = 3, Rule = 4 }
 public enum TradingPlanReferenceState { Current = 1, Changed = 2, Inactive = 3, Unavailable = 4, LegacyScoped = 5 }
 
-/// <summary>Per-reference outcome from a future committing store's fresh validation. Historical
+/// <summary>Per-reference outcome from the committing store's fresh validation. Historical
 /// readers retain captured content and report availability separately; never resolve by name.</summary>
 public sealed record TradingPlanReferenceIssue(TradingPlanReferenceKind Kind, Guid SourceId,
     TradingPlanReferenceState State, string Message);
 
-/// <summary>History is keyset paged by New York date descending, then Plan ID, then Ready revision
-/// descending. Working Drafts and immutable Ready revisions must be labeled distinctly.</summary>
+/// <summary>Logical Plan history is keyset paged by New York date descending within an exact
+/// Account (one Plan per date). Ready revision history is a separate revision-descending read.
+/// Status filters the current lifecycle, not the existence of older Ready revisions.</summary>
 public sealed record TradingPlanHistoryQuery
 {
     public TradingPlanHistoryQuery(Guid accountId, DateOnly firstDate, DateOnly lastDate,

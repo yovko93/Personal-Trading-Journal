@@ -1,5 +1,133 @@
 # Trading Plan
 
+## M21.3 — persistence, migrations and application use cases
+
+Implemented from clean `develop`, HEAD `6682482bcd68bd5fe0c2bdf66bf81468f67ba6c4`. No applicable `AGENTS.md` was present. Reuses M21.1/M21.2 identity, content bounds, readiness, checklist invalidation, frozen reference types, optimistic token, copy-forward and Domain transitions. No UI, navigation, automatic matching, Review/AI integration, market feed or existing economics changes.
+
+### Storage and exact reconstruction
+
+Additive migration `20261017152354_AddTradingPlans` creates:
+
+- `TradingPlans`: one unique `(AccountId, NewYorkDate)`, stable GUID, long optimistic `Version`, UTC audit times, latest Ready number, optional working `DraftJson` and its `ReferenceStateJson` baseline. DateOnly is the explicit New York date, not converted from the save instant.
+- `TradingPlanReadyRevisions`: composite `(PlanId, Revision)` primary key, UTC Ready time and self-contained `SnapshotJson`. The owner foreign key is restrictive; no Account/Instrument/Setup/Rule cascade can delete historical preparation. SQLite triggers reject Ready updates/deletes and nonconsecutive appends. No retention or deletion operation is introduced.
+
+Draft and Ready storage envelopes are v1, separate from unrelated review/export versions. The focused mapper serializes existing content and snapshots, not an alternate authoring model. Decimals remain JSON numbers with exact decimal serialization, nullable values remain null, collection order/text/line breaks are preserved. Each payload has a 2,000,000-character limit and JSON depth 24; unknown envelope versions, missing required constructor fields, duplicate properties, malformed content, inconsistent identity/lifecycle/sequence/chronology and invalid reference baselines fail rather than being repaired. A payload exceeding the storage bound is a safe storage failure with no commit, not truncated content.
+
+Domain reconstruction validates existing identity, UTC instants, Draft derivation, Ready readiness/reference membership, source-Draft version and aggregate state. It does not execute Edit/Ready, generate IDs/times, clear checkmarks, or look up live catalogs. Catalog currencies retain their existing up-to-eight-character contract; automatic Rule criteria retain their own narrower currency rules. `LoadAsync` uses one SQLite read transaction for owner, sequence and latest Ready. History reads are bounded to 1–100 rows: exact Account/date descending with an exclusive `beforeDate` cursor (date is unique within Account), and separate Ready history by revision descending with an exclusive `beforeRevision`. No write loads the entire history.
+
+### Operations and transaction boundaries
+
+`ITradingPlanStore` provides exact-scope load, exact Ready load, basic Plan/Ready history and `WriteAsync`; `WriteTradingPlanUseCase` is registered in existing persistence DI. Commands capture scope independently of future navigation and carry `TradingPlanExpectedState` for existing Plans. Results return the committed aggregate/version, validation issues or typed reference issues. Read cancellation/storage errors propagate; malformed persisted evidence uses sanitized `InvalidDataException`. Write failures return `Invalid`, `Conflict`, `TargetAlreadyExists`, `ReferenceUnavailable`, `ReferenceChanged`, `Cancelled` or `StorageFailure`, never raw source text or database diagnostics.
+
+| Operation | Authoritative behavior |
+| --- | --- |
+| Create Draft | Revalidate exact active references, new identity/version 1; reset all incoming confirmations. Existing Account/date is not overwritten. |
+| Save Draft | Apply existing content comparison/checklist invalidation. Incoming checkmarks are ignored; exact no-op content leaves the aggregate version unchanged. |
+| ConfirmChecklist | Explicit separate operation; requires unchanged preparation and current token. A simultaneous prose edit is rejected. |
+| Mark Ready | Requires exact stored Draft content, current version, complete readiness/checklist and fresh references. Append one revision and update current state atomically. |
+| Start Draft | Read the selected immutable revision from this Plan; ignore caller replacement content. Retain all Ready revisions and reset confirmations. Current references must still validate. |
+| RefreshReferences | Explicitly accept fresh reference interpretation, optionally update selected Setup/Rule tokens/content, clear all checks and advance the aggregate version. |
+| Copy forward | Read the authoritative source Ready payload, ignore caller-provided replacement content, apply existing daily-context/checklist resets, revalidate target references and create a new target identity. Concurrent target creation yields one success and one `TargetAlreadyExists`. |
+
+Every mutation obtains SQLite's immediate writer reservation **before** reading the Plan or references. Fresh version/identity checks, catalog reads, candidate Domain transitions, owner/revision writes and reconstruction readback share that transaction. Uniqueness and EF concurrency tokens are additional guards. A stale writer never overwrites a newer Draft. Mark Ready cannot append without the owner transition. Any failed write/readback or cancellation before commit rolls back. A final cancellation check precedes commit; commit uses `CancellationToken.None`, and cancellation arriving after a successful commit still returns success. SQLite's synchronous writer-reservation wait is not interruptible mid-call; it uses the existing provider busy timeout. No background operation is abandoned or automatically retried.
+
+### Fresh references and retained history
+
+Reference resolution uses exact IDs in bounded batched queries under the writer reservation. Account and Instruments must be active; Setup must be active with the selected current Playbook revision and Setup update token; Rule must be active/global with the exact latest revision. Missing/inactive/legacy-scoped references are explicitly unavailable. No matching by name/symbol is used.
+
+The Draft baseline stores SHA-256 fingerprints of authoritative selected catalog records (not credentials). Surviving selected references must match it. This detects changed Account currency, Instrument tick interpretation, Setup guidance/version and Rule text/version even if a test updates fields without changing an audit timestamp. The policy is deliberately conservative: cosmetic labels/audit or other catalog record changes also require explicit `RefreshReferences`. New selections resolve fresh; intentionally removed selections no longer block saving. Refresh is not implicit during Save or Ready and clears every confirmation. Changed Setup/Rule revision tokens must first be explicitly reselected by the caller. Ready captures verified labels/guidance, never caller-supplied labels.
+
+Ready reads use only their preserved payloads. Account/Instrument deletion or same-name replacement does not retarget them. A deleted Playbook revision is not needed for historical readability because its selected guidance is frozen; the existing catalog deletion/image policies are unchanged. Starting/copying into an active Draft may be blocked until unavailable/changed references are resolved. Ready numbers never rewind when drafting from an older revision. A saved plan still proves preparation, not Trade adherence.
+
+### Migration and portability
+
+The migration preserves existing rows and creates no historical Plan backfill. Complete backups retain both tables and triggers. Synthetic portability tests verify exact Draft-after-Ready and Ready payloads after backup, preflight, offline recovery-protected restore and fresh services. Portable JSON advances to **v10** with `tradingPlans` and `tradingPlanReadyRevisions`; serialized payload strings remain exact, and the four existing CSVs remain unchanged. Current-schema-only restore rejects pre-migration-21 archives pending the deferred staged upgrade path. [Confidentiality, backup validation boundary and compatibility](backup-restore.md#m213--trading-plan-compatibility).
+
+### Verification — 17 October 2026
+
+| Final local check | Observed result |
+| --- | --- |
+| Focused Trading Plan tests | **132 passed / 0 failed / 0 skipped**: Domain 77, Application 27, Infrastructure 28; 40 new cases |
+| Complete Domain Release | **567 passed / 0 failed / 0 skipped** |
+| Complete Application Release | **1,003 passed / 0 failed / 0 skipped** |
+| Complete Infrastructure Release | **1,410 passed / 0 failed / 0 skipped**, 1 minute 57 seconds |
+| Required three-project total | **2,980 passed / 0 failed / 0 skipped**, all commands exit 0 |
+| Final Release solution build | **0 warnings / 0 errors**, 12.98 seconds |
+| EF consistency | No model changes since the new migration; design-time factory uses in-memory SQLite |
+| Whitespace / documentation | Tracked and new-file checks passed; **159 local links** resolve; documented 35-file inventory matches Git status |
+| Desktop gate, renders, live interaction, matching CI | Not performed/claimed for this persistence slice; changes are uncommitted |
+
+Initial focused testing found and corrected a malformed-payload exception escaping write-outcome translation; a trigger test's literal braces also needed a fixture-only SQL correction. The initial complete Infrastructure run reported **1,395 passed / 10 failed**: nine explicit old-schema expectations and one Windows symlink privilege failure. The schema expectations are updated, not removed; the final complete run uses the required Windows test privileges. Subsequent reconstruction hardening rejects nested missing/defaulted values and mismatched Ready ownership. Its initial owner-join projection failed EF translation; filtering/paging now occurs before that projection and the 28-case SQLite run passed. One overlapping test-build was stopped after DLL-copy contention; no test lifetime/deadline was changed. No deadline, test retry policy or assertion is weakened. Final TRX evidence is under ignored `artifacts/m21-3/final-focused/` and `artifacts/m21-3/final-regression/`.
+
+Commands used (all paths below are synthetic output directories):
+
+```powershell
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~TradingPlans --logger "trx;LogFileName=domain.trx" --results-directory artifacts/m21-3/final-focused
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~TradingPlans --logger "trx;LogFileName=application.trx" --results-directory artifacts/m21-3/final-focused
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~TradingPlans --logger "trx;LogFileName=infra.trx" --results-directory artifacts/m21-3/final-focused
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-build --no-restore --logger "trx;LogFileName=domain.trx" --results-directory artifacts/m21-3/final-regression
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-build --no-restore --logger "trx;LogFileName=application.trx" --results-directory artifacts/m21-3/final-regression
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --logger "trx;LogFileName=infrastructure.trx" --results-directory artifacts/m21-3/final-regression
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+The Infrastructure complete run requires the normal Windows symlink privilege used by the existing backup safety fixture. A related 55-case schema/initialization/integrity/portability selection also passed before the final added owner-attribution test. Focused coverage includes all three lifecycle states, preserved checks, historical derivation, precision/nulls/Unicode, exact scopes, keyset paging, stale saves, concurrent Ready/copy targets, rollback after SQL writes, cancellation before and after commit, a competing reference writer blocked until commit, cosmetic/material changes, inactive/deleted/same-name sources, immutable SQL triggers, malformed reconstruction, migration and real backup/preflight/offline restore/export. These are isolated SQLite/service tests, not Desktop or production-journal actions.
+
+Scope limits: no Session Brief/History UI, renders, live interaction, integrated Desktop gate, Trade matching, Daily Review integration or matching CI acceptance is claimed. No production journal or provider was accessed. Full M21 remains pending.
+
+### Exact M21.3 changed files
+
+Documentation:
+
+- `README.md`
+- `docs/architecture.md`
+- `docs/trading-plan.md`
+- `docs/backup-restore.md`
+
+Domain/Application:
+
+- `src/PersonalTradingJournal.Domain/TradingPlans/TradingPlan.cs`
+- `src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReadyRevision.cs`
+- `src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReferenceSnapshot.cs`
+- `src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanSnapshotReconstruction.cs`
+- `src/PersonalTradingJournal.Application/TradingPlans/TradingPlanContracts.cs`
+- `src/PersonalTradingJournal.Application/TradingPlans/ITradingPlanStore.cs`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+
+Infrastructure:
+
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanJson.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferences.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingPlanRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingPlanConfiguration.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261017152354_AddTradingPlans.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261017152354_AddTradingPlans.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+
+Tests:
+
+- `tests/PersonalTradingJournal.Domain.Tests/TradingPlans/TradingPlanReconstructionTests.cs`
+- `tests/PersonalTradingJournal.Application.Tests/TradingPlans/TradingPlanRevisionContractTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs`
+
+The historical M21.1/M21.2 sections below retain their original checkpoint results and boundaries; the M21.3 section above supersedes their persistence-pending statements.
+
 ## M21.2 — preserved Ready revisions and working Drafts
 
 Implemented on the existing M21.1 foundation, starting from clean `develop` at `317305e582036aa28ee9fd66d506bf9dcc6161f2` (`Define Trading Plan identity and readiness contracts`). No repository/ancestor `AGENTS.md` was present. The prior scope, exact account/date identity, immutable bounded content, readiness validation, checklist invalidation mapping, nullable decimals, New York defaults and optimistic token are reused. Missing aggregate transitions and reference captures are now implemented; persistence, migration, Desktop and review contracts are unchanged.

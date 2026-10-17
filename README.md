@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M21.3 — Trading Plan persistence and application use cases**
+
+Trading Plans now persist exact Account/New York-date Drafts, explicit checklist confirmations, immutable numbered Ready revisions, and historical derivation. SQLite writer reservations cover fresh reference checks, optimistic versions, append and verified readback; failed/cancelled operations roll back. Reference changes require explicit refresh and reconfirmation, never name/symbol substitution. Ready snapshots survive catalog deletion without being rewritten. An additive migration introduces two tables and append-only guards; complete backups retain them, while portable JSON advances to v10 (four CSVs unchanged). Older-schema archive restore remains deferred. [Storage, operations, verification and exact 35-file inventory](docs/trading-plan.md#m213--persistence-migrations-and-application-use-cases).
+
+Final synthetic verification: **132/132 focused Trading Plan tests** (40 new) and complete Release **Domain 567/567, Application 1,003/1,003, Infrastructure 1,410/1,410** — **2,980 passed**, zero failures/skips. Final Release build: **0 warnings/errors**; EF consistency, tracked/new-file whitespace and **159 local documentation links** passed. Earlier schema-expectation, restricted-token symlink and reconstruction-test corrections are documented. M21.3 adds no Desktop UI, navigation, Trade matching, Review evidence or provider access; it is not full M21/live/CI acceptance. Work started on clean `develop` at `6682482bcd68bd5fe0c2bdf66bf81468f67ba6c4`; all 35 changed/new files remain uncommitted, so matching CI is pending.
+
 **M21.2 — preserved Ready revisions and subsequent Drafts**
 
 Trading Plan now has a Domain aggregate with explicit Draft-only, Ready and Draft-after-Ready states. Mark Ready validates the existing preparation/checklist and captures immutable reference context; starting from any retained Ready revision resets confirmations and preserves the latest Ready content. Actual edits invalidate the affected checks, while stale/repeated/invalid operations leave state unchanged. [Lifecycle, snapshots, verification, exact files and M21.3 requirements](docs/trading-plan.md#m212--preserved-ready-revisions-and-working-drafts).

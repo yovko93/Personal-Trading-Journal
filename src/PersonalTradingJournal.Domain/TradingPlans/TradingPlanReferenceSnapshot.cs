@@ -9,7 +9,7 @@ namespace PersonalTradingJournal.Domain.TradingPlans;
 /// <summary>Transient inputs supplied by the caller; no Domain database/catalog lookup occurs.</summary>
 public sealed record TradingPlanPlaybookSource(TradingSetup Setup, TradingSetupPlaybookRevision Revision);
 
-public sealed class TradingPlanAccountSnapshot
+public sealed partial class TradingPlanAccountSnapshot
 {
     internal TradingPlanAccountSnapshot(TradingAccount account)
     {
@@ -21,7 +21,7 @@ public sealed class TradingPlanAccountSnapshot
     public DateTimeOffset UpdatedAtUtc { get; }
 }
 
-public sealed class TradingPlanInstrumentSnapshot
+public sealed partial class TradingPlanInstrumentSnapshot
 {
     internal TradingPlanInstrumentSnapshot(Instrument instrument)
     {
@@ -38,7 +38,7 @@ public sealed class TradingPlanInstrumentSnapshot
 
 /// <summary>Selected Setup label and five guidance sections at one exact Playbook revision.
 /// Examples, images, paths and unrelated catalog content are deliberately excluded.</summary>
-public sealed class TradingPlanSetupSnapshot
+public sealed partial class TradingPlanSetupSnapshot
 {
     internal TradingPlanSetupSnapshot(TradingPlanPlaybookSource source)
     {
@@ -62,7 +62,7 @@ public sealed class TradingPlanSetupSnapshot
     public string ExecutionGuidance { get; }
 }
 
-public sealed class TradingPlanRuleSnapshot
+public sealed partial class TradingPlanRuleSnapshot
 {
     internal TradingPlanRuleSnapshot(TradingRuleRevision rule)
     {
@@ -78,7 +78,7 @@ public sealed class TradingPlanRuleSnapshot
 
 /// <summary>Only the references actually used by one preparation. Capture validates supplied
 /// source states, not their freshness in storage. M21.3 must recheck them under its transaction.</summary>
-public sealed class TradingPlanReferenceSnapshot
+public sealed partial class TradingPlanReferenceSnapshot
 {
     private TradingPlanReferenceSnapshot(TradingPlanAccountSnapshot account,
         ImmutableArray<TradingPlanInstrumentSnapshot> instruments, ImmutableArray<TradingPlanSetupSnapshot> setups,

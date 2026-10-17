@@ -1,5 +1,13 @@
 # Backup and restore — M16
 
+## M21.3 — Trading Plan compatibility
+
+The current schema is migration **21**, `20261017152354_AddTradingPlans`. Complete v1 archives include `TradingPlans` (current Draft, exact Account/New York-date identity, version, audit time and hashed reference baseline) and append-only `TradingPlanReadyRevisions` (full frozen content/reference snapshots and chronology). No screenshot files are added by Plans: the established Plan snapshot contract includes five Playbook guidance sections, not Playbook images. A synthetic backup → preflight → offline restore → fresh-service read verifies exact Draft/Ready payload retention and a verified recovery archive. Existing source records and review snapshots are unchanged.
+
+Preflight/restore still require the exact current schema, including immutable-revision triggers. Archives at migration 20 or earlier are rejected before replacement; staged upgrades of older archives remain deferred. Installed-database migration is additive and fabricates no Plans. Backup validates the established archive/schema/integrity/foreign-key contract; Domain-level Plan payload validation occurs on Plan reconstruction, not as a new exhaustive semantic audit of all archive text.
+
+Portable JSON is **v10**, adding JSON-only `tradingPlans` and `tradingPlanReadyRevisions` in deterministic Account/date/ID and Plan/revision order. `draftJson`, `referenceStateJson` and `snapshotJson` preserve their exact versioned serialized strings; optional numbers remain JSON null and decimals retain precision. Four CSVs are unchanged and contain no Plan rows. Earlier exports keep their original meaning and omit these records; no logical export is a restorable backup. Plans may contain sensitive authored preparation and frozen catalog text. Backups/exports remain **unencrypted**, exclude credentials and retain the existing pending-review-working-file exclusion. See [Plan contract and verification](trading-plan.md#m213--persistence-migrations-and-application-use-cases).
+
 ## Pending manual review working files
 
 Daily/Weekly/Monthly ChatGPT prompt drafts in `pending-review-prompts` are intentionally excluded from portable backup, restore and logical export. They contain unencrypted sensitive local working evidence and explicitly kept pasted responses; copying them to another computer is not promised. Completed external-response reviews are normal database analysis snapshots and remain included with their exact evidence, validated response and accurate provenance. Restore leaves any local pending work frozen to its original captured dataset; it must never retarget that work to restored/current sources. No schema/archive/export version change is needed. API credentials remain separately excluded.

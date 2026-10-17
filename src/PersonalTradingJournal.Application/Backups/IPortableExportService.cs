@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 9; // Adds independent saved Weekly/Monthly reviews and exact evidence snapshots.
+    public const int Version = 10; // Adds Trading Plan Drafts and immutable Ready evidence.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

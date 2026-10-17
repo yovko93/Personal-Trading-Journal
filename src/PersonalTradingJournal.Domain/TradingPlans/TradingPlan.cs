@@ -13,10 +13,33 @@ public sealed class TradingPlanNotReadyException : InvalidOperationException
 }
 
 /// <summary>Owns the current working Draft and latest Ready revision. Each returned Ready revision
-/// is independently immutable; the future store must append/retain it, not overwrite history.
+/// is independently immutable; a store must append/retain it, not overwrite history.
 /// This aggregate is single-owner in memory. Its Version is the existing optimistic save token.</summary>
 public sealed class TradingPlan : AuditableEntity
 {
+    private TradingPlan(Guid id, TradingPlanKey key, long version, TradingPlanDraft? draft,
+        TradingPlanReadyRevision? latest, DateTimeOffset created, DateTimeOffset updated) : base(id, created, updated)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (version < 1 || (draft is null && latest is null)) throw new ArgumentException("Invalid persisted Plan state.");
+        if (latest is not null && (latest.Id.PlanId != id || latest.Key != key || latest.PlanCreatedAtUtc != created ||
+            latest.ReadyAtUtc > updated || latest.SourceDraftVersion >= version ||
+            (draft is null && (latest.ReadyAtUtc != updated || latest.SourceDraftVersion != version - 1))))
+            throw new ArgumentException("Invalid persisted Ready owner or version.");
+        if (draft is not null && (draft.StartedAtUtc < created || draft.UpdatedAtUtc != updated ||
+            (version == 1 && draft.Content.Confirmed != TradingPlanChecklist.None) ||
+            (latest is null && (draft.DerivedFromRevision is not null || draft.StartedAtUtc != created)) ||
+            (latest is not null && (version - latest.SourceDraftVersion < 2 || draft.StartedAtUtc < latest.ReadyAtUtc || draft.DerivedFromRevision is null ||
+                draft.DerivedFromRevision.PlanId != id || draft.DerivedFromRevision.Revision > latest.Id.Revision))))
+            throw new ArgumentException("Invalid persisted Draft derivation or time.");
+        Key = key; Version = version; WorkingDraft = draft; LatestReadyRevision = latest;
+    }
+
+    /// <summary>Validates stored state without performing an authoring transition or consulting catalogs.</summary>
+    public static TradingPlan Rehydrate(Guid id, TradingPlanKey key, long version, TradingPlanDraft? draft,
+        TradingPlanReadyRevision? latest, DateTimeOffset createdAtUtc, DateTimeOffset updatedAtUtc) =>
+        new(id, key, version, draft, latest, createdAtUtc, updatedAtUtc);
+
     public TradingPlan(TradingPlanKey key, TradingPlanContent content, DateTimeOffset createdAtUtc)
         : base(createdAtUtc)
     {
@@ -56,6 +79,14 @@ public sealed class TradingPlan : AuditableEntity
             draft.StartedAtUtc, confirmedAtUtc);
         CommitDraft(next, confirmedAtUtc);
         return true;
+    }
+
+    /// <summary>Explicit acknowledgement of refreshed reference interpretation invalidates all checks.</summary>
+    public void RefreshReferences(long expectedVersion, DateTimeOffset atUtc)
+    {
+        var draft = RequireDraft(expectedVersion, atUtc);
+        CommitDraft(new(draft.Content.WithConfirmations(TradingPlanChecklist.None), draft.DerivedFromRevision,
+            draft.StartedAtUtc, atUtc), atUtc);
     }
 
     public TradingPlanReadyRevision MarkReady(long expectedVersion, TradingPlanReferenceSnapshot references, DateTimeOffset readyAtUtc)
