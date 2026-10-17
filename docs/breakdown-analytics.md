@@ -1,5 +1,35 @@
 # Breakdown Analytics — M20
 
+## Basis / Coverage sort correction
+
+The PR finding was reproduced on clean `develop` at `a5344a4fa78c90b8b1a83a5ce768581d4e459fda`: `BreakdownPresentation.Sort` compared only the Basis label, so groups labelled Net with 1/10 and 10/10 evaluable Trades fell back to identity order. Before the fix, both ascending/descending regression cases failed (`artifacts/m20-coverage-sort/before/before.trx`: two failed, two passed).
+
+The column now compares the **selected-basis evaluable closed-Trade count divided by eligible closed-Trade count**. Ascending puts 1/10 before 10/10; descending reverses them. Equivalent fractions such as 1/10 and 2/20 always use ascending stable group-key order. Empty denominators and zero-evaluable/unavailable groups stay last in **both** directions, also ordered by stable key. Cross-multiplication in `Int64` compares the fractions exactly without display rounding or overflowing products of nonnegative `Int32` counts. Basis and coverage text/counts remain intact. This changes presentation sorting only; no metric, financial-source policy, query, grouping, chart value, cohort, persistence or Strategy-scope change.
+
+Focused regressions cover identical Basis labels, equal fractions, opposite directions, empty/unavailable Net and explicit-Gross coverage, cross-basis ordering and large counts. Compiled WPF checks invoke the real Basis / Coverage header and compare displayed `DataGrid.Items` order, the column's sort-indicator direction and accessible ascending/descending state in Light/Dark at 1280 DIP / 96 DPI and 700 DIP / 240 DPI. They also verify retained selection, the original immutable result, visible coverage counts and no additional reader calls. Automated renders are in `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/breakdown-table-renders/`, named `Light-1280-96-coverage-ascending.png`, `Dark-1280-96-coverage-descending.png` and corresponding narrow/high-DPI samples.
+
+Final verification:
+
+| Check | Result and evidence |
+| --- | --- |
+| Focused sorting/presentation/compiled WPF | **28/28 passed**, zero failures/skips, 10s; `artifacts/m20-coverage-sort/verified-focused/sorting.trx`. Both themes and directions, normal and narrow/240-DPI. |
+| Complete Release gate | **4,574 passed**, zero failures/skips, exit **0**. `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m20-coverage-sort/gate`; about **5m 58s**. Exclusive Desktop **88**; parallel Desktop **1,638**, Domain **490**, Application **976**, Infrastructure **1,382**. |
+| Gate artifacts | `artifacts/m20-coverage-sort/gate/release-20261017-130648-b0c6acb9252a4e6e9ac7ba53bc4eb789/summary.json`, TRX and supervised child logs. Calendar native **47.38s**, leaving **72.62s** before its unchanged 120s deadline. No deadline or assertion changes. |
+| Release build | **0 warnings/errors**, final build **5.79s**. |
+| EF / whitespace / documentation links | In-memory design-time EF check: **no pending model changes**. `git diff --check` passes; **155** local README/Breakdown documentation links resolve. |
+
+Earlier verification remains recorded: the first broader focused run passed **106/109**. Its new table test failed while enumerating names of off-screen recyclable header wrappers; a direct header peer also lacked the item peer's Invoke pattern. The test now selects the correct header **item** peer by column position and checks its name before invocation. Two existing accessibility parent cases also failed: child evidence showed a null `ExecutionTask` after routed Space, and a P&L header command that did not start. Their cause was not established and those tests/product paths were not altered. All passed in the final complete gate; that pass does not prove the earlier input variability was fixed. Diagnostics remain under `artifacts/m20-coverage-sort/focused/desktop.trx` and the child paths recorded there.
+
+Automated input/render evidence does not establish live keyboard or screen-reader acceptance. This correction remains uncommitted, so no GitHub Actions run can represent the corrected worktree; any run for starting HEAD `a5344a4fa78c90b8b1a83a5ce768581d4e459fda` excludes this fix. No production journal or provider was accessed, and no commit, push or merge was performed. M21 was not started; the separate Strategy decision is unchanged.
+
+Exact changed files:
+
+1. `README.md`
+2. `docs/breakdown-analytics.md`
+3. `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownPresentation.cs`
+4. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownPresentationTests.cs`
+5. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownTableViewTests.cs`
+
 ## Navigation colors, KPI surfaces and period selection
 
 17 October 2026; started from clean `develop` at `448aa901aa97567e2544edcd6348e0b6dd7aa51c`. No branch switch, commit, push, production data or provider access.

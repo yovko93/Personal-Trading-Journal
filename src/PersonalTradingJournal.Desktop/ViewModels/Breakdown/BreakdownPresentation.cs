@@ -72,7 +72,14 @@ public sealed record BreakdownPresentation(BreakdownAnalyticsSnapshot Source)
                 result = a.Key.Grouping is BreakdownGrouping.EntryWeekday or BreakdownGrouping.EntryHour or BreakdownGrouping.HoldingDuration
                     ? a.Key.CompareTo(b.Key) : StringComparer.OrdinalIgnoreCase.Compare(a.Label, b.Label);
             else if (column == BreakdownSortColumn.Coverage)
-                result = StringComparer.Ordinal.Compare(a.Metrics.Basis, b.Metrics.Basis);
+            {
+                int ak = a.Source.Metrics.FinancialSources.EvaluableTradeCount, bk = b.Source.Metrics.FinancialSources.EvaluableTradeCount;
+                int at = a.Metrics.Trades, bt = b.Metrics.Trades;
+                bool am = at <= 0 || ak <= 0, bm = bt <= 0 || bk <= 0;
+                if (am != bm) return am ? 1 : -1; // Empty/unavailable coverage stays last in either direction.
+                // Compare exact fractions without rounding. Products of nonnegative Int32 counts fit Int64.
+                result = am ? 0 : ((long)ak * bt).CompareTo((long)bk * at);
+            }
             else
             {
                 decimal? av = Value(a), bv = Value(b);

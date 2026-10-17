@@ -148,6 +148,54 @@ public sealed class BreakdownTableViewTests
                         using var output = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{side}.png")); encoder.Save(output);
                     }
                 }
+                // Invoke the real header against partial/full coverage with identical Basis text.
+                // The displayed Items order, glyph and accessible state must agree in both directions.
+                f.Reader.MakeResult = q => new(q, BreakdownPresentationTests.Metrics(53, 13, null), BreakdownPresentationTests.CoverageGroups());
+                Pump(f.Vm.RefreshAsync());
+                f.Vm.SelectedGroup = f.Vm.GroupRows.Single(r => r.Key == BreakdownPresentationTests.Key(2));
+                foreach (string theme in new[] { "Light", "Dark" })
+                foreach (var (width, dpi) in new[] { (1280, 96), (700, 240) })
+                {
+                    view.Resources.MergedDictionaries.Clear();
+                    view.Resources.MergedDictionaries.Add(CalendarViewLayoutTests.SharedThemeResources(theme));
+                    VisualTreeHelper.SetRootDpi(view, new(dpi / 96d, dpi / 96d));
+                    f.Vm.SortGroups(BreakdownSortColumn.Group);
+                    Layout();
+                    var table = (DataGrid)view.FindName("GroupTable");
+                    ((ScrollViewer)view.Content).ScrollToEnd(); Layout();
+                    var inner = Descendants<ScrollViewer>(table).First();
+                    inner.ScrollToHorizontalOffset(inner.ScrollableWidth); Layout();
+                    var header = Descendants<DataGridColumnHeader>(table).Single(h => h.Column?.SortMemberPath == "Coverage");
+                    // Invoke is exposed by the item peer, not the realized header peer.
+                    // Select by column position before asking for its name: asking every
+                    // off-screen recyclable wrapper for a name can prepare a filler header.
+                    var presenter = Assert.Single(Descendants<DataGridColumnHeadersPresenter>(table));
+                    var headersPeer = Assert.IsType<DataGridColumnHeadersPresenterAutomationPeer>(UIElementAutomationPeer.CreatePeerForElement(presenter));
+                    var headerPeer = headersPeer.GetChildren()[header.Column.DisplayIndex];
+                    Assert.Equal("Basis / Coverage", headerPeer.GetName());
+                    int reads = f.Reader.Calls.Count;
+                    var snapshot = f.Vm.Result;
+                    foreach (bool descending in new[] { false, true })
+                    {
+                        Assert.IsAssignableFrom<IInvokeProvider>(headerPeer.GetPattern(PatternInterface.Invoke)).Invoke();
+                        Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle); Layout();
+                        int[] expected = descending ? [1, 2, 3, 4, 5, 6] : [2, 3, 1, 4, 5, 6];
+                        Assert.Equal(expected.Select(BreakdownPresentationTests.Key), table.Items.Cast<BreakdownGroupPresentation>().Select(r => r.Key));
+                        Assert.Equal(descending ? System.ComponentModel.ListSortDirection.Descending : System.ComponentModel.ListSortDirection.Ascending, header.Column.SortDirection);
+                        Assert.Equal(descending ? "Descending" : "Ascending", AutomationProperties.GetItemStatus(header));
+                        Assert.All(table.Columns.Where(c => c != header.Column), c => Assert.Null(c.SortDirection));
+                        Assert.Equal(BreakdownPresentationTests.Key(2), f.Vm.SelectedGroupKey);
+                        Assert.Equal(f.Vm.SelectedGroup, table.SelectedItem);
+                        Assert.Same(snapshot, f.Vm.Result); Assert.Equal(reads, f.Reader.Calls.Count);
+                        table.ScrollIntoView(f.Vm.GroupRows.First()); Layout();
+                        Assert.Contains(Descendants<TextBlock>(table), t => t.Text.Contains(descending ? "10/10 evaluable" : "1/10 evaluable"));
+                        string directory = Path.Combine(AppContext.BaseDirectory, "breakdown-table-renders"); Directory.CreateDirectory(directory);
+                        var bitmap = new RenderTargetBitmap(width * dpi / 96, 800 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(view);
+                        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        using var output = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-coverage-{(descending ? "descending" : "ascending")}.png")); encoder.Save(output);
+                    }
+                    void Layout() { view.Measure(new(width, 800)); view.Arrange(new(0, 0, width, 800)); view.UpdateLayout(); }
+                }
             }
             finally { view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); }
         });

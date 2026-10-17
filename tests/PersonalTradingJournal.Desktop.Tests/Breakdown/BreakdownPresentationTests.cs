@@ -83,6 +83,39 @@ public sealed class BreakdownPresentationTests
         Assert.Equal(new[] { 3, 1, 2, 4 }.Select(Key), p.Sort(BreakdownSortColumn.ProfitFactor, true).Select(r => r.Key));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CoverageSortUsesSelectedBasisRatioWithIdentityTiesAndMissingLast(bool descending)
+    {
+        var p = Snapshot(CoverageGroups());
+        Assert.All(p.Rows.Where(r => r.Key == Key(1) || r.Key == Key(2) || r.Key == Key(3)),
+            r => Assert.Equal("Net", r.Metrics.Basis));
+        int[] expected = descending ? [1, 2, 3, 4, 5, 6] : [2, 3, 1, 4, 5, 6];
+        Assert.Equal(expected.Select(Key), p.Sort(BreakdownSortColumn.Coverage, descending).Select(r => r.Key));
+        Assert.Contains("1/10 evaluable", p.Rows.Single(r => r.Key == Key(2)).Metrics.Coverage);
+        Assert.Contains("10/10 evaluable", p.Rows.Single(r => r.Key == Key(1)).Metrics.Coverage);
+        Assert.Equal(new[] { 6, 5, 4, 3, 2, 1 }.Select(Key), p.Rows.Select(r => r.Key));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CoverageSortComparesExactFractionsAcrossBasesWithoutIntegerOverflow(bool descending)
+    {
+        var net = Group(1, null) with { Metrics = Metrics(int.MaxValue, int.MaxValue - 1, null) };
+        var grossMetrics = Metrics(int.MaxValue - 1, int.MaxValue - 2, null);
+        var gross = Group(2, null) with { Metrics = grossMetrics with
+            { FinancialSources = new(BreakdownCalculationMode.Gross, int.MaxValue - 1, 0, 0, int.MaxValue - 2, 1) } };
+        var p = Snapshot([net, gross]);
+        // Both ratios round to the same decimal at ordinary display precision.
+        Assert.Equal((descending ? new[] { 1, 2 } : new[] { 2, 1 }).Select(Key),
+            p.Sort(BreakdownSortColumn.Coverage, descending).Select(r => r.Key));
+        var equivalent = Snapshot([Group(2, null) with { Metrics = Metrics(6, 2, null) },
+            Group(1, null) with { Metrics = Metrics(3, 1, null) }]);
+        Assert.Equal(new[] { Key(1), Key(2) }, equivalent.Sort(BreakdownSortColumn.Coverage, descending).Select(r => r.Key));
+    }
+
     [Fact]
     public void GroupSortUsesChronologicalKeysAndRetainsDuplicateLabels()
     {
@@ -147,6 +180,17 @@ public sealed class BreakdownPresentationTests
     }
 
     internal static BreakdownGroupKey Key(int n) => BreakdownGroupKey.ForInstrument(new Guid(n, 0, 0, new byte[8]));
+    internal static IReadOnlyList<BreakdownGroupMetrics> CoverageGroups()
+    {
+        var grossUnavailable = Metrics(3, 0, null);
+        return [Group(6, null) with { Metrics = grossUnavailable with
+                { FinancialSources = new(BreakdownCalculationMode.Gross, 3, 0, 0, 0, 3) } },
+            Group(5, null) with { Metrics = Metrics(10, 0, null) },
+            Group(4, null) with { Metrics = Metrics(0, 0, null) },
+            Group(3, null) with { Metrics = Metrics(20, 2, null) },
+            Group(2, null) with { Metrics = Metrics(10, 1, null) },
+            Group(1, 10m) with { Metrics = Metrics(10, 10, 10m) }];
+    }
     internal static BreakdownGroupMetrics Group(int n, decimal? value) => new(Key(n), "Instrument " + n, Metrics(1, value.HasValue ? 1 : 0, value));
     internal static BreakdownPresentation Snapshot(IReadOnlyList<BreakdownGroupMetrics> rows) => new(new(new("USD"), Metrics(1, 1, 0m), rows));
     internal static BreakdownMetrics Metrics(int count, int known, decimal? value)

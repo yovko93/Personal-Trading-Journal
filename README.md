@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+**M20 PR correction — Basis / Coverage sorting**
+
+Breakdown's Basis / Coverage column now sorts by **evaluable / eligible closed Trades** in the selected calculation basis, ascending or descending. Empty groups and groups with no evaluable coverage stay last in both directions; equal fractions use the stable group key. Basis labels and counts remain visible. [Reproduction, verification and exact files](docs/breakdown-analytics.md#basis--coverage-sort-correction). Calculations, source rules, filters, membership, chart values, drill-down and the separate Strategy decision are unchanged.
+
+Final verification: **28/28 focused sorting/presentation/WPF tests** and **4,574/4,574 in the complete Release gate**, zero failures/skips, exit 0. Release build: **0 warnings/errors**; EF consistency, whitespace and **155** local documentation links pass. Automated Light/Dark normal and narrow/240-DPI coverage-sort renders inspected. Earlier focused accessibility command-start failures are documented without claiming their cause was fixed. The correction remains uncommitted; matching CI is pending.
+
 **M20 — navigation colors, KPI surfaces and period selection (17 October 2026)**
 
 Scoped Trades now distinguishes teal **Back to Breakdown** from blue **Exit Breakdown scope**, without changing either action. All four Breakdown KPIs use a coordinated Light/Dark teal surface independent of profitability. **Week** and **Month** have draft-only previous/next navigation and a visible New York range; Custom has editable From/To calendars with both dates required. Partial text is retained, and only Apply changes the displayed population. Refresh and Back retain concrete applied dates; Reset loads the existing defaults once. [Period semantics, verification, renders and exact files](docs/breakdown-analytics.md#navigation-colors-kpi-surfaces-and-period-selection). No economics, reader, cohort, schema or shared-header changes.
