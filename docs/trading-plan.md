@@ -1,5 +1,80 @@
 # Trading Plan
 
+## M21.4 — session preparation and instrument context
+
+Implemented from **clean** `develop`, HEAD `6405469aaaf06d38a6c7cc341486e550195f0687`. Actual inspection superseded the attachment's reported dirty M21.3 baseline: those changes are now committed. No applicable `AGENTS.md` was found. No M21.3 files are overwritten or reimplemented; the earlier milestone reports below are historical checkpoints.
+
+### Component and host ownership
+
+`SessionPreparationSection` is a reusable WPF section, **not** the complete Session Brief destination. It contains Today's Focus, `01 Session Preparation`, session/instrument controls, bias/thesis, six optional key levels and full-width manual News & Restricted Times. Context and levels are side by side at sufficient width and stack below 760 DIP. The future host supplies a single page ScrollViewer; long text inputs scroll within bounded heights, and exceptionally precise single-line prices remain horizontally scrollable within their input rather than overflowing the page. Shared Light/Dark resources supply opaque controls, teal headings, focus indicators and validation borders.
+
+The host loads or explicitly creates a Plan through the existing store, then constructs `SessionPreparationViewModel` with that exact aggregate, `ITradingPlanStore` and existing `IInstrumentReader`. The component does not automatically load, save, create, mark Ready, start a Draft, reconfirm, or navigate. `LoadCatalogAsync`, `SaveAsync`/`SaveCommand`, `RefreshReferencesAsync`/`RefreshReferencesCommand` and cancellation are explicit host operations. Catalog and storage work run off the dispatcher. Bind and invoke/dispose the session on its owning UI thread. On accepted navigation/close, cancel and **await the outstanding operation** before disposing database services; cancellation alone is not completion. M21.7 must integrate this lifecycle, dirty-state guards, save/start-Draft/refresh controls, full toolbar and single page scroll rather than create another editor state implementation.
+
+The ViewModel retains a reconstructed private aggregate/token, immutable unowned content and transient per-instrument raw fields. It exposes `IsDirty`, `IsBusy`, `CanEdit`, `HasValidationErrors`, `TryBuildContent`, `Confirmed`, exact `Key`/`Token`, and sanitized `Message`. Dirty state compares raw input, so formatting-only edits can be dirty; Domain semantic comparison still prevents unnecessary version/checklist changes on save. `Confirmed` previews the existing Domain `EditDraft` on a reconstructed copy for valid content; when raw input is invalid, it reports the previous stored checks and `HasValidationErrors`/`TryBuildContent` prevent that input from being submitted. It is not a readiness bypass. No checklist editor or automatic confirmation is added.
+
+### Input, scope and preservation
+
+- Focus retains exact multiline text up to the existing **500-character** limit; thesis/news use **4,000**. Blank required-for-Ready fields remain valid incomplete Draft input. Oversized text is retained with inline errors instead of truncated. Required readiness remains the existing separate Mark Ready policy.
+- Each context retains exact Instrument ID, nullable bias, thesis and all six raw price fields while switching. Adding uses active exact catalog IDs, rejects duplicates and caps contexts at the existing **12**. Removal is blocked when that context owns any scenario; it does not silently delete or reassign scenarios. Existing inactive/unavailable contexts remain visible by identity and entered preparation remains editable, but the existing store's fresh-reference checks may block persistence until the reference is restored or explicitly removed/relinked.
+- Levels reuse `TradingPlanLevels`: Previous Day High/Low, Asia High/Low, London High/Low. Blank/whitespace becomes **null**, zero and negative prices remain real values. Culture-aware decimal separators and the existing invariant fallback are supported; thousands separators/exponents are not. Values display using the session culture and decimal precision, without tick-size rounding or invented padding. A canonical decimal comparison also rejects excessive precision that `decimal.TryParse` would round. Invalid raw input survives switching and rejected saves; **no older valid price is saved behind newer invalid text**.
+- Validation marks inputs through shared `FormValidation`, exposes inline text plus automation HelpText/ItemStatus, and selects/scrolls/focuses the first invalid context/input after an explicit failed save. Correcting one field clears its error immediately. The component does not move focus merely to show a status message.
+- Session is existing metadata, not another Plan key. Blank bias/session is never a user confirmation. News/restrictions are one existing plan-level manual text field, including multiline notes and explicit removal by clearing; no feed or event interpretation is introduced. Existing copy-forward still clears news, levels, thesis, bias and confirmations.
+- Saves preserve scenarios, Setup links, risk limits, Rule links, intent and stand-aside text unchanged. Valid edits use `SaveDraft`; checklist invalidation is authoritative in Domain/SQLite. No-op semantic input preserves checks/version. Errors, conflict, cancellation and missing readback preserve raw inputs and the expected token; success is shown only with the store's verified committed aggregate. Busy state suppresses duplicate submissions and freezes edits until the operation completes.
+- Catalog reload changes display availability only; it does not accept a new reference baseline. `ReferenceChanged` requires explicit refresh; `RefreshReferences` saves valid preparation and clears **all** confirmations. Unavailable/inactive references still block, and failed refresh retains input. Setup/Rule reselection remains the later owning editors' responsibility.
+- Ready and explicitly supplied historical Ready revisions are read-only, with **saved** instrument names/symbols even after catalog rename/deletion. To edit, the host must execute the existing exact-revision `StartDraft` operation and construct a new editing session from its committed result; the component cannot modify a Ready value or overwrite another working Draft.
+
+Synthetic NQ example: select NQ from the catalog, choose Conditional bias, enter a thesis and optional `20123.25` prior-day high, leave unknown lows blank, and record manual restricted times. This is user-entered preparation only, not market data, an economic-calendar fact or proof a later Trade followed the plan. No example text is seeded into real plans.
+
+### Verification and limits
+
+Focused coverage includes culture/precision/null/zero/invalid inputs, switching/isolation, duplicate prevention, scenario-protected removal, unchanged semantic edits, Domain checklist invalidation, incomplete Drafts, validation recovery, all sanitized write outcomes, cancellation/duplicate submission, inactive/unavailable catalog entries, frozen Ready labels and real SQLite save/reload/stale/reference-refresh behavior. Compiled WPF coverage exercises bindings, accessible controls, read-only Ready inputs, real owner-window invalid-field focus routing and responsive geometry; this is automation, not human keyboard or screen-reader acceptance.
+
+| Final local verification (17 October 2026) | Result |
+| --- | --- |
+| Focused Trading Plan/section tests | **156 passed**, zero failed/skipped: Domain 77, Application 27, Infrastructure 28, Desktop 24 new cases |
+| Complete Release gate | **4,730 passed**, zero failed/skipped, exit **0** |
+| Complete Domain / Application / Infrastructure | **567 / 1,003 / 1,410 passed** |
+| Complete Desktop | **1,750 passed**: 88 exclusive WPF + 1,662 parallel; parallel Desktop 5m03s |
+| Native deadlines | Calendar child **66.887s**, **53.113s** headroom to its unchanged 120s deadline; Journal child **10.596s**; new section child **7.362s** under complete competing load |
+| Release solution build | **0 warnings, 0 errors** |
+| EF / whitespace / local links | No pending model changes; tracked/new-file whitespace checks pass; **152** documentation file links resolve |
+| Automated visual inspection | Light/Dark, normal/narrow 96/240 DPI, Draft, invalid input and scrolled-bottom views inspected; no page overflow or inaccessible lower fields observed |
+| Full-page / human interaction / Narrator / matching CI | **Pending**, not implied by component tests or renders; changes remain uncommitted |
+
+The first new Desktop run had 21 passes and three test-expectation/setup failures: immutable-array backing identity versus sequence equality, a negative status substring also matching “could not be saved,” and render selection carried between variants. These were corrected without weakening behavioral checks. Extending the compiled test to a real owner window exposed an off-STA fixture disposal, corrected to UI-thread ownership, and an actual new-section focus-ordering issue: the normal-priority focus callback could run before the newly selected invalid context's bindings/layout. The section now reuses existing `PageFocus` (Loaded priority, owner/input-generation guards) and `LiveAnnouncement`; the final owner-window test verifies the selected invalid field receives focus. Render inspection also replaced uniform level-row heights with auto-height rows, avoiding repeated blank space when one row has a long error. No existing assertions, deadlines, runner scheduling or production workflows were weakened.
+
+Commands actually run:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_PLAN_RENDER_DIRECTORY = Join-Path (Get-Location) 'artifacts/m21-4/renders'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans --logger 'trx;LogFileName=desktop-focused.trx' --results-directory artifacts/m21-4/final-layout-focused
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans --logger 'trx;LogFileName=domain.trx' --results-directory artifacts/m21-4/focused-complete
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans --logger 'trx;LogFileName=application.trx' --results-directory artifacts/m21-4/focused-complete
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans --logger 'trx;LogFileName=infrastructure.trx' --results-directory artifacts/m21-4/focused-complete
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m21-4/release-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+The complete gate used the Windows permissions required by the existing synthetic screenshot-symlink safety fixture. Gate evidence: ignored `artifacts/m21-4/release-gate/release-20261017-162321-df600def25cc4191a628275a9a307f91/summary.json`, parent/child TRX and supervision logs. New files were also checked with `git diff --no-index --check`; Git's LF-to-CRLF notices are not whitespace failures. No GitHub run is claimed for the uncommitted changes.
+
+Automated renders are under ignored `artifacts/m21-4/renders/`: `preparation-{Light|Dark}-{1040-96|460-240}-{draft|invalid|bottom}.png`. Normal 1040-DIP / 96-DPI and narrow 460-DIP / 240-DPI synthetic components include top/validation and scrolled-bottom views. They are **component** renders, not the unimplemented full Session Brief. M21.7 integration, actual human input/Narrator and matching CI remain pending. No navigation, scenario/risk/checklist editor, History UI, AI/Review integration, external provider or automatic market data was added. Schema/migrations, portable JSON **v10**, backup behavior and the documented **older-schema restore deferral** remain unchanged.
+
+### Exact M21.4 changed files
+
+Seven new files:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/PreparationField.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/InstrumentPreparationEditor.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationViewTests.cs`
+
+Three modified documents: `README.md`, `docs/architecture.md`, `docs/trading-plan.md`. No Domain/Application/Infrastructure code or M21.3 migration changed. Generated renders/TRX are ignored artifacts, not source files. No commit, push, merge, branch switch, production-journal access or provider request was performed.
+
 ## M21.3 — persistence, migrations and application use cases
 
 Implemented from clean `develop`, HEAD `6682482bcd68bd5fe0c2bdf66bf81468f67ba6c4`. No applicable `AGENTS.md` was present. Reuses M21.1/M21.2 identity, content bounds, readiness, checklist invalidation, frozen reference types, optimistic token, copy-forward and Domain transitions. No UI, navigation, automatic matching, Review/AI integration, market feed or existing economics changes.
