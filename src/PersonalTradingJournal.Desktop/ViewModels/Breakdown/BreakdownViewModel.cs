@@ -25,7 +25,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _cancellation;
     private long _generation, _draftVersion;
     private bool _active, _disposed, _started, _loading, _stale;
-    private DateOnly _anchor;
+    private DateOnly _anchor, _weekAnchor, _monthAnchor;
     private DashboardPeriod _period;
     private BreakdownGrouping _grouping = BreakdownGrouping.Instrument;
     private BreakdownCalculationMode _mode = BreakdownCalculationMode.NetPreferred;
@@ -50,18 +50,20 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         IInstrumentReader instruments, TimeProvider time)
     {
         _reader = reader; _accounts = accounts; _instruments = instruments; _time = time;
-        _anchor = Today;
+        _anchor = _weekAnchor = _monthAnchor = Today;
         _accountOptions = [_account]; _instrumentOptions = [_instrument];
         ApplyCommand = new AsyncRelayCommand(ApplyAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         ResetCommand = new AsyncRelayCommand(ResetAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CancelCommand = new RelayCommand(Cancel, () => IsLoading);
+        PreviousPeriodCommand = new RelayCommand(() => MovePeriod(-1), () => CanMovePeriod(-1));
+        NextPeriodCommand = new RelayCommand(() => MovePeriod(1), () => CanMovePeriod(1));
         ViewTradesCommand = new AsyncRelayCommand<BreakdownGroupPresentation>(ViewTradesAsync, CanViewTrades);
     }
 
     public IReadOnlyList<BreakdownChoice<DashboardPeriod>> Periods { get; } =
-        [new(DashboardPeriod.All, "All history"), new(DashboardPeriod.Week, "Current week"),
-         new(DashboardPeriod.Month, "Current month"), new(DashboardPeriod.Year, "Current year"), new(DashboardPeriod.Custom, "Custom dates")];
+        [new(DashboardPeriod.All, "All history"), new(DashboardPeriod.Week, "Week"),
+         new(DashboardPeriod.Month, "Month"), new(DashboardPeriod.Year, "Current year"), new(DashboardPeriod.Custom, "Custom dates")];
     public IReadOnlyList<BreakdownChoice<BreakdownGrouping>> Groupings { get; } =
         [new(BreakdownGrouping.TradingSetup, "Setup"), new(BreakdownGrouping.Instrument, "Instrument"),
          new(BreakdownGrouping.Direction, "Direction"), new(BreakdownGrouping.EntryWeekday, "Weekday"),
@@ -75,10 +77,46 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     public string CurrencySuggestions => $"Catalog suggestions: {string.Join(", ", Currencies)}. You may type another historical pricing currency. No currency conversion.";
     public BreakdownReferenceOption SelectedAccount { get => _account; set { if (value is not null && SetProperty(ref _account, value)) Edited(); } }
     public BreakdownReferenceOption SelectedInstrument { get => _instrument; set { if (value is not null && SetProperty(ref _instrument, value)) Edited(); } }
-    public DashboardPeriod Period { get => _period; set { if (SetProperty(ref _period, value)) { _anchor = Today; Edited(); OnPropertyChanged(nameof(IsCustom)); } } }
+    public DashboardPeriod Period { get => _period; set { if (SetProperty(ref _period, value)) { if (value == DashboardPeriod.Year) _anchor = Today; Edited(); NotifyPeriod(); } } }
     public bool IsCustom => Period == DashboardPeriod.Custom;
-    public string StartDateText { get => _start; set { if (SetProperty(ref _start, value)) Edited(); } }
-    public string EndDateText { get => _end; set { if (SetProperty(ref _end, value)) Edited(); } }
+    public string StartDateText { get => _start; set { if (SetProperty(ref _start, value)) { Edited(); OnPropertyChanged(nameof(StartDate)); } } }
+    public string EndDateText { get => _end; set { if (SetProperty(ref _end, value)) { Edited(); OnPropertyChanged(nameof(EndDate)); } } }
+    // Calendar selection is an adapter over the editable ISO draft, not a second filter.
+    // Null selection while typing must not erase incomplete text.
+    public DateTime? StartDate { get => ParseDate(_start, out var date) ? date?.ToDateTime(TimeOnly.MinValue) : null; set { if (value is { } date) StartDateText = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture); } }
+    public DateTime? EndDate { get => ParseDate(_end, out var date) ? date?.ToDateTime(TimeOnly.MinValue) : null; set { if (value is { } date) EndDateText = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture); } }
+    public bool IsNavigablePeriod => Period is DashboardPeriod.Week or DashboardPeriod.Month;
+    public string PreviousPeriodLabel => Period == DashboardPeriod.Week ? "Previous week" : "Previous month";
+    public string NextPeriodLabel => Period == DashboardPeriod.Week ? "Next week" : "Next month";
+    public string DraftPeriodRange => IsNavigablePeriod ? $"{PeriodBounds().Start:dd MMM yyyy} – {PeriodBounds().End:dd MMM yyyy} · New York" : "";
+    public IRelayCommand PreviousPeriodCommand { get; }
+    public IRelayCommand NextPeriodCommand { get; }
+    private (DateOnly Start, DateOnly End) PeriodBounds() => Period switch
+    {
+        DashboardPeriod.Week => (DashboardMetricCalculator.GetWeekStartingMonday(_weekAnchor), DashboardMetricCalculator.GetWeekStartingMonday(_weekAnchor).AddDays(6)),
+        DashboardPeriod.Month => (new(_monthAnchor.Year, _monthAnchor.Month, 1), new DateOnly(_monthAnchor.Year, _monthAnchor.Month, 1).AddMonths(1).AddDays(-1)),
+        _ => (new(_anchor.Year, 1, 1), new(_anchor.Year, 12, 31))
+    };
+    private DateOnly MovedAnchor(int direction) => Period == DashboardPeriod.Week
+        ? DashboardMetricCalculator.GetWeekStartingMonday(_weekAnchor).AddDays(direction * 7)
+        : new DateOnly(_monthAnchor.Year, _monthAnchor.Month, 1).AddMonths(direction);
+    private bool CanMovePeriod(int direction)
+    {
+        if (!IsNavigablePeriod) return false;
+        try { var date = MovedAnchor(direction); _ = Period == DashboardPeriod.Week ? date.AddDays(7) : date.AddMonths(1); return true; }
+        catch (ArgumentOutOfRangeException) { return false; }
+    }
+    private void MovePeriod(int direction)
+    {
+        if (!CanMovePeriod(direction)) return;
+        if (Period == DashboardPeriod.Week) _weekAnchor = MovedAnchor(direction); else _monthAnchor = MovedAnchor(direction);
+        Edited(); NotifyPeriod();
+    }
+    private void NotifyPeriod()
+    {
+        foreach (string name in new[] { nameof(IsCustom), nameof(IsNavigablePeriod), nameof(DraftPeriodRange), nameof(PreviousPeriodLabel), nameof(NextPeriodLabel) }) OnPropertyChanged(name);
+        PreviousPeriodCommand.NotifyCanExecuteChanged(); NextPeriodCommand.NotifyCanExecuteChanged();
+    }
     public string Currency { get => _currency; set { if (value is not null && SetProperty(ref _currency, value)) Edited(); } }
     public BreakdownGrouping Grouping { get => _grouping; set { if (SetProperty(ref _grouping, value)) Edited(); } }
     public BreakdownCalculationMode Mode { get => _mode; set { if (SetProperty(ref _mode, value)) Edited(); } }
@@ -220,7 +258,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
                 : !Enum.IsDefined(Period) ? "PeriodFilter"
                 : !Enum.IsDefined(Grouping) ? "GroupingFilter"
                 : !Enum.IsDefined(Mode) ? "ModeFilter"
-                : !ParseDate(StartDateText, out _) ? "FromDate" : "ThroughDate");
+                : !ParseDate(StartDateText, out var first) || first is null ? "FromDate" : "ThroughDate");
             return Task.CompletedTask;
         }
         return LoadTask = LoadAsync(query!);
@@ -230,7 +268,7 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
     public Task ResetAsync()
     {
         if (!_active || _disposed) return Task.CompletedTask;
-        _anchor = Today;
+        _anchor = _weekAnchor = _monthAnchor = Today;
         Period = DashboardPeriod.All; SelectedAccount = Accounts[0]; SelectedInstrument = Instruments[0];
         Currency = _defaultCurrency; Grouping = BreakdownGrouping.Instrument; Mode = BreakdownCalculationMode.NetPreferred;
         StartDateText = EndDateText = "";
@@ -332,15 +370,13 @@ public sealed class BreakdownViewModel : ObservableObject, IDisposable
         DateOnly? start = null, end = null;
         if (Period == DashboardPeriod.Custom)
         {
-            if (!ParseDate(StartDateText, out start) || !ParseDate(EndDateText, out end))
-                dateError = "Enter dates as yyyy-MM-dd, or leave a bound empty for all history on that side.";
+            if (!ParseDate(StartDateText, out start) || !ParseDate(EndDateText, out end) || start is null || end is null)
+                dateError = "Choose both From and To dates, or enter each as yyyy-MM-dd.";
         }
         else if (Period != DashboardPeriod.All)
         {
-            start = Period == DashboardPeriod.Week ? DashboardMetricCalculator.GetWeekStartingMonday(_anchor)
-                : Period == DashboardPeriod.Month ? new(_anchor.Year, _anchor.Month, 1) : new DateOnly(_anchor.Year, 1, 1);
-            end = Period == DashboardPeriod.Week ? start.Value.AddDays(6)
-                : Period == DashboardPeriod.Month ? start.Value.AddMonths(1).AddDays(-1) : new(_anchor.Year, 12, 31);
+            try { (start, end) = PeriodBounds(); }
+            catch (ArgumentOutOfRangeException) { dateError = "Choose a supported period ending before 9999-12-31."; }
         }
         if (start > end || end == DateOnly.MaxValue) dateError = "The end must be on or after the start and before 9999-12-31.";
         if (string.IsNullOrWhiteSpace(Currency) || Currency.Trim().Length > 8) currencyError = "Enter a historical pricing currency (1–8 characters).";

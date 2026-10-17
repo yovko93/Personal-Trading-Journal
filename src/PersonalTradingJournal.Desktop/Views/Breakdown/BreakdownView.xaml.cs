@@ -17,6 +17,8 @@ public partial class BreakdownView : UserControl
     public BreakdownView()
     {
         InitializeComponent();
+        FromDate.CalendarClosed += OnDateCalendarClosed;
+        ThroughDate.CalendarClosed += OnDateCalendarClosed;
         FocusManager.SetIsFocusScope(this, true);
         _focus = new(this);
         Loaded += (_, _) => { Observe(); _focus.Request(ReturnTarget); };
@@ -47,9 +49,21 @@ public partial class BreakdownView : UserControl
     private void OnFocusRequested(string name)
     {
         if (name is "CurrencyFilter" or "ModeFilter") MoreFilters.IsExpanded = true;
-        _focus.Request(() => FindName(name) as FrameworkElement);
+        _focus.Request(() => FindName(name) is DatePicker picker
+            ? picker.Template.FindName("DraftDateText", picker) as FrameworkElement : FindName(name) as FrameworkElement);
     }
     private void OnMoreFilters(object sender, RoutedEventArgs e) => MoreFilters.IsExpanded = !MoreFilters.IsExpanded;
+    private void OnDateKey(object sender, KeyEventArgs e)
+    {
+        if (sender is DatePicker picker && (e.Key == Key.F4 ||
+            (e.Key == Key.System ? e.SystemKey : e.Key) == Key.Down && Keyboard.Modifiers.HasFlag(ModifierKeys.Alt)))
+        { picker.IsDropDownOpen = !picker.IsDropDownOpen; e.Handled = true; }
+    }
+    private void OnDateCalendarClosed(object sender, RoutedEventArgs e)
+    {
+        if (sender is DatePicker picker && picker.IsLoaded)
+            _focus.Request(() => picker.Template.FindName("DraftDateText", picker) as FrameworkElement);
+    }
     private void OnMoreFiltersChanged(object sender, RoutedEventArgs e)
         => AutomationProperties.SetItemStatus(MoreFiltersButton, MoreFilters.IsExpanded ? "Expanded" : "Collapsed");
     private void OnKpiSizeChanged(object sender, SizeChangedEventArgs e)

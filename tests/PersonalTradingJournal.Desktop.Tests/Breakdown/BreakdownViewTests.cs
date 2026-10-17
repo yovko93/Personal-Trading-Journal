@@ -48,8 +48,10 @@ public sealed class BreakdownViewTests
                     VisualTreeHelper.SetRootDpi(view, new(dpi / 96d, dpi / 96d));
                     f.Vm.Period = DashboardPeriod.Custom;
                     Layout();
-                    var from = (TextBox)view.FindName("FromDate");
-                    var through = (TextBox)view.FindName("ThroughDate");
+                    var fromPicker = (DatePicker)view.FindName("FromDate");
+                    var throughPicker = (DatePicker)view.FindName("ThroughDate");
+                    var from = (TextBox)fromPicker.Template.FindName("DraftDateText", fromPicker);
+                    var through = (TextBox)throughPicker.Template.FindName("DraftDateText", throughPicker);
                     from.Text = "2026-03-08"; through.Text = "2026-03-08";
                     from.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
                     through.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
@@ -95,10 +97,28 @@ public sealed class BreakdownViewTests
                     Assert.InRange(scroll.VerticalOffset - scroll.ScrollableHeight, -1, 1);
                     SaveRender(view, theme + "-bottom", width, dpi);
                     scroll.ScrollToTop(); Layout();
+                    // Calendar selection and text editing address the same draft, without a read.
+                    int calendarReads = f.Reader.Calls.Count;
+                    fromPicker.SelectedDate = new DateTime(2026, 11, 1); throughPicker.SelectedDate = new DateTime(2026, 11, 1);
+                    Assert.Equal("2026-11-01", from.Text); Assert.Equal("2026-11-01", f.Vm.StartDateText);
+                    Assert.Equal(calendarReads, f.Reader.Calls.Count);
+                    from.Text = "2026-";
+                    from.RaiseEvent(new RoutedEventArgs(UIElement.LostFocusEvent));
+                    Assert.Equal("2026-", from.Text); Assert.Equal("2026-", f.Vm.StartDateText);
                     from.Text = "invalid"; from.GetBindingExpression(TextBox.TextProperty)!.UpdateSource();
                     int count = f.Reader.Calls.Count; Pump(f.Vm.ApplyCommand.ExecuteAsync(null)); Layout();
                     Assert.Equal(count, f.Reader.Calls.Count); Assert.NotNull(f.Vm.DateValidation);
                     Assert.Contains(Descendants<TextBlock>(view), t => t.Text == f.Vm.DateValidation);
+                    SaveRender(view, theme + "-invalid", width, dpi);
+                    foreach (var period in new[] { DashboardPeriod.Week, DashboardPeriod.Month })
+                    {
+                        f.Vm.Period = period; Layout();
+                        var previous = Descendants<Button>(view).Single(b => ReferenceEquals(b.Command, f.Vm.PreviousPeriodCommand));
+                        Assert.Equal(f.Vm.PreviousPeriodLabel, AutomationProperties.GetName(previous));
+                        previous.Command.Execute(null); Layout();
+                        Assert.Null(f.Vm.DateValidation); Assert.Equal(count, f.Reader.Calls.Count);
+                        SaveRender(view, theme + "-" + period, width, dpi);
+                    }
 
                     void Layout() { view.Measure(new(width, 570)); view.Arrange(new(0, 0, width, 570)); view.UpdateLayout(); }
                 }

@@ -73,6 +73,8 @@ public sealed class BreakdownViewModelTests
 
     [Theory]
     [InlineData("not a date", "2026-03-08", "USD")]
+    [InlineData("", "2026-03-08", "USD")]
+    [InlineData("2026-03-08", "", "USD")]
     [InlineData("2026-03-09", "2026-03-08", "USD")]
     [InlineData("", "9999-12-31", "USD")]
     [InlineData("", "", "")]
@@ -84,7 +86,7 @@ public sealed class BreakdownViewModelTests
         await f.Vm.ApplyAsync();
         Assert.Single(f.Reader.Calls); Assert.Same(before, f.Vm.Result); Assert.NotNull(f.Vm.ErrorMessage);
         Assert.True(f.Vm.DateValidation is not null || f.Vm.CurrencyValidation is not null);
-        f.Vm.StartDateText = ""; f.Vm.EndDateText = ""; f.Vm.Currency = "USD";
+        f.Vm.StartDateText = "2026-03-08"; f.Vm.EndDateText = "2026-03-08"; f.Vm.Currency = "USD";
         Assert.Null(f.Vm.DateValidation); Assert.Null(f.Vm.CurrencyValidation);
         await f.Vm.ApplyAsync(); Assert.Null(f.Vm.ErrorMessage);
     }
@@ -246,6 +248,67 @@ public sealed class BreakdownViewModelTests
         else if (outcome == "cancel") call.Completion.SetCanceled(call.Token);
         else call.Completion.SetResult(BreakdownFixture.Snapshot(call.Query));
     }
+
+    [Fact]
+    public async Task WeekAndMonthDraftAnchorsSurviveSwitchesRefreshBackAndReactivation()
+    {
+        using var f = new BreakdownFixture(); await f.Vm.ActivateAsync();
+        var applied = f.Vm.Result; string label = f.Vm.CompactContext;
+        f.Vm.StartDateText = "2026-03-"; f.Vm.EndDateText = "2026-04-02";
+        f.Vm.Period = DashboardPeriod.Week;
+        f.Vm.PreviousPeriodCommand.Execute(null); f.Vm.PreviousPeriodCommand.Execute(null);
+        Assert.StartsWith("16 Feb 2026 – 22 Feb 2026", f.Vm.DraftPeriodRange);
+        Assert.Null(f.Vm.DateValidation); Assert.Single(f.Reader.Calls);
+        Assert.Same(applied, f.Vm.Result); Assert.Equal(label, f.Vm.CompactContext);
+        await f.Vm.ApplyAsync(); var week = f.Vm.Result!.Query;
+        Assert.Equal(new DateOnly(2026, 2, 16), week.TradeFilter.ClosedFromNewYork);
+        f.Vm.NextPeriodCommand.Execute(null);
+        f.Vm.Period = DashboardPeriod.Month; f.Vm.PreviousPeriodCommand.Execute(null);
+        Assert.StartsWith("01 Feb 2026 – 28 Feb 2026", f.Vm.DraftPeriodRange);
+        f.Vm.Deactivate(); await f.Vm.ActivateAsync();
+        await f.Vm.RefreshAppliedAsync(); await f.Vm.RefreshAsync();
+        Assert.Equal(week, f.Vm.Result.Query); Assert.Equal(DashboardPeriod.Month, f.Vm.Period);
+        Assert.StartsWith("01 Feb 2026", f.Vm.DraftPeriodRange);
+        f.Vm.Period = DashboardPeriod.Week; Assert.StartsWith("23 Feb 2026", f.Vm.DraftPeriodRange);
+        f.Vm.Period = DashboardPeriod.Custom;
+        Assert.Equal("2026-03-", f.Vm.StartDateText); Assert.NotNull(f.Vm.DateValidation);
+        Assert.False(f.Vm.PreviousPeriodCommand.CanExecute(null));
+        int reads = f.Reader.Calls.Count; await f.Vm.ResetAsync();
+        Assert.Equal(reads + 1, f.Reader.Calls.Count); Assert.False(f.Vm.HasUnappliedChanges);
+        f.Vm.Period = DashboardPeriod.Week; Assert.StartsWith("02 Mar 2026", f.Vm.DraftPeriodRange);
+    }
+
+    [Theory]
+    [InlineData("2024-03-31T12:00:00Z", "2024-02-01", "2024-02-29")]
+    [InlineData("2026-03-31T12:00:00Z", "2026-02-01", "2026-02-28")]
+    [InlineData("2026-01-31T12:00:00Z", "2025-12-01", "2025-12-31")]
+    public async Task CalendarMonthMovementUsesFirstOfMonthNotClampedDay(string instant, string from, string to)
+    {
+        using var f = new BreakdownFixture(new FixedClock(DateTimeOffset.Parse(instant)));
+        await f.Vm.ActivateAsync(); f.Vm.Period = DashboardPeriod.Month;
+        f.Vm.PreviousPeriodCommand.Execute(null); await f.Vm.ApplyAsync();
+        Assert.Equal(DateOnly.Parse(from), f.Vm.Result!.Query.TradeFilter.ClosedFromNewYork);
+        Assert.Equal(DateOnly.Parse(to), f.Vm.Result.Query.TradeFilter.ClosedThroughNewYork);
+        f.Vm.NextPeriodCommand.Execute(null); f.Vm.NextPeriodCommand.Execute(null); await f.Vm.ApplyAsync();
+        var expected = new DateOnly(DateTimeOffset.Parse(instant).Year, DateTimeOffset.Parse(instant).Month, 1).AddMonths(1);
+        Assert.Equal(expected, f.Vm.Result.Query.TradeFilter.ClosedFromNewYork);
+    }
+
+    [Theory]
+    [InlineData("2026-03-08", 23)]
+    [InlineData("2026-11-01", 25)]
+    public async Task CalendarAdapterPreservesInclusiveDstDayAndInvalidDraft(string day, int hours)
+    {
+        using var f = new BreakdownFixture(); await f.Vm.ActivateAsync(); f.Vm.Period = DashboardPeriod.Custom;
+        f.Vm.StartDate = DateTime.Parse(day); f.Vm.EndDate = DateTime.Parse(day);
+        await f.Vm.ApplyAsync(); var query = f.Vm.Result!.Query;
+        Assert.Equal(TimeSpan.FromHours(hours), query.TradeFilter.ClosedBeforeUtc - query.TradeFilter.ClosedFromUtc);
+        f.Vm.StartDateText = "2026-"; f.Vm.StartDate = null;
+        Assert.Equal("2026-", f.Vm.StartDateText); Assert.Null(f.Vm.StartDate);
+        int reads = f.Reader.Calls.Count; await f.Vm.ApplyAsync();
+        Assert.Equal(reads, f.Reader.Calls.Count); Assert.Equal(query, f.Vm.Result.Query);
+    }
+    private sealed class FixedClock(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
 }
 
 internal sealed class BreakdownFixture : IDisposable
@@ -256,7 +319,7 @@ internal sealed class BreakdownFixture : IDisposable
     internal readonly AccountsReader Accounts = new();
     internal readonly InstrumentsReader Instruments = new();
     internal readonly BreakdownViewModel Vm;
-    internal BreakdownFixture() => Vm = new(Reader, Accounts, Instruments, new Clock());
+    internal BreakdownFixture(TimeProvider? time = null) => Vm = new(Reader, Accounts, Instruments, time ?? new Clock());
     public void Dispose() => Vm.Dispose();
     internal static AccountListItem Account(Guid id) => new(id, "Synthetic Account", TradingAccountType.Personal, null, null, "EUR", 0m, false);
     internal static BreakdownAnalyticsSnapshot Snapshot(BreakdownQuery q, bool unavailable = false, bool fallback = false)

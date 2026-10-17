@@ -8,6 +8,8 @@
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="CohortVisible" />
+        <Style x:Key="BreakdownReturnAction" TargetType="Button" BasedOn="{StaticResource PtjPlaybookCreateButtonStyle}" />
+        <Style x:Key="BreakdownExitAction" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}" />
         <converters:PnLOutcomeConverter x:Key="PnLOutcomeConverter" />
         <converters:TradeRowOutcomeConverter x:Key="TradeRowOutcomeConverter" />
         <converters:NetPnLUnavailableVisibilityConverter x:Key="NetPnLUnavailableVisibilityConverter" />
@@ -76,8 +78,8 @@
                                Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasTradeListError, Converter={StaticResource CohortVisible}}"
                                AutomationProperties.LiveSetting="Assertive" interactions:LiveAnnouncement.Text="{Binding TradeListErrorMessage}" />
                     <WrapPanel Margin="0,8,0,0">
-                        <Button x:Name="BackToBreakdownButton" Content="Back to Breakdown" Command="{Binding BackToBreakdownCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Return to the analysis and refresh its applied filters; keep your unapplied edits." />
-                        <Button Content="Exit Breakdown scope" Command="{Binding ExitBreakdownScopeCommand}" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,0,8" AutomationProperties.HelpText="Restore your previous ordinary Trades page and sorting." />
+                        <Button x:Name="BackToBreakdownButton" Content="Back to Breakdown" Command="{Binding BackToBreakdownCommand}" Style="{StaticResource BreakdownReturnAction}" Margin="0,0,8,8" AutomationProperties.HelpText="Return to the analysis and refresh its applied filters; keep your unapplied edits." />
+                        <Button Content="Exit Breakdown scope" Command="{Binding ExitBreakdownScopeCommand}" Style="{StaticResource BreakdownExitAction}" Margin="0,0,0,8" AutomationProperties.HelpText="Restore your previous ordinary Trades page and sorting." />
                     </WrapPanel>
                 </StackPanel>
             </Border>

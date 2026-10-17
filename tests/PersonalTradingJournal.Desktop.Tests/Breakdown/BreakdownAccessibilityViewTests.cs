@@ -225,6 +225,26 @@ public sealed class BreakdownAccessibilityViewTests
                 Assert.Same(view.FindName("RefreshButton"), FocusManager.GetFocusedElement(view));
                 call.Result.Completion.SetResult(BreakdownFixture.Snapshot(call.Result.Query)); Pump(pending); Idle();
                 Assert.Contains("cancelled", f.Vm.StatusMessage); f.Reader.Hold = false;
+                f.Vm.Period = PersonalTradingJournal.Desktop.ViewModels.Dashboard.DashboardPeriod.Custom; Idle();
+                int dateReads = f.Reader.Calls.Count;
+                var datePicker = (DatePicker)view.FindName("FromDate");
+                var dateText = (TextBox)datePicker.Template.FindName("DraftDateText", datePicker);
+                dateText.Text = "2026-";
+                PressSpace(apply); Idle();
+                Assert.Same(dateText, FocusManager.GetFocusedElement(view));
+                Assert.Equal("2026-", dateText.Text);
+                Assert.NotEmpty(AutomationProperties.GetItemStatus(dateText));
+                dateText.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(dateText), 0, Key.F4)
+                    { RoutedEvent = Keyboard.PreviewKeyDownEvent }); Idle();
+                Assert.True(datePicker.IsDropDownOpen);
+                var popup = (Popup)datePicker.Template.FindName("PART_Popup", datePicker);
+                var calendar = popup.Child as System.Windows.Controls.Calendar ?? Descendants<System.Windows.Controls.Calendar>(popup.Child).Single();
+                calendar.SelectedDate = new DateTime(2026, 3, 8); Idle();
+                Assert.Equal("2026-03-08", f.Vm.StartDateText);
+                datePicker.IsDropDownOpen = false; Idle();
+                Assert.Same(dateText, FocusManager.GetFocusedElement(view));
+                Assert.Equal(dateReads, f.Reader.Calls.Count);
+                f.Vm.Period = PersonalTradingJournal.Desktop.ViewModels.Dashboard.DashboardPeriod.All; Idle();
                 foreach (string theme in new[] { "Light", "Dark" })
                 foreach (var (width, dpi) in new[] { (1280, 96), (700, 240) })
                 {

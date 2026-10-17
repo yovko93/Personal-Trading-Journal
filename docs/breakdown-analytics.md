@@ -1,5 +1,45 @@
 # Breakdown Analytics — M20
 
+## Navigation colors, KPI surfaces and period selection
+
+17 October 2026; started from clean `develop` at `448aa901aa97567e2544edcd6348e0b6dd7aa51c`. No branch switch, commit, push, production data or provider access.
+
+- **Scoped Trades actions:** Back to Breakdown uses the existing opaque teal primary action; Exit Breakdown scope uses the softly blue-tinted action. Local styles retain shared hover/press/focus/disabled behavior. Commands, exact cohort, enablement and unsaved-work guards are unchanged. Back refreshes the last successful applied query while retaining the draft and presentation; Exit restores ordinary Trades.
+- **KPI cards:** all four use the shared pale teal / dark teal section surface and coordinated border, not outcome-dependent backgrounds. Financial foregrounds, labels, dimensions and responsive columns remain unchanged. The shared page heading is untouched.
+- **Custom:** both From and To are required and inclusive **New York closure dates**. The existing `BreakdownQuery` → `DashboardAnalyticsQuery` → trading-time policy converts From to New York midnight and To to the following midnight, exclusive, in UTC. A one-day DST range can therefore be 23 or 25 hours. No fixed offsets, machine-local conversion or end-of-day rounding were added. The application-level query still supports open bounds for existing callers; only the Custom UI requires both dates. Reversed dates and ranges ending on 9999-12-31 are rejected without a reader request.
+- **Calendar/text editing:** the existing themed Dashboard calendar is reused. Each DatePicker's template keeps an independent, bound ISO text editor rather than WPF's blur-time parser, which can reset invalid input. Calendar selection writes the same draft. Partial/invalid text remains editable across focus loss and navigation; validation appears beside the controls and is exposed through accessible item status. F4 / Alt+Down opens the calendar; closing it returns to the draft editor using the existing guarded focus helper. No popup action reads the database.
+- **Week/Month:** Week is Monday–Sunday, using `DashboardMetricCalculator.GetWeekStartingMonday`; Month uses the calendar month's first day through its last day. Previous/Next moves seven days or one calendar month, not a rolling fixed-day approximation. Each has a separate session-local anchor initialized from `TimeProvider` in New York. Repeated navigation uses that anchor, including February/leap/year boundaries; switching presets and navigating away/back preserves both anchors and Custom text. Labels are **Week/Month**, never a misleading “Current” label on a historical range. Buttons have explicit Previous week/month and Next week/month accessible names. All history, Current year and Custom have no period-shift actions.
+- **Draft/applied:** selections, typing and period shifts never load automatically. The existing Unapplied filters box remains. Apply performs one validated load, with the last successful result and its own scope visible until success. Refresh retries the last submitted *concrete* query; Back refreshes the last successful one. Neither reinterprets historical dates relative to today. Reset clears dates/anchors to today's New York defaults and loads All history once. Custom validation is inactive for other presets. Session drafts are not newly persisted to disk.
+
+### Period follow-up verification
+
+Focused synthetic coverage includes valid/invalid/partial Custom dates, calendar selection, DST, month/leap/year transitions, separate retained anchors, draft-only reads, reset, reactivation, applied-scope refresh and existing cohort navigation. Existing migrated SQLite tests exercise exact start, last tick and exclusive-end membership on six dates around both DST transitions, plus open/partial activity and Account/instrument/currency isolation. No new date conversion or reader implementation was introduced.
+
+| Verification | Actual result |
+| --- | --- |
+| Focused Desktop | **105/105**, zero failures/skips, 52s; `artifacts/m20-periods/final-focused/desktop.trx`. Includes actual owned-WPF popup opening via routed F4, native Calendar selection, invalid-text/focus retention and zero reads before Apply. |
+| Focused Application / SQLite reader | **135/135 / 30/30**, zero failures/skips; `artifacts/m20-periods/focused/application.trx` and `infrastructure.trx`. |
+| Complete Release gate | **4,570/4,570**, zero failures/skips, exit **0**, run once after final functional changes with `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m20-periods/gate`. Exclusive Desktop **88**; parallel Desktop **1,634**, Domain **490**, Application **976**, Infrastructure **1,382**. |
+| Gate artifacts | `artifacts/m20-periods/gate/release-20261017-103045-6bf03114b29a4985bc33c87ed645b7f2/summary.json` plus TRX/child diagnostics. Total wall time about **6m 22s**; Calendar child **67.19s**, **52.81s** below its unchanged 120s deadline. No retries/skips, assertion/deadline/scheduling changes or Calendar timeout. |
+| Release build | **0 warnings/errors**, final build **12.99s**. |
+| EF / whitespace / links | In-memory design-time model: **no pending changes**; `git diff --check` passes; **154** local README/Breakdown documentation links resolve. |
+
+During implementation the compiler caught that `DatePicker.CalendarClosed` is a CLR event, not a routed event usable by an `EventSetter`; it is now subscribed directly by the view. The final build, focused tests and complete gate above include that correction.
+
+Automated renders: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/breakdown-renders/` includes Light/Dark Custom, invalid, Week and Month at 980×570 DIP / 96 DPI and 700×570 DIP / 240 DPI. `breakdown-drilldown-renders/` includes both navigation actions at 1280 and 700 DIP / 240 DPI. `breakdown-consistency-renders/` retains full-shell/shared-heading and four-group KPI samples at 1586/1280/1000 DIP. Inspected samples show wrapping without overlap; narrow layouts intentionally scroll vertically and retain the table's horizontal scrolling. These are compiled-WPF renders, routed input and automation—not live mouse/keyboard or screen-reader acceptance. Live popup/hover perception, screen-reader announcements and matching CI remain open; uncommitted changes have no matching published test revision.
+
+Exact changed files for this follow-up:
+
+1. `README.md`
+2. `docs/breakdown-analytics.md`
+3. `src/PersonalTradingJournal.Desktop/ViewModels/Breakdown/BreakdownViewModel.cs`
+4. `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml`
+5. `src/PersonalTradingJournal.Desktop/Views/Breakdown/BreakdownView.xaml.cs`
+6. `src/PersonalTradingJournal.Desktop/Views/Trades/TradesView.xaml`
+7. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownViewModelTests.cs`
+8. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownViewTests.cs`
+9. `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs`
+
 ## Final UI consistency corrections — 17 October 2026
 
 Starting state: **clean `develop`, HEAD `59a82e3e48a05d02a0fdbfa07f2bc379b3f221c6`**. Existing M20.11 work was preserved except for the explicitly superseded header decision. Only four presentation corrections were made:

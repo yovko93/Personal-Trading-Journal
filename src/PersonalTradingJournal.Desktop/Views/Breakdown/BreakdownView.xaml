@@ -6,6 +6,10 @@
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
              Background="{DynamicResource PtjBackgroundBrush}">
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <ResourceDictionary Source="../Dashboard/DashboardCalendarResources.xaml" />
+        </ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="Visible" />
         <converters:PnLOutcomeConverter x:Key="Outcome" />
         <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,5" /><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /></Style>
@@ -42,7 +46,26 @@
         <Style TargetType="Label"><Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" /><Setter Property="FontSize" Value="14" /><Setter Property="Padding" Value="0,0,0,6" /></Style>
         <Style x:Key="Filter" TargetType="StackPanel"><Setter Property="Width" Value="176" /><Setter Property="Margin" Value="0,0,10,6" /></Style>
         <Style x:Key="Card" TargetType="Border" BasedOn="{StaticResource PtjCardStyle}"><Setter Property="Padding" Value="16,12" /><Setter Property="CornerRadius" Value="5" /></Style>
-        <Style x:Key="Kpi" TargetType="Border" BasedOn="{StaticResource Card}"><Setter Property="MinHeight" Value="88" /><Setter Property="Margin" Value="0,0,10,8" /></Style>
+        <Style x:Key="Kpi" TargetType="Border" BasedOn="{StaticResource Card}"><Setter Property="MinHeight" Value="88" /><Setter Property="Margin" Value="0,0,10,8" /><Setter Property="Background" Value="{DynamicResource PtjPageHeaderSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjPageHeaderBorderBrush}" /></Style>
+        <Style x:Key="DraftDate" TargetType="DatePicker">
+            <EventSetter Event="PreviewKeyDown" Handler="OnDateKey" />
+            <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}" />
+            <Setter Property="CalendarStyle" Value="{StaticResource RangeCalendar}" />
+            <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DatePicker">
+                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="32" /></Grid.ColumnDefinitions>
+                    <!-- Deliberately not PART_TextBox: native DatePicker reparsing on blur resets
+                         invalid text. The ISO draft stays editable; calendar selection uses SelectedDate. -->
+                    <TextBox x:Name="DraftDateText" Style="{DynamicResource PtjTextBoxStyle}" Padding="8,5"
+                             Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="{Binding (AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}}"
+                             AutomationProperties.ItemStatus="{Binding (AutomationProperties.ItemStatus), RelativeSource={RelativeSource TemplatedParent}}"
+                             AutomationProperties.HelpText="Enter yyyy-MM-dd, or press F4 or Alt+Down for the calendar. Dates are in New York." />
+                    <Button x:Name="PART_Button" Grid.Column="1" Content="▾" Margin="3,0,0,0" Padding="3"
+                            Style="{StaticResource InformationAction}" AutomationProperties.Name="{Binding (AutomationProperties.Name), RelativeSource={RelativeSource TemplatedParent}, StringFormat=Open calendar for {0}}" ToolTip="Choose date (Alt+Down)" />
+                    <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" />
+                </Grid>
+            </ControlTemplate></Setter.Value></Setter>
+        </Style>
         <Style x:Key="Caption" TargetType="TextBlock" BasedOn="{StaticResource PtjSecondaryTextStyle}"><Setter Property="FontSize" Value="13" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
         <Style x:Key="KpiValue" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="FontSize" Value="26" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
         <Style x:Key="GroupChip" TargetType="ListBoxItem">
@@ -127,6 +150,7 @@
                 <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
             </Style.Triggers>
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
     <ScrollViewer x:Name="PageScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,12,12">
         <StackPanel>
@@ -172,14 +196,19 @@
                     <TextBlock Text="Net preferred uses actual Net when known; otherwise Gross. Gross fallback is not estimated Net." MaxWidth="440" Margin="0,25,0,0" Style="{StaticResource Caption}" />
                 </WrapPanel>
             </Expander>
+            <WrapPanel Visibility="{Binding IsNavigablePeriod, Converter={StaticResource Visible}}" Margin="0,0,0,6">
+                <Button Content="‹" Command="{Binding PreviousPeriodCommand}" Style="{StaticResource InformationAction}" AutomationProperties.Name="{Binding PreviousPeriodLabel}" ToolTip="{Binding PreviousPeriodLabel}" Margin="0,0,8,0" />
+                <TextBlock Text="{Binding DraftPeriodRange}" VerticalAlignment="Center" Margin="0,0,8,0" AutomationProperties.Name="Draft New York period" />
+                <Button Content="›" Command="{Binding NextPeriodCommand}" Style="{StaticResource InformationAction}" AutomationProperties.Name="{Binding NextPeriodLabel}" ToolTip="{Binding NextPeriodLabel}" />
+            </WrapPanel>
             <WrapPanel Visibility="{Binding IsCustom, Converter={StaticResource Visible}}">
                 <StackPanel Style="{StaticResource Filter}">
                     <Label x:Name="FromDateLabel" Content="From (yyyy-MM-dd)" Target="{Binding ElementName=FromDate}" />
-                    <TextBox x:Name="FromDate" AutomationProperties.LabeledBy="{Binding ElementName=FromDateLabel}" Text="{Binding StartDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="First New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
+                    <DatePicker x:Name="FromDate" Style="{StaticResource DraftDate}" AutomationProperties.LabeledBy="{Binding ElementName=FromDateLabel}" Tag="{Binding StartDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" SelectedDate="{Binding StartDate}" AutomationProperties.Name="First New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
                 </StackPanel>
                 <StackPanel Style="{StaticResource Filter}">
-                    <Label x:Name="ThroughDateLabel" Content="Through (yyyy-MM-dd)" Target="{Binding ElementName=ThroughDate}" />
-                    <TextBox x:Name="ThroughDate" AutomationProperties.LabeledBy="{Binding ElementName=ThroughDateLabel}" Text="{Binding EndDateText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Last New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
+                    <Label x:Name="ThroughDateLabel" Content="To (yyyy-MM-dd)" Target="{Binding ElementName=ThroughDate}" />
+                    <DatePicker x:Name="ThroughDate" Style="{StaticResource DraftDate}" AutomationProperties.LabeledBy="{Binding ElementName=ThroughDateLabel}" Tag="{Binding EndDateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" SelectedDate="{Binding EndDate}" AutomationProperties.Name="Last New York closure date" AutomationProperties.ItemStatus="{Binding DateValidation}" />
                 </StackPanel>
             </WrapPanel>
             <TextBlock Style="{StaticResource OptionalText}" Text="{Binding DateValidation}" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" />
