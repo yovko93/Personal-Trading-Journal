@@ -348,6 +348,7 @@ public sealed partial class TradesViewModel : ObservableObject
         LoadOlderAssociationsCommand = new AsyncRelayCommand(token => HasOlderAssociations ? LoadAssociationPageAsync(_associationCursor, token) : Task.CompletedTask);
         OpenCapturedImageCommand = new AsyncRelayCommand<PersonalTradingJournal.Domain.Setups.PlaybookExample>(OpenCapturedImageAsync);
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, CanRefresh);
+        InitializeBreakdownCommands();
         ShowManualEntryCommand = new RelayCommand(ShowManualEntry, CanShowManualEntry);
         CancelManualEntryCommand = new RelayCommand(
             CancelManualEntry,
@@ -2125,11 +2126,14 @@ public sealed partial class TradesViewModel : ObservableObject
 
     public async Task EnsureLoadedAsync()
     {
+        long epoch = _browseEpoch;
+        if (!_browseActive) return;
         _ = await LoadReferenceDataAsync(forceRefresh: false, CancellationToken.None);
+        if (!_browseActive || epoch != _browseEpoch) return;
         _ = await LoadTradingMistakeOptionsAsync(
             forceRefresh: false,
             CancellationToken.None);
-        _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
+        if (_browseActive && epoch == _browseEpoch) _ = await LoadTradeListAsync(forceRefresh: false, CancellationToken.None);
     }
 
     public void InvalidateLoadedDataAfterExternalImport()
@@ -2209,11 +2213,15 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private async Task RefreshAsync(CancellationToken cancellationToken)
     {
+        long epoch = _browseEpoch;
         _ = await LoadReferenceDataAsync(forceRefresh: true, cancellationToken);
         _ = await LoadTradingMistakeOptionsAsync(
             forceRefresh: true,
             cancellationToken);
+        if (!_browseActive || epoch != _browseEpoch) return;
         _ = await LoadTradeListAsync(forceRefresh: true, cancellationToken);
+
+        if (!_browseActive || epoch != _browseEpoch) return;
 
         if (IsTradeDetailVisible && SelectedTradeDetail is { } detail)
         {
@@ -2739,6 +2747,8 @@ public sealed partial class TradesViewModel : ObservableObject
 
     private async Task LoadTradeDetailByIdAsync(Guid id, CancellationToken cancellationToken)
     {
+        long epoch = _browseEpoch;
+        if (!_browseActive) return;
 
         OpenScreenshotPreviewCommand.Cancel();
         IsTradeDetailVisible = true;
@@ -2758,6 +2768,8 @@ public sealed partial class TradesViewModel : ObservableObject
                 id,
                 cancellationToken);
 
+            if (!_browseActive || epoch != _browseEpoch) return;
+
             if (detail is null)
             {
                 IsTradeDetailNotFound = true;
@@ -2773,13 +2785,14 @@ public sealed partial class TradesViewModel : ObservableObject
         }
         catch (Exception)
         {
-            TradeDetailErrorMessage = TradeDetailLoadErrorMessage;
+            if (_browseActive && epoch == _browseEpoch) TradeDetailErrorMessage = TradeDetailLoadErrorMessage;
         }
         finally
         {
-            IsTradeDetailLoading = false;
+            if (epoch == _browseEpoch) IsTradeDetailLoading = false;
         }
 
+        if (!_browseActive || epoch != _browseEpoch) return;
         if (SelectedTradeDetail is { } selectedDetail)
         {
             _ = await LoadTradeMistakesAsync(
@@ -4288,13 +4301,18 @@ public sealed partial class TradesViewModel : ObservableObject
         CancellationToken cancellationToken,
         TradeListQuery? requestedQuery = null)
     {
-        if (!await _tradeListLoadGate.WaitAsync(0, cancellationToken))
-        {
-            return false;
-        }
+        long epoch = _browseEpoch;
+        if (!_browseActive) return false;
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _browseCancellation.Token);
+        // Preserve ordinary post-commit reloads' non-cancellable contract. Scoped reads
+        // additionally belong to the navigation session; epoch checks protect both paths.
+        if (HasBreakdownScope) cancellationToken = lifetime.Token;
+        try { await _tradeListLoadGate.WaitAsync(cancellationToken); }
+        catch (OperationCanceledException) when (epoch != _browseEpoch || !_browseActive) { return false; }
 
         try
         {
+            if (!_browseActive || epoch != _browseEpoch) return false;
             if (!forceRefresh && _hasTradeListLoadedSuccessfully)
             {
                 return true;
@@ -4309,9 +4327,12 @@ public sealed partial class TradesViewModel : ObservableObject
                 try
                 {
                     TradeListQuery query = requestedQuery ?? CreateTradeListQuery();
+                    if (_breakdownScope is { } scope)
+                        query = new(query.PageNumber, query.PageSize, query.SortColumn, query.SortDirection, cohort: scope.Cohort);
                     TradeListPage page = await _tradeListReader.GetPageAsync(
                         query,
                         cancellationToken);
+                    if (!_browseActive || epoch != _browseEpoch) return false;
                     int highestPage = Math.Max(1, page.TotalPages);
                     if (query.PageNumber > highestPage)
                     {
@@ -4319,12 +4340,15 @@ public sealed partial class TradesViewModel : ObservableObject
                             highestPage,
                             query.PageSize,
                             query.SortColumn,
-                            query.SortDirection);
+                            query.SortDirection,
+                            query.TradingAccountId,
+                            query.Cohort);
                         page = await _tradeListReader.GetPageAsync(
                             query,
                             cancellationToken);
                     }
 
+                    if (!_browseActive || epoch != _browseEpoch) return false;
                     if (version != _externalImportVersion) continue;
 
                     CurrentPage = page.PageNumber;
@@ -4332,11 +4356,13 @@ public sealed partial class TradesViewModel : ObservableObject
                     CurrentSortDirection = query.SortDirection;
                     TotalCount = page.TotalCount;
                     RecentTrades = page.Items;
+                    NotifyBreakdownScope();
                     _hasTradeListLoadedSuccessfully = true;
                     return true;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
+                    if (!_browseActive || epoch != _browseEpoch) return false;
                     throw;
                 }
                 catch (Exception) when (version != _externalImportVersion && !cancellationToken.IsCancellationRequested)
@@ -4345,12 +4371,13 @@ public sealed partial class TradesViewModel : ObservableObject
                 }
                 catch (Exception)
                 {
+                    if (!_browseActive || epoch != _browseEpoch) return false;
                     TradeListErrorMessage = TradeListLoadErrorMessage;
                     return false;
                 }
                 finally
                 {
-                    IsTradeListLoading = false;
+                    if (_browseActive && epoch == _browseEpoch) IsTradeListLoading = false;
                 }
             }
         }

@@ -135,16 +135,12 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderAction" />
                     </Grid.ColumnDefinitions>
-                    <Border x:Name="PageTitleTreatment" Grid.Column="1"
-                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                            MaxWidth="760" Padding="18,7" CornerRadius="10"
-                            Background="{DynamicResource PtjPageHeaderSurfaceBrush}"
-                            BorderBrush="{DynamicResource PtjPageHeaderBorderBrush}" BorderThickness="1">
+                    <Border x:Name="PageTitleTreatment" Grid.Column="1" VerticalAlignment="Center" CornerRadius="10"
+                            HorizontalAlignment="Center" MaxWidth="760" Padding="18,7" BorderThickness="1"
+                            Background="{DynamicResource PtjPageHeaderSurfaceBrush}" BorderBrush="{DynamicResource PtjPageHeaderBorderBrush}">
                         <StackPanel>
-                            <TextBlock x:Name="PageTitleText"
-                                       AutomationProperties.HeadingLevel="Level1"
-                                       Style="{StaticResource PtjShellPageTitleTextStyle}"
-                                       Text="{Binding PageTitle}" />
+                            <TextBlock x:Name="PageTitleText" Text="{Binding PageTitle}" Style="{StaticResource PtjShellPageTitleTextStyle}"
+                                       AutomationProperties.HeadingLevel="Level1" />
                             <Border Width="32" Height="2" Margin="0,5,0,0" CornerRadius="1"
                                     HorizontalAlignment="Center" IsHitTestVisible="False"
                                     Background="{DynamicResource PtjAccentBrush}" />
@@ -160,7 +156,10 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="1" Padding="32,24">
+            <Border Grid.Row="1">
+                <Border.Style><Style TargetType="Border"><Setter Property="Padding" Value="32,24" />
+                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Padding" Value="32,16" /></DataTrigger></Style.Triggers>
+                </Style></Border.Style>
                 <ContentControl HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch"
                                 Content="{Binding CurrentContentViewModel}" />

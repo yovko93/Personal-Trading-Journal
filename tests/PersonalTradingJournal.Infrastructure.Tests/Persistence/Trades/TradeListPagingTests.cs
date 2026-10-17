@@ -8,7 +8,7 @@ using PersonalTradingJournal.Domain.Trades;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Trades;
 
-public sealed class TradeListPagingTests
+public sealed partial class TradeListPagingTests
 {
     private static readonly DateTimeOffset CreatedAtUtc =
         new(2026, 9, 1, 8, 0, 0, TimeSpan.Zero);

@@ -7,6 +7,8 @@
     <SolidColorBrush x:Key="PtjReviewProgressSurfaceBrush" Color="#293E59" />
     <SolidColorBrush x:Key="PtjReviewPlanSurfaceBrush" Color="#403455" />
     <Color x:Key="PtjColorBackground">#1D2237</Color>
+    <SolidColorBrush x:Key="PtjBreakdownPositiveBarBrush" Color="#67B5AC" />
+    <SolidColorBrush x:Key="PtjBreakdownNegativeBarBrush" Color="#E38A96" />
     <Color x:Key="PtjColorSurface">#2C2236</Color>
     <Color x:Key="PtjColorSurfaceElevated">#333047</Color>
     <Color x:Key="PtjColorBorder">#51485F</Color>

@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+using System.Text.Json;
 using PersonalTradingJournal.Application.Trades;
 using PersonalTradingJournal.Domain.Trades;
 using PersonalTradingJournal.Infrastructure.Persistence;
+using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Trades;
 
@@ -24,9 +27,21 @@ public sealed class TradeListReader : ITradeListReader
 
         await using JournalDbContext context =
             await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await context.Database.OpenConnectionAsync(cancellationToken);
+        await using var snapshot = ((SqliteConnection)context.Database.GetDbConnection()).BeginTransaction(deferred: true);
+        await using var enlisted = await context.Database.UseTransactionAsync(snapshot, cancellationToken);
+
+        // One JSON parameter, not one SQLite variable per ID. Empty JSON means no rows.
+        // SQLite Guid storage uses the canonical uppercase representation.
+        IQueryable<TradeRecord> trades = context.Trades;
+        if (query.Cohort is { } cohort)
+        {
+            string ids = JsonSerializer.Serialize(cohort.TradeIds.Select(id => id.ToString().ToUpperInvariant()));
+            trades = context.Trades.FromSqlInterpolated($"SELECT * FROM Trades WHERE Id IN (SELECT value FROM json_each({ids}))");
+        }
 
         var rows =
-            from tradeRecord in context.Trades.AsNoTracking()
+            from tradeRecord in trades.AsNoTracking()
             join browseRecord in context.TradeBrowse.AsNoTracking()
                 on tradeRecord.Id equals browseRecord.TradeId
             join accountRecord in context.TradingAccounts.AsNoTracking()
