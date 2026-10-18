@@ -35,8 +35,8 @@
     </UserControl.Resources>
     <StackPanel Margin="12">
         <TextBlock Text="03 Risk &amp; Readiness" Style="{StaticResource Heading}" FontSize="20" AutomationProperties.HeadingLevel="Level2" />
-        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" />
-        <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4" />
+        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
+        <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <Grid x:Name="Columns" Margin="0,8,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>

@@ -1,0 +1,94 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.TradingPlans.TradingPlanWorkspaceView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
+ xmlns:plan="clr-namespace:PersonalTradingJournal.Domain.TradingPlans;assembly=PersonalTradingJournal.Domain"
+ xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+ xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
+ Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+ DataContextChanged="OnDataContextChanged" KeyboardNavigation.TabNavigation="Continue">
+ <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="VisibleIf" />
+  <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+  <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+  <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Margin" Value="0,4,8,4" /></Style>
+  <Style x:Key="Section" TargetType="Border" BasedOn="{StaticResource PtjCardStyle}"><Setter Property="Margin" Value="0,0,0,12" /><Setter Property="Padding" Value="2" /></Style>
+  <Style x:Key="Date" TargetType="DatePicker">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="DatePicker">
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="36" /></Grid.ColumnDefinitions>
+     <!-- Raw input is deliberately not PART_TextBox: native reparsing discards malformed dates on blur. -->
+     <TextBox x:Name="RawDate" Style="{StaticResource PtjTextBoxStyle}"
+       Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+       AutomationProperties.Name="New York plan date" AutomationProperties.HelpText="{Binding DateError}"
+       validation:FormValidation.IsInvalid="{Binding HasDateError}" KeyDown="OnDateKey" />
+     <Button x:Name="PART_Button" Grid.Column="1" Content="▾" Style="{StaticResource PtjSecondaryButtonStyle}" Padding="0" AutomationProperties.Name="Choose New York date" />
+     <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" />
+    </Grid>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </UserControl.Resources>
+ <Grid Margin="14,8,14,12">
+  <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+  <WrapPanel x:Name="Toolbar">
+   <StackPanel Margin="0,0,12,4">
+    <TextBlock Text="New York date" Style="{StaticResource Body}" />
+    <WrapPanel>
+     <Button Content="‹" Command="{Binding PreviousDayCommand}" Style="{StaticResource Action}" Padding="10,6" AutomationProperties.Name="Previous calendar day" />
+     <DatePicker x:Name="PlanDate" Width="175" Margin="0,4,8,4" Style="{StaticResource Date}" Tag="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+        SelectedDate="{Binding CalendarDate}" IsEnabled="{Binding CanSelectContext}" AutomationProperties.Name="New York plan date" />
+     <Button Content="›" Command="{Binding NextDayCommand}" Style="{StaticResource Action}" Padding="10,6" AutomationProperties.Name="Next calendar day" />
+     <Button Content="Open date" Command="{Binding OpenDateCommand}" Style="{StaticResource Action}" />
+     <Button Content="Today" Command="{Binding TodayCommand}" Style="{StaticResource Action}" />
+    </WrapPanel>
+   </StackPanel>
+   <StackPanel Width="230" Margin="0,0,12,4">
+    <Label Content="Account" Target="{Binding ElementName=Account}" Padding="0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+    <ComboBox x:Name="Account" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Label"
+      Style="{StaticResource PtjComboBoxStyle}" IsEnabled="{Binding CanSelectContext}" Margin="0,4,0,0" AutomationProperties.Name="Exact Trading Plan Account" />
+   </StackPanel>
+   <StackPanel Width="150" Margin="0,0,12,4" Visibility="{Binding HasEditor, Converter={StaticResource VisibleIf}}">
+    <Label Content="Session" Target="{Binding ElementName=Session}" Padding="0" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+    <ComboBox x:Name="Session" ItemsSource="{Binding Editor.Sessions}" SelectedItem="{Binding Editor.Session}" IsEnabled="{Binding Editor.CanEdit}"
+      Style="{StaticResource PtjComboBoxStyle}" Margin="0,4,0,0" AutomationProperties.Name="Planned session, optional in Draft">
+     <ComboBox.ItemTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{Binding}" />
+      <Style.Triggers><DataTrigger Binding="{Binding}" Value="{x:Static plan:TradingPlanSession.NewYork}"><Setter Property="Text" Value="New York" /></DataTrigger></Style.Triggers>
+     </Style></TextBlock.Style></TextBlock></DataTemplate></ComboBox.ItemTemplate>
+    </ComboBox>
+   </StackPanel>
+   <WrapPanel VerticalAlignment="Bottom">
+    <Button x:Name="SaveDraft" Content="Save Draft" Command="{Binding SaveCommand}" Style="{StaticResource Action}" />
+    <Button Content="Mark as Ready" Command="{Binding MarkReadyCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,4,8,4" />
+    <Button x:Name="StartDraft" Content="Start Draft / Edit" Command="{Binding StartDraftCommand}" Style="{StaticResource Action}"
+      Visibility="{Binding Editor.IsReadOnly, Converter={StaticResource VisibleIf}, FallbackValue=Collapsed, TargetNullValue=Collapsed}" />
+    <Button x:Name="Reload" Content="Reload" Command="{Binding ReloadCommand}" Style="{StaticResource Action}" />
+    <Button Content="Cancel operation" Command="{Binding CancelCommand}" Style="{StaticResource Action}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
+   </WrapPanel>
+  </WrapPanel>
+  <StackPanel Grid.Row="1" Margin="0,4,0,8">
+   <TextBlock Text="{Binding DateError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasDateError, Converter={StaticResource VisibleIf}}" />
+   <TextBlock Text="{Binding ContextLabel}" Style="{StaticResource Body}" />
+   <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.Name="{Binding Message}" AutomationProperties.LiveSetting="Polite" interactions:LiveAnnouncement.Text="{Binding Message}" />
+  </StackPanel>
+  <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
+   <StackPanel>
+    <Border Style="{StaticResource Section}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" Padding="20">
+     <StackPanel><TextBlock Text="{Binding EmptyMessage}" Style="{StaticResource Body}" />
+      <Button Content="Create Draft" Command="{Binding CreateDraftCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+     </StackPanel>
+    </Border>
+    <StackPanel Visibility="{Binding HasEditor, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanInteractEditor}">
+     <Border Style="{StaticResource Section}"><local:SessionPreparationSection x:Name="Preparation" DataContext="{Binding Editor}" /></Border>
+     <Border Style="{StaticResource Section}"><local:ScenariosSection x:Name="Scenarios" DataContext="{Binding Editor}" /></Border>
+     <Border Style="{StaticResource Section}"><local:RiskReadinessSection x:Name="Risk" DataContext="{Binding Editor}" /></Border>
+     <WrapPanel DataContext="{Binding Editor}">
+      <Button Content="Refresh references and save Draft" Command="{Binding RefreshReferencesCommand}" Style="{StaticResource Action}" />
+      <TextBlock Text="Review changed sources first. Refresh clears all confirmations." Style="{StaticResource Body}" VerticalAlignment="Center" />
+     </WrapPanel>
+    </StackPanel>
+   </StackPanel>
+  </ScrollViewer>
+  <StackPanel Grid.Row="3" Margin="0,8,0,0">
+   <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+   <TextBlock Text="{Binding Editor.PreservedReadyLabel}" Style="{StaticResource Body}" />
+  </StackPanel>
+ </Grid>
+</UserControl>

@@ -1,5 +1,110 @@
 # Trading Plan
 
+## M21.7 — Session Brief Desktop workspace
+
+Actual baseline: **clean `develop`, `f41deb0880943087a627b2c4277d3e0d0574c3e6`**. M21.6 was already committed, superseding the attachment's earlier dirty-tree report. No applicable `AGENTS.md` was found in the repository or ancestors. The implementation uses synthetic SQLite journals and test-only WPF owners; no production journal, provider call, commit, push, merge or later milestone work.
+
+### Composition and context
+
+The shell's existing centered **Trading Plan** title, teal treatment, underline, navigation and theme toggle are reused unchanged. `TradingPlanWorkspaceView` adds a wrapping context/action toolbar, one page ScrollViewer, the existing Focus/01/02/03 components, and a compact state footer. All sections bind the **identical** `SessionPreparationViewModel`; there are no per-section save tokens, second Draft, duplicated readiness calculation or per-field persistence. Internal two-column preparation/readiness and side-by-side scenario layouts stack at their existing DIP breakpoints. Long fields retain bounded internal text scrolling, without nested page scroll regions. The mockup supplies hierarchy, not sample defaults or new Domain requirements.
+
+Today uses the existing New York time conversion, not machine-local date. Previous/Next move by calendar day. A custom DatePicker text surface preserves malformed input on blur; Enter/**Open date** applies a valid typed destination, and F4 opens the calendar. Invalid or unapplied typed dates cannot silently retarget Save. The loaded date/Account remain explicit. An Account/date switch is committed only after leave consent; session changes edit content within the same unique Account/date Plan. No Account is selected implicitly and there is no All accounts plan. Empty/no-active-Account, inactive, failed-load, Draft, Ready and Draft-after-Ready states are distinct.
+
+Opening an empty context performs **zero writes**. Explicit **Create Draft** persists a valid empty Draft before the components open; this is not automatic saving. An already selected Account that later disappears remains an exact, unavailable option during this retained workspace session, never a same-name replacement. Ready uses its saved Account name/currency and frozen source text. General history/discovery after restarting with a deleted Account remains M21.8 work, not an implemented History screen.
+
+### Save, Ready and failure behavior
+
+Save submits all pending valid fields and explicit confirmations through the existing transaction. Malformed preparation/scenario/risk text blocks the entire save and focuses the first affected section; incomplete valid Draft content is still allowed. Entered values and selected instrument survive failed/cancelled/conflicting writes. Tokens/baselines update only after matching committed content and confirmations return. A late cancellation cannot turn a verified committed success into a cancelled result. Returned success without a matching readback is an error, not Saved.
+
+Mark as Ready reuses cross-section readiness and requires a **saved**, fully confirmed Draft and verified sources; unsaved input requires Save first. Domain/reference/concurrency conditions are rechecked by the store. Repeated submissions cannot publish multiple transitions. Verified success replaces the editor with the persisted, read-only Ready revision; frozen currency, labels and confirmations are retained. **Start Draft / Edit** uses the exact Ready revision, leaves it preserved and clears confirmations through the existing lifecycle. A changed current Account currency requires an explicit currency-review confirmation before deriving monetary limits, without conversion. Existing fresh-reference policies can block derivation from changed/unavailable Ready sources; they are not bypassed or silently refreshed. Explicit reference refresh and source relinking remain visible, and clear the affected confirmations according to existing policy.
+
+Reload is guarded. On conflict the user can keep entered input, or explicitly discard only unsaved changes and load the current stored Plan. There is no automatic merge or silent overwrite. UI messages are sanitized; source text, identifiers and storage exception details are not logged.
+
+### Navigation, closing and asynchronous ownership
+
+One Save/Discard/Cancel decision protects date/Account changes and normal page departure. Save continues only after verified persistence; invalid fields/failures keep the original context. Discard is **staged consent**, not immediate destruction, so a later destination or owner-close veto retains every field. Persisted Drafts/Ready revisions are never deleted by Discard. Reentrant navigation/decisions are rejected.
+
+Explicit Playbook and Rule links open the exact current catalog identity through the existing shell/destination guards while retaining the same editor and invalid raw input. Returning to Trading Plan does not reload over it. Closing or leaving for an unrelated destination still guards this hidden pending session. A link is preparation context, not adherence evidence.
+
+MainWindow uses a two-attempt close only when Trading Plan needs asynchronous preparation: the first is cancelled while Save/Discard/Cancel or load draining completes; the next runs the existing owned-window close coordinator and all guards. **Only the final uncancelled close consumes Discard consent.** A late Closing subscriber veto keeps the editor intact. Explicit Save may persist preparation even if another guard subsequently keeps the application open. Busy writes require waiting/cancellation before leaving; normal accepted closing cannot dispose services beneath those operations.
+
+Loads run off the dispatcher with captured exact key and monotonically increasing request ownership. Obsolete loads are cancelled/superseded, and cancellation-insensitive late results cannot replace a newer selection. All outstanding load owners are drained before accepted closing. Mutation controls are frozen while writes run; no completed result can attach to a later scope. No retries or background saves are added.
+
+### Verification and acceptance evidence
+
+New tests use real SQLite-backed workspace sessions and a counting/fault-injection store decorator, not provider calls. They cover creation/empty states, New York defaults, invalid dates, all-section saves and exact decimals, readback rejection, Ready prerequisites/success/failure, Start Draft, repeat submission/cancellation, Save/Discard/Cancel, concurrent changes, stale loads, related Rule navigation, deleted/same-name Account identity and read-only reconstruction in a newly created ViewModel reading SQLite. This is not a live full-application restart. The compiled page tests exercise shared bindings, responsive actions, accessible names/errors, preparation/scenario/risk/date focus, and **real MainWindow Closing** with a later veto followed by an accepted Save/close.
+
+Initial new-test corrections: one message assertion incorrectly matched the word “saved” inside a failure sentence; it now tests the exact success message. A detached-render assertion initially required `IsVisible`, which is false without a presentation source; it now checks noncollapsed ancestors and measured layout, while native-window focus/visibility remain separately asserted. Initial test fixture accessibility/analyzer build errors were corrected. No existing assertion, deadline or isolation policy was relaxed. Four layout cases share one supervised child run instead of redundantly running the entire child once per parent row; the child still executes all four cases with its unchanged 90-second aggregate/30-second case watchdogs.
+
+The first broader focused run under the restricted desktop reported **303 passed / 2 failed**: both failures were existing `DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification` cases, before their synthetic HTTP handler was reached, with the sanitized missing/unreadable credential outcome. All M21.7 cases passed. This is not recorded as a Trading Plan/provider product fix; normal-Windows verification is reported separately below. Earlier M21.6 Calendar monitor-handle/aggregate-timeout and Breakdown automation variability remain unresolved historical risks unless measured otherwise.
+
+Initial TRX evidence remains in `artifacts/m21-7/initial-focused`, `focused-render` and `final-focused`. Normal-Windows Desktop verification passed **306/306** in `normal-focused`, then **306/306** against the final toolbar corrections in `corrected-focused`; both have zero failures/skips. Focused Domain **77**, Application **35** and Infrastructure **33** passed, for **451 focused cases**. The final Release build passed with **0 warnings/errors** (31.66s); EF reported no model changes. Tracked and eight new files pass whitespace checks; 158 local documentation file links resolve. No production data or live provider was used.
+
+The first complete normal-Windows gate passed **4,819/4,819**, zero failed/skipped, exit 0: Domain 567, Application 1,011, Infrastructure 1,415, Desktop 1,826 (88 exclusive + 1,738 parallel). Calendar native was **63.433s / 56.567s headroom**; Session Brief child **33.718s / 56.282s headroom**. Evidence: `artifacts/m21-7/release-gate/release-20261018-071531-faf2166102c147fcaad3a9847882b80f`.
+
+Final inspection found two toolbar presentation defects: Ready/Edit remained enabled for a valid but unapplied typed date (execution already refused it), and missing-editor binding fallback exposed a disabled Start Draft button in empty/loading/error states. Command eligibility now matches Save's pending-date guard; the transition button appears only with Ready content. VM tests verify zero writes and restored eligibility, and compiled page tests check its actual presentation across lifecycle states. The first complete gate used the earlier binaries; final results below are from the rebuilt corrections, not a reused old run.
+
+**Final complete gate: 4,819 passed, zero failures/skips, exit 0.** Evidence: `artifacts/m21-7/final-release-gate/release-20261018-072527-34dd00983f844edfb5c20497be0ccb2f/summary.json`, top-level TRX and supervised child logs. No assertions, deadlines, isolation or concurrency settings were weakened.
+
+| Project / partition | Passed | Failed / skipped |
+| --- | ---: | ---: |
+| Domain | 567 | 0 / 0 |
+| Application | 1,011 | 0 / 0 |
+| Infrastructure | 1,415 | 0 / 0 |
+| Desktop exclusive WPF | 88 | 0 / 0 |
+| Desktop complementary parallel | 1,738 | 0 / 0 |
+
+Final Calendar native **59.581s**, **60.419s** headroom against 120 seconds. Session Brief native **32.877s**, **57.123s** headroom against 90 seconds. Existing Calendar/Breakdown failures did not recur in either complete run; that is not proof their historical variability is resolved. The final source remains uncommitted on the same HEAD, so no matching CI acceptance is claimed.
+
+Automated renders are under ignored `artifacts/m21-7/final-renders`: `workspace-{Light|Dark}-{980-96|1280-144|1600-192|460-240}-{empty|loading|draft|scenarios|invalid|ready|draft-after-ready|error}.png`, plus a shared-shell frame. These represent **usable content DIP widths** at 100/150/200/250%, not a claim that physical window width equals content width. 980 DIP approximates a 1280-DIP shell after navigation/margins; 1280/1600 are wider content, and 460 is a deliberate narrow stress case. Normal native focus/close tests use actual WPF windows. Rendered themes, field errors and wrapping are automated evidence, not human mouse/keyboard or Narrator acceptance.
+
+Inspection covered both themes, the shared shell, empty/loading/error, Draft/Ready/Draft-after-Ready, side-by-side long scenarios and narrow stacked validation. The corrected empty/loading/error frames no longer show Start Draft/Edit. Actions wrap without horizontal clipping; scenarios stack, and long text has bounded field scrolling within the single page scroll. Compared with the concept, the reused editors are deliberately taller and retain existing explicit labels/reference controls rather than removing authoritative input fields. Actual display scaling, user-driven date-picker/leave-dialog interaction and screen-reader announcements still need human verification.
+
+Commands:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~TradingPlans|FullyQualifiedName~MainWindowViewModelTests'
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m21-7/final-release-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+### M21.7-specific changed files
+
+Relative to the inspected clean baseline, **12 modified + 8 new = 20 files**. All earlier committed changes are preserved.
+
+Modified:
+
+- `README.md`
+- `docs/architecture.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Desktop/App.xaml`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/MainWindow.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+
+New:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanLeaveDialog.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanLeaveDialog.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs`
+
+M21.8 owns History, Copy Forward and extended navigation recovery; M21.9 owns contextual Daily Review/AI evidence; M21.10 remains full acceptance. No dead History/Review buttons or internal milestone labels are exposed. Existing current-schema backup/export coverage and the deferred **older-schema archive restore** policy are unchanged. Human keyboard, Narrator, actual display scaling/monitor interaction and CI matching these uncommitted changes remain open. This is M21.7 only, not complete M21 acceptance.
+
 ## M21.6 — risk limits, Trading Rules and readiness
 
 Actual baseline: **clean `develop`, `4217d973504fced25706bc433dd15edbfa381d97`** (`Add Trading Plan scenarios and Playbook links`). The attachment's earlier HEAD/uncommitted M21.5 report was superseded by the inspected worktree. All M21.1–M21.5 behavior is retained; the file inventory below is specifically M21.6. No applicable repository/ancestor `AGENTS.md` was found. Only synthetic data and compiled WPF component tests were used; no production journal, provider, commit, push, merge or M21.7 implementation.

@@ -54,11 +54,11 @@
             <ContentControl Content="{Binding Focus}" ContentTemplate="{StaticResource TextField}" />
         </Border>
         <TextBlock Text="01 Session Preparation" Style="{StaticResource Heading}" />
-        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,4,0,8" />
+        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,4,0,8" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.Name="{Binding Message}"
-                   interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8" />
+                   interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <WrapPanel>
-            <StackPanel Width="210" Margin="0,0,12,8">
+            <StackPanel Width="210" Margin="0,0,12,8" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}">
                 <Label Content="_Session" Target="{Binding ElementName=SessionSelector}" />
                 <ComboBox x:Name="SessionSelector" ItemsSource="{Binding Sessions}" SelectedItem="{Binding Session}"
                           Style="{StaticResource PtjComboBoxStyle}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Session, optional in Draft">

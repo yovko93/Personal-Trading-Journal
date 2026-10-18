@@ -215,8 +215,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         Instruments = _contexts.Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.Text) })
     });
     private CancellationTokenSource Begin(CancellationToken ct)
-    { _operation = CancellationTokenSource.CreateLinkedTokenSource(ct); _busy = true; NotifyAccess(); return _operation; }
-    private void End() { _operation = null; _busy = false; NotifyAccess(); }
+    { _idle = new(TaskCreationOptions.RunContinuationsAsynchronously); _operation = CancellationTokenSource.CreateLinkedTokenSource(ct); _busy = true; NotifyAccess(); return _operation; }
+    private void End() { _operation = null; _busy = false; NotifyAccess(); _idle.TrySetResult(); }
     private void NotifyAccess()
     {
         OnPropertyChanged(nameof(IsBusy)); OnPropertyChanged(nameof(CanEdit)); OnPropertyChanged(nameof(IsReadOnly));

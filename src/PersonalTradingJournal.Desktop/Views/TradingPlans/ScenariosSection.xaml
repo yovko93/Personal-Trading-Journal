@@ -48,9 +48,9 @@
     <StackPanel Margin="12">
         <TextBlock Text="02 If / Then Scenarios" FontSize="20" FontWeight="SemiBold" Style="{StaticResource Body}"
                    Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.HeadingLevel="Level2" />
-        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" />
+        <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4"
-                   interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" />
+                   interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <WrapPanel>
             <Button Content="Add Scenario" Command="{Binding AddScenarioCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Add Scenario" />
             <Button Content="Load Playbooks" Command="{Binding ReloadPlaybooksCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Load Playbook choices and availability" />
