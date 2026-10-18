@@ -1,0 +1,88 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.TradingPlans.TradingPlanHistoryView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
+ xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+ Foreground="{DynamicResource PtjTextPrimaryBrush}" KeyboardNavigation.TabNavigation="Continue" DataContextChanged="OnDataContextChanged">
+ <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="VisibleIf" />
+  <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+  <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="Margin" Value="0,2,8,4" /><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers></Style>
+  <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Margin" Value="0,4,8,4" /></Style>
+  <Style x:Key="Card" TargetType="Border" BasedOn="{StaticResource PtjCardStyle}"><Setter Property="Padding" Value="12" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
+ </UserControl.Resources>
+ <ScrollViewer x:Name="HistoryScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <StackPanel>
+   <TextBlock Text="Saved preparation · New York dates" Style="{StaticResource PtjSectionTitleTextStyle}" />
+   <TextBlock Text="History viewing does not replace your Session Brief. Opening a Plan or transferring a Ready revision asks you to resolve unsaved edits." Style="{StaticResource Body}" />
+   <WrapPanel IsEnabled="{Binding CanUseHistory}">
+    <StackPanel Width="240" Margin="0,0,8,8"><Label Content="Account" Target="{Binding ElementName=HistoryAccount}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Padding="0" />
+     <ComboBox x:Name="HistoryAccount" Style="{StaticResource PtjComboBoxStyle}" ItemsSource="{Binding HistoryAccounts}" SelectedItem="{Binding HistoryAccount}" DisplayMemberPath="Label" AutomationProperties.Name="History exact Account" AutomationProperties.HelpText="{Binding HistoryAccount.Id}" />
+    </StackPanel>
+    <StackPanel Width="160" Margin="0,0,8,8"><Label Content="From · New York" Target="{Binding ElementName=From}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Padding="0" />
+     <TextBox x:Name="From" Style="{StaticResource PtjTextBoxStyle}" Text="{Binding HistoryFrom, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="History From New York date" AutomationProperties.HelpText="{Binding HistoryError}" />
+    </StackPanel>
+    <StackPanel Width="160" Margin="0,0,8,8"><Label Content="To · New York" Target="{Binding ElementName=To}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Padding="0" />
+     <TextBox x:Name="To" Style="{StaticResource PtjTextBoxStyle}" Text="{Binding HistoryTo, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="History To New York date" AutomationProperties.HelpText="{Binding HistoryError}" />
+    </StackPanel>
+    <StackPanel Width="160" Margin="0,0,8,8"><Label Content="Current status" Target="{Binding ElementName=Lifecycle}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Padding="0" />
+     <ComboBox x:Name="Lifecycle" Style="{StaticResource PtjComboBoxStyle}" ItemsSource="{Binding HistoryStatuses}" SelectedItem="{Binding SelectedHistoryStatus}" DisplayMemberPath="Label" AutomationProperties.Name="History current status" />
+    </StackPanel>
+    <Button Content="Search" Command="{Binding SearchHistoryCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,18,8,8" VerticalAlignment="Bottom" />
+   </WrapPanel>
+   <WrapPanel><Button Content="Find saved Accounts" Command="{Binding DiscoverAccountsCommand}" Style="{StaticResource Action}" ToolTip="Discover historical or unavailable Account identities within these dates, 20 at a time" /><Button Content="More saved Accounts" Command="{Binding MoreAccountsCommand}" Style="{StaticResource Action}" Visibility="{Binding HasMoreHistoryAccounts, Converter={StaticResource VisibleIf}}" /></WrapPanel>
+   <TextBlock Text="{Binding HistoryError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" />
+   <TextBlock Text="Unapplied filters · select Search. Displayed Plans still belong to the last applied search." Style="{StaticResource Body}" Visibility="{Binding HasUnappliedHistory, Converter={StaticResource VisibleIf}}" />
+   <TextBlock Text="{Binding AppliedHistoryLabel}" Style="{StaticResource Body}" />
+   <TextBlock x:Name="HistoryStatus" Text="{Binding HistoryMessage}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" interactions:LiveAnnouncement.Text="{Binding HistoryMessage}" />
+   <Button Content="Cancel operation" Command="{Binding CancelCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
+   <ItemsControl x:Name="Plans" ItemsSource="{Binding HistoryRows}">
+    <ItemsControl.ItemTemplate><DataTemplate>
+     <Border Style="{StaticResource Card}"><StackPanel>
+      <TextBlock Text="{Binding Date}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+      <TextBlock Text="{Binding Account}" Style="{StaticResource Body}" />
+      <WrapPanel><TextBlock Text="{Binding Session}" Style="{StaticResource Body}" /><TextBlock Text="{Binding Lifecycle}" Style="{StaticResource Body}" FontWeight="SemiBold" /><TextBlock Text="{Binding Ready}" Style="{StaticResource Body}" /></WrapPanel>
+      <TextBlock Text="{Binding Instruments}" Style="{StaticResource Body}" />
+      <TextBlock Text="{Binding Saved}" Style="{StaticResource Body}" />
+      <WrapPanel>
+       <Button Content="Open Plan" Command="{Binding DataContext.OpenPlanCommand, RelativeSource={RelativeSource AncestorType=local:TradingPlanHistoryView}}" CommandParameter="{Binding}" Style="{StaticResource Action}" AutomationProperties.HelpText="Open this saved Plan through the unsaved-work guard" />
+       <Button Content="Revisions" Command="{Binding DataContext.ShowRevisionsCommand, RelativeSource={RelativeSource AncestorType=local:TradingPlanHistoryView}}" CommandParameter="{Binding}" Style="{StaticResource Action}" AutomationProperties.HelpText="Inspect immutable Ready revisions without changing the editor" />
+      </WrapPanel>
+     </StackPanel></Border>
+    </DataTemplate></ItemsControl.ItemTemplate>
+   </ItemsControl>
+   <WrapPanel><TextBlock Text="{Binding HistoryPageLabel}" Style="{StaticResource Body}" VerticalAlignment="Center" /><Button Content="Newer Plans" Command="{Binding NewerPlansCommand}" Style="{StaticResource Action}" /><Button Content="Older Plans" Command="{Binding OlderPlansCommand}" Style="{StaticResource Action}" /></WrapPanel>
+   <Border Style="{StaticResource Card}" Visibility="{Binding HasSelectedHistory, Converter={StaticResource VisibleIf}}">
+    <StackPanel>
+     <TextBlock Text="Ready revisions · selected Plan" Style="{StaticResource PtjSectionTitleTextStyle}" />
+     <TextBlock Text="{Binding SelectedHistoryRow.Date}" Style="{StaticResource Body}" /><TextBlock Text="{Binding SelectedHistoryRow.Account}" Style="{StaticResource Body}" />
+     <ItemsControl ItemsSource="{Binding RevisionRows}"><ItemsControl.ItemTemplate><DataTemplate><WrapPanel>
+      <TextBlock Text="{Binding Label}" Style="{StaticResource Body}" VerticalAlignment="Center" />
+      <Button Content="View revision" Command="{Binding DataContext.ViewRevisionCommand, RelativeSource={RelativeSource AncestorType=local:TradingPlanHistoryView}}" CommandParameter="{Binding}" Style="{StaticResource Action}" AutomationProperties.HelpText="{Binding Label}" />
+     </WrapPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <WrapPanel><Button Content="Newer revisions" Command="{Binding NewerRevisionsCommand}" Style="{StaticResource Action}" /><Button Content="Older revisions" Command="{Binding OlderRevisionsCommand}" Style="{StaticResource Action}" /></WrapPanel>
+    </StackPanel>
+   </Border>
+   <StackPanel Visibility="{Binding HasHistoricalViewer, Converter={StaticResource VisibleIf}}">
+    <Border Style="{StaticResource Card}"><StackPanel>
+     <TextBlock x:Name="HistoricalIdentity" Text="{Binding HistoricalLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" Focusable="True" AutomationProperties.HeadingLevel="Level2" AutomationProperties.Name="{Binding HistoricalLabel}" />
+     <TextBlock Text="Source: this exact persisted Ready revision, not pending editor changes. Start Draft keeps the original date. Copy Forward creates a new Draft for another date in the same Account." Style="{StaticResource Body}" />
+     <WrapPanel><Button Content="Start Draft from this revision" Command="{Binding DeriveHistoricalCommand}" Style="{StaticResource Action}" />
+      <StackPanel Width="180" Margin="0,4,8,4"><Label Content="Copy to · New York date" Target="{Binding ElementName=CopyTarget}" Foreground="{DynamicResource PtjTextPrimaryBrush}" Padding="0" />
+       <TextBox x:Name="CopyTarget" Text="{Binding CopyDate, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PtjTextBoxStyle}" IsEnabled="{Binding CanUseHistory}" AutomationProperties.Name="Copy Forward target New York date" AutomationProperties.HelpText="{Binding CopyError}" />
+      </StackPanel><Button Content="Copy Forward" Command="{Binding CopyForwardCommand}" Style="{StaticResource Action}" />
+     </WrapPanel>
+     <TextBlock Text="{Binding CopyError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" />
+     <!-- The single live region above announces this status. Repeat visually near the
+          transfer controls so an offscreen header cannot hide progress or a conflict. -->
+     <TextBlock x:Name="TransferStatus" Text="{Binding TransferNotice}" Style="{StaticResource Body}" />
+     <Button Content="Cancel transfer" Command="{Binding CancelCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
+     <TextBlock Text="Copy retains session, focus, instrument identities, scenarios, planned limits and linked Rules. Bias, thesis, levels, news, stand-aside text and all confirmations reset. The new Plan is Draft, never Ready." Style="{StaticResource Body}" />
+     <Button Content="Open existing Plan" Command="{Binding OpenRecoveryCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding HasRecoveryTarget, Converter={StaticResource VisibleIf}}" />
+    </StackPanel></Border>
+    <local:SessionPreparationSection x:Name="HistoricalPreparation" DataContext="{Binding HistoricalViewer}" />
+    <local:ScenariosSection DataContext="{Binding HistoricalViewer}" />
+    <local:RiskReadinessSection DataContext="{Binding HistoricalViewer}" />
+   </StackPanel>
+  </StackPanel>
+ </ScrollViewer>
+</UserControl>

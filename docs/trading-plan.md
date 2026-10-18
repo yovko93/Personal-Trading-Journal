@@ -1,5 +1,102 @@
 # Trading Plan
 
+## M21.8 — History, Copy Forward and navigation recovery
+
+Actual baseline: **clean `develop`, `be2fb3c6a5554ef34c367e756dbff92c1b623b1f`**. M21.7 was already committed, superseding the attachment's dirty-tree report. Existing behavior is preserved. This slice changes no schema, monetary semantics, Trade/Journal data, Rules/Playbook catalog, provider behavior or Review evidence. M21.9 and M21.10 are not implemented here.
+
+### History and exact Ready viewing
+
+**History** sits beside **Session Brief**. Its Account, inclusive From/To **New York dates**, and current Draft/Ready status are independent of the retained editor. Draft includes Draft-after-Ready. Search is explicit. Invalid/reversed dates stay typed, with useful errors and previous results unchanged; a visible unapplied-filter notice distinguishes pending values from the displayed search identity. Rows show date, Account/currency, session, Instruments, lifecycle, latest Ready number and saved/Ready time explicitly in **UTC**.
+
+Plan history is date-descending within one exact Account; Ready history is revision-descending. Both request 21 and display at most 20, with cursors taken from the last displayed row, so an exactly full final page does not expose a spurious empty next page. Account selection includes inactive Accounts. **Find saved Accounts** discovers missing identities within the typed date range, 20 at a time, without loading every Plan; **More saved Accounts** continues that bounded discovery. Discovery orders by exact Account ID, with an offset safety bound of 100,000. Each discovery query is internally consistent; concurrent additions/deletions between discovery pages can change that population, so a fresh discovery restarts at page one. Already discovered/selected identities remain available in this retained workspace. An unavailable Account uses its latest Ready name/currency in the range, not a same-name replacement. A Draft-only deleted Account has no saved name and is explicitly labeled unavailable rather than inventing one. Account identity is available to accessibility help text.
+
+History summaries are a bounded four-query batch in one deferred SQLite snapshot. Ready rows use frozen Account/Instrument labels; Draft rows use current labels (or an explicit unavailable marker). No query per Plan, day or revision is added. Stored payload validation remains strict; malformed evidence is not repaired.
+
+**Revisions** and **View revision** do not replace the editor. The exact persisted Ready revision is read again, identified by original date, saved Account/currency/session, revision and actual Ready UTC timestamp. The existing preparation/scenario/risk/readiness components display its immutable content, references and confirmations read-only. Current names, currency, Rule criteria and Playbook text do not overwrite historical values. The view issues one guarded focus request to the new historical heading; later user input or leaving the page cancels that focus request. Page scrolling remains available for long preparation.
+
+### Derivation, copy and conflict recovery
+
+**Start Draft from this revision** invokes the existing `StartDraft` operation with the viewed revision and loaded owner token. It edits the original Plan identity, clears confirmations, preserves latest Ready/history and never silently substitutes the latest revision as source. An existing Draft or concurrent owner change produces a conflict with **Open existing Plan**; no Draft is overwritten.
+
+**Copy Forward** identifies the exact persisted Ready source and requires an explicitly typed, valid, different NY date in the **same Account**. It invokes the existing atomic `CopyForward` operation, not a Desktop reimplementation of reset rules. Reusable session, focus, intent, Instrument identities, scenarios, planned limits and Rule links transfer. Bias, market thesis, levels, news, stand-aside text and every readiness confirmation reset. The target receives a new identity and remains Draft, without a Ready timestamp or inherited Ready status. Original revisions are unchanged. Current references are revalidated, and changed monetary Account currency still requires explicit review without FX conversion.
+
+The shared Save/Discard/Cancel guard resolves pending editor input before a transfer. The UI explicitly states that the selected **persisted Ready revision**, not the pending Draft, is the transfer source. Save must succeed; invalid input/cancellation/conflict/storage failure retains the original editor and source/target selections. Discard consent is staged: a failed transfer does not destroy fields. Duplicate submissions and scope changes are blocked while the operation owns a write. Target uniqueness and optimistic conflicts are rechecked by the store; simultaneous target creation never overwrites another Plan. **Open existing Plan** explicitly reloads even an already selected identity, through the same guard, so a concurrently created Draft cannot remain hidden behind a stale Ready editor. A veto when opening a different history Plan also retains the Session Brief's raw malformed date instead of normalizing it through ordinary toolbar-selection restoration. A typed success without matching identity/content/revision readback is not reported as saved. A verified commit wins over late cancellation. Success opens the returned Draft, refreshes the affected history using its applied query, and reports the committed result after supporting reference loads. If those loads fail after a verified commit, the message explicitly says the Draft committed but supporting lists need Reload.
+
+### Navigation and asynchronous ownership
+
+Session Brief/History switches retain the same editor, selected Instrument, raw invalid fields and save token; History filters and revision selection remain separate. Opening another editable Plan uses the existing shared guard. Returning from a linked Playbook/Rule retains the selected tab and editor; no global navigation preferences are added. MainWindow closing protects a dirty hidden Session Brief even while History is showing, and a later owner-close veto does not consume Discard consent.
+
+History/revision reads have independent cancellation and request epochs. Late cancellation-insensitive results cannot replace newer searches/selections, and close/disposal drains the existing tracked read owners. Writes capture source/target/token, freeze disruptive selection, and publish only the verified result. No retries, automatic copying or automatic save is introduced. Error messages do not expose database paths or exception/source contents.
+
+### Verification and limits
+
+Synthetic tests cover 20/21/40-row boundaries, inclusive dates, exact scope, Draft/Ready filters, revision paging, raw invalid filters, editor independence, frozen content after catalog changes, historical derivation and existing-Draft conflicts, copy/reset/readback, concurrent target creation, duplicate submission, cancellation, stale history/detail reads, deleted/same-name Account discovery, service-restart reconstruction and hidden-editor closing. A SQLite interceptor changes the current Account during summary materialization and verifies the original snapshot is retained across all four SELECTs. Existing persistence, portability and reference-policy cases remain in the focused/full gates.
+
+Initial evidence is retained: `artifacts/m21-8/initial-focused/history.trx` reported **15 passed / 2 failed** due to new-test comparisons (immutable-array record equality and matching “saved” inside a failure sentence). Those assertions were corrected to compare exact content/identity/timestamp and actual success semantics, without changing production policy. `focused-render/history.trx` then reported **17 passed / 2 failed**: the compiled page exposed a real new-flow defect where post-commit reference loading replaced the Copy Forward success text. The coordinator now publishes the verified success after those supporting reads; the assertion remains. No existing assertions/deadlines/isolation settings were relaxed.
+
+Render inspection also found that transfer conflicts/progress could be outside the viewport when the user was scrolled to the historical transfer controls. The same action status and a Cancel transfer button now appear beside those controls. Only the original live region announces changes, avoiding duplicate announcements. Long Account names wrap in rows and the applied-search description; standard selectors retain their compact width. Read-only component editing controls remain disabled rather than introducing a second historical rendering model.
+
+Final focused verification passed **475 cases**: Desktop **328**, Infrastructure **35**, Application **35**, Domain **77**, with zero failures/skips. Desktop results are in `artifacts/m21-8/acceptance-focused/desktop.trx`; the other results are in the corresponding `infrastructure`, `application` and `domain` directories. The final Release build completed with **zero warnings/errors**. The complete-gate result is recorded separately below; focused success is not a substitute for it.
+
+Final complete `scripts/Test-Release.ps1` result: **4,843 passed, zero failed/skipped, exit 0**, in `artifacts/m21-8/final-release-gate/release-20261018-171554-3849d0048d784c1f883c403a44770434`. This executes the complete set through the repository's existing exclusive-WPF and parallel partitions, with no deadline/assertion/isolation changes. The earlier complete run in `artifacts/m21-8/release-gate/release-20261018-170343-ca0ca791c4d14c4183b6a873e8cb0843` passed 4,840 cases before the final three navigation/read-error regression cases and adjacent transfer-status correction; it is not substituted for the final run.
+
+| Final project / partition | Passed | Failed / skipped |
+| --- | ---: | ---: |
+| Domain | 567 | 0 / 0 |
+| Application | 1,011 | 0 / 0 |
+| Infrastructure | 1,417 | 0 / 0 |
+| Desktop exclusive WPF | 88 | 0 / 0 |
+| Desktop parallel | 1,760 | 0 / 0 |
+| **Total** | **4,843** | **0 / 0** |
+
+The baseline was 4,819: **24 new cases**, with existing guard cases extended. Final Calendar native child: **69.160s**, **50.840s headroom** against its unchanged 120-second deadline. New History child: **15.417s**, **74.583s headroom** against its 90-second aggregate deadline, retaining the 30-second case watchdog. The final parallel Desktop project took **5m37s**. Historical timing variability remains a risk, not a claimed harness fix. EF reports **no model changes since the last migration**. `git diff --check`, all six new files' trailing-whitespace checks and **164 local Markdown file links** pass. There are **12 modified + 6 new files**, uncommitted, and HEAD remains `be2fb3c6a5554ef34c367e756dbff92c1b623b1f` on `develop`.
+
+The bound WPF checks generated **28 renders** under `artifacts/m21-8/acceptance-renders`: seven states (multi-lifecycle History, invalid filter, empty search, exact Ready, invalid copy date, target conflict, copied Draft) × Light/Dark × 980-DIP/96-DPI and 460-DIP/240-DPI content widths. Representative final renders from every state and both size/theme variants were inspected. Filters/actions wrap, long row names remain readable, error/conflict text stays beside its input/action, frozen Ready labels differ correctly from renamed current labels, and page scrolling exposes the remaining content without horizontal clipping. Compact selectors can abbreviate long labels; the complete applied identity and row labels wrap below. Examples: [Light History](../artifacts/m21-8/acceptance-renders/history-Light-980-96-history.png), [Dark Ready](../artifacts/m21-8/acceptance-renders/history-Dark-980-96-ready.png), [narrow high-DPI conflict](../artifacts/m21-8/acceptance-renders/history-Dark-460-240-conflict.png), [verified copied Draft](../artifacts/m21-8/acceptance-renders/history-Dark-980-96-copied-draft.png). These artifacts are local ignored verification output, not committed assets.
+
+Automated native-window focus/close tests are not human keyboard or Narrator acceptance. The computer-use skill's supported helper failed initialization with **“failed to write kernel assets: The system cannot find the path specified. (os error 3)”**, including a fresh-session recovery attempt. No production app was opened to work around that failure. **Live isolated application restart, human mouse/keyboard, screen-reader announcements and matching CI remain pending.** SQLite service/ViewModel recreation is evidence of persisted reads, not a claimed full-process/live restart. All changes remain uncommitted, so no published commit/workflow matches this exact change set. Earlier Calendar variability is not claimed fixed by a passing gate.
+
+Pending isolated manual checklist: create/save/Ready a synthetic Plan; revise it, then browse both Ready revisions; retain invalid Draft input while switching tabs and visiting a linked source; cancel a context change; copy the older Ready to another date and inspect reset fields; try an existing target and open it through the guard; close/reopen the isolated app and verify history, immutable labels and copied Draft; check Tab/focus and Narrator status/read-only announcements. Use only an explicitly isolated `--isolated-data-root`, never the normal journal.
+
+No backup/restore redesign is introduced. Complete backup and JSON v10 already include Drafts and Ready revisions; existing portability tests remain applicable. **Restoring older-schema archives remains deferred**, unchanged from M21.3. Historical Account discovery has no authority to recreate an Account, and unavailable/inactive references can still block new preparation writes under the existing policy. Full M21 acceptance is not claimed.
+
+Commands used (synthetic fixtures only; WPF tests run in the normal Windows environment, with no build during a test run):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+$env:PTJ_PLAN_HISTORY_RENDER_DIRECTORY = Join-Path (Get-Location) 'artifacts/m21-8/acceptance-renders'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~TradingPlans|FullyQualifiedName~MainWindowViewModelTests'
+$env:PTJ_PLAN_HISTORY_RENDER_DIRECTORY = $null
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m21-8/final-release-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+### M21.8 changed files
+
+Relative to the inspected clean baseline:
+
+- `README.md`
+- `docs/architecture.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Application/TradingPlans/ITradingPlanStore.cs`
+- `src/PersonalTradingJournal.Application/TradingPlans/TradingPlanContracts.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.History.cs` (new)
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanHistoryView.xaml` (new)
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanHistoryView.xaml.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanHistoryProjectionTests.cs` (new)
+
 ## M21.7 — Session Brief Desktop workspace
 
 Actual baseline: **clean `develop`, `f41deb0880943087a627b2c4277d3e0d0574c3e6`**. M21.6 was already committed, superseding the attachment's earlier dirty-tree report. No applicable `AGENTS.md` was found in the repository or ancestors. The implementation uses synthetic SQLite journals and test-only WPF owners; no production journal, provider call, commit, push, merge or later milestone work.

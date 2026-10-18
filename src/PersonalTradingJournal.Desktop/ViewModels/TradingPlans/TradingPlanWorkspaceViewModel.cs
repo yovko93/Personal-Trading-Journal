@@ -25,7 +25,7 @@ public sealed record PlanAccountOption(Guid Id, string Name, string Currency, bo
 
 /// <summary>Retained page coordinator; the section session alone owns draft fields and the save token.
 /// Selection is committed after consent. A leave decision is consumed only after all shell guards accept.</summary>
-public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposable
+public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, IDisposable
 {
     private readonly ITradingPlanStore _store;
     private readonly ITradingAccountReader _accounts;
@@ -71,6 +71,7 @@ public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposabl
         MarkReadyCommand = new AsyncRelayCommand(MarkReadyAsync, () => Editor?.CanEdit == true && !IsBusy && !HasPendingDate);
         StartDraftCommand = new AsyncRelayCommand(StartDraftAsync, () => Editor?.IsReadOnly == true && !IsBusy && !HasPendingDate);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => IsBusy);
+        InitializeHistory();
     }
 
     private DateOnly Today => DateOnly.FromDateTime(TradingTimePolicy.ConvertUtcToTradingTime(_clock.GetUtcNow()).DateTime);
@@ -95,8 +96,8 @@ public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposabl
     public SessionPreparationViewModel? Editor => _editor;
     public bool HasEditor => Editor is not null;
     public bool IsLoading => _loading;
-    public bool IsBusy => _loading || _writing || Editor?.IsBusy == true;
-    public bool CanSelectContext => !_writing && Editor?.IsBusy != true && !_guarding && !_disposed;
+    public bool IsBusy => _loading || _writing || _historyLoading || _historyTransition || Editor?.IsBusy == true;
+    public bool CanSelectContext => !_writing && !_historyTransition && Editor?.IsBusy != true && !_guarding && !_disposed;
     public bool CanSave => Editor?.CanEdit == true && !IsBusy && !HasPendingDate;
     public bool CanCreateDraft => !HasEditor && !IsBusy && _account?.IsActive == true && !HasPendingDate && _contextLoaded;
     private bool _contextLoaded;
@@ -203,9 +204,9 @@ public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposabl
             if (epoch == _epoch) { _load = null; _loading = false; Notify(); }
         }
     }
-    private SessionPreparationViewModel CreateEditor(TradingPlan plan)
+    private SessionPreparationViewModel CreateEditor(TradingPlan plan, TradingPlanReadyRevision? historical = null)
     {
-        var editor = new SessionPreparationViewModel(plan, _store, _instruments) { IsHosted = true };
+        var editor = new SessionPreparationViewModel(plan, _store, _instruments, historical: historical) { IsHosted = true };
         editor.ConfigurePlaybooks(_setups, _playbooks, _history); editor.ConfigureRules(_rules, _ruleStore); editor.ConfigureReferenceReader(_references);
         editor.PlaybookNavigation = (id, ct) => OpenPlaybook?.Invoke(id, ct) ?? Task.FromResult(false);
         editor.RuleNavigation = (id, ct) => OpenRule?.Invoke(id, ct) ?? Task.FromResult(false);
@@ -302,10 +303,11 @@ public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposabl
 
     public async Task CancelAsync()
     {
-        _load?.Cancel(); _write?.Cancel(); Editor?.CancelOperation();
+        _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); Editor?.CancelOperation();
         Task[] loads; lock (_loadSync) loads = _loads.ToArray();
         await Task.WhenAll(loads);
         if (Editor is { } editor) await editor.OperationCompletion;
+        if (_historyWriteTask is { } write) await write;
     }
     public bool NeedsClosePreparation => IsBusy || HasOutstandingLoads || Editor?.IsDirty == true;
     public bool HasLeaveConsent => !IsBusy && !HasOutstandingLoads && (Editor?.IsDirty != true || _acceptedIdentity == Editor.EditIdentity);
@@ -342,7 +344,8 @@ public sealed class TradingPlanWorkspaceViewModel : ObservableObject, IDisposabl
     {
         foreach (string name in new[] { nameof(HasEditor), nameof(IsBusy), nameof(IsLoading), nameof(CanSelectContext), nameof(CanSave), nameof(CanCreateDraft), nameof(ShowEmpty), nameof(EmptyMessage), nameof(ContextLabel), nameof(StateLabel), nameof(HasPendingDate), nameof(CanInteractEditor) }) OnPropertyChanged(name);
         foreach (var command in new[] { PreviousDayCommand, NextDayCommand, TodayCommand, OpenDateCommand, ReloadCommand, CreateDraftCommand, SaveCommand, MarkReadyCommand, StartDraftCommand, CancelCommand }) command?.NotifyCanExecuteChanged();
+        NotifyHistory();
     }
     public void Dispose()
-    { _disposed = true; ++_epoch; _load?.Cancel(); _write?.Cancel(); ReplaceEditor(null); }
+    { _disposed = true; ++_epoch; _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); HistoricalViewer?.Dispose(); ReplaceEditor(null); }
 }

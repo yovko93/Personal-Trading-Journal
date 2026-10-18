@@ -32,13 +32,40 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
     {
         ArgumentNullException.ThrowIfNull(query);
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
+        await db.Database.UseTransactionAsync(tx, cancellationToken);
         var rows = await db.TradingPlans.AsNoTracking().Where(x => x.AccountId == query.AccountId &&
             x.NewYorkDate >= query.FirstDate && x.NewYorkDate <= query.LastDate && (!beforeDate.HasValue || x.NewYorkDate < beforeDate.Value) &&
             (!query.Status.HasValue || (query.Status == TradingPlanStatus.Draft ? x.DraftJson != null : x.DraftJson == null)))
             .OrderByDescending(x => x.NewYorkDate).Take(query.Limit)
-            .Select(x => new { x.Id, x.AccountId, x.NewYorkDate, x.Version, x.LatestReadyRevision, HasDraft = x.DraftJson != null }).ToArrayAsync(cancellationToken);
-        return rows.Select(x => new TradingPlanLoadedState(new(x.AccountId, x.NewYorkDate), new(x.Id, x.Version),
-            x.HasDraft ? TradingPlanStatus.Draft : TradingPlanStatus.Ready, x.LatestReadyRevision)).ToArray();
+            .ToArrayAsync(cancellationToken);
+        var ids = rows.Select(x => x.Id).ToArray();
+        // A bounded batch, never one query per Plan or every Ready revision.
+        var latestRows = await ReadyRows(db, db.TradingPlanReadyRevisions.Where(r => ids.Contains(r.PlanId) &&
+            db.TradingPlans.Any(p => p.Id == r.PlanId && p.LatestReadyRevision == r.Revision))).ToArrayAsync(cancellationToken);
+        var latest = latestRows.Select(ReadOwnedReady).ToDictionary(r => r.Id.PlanId);
+        var drafts = rows.Where(x => x.DraftJson != null).ToDictionary(x => x.Id, x => TradingPlanJson.ReadDraft(x.DraftJson!));
+        var account = await db.TradingAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == query.AccountId, cancellationToken);
+        var instrumentIds = drafts.Values.SelectMany(d => d.Content.Instruments).Select(i => i.InstrumentId).Distinct().ToArray();
+        var instruments = await db.Instruments.AsNoTracking().Where(i => instrumentIds.Contains(i.Id))
+            .Select(i => new { i.Id, i.Symbol }).ToDictionaryAsync(i => i.Id, i => i.Symbol, cancellationToken);
+        return rows.Select(x =>
+        {
+            var ready = latest.GetValueOrDefault(x.Id);
+            if (x.LatestReadyRevision > 0 && ready is null) throw new InvalidDataException("Missing Ready history.");
+            var draft = drafts.GetValueOrDefault(x.Id);
+            var content = draft?.Content ?? ready?.Content ?? throw new InvalidDataException("Missing Plan content.");
+            var labels = draft is null ? ready!.References.Instruments.Select(i => i.Symbol).ToArray() :
+                content.Instruments.Select(i => instruments.GetValueOrDefault(i.InstrumentId) ?? "Unavailable Instrument").ToArray();
+            return new TradingPlanLoadedState(new(x.AccountId, x.NewYorkDate), new(x.Id, x.Version),
+                draft is not null ? TradingPlanStatus.Draft : TradingPlanStatus.Ready, x.LatestReadyRevision)
+            {
+                Summary = new(draft is null ? ready!.References.Account.Name : account?.Name ?? "Unavailable Account",
+                    draft is null ? ready!.References.Account.Currency : account?.Currency ?? "Unknown currency", account is not null,
+                    content.Session, [.. labels], draft?.UpdatedAtUtc ?? ready!.ReadyAtUtc)
+            };
+        }).ToArray();
     }
 
     public async Task<IReadOnlyList<TradingPlanReadyRevision>> ReadyHistoryAsync(Guid planId, int? beforeRevision = null,
@@ -50,6 +77,29 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             (!beforeRevision.HasValue || x.Revision < beforeRevision.Value)).OrderByDescending(x => x.Revision).Take(limit);
         var rows = await ReadyRows(db, selected).ToArrayAsync(cancellationToken);
         return rows.OrderByDescending(x => x.Row.Revision).Select(ReadOwnedReady).ToArray();
+    }
+
+    public async Task<IReadOnlyList<TradingPlanHistoryAccount>> HistoryAccountsAsync(DateOnly firstDate, DateOnly lastDate,
+        int offset = 0, int limit = 21, CancellationToken cancellationToken = default)
+    {
+        if (firstDate > lastDate || offset is < 0 or > 100_000 || limit is < 1 or > 100) throw new ArgumentException("Invalid Account discovery query.");
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
+        await db.Database.UseTransactionAsync(tx, cancellationToken);
+        var inRange = db.TradingPlans.Where(p => p.NewYorkDate >= firstDate && p.NewYorkDate <= lastDate);
+        var ids = await inRange.Select(p => p.AccountId).Distinct().OrderBy(id => id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
+        var current = await db.TradingAccounts.AsNoTracking().Where(a => ids.Contains(a.Id)).ToDictionaryAsync(a => a.Id, cancellationToken);
+        var latestPlans = inRange.Where(p => ids.Contains(p.AccountId) && p.LatestReadyRevision > 0 &&
+            !inRange.Any(n => n.AccountId == p.AccountId && n.LatestReadyRevision > 0 && n.NewYorkDate > p.NewYorkDate));
+        var readyRows = await ReadyRows(db, db.TradingPlanReadyRevisions.Where(r => latestPlans.Any(p => p.Id == r.PlanId && p.LatestReadyRevision == r.Revision))).ToArrayAsync(cancellationToken);
+        var saved = readyRows.Select(ReadOwnedReady).ToDictionary(r => r.Key.AccountId, r => r.References.Account);
+        return ids.Select(id =>
+        {
+            var a = current.GetValueOrDefault(id); var s = saved.GetValueOrDefault(id);
+            return new TradingPlanHistoryAccount(id, a?.Name ?? s?.Name ?? "Unavailable Account (no saved name)",
+                a?.Currency ?? s?.Currency ?? "Unknown currency", a is not null, a?.IsActive == true);
+        }).ToArray();
     }
 
     public async Task<TradingPlanWriteResult> WriteAsync(TradingPlanWriteCommand command, CancellationToken cancellationToken = default)

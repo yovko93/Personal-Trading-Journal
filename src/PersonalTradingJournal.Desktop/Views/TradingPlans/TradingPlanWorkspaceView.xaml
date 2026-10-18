@@ -26,7 +26,14 @@
    </ControlTemplate></Setter.Value></Setter>
   </Style>
  </UserControl.Resources>
- <Grid Margin="14,8,14,12">
+ <DockPanel Margin="14,8,14,12">
+  <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+   <RadioButton Content="Session Brief" IsChecked="{Binding IsBriefSelected, Mode=OneWay}" Command="{Binding ShowBriefCommand}" GroupName="PlanTab" Margin="0,4,20,4" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Session Brief tab" />
+   <RadioButton Content="History" IsChecked="{Binding IsHistorySelected, Mode=OneWay}" Command="{Binding ShowHistoryCommand}" GroupName="PlanTab" Margin="0,4,20,4" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="History tab" />
+  </WrapPanel>
+  <Grid>
+  <local:TradingPlanHistoryView Visibility="{Binding IsHistorySelected, Converter={StaticResource VisibleIf}}" />
+  <Grid Visibility="{Binding IsBriefSelected, Converter={StaticResource VisibleIf}}">
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
   <WrapPanel x:Name="Toolbar">
    <StackPanel Margin="0,0,12,4">
@@ -91,4 +98,6 @@
    <TextBlock Text="{Binding Editor.PreservedReadyLabel}" Style="{StaticResource Body}" />
   </StackPanel>
  </Grid>
+  </Grid>
+ </DockPanel>
 </UserControl>

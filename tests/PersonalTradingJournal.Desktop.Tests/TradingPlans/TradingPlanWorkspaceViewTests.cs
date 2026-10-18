@@ -125,10 +125,12 @@ public sealed class TradingPlanWorkspaceViewTests
                 Assert.Single(Descendants(owner).OfType<TradingPlanWorkspaceView>());
                 Render(owner, "Light", 1280, 96, "shared-shell");
                 var retained = closing.Editor!; retained.Focus.Text = "unsaved retained owner text";
+                closing.SelectTab(true); Idle(); // A hidden Session Brief is still protected from History.
                 bool veto = true; CancelEventHandler later = (_, e) => e.Cancel = veto;
                 owner.Closing += later; fixture.Interaction.Choice = PlanLeaveChoice.Discard;
                 int prompts = fixture.Interaction.Prompts; owner.Close(); Idle();
                 Assert.True(owner.IsVisible); Assert.Same(retained, closing.Editor); Assert.Equal("unsaved retained owner text", retained.Focus.Text);
+                Assert.True(closing.IsHistorySelected);
                 Assert.Equal(prompts + 1, fixture.Interaction.Prompts);
                 veto = false; fixture.Interaction.Choice = PlanLeaveChoice.Save; owner.Close();
                 // Await the explicit asynchronous Save and subsequent dispatcher close, not elapsed time.

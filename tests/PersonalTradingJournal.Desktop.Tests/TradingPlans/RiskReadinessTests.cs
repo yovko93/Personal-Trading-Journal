@@ -297,6 +297,7 @@ public sealed class RiskReadinessTests
         public Task<TradingPlan?> LoadAsync(TradingPlanKey key, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<TradingPlanReadyRevision?> LoadReadyAsync(TradingPlanRevisionId id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<TradingPlanLoadedState>> HistoryAsync(TradingPlanHistoryQuery query, DateOnly? beforeDate = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TradingPlanHistoryAccount>> HistoryAccountsAsync(DateOnly firstDate, DateOnly lastDate, int offset = 0, int limit = 21, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<TradingPlanReadyRevision>> ReadyHistoryAsync(Guid planId, int? beforeRevision = null, int limit = 20, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

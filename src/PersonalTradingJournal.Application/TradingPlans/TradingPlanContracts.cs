@@ -48,6 +48,9 @@ public sealed record TradingPlanLoadedState
     public TradingPlanExpectedState Token { get; }
     public TradingPlanStatus Status { get; }
     public int LatestReadyRevision { get; }
+    /// <summary>Read-only history projection; Ready labels come from frozen references,
+    /// Draft labels from the current catalogs (explicitly unavailable if missing).</summary>
+    public TradingPlanHistorySummary? Summary { get; init; }
 
     /// <summary>Expose the Domain lifecycle using the existing Application concurrency token.</summary>
     public static TradingPlanLoadedState FromPlan(TradingPlan plan)
@@ -56,6 +59,11 @@ public sealed record TradingPlanLoadedState
         return new(plan.Key, new(plan.Id, plan.Version), plan.Status, plan.LatestReadyRevision?.Id.Revision ?? 0);
     }
 }
+
+public sealed record TradingPlanHistorySummary(string AccountName, string Currency, bool AccountAvailable,
+    TradingPlanSession? Session, ImmutableArray<string> Instruments, DateTimeOffset SavedAtUtc);
+
+public sealed record TradingPlanHistoryAccount(Guid AccountId, string Name, string Currency, bool IsAvailable, bool IsActive);
 
 /// <summary>Input to transactional use cases. Scope is captured at submission; selected
 /// session and navigation never retarget a command.</summary>

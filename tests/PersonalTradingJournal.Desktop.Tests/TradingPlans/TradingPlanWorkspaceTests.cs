@@ -194,12 +194,14 @@ public sealed class TradingPlanWorkspaceTests
         shell.NavigateCommand.Execute(NavigationDestination.TradingPlan);
         var editor = f.Vm.Editor!; await editor.LoadRulesAsync(); editor.RuleCandidate = editor.RuleChoices.Single(r => r.Id == rule.RuleId);
         await editor.LinkRuleAsync(); editor.MaximumTrades.Text = "retained invalid count";
+        f.Vm.SelectTab(true);
         await editor.LinkedRules[0].OpenCommand.ExecuteAsync(null); await rules.LoadTask;
         Assert.Equal(NavigationDestination.Rules, shell.CurrentDestination); Assert.Equal(rule.RuleId, rules.SelectedRule!.Id);
         Assert.Same(editor, f.Vm.Editor); Assert.Equal(0, f.Interaction.Prompts); Assert.Equal(0, f.Store.Writes);
         f.Interaction.Choice = PlanLeaveChoice.Cancel; Assert.False(await shell.PreparePlanCloseAsync());
         shell.NavigateCommand.Execute(NavigationDestination.TradingPlan);
         Assert.Same(editor, f.Vm.Editor); Assert.Equal("retained invalid count", editor.MaximumTrades.Text);
+        Assert.True(f.Vm.IsHistorySelected);
     }
 
     [Fact]
@@ -297,12 +299,15 @@ public sealed class TradingPlanWorkspaceTests
         public Func<CancellationToken, Task>? BeforeWrite;
         public Func<TradingPlanWriteResult, TradingPlanWriteResult>? AfterWrite;
         public Func<TradingPlanKey, CancellationToken, Task<TradingPlan?>>? Read;
+        public Func<TradingPlanHistoryQuery, DateOnly?, CancellationToken, Task<IReadOnlyList<TradingPlanLoadedState>>>? HistoryRead;
+        public Func<TradingPlanRevisionId, CancellationToken, Task<TradingPlanReadyRevision?>>? ReadyRead;
         public async Task<TradingPlanWriteResult> WriteAsync(TradingPlanWriteCommand command, CancellationToken cancellationToken = default)
         { Interlocked.Increment(ref Writes); if (BeforeWrite is not null) await BeforeWrite(cancellationToken); var result = Status.HasValue ? new TradingPlanWriteResult(Status.Value) : await inner.WriteAsync(command, cancellationToken); return AfterWrite?.Invoke(result) ?? result; }
         public Task<TradingPlan?> LoadAsync(TradingPlanKey key, CancellationToken cancellationToken = default)
         { Interlocked.Increment(ref Reads); return Read?.Invoke(key, cancellationToken) ?? inner.LoadAsync(key, cancellationToken); }
-        public Task<TradingPlanReadyRevision?> LoadReadyAsync(TradingPlanRevisionId id, CancellationToken cancellationToken = default) => inner.LoadReadyAsync(id, cancellationToken);
-        public Task<IReadOnlyList<TradingPlanLoadedState>> HistoryAsync(TradingPlanHistoryQuery query, DateOnly? beforeDate = null, CancellationToken cancellationToken = default) => inner.HistoryAsync(query, beforeDate, cancellationToken);
+        public Task<TradingPlanReadyRevision?> LoadReadyAsync(TradingPlanRevisionId id, CancellationToken cancellationToken = default) => ReadyRead?.Invoke(id, cancellationToken) ?? inner.LoadReadyAsync(id, cancellationToken);
+        public Task<IReadOnlyList<TradingPlanLoadedState>> HistoryAsync(TradingPlanHistoryQuery query, DateOnly? beforeDate = null, CancellationToken cancellationToken = default) => HistoryRead?.Invoke(query, beforeDate, cancellationToken) ?? inner.HistoryAsync(query, beforeDate, cancellationToken);
+        public Task<IReadOnlyList<TradingPlanHistoryAccount>> HistoryAccountsAsync(DateOnly firstDate, DateOnly lastDate, int offset = 0, int limit = 21, CancellationToken cancellationToken = default) => inner.HistoryAccountsAsync(firstDate, lastDate, offset, limit, cancellationToken);
         public Task<IReadOnlyList<TradingPlanReadyRevision>> ReadyHistoryAsync(Guid planId, int? beforeRevision = null, int limit = 20, CancellationToken cancellationToken = default) => inner.ReadyHistoryAsync(planId, beforeRevision, limit, cancellationToken);
     }
 }
