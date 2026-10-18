@@ -1,5 +1,121 @@
 # Trading Plan
 
+## M21.6 — risk limits, Trading Rules and readiness
+
+Actual baseline: **clean `develop`, `4217d973504fced25706bc433dd15edbfa381d97`** (`Add Trading Plan scenarios and Playbook links`). The attachment's earlier HEAD/uncommitted M21.5 report was superseded by the inspected worktree. All M21.1–M21.5 behavior is retained; the file inventory below is specifically M21.6. No applicable repository/ancestor `AGENTS.md` was found. Only synthetic data and compiled WPF component tests were used; no production journal, provider, commit, push, merge or M21.7 implementation.
+
+### One Draft, limits and currency
+
+`SessionPreparationSection`, `ScenariosSection` and **`RiskReadinessSection`** bind the identical `SessionPreparationViewModel`. The new partials add transient adapters, not a second aggregate, independent save token or persistence path. One builder submits all preparation, scenarios, Rules, limits and explicitly selected confirmations. Invalid raw input anywhere blocks the whole write rather than persisting an older valid number. Incomplete **valid** content still saves as Draft. Save/cancel/conflict/source/storage failures retain entered fields, links and staged confirmations. A prior verified-save message is replaced when new unsaved changes occur; success is shown only after returned database content and checkmarks match the submission.
+
+All four planned limits are **optional**, following `TradingPlanRiskLimits` unchanged:
+
+| Field | Valid values | Meaning |
+| --- | --- | --- |
+| Risk per trade / daily loss limit | Exact `decimal` >= 0, or null | Planned amount in this exact Account's currency; blank means unset, zero permits none |
+| Maximum number of trades | `Int32` >= 0, or null | Whole count; zero is explicit, not missing |
+| Stop after consecutive losses | `Int32` >= 1, or null | Whole consecutive-loss stop count; zero is invalid |
+
+Monetary parsing reuses the established culture-aware, no-grouping, exact-decimal parser. Excess precision, overflow, malformed/negative text and fractional/out-of-range counts remain visible with inline errors, red invalid state, accessible HelpText/ItemStatus and coordinated first-invalid-field focus. No rounding, truncation, old-value substitution, mockup defaults, broker enforcement, loss monitoring or new P&L calculation is introduced. A different numeric spelling of the same value may remain raw-dirty but does not clear unrelated confirmations.
+
+An editable Draft initially labels currency **unverified** until explicit Check references or a verified Save returns Account context. The new `ITradingPlanReferenceReader` uses one deferred SQLite read transaction to check the exact Plan/version, stored baseline membership, current Account and selected sources. This is an as-of check, not a reservation or permission to ignore later changes: every write still resolves sources under the existing writer transaction. A changed Account is shown separately from the last verified currency; amounts are not silently relabeled or converted. Explicit RefreshReferences with monetary values requires the reviewed current currency, rechecks it at commit and resets all confirmations. Because the existing baseline contains hashes rather than old Draft labels, an Account metadata/hash change is conservatively reviewed even when currency ultimately matches. StartDraft/CopyForward also reject cross-currency monetary derivation without explicit reviewed currency. A missing Account cannot be acknowledged. Ready/historical displays always use the saved currency/limits, regardless of current metadata.
+
+### Existing Rule links and bounded reads
+
+Only active **global** Rules from the existing catalog are eligible for new links; at most the established **50** links, one per stable Rule ID. Choices are read in existing deterministic order through pages of **100**, with a **1,000-choice** safety limit and a consistent catalog version/count check. An oversized/changing/incomplete catalog is rejected without a partial choice list or automatic retry. No unbounded query or new Rules catalog is added. Exact current/selected definitions are fetched only for distinct linked IDs, at most 50; historical revision reads use one-row bounded queries.
+
+Selecting a candidate is not a link. Explicit **Link selected revision** rereads and checks that candidate's exact revision/active/global status. Duplicate exact links are no-ops; a newer revision replaces a prior link only after explicit selection. Unlink is local Draft editing until Save. Rule content and availability are readable; changed/archived/unavailable Rules keep selected context and require explicit relink/refresh/reconfirmation, not a silent source update. Ready uses frozen Rule definitions and displays live availability separately. No Rule/assessment writes or automatic checks occur. A planning link is **not evidence of compliance**.
+
+`RuleNavigation` is an exact-ID asynchronous host request returning accepted/vetoed. Open current Rule is disabled without a handler or available live source; cancellation, veto and failure retain all preparation including invalid raw input. M21.7 must route this callback through existing shell/Rules unsaved-work guards. Reading saved historical criteria is distinct from opening a current catalog definition.
+
+### Explicit confirmations and pure cross-section readiness
+
+The five existing confirmations are manual: **Context and levels; Scenarios or Stand Aside; Risk limits; News calendar; Mindset and focus**. Filling fields never checks a box. Their count/progress and remaining requirements are visible. The existing `TradingPlanChecklistPolicy.AfterEdit` invalidates only affected flags for meaningful session, Focus, instrument/context/level, scenario/Setup, Stand Aside, News or limit/Rule edits. Malformed raw edits also invalidate affected checks immediately; correcting text does not automatically re-confirm it. Other confirmations remain intact. Risk confirmation with monetary limits requires verified currency. Stand-aside-only plans use existing requirements without invented scenarios or N/A states.
+
+The new optional `ExplicitConfirmations` argument on SaveDraft is **separate from `Content.Confirmed`**. The store applies content invalidation first and the explicit flags second in the same transaction, with one commit/readback; cancellation or a failed write rolls back both. Legacy SaveDraft calls without the argument still ignore incoming content checkmarks. `ExpectedAccountCurrency` is an optional reviewed reference/concurrency assertion, not a currency conversion instruction. No schema or stored JSON change is necessary.
+
+Readiness getters have no database calls or mutations. They combine all raw-field errors with the **existing Domain Ready validator**, then reference, busy, failed-save, conflict and dirty-state blockers in stable order. Incomplete content is distinct from malformed input. Saved fields/checks alone cannot hide a newer invalid editor value or unverified references. A complete/saved indication is explicitly as-of verified sources; the eventual Mark Ready operation must recheck source state/concurrency. The component has **no Mark Ready action**, full toolbar or second readiness engine. Ready controls/commands are genuinely read-only and show saved flags. Shared first-invalid identity lets only the owning section invoke the existing guarded `PageFocus`; a status update does not steal focus.
+
+### Presentation and remaining integration
+
+At >= 800 DIP usable section width, Planned Limits/Linked Rules occupy the left column and checklist/progress/readiness the right. Narrow widths stack in logical order. Shared Light/Dark resources, wrapping labels/Rule headers, opaque interaction backgrounds, native checkbox/progress automation, textual errors and visible focus are used. The component has no outer ScrollViewer; the future host supplies page scrolling. Long exact decimals remain horizontally scrollable rather than rounded. Source details are optional expansion; availability/blocking messages remain visible.
+
+M21.7 still owns the complete Session Brief composition/toolbar, Start Draft/Ready actions and reviewed-currency workflow, scope selection, service configuration/loading, navigation/close/unsaved-work guards and **cancel-and-await** lifecycle disposal. Configure `ITradingPlanReferenceReader` and the existing `ITradingRuleReader`/`ITradingRuleStore` explicitly on the shared editing session. Existing fresh-source policies may block deriving a new Draft from unavailable or changed historical references; this slice does not bypass those safeguards. No history screens, Review/AI integration or global lifecycle changes are added. There is no migration or portable-format change; existing database backup/export still carries the unchanged Draft/Ready content.
+
+### M21.6 verification
+
+Focused final run: **217 passed**, zero failed/skipped — Desktop **72**, Application **35**, Infrastructure **33**, Domain **77**. This adds **46 cases** (33 Desktop, 8 Application, 5 Infrastructure). Coverage includes exact/null/zero/cultured amounts and integer bounds, invalid retention/correction, targeted checks, pure readiness, one shared Draft, duplicate/cancelled/throwing Save, stale returned readback rejection, bounded Rule pages/cancellation/version changes, stale Rule selection/50-link limit, read-only frozen snapshots, currency review, SQLite restart and injected rollback before commit.
+
+An initial new WPF check exposed the ProgressBar default TwoWay binding to a read-only property; it is now explicitly OneWay and the same behavioral assertions pass. Render capture now flushes pending dispatcher bindings/layout before asserting visible count/value; the inspected partial state shows **2 of 5** and **0.00**, not a stale frame. The final review also added an unexpected-Save-exception regression: like a typed storage failure, it must block previously complete readiness until a subsequent verified Save, retaining checkmarks/content. No assertions, deadlines or scheduling are weakened.
+
+Commands (from repository root, Release build completed before tests):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet test tests/PersonalTradingJournal.Domain.Tests/PersonalTradingJournal.Domain.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans
+dotnet test tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlan
+$env:PTJ_PLAN_RENDER_DIRECTORY = Join-Path $PWD 'artifacts/m21-6/renders'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter FullyQualifiedName~TradingPlans
+Remove-Item Env:PTJ_PLAN_RENDER_DIRECTORY
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory artifacts/m21-6/final-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+Focused TRX: ignored `artifacts/m21-6/focused` (Application/Infrastructure/Domain) and `artifacts/m21-6/final-focused/desktop.trx` (final Desktop). Final solution build: **0 warnings/errors**, **30.66s**; final focused Desktop **72/72**, **21s**. EF: no pending model changes. Tracked plus all 11 new-file whitespace checks pass; **156** local documentation link targets resolve. Complete-gate results below are separate from focused/component acceptance.
+
+The initial complete run (`release-20261017-201618-c10c2a48b5ba422cbf6bf43679a2b900`) reported **4,703 passed / 87 failed / 0 skipped**, exit **1**. All Domain/Application/Infrastructure cases passed (**567 / 1,011 / 1,415**). Desktop exclusive: **2/88 passed**, with **86** parent failures propagated from the Calendar child's **120-second aggregate deadline**. The child's first recorded failure was `FullHeightRegionsHandOffOneGuideAndRetainKeyboardFocusWithSubtleThemeDrawing` (Light/960/96): **Win32Exception: Invalid monitor handle**, raised by WPF Popup/GetMonitorInfo during keyboard tooltip opening, before the eventual aggregate timeout. Last phase breadcrumbs show other chart actions completing before a subsequent modal action began; they do not establish a hung action or the reason for the total elapsed time. No timeout-time managed stack or causal fix for this native-monitor failure is claimed. Desktop parallel: **1,708/1,709 passed**; separate Breakdown accessibility case `ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(False)` encountered a null task in its test `Pump` helper (line 302). The new risk WPF child itself passed in **10.740s** against its unchanged 90s process deadline. These unrelated failures are retained as evidence, not suppressed. The final code was rebuilt and the complete gate repeated after the additional Save-failure regression; final results follow below.
+
+| Final local verification — 17 October 2026 | Result |
+| --- | --- |
+| Complete `pwsh -File scripts/Test-Release.ps1` gate | **4,791 passed**, zero failed/skipped, exit **0** |
+| Domain / Application / Infrastructure | **567 / 1,011 / 1,415 passed** |
+| Complete Desktop | **1,798 passed**: 88 exclusive WPF + 1,710 parallel; parallel test duration **5m04s** |
+| Calendar native child | **64.593s**, **55.407s** headroom to unchanged 120s deadline |
+| Risk/readiness native child | **7.075s**, successful process exit/cleanup against unchanged 90s process deadline |
+| Release build / EF / whitespace / links | **0 warnings/errors**; no pending model changes; tracked/new-file whitespace and **156** local links pass |
+| Prior native/automation variability | Final Calendar and all three Breakdown accessibility children passed; **cause not fixed or proven absent** by this run |
+| Full-page / human keyboard / Narrator / matching CI | **Pending**; reusable component evidence only; changes remain uncommitted |
+
+Final gate evidence: ignored `artifacts/m21-6/final-gate/release-20261017-202529-bb7635e0fc3d403dbf4ba52bf7544cb2/summary.json`, parent/child TRX and supervision logs. The gate used normal Windows permissions needed by the existing synthetic screenshot-link safety fixture. No assertion, deadline, concurrency bound or isolation policy was changed. Implementation is complete for **M21.6 only**, with final local automated verification green, not full M21/live/CI acceptance. At handoff: `develop`, unchanged HEAD **`4217d973504fced25706bc433dd15edbfa381d97`**, **13 modified + 11 new files**, no commit/push/merge.
+
+Automated component renders: ignored `artifacts/m21-6/renders/risk-{Light|Dark}-{1100-96|460-240}-{empty|partial|invalid|rules-bottom|confirmed|ready}.png` (**24** risk images). Representative normal/narrow Light/Dark frames were inspected for empty/partial limits, malformed amounts/counts, long expanded Rules, confirmations/progress and frozen Ready values. Tests also bind all three sections under one real WPF owner and check risk/scenario/preparation validation-focus routing. These are **automated components**, not full-page acceptance, actual human keyboard interaction, Narrator/screen-reader testing or matching CI. Those remain pending; source changes are uncommitted.
+
+### Exact M21.6 changed-file inventory
+
+**13 modified + 11 new = 24 files.** M21.5 was already committed at the actual baseline, so none of these is reported as merely pre-existing dirty work.
+
+Modified:
+
+- `README.md`
+- `docs/architecture.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Application/TradingPlans/ITradingPlanStore.cs`
+- `src/PersonalTradingJournal.Application/TradingPlans/TradingPlanContracts.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/PreparationField.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferences.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPersistenceTests.cs`
+
+New:
+
+- `src/PersonalTradingJournal.Application/TradingPlans/ITradingPlanReferenceReader.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/RiskReadinessItems.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.RiskReadiness.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Rules.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferenceReader.cs`
+- `tests/PersonalTradingJournal.Application.Tests/TradingPlans/TradingPlanReadinessSubmissionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanReadinessPersistenceTests.cs`
+
 ## M21.5 — conditional scenarios and Playbook integration
 
 Actual baseline: **clean** `develop`, `53ad935b9ebb153efe4d1089212be1149ee2e858` (`Add reusable Trading Plan session preparation`). This supersedes the attachment's reported uncommitted M21.4 baseline. M21.4 is retained; its chronological report below is not a claim that its files are still uncommitted. No applicable repository/ancestor `AGENTS.md` was found. Only synthetic catalogs/SQLite fixtures and automated WPF components were used.

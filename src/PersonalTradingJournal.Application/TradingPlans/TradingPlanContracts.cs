@@ -63,7 +63,8 @@ public sealed record TradingPlanWriteCommand
 {
     public TradingPlanWriteCommand(TradingPlanWriteOperation operation, TradingPlanKey key,
         TradingPlanContent content, TradingPlanExpectedState? expected = null,
-        TradingPlanRevisionId? sourceRevision = null)
+        TradingPlanRevisionId? sourceRevision = null, TradingPlanChecklist? explicitConfirmations = null,
+        string? expectedAccountCurrency = null)
     {
         if (!Enum.IsDefined(operation)) throw new ArgumentOutOfRangeException(nameof(operation));
         Key = key ?? throw new ArgumentNullException(nameof(key));
@@ -77,6 +78,17 @@ public sealed record TradingPlanWriteCommand
         if (operation == TradingPlanWriteOperation.StartDraft && sourceRevision!.PlanId != expected!.PlanId)
             throw new ArgumentException("Start Draft must refer to the same logical Plan.", nameof(sourceRevision));
         Operation = operation;
+        if (explicitConfirmations.HasValue)
+        {
+            TradingPlanChecklistPolicy.Validate(explicitConfirmations.Value);
+            if (operation != TradingPlanWriteOperation.SaveDraft)
+                throw new ArgumentException("Combined checklist submission requires Save Draft.", nameof(explicitConfirmations));
+        }
+        ExplicitConfirmations = explicitConfirmations;
+        if (expectedAccountCurrency is not null && (string.IsNullOrWhiteSpace(expectedAccountCurrency) ||
+            expectedAccountCurrency.Length > 8 || expectedAccountCurrency != expectedAccountCurrency.Trim().ToUpperInvariant()))
+            throw new ArgumentException("Use the reviewed canonical Account currency.", nameof(expectedAccountCurrency));
+        ExpectedAccountCurrency = expectedAccountCurrency;
         Expected = expected;
         SourceRevision = sourceRevision;
     }
@@ -85,6 +97,11 @@ public sealed record TradingPlanWriteCommand
     public TradingPlanContent Content { get; }
     public TradingPlanExpectedState? Expected { get; }
     public TradingPlanRevisionId? SourceRevision { get; }
+    /// <summary>Explicit staged user confirmations, separate from Content's ignored incoming checkmarks.
+    /// Apply existing EditDraft and SetConfirmations in the same transaction. Null preserves prior callers.</summary>
+    public TradingPlanChecklist? ExplicitConfirmations { get; }
+    /// <summary>Currency reviewed before an explicit reference refresh/derivation; no FX conversion.</summary>
+    public string? ExpectedAccountCurrency { get; }
 
     public ImmutableArray<TradingPlanValidationIssue> ValidateContent() =>
         Operation == TradingPlanWriteOperation.MarkReady ? TradingPlanReadiness.Validate(Content) : [];

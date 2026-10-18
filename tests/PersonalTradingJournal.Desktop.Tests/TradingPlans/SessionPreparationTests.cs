@@ -220,6 +220,7 @@ public sealed class SessionPreparationTests
         internal int Writes;
         internal TradingPlanWriteStatus? Result;
         internal Func<CancellationToken, Task>? Block;
+        internal Func<TradingPlanContent, TradingPlanReferenceSnapshot>? CaptureReferences;
         public async Task<TradingPlanWriteResult> WriteAsync(TradingPlanWriteCommand command, CancellationToken cancellationToken = default)
         {
             Writes++;
@@ -229,8 +230,9 @@ public sealed class SessionPreparationTests
             var copy = TradingPlan.Rehydrate(Plan.Id, Plan.Key, Plan.Version, Plan.WorkingDraft, Plan.LatestReadyRevision, Plan.CreatedAtUtc, Plan.UpdatedAtUtc);
             if (command.CheckTransition(TradingPlanLoadedState.FromPlan(copy)) is { } failure) return new(failure);
             copy.EditDraft(copy.Version, command.Content, copy.UpdatedAtUtc);
+            if (command.ExplicitConfirmations is { } checks) copy.SetConfirmations(copy.Version, checks, copy.UpdatedAtUtc);
             if (command.Operation == TradingPlanWriteOperation.RefreshReferences) copy.RefreshReferences(copy.Version, copy.UpdatedAtUtc);
-            Plan = copy; return new(TradingPlanWriteStatus.Success, copy);
+            Plan = copy; return new(TradingPlanWriteStatus.Success, copy, VerifiedReferences: CaptureReferences?.Invoke(copy.WorkingDraft!.Content));
         }
         public Task<TradingPlan?> LoadAsync(TradingPlanKey key, CancellationToken cancellationToken = default) => Task.FromResult<TradingPlan?>(Plan);
         public Task<TradingPlanReadyRevision?> LoadReadyAsync(TradingPlanRevisionId id, CancellationToken cancellationToken = default) => throw new NotSupportedException();

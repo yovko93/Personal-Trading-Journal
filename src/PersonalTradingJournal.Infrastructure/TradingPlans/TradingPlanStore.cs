@@ -69,16 +69,22 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             if (conflict.HasValue) return new(conflict.Value);
             var now = (clock ?? TimeProvider.System).GetUtcNow();
             var content = command.Content;
+            string? derivedCurrency = null;
             var op = command.Operation;
             if (op is TradingPlanWriteOperation.CopyForward or TradingPlanWriteOperation.StartDraft)
             {
                 var source = await ReadReady(db, command.SourceRevision!, cancellationToken);
                 if (source is null) return new(TradingPlanWriteStatus.Conflict);
+                derivedCurrency = source.References.Account.Currency;
                 if (op == TradingPlanWriteOperation.CopyForward) content = source.Content.CopyForward();
                 else { plan!.StartDraft(plan.Version, source, now); content = plan.WorkingDraft!.Content; }
             }
             if (plan is null) plan = new(command.Key, content, now);
-            else if (op == TradingPlanWriteOperation.SaveDraft) plan.EditDraft(plan.Version, content, now);
+            else if (op == TradingPlanWriteOperation.SaveDraft)
+            {
+                plan.EditDraft(plan.Version, content, now);
+                if (command.ExplicitConfirmations is { } checks) plan.SetConfirmations(plan.Version, checks, now);
+            }
             else if (op == TradingPlanWriteOperation.RefreshReferences)
             {
                 plan.EditDraft(plan.Version, content, now); plan.RefreshReferences(plan.Version, now);
@@ -100,6 +106,15 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
                 return new(TradingPlanWriteStatus.Conflict);
 
             var refs = await TradingPlanReferences.Resolve(db, command.Key, plan.WorkingDraft!.Content, now, cancellationToken);
+            bool monetary = content.RiskLimits.RiskPerTrade.HasValue || content.RiskLimits.DailyLossLimit.HasValue;
+            if (command.ExpectedAccountCurrency is { } reviewed && reviewed != refs.Snapshot.Account.Currency ||
+                monetary && derivedCurrency is { } priorCurrency && priorCurrency != refs.Snapshot.Account.Currency && command.ExpectedAccountCurrency is null)
+                return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
+                    TradingPlanReferenceState.Changed, "Review the changed Account currency explicitly; planned amounts are not converted.")]);
+            if (monetary && op == TradingPlanWriteOperation.RefreshReferences && command.ExpectedAccountCurrency is null && row?.ReferenceStateJson is { } baseline &&
+                TradingPlanJson.Deserialize<Dictionary<string, string>>(baseline)[$"1:{command.Key.AccountId:D}"] != refs.Tokens[$"1:{command.Key.AccountId:D}"])
+                return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
+                    TradingPlanReferenceState.Changed, "Review the current Account currency before refreshing monetary preparation.")]);
             if (row?.ReferenceStateJson is not null && op != TradingPlanWriteOperation.RefreshReferences)
                 refs.CheckPrevious(row.ReferenceStateJson);
             TradingPlanReadyRevision? ready = null;
@@ -120,7 +135,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             var result = await Read(db, persisted, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await db.Database.CommitTransactionAsync(CancellationToken.None);
-            return new(TradingPlanWriteStatus.Success, result);
+            return new(TradingPlanWriteStatus.Success, result, VerifiedReferences: refs.Snapshot);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return new(TradingPlanWriteStatus.Cancelled); }
         catch (TradingPlanNotReadyException ex) { return new(TradingPlanWriteStatus.Invalid, Issues: ex.Issues); }

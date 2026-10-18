@@ -171,7 +171,13 @@ public sealed class TradingPlanPersistenceTests
         }
         Assert.Equal(TradingPlanWriteStatus.ReferenceChanged, (await f.Store.WriteAsync(Command(TradingPlanWriteOperation.MarkReady, p))).Status);
         Assert.Equal(p.Version, (await f.Store.LoadAsync(f.Key))!.Version);
-        p = await f.Success(TradingPlanWriteOperation.RefreshReferences, p);
+        if (change != "instrument")
+            Assert.Equal(TradingPlanWriteStatus.ReferenceChanged, (await f.Store.WriteAsync(Command(TradingPlanWriteOperation.RefreshReferences, p))).Status);
+        string reviewedCurrency;
+        await using (var context = f.Context()) reviewedCurrency = (await context.TradingAccounts.SingleAsync()).Currency;
+        var refresh = await f.Store.WriteAsync(new(TradingPlanWriteOperation.RefreshReferences, p.Key, p.WorkingDraft!.Content,
+            new(p.Id, p.Version), expectedAccountCurrency: reviewedCurrency));
+        Assert.Equal(TradingPlanWriteStatus.Success, refresh.Status); p = refresh.Plan!;
         Assert.Equal(TradingPlanChecklist.None, p.WorkingDraft!.Content.Confirmed);
         p = await f.Ready(p); Assert.NotNull(p.LatestReadyRevision);
     }

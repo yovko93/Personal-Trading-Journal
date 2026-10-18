@@ -30,6 +30,7 @@ public partial class SessionPreparationSection : UserControl
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(SessionPreparationViewModel.ValidationAttempt) || sender is not SessionPreparationViewModel vm) return;
+        if (vm.RiskFields.Contains(vm.FirstInvalidField!)) return;
         if (vm.FirstInvalidField == vm.StandAside || vm.Scenarios.Any(s => s.Fields.Contains(vm.FirstInvalidField!))) return;
         // Errors in a nonselected context must be made visible, not silently saved from an older value.
         var field = vm.FirstInvalidField;

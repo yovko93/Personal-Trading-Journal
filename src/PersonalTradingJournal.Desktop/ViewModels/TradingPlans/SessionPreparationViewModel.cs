@@ -46,6 +46,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         foreach (var context in _original.Instruments) _contexts.Add(CreateEditor(context));
         _selected = _contexts.FirstOrDefault();
         InitializeScenarios();
+        InitializeRiskReadiness();
         _baseline = Fingerprint();
         AddInstrumentCommand = new RelayCommand(AddInstrument, () => CanEdit && InstrumentToAdd is { IsActive: true });
         RemoveInstrumentCommand = new RelayCommand(RemoveInstrument, () => CanEdit && SelectedInstrument is not null);
@@ -64,7 +65,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     public bool HasNoContext => !HasSelectedContext;
     public bool IsDirty => !IsReadOnly && Fingerprint() != _baseline;
     public bool HasValidationErrors => Fields.Any(f => f.IsInvalid);
-    public string StateLabel => IsReadOnly ? $"Ready revision {(_historical ?? _plan.LatestReadyRevision)!.Id.Revision} · read-only" : "Working Draft · changes are saved explicitly";
+    public string StateLabel => IsReadOnly ? $"Ready revision {(_historical ?? _plan.LatestReadyRevision)!.Id.Revision} · read-only" :
+        IsDirty ? "Working Draft · unsaved changes" : "Working Draft · current saved content";
     public PreparationField Focus { get; }
     public PreparationField News { get; }
     public ReadOnlyObservableCollection<InstrumentPreparationEditor> Contexts { get; }
@@ -91,20 +93,9 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     public IAsyncRelayCommand RefreshReferencesCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public int ValidationAttempt { get; private set; }
-    public TradingPlanChecklist Confirmed
-    {
-        get
-        {
-            // Preview exactly the Domain mutation, without mutating the loaded save token.
-            if (IsReadOnly || !TryBuildContent(out var content)) return _original.Confirmed;
-            var copy = TradingPlan.Rehydrate(_plan.Id, _plan.Key, _plan.Version, _plan.WorkingDraft,
-                _plan.LatestReadyRevision, _plan.CreatedAtUtc, _plan.UpdatedAtUtc);
-            copy.EditDraft(copy.Version, content!, copy.UpdatedAtUtc);
-            return copy.WorkingDraft!.Content.Confirmed;
-        }
-    }
+    public TradingPlanChecklist Confirmed => IsReadOnly ? _original.Confirmed : _pendingConfirmed;
     private IEnumerable<PreparationField> Fields => new[] { Focus }.Concat(_contexts.SelectMany(c => c.Fields))
-        .Append(News).Concat(_scenarios.SelectMany(s => s.Fields)).Append(StandAside);
+        .Append(News).Concat(_scenarios.SelectMany(s => s.Fields)).Append(StandAside).Concat(RiskFields);
 
     public async Task LoadCatalogAsync(CancellationToken cancellationToken = default)
     {
@@ -128,7 +119,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         content = null;
         if (HasValidationErrors) return false;
         content = new(Session, Focus.Text, Intent, _contexts.Select(c => c.Build()),
-            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, _original.RiskLimits, _original.Rules, _original.Confirmed);
+            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, BuildRisk(), _linkedRules.Select(r => r.Link), Confirmed);
         return true;
     }
 
@@ -143,22 +134,28 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             Message = "Correct the highlighted input before saving. All entered text is retained.";
             ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return TradingPlanWriteStatus.Invalid;
         }
-        var command = new TradingPlanWriteCommand(operationKind, Key, content!, Token);
+        if (operationKind == TradingPlanWriteOperation.RefreshReferences && HasMonetaryLimits && _currentAccount is null)
+        { Message = "Check references to review the Account currency before refreshing planned amounts. Input is retained."; return TradingPlanWriteStatus.Invalid; }
+        var command = new TradingPlanWriteCommand(operationKind, Key, content!, Token,
+            explicitConfirmations: operationKind == TradingPlanWriteOperation.SaveDraft ? Confirmed : null,
+            expectedAccountCurrency: operationKind == TradingPlanWriteOperation.RefreshReferences ? _currentAccount?.Currency : null);
         using var operation = Begin(ct);
         try
         {
             var result = await Task.Run(() => _store.WriteAsync(command, operation.Token), operation.Token);
             // A committed success remains success even if cancellation arrives after commit.
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } saved &&
-                saved.Id == _plan.Id && saved.Key == Key && saved.Version >= _plan.Version)
+                saved.Id == _plan.Id && saved.Key == Key && saved.Version >= _plan.Version && ReadbackMatches(saved, content!, command))
             {
-                _plan = saved; _original = saved.WorkingDraft.Content; _baseline = Fingerprint();
+                _plan = saved; _original = saved.WorkingDraft.Content;
+                AcceptSavedReadiness(result); _baseline = Fingerprint();
                 Message = operationKind == TradingPlanWriteOperation.RefreshReferences
                     ? "References refreshed and Draft saved. All checklist confirmations must be made again."
                     : "Draft saved and verified.";
                 return TradingPlanWriteStatus.Success;
             }
             var status = result.Status == TradingPlanWriteStatus.Success ? TradingPlanWriteStatus.StorageFailure : result.Status;
+            ObserveWriteFailure(status, result.References.IsDefaultOrEmpty || result.References.Any(r => r.Kind == TradingPlanReferenceKind.Account));
             Message = status switch
             {
                 TradingPlanWriteStatus.Conflict => "This Plan changed elsewhere. Keep your input and resolve the newer Draft before saving.",
@@ -171,7 +168,12 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             return status;
         }
         catch (OperationCanceledException) { Message = "Save cancelled. Entered preparation is retained."; return TradingPlanWriteStatus.Cancelled; }
-        catch (Exception) { Message = "Draft could not be saved and verified. Entered preparation is retained; try again."; return TradingPlanWriteStatus.StorageFailure; }
+        catch (Exception)
+        {
+            ObserveWriteFailure(TradingPlanWriteStatus.StorageFailure);
+            Message = "Draft could not be saved and verified. Entered preparation is retained; try again.";
+            return TradingPlanWriteStatus.StorageFailure;
+        }
         finally { End(); Changed(); }
     }
 
@@ -182,6 +184,12 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         if (_contexts.Count >= TradingPlanContent.MaximumInstruments) { Message = $"Use at most {TradingPlanContent.MaximumInstruments} instruments."; return; }
         var editor = CreateEditor(new(item.Id)); editor.Label = Label(item.Id, AvailableInstruments);
         _contexts.Add(editor); SelectedInstrument = editor; Changed();
+    }
+    private static bool ReadbackMatches(TradingPlan saved, TradingPlanContent proposed, TradingPlanWriteCommand command)
+    {
+        var copy = TradingPlan.Rehydrate(saved.Id, saved.Key, saved.Version, saved.WorkingDraft, saved.LatestReadyRevision, saved.CreatedAtUtc, saved.UpdatedAtUtc);
+        return !copy.EditDraft(copy.Version, proposed, copy.UpdatedAtUtc) && saved.WorkingDraft!.Content.Confirmed ==
+            (command.Operation == TradingPlanWriteOperation.RefreshReferences ? TradingPlanChecklist.None : command.ExplicitConfirmations!.Value);
     }
     private void RemoveInstrument()
     {
@@ -202,6 +210,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     private string Fingerprint() => System.Text.Json.JsonSerializer.Serialize(new
     {
         Session, Focus = Focus.Text, News = News.Text, Intent, StandAside = StandAside.Text,
+        Risk = RiskFields.Select(f => f.Text), Rules = _linkedRules.Select(r => r.Link), Confirmed,
         Scenarios = _scenarios.Select(s => s.RawState),
         Instruments = _contexts.Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.Text) })
     });
@@ -214,13 +223,19 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(CanSelectContext));
         foreach (var field in Fields) field.NotifyAccess();
         NotifyScenarioAccess();
+        NotifyRiskAccess();
         AddInstrumentCommand.NotifyCanExecuteChanged(); RemoveInstrumentCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged(); RefreshReferencesCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();
     }
     private void Changed()
     {
+        InvalidateEditedConfirmations();
+        if (IsDirty && Message is "Draft saved and verified." or "References refreshed and Draft saved. All checklist confirmations must be made again.")
+            Message = "Unsaved Draft changes. Save to verify and persist the current preparation and confirmations.";
         OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(HasValidationErrors)); OnPropertyChanged(nameof(Confirmed)); OnPropertyChanged(nameof(Token));
+        OnPropertyChanged(nameof(StateLabel));
         NotifyScenarioAccess();
+        NotifyRiskAccess();
     }
     public void Dispose() { _disposed = true; _operation?.Cancel(); NotifyAccess(); }
 }

@@ -5,7 +5,8 @@ namespace PersonalTradingJournal.Application.TradingPlans;
 
 public sealed record TradingPlanWriteResult(TradingPlanWriteStatus Status, TradingPlan? Plan = null,
     ImmutableArray<TradingPlanValidationIssue> Issues = default,
-    ImmutableArray<TradingPlanReferenceIssue> References = default);
+    ImmutableArray<TradingPlanReferenceIssue> References = default,
+    TradingPlanReferenceSnapshot? VerifiedReferences = null);
 
 /// <summary>Reads throw cancellation/storage errors; malformed stored evidence is never repaired.
 /// Mutations return sanitized outcomes and the committed aggregate, including its next expected token.</summary>

@@ -16,6 +16,7 @@ internal sealed class PlanReferenceException(TradingPlanReferenceIssue issue) : 
 
 internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapshot, Dictionary<string, string> Tokens)
 {
+    internal static string Fingerprint(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(TradingPlanJson.Write(value))));
     internal static void ValidateStored(Guid accountId, TradingPlanContent content, string json)
     {
         var tokens = TradingPlanJson.Deserialize<Dictionary<string, string>>(json);
@@ -32,7 +33,7 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
     {
         var tokens = new Dictionary<string, string>();
         void Token(TradingPlanReferenceKind kind, Guid id, object record) => tokens.Add($"{(int)kind}:{id:D}",
-            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(TradingPlanJson.Write(record)))));
+            Fingerprint(record));
         static void Require(bool condition, TradingPlanReferenceKind kind, Guid id, TradingPlanReferenceState state)
         {
             if (!condition) throw new PlanReferenceException(new(kind, id, state,
