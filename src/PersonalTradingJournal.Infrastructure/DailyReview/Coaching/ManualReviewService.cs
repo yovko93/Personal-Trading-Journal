@@ -30,20 +30,22 @@ public sealed class ManualReviewService(IApplicationPaths paths, IDailyReviewEvi
         if (request.Kind == ManualReviewKind.Daily)
         {
             var query = new DailyReviewQuery(request.Date, request.AccountId);
-            var read = await dailyReader.GetAsync(query, token);
+            DailyReviewEvidence read;
+            try { read = await dailyReader.GetAsync(query, token); }
+            catch (Application.TradingPlans.ReviewPlanLimitException) { throw new ManualReviewException("TooLarge: saved preparation exceeds the bounded evidence limit. No prompt was prepared or truncated."); }
             if (read.Query != query) throw new ManualReviewException("Evidence scope mismatch.");
-            if (read.Trades.Count == 0 && !read.Journals.Any(j => new[] { j.Text, j.Answers.WentWell, j.Answers.NeedsImprovement, j.Answers.NextTradingDay }.Any(t => !string.IsNullOrWhiteSpace(t))))
-                throw new ManualReviewException("No usable Trade or Journal evidence. No prompt was prepared.");
+            if (read.Trades.Count == 0 && read.Preparation?.Revisions.Count is not > 0 && !read.Journals.Any(j => new[] { j.Text, j.Answers.WentWell, j.Answers.NeedsImprovement, j.Answers.NextTradingDay }.Any(t => !string.IsNullOrWhiteSpace(t))))
+                throw new ManualReviewException("No usable Trade, Journal or Ready preparation evidence. No prompt was prepared.");
             var built = CoachingEvidencePacketBuilder.Build(read, token);
             if (built.Packet is not { } packet) throw new ManualReviewException("TooLarge or invalid complete daily evidence. Nothing was truncated or sent.");
-            evidence = supplied = packet.Json; instructions = OpenAiCoachingContract.Instructions; schema = OpenAiCoachingContract.Schema().ToJsonString();
+            evidence = supplied = packet.Json; instructions = OpenAiCoachingContract.InstructionsFor(packet); schema = OpenAiCoachingContract.Schema().ToJsonString();
         }
         else
         {
             var query = new PeriodReviewQuery(request.Kind == ManualReviewKind.Weekly ? ReviewPeriodKind.Week : ReviewPeriodKind.Month, request.Date, request.AccountId);
             var read = await periodReader.ReadComparisonAsync(query, token);
             if (read.Evidence is not { } pair || pair.Current.Query != query) throw new ManualReviewException("TooLarge or unavailable complete period evidence.");
-            if (pair.Current.ClosedTrades.Count + pair.Current.ActivityContext.Count + pair.Current.Assessments.Count == 0 &&
+            if (pair.Current.ClosedTrades.Count + pair.Current.ActivityContext.Count + pair.Current.Assessments.Count == 0 && pair.Current.Preparation?.Revisions.Count is not > 0 &&
                 !pair.Current.Journals.Any(j => new[] { j.Text, j.Answers.WentWell, j.Answers.NeedsImprovement, j.Answers.NextTradingDay }.Any(t => !string.IsNullOrWhiteSpace(t))))
                 throw new ManualReviewException("No usable evidence. No prompt was prepared.");
             var built = PeriodCoachingPacketBuilder.Build(pair, token);

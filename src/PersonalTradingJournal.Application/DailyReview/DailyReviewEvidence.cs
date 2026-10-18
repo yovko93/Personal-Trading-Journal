@@ -6,7 +6,9 @@ using PersonalTradingJournal.Domain.Trades;
 namespace PersonalTradingJournal.Application.DailyReview;
 
 public sealed record DailyReviewEvidence(DailyReviewQuery Query,
-    IReadOnlyList<DailyReviewTradeEvidence> Trades, IReadOnlyList<DailyReviewJournalEvidence> Journals);
+    IReadOnlyList<DailyReviewTradeEvidence> Trades, IReadOnlyList<DailyReviewJournalEvidence> Journals,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    TradingPlans.ReviewPlanEvidence? Preparation = null);
 
 public enum DailyReviewTradeInclusion
 {

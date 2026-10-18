@@ -106,6 +106,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         {
             tradingPlan.OpenPlaybook = OpenPlanPlaybookAsync;
             tradingPlan.OpenRule = OpenPlanRuleAsync;
+            tradingPlan.OpenDailyReview = OpenPlanDailyReviewAsync;
         }
         _periodReviews = periodReviews;
         _tradesViewModel = tradesViewModel;
@@ -180,12 +181,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         foreach (var period in _periodReviews?.All ?? [])
         {
             period.OpenTradeAsync = OpenReviewTradeAsync;
+            period.OpenPreparationAsync = OpenReviewPreparationAsync;
             period.OpenJournalAsync = OpenPeriodJournalAsync;
             period.OpenSettings = () => Navigate(NavigationDestination.Settings);
         }
         if (_dailyReviewViewModel is not null)
         {
             _dailyReviewViewModel.OpenTradeAsync = OpenReviewTradeAsync;
+            _dailyReviewViewModel.OpenPreparationAsync = OpenReviewPreparationAsync;
             _dailyReviewViewModel.OpenJournalAsync = OpenReviewJournalAsync;
             _dailyReviewViewModel.OpenAiSettings = () => Navigate(NavigationDestination.Settings);
         }
@@ -298,12 +301,13 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_tradingPlan is not null) { _tradingPlan.OpenDailyReview = null; _tradingPlan.ReturnToReview = null; }
         _tradingPlan?.Dispose();
         _tradesViewModel.DisposeBrowse(); _tradesViewModel.ReturnToBreakdownAsync = null;
         if (_breakdownViewModel is not null) _breakdownViewModel.OpenTradesAsync = null;
         _breakdownViewModel?.Dispose();
         foreach (var period in _periodReviews?.All ?? [])
-        { period.Deactivate(); period.OpenTradeAsync = null; period.OpenJournalAsync = null; period.OpenSettings = null; }
+        { period.Deactivate(); period.OpenTradeAsync = null; period.OpenJournalAsync = null; period.OpenSettings = null; period.OpenPreparationAsync = null; }
         _disposed = true;
         _themeService.ThemeChanged -= OnThemeChanged;
         _importViewModel.ImportCommitted -= OnImportCommitted;
@@ -325,6 +329,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _dailyReviewViewModel.OpenTradeAsync = null;
             _dailyReviewViewModel.OpenJournalAsync = null;
             _dailyReviewViewModel.OpenAiSettings = null;
+            _dailyReviewViewModel.OpenPreparationAsync = null;
         }
     }
 
@@ -489,7 +494,34 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return rule is not null && _rulesViewModel.TrySelect(rule);
     }
 
-    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null)
+    private async Task<bool> OpenReviewPreparationAsync(PersonalTradingJournal.Application.TradingPlans.ReviewPlanRevision revision)
+    {
+        if (_disposed || _tradingPlan is null || _tradingPlan.IsBusy) return false;
+        var origin = CurrentDestination;
+        if (origin != NavigationDestination.DailyReview && ActivePeriod is null) return false;
+        NavigateCore(NavigationDestination.TradingPlan, null, retainReview: true);
+        if (CurrentDestination != NavigationDestination.TradingPlan) return false;
+        await _tradingPlan.ContextTask;
+        if (_disposed || CurrentDestination != NavigationDestination.TradingPlan) return false;
+        bool opened = await _tradingPlan.OpenReviewRevisionAsync(revision);
+        if (_disposed || CurrentDestination != NavigationDestination.TradingPlan) return false;
+        if (!opened) { NavigateCore(origin, null, retainReview: true); return false; }
+        _tradingPlan.ReturnToReview = () => NavigateCore(origin, null, retainReview: true);
+        return true;
+    }
+
+    private Task OpenPlanDailyReviewAsync(PersonalTradingJournal.Domain.TradingPlans.TradingPlanKey key, string label)
+    {
+        if (_disposed || _dailyReviewViewModel is null || CurrentDestination != NavigationDestination.TradingPlan) return Task.CompletedTask;
+        // Related navigation retains the same Plan editor. Existing Review draft and destination guards still run.
+        if (!_dailyReviewViewModel.TryLeave()) return Task.CompletedTask;
+        _dailyReviewViewModel.SelectedDate = key.NewYorkDate.ToDateTime(TimeOnly.MinValue);
+        _dailyReviewViewModel.SelectedAccount = new(key.AccountId, label);
+        NavigateCore(NavigationDestination.DailyReview, null);
+        return _dailyReviewViewModel.LoadTask;
+    }
+
+    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null, bool retainReview = false)
     {
         if (_disposed) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return;
@@ -526,10 +558,10 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Trades) _tradesViewModel.DeactivateBrowse();
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Breakdown) _breakdownViewModel?.Deactivate();
-        ActivePeriod?.Deactivate();
+        ActivePeriod?.Deactivate(retainReview);
         if (CurrentDestination == NavigationDestination.Calendar) _calendarViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Journal) _journalViewModel.Deactivate(resetOnNextActivation: true);
-        if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate();
+        if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate(retainReview);
         if (CurrentDestination == NavigationDestination.Playbook) _playbookViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Rules) _rulesViewModel?.Deactivate();
         CurrentDestination = destination;
@@ -563,7 +595,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _breakdownViewModel.ActivateAsync();
             if (returningToBreakdown) _ = _breakdownViewModel.RefreshAppliedAsync();
         }
-        if (ActivePeriod is { } period) _ = period.ActivateAsync();
+        if (ActivePeriod is { } period) { if (retainReview) period.ResumeFromPreparation(); else _ = period.ActivateAsync(); }
 
         if (destination == NavigationDestination.Playbook && _playbookViewModel is not null)
             _ = _playbookViewModel.ActivateAsync();
@@ -578,7 +610,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             _ = _journalViewModel.ActivateAsync(loadTradeContext: true, expectedJournalId: expectedJournalId);
 
         if (destination == NavigationDestination.DailyReview && _dailyReviewViewModel is not null)
-            _ = _dailyReviewViewModel.ActivateAsync();
+            if (retainReview) _dailyReviewViewModel.ResumeFromPreparation(); else _ = _dailyReviewViewModel.ActivateAsync();
 
         if (destination == NavigationDestination.Accounts)
         {

@@ -128,7 +128,9 @@ public sealed class DailyReviewEvidenceReader(IDbContextFactory<JournalDbContext
                 Array.AsReadOnly(assigned), quality, ReadPlaybook(row.Id, row.Setup?.Id)));
         }
         cancellationToken.ThrowIfCancellationRequested();
-        return new(query, trades.AsReadOnly(), journals.AsReadOnly());
+        var preparation = await TradingPlans.ReviewPlanEvidenceReader.ReadAsync(context, query.Date, throughDate,
+            query.TradingAccountId, trades, journals, cancellationToken);
+        return new(query, trades.AsReadOnly(), journals.AsReadOnly(), preparation);
 
         DailyReviewPlaybookEvidence ReadPlaybook(Guid tradeId, Guid? selectedSetup)
         {

@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Application.DailyReview.Coaching;
 
-public enum CoachingObservationBasis { CalculatedFact, RecordedTradeFact, UserWrittenJournalObservation, UserWrittenPlaybookContext }
+public enum CoachingObservationBasis { CalculatedFact, RecordedTradeFact, UserWrittenJournalObservation, UserWrittenPlaybookContext, UserWrittenPreparation }
 
 public sealed record CoachingStatement(string Text, IReadOnlyList<string> SourceIds);
 

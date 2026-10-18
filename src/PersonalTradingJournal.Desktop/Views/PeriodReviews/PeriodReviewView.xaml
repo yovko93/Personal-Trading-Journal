@@ -4,6 +4,7 @@
  xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.PeriodReviews"
  xmlns:daily="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.DailyReview"
  xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.PeriodReviews"
+ xmlns:plans="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
  Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="16">
  <UserControl.Resources>
   <ResourceDictionary>
@@ -92,6 +93,11 @@
    </ItemsControl>
    <Expander Header="Generation and saved snapshot details"><StackPanel><TextBlock Text="{Binding Metadata}" Style="{StaticResource Body}" /><TextBlock Text="{Binding Notice}" Style="{StaticResource Body}" /></StackPanel></Expander>
    <Expander Header="Saved calculated statistics and coverage" AutomationProperties.Name="Saved calculated statistics and coverage"><ItemsControl ItemsSource="{Binding Metrics}" /></Expander>
+   <Expander Header="Saved Trading Plan preparation · full local snapshot"><StackPanel>
+    <TextBlock Text="Full local evidence is retained here. The prompt supplied only its declared aggregates and bounded Ready examples; a saved citation does not imply that other individual details were supplied." Style="{StaticResource Body}" />
+    <plans:ReviewPreparationView Preparation="{Binding Preparation}" OpenCommand="{Binding DataContext.OpenPreparationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+    <Expander Header="Saved previous-period preparation"><plans:ReviewPreparationView Preparation="{Binding PreviousPreparation}" OpenCommand="{Binding DataContext.OpenPreparationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" /></Expander>
+   </StackPanel></Expander>
    <Button Content="Close saved review" Command="{Binding DataContext.CloseCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" Style="{DynamicResource PtjButtonStyle}" HorizontalAlignment="Left" />
   </StackPanel></DataTemplate>
   <DataTemplate DataType="{x:Type vm:PeriodHistoryRow}"><Border Style="{DynamicResource PtjCardStyle}" Margin="0,6"><StackPanel>
@@ -140,12 +146,16 @@
    <ContentControl x:Name="SavedReport" Content="{Binding Report}" Margin="0,16" />
    <ContentControl x:Name="CitationDetail" Content="{Binding Citation}" Focusable="True" AutomationProperties.Name="Saved citation detail"><ContentControl.Style><Style TargetType="ContentControl"><Style.Triggers><Trigger Property="Content" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers></Style></ContentControl.Style><ContentControl.ContentTemplate><DataTemplate><Border Style="{DynamicResource PtjCardStyle}"><StackPanel>
     <TextBlock Text="{Binding Label}" Style="{StaticResource Heading}" /><TextBlock Text="{Binding Detail}" Style="{StaticResource Body}" MaxWidth="820" HorizontalAlignment="Left" />
+    <Button Content="Open exact Ready revision" Style="{DynamicResource PtjButtonStyle}" HorizontalAlignment="Left" Visibility="{Binding HasPreparation, Converter={StaticResource Visible}}"
+      Command="{Binding DataContext.OpenPreparationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Preparation}" AutomationProperties.Name="Open exact saved preparation revision" />
     <WrapPanel><Button Content="Open current Trade" Style="{DynamicResource PtjButtonStyle}" Margin="0,4,8,4" Visibility="{Binding HasTrade, Converter={StaticResource Visible}}"
       Command="{Binding DataContext.OpenTradeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="Open exact Trade for saved citation" />
      <Button Content="Open current Journal" Style="{DynamicResource PtjButtonStyle}" Margin="0,4" Visibility="{Binding HasJournal, Converter={StaticResource Visible}}"
       Command="{Binding DataContext.OpenJournalCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="Open exact Journal for saved citation" /></WrapPanel>
    </StackPanel></Border></DataTemplate></ContentControl.ContentTemplate></ContentControl>
    <TextBlock Text="{Binding Current.Coverage}" Style="{StaticResource Message}" Foreground="{DynamicResource PtjWarningBrush}" />
+   <Expander Header="Current Trading Plan preparation · saved intention"><plans:ReviewPreparationView Preparation="{Binding Current.Preparation}" OpenCommand="{Binding OpenPreparationCommand}" /></Expander>
+   <Expander Header="Previous-period Trading Plan preparation"><plans:ReviewPreparationView Preparation="{Binding Current.PreviousPreparation}" OpenCommand="{Binding OpenPreparationCommand}" /></Expander>
    <Expander Header="Current calculated statistics and data coverage"><ItemsControl ItemsSource="{Binding Current.Metrics}" /></Expander>
    <Expander Header="Current Journal observations · user-written"><StackPanel><TextBlock Text="{Binding Current.JournalNotice}" Style="{StaticResource Body}" /><ItemsControl ItemsSource="{Binding Current.Journals}" /></StackPanel></Expander>
    <Expander Header="Current comparisons with the previous period"><ItemsControl ItemsSource="{Binding Current.Comparison}" /></Expander>

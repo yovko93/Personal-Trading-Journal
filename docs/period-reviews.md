@@ -1,5 +1,19 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## M21.9 — current and previous preparation
+
+Weekly/Monthly evidence reuses the same snapshot-bound Trading Plan projection as Daily Review. Current and immediately preceding periods carry their own saved Account/date identities, latest Ready context and exact entry-eligible revisions, including entry dates before the closed-Trade period. Absent prior preparation is not filled with today's Plan. Draft prose is never supplied. Trade activity, strict Net/currencies, Rule outcomes and mistake definitions are unchanged.
+
+`period-coaching.v3` keeps the complete immutable local evidence and supplies **complete preparation coverage aggregates** by Account and closed/activity inclusion plus **at most two identifiable Ready examples per period side**. Individual Trade examples include their exact chronology/identity comparison. The existing source inventory declares available versus supplied examples; local-only Ready sources cannot be cited. `current:`/`previous:`/`both:` restrictions, packet identity, finding/action validation and three-step action limit remain in force. Plan intentions are user observations, calculated eligibility is a distinct source category, and neither is proof of adherence or a new Rule assessment.
+
+Existing 262,144-byte supplied-projection and 2,097,152-byte full-snapshot bounds remain unchanged. Daily/period snapshot reads additionally cap preparation at 1,024 Account/day markers, 1,024 selected Ready revisions, 10,000 Trade comparisons and 2,000,000 stored Ready-payload characters; oversized evidence is rejected without a partial packet. Preparation text can still make a complete prompt too large. No silent truncation, automatic retry, provider fallback or new network path is introduced.
+
+Saved detail has separate expandable **full local** current/previous preparation; it explicitly warns that not every individual detail was supplied to external AI. Readable citations resolve only supplied sources. Exact Ready navigation and return reuse retained editor/review state; saved labels do not change after source deletion. v1/v2 saved reports and supported v2 pending responses remain compatible and are not interpreted as having new evidence. Complete backup and portable JSON already preserve opaque saved evidence/response JSON, so no schema/export change is required. Pending-file exclusions and older-schema restore limits are unchanged.
+
+[M21.9 definitions, verification, exact changed files and remaining live/CI acceptance](trading-plan.md#m219--trades-review-and-ai-evidence-integration). Only synthetic tests/fake providers are used; M21.10 has not begun.
+
+Local status: **1,097 affected tests passed**, including Weekly/Monthly manual snapshot restart reads and 25-Trade fake-HTTP save/display compatibility. Light/Dark normal/narrow/240-DPI preparation renders were inspected. Final complete gate: **4,776 passed / 87 failed / zero skipped, exit 1**. **Complete-gate acceptance is blocked** by the separate Calendar restored-size (86 propagated parent failures) and Breakdown date-popup failures; initial-failure evidence remains in the linked M21.9 report. Build/EF/whitespace pass, while actual-app/human accessibility and matching CI remain pending.
+
 ## M19.8 CI #95 follow-up — 15 October 2026
 
 **OPEN pending matching corrected CI and remaining live checks.** The [updated shared matrix](daily-review.md#m198-ci-95-follow-up--15-october-2026) supersedes the earlier no-CI-run status. CI #95 failed on PR #22 merge `13588c00d192db3bca8f1b0d4436324d3a2bc70e`, incorporating develop `52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`. Playbook's Save assertions passed before its child crashed after STA shutdown with a runtime thread-teardown assertion; the parent reported that nonzero exit. Infrastructure continued progressing until the separate ten-minute Actions cutoff. No claim that one defect explains both.

@@ -28,6 +28,8 @@
  </UserControl.Resources>
  <DockPanel Margin="14,8,14,12">
   <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+   <Button Content="Open Daily Review" Command="{Binding OpenDailyReviewCommand}" Style="{StaticResource Action}" />
+   <Button Content="Return to Review" Command="{Binding ReturnToReviewCommand}" Style="{StaticResource Action}" Visibility="{Binding CanReturnToReview, Converter={StaticResource VisibleIf}}" />
    <RadioButton Content="Session Brief" IsChecked="{Binding IsBriefSelected, Mode=OneWay}" Command="{Binding ShowBriefCommand}" GroupName="PlanTab" Margin="0,4,20,4" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Session Brief tab" />
    <RadioButton Content="History" IsChecked="{Binding IsHistorySelected, Mode=OneWay}" Command="{Binding ShowHistoryCommand}" GroupName="PlanTab" Margin="0,4,20,4" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="History tab" />
   </WrapPanel>

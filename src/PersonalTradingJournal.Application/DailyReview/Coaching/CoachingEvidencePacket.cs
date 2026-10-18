@@ -5,7 +5,8 @@ namespace PersonalTradingJournal.Application.DailyReview.Coaching;
 
 public static class CoachingContract
 {
-    public const string Version = "daily-coaching.v2";
+    public const string Version = "daily-coaching.v3";
+    public const string PlaybookVersion = "daily-coaching.v2";
     public const string LegacyVersion = "daily-coaching.v1";
     public const int MaximumPacketBytes = 262_144;
     public const int MaximumTrades = 500;
@@ -38,12 +39,13 @@ public static class CoachingContract
     };
 }
 
-public enum CoachingSourceKind { DayStatistics, CurrencyStatistics, AccountStatistics, Trade, Execution, Journal, PlaybookAssociation }
+public enum CoachingSourceKind { DayStatistics, CurrencyStatistics, AccountStatistics, Trade, Execution, Journal, PlaybookAssociation, TradingPlanRevision, PreparationComparison }
 
 public sealed record CoachingSource(string Id, CoachingSourceKind Kind, Guid? AccountId = null,
     string? Currency = null, Guid? TradeId = null, Guid? ExecutionId = null, Guid? JournalId = null, long? Revision = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? SetupId = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? AssociationSequence = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] int? AssociationSequence = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? PlanId = null);
 
 public sealed record CoachingJournalGaps(string SourceId, IReadOnlyList<string> EmptyOrWhitespaceFields);
 
@@ -54,16 +56,17 @@ public sealed record CoachingDataLimitations(bool NoTradeEvidence, bool NoClosed
 public sealed record CoachingEvidenceContent(DailyReviewQuery Query, string ContentHandling,
     DailyReviewStatistics CalculatedFacts, IReadOnlyList<DailyReviewTradeEvidence> RecordedTradeFacts,
     IReadOnlyList<DailyReviewJournalEvidence> UntrustedJournalObservations,
-    CoachingDataLimitations MissingOrUncertainData, IReadOnlyList<CoachingSource> Sources);
+    CoachingDataLimitations MissingOrUncertainData, IReadOnlyList<CoachingSource> Sources,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TradingPlans.ReviewPlanEvidence? Preparation = null);
 
 /// <summary>Only the builder creates packets. All nested collections are defensive read-only copies.
 /// PacketId is SHA-256 of version + canonical content, not a database ID or authentication signature.</summary>
 public sealed class CoachingEvidencePacket
 {
-    internal CoachingEvidencePacket(CoachingEvidenceContent content, string packetId, string json, int byteCount)
-    { Content = content; PacketId = packetId; Json = json; Utf8ByteCount = byteCount; }
+    internal CoachingEvidencePacket(CoachingEvidenceContent content, string packetId, string json, int byteCount, string version = CoachingContract.Version)
+    { Content = content; PacketId = packetId; Json = json; Utf8ByteCount = byteCount; ContractVersion = version; }
 
-    public string ContractVersion => CoachingContract.Version;
+    public string ContractVersion { get; }
     public string PacketId { get; }
     public CoachingEvidenceContent Content { get; }
     public string Json { get; }

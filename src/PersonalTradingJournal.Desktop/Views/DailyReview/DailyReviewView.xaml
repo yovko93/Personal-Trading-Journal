@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:manual="clr-namespace:PersonalTradingJournal.Desktop.Views.DailyReview"
              xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.DailyReview"
+             xmlns:plans="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
              Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="16">
     <UserControl.Resources>
         <ResourceDictionary>
@@ -66,6 +67,10 @@
                                 <TextBlock Style="{StaticResource Prose}" Text="{Binding CapturedPlaybook}" />
                             </Expander>
                             <WrapPanel>
+                                <Button Content="Open exact Ready revision" Style="{DynamicResource PtjButtonStyle}"
+                                        Visibility="{Binding HasPreparation, Converter={StaticResource BoolVisibility}}"
+                                        Command="{Binding DataContext.OpenPreparationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding Preparation}" AutomationProperties.Name="{Binding Label}" />
                                 <Button Content="Open current Trade" Style="{DynamicResource PtjButtonStyle}"
                                         Visibility="{Binding HasTrade, Converter={StaticResource BoolVisibility}}"
                                         Command="{Binding DataContext.OpenTradeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -96,6 +101,9 @@
                         </Border>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
+                <Expander Header="Trading Plan preparation · saved intention, not adherence" Margin="0,8" Foreground="{DynamicResource PtjTextPrimaryBrush}">
+                    <plans:ReviewPreparationView Preparation="{Binding Preparation}" OpenCommand="{Binding DataContext.OpenPreparationCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                </Expander>
                 <TextBlock Text="Journal observations · user-written" Style="{StaticResource Heading}" />
                 <Border Style="{DynamicResource PtjCardStyle}" Margin="0,4,0,12">
                     <StackPanel>

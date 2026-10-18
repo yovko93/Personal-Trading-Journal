@@ -30,6 +30,11 @@ internal static class OpenAiCoachingContract
         Return only the complete JSON object; never a partial review.
         """;
 
+    internal static string InstructionsFor(CoachingEvidencePacket packet) => Instructions +
+        (packet.Content.Preparation is null ? "" : "\nUserWrittenPreparation cites only TradingPlanRevision sources. " +
+            "CalculatedFact may cite PreparationComparison for supplied timing/identity facts, never intentions. " +
+            Application.TradingPlans.ReviewPlanEvidence.Handling);
+
     internal static JsonObject Schema()
     {
         JsonObject Text() => new() { ["type"] = "string" };
@@ -43,7 +48,7 @@ internal static class OpenAiCoachingContract
         JsonObject Observation() => Object(new()
         {
             ["basis"] = new JsonObject { ["type"] = "string",
-                ["enum"] = new JsonArray("CalculatedFact", "RecordedTradeFact", "UserWrittenJournalObservation", "UserWrittenPlaybookContext") },
+                ["enum"] = new JsonArray("CalculatedFact", "RecordedTradeFact", "UserWrittenJournalObservation", "UserWrittenPlaybookContext", "UserWrittenPreparation") },
             ["text"] = Text(), ["sourceIds"] = ArrayOf(Text()),
         });
         return Object(new()
@@ -58,9 +63,9 @@ internal static class OpenAiCoachingContract
     internal static string RequestJson(CoachingEvidencePacket packet, OpenAiCoachingOptions options) =>
         JsonSerializer.Serialize(new
         {
-            model = options.Model, instructions = Instructions,
+            model = options.Model, instructions = InstructionsFor(packet),
             input = new[] { new { role = "user", content = packet.Json } },
-            text = new { format = new { type = "json_schema", name = "daily_coaching_v2", strict = true, schema = Schema() } },
+            text = new { format = new { type = "json_schema", name = "daily_coaching_v3", strict = true, schema = Schema() } },
             max_output_tokens = options.MaximumOutputTokens,
             store = false, stream = false, background = false, truncation = "disabled",
         });

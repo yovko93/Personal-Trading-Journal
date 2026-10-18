@@ -1220,8 +1220,9 @@ public sealed partial class MainWindowViewModelTests
     }
 
     internal static MainWindowViewModel CreatePlanShell(PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel plan,
-        PlaybookViewModel? playbook = null, PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null) =>
-        CreateFixture(tradingPlan: plan, playbook: playbook, rules: rules).Main;
+        PlaybookViewModel? playbook = null, PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null) =>
+        CreateFixture(tradingPlan: plan, playbook: playbook, rules: rules, dailyReview: dailyReview).Main;
 
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,

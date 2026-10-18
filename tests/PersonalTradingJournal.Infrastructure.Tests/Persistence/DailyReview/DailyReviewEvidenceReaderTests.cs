@@ -291,7 +291,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
     }
 
     [Fact]
-    public async Task ReadsUseSixSelectsNoWritesNoTrackingAndNoBrowsePageLimit()
+    public async Task ReadsUseNineSelectsIncludingBoundedPreparationNoWritesNoTrackingAndNoBrowsePageLimit()
     {
         await using var db = await ReaderTestDatabase.CreateAsync();
         var (account, instrument) = await References(db);
@@ -304,7 +304,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
         Assert.Equal(75, statistics.Population.Closed.Count);
         Assert.Equal(result.Trades.Sum(t => t.Facts!.GrossPnL), Assert.Single(statistics.Currencies).Gross.Metrics.Total);
         Assert.Equal(result.Trades.Select(t => t.TradeId).Order(), result.Trades.Select(t => t.TradeId));
-        Assert.Equal(6, observer.Sql.Count); Assert.False(observer.Tracked);
+        Assert.Equal(9, observer.Sql.Count); Assert.False(observer.Tracked);
         Assert.All(observer.Sql, sql => Assert.StartsWith("SELECT", sql));
         Assert.Equal(0, observer.NonReads);
         await using var check = await db.ContextFactory.CreateDbContextAsync();

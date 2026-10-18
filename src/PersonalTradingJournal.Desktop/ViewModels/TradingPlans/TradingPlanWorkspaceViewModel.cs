@@ -72,6 +72,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         StartDraftCommand = new AsyncRelayCommand(StartDraftAsync, () => Editor?.IsReadOnly == true && !IsBusy && !HasPendingDate);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => IsBusy);
         InitializeHistory();
+        InitializeReviewNavigation();
     }
 
     private DateOnly Today => DateOnly.FromDateTime(TradingTimePolicy.ConvertUtcToTradingTime(_clock.GetUtcNow()).DateTime);

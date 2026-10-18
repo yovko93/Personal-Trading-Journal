@@ -10,7 +10,8 @@ namespace PersonalTradingJournal.Application.PeriodReviews.Coaching;
 
 public static class PeriodCoachingContract
 {
-    public const string Version = "period-coaching.v2";
+    public const string Version = "period-coaching.v3";
+    public const string CompactVersion = "period-coaching.v2";
     public const int MaximumPacketBytes = 262_144;
     public const int MaximumSnapshotBytes = 2_097_152;
     public const int MaximumSources = 10_000;
@@ -34,16 +35,16 @@ public static class PeriodCoachingContract
 }
 
 public enum PeriodCoachingSourceKind { CalculatedStatistics, CalculatedPatterns, Comparison, Trade, Execution, Journal,
-    JournalRevision, PlaybookAssociation, RuleRevision, Assessment, UnattributedAssessment }
+    JournalRevision, PlaybookAssociation, RuleRevision, Assessment, UnattributedAssessment, TradingPlanRevision, PreparationComparison }
 public sealed record PeriodCoachingSource(string Id, PeriodCoachingSourceKind Kind, string Period, JsonElement Content);
 
 /// <summary>Owned immutable JSON plus a read-only catalog of exact supplied sources. No caller-owned lists.
 /// Fingerprint is SHA-256, not authentication. Arrays are canonical sets with explicit chronology fields.</summary>
 public sealed class PeriodCoachingPacket
 {
-    internal PeriodCoachingPacket(PeriodReviewQuery query, string id, string json, int bytes, IReadOnlyList<PeriodCoachingSource> sources)
-    { Query = query; PacketId = id; Json = json; Utf8ByteCount = bytes; Sources = sources; }
-    public string ContractVersion => PeriodCoachingContract.Version;
+    internal PeriodCoachingPacket(PeriodReviewQuery query, string id, string json, int bytes, IReadOnlyList<PeriodCoachingSource> sources, string version = PeriodCoachingContract.Version)
+    { Query = query; PacketId = id; Json = json; Utf8ByteCount = bytes; Sources = sources; ContractVersion = version; }
+    public string ContractVersion { get; }
     public PeriodReviewQuery Query { get; }
     public string PacketId { get; }
     public string Json { get; }
@@ -77,7 +78,7 @@ public static class PeriodCoachingPacketBuilder
             var ordered = Array.AsReadOnly(sources.OrderBy(s => s.Id, StringComparer.Ordinal).ToArray());
             if (ordered.Select(s => s.Id).Distinct(StringComparer.Ordinal).Count() != ordered.Count) return Invalid();
             var content = new { CurrentPeriod = evidence.Current.Query, PreviousPeriod = evidence.Previous.Query,
-                ContentHandling = PeriodCoachingContract.Handling,
+                ContentHandling = PeriodCoachingContract.Handling + " " + TradingPlans.ReviewPlanEvidence.Handling,
                 MissingOrUncertainData = new
                 {
                     NoCurrentTrades = evidence.Current.ClosedTrades.Count + evidence.Current.ActivityContext.Count == 0,
@@ -120,6 +121,13 @@ public static class PeriodCoachingPacketBuilder
             }
             void AddEvidence(PeriodReviewEvidence e, string period)
             {
+                if (e.Preparation is { } p && (p.FirstDate != e.Query.FirstDate || p.LastDate != e.Query.LastDate || p.AccountId != e.Query.Scope.AccountId))
+                    throw new ArgumentException("Preparation scope mismatch.");
+                e.Preparation?.Validate(e.ClosedTrades.Concat(e.ActivityContext).ToArray());
+                Add("preparation", PeriodCoachingSourceKind.PreparationComparison, period, new
+                { Captured = e.Preparation is not null, e.Preparation?.Days, e.Preparation?.Trades, Limitations = TradingPlans.ReviewPlanEvidence.Handling });
+                foreach (var plan in e.Preparation?.Revisions ?? [])
+                    Add(TradingPlans.ReviewPlanEvidence.SourceId(plan.Id), PeriodCoachingSourceKind.TradingPlanRevision, period, plan);
                 foreach (var t in e.ClosedTrades.Concat(e.ActivityContext))
                 {
                     Add("trade:" + t.TradeId.ToString("N"), PeriodCoachingSourceKind.Trade, period, t);
@@ -154,6 +162,7 @@ public static class PeriodCoachingPacketBuilder
             }
         }
         catch (LimitException) { return TooLarge(); }
+        catch (TradingPlans.ReviewPlanLimitException) { return TooLarge(); }
         catch (OverflowException) { return new(CoachingPacketBuildStatus.CalculationOverflow, null); }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException) { return Invalid(); }
     }

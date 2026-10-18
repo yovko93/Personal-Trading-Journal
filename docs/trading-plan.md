@@ -1,5 +1,122 @@
 # Trading Plan
 
+## M21.9 — Trades, Review and AI evidence integration
+
+Actual baseline: **clean `develop`, `fbeaa7eead77d6931a41e5688e6d31c8f706b3b4`**. M21.8 had been committed; no earlier dirty files were present. No migration, financial/source-selection change, Trade/Journal/Rules write, provider call or production access. This implements M21.9 only, not M21.10 acceptance.
+
+### Snapshot, chronology and limitations
+
+Daily, Weekly and Monthly retain their existing responsibilities: Daily carries complete daily evidence; periods carry complete local snapshots plus a compact, coverage-explicit supplied projection. All use the existing explicit manual ChatGPT prepare/copy/paste/validate/save lifecycle. No new Review engine, association store, calculator, evaluator or network path is introduced.
+
+Preparation reads share the existing SQLite transaction with Trades, Journals, frozen Playbook context and period Rule evidence. Three additional SELECTs load bounded Plan identities/state, selected Ready count/character total, then only the latest and entry-eligible Ready payloads. The populated Daily regression records **9 SELECTs total**, no tracked entities/writes, independent of its Trade count. No Draft prose and no one-query-per-Trade loop. Limits are **1,024 Account/day markers, 1,024 selected revisions, 10,000 Trade comparisons and 2,000,000 stored Ready JSON characters**, before materializing revision payloads; existing packet byte/source bounds still apply.
+
+For each selected Trade, use the canonical **UTC opening/entry timestamp**, convert it to the **New York entry date**, then select that exact Account/date's greatest Ready timestamp **at or before entry**, breaking equal timestamps by highest numbered revision. Equality is a recorded-instant boundary, not proof of event ordering. Later preparation cannot backdate itself. Latest Ready remains display context only; overnight Trades can depend on a Plan outside their closure-date Review range. Unsupported/missing entry facts yield unknown timing. Closed-Trade economics still use closure date; open/partial/unavailable-lifecycle activity remains separate and executions are not counted as Trades.
+
+Coverage distinguishes No Plan, Draft only, Ready, Ready with newer Draft changes, retrospective-only preparation and unknown entry time. Exact Account reads show each requested date; aggregate reads cover saved Plans and observed exact Account/day dependencies, **not** every empty catalog Account × day. Null-scoped Journals do not become Plans for an invented Account. Later Draft text never substitutes for Ready. Frozen revision payloads retain actual Ready/capture times, focus, instrument context/bias/manual levels, scenarios, Stand Aside, planned limits/currency, selected Playbook/Rule definitions and manual confirmations. Images/paths are excluded by the existing Plan reference contract.
+
+Calculated comparisons are limited to temporal eligibility, recorded Instrument/Setup identity matches, Stand Aside intention versus recorded Trade activity, and Account/pricing-currency identity. Missing Setup stays unknown. These are not adherence, price-action confirmation or Rule violations. No initial risk is inferred from realized P&L; no maximum-Trade, risk/loss-limit enforcement or score is added. Unknown commissions/fees and strict Net remain unchanged; no FX is performed. Stand Aside with no activity is preparation evidence, not proof of future compliance.
+
+### Contracts and historical behavior
+
+- **Daily `daily-coaching.v3`** adds exact Ready sources, a calculated preparation-comparison source and `UserWrittenPreparation`. Category validation prevents raw intentions being cited as calculated facts. Plan text is explicitly untrusted data, never prompt instructions.
+- **Period `period-coaching.v3`** carries complete local preparation plus complete supplied comparison/coverage aggregates grouped by exact Account and activity inclusion. It supplies at most **two Ready examples per period side**, deterministically ordered, and exact preparation comparisons on supplied Trade examples. Available/supplied source counts remain explicit; local-only revisions cannot be cited. Current/previous prefixes and all finding/action bounds remain unchanged.
+- Daily/period builders validate preparation scope and recalculate comparison mappings before freezing. Tampered chronology/source mappings, invalid categories, wrong IDs and oversized complete payloads are rejected rather than repaired or truncated. Adding Plan prose can make a complete prompt too large.
+- Saved **v1/v2** reports and supported **v2 pending/imported responses** retain their original contract. Absent preparation means **not captured**, not No Plan. New v3 saved Review JSON includes the exact frozen evidence; later Plan/catalog edits or deletion do not rewrite it.
+- Existing completed-review JSON fields and backup/portable-export mappings already retain the complete evidence/response. No database or export version changes are needed. Pending prompt files remain deliberately excluded from portable backup/export; pre-current-schema archive restore remains deferred.
+
+The retained fake-HTTP Groq regression initially exceeded its unchanged 6,800-input estimate because preparation instructions were being added even to absent legacy evidence. After making those instructions conditional on captured preparation, the two-Trade fixture measures **340 instructions + 377 schema + 4,895 evidence + 83 framing + 570 margin + 512 reserve = 6,777**, output budget 1,000. This is a synthetic estimate, not a provider bill or new live API acceptance. Real captured preparation is still fully budgeted and never silently omitted.
+
+### Presentation and guarded navigation
+
+Current and saved Daily evidence have a collapsed preparation section; period current/prior evidence and saved **full local** preparation are secondary expandable sections. Saved full-local detail explicitly differs from supplied examples. Human-readable citations show frozen labels and actual Ready time. Exact source opening reuses Trading Plan History's read-only viewer, checks Plan/revision/key/time, and does not replace the working editor. Return to the originating Review retains date/Account and saved report. Plan → Daily uses the current recorded editor or viewed historical key, never malformed typed date text. Dirty/invalid editor fields remain retained through this related navigation; normal unrelated navigation/window-close guards remain in force. A missing live revision produces a safe unavailable message while its saved evidence stays readable.
+
+### M21.9 verification chronology
+
+Initial failures are retained in ignored `TestResults/M219`, not hidden by the final runs:
+
+- First focused Application run: **235 passed / 1 failed** (empty legacy evidence was incorrectly given an extra preparation source). Preparation sources are now conditional on captured evidence; next Application run **246/246 passed**.
+- First focused Infrastructure run: **186 passed / 11 failed**: four old schema-name expectations, six retained Groq budget regressions, one fixed-query-count expectation. Second run: **197 passed / 6 failed** after schema/query expectation correction; conditional instructions resolved the remaining measured budget overhead. Third budget/reader run **68/68 passed**.
+- First real-SQLite navigation run **2/2 passed**; first compiled-WPF render run **2/2 passed**.
+- Broad affected-suite run found two old `period-coaching.v2` expectations after successful v3 save/display. Expectations were updated to the intentional version change; dedicated old-v2 compatibility assertions remain.
+- Corrected broad focused run: **1,097/1,097 passed**, zero failures/skips — Domain 90, Application 303, Infrastructure 237, Desktop 467. Evidence: `TestResults/M219/focused-corrected/`. This includes retained Review/Trading Plan guards and fake-HTTP workflows, not only new cases.
+- Complete gate first failure: Calendar child `WindowControlsRetainModalAndDraftThenCloseInEveryState(Dark, Maximized)` failed a restored-panel-size assertion, expected **802.4**, actual **762.4**. Its phase log places the exception immediately after the second maximize/restore/layout step (4.314s into that action); line 262 rethrows the captured exception. It is **not a 120-second timeout** and the logs do not establish why the dimension changed. The child completed **86 passed / 1 failed** in **117.868s**, leaving **2.132s** to its unchanged deadline. This one failure propagated to **86 parent cases**; the exclusive partition finished **2 passed / 86 failed**. No Calendar code, assertion, deadline or scheduling was changed, and no passing rerun is substituted for this failure.
+- Separate parallel failure: `BreakdownAccessibilityViewTests.OwnedFocusValidationAutomationAndRetainedStatesInBothThemes`, line 239, observed `DatePicker.IsDropDownOpen == false` after F4 on a malformed date field. Its child finished (not timed out); no Breakdown code is changed by M21.9. The available evidence does not prove a shared cause with Calendar or establish a product-versus-automation diagnosis. This remains unresolved; no assertions or timing allowances were changed.
+- **Final complete gate: 4,776 passed / 87 failed / zero skipped, exit 1** (4,863 total, 20 new M21.9 cases). Domain **567/567**, Application **1,021/1,021**, Infrastructure **1,423/1,423**; Desktop **1,765 passed / 87 failed** across 88 exclusive and 1,764 parallel cases. The parallel Desktop partition was **1,763 passed / 1 failed**, 7m43s. All new M21.9 cases passed. No later complete run supersedes this failure. Evidence: `TestResults/M219/full-gate/release-20261018-190524-6e18bb1e72c84d83a3f737bbf0d81cfb/summary.json`, top-level TRX and child diagnostics. **Implementation is present; complete acceptance remains blocked**, regardless of focused success.
+- Release build: **0 warnings/errors**. EF `has-pending-model-changes` through the **in-memory** design-time factory: no changes. Tracked/new-file whitespace and **182 local documentation file links** pass.
+
+Commands (all synthetic fixtures; WPF tests with normal Windows permissions):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_PREPARATION_RENDER_DIRECTORY = Join-Path $PWD 'artifacts/m219-review-preparation'
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~TradingPlan|FullyQualifiedName~ReviewPreparation|FullyQualifiedName~DailyReview|FullyQualifiedName~PeriodReview|FullyQualifiedName~MainWindowViewModelTests' --logger trx --results-directory TestResults/M219/focused-corrected
+$env:PTJ_PREPARATION_RENDER_DIRECTORY = $null
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/M219/full-gate
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+Automated renders: `artifacts/m219-review-preparation/`, Light/Dark at **980 content DIP/96 DPI** and **460 DIP/240 DPI**. States include missing preparation, retrospective Ready with a newer Draft, unknown Net and saved period citations. Normal/narrow examples were visually inspected: text wraps, evidence remains secondary, source action is keyboard-focusable and no horizontal content clipping was observed. These are compiled-WPF synthetic renders/automation, **not** human mouse/keyboard, screen-reader or live-app restart evidence.
+
+The new preparation render child passed in the complete gate in **24.615s** (65.385s headroom to its 90s aggregate deadline). Journal's exclusive editor case passed in **10.634s**. Calendar's 2.132s aggregate margin is narrow and does not establish timing stability. All original assertions, deadlines, isolation and scheduling are retained. Final worktree: **37 modified + 10 new files**, all M21.9; branch/HEAD remain `develop` / `fbeaa7eead77d6931a41e5688e6d31c8f706b3b4`. No commit, push, merge or branch switch.
+
+M21.10 remains pending: isolated actual-app restart and full human workflow, keyboard/Narrator/focus/scroll acceptance, and CI matching the eventual published changes. No matching CI can represent this uncommitted worktree. Earlier Calendar scheduling variability is not claimed fixed by a later passing run; its final observed timing is reported separately. No live provider calls or production journal access occurred.
+
+Remaining isolated manual checklist (not executed as M21.10): inspect a day with missing, retrospective and entry-eligible preparation; open an old Review's exact Ready revision while invalid Draft fields are retained, then return; prepare/copy a synthetic v3 prompt and verify its supplied source boundaries without an automatic upload; reopen pending/saved evidence after restarting the isolated app and after a source becomes unavailable; check Tab order, focus return, Narrator announcements and long-content scrolling in both themes at high DPI. Use only an explicit isolated data root, never the normal journal. Resolve the documented full-gate blockers before claiming complete acceptance.
+
+### Exact M21.9 changed files
+
+Paths are repository-relative; includes the documentation and tests, compared with the actual clean starting worktree.
+
+- `README.md`
+- `docs/architecture.md`
+- `docs/daily-review.md`
+- `docs/period-reviews.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingEvidencePacket.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingEvidencePacketBuilder.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingResponse.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingResponseValidator.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/Coaching/ManualReview.cs`
+- `src/PersonalTradingJournal.Application/DailyReview/DailyReviewEvidence.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingPacket.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingProjection.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingResponse.cs`
+- `src/PersonalTradingJournal.Application/PeriodReviews/PeriodReviewEvidence.cs`
+- `src/PersonalTradingJournal.Application/TradingPlans/ReviewPlanEvidence.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/DailyReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ManualReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodPresentation.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodReviewViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/ReviewPreparation.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.Review.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/DailyReview/DailyReviewView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/PeriodReviews/PeriodReviewView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ReviewPreparationView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ReviewPreparationView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/ManualReviewService.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingContract.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/PeriodCoachingWireContract.cs`
+- `src/PersonalTradingJournal.Infrastructure/DailyReview/DailyReviewEvidenceReader.cs`
+- `src/PersonalTradingJournal.Infrastructure/PeriodReviews/PeriodReviewEvidenceReader.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/ReviewPlanEvidenceReader.cs`
+- `tests/PersonalTradingJournal.Application.Tests/DailyReview/ReviewPreparationContractTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/MainWindowViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodSqliteTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ReviewPreparationNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ReviewPreparationViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/DailyReviewEvidenceReaderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/GroqInputBudgetTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/ManualReviewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingProviderTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/ReviewPreparationReaderTests.cs`
+
+
 ## M21.8 — History, Copy Forward and navigation recovery
 
 Actual baseline: **clean `develop`, `be2fb3c6a5554ef34c367e756dbff92c1b623b1f`**. M21.7 was already committed, superseding the attachment's dirty-tree report. Existing behavior is preserved. This slice changes no schema, monetary semantics, Trade/Journal data, Rules/Playbook catalog, provider behavior or Review evidence. M21.9 and M21.10 are not implemented here.

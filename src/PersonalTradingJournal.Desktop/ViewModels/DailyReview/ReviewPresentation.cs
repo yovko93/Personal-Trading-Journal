@@ -7,6 +7,8 @@ using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Application.Journals;
 using PersonalTradingJournal.Desktop.Formatting;
+using PersonalTradingJournal.Application.TradingPlans;
+using PersonalTradingJournal.Desktop.ViewModels.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.DailyReview;
 
@@ -18,11 +20,12 @@ public sealed record ReviewText(string Heading, string Text, string? SourceDetai
 }
 
 public sealed record ReviewCitation(string Label, ReviewTradeRow? Trade = null, ReviewJournalRow? Journal = null,
-    string? CapturedPlaybook = null)
+    string? CapturedPlaybook = null, ReviewPlanRevision? Preparation = null)
 {
     public bool HasTrade => Trade is not null;
     public bool HasJournal => Journal is not null;
     public bool HasPlaybook => CapturedPlaybook is not null;
+    public bool HasPreparation => Preparation is not null;
 }
 
 public static class ReviewDisplay
@@ -111,6 +114,7 @@ public sealed record ReviewJournalRow(DailyReviewJournalEvidence Source, bool Ca
 /// <summary>Presentation only. Historical statistics are supplied from the snapshot, never recalculated.</summary>
 public sealed class ReviewEvidencePresentation(DailyReviewEvidence evidence, DailyReviewStatistics statistics, bool canNavigate = false)
 {
+    public ReviewPreparation Preparation { get; } = new(evidence.Preparation);
     public string Counts => (statistics.Population.Closed.Count == 0 ? "No closed trades" : $"{statistics.Population.Closed.Count} closed Trades") +
         $" · {evidence.Journals.Count} Journal entries (user-written observations)";
     public string CoverageSummary => string.Join(" ", new[]
@@ -157,7 +161,7 @@ public sealed class ReviewSnapshot
 
     public static ReviewSnapshot Read(SavedCoachingAnalysis saved)
     {
-        if (saved.EvidenceContractVersion is not (CoachingContract.Version or CoachingContract.LegacyVersion) ||
+        if (saved.EvidenceContractVersion is not (CoachingContract.Version or CoachingContract.PlaybookVersion or CoachingContract.LegacyVersion) ||
             saved.ResponseContractVersion != saved.EvidenceContractVersion)
             throw new InvalidDataException("This saved contract version is not supported by this Desktop version.");
         using var document = JsonDocument.Parse(saved.EvidenceJson);
@@ -218,6 +222,14 @@ public sealed class ReviewSnapshot
                 return new($"Saved Playbook: {title} · {ReviewDisplay.Account(trade.Account)} · {state}",
                     Trade: new(trade, CanNavigate: true), CapturedPlaybook: text);
             }
+            if (source.Kind == CoachingSourceKind.TradingPlanRevision)
+            {
+                var plan = content.Preparation?.Revisions.SingleOrDefault(p => p.Id.PlanId == source.PlanId && p.Id.Revision == source.Revision)
+                    ?? throw new InvalidDataException("Saved preparation citation is unavailable.");
+                return new("Saved preparation · " + new ReviewPreparationRow(plan).Heading, Preparation: plan);
+            }
+            if (source.Kind == CoachingSourceKind.PreparationComparison)
+                return new("Saved preparation comparison · entry-time eligibility and identity only; not adherence");
             if (source.Kind == CoachingSourceKind.Journal)
             {
                 var journal = content.UntrustedJournalObservations.SingleOrDefault(j => j.JournalId == source.JournalId)
@@ -242,6 +254,7 @@ public sealed class ReviewSnapshot
             CoachingObservationBasis.CalculatedFact => "calculated facts",
             CoachingObservationBasis.RecordedTradeFact => "recorded Trade facts",
             CoachingObservationBasis.UserWrittenPlaybookContext => "user-written Playbook context (not verified adherence)",
+            CoachingObservationBasis.UserWrittenPreparation => "user-written preparation (not verified execution)",
             _ => "user-written Journal observations",
         };
         var statements = new List<ReviewText> { Statement("AI day summary · not calculated fact", response.DaySummary) };
@@ -257,7 +270,7 @@ public sealed class ReviewSnapshot
             Metadata = $"{ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {ReviewDisplay.Provider(saved.Summary.Provider, saved.Summary.Model)}\n" +
                 $"Tokens: input {Token(usage?.InputTokens)}, cached {Token(usage?.CachedInputTokens)}, output {Token(usage?.OutputTokens)}, total {Token(usage?.TotalTokens)}. Cost unknown.",
             SourceDetails = JsonSerializer.Serialize(new { saved.Summary, saved.Metadata, saved.PacketId, saved.EvidenceContractVersion, saved.ResponseContractVersion }, JsonOptions),
-            Evidence = new(new(content.Query, content.RecordedTradeFacts, content.UntrustedJournalObservations), content.CalculatedFacts),
+            Evidence = new(new(content.Query, content.RecordedTradeFacts, content.UntrustedJournalObservations, content.Preparation), content.CalculatedFacts),
             Statements = statements,
             CompleteEvidence = JsonSerializer.Serialize(document.RootElement, JsonOptions),
         };
