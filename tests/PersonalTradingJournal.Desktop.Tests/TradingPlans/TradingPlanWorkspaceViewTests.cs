@@ -61,7 +61,7 @@ public sealed class TradingPlanWorkspaceViewTests
                 foreach (var action in Descendants(toolbar).OfType<Button>().Where(b => IsPresented(b) && b.ActualWidth > 0))
                     Assert.InRange(action.TranslatePoint(new Point(action.ActualWidth, 0), page).X, 0, width + 1);
                 Assert.Equal(0, ((ScrollViewer)page.FindName("PageScroll")).ScrollableWidth);
-                Assert.Single(Descendants(page).OfType<TextBlock>(), t => IsPresented(t) && t.ActualHeight > 0 && t.Text == "01 Session Preparation");
+                Assert.Single(Descendants(page).OfType<TextBlock>(), t => IsPresented(t) && t.ActualHeight > 0 && t.Text == "Session Preparation");
                 editor.Focus.Text = "Synthetic focus: wait for observable confirmation, not a prediction.";
                 editor.Scenarios[0].Condition.Text = string.Join('\n', Enumerable.Repeat("Synthetic IF context remains explicit and wraps without horizontal clipping.", 4));
                 while (editor.Scenarios.Count > 1) editor.Scenarios.Last().RemoveCommand.Execute(null);

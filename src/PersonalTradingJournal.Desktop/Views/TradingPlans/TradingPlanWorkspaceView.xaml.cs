@@ -12,6 +12,13 @@ public partial class TradingPlanWorkspaceView : UserControl
 {
     private readonly PageFocus _focus;
     public TradingPlanWorkspaceView() { InitializeComponent(); _focus = new(this); }
+    private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        bool narrow = e.NewSize.Width < 700;
+        Grid.SetRow(TopActions, narrow ? 1 : 0); Grid.SetColumn(TopActions, narrow ? 0 : 1);
+        Grid.SetColumnSpan(TopActions, narrow ? 2 : 1);
+        TopActions.HorizontalAlignment = narrow ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+    }
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         _focus.Invalidate();
@@ -48,7 +55,11 @@ public partial class TradingPlanWorkspaceView : UserControl
             if (target is not null) _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, target)));
             else if (field?.StartsWith("Checklist.", StringComparison.Ordinal) == true)
                 _focus.Request(() => Descendants(Risk).OfType<CheckBox>().FirstOrDefault(c => c.IsChecked != true));
-            else if (field == "Instruments") _focus.Request(() => Descendants(Preparation).OfType<ComboBox>().FirstOrDefault(c => c.Name == "CatalogSelector"));
+            else if (field == "Instruments")
+            {
+                ((Expander)Preparation.FindName("InstrumentPicker")).IsExpanded = true;
+                _focus.Request(() => Descendants(Preparation).OfType<ComboBox>().FirstOrDefault(c => c.Name == "CatalogSelector"));
+            }
             else if (field == "Scenarios") _focus.Request(() => Descendants(Scenarios).OfType<Button>().FirstOrDefault(b => Equals(b.Content, "Add Scenario")));
             else if (field == "References") _focus.Request(() => Descendants(Risk).OfType<Button>().FirstOrDefault(b => b.Command == editor.CheckReferencesCommand));
         }

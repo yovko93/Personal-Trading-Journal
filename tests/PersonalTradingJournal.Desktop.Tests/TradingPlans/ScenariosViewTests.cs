@@ -74,6 +74,7 @@ public sealed class ScenariosViewTests
                 var condition = inputs.Single(t => ReferenceEquals(t.DataContext, vm.Scenarios[0].Condition));
                 condition.SetCurrentValue(TextBox.TextProperty, "Bound\nIF field"); Assert.Equal("Bound\nIF field", vm.Scenarios[0].Condition.Text);
                 var moved = vm.Scenarios[1];
+                Descendants(second).OfType<Expander>().Single().IsExpanded = true; Layout();
                 var up = Descendants(second).OfType<Button>().Single(b => AutomationProperties.GetName(b) == "Move scenario earlier");
                 Assert.True(up.IsEnabled); up.Command.Execute(up.CommandParameter); Layout(); Assert.Same(moved, vm.Scenarios[0]);
                 Render(scroll, theme, width, dpi, "multiple");

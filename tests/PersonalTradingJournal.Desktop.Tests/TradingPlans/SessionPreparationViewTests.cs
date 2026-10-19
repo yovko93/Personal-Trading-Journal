@@ -63,10 +63,12 @@ public sealed class SessionPreparationViewTests
                     Assert.True(width > 760 ? origin.X > context.ActualWidth : origin.Y >= context.ActualHeight);
                     var selector = (ComboBox)section.FindName("ContextSelector");
                     Assert.Equal(vm.SelectedInstrument, selector.SelectedItem);
+                    ((Expander)section.FindName("InstrumentPicker")).IsExpanded = true; Layout();
                     var add = Descendants(section).OfType<Button>().Single(b => AutomationProperties.GetName(b) == "Add instrument context");
                     Assert.False(add.IsEnabled);
                     ((ComboBox)section.FindName("CatalogSelector")).SetCurrentValue(ComboBox.SelectedItemProperty, vm.AvailableInstruments.Last());
                     Assert.True(add.IsEnabled);
+                    ((Expander)section.FindName("InstrumentPicker")).IsExpanded = false; Layout();
                     Render(scroll, theme, width, dpi, "draft");
                     var price = inputs.Single(t => AutomationProperties.GetName(t) == "Previous Day High");
                     price.SetCurrentValue(TextBox.TextProperty, "not a price"); Layout();

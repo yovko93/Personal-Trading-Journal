@@ -158,7 +158,9 @@
 
             <Border Grid.Row="1">
                 <Border.Style><Style TargetType="Border"><Setter Property="Padding" Value="32,24" />
-                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Padding" Value="32,16" /></DataTrigger></Style.Triggers>
+                    <Style.Triggers><DataTrigger Binding="{Binding CurrentDestination}" Value="Breakdown"><Setter Property="Padding" Value="32,16" /></DataTrigger>
+                        <DataTrigger Binding="{Binding CurrentDestination}" Value="TradingPlan"><Setter Property="Padding" Value="16,8" /></DataTrigger>
+                    </Style.Triggers>
                 </Style></Border.Style>
                 <ContentControl HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch"

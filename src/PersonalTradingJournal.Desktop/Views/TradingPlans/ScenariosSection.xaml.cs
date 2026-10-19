@@ -13,7 +13,9 @@ public partial class ScenariosSection : UserControl
     public static readonly DependencyProperty CardWidthProperty = DependencyProperty.Register(nameof(CardWidth), typeof(double), typeof(ScenariosSection), new PropertyMetadata(400d));
     public double CardWidth { get => (double)GetValue(CardWidthProperty); private set => SetValue(CardWidthProperty, value); }
     public ScenariosSection() { InitializeComponent(); _focus = new(this); }
-    private void OnCardsSizeChanged(object sender, SizeChangedEventArgs e) => CardWidth = e.NewSize.Width >= 900 ? e.NewSize.Width / 2 : e.NewSize.Width;
+    // Leave rounding headroom: two half-DIP widths can both round up and wrap
+    // the second card on an odd-width production viewport.
+    private void OnCardsSizeChanged(object sender, SizeChangedEventArgs e) => CardWidth = e.NewSize.Width >= 900 ? Math.Floor(e.NewSize.Width / 2) : e.NewSize.Width;
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         _focus.Invalidate();

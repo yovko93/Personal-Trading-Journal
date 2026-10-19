@@ -1,5 +1,81 @@
 # Trading Plan
 
+## Session Brief visual correction before M21.10
+
+Baseline: clean `develop`, **`03269f64e555421543cbf10c1c14b0431e7b83ee`**. The reported M21.9 dirty changes had already been committed and are preserved. M21.10 remains paused. This correction changes Desktop composition only: no schema, money, evidence chronology, provider, or saved-data contract change.
+
+### Cause and correction
+
+The production shell supplied 1,270 content DIP at a 1,586 × 1,000-DIP viewport. The original component sections combined explicit 16/20-DIP type, shared 36-DIP controls with larger padding, 64/76-DIP multiline minimums, repeated instrument selectors, individually stacked scenario fields and vertically stacked risk forms. Additional page/card padding and always-expanded secondary controls compounded the height. The first full-shell baseline measured **789 DIP for preparation**, and only its upper part fitted on screen. Isolated component tests did not establish whole-page visual similarity.
+
+Corrections against the approved `Trading Plan Session Brief.png`:
+
+- Underlined, keyboard-focusable Session Brief/History tab presentation replaces radio circles. Save Draft/Mark as Ready/Start Draft remain the existing commands on the right, wrapping below tabs when necessary. Reload and contextual Review navigation are in the footer. History retains its own operations; Session Brief write actions are not shown over History.
+- Date arrows, raw-preserving date picker, explicit **Go/Enter**, Today, exact Account, session and a small Draft/Ready badge form a compact wrapping toolbar. The New York date convention is stated separately from session metadata; full state/context remains available through accessible help and existing status feedback.
+- Focus is an inline pale-teal banner. Preparation has one theme surface, numbered heading/divider, compact instrument/bias controls, expandable Add/Remove Instrument, thesis, three paired level rows and full-width manual News notes. This does not introduce a structured news calendar or new persistence fields.
+- Scenario designation/direction/name form one header; IF/THEN/INVALID IF align alongside inputs. Two cards share a wide row; additional cards wrap and narrow layouts stack. Playbook selection/link/open, instrument choice and reorder/remove remain in accessible secondary options; saved Playbook context remains readable. Stand Aside is a slim strip with its existing explicit boolean and complete text.
+- Limits use four columns when space permits, then two; checklist confirmations use compact labels with their full accessible names/descriptions and tooltips. Confirmation count/progress, required currency review, inline errors and readiness blockers remain visible. Linked Rules expand without losing frozen descriptions or operations.
+- `SessionBriefStyles.xaml` is merged only by Trading Plan components: 13-DIP body/input text, 17-DIP headings, 32-DIP minimum controls, theme resources and inherited shared validation/focus/hover/disabled templates. Shared application title/sidebar are unchanged. `MainWindow` has a **TradingPlan-only** 16/8-DIP content-padding override; no other destination is resized.
+
+At odd production content widths, the two half-width scenario containers could both round up under layout rounding and wrap the second card. Flooring the half width leaves rounding headroom. The new shell-level assertion verifies both cards on the same row at wide width, and stacking at narrow/high DPI. No ordering, selection or source behavior changes.
+
+### Visual evidence and verification
+
+Synthetic before captures: `artifacts/session-brief-correction/before/`; final after captures: `artifacts/session-brief-correction/after-final/`. They use the **actual MainWindow content tree**, shared resources, header/sidebar, inherited typography and production content container, at **1,586 × 1,000 DIP / 96 DPI** and **1,000 × 850 DIP / 240 DPI**, Light/Dark. The shell tree is rendered without a native HWND to avoid the test monitor's work-area clamping; this is automated WPF rendering, not a live screenshot or human interaction. Existing tests separately exercise real owned windows, focus and close guards. Draft, Ready/read-only, invalid input and scrolled-bottom states are captured. Long fields retain wrapping/internal scrolling rather than shrinking text or truncating data.
+
+Render-host development initially caught an invalid DPI root, detached inherited DataContext/namescope issues, and a hidden History scenario-list lookup. These were corrected in the **new test host**; they are not product Save defects. The first affected run was **126 passed / 2 failed**, because old tests searched for actions before expanding their newly collapsed containers. Tests now expand the controls before preserving their original command assertions. A subsequent run was **126 passed / 2 failed** in the new host's hidden-list lookup; the corrected affected run passed **128/128**, zero skipped. No deadline, concurrency, assertion or retry policy was relaxed. Final verification is recorded below after integration.
+
+Direct visual comparison was made with the supplied approved reference and the before/after shell renders, not raw pixels at dissimilar scaling. Wide content width increased from **1,270 to 1,302 DIP** through the TradingPlan-only padding change. Preparation decreased from **789 to 312 DIP** (about 60%); the final two-card scenario section is **366 DIP**. Wide Risk & Readiness is **389 DIP** with incomplete confirmations/blockers, **239 DIP** when Ready. At the 1,000-DIP/240-DPI window, available content is **716 DIP**: preparation stacks at **448 DIP**, scenarios at **617 DIP**, with vertical scrolling. The focus banner remains below 85 DIP for short content in both sizes. Coverage checks actual bounds, wide same-row scenario placement, narrow stacking, first-invalid input, retained input and verified Ready readback—not brush-name or padding-value mirrors.
+
+Inspected final images include Light wide Draft, Dark wide Ready/bottom, Light narrow Draft and Dark narrow invalid/bottom. Both themes also have Ready and scrolled-bottom captures. The page now follows the numbered-card hierarchy with compact controls and deliberate stacking. It is **not pixel-identical** to the illustrative reference: the unchanged shared header is taller, explicit Go and verification/status text remain, and visible readiness blockers plus secondary operations require additional scrolling. The linked Playbook/Rule pickers expand inline rather than introducing new modal/flyout infrastructure. Native checkbox/expander glyphs retain the established WPF appearance. No actual human keyboard/Narrator or monitor-DPI interaction is claimed from these renders.
+
+Broader affected verification: **334/334 passed**, zero failed/skipped, including shell/navigation guards (`TestResults/SessionBrief/focused-final`). Final complete Release gate: **4,865 passed / zero failed / zero skipped, exit 0**, with two new composition cases:
+
+| Partition / project | Passed |
+| --- | ---: |
+| Exclusive WPF / Desktop | 88 |
+| Parallel / Domain | 567 |
+| Parallel / Application | 1,021 |
+| Parallel / Infrastructure | 1,423 |
+| Parallel / Desktop | 1,766 |
+
+Evidence: `TestResults/SessionBrief/full-gate/release-20261018-202009-73f0fb8e0cb644a79f38604f6a9f7017/summary.json`, TRX and supervised child logs. This run includes the final visibility/selector-width adjustments after the focused run and regenerates all **20** final renders. Desktop parallel finished in **5m56s**. Calendar native **71.998s / 48.002s headroom** to 120s; new composition child **31.770s / 58.230s headroom** to 90s; existing workspace child **25.639s**. Journal editor child passed in **9.974s**. No assertion, deadline, isolation or concurrency policy changed. The previous Calendar/Breakdown failures did not recur; this is not a demonstrated fix for their unresolved variability.
+
+Final Release build: **0 warnings/errors**. EF `has-pending-model-changes` uses the repository's **in-memory design-time factory**, reports no changes, and never opens the installed journal. Tracked and new-file whitespace checks pass; **146 local documentation links** resolve. Final branch/HEAD remain `develop` / `03269f64e555421543cbf10c1c14b0431e7b83ee`, with **14 modified + 2 new files**, all listed below. No commit, push, merge or branch switch. Matching CI cannot represent these uncommitted changes; M21.10 and live human acceptance remain pending.
+
+Commands:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_BRIEF_RENDER_DIRECTORY = Join-Path $PWD 'artifacts/session-brief-correction/after-final'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~TradingPlans|FullyQualifiedName~MainWindowViewModelTests' --logger trx --results-directory TestResults/SessionBrief/focused-final
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/SessionBrief/full-gate
+$env:PTJ_BRIEF_RENDER_DIRECTORY = $null
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git diff --check
+```
+
+The previous M21.9 gate remains historical evidence: **4,776 passed / 87 failed**, Calendar restored-panel-size propagation and a separate Breakdown F4 popup failure. No code in those features, deadlines or test scheduling is changed here. A later passing gate would not prove their causes fixed. Live keyboard/Narrator, actual application restart and matching CI for the eventual published change remain open; no production journal or provider is accessed.
+
+### Exact changed files
+
+- `README.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Desktop/MainWindow.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml` (new)
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenariosViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessViewTests.cs`
+
 ## M21.9 — Trades, Review and AI evidence integration
 
 Actual baseline: **clean `develop`, `fbeaa7eead77d6931a41e5688e6d31c8f706b3b4`**. M21.8 had been committed; no earlier dirty files were present. No migration, financial/source-selection change, Trade/Journal/Rules write, provider call or production access. This implements M21.9 only, not M21.10 acceptance.

@@ -14,6 +14,7 @@ public partial class RiskReadinessSection : UserControl
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         bool narrow = ActualWidth < 800;
+        LimitsGrid.Columns = ActualWidth >= 1120 ? 4 : 2;
         Grid.SetColumn(ChecklistAndReadiness, narrow ? 0 : 1); Grid.SetRow(ChecklistAndReadiness, narrow ? 1 : 0);
         Grid.SetColumnSpan(LimitsAndRules, narrow ? 2 : 1); Grid.SetColumnSpan(ChecklistAndReadiness, narrow ? 2 : 1);
         LimitsAndRules.Margin = narrow ? new(0, 0, 0, 14) : new(0, 0, 14, 0);

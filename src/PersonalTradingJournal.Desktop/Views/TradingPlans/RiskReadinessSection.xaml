@@ -3,74 +3,78 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+             xmlns:plan="clr-namespace:PersonalTradingJournal.Domain.TradingPlans;assembly=PersonalTradingJournal.Domain"
              DataContextChanged="OnDataContextChanged" SizeChanged="OnSizeChanged"
-             Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
-             FontSize="16" KeyboardNavigation.TabNavigation="Continue">
+             Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+             FontSize="13" KeyboardNavigation.TabNavigation="Continue">
     <UserControl.Resources>
+      <ResourceDictionary>
+       <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="SessionBriefStyles.xaml" /></ResourceDictionary.MergedDictionaries>
         <BooleanToVisibilityConverter x:Key="VisibleIf" />
         <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
         <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}">
-            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextWrapping" Value="Wrap" /><Setter Property="FontSize" Value="13" />
         </Style>
         <Style x:Key="Heading" TargetType="TextBlock" BasedOn="{StaticResource Body}">
-            <Setter Property="FontSize" Value="18" /><Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />
             <Setter Property="AutomationProperties.HeadingLevel" Value="Level3" />
         </Style>
-        <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+        <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource PlanAction}">
             <Setter Property="Margin" Value="0,6,8,6" />
         </Style>
         <DataTemplate x:Key="Field">
-            <StackPanel Margin="0,5,0,8">
-                <Label Content="{Binding Label}" Target="{Binding ElementName=Input}" Padding="0,4,0,6"
-                       Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+            <StackPanel Margin="0,2,8,4">
+                <Label Content="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}" ToolTip="{Binding Label}" Target="{Binding ElementName=Input}" Padding="0,2"
+                       Foreground="{DynamicResource PtjTextPrimaryBrush}"><Label.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" /></DataTemplate></Label.ContentTemplate></Label>
                 <TextBox x:Name="Input" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}"
-                         Style="{StaticResource PtjTextBoxStyle}" HorizontalScrollBarVisibility="Auto"
+                         Style="{StaticResource PlanInput}" HorizontalScrollBarVisibility="Auto"
                          AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Error}"
                          AutomationProperties.ItemStatus="{Binding Error}" validation:FormValidation.IsInvalid="{Binding IsInvalid}" />
                 <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}"
                            Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
             </StackPanel>
         </DataTemplate>
+          </ResourceDictionary>
     </UserControl.Resources>
     <StackPanel Margin="12">
-        <TextBlock Text="03 Risk &amp; Readiness" Style="{StaticResource Heading}" FontSize="20" AutomationProperties.HeadingLevel="Level2" />
+        <ContentControl Content="Risk &amp; Readiness" Tag="03" Style="{StaticResource PlanSectionHeading}" />
         <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <Grid x:Name="Columns" Margin="0,8,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <StackPanel x:Name="LimitsAndRules" Margin="0,0,14,0">
-                <Border Padding="14" CornerRadius="8" Background="{DynamicResource PtjSurfaceElevatedBrush}">
+                <Border Padding="0" CornerRadius="8" Background="Transparent">
                     <StackPanel>
                         <TextBlock Text="Planned Limits" Style="{StaticResource Heading}" />
-                        <TextBlock Text="{Binding CurrencyLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" Margin="0,6" />
-                        <TextBlock Text="{Binding CurrencyMessage}" Style="{StaticResource Body}" />
-                        <ContentControl Content="{Binding RiskPerTrade}" ContentTemplate="{StaticResource Field}" />
-                        <ContentControl Content="{Binding DailyLossLimit}" ContentTemplate="{StaticResource Field}" />
-                        <ContentControl Content="{Binding MaximumTrades}" ContentTemplate="{StaticResource Field}" />
-                        <ContentControl Content="{Binding ConsecutiveLosses}" ContentTemplate="{StaticResource Field}" />
-                        <TextBlock Text="Counts must be whole numbers. Maximum trades may be zero; a consecutive-loss stop must be at least one. Blank means unset."
-                                   Style="{StaticResource Body}" />
+                        <TextBlock Text="{Binding CurrencyLabel}" Style="{StaticResource Body}" FontWeight="SemiBold" Margin="0,4" ToolTip="{Binding CurrencyMessage}" AutomationProperties.HelpText="{Binding CurrencyMessage}" />
+                        <TextBlock Text="{Binding CurrencyMessage}" Style="{StaticResource Body}" Visibility="{Binding RequiresReferenceRefresh, Converter={StaticResource VisibleIf}}" />
+                        <UniformGrid x:Name="LimitsGrid" Columns="2">
+                        <ContentControl Tag="Risk / Trade" Content="{Binding RiskPerTrade}" ContentTemplate="{StaticResource Field}" />
+                        <ContentControl Tag="Daily Loss Limit" Content="{Binding DailyLossLimit}" ContentTemplate="{StaticResource Field}" />
+                        <ContentControl Tag="Max Trades" Content="{Binding MaximumTrades}" ContentTemplate="{StaticResource Field}" />
+                        <ContentControl Tag="Stop After Losses" Content="{Binding ConsecutiveLosses}" ContentTemplate="{StaticResource Field}" />
+                        </UniformGrid>
+                        <TextBlock Text="Optional limits · blank means unset" Style="{StaticResource Body}" ToolTip="Counts must be whole numbers. Maximum trades may be zero; a consecutive-loss stop must be at least one." />
                     </StackPanel>
                 </Border>
-                <Border Padding="14" CornerRadius="8" Background="{DynamicResource PtjSurfaceElevatedBrush}" Margin="0,12,0,0">
+                <Border Padding="0" CornerRadius="8" Background="Transparent" Margin="0,12,0,0">
                     <StackPanel>
-                        <TextBlock Text="Linked Trading Rules" Style="{StaticResource Heading}" />
-                        <TextBlock Text="{Binding LinkedRuleCount}" Style="{StaticResource Body}" Margin="0,6" />
+                        <Expander Header="{Binding LinkedRuleCount}" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Linked Trading Rules"><StackPanel>
                         <TextBlock Text="Optional links to existing global Rules. Selecting a Rule does not record compliance or run an automatic check."
                                    Style="{StaticResource Body}" />
                         <Button Content="Load Rules" Command="{Binding LoadRulesCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
                         <Label Content="Rule to link or update" Target="{Binding ElementName=RuleSelector}" Padding="0,4,0,6" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                         <ComboBox x:Name="RuleSelector" ItemsSource="{Binding RuleChoices}" DisplayMemberPath="Name" SelectedItem="{Binding RuleCandidate}"
-                                  IsEnabled="{Binding CanEdit}" Style="{StaticResource PtjComboBoxStyle}" AutomationProperties.Name="Existing global Rule to link" />
+                                  IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Existing global Rule to link" />
                         <TextBlock Text="{Binding RuleCandidate.Statement}" Style="{StaticResource Body}" Margin="0,6" />
                         <Button Content="Link selected revision" Command="{Binding LinkRuleCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
                         <ItemsControl ItemsSource="{Binding LinkedRules}">
                             <ItemsControl.ItemTemplate><DataTemplate>
                                 <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,4">
                                     <StackPanel>
-                                        <Expander Foreground="{DynamicResource PtjTextPrimaryBrush}" Background="{DynamicResource PtjSurfaceElevatedBrush}"
+                                        <Expander Foreground="{DynamicResource PtjTextPrimaryBrush}" Background="Transparent"
                                                   AutomationProperties.Name="{Binding Title}">
                                             <Expander.Header><TextBlock Text="{Binding Title}" Style="{StaticResource Body}" FontWeight="SemiBold" /></Expander.Header>
                                             <TextBlock Text="{Binding Text}" Style="{StaticResource Body}" Margin="4,8" />
@@ -83,33 +87,41 @@
                                     </StackPanel>
                                 </Border>
                             </DataTemplate></ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        </ItemsControl></StackPanel></Expander>
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <Border x:Name="ChecklistAndReadiness" Grid.Column="1" Padding="14" CornerRadius="8" VerticalAlignment="Top"
-                    Background="{DynamicResource PtjSurfaceElevatedBrush}">
+            <Border x:Name="ChecklistAndReadiness" Grid.Column="1" Padding="0" CornerRadius="8" VerticalAlignment="Top"
+                    Background="Transparent">
                 <StackPanel>
                     <TextBlock Text="Pre-session Confirmations" Style="{StaticResource Heading}" />
-                    <TextBlock Text="Confirm each item explicitly. Populated fields do not confirm it. Changes invalidate the affected checks; Save persists the current Draft and confirmations."
-                               Style="{StaticResource Body}" Margin="0,8" />
+                    <TextBlock Text="Confirm explicitly; edits may clear affected checks." Style="{StaticResource Body}" ToolTip="Populated fields do not confirm readiness. Save persists the current Draft and confirmations." Margin="0,4" />
                     <TextBlock Text="{Binding ConfirmationSummary}" Style="{StaticResource Body}" FontWeight="SemiBold" />
-                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ConfirmationProgress, Mode=OneWay}" Height="10" Margin="0,8,0,12"
+                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ConfirmationProgress, Mode=OneWay}" Height="6" Margin="0,6,0,8"
                                  Background="{DynamicResource PtjSurfaceBrush}" Foreground="{DynamicResource PtjAccentBrush}"
                                  AutomationProperties.Name="Pre-session confirmation progress" AutomationProperties.HelpText="{Binding ConfirmationSummary}" />
                     <ItemsControl ItemsSource="{Binding Checklist}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate><DataTemplate>
-                            <StackPanel Margin="0,4,0,10">
-                                <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanInteract}" Padding="6" VerticalContentAlignment="Center"
-                                          Background="{DynamicResource PtjSurfaceElevatedBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}"
-                                          AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Description}">
-                                    <TextBlock Text="{Binding Label}" Style="{StaticResource Body}" FontWeight="SemiBold" />
+                            <StackPanel Margin="0,2,10,4">
+                                <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanInteract}" Padding="2" VerticalContentAlignment="Center"
+                                          Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+                                          AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Description}" ToolTip="{Binding Description}">
+                                    <TextBlock FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                                     <Setter Property="Text" Value="{Binding Label}" /><Style.Triggers>
+                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.ContextAndLevels}"><Setter Property="Text" Value="Context" /></DataTrigger>
+                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.ScenariosOrStandAside}"><Setter Property="Text" Value="Scenarios" /></DataTrigger>
+                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.RiskLimits}"><Setter Property="Text" Value="Risk" /></DataTrigger>
+                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.News}"><Setter Property="Text" Value="News" /></DataTrigger>
+                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.MindsetAndFocus}"><Setter Property="Text" Value="Mindset" /></DataTrigger>
+                                     </Style.Triggers>
+                                    </Style></TextBlock.Style></TextBlock>
                                 </CheckBox>
-                                <TextBlock Text="{Binding Description}" Style="{StaticResource Body}" Margin="24,0,0,0" />
+
                             </StackPanel>
                         </DataTemplate></ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="Readiness" Style="{StaticResource Heading}" Margin="0,10,0,6" />
+
                     <TextBlock Text="{Binding ReadinessSummary}" Style="{StaticResource Body}" FontWeight="SemiBold"
                                interactions:LiveAnnouncement.Text="{Binding ReadinessSummary}" AutomationProperties.LiveSetting="Polite" />
                     <Button Content="Check references" Command="{Binding CheckReferencesCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />

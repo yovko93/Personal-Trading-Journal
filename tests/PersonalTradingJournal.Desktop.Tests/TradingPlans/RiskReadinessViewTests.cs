@@ -79,7 +79,9 @@ public sealed class RiskReadinessViewTests
                 Assert.True(FormValidation.GetIsInvalid(amount)); Assert.Contains("0 or more", AutomationProperties.GetHelpText(amount));
                 Assert.All(boxes, b => Assert.False(b.IsEnabled)); Render(scroll, theme, width, dpi, "invalid");
                 amount.SetCurrentValue(TextBox.TextProperty, "0.00"); vm.MaximumTrades.Text = "3"; Layout(); Assert.False(FormValidation.GetIsInvalid(amount));
-                var expand = Assert.Single(Descendants(section).OfType<Expander>()); expand.IsExpanded = true; Layout();
+                var rules = Descendants(section).OfType<Expander>().Single(e => AutomationProperties.GetName(e) == "Linked Trading Rules");
+                rules.IsExpanded = true; Layout();
+                var expand = Descendants(rules).OfType<Expander>().Single(); expand.IsExpanded = true; Layout();
                 scroll.ScrollToEnd(); Layout(); Render(scroll, theme, width, dpi, "rules-bottom");
                 foreach (var item in vm.Checklist) item.IsChecked = true; Layout();
                 Assert.Equal(100, ((ProgressBar)Descendants(section).OfType<ProgressBar>().Single()).Value);

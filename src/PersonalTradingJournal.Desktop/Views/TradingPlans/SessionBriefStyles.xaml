@@ -1,0 +1,45 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <!-- Local to the Trading Plan components; shared templates retain focus, validation and all interaction states. -->
+ <Style x:Key="PlanInput" TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" />
+ </Style>
+ <Style x:Key="PlanSelect" TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}">
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" />
+ </Style>
+ <Style x:Key="PlanAction" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,4" />
+  <Setter Property="Margin" Value="0,2,6,2" />
+ </Style>
+ <Style x:Key="PlanPrimary" TargetType="Button" BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="12,4" />
+  <Setter Property="Margin" Value="0,2,6,2" />
+ </Style>
+ <Style x:Key="PlanSectionHeading" TargetType="ContentControl">
+  <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />
+  <Setter Property="Margin" Value="0,0,0,8" />
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContentControl">
+   <DockPanel LastChildFill="True">
+    <Border Width="30" Height="30" CornerRadius="15" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" Margin="0,0,10,0">
+     <TextBlock Text="{TemplateBinding Tag}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Border>
+    <TextBlock Text="{TemplateBinding Content}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+    <Border Height="1" Background="{DynamicResource PtjBorderBrush}" Margin="12,0,0,0" VerticalAlignment="Center" />
+   </DockPanel>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
+ <Style x:Key="PlanTab" TargetType="RadioButton">
+  <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" />
+  <Setter Property="FontSize" Value="14" /><Setter Property="Padding" Value="12,8" />
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
+   <Border x:Name="TabSurface" Background="Transparent" Padding="{TemplateBinding Padding}" BorderThickness="0,0,0,2" BorderBrush="Transparent">
+    <ContentPresenter RecognizesAccessKey="True" />
+   </Border>
+   <ControlTemplate.Triggers>
+    <Trigger Property="IsChecked" Value="True"><Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /></Trigger>
+    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="TabSurface" Property="BorderThickness" Value="1,1,1,2" /><Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5" /></Trigger>
+   </ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
+</ResourceDictionary>
