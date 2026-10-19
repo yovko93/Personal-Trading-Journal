@@ -30,7 +30,7 @@ internal static class ReviewPlanEvidenceReader
             SELECT p.* FROM TradingPlans p
             WHERE ((p.NewYorkDate >= {first} AND p.NewYorkDate <= {last}) AND ({account} IS NULL OR p.AccountId IS NULL OR p.AccountId = {account}))
                OR EXISTS (SELECT 1 FROM json_each({boundaries}) b WHERE (p.AccountId IS NULL OR p.AccountId = json_extract(b.value, '$.Account')) AND p.NewYorkDate = json_extract(b.value, '$.Date'))
-            """).AsNoTracking();
+            """).AsNoTracking().Where(p => p.DeletedAtUtc == null);
         var plans = await plansQuery.OrderBy(p => p.NewYorkDate).ThenBy(p => p.AccountId)
             .Select(p => new { p.Id, p.AccountId, p.NewYorkDate, p.LatestReadyRevision, HasDraft = p.DraftJson != null, p.UpdatedAtUtc,
                 AccountName = db.TradingAccounts.Where(a => a.Id == p.AccountId).Select(a => a.Name).FirstOrDefault() })

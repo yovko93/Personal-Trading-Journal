@@ -8,7 +8,7 @@ public enum TradingPlanPreparationState { DraftOnly = 1, Ready = 2, DraftAfterRe
 public sealed class TradingPlanNotReadyException : InvalidOperationException
 {
     internal TradingPlanNotReadyException(ImmutableArray<TradingPlanValidationIssue> issues)
-        : base("Complete the required preparation and confirm the readiness checklist.") => Issues = issues;
+        : base("Correct the required preparation before marking Ready.") => Issues = issues;
     public ImmutableArray<TradingPlanValidationIssue> Issues { get; }
 }
 
@@ -57,19 +57,20 @@ public sealed class TradingPlan : AuditableEntity
     public TradingPlanPreparationState PreparationState => WorkingDraft is null ? TradingPlanPreparationState.Ready :
         LatestReadyRevision is null ? TradingPlanPreparationState.DraftOnly : TradingPlanPreparationState.DraftAfterReady;
 
-    /// <summary>Incoming checkmarks are ignored. A real preparation change invalidates affected
-    /// existing confirmations. Re-confirming is a separate explicit user operation.</summary>
+    /// <summary>Incoming legacy flags never assert new confirmations. Edited Drafts use None;
+    /// preserved Ready revisions are not changed.</summary>
     public bool EditDraft(long expectedVersion, TradingPlanContent content, DateTimeOffset changedAtUtc)
     {
         var draft = RequireDraft(expectedVersion, changedAtUtc);
         ArgumentNullException.ThrowIfNull(content);
-        if (draft.Content.HasSamePreparation(content)) return false;
-        var next = new TradingPlanDraft(content.WithConfirmations(draft.Content.ConfirmationsAfterEdit(content)),
+        if (draft.Content.HasSamePreparation(content) && draft.Content.Confirmed == TradingPlanChecklist.None) return false;
+        var next = new TradingPlanDraft(content.WithConfirmations(TradingPlanChecklist.None),
             draft.DerivedFromRevision, draft.StartedAtUtc, changedAtUtc);
         CommitDraft(next, changedAtUtc);
         return true;
     }
 
+    /// <summary>Legacy compatibility only. Current application writes reject confirmation commands.</summary>
     public bool SetConfirmations(long expectedVersion, TradingPlanChecklist confirmed, DateTimeOffset confirmedAtUtc)
     {
         var draft = RequireDraft(expectedVersion, confirmedAtUtc);
@@ -81,7 +82,7 @@ public sealed class TradingPlan : AuditableEntity
         return true;
     }
 
-    /// <summary>Explicit acknowledgement of refreshed reference interpretation invalidates all checks.</summary>
+    /// <summary>Persist refreshed reference interpretation; legacy Draft flags are not active input.</summary>
     public void RefreshReferences(long expectedVersion, DateTimeOffset atUtc)
     {
         var draft = RequireDraft(expectedVersion, atUtc);
@@ -116,7 +117,7 @@ public sealed class TradingPlan : AuditableEntity
         if (source.Id.PlanId != Id || source.Key != Key || source.PlanCreatedAtUtc != CreatedAtUtc ||
             source.Id.Revision > LatestReadyRevision!.Id.Revision || source.ReadyAtUtc > LatestReadyRevision.ReadyAtUtc)
             throw new InvalidOperationException("Select a Ready revision belonging to this Plan.");
-        var draft = new TradingPlanDraft(source.Content.WithConfirmations(TradingPlanChecklist.None), source.Id,
+        var draft = new TradingPlanDraft(source.Content.WithPlanCurrency(source.References.Account.Currency).WithConfirmations(TradingPlanChecklist.None), source.Id,
             startedAtUtc, startedAtUtc);
         CommitDraft(draft, startedAtUtc);
     }

@@ -38,11 +38,11 @@
           </ResourceDictionary>
     </UserControl.Resources>
     <StackPanel Margin="12">
-        <ContentControl Content="Risk &amp; Readiness" Tag="03" Style="{StaticResource PlanSectionHeading}" />
+        <ContentControl Content="Risk &amp; Rules" Tag="03" Style="{StaticResource PlanSectionHeading}" />
         <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <Grid x:Name="Columns" Margin="0,8,0,0">
-            <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition /></Grid.ColumnDefinitions>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <StackPanel x:Name="LimitsAndRules" Margin="0,0,14,0">
                 <Border Padding="0" CornerRadius="8" Background="Transparent">
@@ -88,47 +88,7 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <Border x:Name="ChecklistAndReadiness" Grid.Column="1" Padding="0" CornerRadius="8" VerticalAlignment="Top"
-                    Background="Transparent">
-                <StackPanel>
-                    <TextBlock Text="Pre-session Confirmations" Style="{StaticResource Heading}" />
-                    <TextBlock Text="Confirm explicitly; edits may clear affected checks." Style="{StaticResource Body}" ToolTip="Populated fields do not confirm readiness. Save persists the current Draft and confirmations." Margin="0,4" />
-                    <TextBlock Text="{Binding ConfirmationSummary}" Style="{StaticResource Body}" FontWeight="SemiBold" />
-                    <ProgressBar Minimum="0" Maximum="100" Value="{Binding ConfirmationProgress, Mode=OneWay}" Height="6" Margin="0,6,0,8"
-                                 Background="{DynamicResource PtjSurfaceBrush}" Foreground="{DynamicResource PtjAccentBrush}"
-                                 AutomationProperties.Name="Pre-session confirmation progress" AutomationProperties.HelpText="{Binding ConfirmationSummary}" />
-                    <ItemsControl ItemsSource="{Binding Checklist}">
-                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate><DataTemplate>
-                            <StackPanel Margin="0,2,10,4">
-                                <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanInteract}" Padding="2" VerticalContentAlignment="Center"
-                                          Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}"
-                                          AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Description}" ToolTip="{Binding Description}">
-                                    <TextBlock FontWeight="SemiBold"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
-                                     <Setter Property="Text" Value="{Binding Label}" /><Style.Triggers>
-                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.ContextAndLevels}"><Setter Property="Text" Value="Context" /></DataTrigger>
-                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.ScenariosOrStandAside}"><Setter Property="Text" Value="Scenarios" /></DataTrigger>
-                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.RiskLimits}"><Setter Property="Text" Value="Risk" /></DataTrigger>
-                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.News}"><Setter Property="Text" Value="News" /></DataTrigger>
-                                      <DataTrigger Binding="{Binding Flag}" Value="{x:Static plan:TradingPlanChecklist.MindsetAndFocus}"><Setter Property="Text" Value="Mindset" /></DataTrigger>
-                                     </Style.Triggers>
-                                    </Style></TextBlock.Style></TextBlock>
-                                </CheckBox>
-
-                            </StackPanel>
-                        </DataTemplate></ItemsControl.ItemTemplate>
-                    </ItemsControl>
-
-                    <TextBlock Text="{Binding ReadinessSummary}" Style="{StaticResource Body}" FontWeight="SemiBold"
-                               interactions:LiveAnnouncement.Text="{Binding ReadinessSummary}" AutomationProperties.LiveSetting="Polite" />
-                    <Button Content="Check references" Command="{Binding CheckReferencesCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
-                    <ItemsControl ItemsSource="{Binding ReadinessBlockers}">
-                        <ItemsControl.ItemTemplate><DataTemplate>
-                            <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4" />
-                        </DataTemplate></ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+            <Button Grid.Row="1" Content="Check references" Command="{Binding CheckReferencesCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
         </Grid>
     </StackPanel>
 </UserControl>

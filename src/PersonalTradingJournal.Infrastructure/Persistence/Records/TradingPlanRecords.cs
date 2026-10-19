@@ -11,6 +11,7 @@ public sealed class TradingPlanRecord
     public string? ReferenceStateJson { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
+    public DateTimeOffset? DeletedAtUtc { get; set; }
 }
 public sealed class TradingPlanReadyRecord
 {

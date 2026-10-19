@@ -51,16 +51,12 @@ public sealed class TradingPlanRevisionTests
     {
         var f = new TradingPlanFixture();
         var plan = f.Plan;
-        var before = (plan.Version, plan.UpdatedAtUtc, plan.WorkingDraft);
-        var error = Assert.Throws<TradingPlanNotReadyException>(() => plan.MarkReady(plan.Version,
-            f.References(plan.WorkingDraft!.Content, Time.AddMinutes(3)), Time.AddMinutes(3)));
-        Assert.Equal(5, error.Issues.Length);
-        Assert.All(error.Issues, i => Assert.StartsWith("Checklist.", i.Field));
-        Assert.Equal(before, (plan.Version, plan.UpdatedAtUtc, plan.WorkingDraft));
-        Assert.Null(plan.LatestReadyRevision);
+        var ready = plan.MarkReady(plan.Version, f.References(plan.WorkingDraft!.Content, Time.AddMinutes(3)), Time.AddMinutes(3));
+        Assert.Equal(TradingPlanChecklist.None, ready.Content.Confirmed);
+        plan.StartDraft(plan.Version, ready, Time.AddMinutes(4));
         plan.EditDraft(plan.Version, Change(f.Content, focus: " "), Time.AddMinutes(4));
         plan.SetConfirmations(plan.Version, TradingPlanChecklist.All, Time.AddMinutes(5));
-        error = Assert.Throws<TradingPlanNotReadyException>(() => f.Ready(Time.AddMinutes(6)));
+        var error = Assert.Throws<TradingPlanNotReadyException>(() => f.Ready(Time.AddMinutes(6)));
         Assert.Contains(error.Issues, i => i.Field == "Focus");
         Assert.Equal(" ", plan.WorkingDraft!.Content.Focus);
     }
@@ -157,8 +153,11 @@ public sealed class TradingPlanRevisionTests
         Assert.Equal(TradingPlanChecklist.None, plan.WorkingDraft!.Content.Confirmed); // Incoming All is not confirmation.
         plan.SetConfirmations(plan.Version, TradingPlanChecklist.All, Time.AddMinutes(2));
         before = (plan.Version, plan.UpdatedAtUtc, plan.WorkingDraft);
-        Assert.False(plan.EditDraft(plan.Version, Change(f.Content, confirmed: TradingPlanChecklist.None), Time.AddMinutes(3)));
-        Assert.False(plan.SetConfirmations(plan.Version, TradingPlanChecklist.All, Time.AddMinutes(3)));
+        Assert.True(plan.EditDraft(plan.Version, Change(f.Content, confirmed: TradingPlanChecklist.None), Time.AddMinutes(3)));
+        Assert.Equal(before.Version + 1, plan.Version);
+        Assert.Equal(TradingPlanChecklist.None, plan.WorkingDraft!.Content.Confirmed);
+        before = (plan.Version, plan.UpdatedAtUtc, plan.WorkingDraft);
+        Assert.False(plan.EditDraft(plan.Version, Change(f.Content), Time.AddMinutes(3)));
         Assert.Equal(before, (plan.Version, plan.UpdatedAtUtc, plan.WorkingDraft));
         UnchangedAfter<ArgumentOutOfRangeException>(plan, () => plan.SetConfirmations(plan.Version, (TradingPlanChecklist)32, Time.AddMinutes(3)));
     }
@@ -192,20 +191,21 @@ public sealed class TradingPlanRevisionTests
             _ => Change(content, news: "New restriction")
         };
         Assert.True(plan.EditDraft(plan.Version, next, Time.AddMinutes(3)));
-        Assert.Equal(TradingPlanChecklist.All & ~reset, plan.WorkingDraft!.Content.Confirmed);
+        Assert.NotEqual(TradingPlanChecklist.None, reset); // Historical policy parameter; active edits never assert confirmations.
+        Assert.Equal(TradingPlanChecklist.None, plan.WorkingDraft!.Content.Confirmed);
         Assert.Equal(TradingPlanChecklist.All, next.Confirmed);
         Assert.Null(plan.LatestReadyRevision);
     }
 
     [Fact]
-    public void MultipleEditsCombineResetsAndExplicitReconfirmationIsRequired()
+    public void NewEditsCarryNoActiveConfirmationsButLegacySnapshotsRemainRepresentable()
     {
         var f = new TradingPlanFixture();
         f.Plan.SetConfirmations(f.Plan.Version, TradingPlanChecklist.All, Time.AddMinutes(2));
         f.Plan.EditDraft(f.Plan.Version, Change(f.Content, focus: "New focus", risk: new(25m), news: "New notes"), Time.AddMinutes(3));
-        Assert.Equal(TradingPlanChecklist.ContextAndLevels, f.Plan.WorkingDraft!.Content.Confirmed);
-        UnchangedAfter<TradingPlanNotReadyException>(f.Plan, () => f.Plan.MarkReady(f.Plan.Version,
-            f.References(f.Plan.WorkingDraft.Content, Time.AddMinutes(4)), Time.AddMinutes(4)));
-        Assert.Equal(TradingPlanChecklist.All, f.Ready(Time.AddMinutes(5)).Content.Confirmed);
+        Assert.Equal(TradingPlanChecklist.None, f.Plan.WorkingDraft!.Content.Confirmed);
+        var ready = f.Plan.MarkReady(f.Plan.Version,
+            f.References(f.Plan.WorkingDraft.Content, Time.AddMinutes(4)), Time.AddMinutes(4));
+        Assert.Equal(TradingPlanChecklist.None, ready.Content.Confirmed);
     }
 }

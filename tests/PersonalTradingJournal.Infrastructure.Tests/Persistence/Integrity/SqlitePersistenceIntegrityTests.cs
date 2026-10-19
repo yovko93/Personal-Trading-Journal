@@ -299,9 +299,9 @@ public sealed class SqlitePersistenceIntegrityTests
 
         Assert.Equal(13, uniqueIndexes.Count);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
-            index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL");
+            index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL AND DeletedAtUtc IS NULL");
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
-            index.Properties.SequenceEqual(["NewYorkDate"]) && index.Filter == "AccountId IS NULL");
+            index.Properties.SequenceEqual(["NewYorkDate"]) && index.Filter == "AccountId IS NULL AND DeletedAtUtc IS NULL");
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanAssetRecord) &&
             index.Properties.SequenceEqual(["StorageKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&

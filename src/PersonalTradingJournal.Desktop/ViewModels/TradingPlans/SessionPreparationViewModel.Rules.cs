@@ -79,7 +79,7 @@ public sealed partial class SessionPreparationViewModel
                 bool available = current is { IsActive: true, Definition.IsGlobal: true };
                 string status = current is null ? "Current Rule unavailable; saved context remains readable." :
                     !available ? "Current Rule deleted/archived or legacy scoped; new links are not permitted." :
-                    current.Revision != link.ExpectedRevision ? "Current Rule changed. Select its intended revision, then explicitly refresh references and reconfirm." : "Selected Rule is current.";
+                    current.Revision != link.ExpectedRevision ? "Current Rule changed. Select its intended revision, then explicitly refresh references." : "Selected Rule is current.";
                 if (IsReadOnly)
                 {
                     var frozen = (_historical ?? _plan.LatestReadyRevision)!.References.Rules.Single(r => r.RuleId == link.RuleId);

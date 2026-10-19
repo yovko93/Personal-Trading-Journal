@@ -11,7 +11,7 @@ public sealed class TradingPlanReadyRevision
         ArgumentNullException.ThrowIfNull(id); ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(draft); ArgumentNullException.ThrowIfNull(references);
         if (planCreatedAtUtc.Offset != TimeSpan.Zero || readyAtUtc.Offset != TimeSpan.Zero ||
-            planCreatedAtUtc > draft.StartedAtUtc || draft.UpdatedAtUtc > readyAtUtc || sourceDraftVersion < (long)id.Revision * 3 - 1 ||
+            planCreatedAtUtc > draft.StartedAtUtc || draft.UpdatedAtUtc > readyAtUtc || sourceDraftVersion < (long)id.Revision * 2 - 1 ||
             (draft.DerivedFromRevision is not null && (draft.DerivedFromRevision.PlanId != id.PlanId ||
                 draft.DerivedFromRevision.Revision >= id.Revision)) ||
             (id.Revision == 1 && (draft.DerivedFromRevision is not null || draft.StartedAtUtc != planCreatedAtUtc)) ||

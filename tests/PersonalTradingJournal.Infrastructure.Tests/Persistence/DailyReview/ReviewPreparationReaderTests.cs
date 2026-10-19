@@ -50,7 +50,7 @@ public sealed partial class DailyReviewEvidenceReaderTests
                 new(plan.Id, plan.Version), plan.LatestReadyRevision!.Id));
             Assert.Equal(TradingPlanWriteStatus.Success, start.Status); plan = start.Plan!;
         }
-        var saved = await store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, plan.Key, content, new(plan.Id, plan.Version), explicitConfirmations: TradingPlanChecklist.All));
+        var saved = await store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, plan.Key, content, new(plan.Id, plan.Version)));
         Assert.Equal(TradingPlanWriteStatus.Success, saved.Status); plan = saved.Plan!;
         var ready = await store.WriteAsync(new(TradingPlanWriteOperation.MarkReady, plan.Key, plan.WorkingDraft!.Content, new(plan.Id, plan.Version)));
         Assert.Equal(TradingPlanWriteStatus.Success, ready.Status); return ready.Plan!;
@@ -103,7 +103,11 @@ public sealed partial class DailyReviewEvidenceReaderTests
         var draft = await service.PrepareAsync(new(kind, Day, account, "Original synthetic Account"));
         Assert.Contains("TradingPlanRevision", draft.EvidenceJson); Assert.Contains("Synthetic preparation", draft.Prompt);
         Assert.Contains("untrusted", draft.Prompt); Assert.DoesNotContain("storageKey", draft.Prompt);
-        clock.Now = Close.AddHours(1); await Publish(store, p, Intention(instrument, "Later content NOT in saved review"));
+        clock.Now = Close.AddHours(1); p = await Publish(store, p, Intention(instrument, "Later content NOT in saved review"));
+        var deleted = await store.WriteAsync(new(TradingPlanWriteOperation.Delete, p.Key, p.LatestReadyRevision!.Content, new(p.Id, p.Version)));
+        Assert.Equal(TradingPlanWriteStatus.Success, deleted.Status);
+        Assert.Empty((await Reader(db).GetAsync(new(Day, account))).Preparation!.Revisions);
+        Assert.NotNull(await store.LoadReadyAsync(p.LatestReadyRevision.Id));
         await using (var ctx = await db.ContextFactory.CreateDbContextAsync()) await ctx.TradingAccounts.Where(a => a.Id == account).ExecuteDeleteAsync();
         service = await ManualReviewTests.Service(db); Assert.Equal(draft, await service.LoadAsync(kind));
         var edited = await service.KeepResponseAsync(draft, ManualReviewTests.Response(draft));

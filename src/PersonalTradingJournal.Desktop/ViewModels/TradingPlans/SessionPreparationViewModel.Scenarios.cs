@@ -103,7 +103,7 @@ public sealed partial class SessionPreparationViewModel
                     string status = live is null ? "Current Setup unavailable." : !live.IsActive ? "Current Setup archived; new links are not permitted." :
                         latest?.Revision != link.ExpectedPlaybookRevision || live.UpdatedAtUtc != link.ExpectedUpdatedAtUtc
                         ? (IsReadOnly ? "Current Setup changed. The saved context remains unchanged. Start a Draft to change preparation."
-                            : "Current Setup changed. Explicitly select its current definition, then refresh references and reconfirm.") : "Selected reference is current.";
+                            : "Current Setup changed. Explicitly select its current definition, then refresh references.") : "Selected reference is current.";
                     if (IsReadOnly) row.Present(FrozenText(link.SetupId) + "\n\n" + status, live is not null);
                     else row.Present(exact is null ? "Previously selected Playbook content is no longer current or available. Relink or remove it; scenario input is retained.\n" + status :
                         $"{exact.SetupName} · selected Playbook\n{Guidance(exact.Guidance)}\n\n{status}", live is not null);
@@ -128,7 +128,7 @@ public sealed partial class SessionPreparationViewModel
             { Report("Choose an active Setup with saved Playbook guidance. The previous link and scenario input are retained.", PlanNoticeKind.Info); return; }
             row.SetLink(new(live.Id, revision.Revision, live.UpdatedAtUtc));
             row.Present($"{live.Name} · current Playbook\n{Guidance(revision.Guidance)}\n\nAssociation is not verified adherence.", true);
-            Report("Playbook selected for this Draft. Save rechecks its current content; changed references require explicit refresh and reconfirmation.", PlanNoticeKind.Warning);
+            Report("Playbook selected for this Draft. Save rechecks its current content; changed references require explicit refresh.", PlanNoticeKind.Warning);
         }
         catch (OperationCanceledException) { Report("Playbook selection cancelled. Previous link and input retained.", PlanNoticeKind.Info); }
         catch (Exception) { Report("Playbook selection failed. Previous link and input retained; try again.", PlanNoticeKind.Error); }

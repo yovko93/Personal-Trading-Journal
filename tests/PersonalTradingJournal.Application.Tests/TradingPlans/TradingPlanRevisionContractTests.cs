@@ -14,7 +14,8 @@ public sealed class TradingPlanRevisionContractTests
     {
         var (plan, account, instrument, clock) = Create();
         var command = new TradingPlanWriteCommand(operation, plan.Key, plan.WorkingDraft!.Content, new(plan.Id, plan.Version));
-        Assert.Null(command.CheckTransition(TradingPlanLoadedState.FromPlan(plan)));
+        Assert.Equal(operation == TradingPlanWriteOperation.ConfirmChecklist ? TradingPlanWriteStatus.Invalid : (TradingPlanWriteStatus?)null,
+            command.CheckTransition(TradingPlanLoadedState.FromPlan(plan)));
         Ready(plan, account, instrument, clock);
         Assert.Equal(TradingPlanWriteStatus.Conflict, command.CheckTransition(TradingPlanLoadedState.FromPlan(plan)));
         Assert.Throws<ArgumentException>(() => new TradingPlanWriteCommand(operation, plan.Key, command.Content));

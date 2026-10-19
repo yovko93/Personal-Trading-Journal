@@ -66,7 +66,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     public bool HasNoContext => !HasSelectedContext;
     public bool IsDirty => !IsReadOnly && Fingerprint() != _baseline;
     public bool HasValidationErrors => Fields.Any(f => f.IsInvalid) || CurrencyError.Length > 0;
-    public string CurrencyError => IsGlobalScope && (string.IsNullOrWhiteSpace(PlanCurrency) || PlanCurrency.Length > 8 || PlanCurrency != PlanCurrency.Trim().ToUpperInvariant())
+    public string CurrencyError => (IsGlobalScope || !string.IsNullOrWhiteSpace(PlanCurrency)) && (string.IsNullOrWhiteSpace(PlanCurrency) || PlanCurrency.Length > 8 || PlanCurrency != PlanCurrency.Trim().ToUpperInvariant())
         ? "Enter an explicit plan currency using up to 8 uppercase characters." : "";
     public string StateLabel => IsReadOnly ? $"Ready revision {(_historical ?? _plan.LatestReadyRevision)!.Id.Revision} · read-only" :
         IsDirty ? "Working Draft · unsaved changes" : "Working Draft · current saved content";
@@ -105,7 +105,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     public IAsyncRelayCommand RefreshReferencesCommand { get; }
     public IRelayCommand CancelCommand { get; }
     public int ValidationAttempt { get; private set; }
-    public TradingPlanChecklist Confirmed => IsReadOnly ? _original.Confirmed : _pendingConfirmed;
+    public TradingPlanChecklist Confirmed => IsReadOnly ? _original.Confirmed : TradingPlanChecklist.None;
     private IEnumerable<PreparationField> Fields => new[] { Focus }.Concat(_contexts.SelectMany(c => c.Fields))
         .Append(News).Concat(_scenarios.SelectMany(s => s.Fields)).Append(StandAside).Concat(RiskFields);
 
@@ -131,7 +131,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         content = null;
         if (HasValidationErrors) return false;
         content = new(Session, Focus.Text, Intent, _contexts.Select(c => c.Build()),
-            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, BuildRisk(), _linkedRules.Select(r => r.Link), Confirmed, IsGlobalScope ? PlanCurrency : _original.PlanCurrency,
+            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, BuildRisk(), _linkedRules.Select(r => r.Link), Confirmed, string.IsNullOrWhiteSpace(PlanCurrency) ? null : PlanCurrency,
             _screenshots.Where(s => s.Image is not null).Select(s => new TradingPlanScreenshot(s.Id, s.InstrumentId, s.Timeframe, s.Image!)));
         return true;
     }
@@ -147,11 +147,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             Report("Correct the highlighted input before saving. All entered text is retained.", PlanNoticeKind.Warning);
             ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return TradingPlanWriteStatus.Invalid;
         }
-        if (operationKind == TradingPlanWriteOperation.RefreshReferences && HasMonetaryLimits && _currentAccount is null)
-        { Report("Check references to review the Account currency before refreshing planned amounts. Input is retained.", PlanNoticeKind.Info); return TradingPlanWriteStatus.Invalid; }
         var command = new TradingPlanWriteCommand(operationKind, Key, content!, Token,
-            explicitConfirmations: operationKind == TradingPlanWriteOperation.SaveDraft ? Confirmed : null,
-            expectedAccountCurrency: operationKind == TradingPlanWriteOperation.RefreshReferences ? _currentAccount?.Currency : null);
+            expectedAccountCurrency: null);
         using var operation = Begin(ct);
         var staged = new List<PlanScreenshotItem>(); bool committed = false;
         try
@@ -159,8 +156,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             await StageImagesAsync(staged, operation.Token);
             if (!TryBuildContent(out content)) return TradingPlanWriteStatus.Invalid;
             command = new(operationKind, Key, content!, Token,
-                explicitConfirmations: operationKind == TradingPlanWriteOperation.SaveDraft ? Confirmed : null,
-                expectedAccountCurrency: operationKind == TradingPlanWriteOperation.RefreshReferences ? _currentAccount?.Currency : null);
+                    expectedAccountCurrency: null);
             var result = await Task.Run(() => _store.WriteAsync(command, operation.Token), operation.Token);
             // A committed success remains success even if cancellation arrives after commit.
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } saved &&
@@ -171,7 +167,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
                 foreach (var item in _screenshots) item.Pending = null;
                 AcceptSavedReadiness(result); _baseline = Fingerprint();
                 Report(operationKind == TradingPlanWriteOperation.RefreshReferences
-                    ? "References refreshed and Draft saved. All checklist confirmations must be made again."
+                    ? "References refreshed and Draft saved. Review the updated reference context."
                     : "Draft saved and verified.", PlanNoticeKind.Success);
                 return TradingPlanWriteStatus.Success;
             }
@@ -180,7 +176,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             Report(status switch
             {
                 TradingPlanWriteStatus.Conflict => "This Plan changed elsewhere. Keep your input and resolve the newer Draft before saving.",
-                TradingPlanWriteStatus.ReferenceChanged => "A selected reference changed. Review it, then explicitly refresh references and reconfirm the checklist. Input is retained.",
+                TradingPlanWriteStatus.ReferenceChanged => "A selected reference changed. Review it, then explicitly refresh references. Input is retained.",
                 TradingPlanWriteStatus.ReferenceUnavailable => "A selected reference is unavailable or inactive. Restore it or explicitly remove/relink it; input is retained.",
                 TradingPlanWriteStatus.Cancelled => "Save cancelled. Entered preparation is retained.",
                 TradingPlanWriteStatus.Invalid => "Preparation could not be validated. Check the entered fields; input is retained.",
@@ -209,8 +205,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     private static bool ReadbackMatches(TradingPlan saved, TradingPlanContent proposed, TradingPlanWriteCommand command)
     {
         var copy = TradingPlan.Rehydrate(saved.Id, saved.Key, saved.Version, saved.WorkingDraft, saved.LatestReadyRevision, saved.CreatedAtUtc, saved.UpdatedAtUtc);
-        return !copy.EditDraft(copy.Version, proposed, copy.UpdatedAtUtc) && saved.WorkingDraft!.Content.Confirmed ==
-            (command.Operation == TradingPlanWriteOperation.RefreshReferences ? TradingPlanChecklist.None : command.ExplicitConfirmations!.Value);
+        return !copy.EditDraft(copy.Version, proposed, copy.UpdatedAtUtc);
     }
     private void RemoveInstrument()
     {
@@ -252,9 +247,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     }
     private void Changed()
     {
-        InvalidateEditedConfirmations();
-        if (IsDirty && Message is "Draft saved and verified." or "References refreshed and Draft saved. All checklist confirmations must be made again.")
-            Report("Unsaved Draft changes. Save to verify and persist the current preparation and confirmations.", PlanNoticeKind.Warning);
+        if (IsDirty && Message is "Draft saved and verified." or "References refreshed and Draft saved. Review the updated reference context.")
+            Report("Unsaved Draft changes. Save to verify and persist the current preparation.", PlanNoticeKind.Warning);
         OnPropertyChanged(nameof(IsDirty)); OnPropertyChanged(nameof(HasValidationErrors)); OnPropertyChanged(nameof(Confirmed)); OnPropertyChanged(nameof(Token));
         OnPropertyChanged(nameof(StateLabel));
         NotifyScenarioAccess();

@@ -10,22 +10,22 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.TradingPlans;
 public sealed class TradingPlanReadinessPersistenceTests
 {
     [Fact]
-    public async Task SaveAndExplicitConfirmationsAreAtomicPersistedAndReadBackAfterRestart()
+    public async Task SaveWithoutConfirmationsIsAtomicAndReadBackAfterRestart()
     {
         await using var f = await Fixture.Create(); var plan = await f.CreatePlan();
         var content = TradingPlanPersistenceTests.Change(plan.WorkingDraft!.Content, focus: "New preparation");
-        var save = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, content, new(plan.Id, plan.Version), explicitConfirmations: TradingPlanChecklist.All));
-        Assert.Equal(TradingPlanWriteStatus.Success, save.Status); Assert.Equal(TradingPlanChecklist.All, save.Plan!.WorkingDraft!.Content.Confirmed);
+        var save = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, content, new(plan.Id, plan.Version)));
+        Assert.Equal(TradingPlanWriteStatus.Success, save.Status); Assert.Equal(TradingPlanChecklist.None, save.Plan!.WorkingDraft!.Content.Confirmed);
         Assert.Equal("USD", save.VerifiedReferences!.Account.Currency);
-        Assert.Equal(plan.Version + 2, save.Plan.Version); // Existing EditDraft and SetConfirmations transitions, one DB commit.
-        var same = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, save.Plan.WorkingDraft.Content, new(plan.Id, save.Plan.Version), explicitConfirmations: TradingPlanChecklist.All));
+        Assert.Equal(plan.Version + 1, save.Plan.Version); // One content transition, one DB commit.
+        var same = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, save.Plan.WorkingDraft.Content, new(plan.Id, save.Plan.Version)));
         Assert.Equal(save.Plan.Version, same.Plan!.Version);
         await f.Restart(); var loaded = (await f.Store.LoadAsync(f.Key))!;
-        Assert.Equal("New preparation", loaded.WorkingDraft!.Content.Focus); Assert.Equal(TradingPlanChecklist.All, loaded.WorkingDraft.Content.Confirmed);
+        Assert.Equal("New preparation", loaded.WorkingDraft!.Content.Focus); Assert.Equal(TradingPlanChecklist.None, loaded.WorkingDraft.Content.Confirmed);
         Assert.Empty(await f.Store.ReadyHistoryAsync(plan.Id));
-        var stale = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, content, new(plan.Id, plan.Version), explicitConfirmations: TradingPlanChecklist.None));
+        var stale = await f.Store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key, content, new(plan.Id, plan.Version)));
         Assert.Equal(TradingPlanWriteStatus.Conflict, stale.Status);
-        Assert.Equal(TradingPlanChecklist.All, (await f.Store.LoadAsync(f.Key))!.WorkingDraft!.Content.Confirmed);
+        Assert.Equal(TradingPlanChecklist.None, (await f.Store.LoadAsync(f.Key))!.WorkingDraft!.Content.Confirmed);
     }
     [Theory] [InlineData(false)] [InlineData(true)]
     public async Task FailedOrCancelledCombinedSaveRollsBackBothContentAndChecks(bool cancel)
@@ -34,7 +34,7 @@ public sealed class TradingPlanReadinessPersistenceTests
         using var ct = new CancellationTokenSource();
         var store = new TradingPlanStore(f.Factory(new BeforeCommit(ct, cancel)), f.Clock);
         var result = await store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, f.Key,
-            TradingPlanPersistenceTests.Change(plan.WorkingDraft!.Content, "retained client input"), new(plan.Id, plan.Version), explicitConfirmations: TradingPlanChecklist.All), ct.Token);
+            TradingPlanPersistenceTests.Change(plan.WorkingDraft!.Content, "retained client input"), new(plan.Id, plan.Version)), ct.Token);
         Assert.Equal(cancel ? TradingPlanWriteStatus.Cancelled : TradingPlanWriteStatus.StorageFailure, result.Status);
         var read = (await f.Store.LoadAsync(f.Key))!;
         Assert.Equal(plan.Version, read.Version); Assert.Equal(plan.WorkingDraft.Content.Focus, read.WorkingDraft!.Content.Focus);
@@ -63,8 +63,8 @@ public sealed class TradingPlanReadinessPersistenceTests
         var id = ready.LatestReadyRevision!.Id; var source = ready.LatestReadyRevision;
         await using (var db = f.Context()) await db.TradingAccounts.ExecuteUpdateAsync(s => s.SetProperty(x => x.Currency, "EUR"));
         var start = new TradingPlanWriteCommand(TradingPlanWriteOperation.StartDraft, f.Key, source.Content, new(ready.Id, ready.Version), id);
-        Assert.Equal(TradingPlanWriteStatus.ReferenceChanged, (await f.Store.WriteAsync(start)).Status);
-        var accepted = await f.Store.WriteAsync(new(TradingPlanWriteOperation.StartDraft, f.Key, source.Content, start.Expected, id, expectedAccountCurrency: "EUR"));
+        var accepted = await f.Store.WriteAsync(start);
+        Assert.Equal("USD", accepted.Plan!.WorkingDraft!.Content.PlanCurrency);
         Assert.Equal(TradingPlanWriteStatus.Success, accepted.Status); var draft = accepted.Plan!;
         await using (var db = f.Context()) await db.TradingAccounts.ExecuteUpdateAsync(s => s.SetProperty(x => x.Currency, "GBP"));
         var mismatch = await f.Store.WriteAsync(new(TradingPlanWriteOperation.RefreshReferences, f.Key, draft.WorkingDraft!.Content,

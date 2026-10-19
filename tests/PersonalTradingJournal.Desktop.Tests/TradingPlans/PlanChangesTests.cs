@@ -15,13 +15,34 @@ namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 public sealed class PlanChangesTests
 {
     [Fact]
+    public async Task SharedCreateUsesSavedCurrencyBeforeValidatingBlankFormFallback()
+    {
+        await using var f = await TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
+        var sourceKey = new TradingPlanKey(null, f.Source.Store.Plan.Key.NewYorkDate);
+        var saved = await f.Store.Inner.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, sourceKey,
+            f.Source.Content.WithPlanCurrency("EUR")));
+        Assert.Equal(TradingPlanWriteStatus.Success, saved.Status);
+        using var vm = f.NewWorkspace(); await vm.ActivateAsync();
+        await vm.SelectContextAsync(sourceKey.NewYorkDate.AddDays(1), vm.SelectedAccount);
+        Assert.Null(vm.SelectedAccount!.Id); Assert.Null(vm.Editor);
+        vm.PlanCurrency = ""; await vm.CreateDraftAsync();
+        Assert.NotNull(vm.Editor); Assert.Equal("EUR", vm.Editor.PlanCurrency);
+        Assert.Equal(f.Source.Content.Focus, vm.Editor.Focus.Text);
+        Assert.Equal(sourceKey.NewYorkDate.AddDays(1), vm.Editor.Key.NewYorkDate);
+        Assert.NotEqual(saved.Plan!.Id, vm.Editor.CurrentPlan.Id);
+        Assert.Empty(vm.Editor.VisibleScreenshots);
+    }
+
+    [Fact]
     public async Task MixedAccountCurrenciesRequireExplicitSharedCurrencyWithoutChoosingAnAccount()
     {
         await using var f = await TradingPlanWorkspaceTests.Fixture.CreateAsync();
         await f.Db.Provider.GetRequiredService<ITradingAccountStore>().AddAsync(new("Second synthetic",
             PersonalTradingJournal.Domain.Accounts.TradingAccountType.Personal, null, null, "EUR", 0, DateTimeOffset.UtcNow));
         using var vm = f.NewWorkspace(); await vm.ActivateAsync();
-        Assert.Null(vm.SelectedAccount!.Id); Assert.Equal("", vm.PlanCurrency); Assert.False(vm.CanCreateDraft);
+        Assert.Null(vm.SelectedAccount!.Id); Assert.Equal("", vm.PlanCurrency); Assert.True(vm.CanCreateDraft);
+        await vm.CreateDraftAsync(); // No previous saved Plan can supply the missing global currency.
+        Assert.Null(vm.Editor);
         vm.PlanCurrency = "EUR"; Assert.True(vm.CanCreateDraft); await vm.CreateDraftAsync();
         Assert.Equal("EUR", vm.Editor!.CurrentPlan.WorkingDraft!.Content.PlanCurrency); Assert.Null(vm.Editor.Key.AccountId);
     }

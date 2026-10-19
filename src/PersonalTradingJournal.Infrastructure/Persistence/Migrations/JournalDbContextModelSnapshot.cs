@@ -1016,6 +1016,10 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DraftJson")
                         .HasColumnType("TEXT");
 
@@ -1039,11 +1043,11 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("NewYorkDate")
                         .IsUnique()
-                        .HasFilter("AccountId IS NULL");
+                        .HasFilter("AccountId IS NULL AND DeletedAtUtc IS NULL");
 
                     b.HasIndex("AccountId", "NewYorkDate")
                         .IsUnique()
-                        .HasFilter("AccountId IS NOT NULL");
+                        .HasFilter("AccountId IS NOT NULL AND DeletedAtUtc IS NULL");
 
                     b.ToTable("TradingPlans", null, t =>
                         {

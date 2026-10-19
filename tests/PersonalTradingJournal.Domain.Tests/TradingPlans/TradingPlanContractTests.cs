@@ -37,12 +37,12 @@ public sealed class TradingPlanContractTests
     {
         var draft = new TradingPlanContent();
         var issues = TradingPlanReadiness.Validate(draft);
-        Assert.Equal(9, issues.Length);
+        Assert.Equal(4, issues.Length);
         Assert.Contains(issues, e => e.Field == "Session");
         Assert.Contains(issues, e => e.Field == "Focus");
         Assert.Contains(issues, e => e.Field == "Instruments");
         Assert.Contains(issues, e => e.Field == "Scenarios");
-        Assert.Equal(5, issues.Count(e => e.Field.StartsWith("Checklist.", StringComparison.Ordinal)));
+        Assert.DoesNotContain(issues, e => e.Field.StartsWith("Checklist.", StringComparison.Ordinal));
         Assert.Equal(TradingPlanChecklist.None, draft.Confirmed);
     }
 

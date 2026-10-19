@@ -62,14 +62,16 @@ public sealed class SessionPreparationTests
     public async Task MeaningfulEditsReuseDomainInvalidationAndRetainUnownedSections()
     {
         var f = new Fixture(); using var vm = f.Vm;
-        Assert.False(vm.IsDirty); Assert.Equal(TradingPlanChecklist.All, vm.Confirmed);
+        Assert.False(vm.IsDirty); Assert.Equal(TradingPlanChecklist.None, vm.Confirmed);
         vm.Focus.Text = vm.Focus.Text; Assert.False(vm.IsDirty);
-        // Formatting is raw-dirty, but numerically unchanged: no checklist invalidation.
+        // Formatting is numerically unchanged; the first save retires this fixture's legacy Draft flags.
         vm.Contexts[0].Levels[0].Text = "0.00";
-        Assert.True(vm.IsDirty); Assert.Equal(TradingPlanChecklist.All, vm.Confirmed);
-        var version = vm.Token.Version; await vm.SaveAsync(); Assert.Equal(version, vm.Token.Version);
+        Assert.True(vm.IsDirty); Assert.Equal(TradingPlanChecklist.None, vm.Confirmed);
+        var version = vm.Token.Version; await vm.SaveAsync(); Assert.Equal(version + 1, vm.Token.Version);
+        Assert.Equal(TradingPlanChecklist.None, f.Store.Plan.WorkingDraft!.Content.Confirmed);
+        version = vm.Token.Version; await vm.SaveAsync(); Assert.Equal(version, vm.Token.Version);
         vm.Focus.Text = "Patience\nWait for confirmation";
-        Assert.Equal(TradingPlanChecklist.All & ~TradingPlanChecklist.MindsetAndFocus, vm.Confirmed);
+        Assert.Equal(TradingPlanChecklist.None, vm.Confirmed);
         vm.News.Text = "Manual: 09:30 restricted\nCheck separately";
         await vm.SaveAsync();
         var saved = f.Store.Plan.WorkingDraft!.Content;

@@ -7,7 +7,7 @@ namespace PersonalTradingJournal.Application.TradingPlans;
 public enum TradingPlanWriteOperation
 {
     CreateDraft = 1, SaveDraft = 2, MarkReady = 3, StartDraft = 4, CopyForward = 5,
-    ConfirmChecklist = 6, RefreshReferences = 7
+    ConfirmChecklist = 6, RefreshReferences = 7, Delete = 8
 }
 public enum TradingPlanWriteStatus
 {
@@ -105,8 +105,7 @@ public sealed record TradingPlanWriteCommand
     public TradingPlanContent Content { get; }
     public TradingPlanExpectedState? Expected { get; }
     public TradingPlanRevisionId? SourceRevision { get; }
-    /// <summary>Explicit staged user confirmations, separate from Content's ignored incoming checkmarks.
-    /// Apply existing EditDraft and SetConfirmations in the same transaction. Null preserves prior callers.</summary>
+    /// <summary>Legacy API shape only. Current writes reject any explicit confirmation submission.</summary>
     public TradingPlanChecklist? ExplicitConfirmations { get; }
     /// <summary>Currency reviewed before an explicit reference refresh/derivation; no FX conversion.</summary>
     public string? ExpectedAccountCurrency { get; }
@@ -121,6 +120,9 @@ public sealed record TradingPlanWriteCommand
         if (Expected is null) return current is null ? null : TradingPlanWriteStatus.TargetAlreadyExists;
         if (current is null || current.Key != Key || current.Token != Expected)
             return TradingPlanWriteStatus.Conflict;
+        if (Operation == TradingPlanWriteOperation.Delete) return null;
+        if (Operation == TradingPlanWriteOperation.ConfirmChecklist || ExplicitConfirmations is not null)
+            return TradingPlanWriteStatus.Invalid;
         if (Operation == TradingPlanWriteOperation.StartDraft)
             return current.Status == TradingPlanStatus.Ready && SourceRevision!.Revision <= current.LatestReadyRevision
                 ? null : TradingPlanWriteStatus.Conflict;

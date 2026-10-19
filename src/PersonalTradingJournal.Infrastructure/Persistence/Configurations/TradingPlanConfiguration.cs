@@ -12,8 +12,9 @@ public sealed class TradingPlanConfiguration : IEntityTypeConfiguration<TradingP
         b.ToTable("TradingPlans", t => t.HasCheckConstraint("CK_TradingPlans_State",
             "Version > 0 AND LatestReadyRevision >= 0 AND ((DraftJson IS NOT NULL AND ReferenceStateJson IS NOT NULL) OR (DraftJson IS NULL AND ReferenceStateJson IS NULL AND LatestReadyRevision > 0))"));
         b.HasKey(x => x.Id); b.Property(x => x.Id).ValueGeneratedNever();
-        b.HasIndex(x => new { x.AccountId, x.NewYorkDate }).IsUnique().HasFilter("AccountId IS NOT NULL");
-        b.HasIndex(x => x.NewYorkDate).IsUnique().HasFilter("AccountId IS NULL");
+        b.HasIndex(x => new { x.AccountId, x.NewYorkDate }).IsUnique().HasFilter("AccountId IS NOT NULL AND DeletedAtUtc IS NULL");
+        b.HasIndex(x => x.NewYorkDate).IsUnique().HasFilter("AccountId IS NULL AND DeletedAtUtc IS NULL");
+        b.Property(x => x.DeletedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>().IsConcurrencyToken();
         b.Property(x => x.Version).IsConcurrencyToken();
         b.Property(x => x.CreatedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
         b.Property(x => x.UpdatedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();

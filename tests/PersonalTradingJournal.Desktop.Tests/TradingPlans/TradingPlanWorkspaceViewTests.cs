@@ -16,7 +16,7 @@ using PersonalTradingJournal.Domain.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
-public sealed class TradingPlanWorkspaceViewTests
+public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private const string Host = "PTJ_PLAN_WORKSPACE_VIEW_HOST";
     private static readonly Lazy<Task> NativeSuite = new(() => IsolatedTestProcess.RunSuiteAsync(
@@ -39,7 +39,7 @@ public sealed class TradingPlanWorkspaceViewTests
             {
                 app.Resources = themes[theme];
                 using var vm = fixture.NewWorkspace(); Pump(vm.ActivateAsync());
-                var page = new TradingPlanWorkspaceView { DataContext = vm };
+                var page = new TradingPlanWorkspaceView { DataContext = vm, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
                 VisualTreeHelper.SetRootDpi(page, new DpiScale(dpi / 96d, dpi / 96d));
                 void Layout() { Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle); page.Measure(new Size(width, 950)); page.Arrange(new Rect(0, 0, width, 950)); page.UpdateLayout(); }
                 Layout(); Assert.Contains(Descendants(page).OfType<TextBlock>(), t => t.Text.Contains("No Plan for this scope", StringComparison.Ordinal));
@@ -55,6 +55,10 @@ public sealed class TradingPlanWorkspaceViewTests
                 Assert.Same(vm.Editor, ((ScenariosSection)page.FindName("Scenarios")).DataContext);
                 Assert.Same(vm.Editor, ((RiskReadinessSection)page.FindName("Risk")).DataContext);
                 var editor = vm.Editor!;
+                var delete = Descendants(page).OfType<Button>().Single(b => Equals(b.Content, "Delete Plan"));
+                Assert.True(delete.IsEnabled); Assert.True(delete.IsTabStop);
+                Assert.Equal("Delete loaded Plan", AutomationProperties.GetName(delete));
+                Assert.DoesNotContain(Descendants(page).OfType<CheckBox>(), b => b.DataContext is PlanChecklistItem);
                 var save = (Button)page.FindName("SaveDraft"); Assert.True(save.IsEnabled); Assert.True(save.IsTabStop);
                 Assert.NotEmpty(new System.Windows.Automation.Peers.ButtonAutomationPeer(save).GetName());
                 var toolbar = (WrapPanel)page.FindName("Toolbar");
@@ -87,6 +91,19 @@ public sealed class TradingPlanWorkspaceViewTests
                 Pump(vm.SelectContextAsync(vm.SelectedDate.AddDays(1), vm.SelectedAccount)); Layout();
                 Assert.False(vm.CanCreateDraft); Assert.Contains("could not be loaded", vm.Message); Assert.False(IsPresented(startDraft)); Render(page, theme, width, dpi, "error");
                 fixture.Store.Read = null;
+                Pump(vm.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate.AddDays(4), vm.SelectedAccount));
+                Pump(vm.CreateDraftAsync()); Layout();
+                Assert.NotNull(vm.Editor); Assert.False(vm.Editor.IsReadOnly);
+                Assert.Equal(editor.Focus.Text, vm.Editor.Focus.Text);
+                Assert.Empty(vm.Editor.VisibleScreenshots);
+                Assert.Contains("screenshots excluded", vm.Message);
+                Render(page, theme, width, dpi, "prefilled");
+                fixture.Interaction.DeleteAccepted = true;
+                Pump(vm.DeletePlanAsync()); Layout();
+                Assert.Null(vm.Editor); Assert.True(vm.ShowEmpty); Assert.Empty(vm.Message);
+                Assert.False(IsPresented(delete)); Assert.True(vm.CanCreateDraft);
+                Assert.False(IsPresented((TextBox)page.FindName("PlannedCurrency")));
+                Render(page, theme, width, dpi, "deleted");
                 // Each next rendering host reads this persisted Draft, not stale in-memory source state.
             }
             if (width != 980) return; // Real owner/focus scenario runs once; all four sizes render both themes.
@@ -97,12 +114,17 @@ public sealed class TradingPlanWorkspaceViewTests
             var window = new Window { Content = realPage, Width = 670, Height = 800 }; window.Show();
             try
             {
+                void FocusState(string phase) => output.WriteLine($"[Plan focus] {phase}: active={window.IsActive}; keyboard={Keyboard.FocusedElement?.GetType().Name ?? "null"}; within={realPage.IsKeyboardFocusWithin}");
+                FocusState("shown");
                 var editor = focus.Editor!; editor.RiskPerTrade.Text = "bad"; Pump(focus.SaveAsync()); Idle();
+                FocusState("risk validation completed");
                 Assert.Same(editor.RiskPerTrade, Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 Assert.True(((ScrollViewer)realPage.FindName("PageScroll")).VerticalOffset > 0);
                 editor.Scenarios[0].Condition.Text = new string('x', 4001); Pump(focus.SaveAsync()); Idle();
+                FocusState("scenario validation completed");
                 Assert.Same(editor.Scenarios[0].Condition, Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 editor.Contexts[0].Levels[0].Text = "bad"; Pump(focus.SaveAsync()); Idle();
+                FocusState("level validation completed");
                 Assert.Same(editor.Contexts[0].Levels[0], Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 focus.DateText = "broken typed date"; Pump(focus.OpenDateCommand.ExecuteAsync(null)); Idle();
                 Assert.Equal("broken typed date", Assert.IsType<TextBox>(Keyboard.FocusedElement).Text);

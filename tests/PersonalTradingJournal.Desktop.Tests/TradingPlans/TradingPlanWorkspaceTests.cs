@@ -55,7 +55,7 @@ public sealed class TradingPlanWorkspaceTests
         Assert.Contains("Save", editor.Message, StringComparison.OrdinalIgnoreCase);
         var instrument = editor.SelectedInstrument;
         Assert.True(await vm.SaveAsync()); Assert.Same(instrument, editor.SelectedInstrument);
-        Assert.Equal(TradingPlanChecklist.All, editor.Confirmed); Assert.True(editor.IsPreparationComplete);
+        Assert.Equal(TradingPlanChecklist.None, editor.Confirmed); Assert.True(editor.IsPreparationComplete);
         var saved = await f.Store.Inner.LoadAsync(editor.Key);
         Assert.Equal("Recorded confirmation", saved!.WorkingDraft!.Content.Scenarios[0].Condition);
         Assert.Equal(123.125m, saved.WorkingDraft.Content.Instruments[0].Levels.PreviousDayHigh);
@@ -72,11 +72,11 @@ public sealed class TradingPlanWorkspaceTests
         var readyId = vm.Editor.CurrentPlan.LatestReadyRevision!.Id;
         using var restarted = f.NewWorkspace(); await restarted.ActivateAsync();
         await restarted.SelectContextAsync(vm.SelectedDate, restarted.Accounts.Single(a => a.Id == f.Source.Account.Id));
-        Assert.True(restarted.Editor!.IsReadOnly); Assert.Equal(TradingPlanChecklist.All, restarted.Editor.Confirmed);
+        Assert.True(restarted.Editor!.IsReadOnly); Assert.Equal(TradingPlanChecklist.None, restarted.Editor.Confirmed);
         Assert.Equal("Patient synthetic focus", restarted.Editor.Focus.Text);
         await restarted.StartDraftAsync(); Assert.False(restarted.Editor!.IsReadOnly); Assert.Equal(TradingPlanChecklist.None, restarted.Editor.Confirmed);
         Assert.Equal(readyId, restarted.Editor.CurrentPlan.LatestReadyRevision!.Id);
-        Assert.Equal(TradingPlanChecklist.All, (await f.Store.Inner.LoadReadyAsync(readyId))!.Content.Confirmed);
+        Assert.Equal(TradingPlanChecklist.None, (await f.Store.Inner.LoadReadyAsync(readyId))!.Content.Confirmed);
         Assert.Contains("preserved", restarted.Editor.PreservedReadyLabel);
     }
 
@@ -129,7 +129,7 @@ public sealed class TradingPlanWorkspaceTests
     public async Task DuplicateSaveReadyAndCancellationCannotPublishTwoTransitions()
     {
         await using var f = await Fixture.CreateAsync(seed: true); var vm = f.Vm;
-        foreach (var item in vm.Editor!.Checklist) item.IsChecked = true;
+        vm.Editor!.Focus.Text = "Unsaved input during cancellation";
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Store.BeforeWrite = async ct => { entered.SetResult(); await release.Task.WaitAsync(ct); };
@@ -193,7 +193,7 @@ public sealed class TradingPlanWorkspaceTests
         foreach (var item in editor.Checklist) item.IsChecked = true;
         Assert.True(await f.Vm.SaveAsync()); var token = editor.Token; f.Store.Status = status;
         await f.Vm.MarkReadyAsync(); Assert.Same(editor, f.Vm.Editor); Assert.False(editor.IsReadOnly);
-        Assert.Equal(token, editor.Token); Assert.Equal(TradingPlanChecklist.All, editor.Confirmed);
+        Assert.Equal(token, editor.Token); Assert.Equal(TradingPlanChecklist.None, editor.Confirmed);
         Assert.Empty(await f.Store.Inner.ReadyHistoryAsync(token.PlanId));
     }
 
@@ -278,6 +278,8 @@ public sealed class TradingPlanWorkspaceTests
     internal sealed class Interaction : ITradingPlanInteraction
     {
         public PlanLeaveChoice Choice = PlanLeaveChoice.Cancel; public int Prompts;
+        public bool DeleteAccepted; public int DeletePrompts;
+        public bool ConfirmDelete(string date, string scope) { DeletePrompts++; return DeleteAccepted; }
         public PlanLeaveChoice ConfirmLeave() { Prompts++; return Choice; }
         public bool ConfirmCurrency(string savedCurrency, string currentCurrency) => false;
     }

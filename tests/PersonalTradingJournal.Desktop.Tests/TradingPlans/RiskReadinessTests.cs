@@ -50,29 +50,25 @@ public sealed class RiskReadinessTests
         Assert.Null(f.Base.Store.Plan.WorkingDraft.Content.RiskLimits.StopAfterConsecutiveLosses);
     }
     [Fact]
-    public async Task ExplicitChecksPersistTogetherWithAllSectionsAndTargetedEditsDoNotReconfirm()
+    public async Task AllSectionsSaveWithoutConfirmationsAndMalformedFieldsRemainInvalid()
     {
         using var f = new Fixture(); var vm = f.Vm; await vm.CheckReferencesAsync();
         vm.Focus.Text = "unsaved focus"; vm.Scenarios[0].Condition.Text = "unsaved IF"; vm.DailyLossLimit.Text = "150.250000000000000000001";
-        Assert.False(vm.Checklist.Single(c => c.Flag == TradingPlanChecklist.MindsetAndFocus).IsChecked);
-        Assert.False(vm.Checklist.Single(c => c.Flag == TradingPlanChecklist.ScenariosOrStandAside).IsChecked);
-        Assert.False(vm.Checklist.Single(c => c.Flag == TradingPlanChecklist.RiskLimits).IsChecked);
-        Assert.True(vm.Checklist.Single(c => c.Flag == TradingPlanChecklist.News).IsChecked);
-        foreach (var item in vm.Checklist) item.IsChecked = true;
-        Assert.Equal(5, vm.CompletedConfirmations); Assert.Equal(100, vm.ConfirmationProgress); Assert.False(vm.IsPreparationComplete);
+        Assert.Empty(vm.Checklist);
+        Assert.False(vm.CanConfirm); Assert.False(vm.IsPreparationComplete);
         Assert.Equal(0, f.Base.Store.Writes); var token = vm.Token;
         Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync()); Assert.True(vm.IsPreparationComplete);
-        Assert.Equal(TradingPlanChecklist.All, f.Base.Store.Plan.WorkingDraft!.Content.Confirmed); Assert.True(vm.Token.Version > token.Version);
+        Assert.Equal(TradingPlanChecklist.None, f.Base.Store.Plan.WorkingDraft!.Content.Confirmed); Assert.True(vm.Token.Version > token.Version);
         vm.DailyLossLimit.Text = "150.2500000000000000000010"; // Same numeric meaning, same check.
         Assert.Contains("Unsaved", vm.Message); Assert.Contains("unsaved", vm.StateLabel);
-        Assert.Equal(TradingPlanChecklist.All, vm.Confirmed); Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync());
+        Assert.Equal(TradingPlanChecklist.None, vm.Confirmed); Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync());
         vm.Contexts[0].Levels[0].Text = "malformed";
         Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.ContextAndLevels)); Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.ScenariosOrStandAside));
-        Assert.True(vm.Confirmed.HasFlag(TradingPlanChecklist.RiskLimits));
+        Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.RiskLimits));
         vm.Contexts[0].Levels[0].Text = "0"; Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.ContextAndLevels));
         foreach (var item in vm.Checklist) item.IsChecked = true;
         vm.News.Text = "news change";
-        Assert.Equal(TradingPlanChecklist.All & ~(TradingPlanChecklist.News | TradingPlanChecklist.ScenariosOrStandAside), vm.Confirmed);
+        Assert.Equal(TradingPlanChecklist.None, vm.Confirmed);
         vm.Session = TradingPlanSession.London; Assert.Equal(TradingPlanChecklist.None, vm.Confirmed);
     }
     [Fact]
@@ -177,9 +173,9 @@ public sealed class RiskReadinessTests
         using var read = new SessionPreparationViewModel(plan, f.Base.Store, f.Base.Catalog);
         read.ConfigureRules(f.Rules, f.Rules); await read.LoadRulesAsync();
         Assert.Contains("USD", read.CurrencyLabel); Assert.Contains("Criterion 000", read.LinkedRules[0].Text); Assert.DoesNotContain("revised criterion", read.LinkedRules[0].Text);
-        Assert.Contains("saved", read.LinkedRules[0].Text); Assert.Equal(5, read.CompletedConfirmations);
+        Assert.Contains("saved", read.LinkedRules[0].Text); Assert.Equal(0, read.CompletedConfirmations);
         read.RiskPerTrade.Text = "999"; foreach (var item in read.Checklist) item.IsChecked = false; read.LinkedRules[0].RemoveCommand.Execute(null);
-        Assert.Equal("", read.RiskPerTrade.Text); Assert.Equal(TradingPlanChecklist.All, read.Confirmed); Assert.Single(read.LinkedRules);
+        Assert.Equal("", read.RiskPerTrade.Text); Assert.Equal(TradingPlanChecklist.None, read.Confirmed); Assert.Single(read.LinkedRules);
         Assert.Equal("USD", ready.References.Account.Currency); Assert.False(read.IsPreparationComplete);
     }
     [Fact]
@@ -202,7 +198,7 @@ public sealed class RiskReadinessTests
         Assert.Equal(TradingPlanWriteStatus.StorageFailure, await vm.SaveAsync());
         Assert.Equal(token, vm.Token); Assert.False(vm.IsPreparationComplete);
         Assert.Contains(vm.ReadinessBlockers, b => b.Field == "Save");
-        Assert.Equal(TradingPlanChecklist.All, vm.Confirmed); Assert.Contains("could not be saved", vm.Message);
+        Assert.Equal(TradingPlanChecklist.None, vm.Confirmed); Assert.Contains("could not be saved", vm.Message);
         f.Base.Store.Block = null;
         Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync()); Assert.True(vm.IsPreparationComplete);
     }
@@ -214,11 +210,11 @@ public sealed class RiskReadinessTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         f.Base.Store.Block = async ct => { entered.SetResult(); await Task.Delay(Timeout.Infinite, ct); };
         var pending = vm.SaveAsync(); await entered.Task;
-        Assert.True(vm.IsBusy); Assert.False(vm.Checklist[0].CanInteract);
-        vm.Checklist[0].IsChecked = false; vm.DailyLossLimit.Text = "ignored while saving";
+        Assert.True(vm.IsBusy); Assert.False(vm.CanConfirm);
+        vm.DailyLossLimit.Text = "ignored while saving";
         Assert.Equal(TradingPlanWriteStatus.Invalid, await vm.SaveAsync()); Assert.Equal(1, f.Base.Store.Writes);
         vm.CancelCommand.Execute(null); Assert.Equal(TradingPlanWriteStatus.Cancelled, await pending);
-        Assert.Equal("25", vm.DailyLossLimit.Text); Assert.Equal(TradingPlanChecklist.All, vm.Confirmed); Assert.True(vm.IsDirty);
+        Assert.Equal("25", vm.DailyLossLimit.Text); Assert.Equal(TradingPlanChecklist.None, vm.Confirmed); Assert.True(vm.IsDirty);
         Assert.Null(f.Base.Store.Plan.WorkingDraft!.Content.RiskLimits.DailyLossLimit);
     }
     [Fact]
@@ -252,7 +248,7 @@ public sealed class RiskReadinessTests
         var loaded = (await store.LoadAsync(vm.Key))!;
         using var reopen = new SessionPreparationViewModel(loaded, store, f.Base.Catalog);
         Assert.Equal(vm.Focus.Text, reopen.Focus.Text); Assert.Equal(vm.DailyLossLimit.Text, reopen.DailyLossLimit.Text);
-        Assert.Equal(vm.Scenarios[0].Condition.Text, reopen.Scenarios[0].Condition.Text); Assert.Equal(TradingPlanChecklist.All, reopen.Confirmed); Assert.Single(reopen.LinkedRules);
+        Assert.Equal(vm.Scenarios[0].Condition.Text, reopen.Scenarios[0].Condition.Text); Assert.Equal(TradingPlanChecklist.None, reopen.Confirmed); Assert.Single(reopen.LinkedRules);
         vm.Focus.Text = "other editor change"; await vm.SaveAsync(); reopen.Focus.Text = "retain stale text";
         Assert.Equal(TradingPlanWriteStatus.Conflict, await reopen.SaveAsync()); Assert.Equal("retain stale text", reopen.Focus.Text);
     }

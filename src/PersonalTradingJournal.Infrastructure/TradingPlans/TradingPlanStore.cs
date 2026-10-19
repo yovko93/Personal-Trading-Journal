@@ -17,7 +17,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
         await db.Database.OpenConnectionAsync(cancellationToken);
         await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await db.Database.UseTransactionAsync(tx, cancellationToken);
-        var row = await db.TradingPlans.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == key.AccountId && x.NewYorkDate == key.NewYorkDate, cancellationToken);
+        var row = await db.TradingPlans.AsNoTracking().SingleOrDefaultAsync(x => x.DeletedAtUtc == null && x.AccountId == key.AccountId && x.NewYorkDate == key.NewYorkDate, cancellationToken);
         return row is null ? null : await Read(db, row, cancellationToken);
     }
 
@@ -36,7 +36,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
         await db.Database.OpenConnectionAsync(cancellationToken);
         await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await db.Database.UseTransactionAsync(tx, cancellationToken);
-        var rows = await db.TradingPlans.AsNoTracking().Where(x => x.AccountId == query.AccountId &&
+        var rows = await db.TradingPlans.AsNoTracking().Where(x => x.DeletedAtUtc == null && x.AccountId == query.AccountId &&
             x.NewYorkDate >= query.FirstDate && x.NewYorkDate <= query.LastDate && (!beforeDate.HasValue || x.NewYorkDate < beforeDate.Value) &&
             (!query.Status.HasValue || (query.Status == TradingPlanStatus.Draft ? x.DraftJson != null : x.DraftJson == null)))
             .OrderByDescending(x => x.NewYorkDate).Take(query.Limit)
@@ -88,7 +88,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
         await db.Database.OpenConnectionAsync(cancellationToken);
         await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await db.Database.UseTransactionAsync(tx, cancellationToken);
-        var inRange = db.TradingPlans.Where(p => p.NewYorkDate >= firstDate && p.NewYorkDate <= lastDate);
+        var inRange = db.TradingPlans.Where(p => p.DeletedAtUtc == null && p.NewYorkDate >= firstDate && p.NewYorkDate <= lastDate);
         var ids = await inRange.Select(p => p.AccountId).Distinct().OrderBy(id => id).Skip(offset).Take(limit).ToArrayAsync(cancellationToken);
         var current = await db.TradingAccounts.AsNoTracking().Where(a => ids.Contains(a.Id)).ToDictionaryAsync(a => a.Id, cancellationToken);
         var latestPlans = inRange.Where(p => ids.Contains(p.AccountId) && p.LatestReadyRevision > 0 &&
@@ -115,12 +115,49 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             cancellationToken.ThrowIfCancellationRequested();
             await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);
             await db.Database.UseTransactionAsync(tx, cancellationToken);
-            var row = await db.TradingPlans.SingleOrDefaultAsync(x => x.AccountId == command.Key.AccountId && x.NewYorkDate == command.Key.NewYorkDate, cancellationToken);
+            var row = await db.TradingPlans.SingleOrDefaultAsync(x => x.DeletedAtUtc == null && x.AccountId == command.Key.AccountId && x.NewYorkDate == command.Key.NewYorkDate, cancellationToken);
             var plan = row is null ? null : await Read(db, row, cancellationToken);
             var conflict = command.CheckTransition(plan is null ? null : TradingPlanLoadedState.FromPlan(plan));
             if (conflict.HasValue) return new(conflict.Value);
             var now = (clock ?? TimeProvider.System).GetUtcNow();
+            if (command.Operation == TradingPlanWriteOperation.Delete)
+            {
+                if (now < row!.UpdatedAtUtc) return new(TradingPlanWriteStatus.Invalid);
+                // Tombstone only: owner audit/version and immutable Ready/assets remain exact.
+                row!.DeletedAtUtc = now;
+                await db.SaveChangesAsync(cancellationToken);
+                if (!await db.TradingPlans.AsNoTracking().AnyAsync(p => p.Id == row.Id && p.DeletedAtUtc == now, cancellationToken))
+                    return new(TradingPlanWriteStatus.StorageFailure);
+                cancellationToken.ThrowIfCancellationRequested();
+                await db.Database.CommitTransactionAsync(CancellationToken.None);
+                return new(TradingPlanWriteStatus.Success, DeletedPlanId: row.Id);
+            }
             var content = command.Content;
+            DateOnly? prefilled = null;
+            string? inheritedTokens = null;
+            bool compareInheritedTokens = false;
+            if (command.Operation == TradingPlanWriteOperation.CreateDraft)
+            {
+                var previous = await db.TradingPlans.AsNoTracking().Where(p => p.DeletedAtUtc == null &&
+                    p.AccountId == command.Key.AccountId && p.NewYorkDate < command.Key.NewYorkDate)
+                    .OrderByDescending(p => p.NewYorkDate).FirstOrDefaultAsync(cancellationToken);
+                if (previous is not null)
+                {
+                    var source = await Read(db, previous, cancellationToken);
+                    var saved = source.WorkingDraft?.Content ?? source.LatestReadyRevision!.Content;
+                    var account = await db.TradingAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == command.Key.AccountId, cancellationToken);
+                    // Legacy Drafts did not freeze currency. Only use today's label if its
+                    // saved Account fingerprint matches; otherwise retain unset for correction.
+                    var baseline = previous.ReferenceStateJson is null ? null :
+                        TradingPlanJson.Deserialize<Dictionary<string, string>>(previous.ReferenceStateJson);
+                    var currency = saved.PlanCurrency ?? (source.WorkingDraft is null ? source.LatestReadyRevision!.References.Account.Currency :
+                        account is not null && baseline?.GetValueOrDefault($"1:{account.Id:D}") == TradingPlanReferences.Fingerprint(account) ? account.Currency : null);
+                    content = saved.PrefillPreviousDay(currency);
+                    prefilled = previous.NewYorkDate;
+                    compareInheritedTokens = previous.ReferenceStateJson is not null;
+                    inheritedTokens = previous.ReferenceStateJson ?? TradingPlanJson.Write(TradingPlanReferences.UnresolvedTokens(command.Key, content));
+                }
+            }
             string? derivedCurrency = null;
             var op = command.Operation;
             if (op is TradingPlanWriteOperation.CopyForward or TradingPlanWriteOperation.StartDraft)
@@ -135,48 +172,56 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             else if (op == TradingPlanWriteOperation.SaveDraft)
             {
                 plan.EditDraft(plan.Version, content, now);
-                if (command.ExplicitConfirmations is { } checks) plan.SetConfirmations(plan.Version, checks, now);
+                // Legacy confirmation fields are read-only compatibility data.
             }
             else if (op == TradingPlanWriteOperation.RefreshReferences)
             {
                 plan.EditDraft(plan.Version, content, now); plan.RefreshReferences(plan.Version, now);
             }
-            else if (op == TradingPlanWriteOperation.ConfirmChecklist)
+            else if (op == TradingPlanWriteOperation.MarkReady)
             {
-                // Confirmation cannot smuggle a simultaneous preparation edit past checklist invalidation.
-                var proposed = TradingPlanDraft.Rehydrate(content, plan.WorkingDraft!.DerivedFromRevision,
-                    plan.WorkingDraft.StartedAtUtc, plan.WorkingDraft.UpdatedAtUtc);
-                var comparable = new TradingPlanContent(content.Session, content.Focus, content.Intent, content.Instruments,
-                    content.Scenarios, content.NewsAndRestrictions, content.StandAside, content.RiskLimits, content.Rules,
-                    plan.WorkingDraft.Content.Confirmed, content.PlanCurrency, content.Screenshots);
-                if (TradingPlanJson.WriteContent(comparable) != TradingPlanJson.WriteContent(plan.WorkingDraft.Content))
-                    return new(TradingPlanWriteStatus.Invalid);
-                plan.SetConfirmations(plan.Version, proposed.Content.Confirmed, now);
+                if (!plan.WorkingDraft!.Content.HasSamePreparation(content)) return new(TradingPlanWriteStatus.Conflict);
+                // Old editable Draft flags are not new confirmation evidence. Immutable Ready
+                // revisions are untouched; clearing legacy Draft flags is part of this transaction.
+                plan.EditDraft(plan.Version, content, now);
             }
-            else if (op == TradingPlanWriteOperation.MarkReady &&
-                TradingPlanJson.WriteContent(content) != TradingPlanJson.WriteContent(plan.WorkingDraft!.Content))
-                return new(TradingPlanWriteStatus.Conflict);
 
-            var refs = await TradingPlanReferences.Resolve(db, command.Key, plan.WorkingDraft!.Content, now, cancellationToken);
+            TradingPlanReferences? refs = null;
+            TradingPlanReferenceIssue? pendingReference = null;
+            try
+            {
+                refs = await TradingPlanReferences.Resolve(db, command.Key, plan.WorkingDraft!.Content, now, cancellationToken);
+                if (prefilled.HasValue && compareInheritedTokens && inheritedTokens is not null) refs.CheckPrevious(inheritedTokens);
+            }
+            catch (PlanReferenceException e) when (prefilled.HasValue)
+            {
+                // Preserve copied prose and exact links for correction, never claim verified Ready.
+                refs = null; pendingReference = e.Issue;
+            }
             bool monetary = content.RiskLimits.RiskPerTrade.HasValue || content.RiskLimits.DailyLossLimit.HasValue;
-            if (command.ExpectedAccountCurrency is { } reviewed && reviewed != refs.Snapshot.Account.Currency ||
-                monetary && derivedCurrency is { } priorCurrency && priorCurrency != refs.Snapshot.Account.Currency && command.ExpectedAccountCurrency is null)
+            if (!prefilled.HasValue && (command.ExpectedAccountCurrency is { } reviewed && reviewed != refs!.Snapshot.Account.Currency ||
+                op == TradingPlanWriteOperation.CopyForward && monetary && derivedCurrency is { } priorCurrency && priorCurrency != refs!.Snapshot.Account.Currency && command.ExpectedAccountCurrency is null))
                 return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
                     TradingPlanReferenceState.Changed, "Review the changed Account currency explicitly; planned amounts are not converted.")]);
-            if (command.Key.AccountId.HasValue && monetary && op == TradingPlanWriteOperation.RefreshReferences && command.ExpectedAccountCurrency is null && row?.ReferenceStateJson is { } baseline &&
-                TradingPlanJson.Deserialize<Dictionary<string, string>>(baseline)[$"1:{command.Key.AccountId:D}"] != refs.Tokens[$"1:{command.Key.AccountId:D}"])
-                return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
-                    TradingPlanReferenceState.Changed, "Review the current Account currency before refreshing monetary preparation.")]);
+            if (op == TradingPlanWriteOperation.RefreshReferences && command.Key.AccountId is { } exactAccount &&
+                monetary && content.PlanCurrency is null && row?.ReferenceStateJson is { } previousTokens &&
+                TradingPlanJson.Deserialize<Dictionary<string, string>>(previousTokens).GetValueOrDefault($"1:{exactAccount:D}") != refs!.Tokens[$"1:{exactAccount:D}"])
+                return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, exactAccount,
+                    TradingPlanReferenceState.Changed, "Enter the planned currency and correct the monetary amounts before refreshing the changed Account.")]);
             if (row?.ReferenceStateJson is not null && op != TradingPlanWriteOperation.RefreshReferences)
-                refs.CheckPrevious(row.ReferenceStateJson);
+                refs!.CheckPrevious(row.ReferenceStateJson);
             TradingPlanReadyRevision? ready = null;
-            if (op == TradingPlanWriteOperation.MarkReady) ready = plan.MarkReady(plan.Version, refs.Snapshot, now);
+            if (op == TradingPlanWriteOperation.MarkReady && monetary && content.PlanCurrency is { } retainedCurrency &&
+                retainedCurrency != refs!.Snapshot.Account.Currency)
+                return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
+                    TradingPlanReferenceState.Changed, "Planned currency differs from the Account. Correct currency and amounts explicitly; no conversion is performed.")]);
+            if (op == TradingPlanWriteOperation.MarkReady) ready = plan.MarkReady(plan.Version, refs!.Snapshot, now);
             bool creating = row is null;
             row ??= new() { Id = plan.Id, AccountId = plan.Key.AccountId, NewYorkDate = plan.Key.NewYorkDate, CreatedAtUtc = plan.CreatedAtUtc };
             row.Version = plan.Version; row.UpdatedAtUtc = plan.UpdatedAtUtc;
             row.LatestReadyRevision = plan.LatestReadyRevision?.Id.Revision ?? 0;
             row.DraftJson = plan.WorkingDraft is null ? null : TradingPlanJson.WriteDraft(plan.WorkingDraft);
-            row.ReferenceStateJson = plan.WorkingDraft is null ? null : TradingPlanJson.Write(refs.Tokens);
+            row.ReferenceStateJson = plan.WorkingDraft is null ? null : (refs is null ? inheritedTokens : TradingPlanJson.Write(refs.Tokens));
             if (creating) db.TradingPlans.Add(row);
             foreach (var attachment in content.Screenshots)
             {
@@ -205,7 +250,8 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             var result = await Read(db, persisted, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await db.Database.CommitTransactionAsync(CancellationToken.None);
-            return new(TradingPlanWriteStatus.Success, result, VerifiedReferences: refs.Snapshot);
+            return new(TradingPlanWriteStatus.Success, result, References: pendingReference is null ? [] : [pendingReference],
+                VerifiedReferences: refs?.Snapshot, PrefilledFromDate: prefilled);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return new(TradingPlanWriteStatus.Cancelled); }
         catch (TradingPlanNotReadyException ex) { return new(TradingPlanWriteStatus.Invalid, Issues: ex.Issues); }

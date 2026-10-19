@@ -53,8 +53,7 @@ public partial class TradingPlanWorkspaceView : UserControl
                 if (target is null) { _focus.Request(() => Descendants(Scenarios).OfType<ComboBox>().FirstOrDefault(c => c.Name == "Direction" && ReferenceEquals(c.DataContext, scenario))); return; }
             }
             if (target is not null) _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, target)));
-            else if (field?.StartsWith("Checklist.", StringComparison.Ordinal) == true)
-                _focus.Request(() => Descendants(Risk).OfType<CheckBox>().FirstOrDefault(c => c.IsChecked != true));
+            else if (field == "Currency") _focus.Request(() => PlannedCurrency);
             else if (field == "Instruments")
             {
                 ((Expander)Preparation.FindName("InstrumentPicker")).IsExpanded = true;

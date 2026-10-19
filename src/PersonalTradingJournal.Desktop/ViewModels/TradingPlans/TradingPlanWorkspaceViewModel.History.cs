@@ -293,13 +293,6 @@ public sealed partial class TradingPlanWorkspaceViewModel
         {
             var current = target.AccountId is { } accountId ? await Task.Run(() => _accounts.GetByIdAsync(accountId, cancellation.Token), cancellation.Token) : null;
             string? currency = null;
-            if (current is not null && current.Currency != source.References.Account.Currency &&
-                (source.Content.RiskLimits.RiskPerTrade.HasValue || source.Content.RiskLimits.DailyLossLimit.HasValue))
-            {
-                if (!_interaction.ConfirmCurrency(source.References.Account.Currency, current.Currency))
-                { ReportHistory("Cancelled. Saved preparation and editor input are unchanged.", PlanNoticeKind.Info); return; }
-                currency = current.Currency;
-            }
             var result = await Task.Run(() => _store.WriteAsync(new(copy ? TradingPlanWriteOperation.CopyForward : TradingPlanWriteOperation.StartDraft,
                 target, source.Content, copy ? null : new(owner.Id, owner.Version), source.Id, expectedAccountCurrency: currency), cancellation.Token), cancellation.Token);
             if (result.Status != TradingPlanWriteStatus.Success)
@@ -317,7 +310,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             }
             var plan = result.Plan;
             var expected = copy ? source.Content.CopyForward() : new TradingPlanContent(source.Content.Session, source.Content.Focus, source.Content.Intent,
-                source.Content.Instruments, source.Content.Scenarios, source.Content.NewsAndRestrictions, source.Content.StandAside, source.Content.RiskLimits, source.Content.Rules, planCurrency: source.Content.PlanCurrency, screenshots: source.Content.Screenshots);
+                source.Content.Instruments, source.Content.Scenarios, source.Content.NewsAndRestrictions, source.Content.StandAside, source.Content.RiskLimits, source.Content.Rules, planCurrency: source.References.Account.Currency, screenshots: source.Content.Screenshots);
             if (plan?.WorkingDraft is null || plan.Key != target || !SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, expected) ||
                 (copy ? plan.Id == owner.Id || plan.LatestReadyRevision is not null : plan.Id != owner.Id || plan.Version <= owner.Version ||
                     plan.LatestReadyRevision?.Id != owner.LatestReadyRevision?.Id || plan.WorkingDraft.DerivedFromRevision != source.Id))
@@ -327,7 +320,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             _date = target.NewYorkDate; _dateText = Format(_date); ValidateDate();
             _account = Accounts.FirstOrDefault(a => a.Id == target.AccountId) ?? new(target.AccountId, source.References.Account.Name, source.References.Account.Currency, false, false);
             ReplaceEditor(candidate); _contextLoaded = true; ClearLeaveConsent(); RestoreSelectors(); SelectTab(false);
-            string success = copy ? "Copied Draft saved and verified. Daily context and all confirmations were reset; source Ready revision preserved." : "Draft saved and verified from the selected revision. Confirm preparation again; Ready history is preserved.";
+            string success = copy ? "Copied Draft saved and verified. Daily context was reset; source Ready revision preserved." : "Draft saved and verified from the selected revision. Ready history is preserved.";
             Report(success, PlanNoticeKind.Success); ReportHistory(success, PlanNoticeKind.Success);
             try
             {

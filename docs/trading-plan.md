@@ -1,5 +1,136 @@
 # Trading Plan
 
+## Delete Plan, Ready simplification and Create prefill (before M21.10)
+
+Starting state was clean `develop`, HEAD `cd1b64c085e2716288fc19a3b69492b7ee21fb6e`; existing UI corrections are preserved. No production journal or provider is accessed. M21.10 remains paused.
+
+- **Delete Plan:** red action beside Start Draft / Edit, enabled for loaded Draft or Ready. Confirmation identifies its exact date/scope and covers unsaved input without a second Save prompt. Cancellation/conflict retains all raw fields; success clears the editor and obsolete feedback without a benign no-plan InfoBox. History filtering/selection cannot retarget deletion. The transactional tombstone releases only active uniqueness; recreation has a new identity. Old Ready reads, saved Reviews and referenced images remain exact, not redirected to the replacement. No recycle bin or asset collector is introduced.
+- **Ready:** no active checklist, counts, progress, confirmation invalidation or currency-acknowledgement popup. Risk & Rules uses the available width. Mark as Ready is still explicit and checks real required preparation, numeric validity, source integrity, currency and concurrency. Optional scenario text remains optional. Old Ready/Review confirmation flags remain immutable historical data; new preparation carries None and is not described as manually confirmed.
+- **Create prefill:** latest saved earlier New York date in the same global or exact Account scope, skipping gaps and excluding future/deleted Plans. Saved Draft takes priority, otherwise latest Ready. Copies session, Focus, Instrument contexts/bias/thesis/levels, news, scenarios/Stand Aside, exact Playbook/Rule links and limits/currency. No images, thumbnail/attachment metadata, source identity/audit/token, Ready history or confirmations are copied. New Draft/Plan/scenario identities and current UTC timestamps are verified atomically. Merely visiting an empty date writes nothing. Start Draft and manual template-only Copy Forward do not acquire this policy.
+- **Reference/currency failures:** copied text is retained with explicit warnings and an unverified reference baseline; Ready is blocked until sources are resolved. Names never substitute IDs. No FX conversion or silent relabeling. Frozen Ready currency survives Start Draft/prefill. Legacy Draft currency is recovered only from an unchanged saved Account fingerprint; otherwise explicit currency/amount correction is required.
+- **Portability:** additive `20261019160256_TombstoneTradingPlans` migration adds nullable UTC tombstones and active-only global/exact uniqueness. Export **v13** includes deletion timestamps and retained Plan/Ready/image metadata, not image binaries. Complete backup, preflight and offline restore retain tombstoned evidence and image bytes. Older-schema restore remains unsupported; no compatibility relaxation. Downgrade of an occupied Plan schema is refused rather than resurrecting deleted data.
+
+### Verification and remaining acceptance
+
+Synthetic tests cover Draft/Ready deletion, cancel/stale/duplicate/concurrent writes, restart/recreation, exact historical reads, new evidence exclusion, retained images through backup/restore/export, scope/gap source selection, unavailable references, and no-confirmation Ready. Compiled WPF checks retain field/focus/navigation assertions and add prefilled/deleted states. Results and exact inventory are recorded below. Human keyboard/Narrator, native picker, live restart and matching CI remain pending; automated renders are not human interaction.
+
+
+### Commands, failed attempts and visual evidence
+
+All data is synthetic. The following result directories are separate attempts, not retries hidden in a passing total:
+
+| Attempt under `TestResults/PlanLifecycle/` | Actual result / interpretation |
+| --- | --- |
+| `initial` | 295 passed / 36 failed. Old confirmation/export/migration fixture expectations conflicted with the new contract; a workspace child also reached its 30-second inactivity watchdog. The child dump and output remain available. No claim that this timeout is fixed. |
+| `contracts` | 339 passed / 3 failed: remaining old Domain, currency-create and historical-flag expectations. |
+| `contracts-final` | 342/342, before the additional legacy Draft normalization tests. |
+| `contracts-verified` | 342 passed / 2 failed: old tests assumed saving an unchanged legacy confirmed Draft never advances its version. New policy clears its flags once; subsequent no-op saves remain no-ops. |
+| `focused-final` | **344/344**, 77 Domain + 35 Application + 103 Infrastructure + 129 Desktop, zero skips. |
+| `wpf` | 9 passed / 4 propagated failures from **one** workspace child assertion: key-level validation found null keyboard focus, line 122 at that build. Child itself 3/4, not a timeout. No product focus change was made on this evidence alone. |
+| `focus-isolated` | Workspace 4/4, 33s child test duration. An isolated pass does not establish the cause of the earlier focus loss. |
+| `wpf-final` | All **13/13** relevant WPF cases passed under the same multi-child workload; workspace workflow assertions and deadlines unchanged. |
+| `layout-verified` | **27/27** session/compiled workspace cases after correcting the currency presentation; no deadline change. |
+| First complete gate (`final/release-20261019-163328-a6bf9cc160b947aeb8bb45567fc5a151`) | **4,896 passed / 5 failed / zero skips, exit 1**. All five are stale schema-contract expectations (migration list/count and active-only unique-index filter). Domain 567/567, Application 1,021/1,021, Infrastructure 1,440/1,445, Desktop 1,868/1,868. Calendar child 75.838s / 44.162s headroom. No assertion removed: expected current schema updated. |
+| `corrections` | 361 passed / 1 failed. All 120 Infrastructure cases passed; the newly added shared-prefill test incorrectly assumed UTC midnight had already advanced its New York date. The fixture now selects the following New York date explicitly. |
+| `shared-prefill` | **2/2**, covering saved shared currency with an empty form and no-source mixed-Account currency validation. |
+| Final-source gate (`final-corrected`) | **4,902 passed / zero failures / zero skips, exit 0**. Full final-source results below. |
+
+A final code review also found a genuine Create-path problem: blank shared currency was validated by the Desktop content constructor before the atomic store could choose prior saved preparation. Create now passes an unset blank-form fallback to the store; an existing prior global Plan supplies its saved currency, while no-source invalid currency still fails with retained input and a corrective message. A real-SQLite ViewModel regression verifies the global saved-EUR case. The final corrected complete gate includes this change; the earlier run cannot establish its acceptance.
+
+The first WPF launch was blocked by a compile error while making the Domain preparation comparison available across assemblies; no tests ran in either failed compile attempt. One build was mistakenly overlapped with the render testhost and failed with MSBuild locked-output errors (30 warnings/6 errors); no source or fixture lock was inferred. Subsequent builds are performed after test processes exit. These failures are not acceptance passes.
+
+Commands: focused contracts use `dotnet test PersonalTradingJournal.sln -c Release --no-restore --filter '(FullyQualifiedName~TradingPlans|FullyQualifiedName~ReviewPreparation|FullyQualifiedName~PortableExport|FullyQualifiedName~InitialMigrationTests)&FullyQualifiedName!~ViewTests' --logger trx --results-directory TestResults/PlanLifecycle/focused-final`. WPF uses the Desktop test project with `FullyQualifiedName~TradingPlans&FullyQualifiedName~ViewTests`; the final currency display check uses `FullyQualifiedName~TradingPlanWorkspaceViewTests|FullyQualifiedName~SessionPreparationTests`. Render runs set `PTJ_PLAN_RENDER_DIRECTORY`, child results set `PTJ_TEST_RESULTS_DIRECTORY`, and bounded timings use `PTJ_CALENDAR_TIMINGS=1`. Native tests run on the normal Windows desktop, not the restricted sandbox desktop.
+
+Automated bitmaps are in `artifacts/plan-lifecycle-renders-final/`: `workspace-{Light|Dark}-{980-96|460-240}-{ready|prefilled|deleted}.png` and `risk-{Light|Dark}-{1100-96|460-240}-rules-bottom.png`. Inspected: red Delete beside Edit on Ready, wrapping toolbar/clear currency label, empty post-delete state without a notice, copied preparation without image rows, four-column wide/two-column narrow limits, linked Rules with wrapping names, no checklist column. Workspace renders also exercise 1280/144 and 1600/192. Component Risk renders intentionally show standalone state context; integrated pages suppress that duplicate context. These are compiled-WPF renders, not human keyboard/Narrator or native-picker acceptance.
+
+### Final complete verification
+
+`pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanLifecycle/final-corrected` completed **exit 0**, with **4,902 passed / zero failures / zero skips**, against the final source. Results: `TestResults/PlanLifecycle/final-corrected/release-20261019-164507-867dadb2a663404880578c184771e637/summary.json` and its exclusive/parallel TRX, stdout/stderr and child supervision logs. UTC stages **16:45:07.951–16:53:01.244**. No test assertions, deadlines, execution lanes or concurrency bounds were relaxed.
+
+| Project / partition | Passed |
+| --- | ---: |
+| Domain | 567 |
+| Application | 1,021 |
+| Infrastructure | 1,445 |
+| Desktop exclusive WPF | 88 |
+| Desktop parallel | 1,781 |
+| Desktop combined | 1,869 |
+
+Calendar native child exited 0 in **76.371s**, leaving **43.629s** against its unchanged 120-second aggregate deadline; Journal child passed in **10.280s**. The earlier workspace inactivity and intermittent null-focus assertion were not reproduced in final verification; this is not proof of their host-level cause or elimination of timing variability. Bounded focus diagnostics remain, and failed artifacts are retained separately.
+
+`dotnet build PersonalTradingJournal.sln -c Release --no-restore`: **zero warnings / zero errors**, 2.85s, before the final gate. `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`: **no pending model changes**, isolated design-time context. `git -c core.safecrlf=false diff --check` plus `git diff --no-index --check -- NUL <file>` for each new file: **passed** after documentation updates. Only documentation changed after the final build/gate.
+
+**Implementation and complete local regression checks are green.** Human keyboard/Narrator, native picker interaction, live application restart and matching CI remain pending; synthetic SQLite restart and automated native focus checks do not substitute for them. These changes are uncommitted, so no published CI run represents this final working tree. No production data or provider was accessed, and no commit/push/merge was performed. HEAD remains `cd1b64c085e2716288fc19a3b69492b7ee21fb6e`, branch `develop`, **57 modified / 4 new files**. M21.10 remains paused.
+
+### Exact changed-file inventory
+
+The starting tree was clean; the following **61 files** are the task's current changes (migration designer and snapshot included):
+
+```text
+README.md
+docs/architecture.md
+docs/trading-plan.md
+src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs
+src/PersonalTradingJournal.Application/TradingPlans/ITradingPlanStore.cs
+src/PersonalTradingJournal.Application/TradingPlans/TradingPlanContracts.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/ReviewPreparation.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Lifecycle.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.RiskReadiness.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Rules.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Scenarios.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.History.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanLeaveDialog.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlan.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanContent.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReadiness.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReadyRevision.cs
+src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingPlanConfiguration.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingPlanRecords.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/ReviewPlanEvidenceReader.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferenceReader.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferences.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs
+tests/PersonalTradingJournal.Application.Tests/TradingPlans/TradingPlanRevisionContractTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanChangesTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenarioTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs
+tests/PersonalTradingJournal.Domain.Tests/TradingPlans/TradingPlanContractTests.cs
+tests/PersonalTradingJournal.Domain.Tests/TradingPlans/TradingPlanRevisionTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/ReviewPreparationReaderTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanReadinessPersistenceTests.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019160256_TombstoneTradingPlans.Designer.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019160256_TombstoneTradingPlans.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanDeletionTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/PlanLifecycleChangesTests.cs
+```
+
+
 ## History child inactivity follow-up before M21.10
 
 Actual baseline: **clean `develop`, `a27af63b6112ce50b77dc89e73d59c0e14d02280`**, not the previously reported dirty `ddd0c081...` tree. The user had committed the six UI corrections; this task preserves them without editing production code. No production journal, provider request, commit, push, merge or M21.10 work.

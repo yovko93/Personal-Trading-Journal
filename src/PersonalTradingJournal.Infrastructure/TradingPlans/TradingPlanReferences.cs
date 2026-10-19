@@ -16,6 +16,12 @@ internal sealed class PlanReferenceException(TradingPlanReferenceIssue issue) : 
 
 internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapshot, Dictionary<string, string> Tokens)
 {
+    // Explicit unverified baseline for copied references, not invented source content.
+    internal static Dictionary<string, string> UnresolvedTokens(TradingPlanKey key, TradingPlanContent content) =>
+        (key.AccountId.HasValue ? new[] { $"1:{key.AccountId:D}" } : Array.Empty<string>())
+        .Concat(content.Instruments.Select(i => $"2:{i.InstrumentId:D}"))
+        .Concat(content.Scenarios.Where(s => s.Setup is not null).Select(s => $"3:{s.Setup!.SetupId:D}"))
+        .Concat(content.Rules.Select(r => $"4:{r.RuleId:D}")).Distinct().ToDictionary(k => k, _ => new string('0', 64));
     internal static string Fingerprint(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(TradingPlanJson.Write(value))));
     internal static void ValidateStored(Guid? accountId, TradingPlanContent content, string json)
     {

@@ -23,7 +23,7 @@ public sealed record ReviewPreparationRow(ReviewPlanRevision Source)
                     (s.Setup is null ? "Not linked" : Source.Setups.FirstOrDefault(x => x.SetupId == s.Setup.SetupId)?.Name ?? "Unavailable recorded Setup"))) +
                 $"\n\nStand Aside conditions\n{c.StandAside}\n\nNews and restrictions\n{c.NewsAndRestrictions}\n\nPlanned limits · {Source.Account.Currency}\n" +
                 $"Risk per Trade {Value(c.RiskLimits.RiskPerTrade)} · daily loss {Value(c.RiskLimits.DailyLossLimit)} · maximum Trades {Value(c.RiskLimits.MaximumTrades)} · stop after losses {Value(c.RiskLimits.StopAfterConsecutiveLosses)}\n" +
-                $"Saved manual confirmations: {c.Confirmed}\n" + string.Join("\n", Source.Rules.Select(r => $"Linked Rule · {r.Name} · revision {r.Revision}\n{r.Criterion}")) +
+                (c.Confirmed == TradingPlanChecklist.None ? "" : $"Historical manual confirmations: {c.Confirmed}\n") + string.Join("\n", Source.Rules.Select(r => $"Linked Rule · {r.Name} · revision {r.Revision}\n{r.Criterion}")) +
                 "\nIntentions and confirmations do not establish adherence. Actual initial risk and scenario confirmation are unknown; limits are not evaluated here.";
         }
     }

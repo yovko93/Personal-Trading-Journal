@@ -38,8 +38,7 @@ public sealed class SharedTradingPlanTests
     private static async Task<TradingPlan> Save(ITradingPlanStore store, TradingPlanKey key, TradingPlanContent content, TradingPlan? prior = null)
     {
         var r = await store.WriteAsync(new(prior is null ? TradingPlanWriteOperation.CreateDraft : TradingPlanWriteOperation.SaveDraft,
-            key, content, prior is null ? null : new(prior.Id, prior.Version),
-            explicitConfirmations: prior is null ? null : TradingPlanChecklist.All));
+            key, content, prior is null ? null : new(prior.Id, prior.Version)));
         Assert.Equal(TradingPlanWriteStatus.Success, r.Status); return r.Plan!;
     }
     private static async Task<TradingPlan> Ready(ITradingPlanStore store, TradingPlan p)
@@ -100,12 +99,17 @@ public sealed class SharedTradingPlanTests
         // No attachments: the new store does not query the new ledger for this legacy content.
         var legacyContent = new TradingPlanContent(f.Content.Session, f.Content.Focus, instruments: f.Content.Instruments,
             riskLimits: f.Content.RiskLimits, intent: TradingPlanIntent.StandAside, standAside: "Synthetic stand-aside preparation");
-        var created = await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, f.Key, legacyContent));
-        Assert.Equal(TradingPlanWriteStatus.Success, created.Status);
-        var p = await f.Ready(created.Plan!); string payload;
+        // Seed the previous schema using its columns, not today's EF Plan mapping.
+        var p = new TradingPlan(f.Key, legacyContent, f.Now);
+        p.SetConfirmations(p.Version, TradingPlanChecklist.All, f.Now);
+        p.MarkReady(p.Version, TradingPlanReferenceSnapshot.Capture(f.Key, p.WorkingDraft!.Content,
+            f.Account, [f.Instrument], [], [], f.Now), f.Now);
+        string payload = TradingPlanJson.WriteReady(p.LatestReadyRevision!);
         await using (var db = f.Context())
         {
-            payload = (await db.TradingPlanReadyRevisions.SingleAsync()).SnapshotJson;
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO TradingPlans (Id,AccountId,NewYorkDate,Version,LatestReadyRevision,DraftJson,ReferenceStateJson,CreatedAtUtc,UpdatedAtUtc) VALUES ({p.Id},{p.Key.AccountId},{p.Key.NewYorkDate},{p.Version},1,NULL,NULL,{p.CreatedAtUtc.UtcDateTime},{p.UpdatedAtUtc.UtcDateTime})");
+            db.TradingPlanReadyRevisions.Add(new() { PlanId = p.Id, Revision = 1, ReadyAtUtc = f.Now, SnapshotJson = payload });
+            await db.SaveChangesAsync();
             await db.GetService<IMigrator>().MigrateAsync();
         }
         await f.Restart(); var loaded = (await f.Store.LoadAsync(f.Key))!;
@@ -124,6 +128,10 @@ public sealed class SharedTradingPlanTests
         var key = TradingPlanKey.AllAccounts(f.Key.NewYorkDate);
         var p = await Ready(f.Store, await Save(f.Store, key, Shared(f, images: [shot])));
         var ready = p.LatestReadyRevision!;
+        var withoutImages = await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, TradingPlanKey.AllAccounts(key.NewYorkDate.AddDays(4)), new()));
+        Assert.Equal(TradingPlanWriteStatus.Success, withoutImages.Status);
+        Assert.Empty(withoutImages.Plan!.WorkingDraft!.Content.Screenshots);
+        Assert.Single((await f.Store.LoadReadyAsync(ready.Id))!.Content.Screenshots);
         p = (await f.Store.WriteAsync(new(TradingPlanWriteOperation.StartDraft, key, ready.Content, new(p.Id, p.Version), ready.Id))).Plan!;
         p = await Save(f.Store, key, Shared(f), p);
         await storage.DeleteUnreferencedAsync(image.StorageKey);
@@ -137,13 +145,19 @@ public sealed class SharedTradingPlanTests
         Assert.Empty(p.WorkingDraft!.Content.Screenshots);
         var copy = await f.Store.WriteAsync(new(TradingPlanWriteOperation.CopyForward, TradingPlanKey.AllAccounts(key.NewYorkDate.AddDays(1)), ready.Content, sourceRevision: ready.Id));
         Assert.Equal(TradingPlanWriteStatus.Success, copy.Status); Assert.Empty(copy.Plan!.WorkingDraft!.Content.Screenshots);
+        var prefill = await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, TradingPlanKey.AllAccounts(key.NewYorkDate.AddDays(3)), new()));
+        Assert.Equal(TradingPlanWriteStatus.Success, prefill.Status); Assert.Empty(prefill.Plan!.WorkingDraft!.Content.Screenshots);
+        Assert.Equal(TradingPlanWriteStatus.Success, (await f.Store.WriteAsync(TradingPlanPersistenceTests.Command(TradingPlanWriteOperation.Delete, p))).Status);
+        Assert.Null(await f.Store.LoadAsync(key));
+        await storage.DeleteUnreferencedAsync(image.StorageKey);
+        Assert.Equal(bytes, await storage.ReadAsync(image));
         string archive = Path.Combine(f.Root, "shared.ptjbackup"), export = Path.Combine(f.Root, "export");
         Assert.True((await f.Get<IBackupArchiveService>().CreateAsync(archive)).Succeeded);
         var preflight = await new RestorePreflightService().InspectAsync(archive, f.Root); Assert.True(preflight.Validated, preflight.ToString());
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            Assert.Equal(12, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(13, json.RootElement.GetProperty("version").GetInt32());
             Assert.Single(json.RootElement.GetProperty("tables").GetProperty("tradingPlanAssets").EnumerateArray());
         }
         Assert.Empty(Directory.GetFiles(export, "*.png", SearchOption.AllDirectories));
@@ -151,6 +165,7 @@ public sealed class SharedTradingPlanTests
         var restored = await new JournalRestoreService(target.Paths).RestoreAsync(new(archive, preflight.Summary!.ArchiveSha256));
         Assert.Equal(JournalRestoreStatus.Restored, restored.Status);
         await target.Restart();
+        Assert.Null(await target.Store.LoadAsync(key));
         Assert.Equal(bytes, await target.Get<IPlaybookImageStorage>().ReadAsync(image));
         Assert.Equal(shot, Assert.Single((await target.Store.LoadReadyAsync(ready.Id))!.Content.Screenshots));
     }

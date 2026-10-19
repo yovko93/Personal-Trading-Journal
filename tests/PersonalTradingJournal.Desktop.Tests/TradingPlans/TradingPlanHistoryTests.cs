@@ -102,7 +102,7 @@ public sealed class TradingPlanHistoryTests
         Assert.Contains(first.References.Account.Name, f.Vm.HistoricalLabel); Assert.Contains("USD", f.Vm.HistoricalLabel);
         Assert.DoesNotContain("Renamed current", f.Vm.HistoricalLabel);
         viewer.Focus.Text = "Cannot change"; Assert.Equal(first.Content.Focus, viewer.Focus.Text);
-        Assert.Equal(TradingPlanChecklist.All, viewer.Confirmed); Assert.Same(editor, f.Vm.Editor);
+        Assert.Equal(TradingPlanChecklist.None, viewer.Confirmed); Assert.Same(editor, f.Vm.Editor);
         Assert.Equal("invalid", editor.RiskPerTrade.Text);
         var persisted = (await f.Store.Inner.LoadReadyAsync(first.Id))!;
         Assert.Equal(first.Id, persisted.Id); Assert.Equal(first.ReadyAtUtc, persisted.ReadyAtUtc);
@@ -185,7 +185,7 @@ public sealed class TradingPlanHistoryTests
         var competing = await f.Store.Inner.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, target, new(focus: "competing Draft")));
         release.SetResult(); await copy;
         Assert.True(f.Vm.HasRecoveryTarget); Assert.Contains("already exists", f.Vm.HistoryMessage);
-        Assert.Equal("competing Draft", (await f.Store.Inner.LoadAsync(target))!.WorkingDraft!.Content.Focus);
+        Assert.Equal(competing.Plan!.WorkingDraft!.Content.Focus, (await f.Store.Inner.LoadAsync(target))!.WorkingDraft!.Content.Focus);
         await f.Vm.OpenRecoveryCommand.ExecuteAsync(null); Assert.Equal(competing.Plan!.Id, f.Vm.Editor!.Token.PlanId);
     }
 

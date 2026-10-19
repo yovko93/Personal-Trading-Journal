@@ -77,7 +77,7 @@ public sealed class TradingPlanPersistenceTests
     public async Task CancellationAfterCommitReturnsTheActualSavedRevision()
     {
         await using var f = await Fixture.Create(); var p = await f.CreatePlan();
-        p = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content));
+        p = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content));
         using var cts = new CancellationTokenSource();
         var store = new TradingPlanStore(f.Factory(new AfterCommit(cts)), f.Clock);
         var result = await store.WriteAsync(Command(TradingPlanWriteOperation.MarkReady, p), cts.Token);
@@ -91,7 +91,7 @@ public sealed class TradingPlanPersistenceTests
     public async Task ReferenceWriterCannotSlipBetweenFreshValidationAndSave()
     {
         await using var f = await Fixture.Create(); var p = await f.CreatePlan();
-        p = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content));
+        p = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content));
         bool blocked = false;
         var store = new TradingPlanStore(f.Factory(new BeforeSave(() =>
         {
@@ -117,10 +117,10 @@ public sealed class TradingPlanPersistenceTests
         Assert.Equal(20000.250000000123456789m, draft.WorkingDraft.Content.Instruments[0].Levels.PreviousDayHigh);
         Assert.Null(draft.WorkingDraft.Content.Instruments[0].Levels.AsiaHigh);
         Assert.Null(draft.WorkingDraft.Content.RiskLimits.DailyLossLimit);
-        draft = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, draft, Change(draft.WorkingDraft.Content));
+        draft = await f.Success(TradingPlanWriteOperation.SaveDraft, draft, Change(draft.WorkingDraft.Content));
         await f.Restart();
         var read = (await f.Store.LoadAsync(f.Key))!;
-        Assert.Equal(draft.Version, read.Version); Assert.Equal(TradingPlanChecklist.All, read.WorkingDraft!.Content.Confirmed);
+        Assert.Equal(draft.Version, read.Version); Assert.Equal(TradingPlanChecklist.None, read.WorkingDraft!.Content.Confirmed);
         var ready = await f.Success(TradingPlanWriteOperation.MarkReady, read);
         string original = TradingPlanJson.WriteReady(ready.LatestReadyRevision!);
         Assert.Equal(TradingPlanPreparationState.Ready, ready.PreparationState);
@@ -146,7 +146,7 @@ public sealed class TradingPlanPersistenceTests
     {
         await using var f = await Fixture.Create(); var p = await f.CreatePlan();
         Assert.Equal(TradingPlanWriteStatus.TargetAlreadyExists, (await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, f.Key, f.Content))).Status);
-        var confirmed = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content));
+        var confirmed = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content, "Concurrent edit"));
         Assert.Equal(TradingPlanWriteStatus.Conflict, (await f.Store.WriteAsync(Command(TradingPlanWriteOperation.SaveDraft, p))).Status);
         var command = Command(TradingPlanWriteOperation.MarkReady, confirmed);
         var results = await Task.WhenAll(Task.Run(() => f.Store.WriteAsync(command)), Task.Run(() => f.Store.WriteAsync(command)));
@@ -159,7 +159,7 @@ public sealed class TradingPlanPersistenceTests
     public async Task CancellationOrStorageFailureAfterSqlWritesRollsBackBothRecords(bool cancel)
     {
         await using var f = await Fixture.Create(); var p = await f.CreatePlan();
-        p = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content));
+        p = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content));
         using var cts = new CancellationTokenSource();
         var factory = f.Factory(new AfterSave(() => { if (cancel) cts.Cancel(); else throw new IOException("Synthetic storage failure"); }));
         var store = new TradingPlanStore(factory, f.Clock);
@@ -176,6 +176,7 @@ public sealed class TradingPlanPersistenceTests
         Assert.Equal(TradingPlanWriteStatus.Cancelled, (await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, f.Key, f.Content), new(true))).Status);
         Assert.Null(await f.Store.LoadAsync(f.Key));
         var p = await f.CreatePlan();
+        p = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content, " "));
         var failure = await f.Store.WriteAsync(Command(TradingPlanWriteOperation.MarkReady, p));
         Assert.Equal(TradingPlanWriteStatus.Invalid, failure.Status); Assert.NotEmpty(failure.Issues);
         Assert.Empty(await f.Store.ReadyHistoryAsync(p.Id));
@@ -187,7 +188,7 @@ public sealed class TradingPlanPersistenceTests
     public async Task ChangedReferenceNeedsExplicitRefreshWhichClearsConfirmations(string change)
     {
         await using var f = await Fixture.Create(); var p = await f.CreatePlan();
-        p = await f.Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content));
+        p = await f.Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content));
         await using (var db = f.Context())
         {
             if (change == "currency") await db.TradingAccounts.Where(x => x.Id == f.Account.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Currency, "EUR"));
@@ -200,8 +201,8 @@ public sealed class TradingPlanPersistenceTests
             Assert.Equal(TradingPlanWriteStatus.ReferenceChanged, (await f.Store.WriteAsync(Command(TradingPlanWriteOperation.RefreshReferences, p))).Status);
         string reviewedCurrency;
         await using (var context = f.Context()) reviewedCurrency = (await context.TradingAccounts.SingleAsync()).Currency;
-        var refresh = await f.Store.WriteAsync(new(TradingPlanWriteOperation.RefreshReferences, p.Key, p.WorkingDraft!.Content,
-            new(p.Id, p.Version), expectedAccountCurrency: reviewedCurrency));
+        var refresh = await f.Store.WriteAsync(new(TradingPlanWriteOperation.RefreshReferences, p.Key, p.WorkingDraft!.Content.WithPlanCurrency(reviewedCurrency),
+            new(p.Id, p.Version)));
         Assert.Equal(TradingPlanWriteStatus.Success, refresh.Status); p = refresh.Plan!;
         Assert.Equal(TradingPlanChecklist.None, p.WorkingDraft!.Content.Confirmed);
         p = await f.Ready(p); Assert.NotNull(p.LatestReadyRevision);
@@ -399,7 +400,7 @@ public sealed class TradingPlanPersistenceTests
         internal async Task<TradingPlan> Success(TradingPlanWriteOperation op, TradingPlan p, TradingPlanContent? content = null, TradingPlanRevisionId? source = null)
         { var r = await Store.WriteAsync(Command(op, p, content, source)); Assert.Equal(TradingPlanWriteStatus.Success, r.Status); return r.Plan!; }
         internal async Task<TradingPlan> Ready(TradingPlan p) => await Success(TradingPlanWriteOperation.MarkReady,
-            await Success(TradingPlanWriteOperation.ConfirmChecklist, p, Change(p.WorkingDraft!.Content)));
+            await Success(TradingPlanWriteOperation.SaveDraft, p, Change(p.WorkingDraft!.Content)));
         internal async Task Stop() { await services.DisposeAsync(); JournalDataSession.ClearOwnedPools(Paths); }
         internal async Task Restart() { await Stop(); services = Build(); }
         public async ValueTask DisposeAsync() { await Stop(); Directory.Delete(Root, true); }

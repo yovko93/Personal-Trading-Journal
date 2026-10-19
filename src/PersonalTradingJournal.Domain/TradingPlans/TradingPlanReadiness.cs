@@ -43,18 +43,7 @@ public static class TradingPlanReadiness
             if (scenario.Direction is null) errors.Add(new($"Scenarios[{i}].Direction", "Select Long or Short."));
         }
 
-        foreach (var check in new[] { TradingPlanChecklist.ContextAndLevels, TradingPlanChecklist.ScenariosOrStandAside,
-            TradingPlanChecklist.RiskLimits, TradingPlanChecklist.News, TradingPlanChecklist.MindsetAndFocus })
-            if (!content.Confirmed.HasFlag(check)) errors.Add(new($"Checklist.{check}", ChecklistMessage(check)));
         return errors.ToImmutable();
     }
 
-    private static string ChecklistMessage(TradingPlanChecklist check) => check switch
-    {
-        TradingPlanChecklist.ContextAndLevels => "Confirm that context and available levels were reviewed.",
-        TradingPlanChecklist.ScenariosOrStandAside => "Confirm the scenarios or stand-aside decision.",
-        TradingPlanChecklist.RiskLimits => "Confirm that planned limits, including any unset limits, were reviewed.",
-        TradingPlanChecklist.News => "Confirm that the news calendar was reviewed manually.",
-        _ => "Confirm that mindset and focus were reviewed."
-    };
 }

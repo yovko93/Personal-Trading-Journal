@@ -23,7 +23,7 @@ public sealed partial class SessionPreparationViewModel
         if (!CanEdit) return new(TradingPlanWriteStatus.Invalid);
         if (!IsPreparationComplete || !TryBuildContent(out var content))
         {
-            Report(ReadinessBlockers.FirstOrDefault()?.Message ?? "Save the complete Draft and explicitly confirm preparation first.", PlanNoticeKind.Warning);
+            Report(ReadinessBlockers.FirstOrDefault()?.Message ?? "Save the complete Draft first.", PlanNoticeKind.Warning);
             ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt));
             return new(TradingPlanWriteStatus.Invalid);
         }
@@ -52,7 +52,7 @@ public sealed partial class SessionPreparationViewModel
                 else
                     same &= saved?.WorkingDraft is { } draft && draft.DerivedFromRevision == command.SourceRevision &&
                         draft.Content.Confirmed == TradingPlanChecklist.None && saved.LatestReadyRevision?.Id == command.SourceRevision &&
-                        SamePreparation(draft.Content, command.Content);
+                        SamePreparation(draft.Content, command.Content.WithPlanCurrency(_plan.LatestReadyRevision!.References.Account.Currency));
                 if (same) return result; // Committed success wins over late cancellation.
                 result = new(TradingPlanWriteStatus.StorageFailure);
             }
@@ -60,10 +60,10 @@ public sealed partial class SessionPreparationViewModel
             Report(result.Status switch
             {
                 TradingPlanWriteStatus.Conflict => "The Plan changed elsewhere. Reload only after preserving or discarding your entered changes.",
-                TradingPlanWriteStatus.ReferenceChanged => "References changed. Review and explicitly refresh/relink the Draft before reconfirming. A Ready revision is never rewritten.",
+                TradingPlanWriteStatus.ReferenceChanged => "References changed. Review and explicitly refresh/relink the Draft. A Ready revision is never rewritten.",
                 TradingPlanWriteStatus.ReferenceUnavailable => "A reference is inactive or unavailable. The preserved Ready revision and entered preparation are unchanged.",
                 TradingPlanWriteStatus.Cancelled => "Operation cancelled. The current preparation is retained.",
-                TradingPlanWriteStatus.Invalid => "Preparation is not Ready. Save the Draft, resolve the listed requirements and confirm the checklist.",
+                TradingPlanWriteStatus.Invalid => "Preparation is not Ready. Save the Draft, resolve the listed requirements.",
                 _ => "The transition could not be saved and verified. Current preparation is retained. Reload to check the stored state before trying again."
             }, PlanNotice.ForWrite(result.Status));
             return result;

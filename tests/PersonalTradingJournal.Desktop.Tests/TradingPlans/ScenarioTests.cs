@@ -65,11 +65,11 @@ public sealed class ScenarioTests
     {
         var f = new SessionPreparationTests.Fixture(); using var vm = f.Vm;
         var first = vm.Scenarios[0]; first.Name.Text = first.Name.Text;
-        Assert.Equal(TradingPlanChecklist.All, vm.Confirmed); Assert.False(vm.IsDirty);
+        Assert.Equal(TradingPlanChecklist.None, vm.Confirmed); Assert.False(vm.IsDirty);
         vm.AddScenarioCommand.Execute(null); var second = vm.Scenarios[1]; second.Direction = TradeDirection.Long;
         Assert.Equal(TradingPlanScenarioRole.Alternative, second.Role); second.Role = TradingPlanScenarioRole.Primary;
         second.MoveUpCommand.Execute(null); Assert.Same(second, vm.Scenarios[0]); Assert.False(second.MoveUpCommand.CanExecute(null));
-        Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.ScenariosOrStandAside)); Assert.True(vm.Confirmed.HasFlag(TradingPlanChecklist.RiskLimits));
+        Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.ScenariosOrStandAside)); Assert.False(vm.Confirmed.HasFlag(TradingPlanChecklist.RiskLimits));
         Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync());
         Assert.Equal(second.Id, f.Store.Plan.WorkingDraft!.Content.Scenarios[0].Id);
         first.MoveDownCommand.Execute(null); Assert.Same(first, vm.Scenarios[1]);

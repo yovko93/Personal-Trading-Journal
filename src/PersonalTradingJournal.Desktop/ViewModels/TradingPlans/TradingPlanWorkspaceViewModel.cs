@@ -16,7 +16,7 @@ public enum PlanLeaveChoice { Cancel, Save, Discard }
 public interface ITradingPlanInteraction
 {
     PlanLeaveChoice ConfirmLeave();
-    bool ConfirmCurrency(string savedCurrency, string currentCurrency);
+    bool ConfirmDelete(string date, string scope) => false;
 }
 public sealed record PlanAccountOption(Guid? Id, string Name, string Currency, bool IsActive, bool IsAvailable = true)
 {
@@ -42,6 +42,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private readonly object _loadSync = new();
     private bool HasOutstandingLoads { get { lock (_loadSync) return _loads.Any(t => !t.IsCompleted); } }
     private CancellationTokenSource? _load, _write;
+    private TaskCompletionSource? _deleteCompletion;
     private long _epoch;
     private bool _initialized, _disposed, _loading, _writing, _guarding;
     private bool _discardAccepted;
@@ -71,6 +72,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         SaveCommand = new AsyncRelayCommand(async () => await SaveAsync(), () => CanSave);
         MarkReadyCommand = new AsyncRelayCommand(MarkReadyAsync, () => Editor?.CanEdit == true && !IsBusy && !HasPendingDate);
         StartDraftCommand = new AsyncRelayCommand(StartDraftAsync, () => Editor?.IsReadOnly == true && !IsBusy && !HasPendingDate);
+        DeletePlanCommand = new AsyncRelayCommand(DeletePlanAsync, () => HasEditor && !IsBusy && !_guarding);
         CancelCommand = new AsyncRelayCommand(CancelAsync, () => IsBusy);
         InitializeHistory();
         InitializeReviewNavigation();
@@ -92,6 +94,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public IReadOnlyList<PlanAccountOption> Accounts => _choices;
     private string _globalCurrency = "";
     public bool IsGlobalScope => _account is { Id: null };
+    public bool ShowCurrencyField => IsGlobalScope || HasEditor;
     public string PlanCurrency
     {
         get => Editor?.PlanCurrency ?? _globalCurrency;
@@ -109,7 +112,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public bool IsBusy => _loading || _writing || _historyLoading || _historyTransition || Editor?.IsBusy == true;
     public bool CanSelectContext => !_writing && !_historyTransition && Editor?.IsBusy != true && !_guarding && !_disposed;
     public bool CanSave => Editor?.CanEdit == true && !IsBusy && !HasPendingDate;
-    public bool CanCreateDraft => !HasEditor && !IsBusy && _account?.IsActive == true && !HasPendingDate && _contextLoaded && (!IsGlobalScope || ValidCurrency(PlanCurrency));
+    public bool CanCreateDraft => !HasEditor && !IsBusy && _account?.IsActive == true && !HasPendingDate && _contextLoaded;
     private bool _contextLoaded;
     public bool ShowEmpty => !HasEditor && !IsLoading;
     public string EmptyMessage => !_initialized ? "Load Accounts to begin." : _account is null
@@ -118,7 +121,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             "Select All Accounts for shared preparation, or an exact Account."
         : !_contextLoaded ? "The selected context could not be loaded. Retry loading; no empty Plan has been saved."
         : !_account.IsActive ? "No Plan for this date. Reopen this Account in Accounts before creating preparation."
-        : IsGlobalScope && !ValidCurrency(PlanCurrency) ? "Choose an explicit plan currency (up to 8 uppercase characters) before creating shared preparation. No currency conversion is performed."
+        : IsGlobalScope && !ValidCurrency(PlanCurrency) ? "Create Draft reuses the previous saved shared preparation when available. Otherwise enter an explicit currency (up to 8 uppercase characters). No currency conversion is performed."
         : "No Plan for this scope and New York date. Create Draft explicitly to begin; opening this page saves nothing.";
     public string ContextLabel => $"{Format(_date)} · New York · " + (Editor?.IsReadOnly == true
         ? $"{Editor.CurrentPlan.LatestReadyRevision!.References.Account.Name} · {Editor.CurrentPlan.LatestReadyRevision.References.Account.Currency} · saved Account context"
@@ -146,6 +149,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public IAsyncRelayCommand MarkReadyCommand { get; }
     public IAsyncRelayCommand StartDraftCommand { get; }
     public IAsyncRelayCommand CancelCommand { get; }
+    public IAsyncRelayCommand DeletePlanCommand { get; }
 
     public Task ActivateAsync() => _disposed || _initialized && (_editor is not null || _contextLoaded)
         ? Task.CompletedTask : ContextTask = LoadAsync(refreshAccounts: true);
@@ -269,13 +273,16 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         try
         {
             Report("Creating Draft…", PlanNoticeKind.Info);
-            var empty = new TradingPlanContent(planCurrency: IsGlobalScope ? PlanCurrency : null);
+            // Let the atomic Create policy find saved shared currency before requiring a
+            // blank-form fallback. Invalid raw text remains on screen if no source exists.
+            var empty = new TradingPlanContent(planCurrency: IsGlobalScope && ValidCurrency(PlanCurrency) ? PlanCurrency : null);
             var result = await Task.Run(() => _store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, key, empty), cancellation.Token), cancellation.Token);
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } plan && plan.Key == key &&
-                SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, empty))
-            { ReplaceEditor(CreateEditor(plan)); await LoadSourcesAsync(Editor!, CancellationToken.None); Report("Draft created and verified. Complete preparation, then Save Draft.", PlanNoticeKind.Success); }
+                plan.Version == 1 && plan.LatestReadyRevision is null && plan.WorkingDraft.DerivedFromRevision is null && plan.WorkingDraft.Content.Screenshots.IsEmpty)
+            { ReplaceEditor(CreateEditor(plan)); await LoadSourcesAsync(Editor!, CancellationToken.None); Report(result.PrefilledFromDate is { } sourceDate ? $"Draft created from saved preparation on {Format(sourceDate)}; screenshots excluded. Review references and values before Ready." : "Draft created and verified. Complete preparation, then Save Draft.", result.References.IsDefaultOrEmpty ? PlanNoticeKind.Success : PlanNoticeKind.Warning); }
             else Report(result.Status == TradingPlanWriteStatus.TargetAlreadyExists ? "A Plan was created elsewhere. Reload this exact date and Account." :
-                result.Status == TradingPlanWriteStatus.Cancelled ? "Creation cancelled. No success was reported." : "Draft could not be created and verified. Reload to check the stored state.",
+                result.Status == TradingPlanWriteStatus.Cancelled ? "Creation cancelled. No success was reported." :
+                IsGlobalScope && !ValidCurrency(PlanCurrency) ? "No usable shared preparation supplied a currency. Enter a valid currency, then Create Draft. Your input is retained." : "Draft could not be created and verified. Reload to check the stored state.",
                 result.Status == TradingPlanWriteStatus.Cancelled ? PlanNoticeKind.Info : PlanNoticeKind.Error);
         }
         catch (OperationCanceledException) { Report("Creation cancelled.", PlanNoticeKind.Info); }
@@ -316,14 +323,13 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             var saved = editor.CurrentPlan.LatestReadyRevision!.References.Account.Currency;
             if (editor.HasMonetaryLimits && current is not null && current.Currency != saved)
             {
-                if (!_interaction.ConfirmCurrency(saved, current.Currency)) { Report("Start Draft cancelled. Ready revision unchanged.", PlanNoticeKind.Info); return; }
-                reviewed = current.Currency;
+                Report("The Account currency changed. Saved limits keep their original currency; correct the Draft currency and amounts before Ready.", PlanNoticeKind.Warning);
             }
             var result = await editor.StartDraftAsync(reviewed, cancellation.Token);
             if (result.Status == TradingPlanWriteStatus.Success)
             {
                 ReplaceEditor(CreateEditor(result.Plan!)); await LoadSourcesAsync(Editor!, CancellationToken.None);
-                Report("New working Draft saved. The source Ready revision is preserved; confirm preparation again.", PlanNoticeKind.Warning);
+                Report("New working Draft saved. The source Ready revision is preserved.", PlanNoticeKind.Warning);
             }
         }
         catch (OperationCanceledException) { Report("Start Draft cancelled. No success was reported.", PlanNoticeKind.Info); }
@@ -331,11 +337,41 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         finally { _write = null; _writing = false; Notify(); }
     }
 
+    public async Task DeletePlanAsync()
+    {
+        if (!HasEditor || IsBusy || _guarding || _disposed) return;
+        var editor = Editor!; var target = editor.CurrentPlan;
+        _deleteCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Deliberately bypass Save/Discard: the explicit destructive confirmation covers the draft.
+        _writing = true; Notify();
+        using var cancellation = new CancellationTokenSource(); _write = cancellation;
+        try
+        {
+            if (!_interaction.ConfirmDelete(Format(target.Key.NewYorkDate), ContextLabel)) return;
+            if (!ReferenceEquals(Editor, editor)) return;
+            var result = await Task.Run(() => _store.WriteAsync(new(TradingPlanWriteOperation.Delete,
+                target.Key, target.WorkingDraft?.Content ?? target.LatestReadyRevision!.Content,
+                new(target.Id, target.Version)), cancellation.Token), cancellation.Token);
+            if (result.Status == TradingPlanWriteStatus.Success && result.DeletedPlanId == target.Id)
+            {
+                ReplaceEditor(null); ClearLeaveConsent(); _contextLoaded = true; Report("");
+                PublishPlans([]); ClearHistorical(); _historyPlan = null; RevisionRows = []; NotifyHistory();
+            }
+            else Report(result.Status == TradingPlanWriteStatus.Conflict
+                ? "The Plan changed elsewhere. Deletion was rejected; your entered input is retained. Reload after preserving it."
+                : "The Plan could not be deleted. Your input and saved history are retained.", PlanNotice.ForWrite(result.Status));
+        }
+        catch (OperationCanceledException) { Report("Deletion cancelled. Preparation retained."); }
+        catch (Exception) { Report("Deletion could not be verified. Input retained; reload to check stored state.", PlanNoticeKind.Error); }
+        finally { _write = null; _writing = false; _deleteCompletion.TrySetResult(); Notify(); }
+    }
+
     public async Task CancelAsync()
     {
         _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); Editor?.CancelOperation();
         Task[] loads; lock (_loadSync) loads = _loads.ToArray();
         await Task.WhenAll(loads);
+        if (_deleteCompletion is { } deletion) await deletion.Task;
         if (Editor is { } editor) await editor.OperationCompletion;
         if (_historyWriteTask is { } write) await write;
     }
@@ -372,8 +408,8 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public void ClearLeaveConsent() { _discardAccepted = false; _acceptedIdentity = null; }
     private void Notify()
     {
-        foreach (string name in new[] { nameof(HasEditor), nameof(IsBusy), nameof(IsLoading), nameof(CanSelectContext), nameof(CanSave), nameof(CanCreateDraft), nameof(ShowEmpty), nameof(EmptyMessage), nameof(ContextLabel), nameof(StateLabel), nameof(HasPendingDate), nameof(CanInteractEditor) }) OnPropertyChanged(name);
-        foreach (var command in new[] { PreviousDayCommand, NextDayCommand, TodayCommand, OpenDateCommand, ReloadCommand, CreateDraftCommand, SaveCommand, MarkReadyCommand, StartDraftCommand, CancelCommand }) command?.NotifyCanExecuteChanged();
+        foreach (string name in new[] { nameof(HasEditor), nameof(IsBusy), nameof(IsLoading), nameof(CanSelectContext), nameof(CanSave), nameof(CanCreateDraft), nameof(ShowEmpty), nameof(EmptyMessage), nameof(ContextLabel), nameof(StateLabel), nameof(HasPendingDate), nameof(CanInteractEditor), nameof(ShowCurrencyField) }) OnPropertyChanged(name);
+        foreach (var command in new[] { PreviousDayCommand, NextDayCommand, TodayCommand, OpenDateCommand, ReloadCommand, CreateDraftCommand, SaveCommand, MarkReadyCommand, StartDraftCommand, DeletePlanCommand, CancelCommand }) command?.NotifyCanExecuteChanged();
         NotifyHistory();
     }
     public void Dispose()

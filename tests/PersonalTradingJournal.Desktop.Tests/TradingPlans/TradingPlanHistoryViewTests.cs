@@ -47,7 +47,7 @@ public sealed class TradingPlanHistoryViewTests
             await store.WriteAsync(new(TradingPlanWriteOperation.CopyForward, new(first.Key.AccountId, new(2026, 10, 16)), first.Content, sourceRevision: first.Id));
             await store.WriteAsync(new(TradingPlanWriteOperation.CopyForward, new(first.Key.AccountId, new(2026, 10, 15)), first.Content, sourceRevision: first.Id));
             var other = (await store.LoadAsync(new(first.Key.AccountId, new(2026, 10, 15))))!;
-            await store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, other.Key, first.Content, new(other.Id, other.Version), explicitConfirmations: TradingPlanChecklist.All));
+            await store.WriteAsync(new(TradingPlanWriteOperation.SaveDraft, other.Key, first.Content, new(other.Id, other.Version)));
             other = (await store.LoadAsync(other.Key))!;
             await store.WriteAsync(new(TradingPlanWriteOperation.MarkReady, other.Key, other.WorkingDraft!.Content, new(other.Id, other.Version)));
             f.Source.Account.UpdateDetails("Synthetic Account with a deliberately long display name for wrapping and exact identity", f.Source.Account.AccountType,

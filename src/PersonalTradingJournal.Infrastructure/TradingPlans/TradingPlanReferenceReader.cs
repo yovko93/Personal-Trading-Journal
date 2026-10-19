@@ -16,7 +16,7 @@ public sealed class TradingPlanReferenceReader(IDbContextFactory<JournalDbContex
         await db.Database.OpenConnectionAsync(cancellationToken);
         await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
         await db.Database.UseTransactionAsync(tx, cancellationToken);
-        var row = await db.TradingPlans.AsNoTracking().SingleOrDefaultAsync(p => p.AccountId == key.AccountId && p.NewYorkDate == key.NewYorkDate, cancellationToken);
+        var row = await db.TradingPlans.AsNoTracking().SingleOrDefaultAsync(p => p.DeletedAtUtc == null && p.AccountId == key.AccountId && p.NewYorkDate == key.NewYorkDate, cancellationToken);
         if (row is null || row.Id != expected.PlanId || row.Version != expected.Version || row.DraftJson is null)
             return new(TradingPlanWriteStatus.Conflict, key, expected);
         var stored = TradingPlanJson.ReadDraft(row.DraftJson);

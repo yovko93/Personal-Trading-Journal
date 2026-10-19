@@ -22,6 +22,8 @@ public sealed class WpfTradingPlanInteraction(IDialogService dialogs) : ITrading
         if (owner?.IsVisible == true) dialog.Owner = owner;
         return dialog.ShowDialog() == true ? dialog.Choice : PlanLeaveChoice.Cancel;
     }
-    public bool ConfirmCurrency(string savedCurrency, string currentCurrency) => dialogs.Confirm(new(
-        "Review planned currency", $"The Ready revision uses {savedCurrency}; the current Account uses {currentCurrency}. Start a Draft with the same numeric limits in {currentCurrency}? No conversion is performed. Review every amount and confirm the checklist again.", "Start Draft", "Keep Ready"));
+    public bool ConfirmDelete(string date, string scope) => dialogs.Confirm(new(
+        "Delete Plan", $"Delete the loaded Plan for {date}, {scope}, including its Draft and history from normal browsing? Unsaved input will be discarded. Retained historical evidence and images are not erased.",
+        "Delete Plan", "Keep Plan"));
+
 }

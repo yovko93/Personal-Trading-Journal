@@ -69,12 +69,23 @@ public sealed record TradingPlanContent
         Instruments.Select(i => new TradingPlanInstrumentContext(i.InstrumentId)),
         Scenarios, riskLimits: RiskLimits, rules: Rules, planCurrency: PlanCurrency);
 
+    /// <summary>Create-only policy: retain saved daily values, never assets or confirmations.
+    /// The caller supplies the saved currency, never a current replacement currency.</summary>
+    public TradingPlanContent PrefillPreviousDay(string? savedCurrency) => new(Session, Focus, Intent,
+        Instruments, Scenarios.Select(s => new TradingPlanScenario(Guid.NewGuid(), s.InstrumentId, s.Name,
+            s.Role, s.Direction, s.Condition, s.Response, s.Invalidation, s.Setup)),
+        NewsAndRestrictions, StandAside, RiskLimits, Rules, planCurrency: savedCurrency ?? PlanCurrency);
+
+    public TradingPlanContent WithPlanCurrency(string? currency) => new(Session, Focus, Intent,
+        Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, Confirmed, currency, Screenshots);
+
     internal TradingPlanContent WithConfirmations(TradingPlanChecklist confirmed) => new(Session, Focus, Intent,
         Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, confirmed, PlanCurrency, Screenshots);
 
     // ImmutableArray record equality is backing-array equality. Authoring compares values instead,
     // so rebuilding equivalent input collections neither changes the version nor clears checks.
-    internal bool HasSamePreparation(TradingPlanContent other) => Session == other.Session && Focus == other.Focus &&
+    /// <summary>Compares preparation values, excluding historical-only confirmation flags.</summary>
+    public bool HasSamePreparation(TradingPlanContent other) => Session == other.Session && Focus == other.Focus &&
         Intent == other.Intent && Instruments.SequenceEqual(other.Instruments) && Scenarios.SequenceEqual(other.Scenarios) &&
         NewsAndRestrictions == other.NewsAndRestrictions && StandAside == other.StandAside &&
         RiskLimits == other.RiskLimits && Rules.SequenceEqual(other.Rules) && PlanCurrency == other.PlanCurrency && Screenshots.SequenceEqual(other.Screenshots);
