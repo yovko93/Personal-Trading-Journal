@@ -10,6 +10,9 @@ namespace PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 public partial class SessionPreparationSection : UserControl
 {
+    public static readonly DependencyProperty IsSectionExpandedProperty = DependencyProperty.Register(nameof(IsSectionExpanded), typeof(bool), typeof(SessionPreparationSection), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+    public bool IsSectionExpanded { get => (bool)GetValue(IsSectionExpandedProperty); set => SetValue(IsSectionExpandedProperty, value); }
+    public void ExpandSection() => SetCurrentValue(IsSectionExpandedProperty, true);
     private readonly PageFocus _focus;
     public SessionPreparationSection() { InitializeComponent(); _focus = new(this); }
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -37,6 +40,7 @@ public partial class SessionPreparationSection : UserControl
         var invalid = vm.Contexts.FirstOrDefault(c => c.Fields.Contains(field!));
         if (invalid is not null) vm.SelectedInstrument = invalid;
         // Wait for the selected context's bindings/layout and respect any newer user input.
+        ExpandSection();
         _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, field)));
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

@@ -97,6 +97,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261019080838_SharedTradingPlansAndScreenshots",
                     "20261019100107_DirectPlaybookDefinitions",
                     "20261019160256_TombstoneTradingPlans",
+                    "20261019171746_AddDailyTradingPrinciples",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

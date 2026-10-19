@@ -1,5 +1,94 @@
 # Trading Plan
 
+## Collapsible sections and global Daily Trading Principles (before M21.10)
+
+Actual baseline: clean `develop`, HEAD `6f237f2dfb71c4e1b737d5473f8983ac2b5b28e1`. The previous 57-modified/4-new changes had already been committed; this task preserves them. No production journal/provider access, commit, push, merge or M21.10 work.
+
+### Behavior, ownership and compatibility
+
+- Sections **01 Session Preparation**, **02 If / Then Scenarios** and **03 Risk & Rules** default expanded. A chevron/header toggles only the existing body; Space, Enter, native ExpandCollapse automation and theme-aware focus are supported. Choices survive date/Account changes and navigation in the retained application workspace, but reset at application restart. They never mutate or save Plan content.
+- Invalid/raw input, selection and unsaved content stay in the same editor. Validation expands its section before the existing guarded scroll/focus request. The scenario-direction readiness lookup was corrected from the obsolete ComboBox type to the actual pill Button, with a compiled focus regression.
+- **Daily Trading Principles** sits immediately above Today’s Focus, outside Plan existence/read-only gates. It remains editable with no Plan and with Ready content. Its collapse choice and unsubmitted input survive context changes. It is an ordinary scrolling section, not an overlay.
+- Add (also Enter) appends exact Unicode text; whitespace-only, NUL and more than **500 characters** are rejected. This matches the existing short Focus limit. There are at most **1,000 entries**; reads fail explicitly rather than truncate. Stable GUIDs and insertion positions are stored; displayed numbers renumber after X removes an entry. Long text wraps with one right-aligned X. No production examples are seeded.
+- Add/remove is a separate transactional, concurrency-checked SQLite operation with UTC creation audit, verified readback and cancellation before commit. No Plan is created, dirtied, retargeted or versioned; deletion/prefill of a daily Plan leaves reminders alone. Failure retains input; conflict reloads only the saved reminder list and asks the user to review before retrying. Repeated clicks cannot submit twice. There is no automatic write retry or reminder Save/Discard prompt.
+- These are **current global reminders**, not historical preparation or Trading Rules. They never enter Ready snapshots, Review evidence or AI packets, and make no compliance claim.
+- Additive migration `20261019171746_AddDailyTradingPrinciples` adds two independent tables and no reminder content. Logical **export v14** includes entries and list token in JSON; four CSVs remain unchanged. Complete current-schema backup, preflight and offline restore preserve the list. Older logical exports omit it and must not be interpreted as containing invented entries; there is no JSON/CSV import or restore feature. Older-schema archive restore stays unsupported. Downgrade refuses populated reminder data.
+
+### Verification chronology
+
+All databases, example Bulgarian text and renders are synthetic. Attempts are kept under `TestResults/PlanPrinciples/`; failed runs are not counted as passes.
+
+| Attempt | Result and explanation |
+| --- | --- |
+| `initial` | **31 passed / 29 failed** (Infrastructure 30/33, Desktop 1/27). Two schema expectations lacked the new records/integer singleton; one new Ready equality assertion compared reconstructed immutable arrays by identity instead of serialized historical content. The new store also incorrectly required TimeProvider registration, propagating through 26 Desktop fixtures; it now follows the existing optional clock/System fallback convention. |
+| `focused` | **63 passed / 1 failed** (Infrastructure 32/33, Desktop 31/31). One remaining schema assertion assumed the new version singleton had zero rows. Four new WPF theme/size workflows passed. |
+| `verified` | **386 passed / 1 failed**: Domain 77, Application 35, Desktop 149 passed; Infrastructure 125/126. Empty export expected one catalog-state row instead of the two explicitly exported singleton tokens. Schema/portability and all WPF workflows otherwise passed. |
+| `final-focused` | **64/64**: 58 Infrastructure and 6 Desktop. Corrected export expectation plus scenario-direction readiness focus and collapse coverage. |
+| `validation-focus` | **4/4** compiled WPF validation/expansion checks, including invalid reminder input expanding and receiving guarded focus. |
+| First complete gate (`complete`) | **4,915/4,915**, zero failures/skips, exit 0. Domain 567, Application 1,021, Infrastructure 1,452, Desktop 1,875 (88 exclusive + 1,787 parallel). Run `release-20261019-172950-7e0c3b1692b64848ac9090d173a8a454`, UTC 17:29:50–17:37:36. Calendar 63.731s / 56.269s headroom. The later controlled activation regression is recorded separately. |
+
+The later `activation-before` controlled regression **failed 0/1** at `ContextTask.IsCompleted`: the newly added await of reminders occurred before publishing the existing Plan context task. `MainWindowViewModel.OpenReviewPreparationAsync` awaits that public task, so this was a real navigation-contract regression even though the first complete gate passed. Reminder initialization now runs inside the existing tracked `LoadCoreAsync`, with cancellation checked before Plan reads; cancellation requests both owners before awaiting completion. The controlled test proves the task remains pending and cancellation drains initialization without starting a Plan read or write. `activation-corrected` passed **32/32** (workspace, global reminder and four compiled WPF workflows); the failing pre-correction test is retained at `TestResults/PlanPrinciples/activation-before`. This justified the corrected focused run and a second complete gate, not retrying an unchanged failing suite.
+
+The new regression coverage also exercises a failing SQLite state-update trigger to prove transaction rollback of both add and remove, concurrent competing appends, stale/removal cancellation, exact Unicode restart reads, prior-schema migration, no-plan/Ready availability, context and input retention, Plan token independence, and backup/preflight/offline restore/export.
+
+Commands: affected tests use `dotnet test PersonalTradingJournal.sln -c Release --no-restore --filter 'FullyQualifiedName~TradingPlans|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~PortableExportTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests' --logger trx --results-directory TestResults/PlanPrinciples/verified`. The final focused filter is `FullyQualifiedName~DailyTradingPrinciple|FullyQualifiedName~PlanSectionsViewTests|FullyQualifiedName~PortableExportTests|FullyQualifiedName~InitialMigrationTests`. The last four-case check filters the Desktop project to `FullyQualifiedName~PlanSectionsViewTests`. Render runs set `PTJ_PLAN_RENDER_DIRECTORY=artifacts/plan-principles-renders-final`, with child evidence under the matching result directory. Native tests use the normal Windows desktop.
+
+### Visual and remaining acceptance
+
+Production-resource compiled renders in `artifacts/plan-principles-renders-final/` cover Light/Dark at 980 DIP/96 DPI and 460 DIP/240 DPI: empty, populated no-plan, collapsed, Ready and Ready-collapsed principles/sections. Long Bulgarian reminders wrap while Add/X remain available; empty sections remain compact; collapsed sections leave their headings and remove body space. The first render fixture used a wider real Window than bitmap viewport, clipping its right edge; fixed-size content now matches the tested viewport. This was a test-render sizing correction, not a product layout change. Existing Session Preparation, Scenarios, Risk, History and full-workspace renders are retained too.
+
+Automated native focus/automation-provider checks and synthetic database restart are **not human keyboard/Narrator, native picker or live application restart acceptance**. Those remain pending, as does matching CI for the uncommitted changes. No workflow publication or provider request is performed. SQLite writer acquisition follows the existing synchronous backup/store convention: cancellation is observed around the SQLite operation, not guaranteed to interrupt an in-progress native busy wait; precommit changes are rolled back and a committed result remains authoritative. The historical Calendar/History host timing risks are not declared eliminated by focused passes. M21.10 stays paused.
+
+### Final results and exact changed files
+
+Initial Release build before the first gate: `dotnet build PersonalTradingJournal.sln -c Release --no-restore`, **zero warnings/errors**, 4.96s. `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`: **no pending model changes**. Tracked and all ten new-file whitespace checks passed. After the activation correction, the same Release build passed again with **zero warnings/errors**, 3.37s; EF consistency passed again. Final-source gate command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanPrinciples/final-complete`. Final result: **4,916 passed, zero failures/skips, exit 0**: Domain **567**, Application **1,021**, Infrastructure **1,452**, Desktop **1,876** (**88** exclusive + **1,788** parallel). Final run `release-20261019-174127-666e40e113914ef28b99f499f9a0d0f6`, UTC **17:41:27–17:49:12**, has its aggregate `summary.json`, parent/child TRX and supervision/phase logs under `TestResults/PlanPrinciples/final-complete/`. Calendar child **64.405s / 55.595s aggregate headroom**; Journal **9.680s**; History **23.981s**; new four-case sections child **22.368s**; workspace **26.450s**, all exit 0 with cleanup confirmed. No deadlines, isolation, assertions or execution lanes were weakened. Final tracked/new-file whitespace checks passed after documentation updates. HEAD remains `6f237f2dfb71c4e1b737d5473f8983ac2b5b28e1` on `develop`, with the 40 uncommitted files below. Local automated acceptance is green; human and matching-CI acceptance remain pending.
+
+Exact task inventory: **40 files** (30 modified, 10 new); starting tree was clean. The migration designer/model snapshot and schema/export expectation updates are deliberate.
+
+```text
+README.md
+docs/architecture.md
+docs/trading-plan.md
+src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml.cs
+src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs
+src/PersonalTradingJournal.Application/TradingPlans/IDailyTradingPrincipleStore.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/DailyTradingPrinciplesViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/PlanSectionExpander.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019171746_AddDailyTradingPrinciples.Designer.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019171746_AddDailyTradingPrinciples.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Records/DailyTradingPrincipleRecord.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/DailyTradingPrincipleStore.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/DailyTradingPrinciplesTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs
+```
+
+
 ## Delete Plan, Ready simplification and Create prefill (before M21.10)
 
 Starting state was clean `develop`, HEAD `cd1b64c085e2716288fc19a3b69492b7ee21fb6e`; existing UI corrections are preserved. No production journal or provider is accessed. M21.10 remains paused.

@@ -22,8 +22,15 @@ public partial class TradingPlanWorkspaceView : UserControl
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         _focus.Invalidate();
-        if (e.OldValue is TradingPlanWorkspaceViewModel old) PropertyChangedEventManager.RemoveHandler(old, OnState, "");
-        if (e.NewValue is TradingPlanWorkspaceViewModel current) PropertyChangedEventManager.AddHandler(current, OnState, "");
+        if (e.OldValue is TradingPlanWorkspaceViewModel old)
+        { PropertyChangedEventManager.RemoveHandler(old, OnState, ""); PropertyChangedEventManager.RemoveHandler(old.Principles, OnPrincipleState, ""); }
+        if (e.NewValue is TradingPlanWorkspaceViewModel current)
+        { PropertyChangedEventManager.AddHandler(current, OnState, ""); PropertyChangedEventManager.AddHandler(current.Principles, OnPrincipleState, ""); }
+    }
+    private void OnPrincipleState(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DailyTradingPrinciplesViewModel.ValidationAttempt))
+            _focus.Request(() => PrincipleInput);
     }
     private void OnState(object? sender, PropertyChangedEventArgs e)
     {
@@ -36,6 +43,9 @@ public partial class TradingPlanWorkspaceView : UserControl
             if (field == "Session") { _focus.Request(() => Session); return; }
             if (field is "Draft" or "Save") { _focus.Request(() => SaveDraft); return; }
             if (field == "Conflict") { _focus.Request(() => Reload); return; }
+            if (field is "Instruments" || field?.StartsWith("Instruments[", StringComparison.Ordinal) == true) Preparation.ExpandSection();
+            if (field is "Scenarios" or "StandAside" || field?.StartsWith("Scenarios[", StringComparison.Ordinal) == true) Scenarios.ExpandSection();
+            if (field == "References") Risk.ExpandSection();
             object? target = field switch { "Focus" => editor.Focus, "StandAside" => editor.StandAside, _ => null };
             if (field?.StartsWith("Instruments[", StringComparison.Ordinal) == true)
             {
@@ -50,7 +60,7 @@ public partial class TradingPlanWorkspaceView : UserControl
                 var scenario = editor.Scenarios[index];
                 target = field.Split('.')[1] switch { "Name" => scenario.Name, "Condition" => scenario.Condition,
                     "Response" => scenario.Response, "Invalidation" => scenario.Invalidation, _ => null };
-                if (target is null) { _focus.Request(() => Descendants(Scenarios).OfType<ComboBox>().FirstOrDefault(c => c.Name == "Direction" && ReferenceEquals(c.DataContext, scenario))); return; }
+                if (target is null) { _focus.Request(() => Descendants(Scenarios).OfType<Button>().FirstOrDefault(c => c.Name == "Direction" && ReferenceEquals(c.DataContext, scenario))); return; }
             }
             if (target is not null) _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, target)));
             else if (field == "Currency") _focus.Request(() => PlannedCurrency);

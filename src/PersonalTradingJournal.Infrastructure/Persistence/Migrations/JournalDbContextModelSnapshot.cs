@@ -250,6 +250,57 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyTradingPrincipleRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Position")
+                        .IsUnique();
+
+                    b.ToTable("DailyTradingPrinciples", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DailyTradingPrinciples_Content", "length(trim(Text)) > 0 AND length(Text) <= 500 AND Position > 0");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyTradingPrincipleStateRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("DailyTradingPrincipleState", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_DailyTradingPrincipleState_Singleton", "Id = 1 AND Version >= 0");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Version = 0L
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.InstrumentRecord", b =>
                 {
                     b.Property<Guid>("Id")

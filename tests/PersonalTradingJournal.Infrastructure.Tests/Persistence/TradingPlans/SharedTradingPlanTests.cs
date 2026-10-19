@@ -157,7 +157,7 @@ public sealed class SharedTradingPlanTests
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            Assert.Equal(13, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(14, json.RootElement.GetProperty("version").GetInt32());
             Assert.Single(json.RootElement.GetProperty("tables").GetProperty("tradingPlanAssets").EnumerateArray());
         }
         Assert.Empty(Directory.GetFiles(export, "*.png", SearchOption.AllDirectories));

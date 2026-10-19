@@ -1,5 +1,6 @@
 <UserControl x:Class="PersonalTradingJournal.Desktop.Views.TradingPlans.SessionPreparationSection"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
  xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
  xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
  DataContextChanged="OnDataContextChanged" SizeChanged="OnSizeChanged" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="13" KeyboardNavigation.TabNavigation="Continue">
@@ -38,8 +39,8 @@
    </Grid>
   </Border>
   <Border Style="{StaticResource PtjCardStyle}" Padding="12">
+   <local:PlanSectionExpander x:Name="SectionExpander" Header="Session Preparation" Tag="01" Style="{StaticResource PlanSectionExpander}" IsExpanded="{Binding IsSectionExpanded, RelativeSource={RelativeSource AncestorType=local:SessionPreparationSection}, Mode=TwoWay}" AutomationProperties.Name="Session Preparation">
    <StackPanel>
-    <ContentControl Content="Session Preparation" Tag="01" Style="{StaticResource PlanSectionHeading}" />
     <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
     <ContentControl Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
     <ComboBox x:Name="SessionSelector" Width="180" HorizontalAlignment="Left" ItemsSource="{Binding Sessions}" SelectedItem="{Binding Session}" Style="{StaticResource PlanSelect}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Session, optional in Draft" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
@@ -104,6 +105,7 @@
      </StackPanel>
     </Grid>
    </StackPanel>
+   </local:PlanSectionExpander>
   </Border>
  </StackPanel>
 </UserControl>

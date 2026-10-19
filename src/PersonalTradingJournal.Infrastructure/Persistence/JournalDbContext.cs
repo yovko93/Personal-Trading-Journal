@@ -11,6 +11,9 @@ public sealed class JournalDbContext : DbContext
     {
     }
 
+    public DbSet<DailyTradingPrincipleRecord> DailyTradingPrinciples => Set<DailyTradingPrincipleRecord>();
+    public DbSet<DailyTradingPrincipleStateRecord> DailyTradingPrincipleState => Set<DailyTradingPrincipleStateRecord>();
+
     public DbSet<InstrumentRecord> Instruments => Set<InstrumentRecord>();
     public DbSet<TradingPlanRecord> TradingPlans => Set<TradingPlanRecord>();
     public DbSet<TradingPlanReadyRecord> TradingPlanReadyRevisions => Set<TradingPlanReadyRecord>();
@@ -59,6 +62,21 @@ public sealed class JournalDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<DailyTradingPrincipleRecord>(b =>
+        {
+            b.ToTable("DailyTradingPrinciples", t => t.HasCheckConstraint("CK_DailyTradingPrinciples_Content", "length(trim(Text)) > 0 AND length(Text) <= 500 AND Position > 0"));
+            b.HasKey(x => x.Id); b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.Text).IsRequired().HasMaxLength(500);
+            b.HasIndex(x => x.Position).IsUnique();
+            b.Property(x => x.CreatedAtUtc).HasConversion<PersonalTradingJournal.Infrastructure.Persistence.Converters.SqliteUtcDateTimeOffsetConverter>();
+        });
+        modelBuilder.Entity<DailyTradingPrincipleStateRecord>(b =>
+        {
+            b.ToTable("DailyTradingPrincipleState", t => t.HasCheckConstraint("CK_DailyTradingPrincipleState_Singleton", "Id = 1 AND Version >= 0"));
+            b.HasKey(x => x.Id); b.Property(x => x.Id).ValueGeneratedNever();
+            b.Property(x => x.Version).IsConcurrencyToken();
+            b.HasData(new DailyTradingPrincipleStateRecord { Id = 1, Version = 0 });
+        });
         modelBuilder.Entity<CurrentPlaybookRecord>(b =>
         {
             b.ToTable("CurrentPlaybooks", t => t.HasCheckConstraint("CK_CurrentPlaybooks_Content",

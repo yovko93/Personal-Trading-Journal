@@ -49,6 +49,8 @@ public sealed class SqlitePersistenceIntegrityTests
         using JournalDbContext context = CreateModelContext();
         Type[] expectedRecordTypes =
         [
+            typeof(DailyTradingPrincipleRecord),
+            typeof(DailyTradingPrincipleStateRecord),
             typeof(InstrumentRecord),
             typeof(TradeBrowseRecord),
             typeof(TradingAccountRecord),
@@ -297,7 +299,8 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(13, uniqueIndexes.Count);
+        Assert.Equal(14, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyTradingPrincipleRecord) && index.Properties.SequenceEqual(["Position"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
             index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL AND DeletedAtUtc IS NULL");
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&

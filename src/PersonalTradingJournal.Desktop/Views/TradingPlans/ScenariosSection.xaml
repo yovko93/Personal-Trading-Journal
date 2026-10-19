@@ -51,11 +51,9 @@
         </DataTemplate>
           </ResourceDictionary>
     </UserControl.Resources>
-    <StackPanel Margin="12">
-<DockPanel>
- <Button DockPanel.Dock="Right" Content="Add Scenario" Command="{Binding AddScenarioCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Add Scenario" VerticalAlignment="Top" />
- <ContentControl Content="If / Then Scenarios" Tag="02" Style="{StaticResource PlanSectionHeading}" />
-</DockPanel>
+    <local:PlanSectionExpander x:Name="SectionExpander" Margin="12" Header="If / Then Scenarios" Tag="02" Style="{StaticResource PlanSectionExpander}" IsExpanded="{Binding IsSectionExpanded, RelativeSource={RelativeSource AncestorType=local:ScenariosSection}, Mode=TwoWay}" AutomationProperties.Name="If / Then Scenarios">
+    <StackPanel>
+ <Button HorizontalAlignment="Right" Content="Add Scenario" Command="{Binding AddScenarioCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Add Scenario" />
         <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4"
                    interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
@@ -133,4 +131,5 @@
         </Border>
         <TextBlock Text="{Binding IntentMessage}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" Margin="0,4" />
     </StackPanel>
+    </local:PlanSectionExpander>
 </UserControl>

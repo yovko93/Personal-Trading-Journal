@@ -62,6 +62,7 @@ public static class PersistenceServiceCollectionExtensions
         });
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddTransient<ITradingPlanStore, TradingPlanStore>();
+        services.AddTransient<IDailyTradingPrincipleStore, DailyTradingPrincipleStore>();
         services.AddTransient<ITradingPlanReferenceReader, TradingPlanReferenceReader>();
         services.AddTransient<WriteTradingPlanUseCase>();
         services.AddTransient<IDatabaseSnapshotService>(_ => new SqliteDatabaseSnapshotService(applicationPaths));

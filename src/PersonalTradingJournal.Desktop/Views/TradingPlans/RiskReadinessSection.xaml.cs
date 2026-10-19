@@ -9,6 +9,9 @@ namespace PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 public partial class RiskReadinessSection : UserControl
 {
+    public static readonly DependencyProperty IsSectionExpandedProperty = DependencyProperty.Register(nameof(IsSectionExpanded), typeof(bool), typeof(RiskReadinessSection), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+    public bool IsSectionExpanded { get => (bool)GetValue(IsSectionExpandedProperty); set => SetValue(IsSectionExpandedProperty, value); }
+    public void ExpandSection() => SetCurrentValue(IsSectionExpandedProperty, true);
     private readonly PageFocus _focus;
     public RiskReadinessSection() { InitializeComponent(); _focus = new(this); }
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
@@ -26,6 +29,7 @@ public partial class RiskReadinessSection : UserControl
     {
         if (e.PropertyName != nameof(SessionPreparationViewModel.ValidationAttempt) || sender is not SessionPreparationViewModel vm ||
             vm.FirstInvalidField is not { } field || !vm.RiskFields.Contains(field)) return;
+        ExpandSection();
         _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, field)));
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

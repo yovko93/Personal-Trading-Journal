@@ -301,11 +301,11 @@ public sealed class TradingPlanWorkspaceTests
             if (seed) await f.Vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, f.Vm.Accounts.Single(a => a.Id == f.Source.Account.Id));
             return f;
         }
-        public TradingPlanWorkspaceViewModel NewWorkspace(PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null) => new(Store, Db.Provider.GetRequiredService<ITradingAccountReader>(),
+        public TradingPlanWorkspaceViewModel NewWorkspace(PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null, IDailyTradingPrincipleStore? principles = null) => new(Store, Db.Provider.GetRequiredService<ITradingAccountReader>(),
             Db.Provider.GetRequiredService<IInstrumentReader>(), Db.Provider.GetRequiredService<ITradingPlanReferenceReader>(),
             Db.Provider.GetRequiredService<ITradingSetupReader>(), Db.Provider.GetRequiredService<ITradingSetupPlaybookStore>(),
             Db.Provider.GetRequiredService<ITradingSetupPlaybookHistoryReader>(), Db.Provider.GetRequiredService<ITradingRuleReader>(),
-            Db.Provider.GetRequiredService<ITradingRuleStore>(), Interaction, new Clock(), images);
+            Db.Provider.GetRequiredService<ITradingRuleStore>(), Interaction, new Clock(), images, principles ?? Db.Provider.GetRequiredService<IDailyTradingPrincipleStore>());
         public async ValueTask DisposeAsync() { await Vm.CancelAsync(); Vm.Dispose(); Source.Vm.Dispose(); await Db.DisposeAsync(); }
         private sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => new(2026, 10, 18, 1, 0, 0, TimeSpan.Zero); }
     }

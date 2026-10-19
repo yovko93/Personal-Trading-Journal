@@ -106,15 +106,43 @@
   </StackPanel>
   <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
    <StackPanel>
+    <Border Style="{StaticResource Section}" Padding="12" DataContext="{Binding Principles}">
+     <local:PlanSectionExpander x:Name="PrinciplesExpander" Header="Daily Trading Principles" Style="{StaticResource PlanSectionExpander}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" AutomationProperties.Name="Daily Trading Principles" AutomationProperties.HelpText="Current global reminders shared across dates and accounts, not historical preparation or assessments.">
+      <StackPanel>
+       <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <TextBox x:Name="PrincipleInput" Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PlanInput}" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" Margin="0,2,8,2"
+          AutomationProperties.Name="New daily trading principle" AutomationProperties.HelpText="{Binding Error}" AutomationProperties.ItemStatus="{Binding Error}" validation:FormValidation.IsInvalid="{Binding HasError}">
+         <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding AddCommand}" /></TextBox.InputBindings>
+        </TextBox>
+        <Button Grid.Column="1" Content="Add" Command="{Binding AddCommand}" Style="{StaticResource PlanPrimary}" VerticalAlignment="Top" AutomationProperties.Name="Add daily trading principle" />
+       </Grid>
+       <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasError, Converter={StaticResource VisibleIf}}" interactions:LiveAnnouncement.Text="{Binding Error}" AutomationProperties.LiveSetting="Polite" />
+       <ContentControl Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" />
+       <WrapPanel>
+        <Button Content="Reload principles" Command="{Binding ReloadCommand}" Style="{StaticResource PlanAction}" Visibility="{Binding Notice.HasText, Converter={StaticResource VisibleIf}}" />
+        <Button Content="Cancel principles operation" Command="{Binding CancelCommand}" Style="{StaticResource PlanAction}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
+       </WrapPanel>
+       <ItemsControl ItemsSource="{Binding Rows}">
+        <ItemsControl.ItemTemplate><DataTemplate>
+         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <TextBlock Text="{Binding Number, StringFormat={}{0}.}" Foreground="{DynamicResource PtjAccentBrush}" FontWeight="SemiBold" Margin="4,6,10,0" />
+          <TextBlock Grid.Column="1" Text="{Binding Text}" Style="{StaticResource Body}" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Content="×" Style="{StaticResource PlanRemove}" VerticalAlignment="Top" Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Text, StringFormat=Remove daily principle: {0}}" />
+         </Grid>
+        </DataTemplate></ItemsControl.ItemTemplate>
+       </ItemsControl>
+      </StackPanel>
+     </local:PlanSectionExpander>
+    </Border>
     <Border Style="{StaticResource Section}" Visibility="{Binding ShowEmpty, Converter={StaticResource VisibleIf}}" Padding="20">
      <StackPanel><TextBlock Text="{Binding EmptyMessage}" Style="{StaticResource Body}" />
       <Button Content="Create Draft" Command="{Binding CreateDraftCommand}" Style="{StaticResource PlanPrimary}" HorizontalAlignment="Left" Margin="0,12,0,0" />
      </StackPanel>
     </Border>
     <StackPanel Visibility="{Binding HasEditor, Converter={StaticResource VisibleIf}}" IsEnabled="{Binding CanInteractEditor}">
-     <local:SessionPreparationSection x:Name="Preparation" DataContext="{Binding Editor}" Margin="0,0,0,8" />
-     <Border Style="{StaticResource Section}"><local:ScenariosSection x:Name="Scenarios" DataContext="{Binding Editor}" /></Border>
-     <Border Style="{StaticResource Section}"><local:RiskReadinessSection x:Name="Risk" DataContext="{Binding Editor}" /></Border>
+     <local:SessionPreparationSection x:Name="Preparation" IsSectionExpanded="{Binding DataContext.PreparationExpanded, RelativeSource={RelativeSource AncestorType=local:TradingPlanWorkspaceView}, Mode=TwoWay}" DataContext="{Binding Editor}" Margin="0,0,0,8" />
+     <Border Style="{StaticResource Section}"><local:ScenariosSection x:Name="Scenarios" IsSectionExpanded="{Binding DataContext.ScenariosExpanded, RelativeSource={RelativeSource AncestorType=local:TradingPlanWorkspaceView}, Mode=TwoWay}" DataContext="{Binding Editor}" /></Border>
+     <Border Style="{StaticResource Section}"><local:RiskReadinessSection x:Name="Risk" IsSectionExpanded="{Binding DataContext.RiskExpanded, RelativeSource={RelativeSource AncestorType=local:TradingPlanWorkspaceView}, Mode=TwoWay}" DataContext="{Binding Editor}" /></Border>
      <WrapPanel DataContext="{Binding Editor}">
       <Button Content="Refresh references and save Draft" Command="{Binding RefreshReferencesCommand}" Style="{StaticResource Action}" />
       <TextBlock Text="Review changed sources, then refresh references. Monetary values are never converted." Style="{StaticResource Body}" VerticalAlignment="Center" />

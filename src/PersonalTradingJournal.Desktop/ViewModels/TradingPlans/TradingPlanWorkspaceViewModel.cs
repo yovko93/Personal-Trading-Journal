@@ -57,11 +57,13 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public TradingPlanWorkspaceViewModel(ITradingPlanStore store, ITradingAccountReader accounts, IInstrumentReader instruments,
         ITradingPlanReferenceReader references, ITradingSetupReader setups, ITradingSetupPlaybookStore playbooks,
         ITradingSetupPlaybookHistoryReader history, ITradingRuleReader rules, ITradingRuleStore ruleStore,
-        ITradingPlanInteraction interaction, TimeProvider? clock = null, PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null)
+        ITradingPlanInteraction interaction, TimeProvider? clock = null, PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null,
+        IDailyTradingPrincipleStore? principles = null)
     {
         _store = store; _accounts = accounts; _instruments = instruments; _references = references;
         _setups = setups; _playbooks = playbooks; _history = history; _rules = rules; _ruleStore = ruleStore;
         _interaction = interaction; _clock = clock ?? TimeProvider.System; _images = images;
+        Principles = new(principles);
         _date = Today; _dateText = Format(_date);
         PreviousDayCommand = new AsyncRelayCommand(() => MoveDateAsync(-1), () => CanSelectContext && _date > DateOnly.MinValue);
         NextDayCommand = new AsyncRelayCommand(() => MoveDateAsync(1), () => CanSelectContext && _date < DateOnly.MaxValue);
@@ -77,6 +79,12 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         InitializeHistory();
         InitializeReviewNavigation();
     }
+
+    public DailyTradingPrinciplesViewModel Principles { get; }
+    private bool _preparationExpanded = true, _scenariosExpanded = true, _riskExpanded = true;
+    public bool PreparationExpanded { get => _preparationExpanded; set => SetProperty(ref _preparationExpanded, value); }
+    public bool ScenariosExpanded { get => _scenariosExpanded; set => SetProperty(ref _scenariosExpanded, value); }
+    public bool RiskExpanded { get => _riskExpanded; set => SetProperty(ref _riskExpanded, value); }
 
     private DateOnly Today => DateOnly.FromDateTime(TradingTimePolicy.ConvertUtcToTradingTime(_clock.GetUtcNow()).DateTime);
     private static string Format(DateOnly date) => date.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
@@ -194,6 +202,10 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         SessionPreparationViewModel? candidate = null;
         try
         {
+            // Include first-use reminder initialization in the public, tracked context lifetime.
+            // Review navigation awaits ContextTask; closing cancels and drains this same owner.
+            await Principles.LoadAsync();
+            cancellation.Token.ThrowIfCancellationRequested();
             if (refreshAccounts)
             {
                 var rows = await Task.Run(() => _accounts.GetAllAsync(cancellation.Token), cancellation.Token);
@@ -368,17 +380,20 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
 
     public async Task CancelAsync()
     {
+        var principlesCancellation = Principles.CancelAsync();
         _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); Editor?.CancelOperation();
+        await principlesCancellation;
         Task[] loads; lock (_loadSync) loads = _loads.ToArray();
         await Task.WhenAll(loads);
         if (_deleteCompletion is { } deletion) await deletion.Task;
         if (Editor is { } editor) await editor.OperationCompletion;
         if (_historyWriteTask is { } write) await write;
     }
-    public bool NeedsClosePreparation => IsBusy || HasOutstandingLoads || Editor?.IsDirty == true;
-    public bool HasLeaveConsent => !IsBusy && !HasOutstandingLoads && (Editor?.IsDirty != true || _acceptedIdentity == Editor.EditIdentity);
+    public bool NeedsClosePreparation => Principles.IsBusy || IsBusy || HasOutstandingLoads || Editor?.IsDirty == true;
+    public bool HasLeaveConsent => !Principles.IsBusy && !IsBusy && !HasOutstandingLoads && (Editor?.IsDirty != true || _acceptedIdentity == Editor.EditIdentity);
     public async Task<bool> PrepareLeaveAsync()
     {
+        await Principles.CancelAsync();
         if (_guarding || _writing || Editor?.IsBusy == true)
         { Report("Wait for the Trading Plan operation, or cancel it before leaving.", PlanNoticeKind.Info); return false; }
         _guarding = true; Notify();
@@ -413,5 +428,5 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         NotifyHistory();
     }
     public void Dispose()
-    { _disposed = true; ++_epoch; _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); HistoricalViewer?.Dispose(); ReplaceEditor(null); }
+    { _disposed = true; Principles.Dispose(); ++_epoch; _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); HistoricalViewer?.Dispose(); ReplaceEditor(null); }
 }

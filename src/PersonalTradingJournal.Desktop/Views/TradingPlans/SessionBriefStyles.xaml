@@ -1,5 +1,42 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
  xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions">
+ <Style x:Key="PlanSectionExpander" TargetType="{x:Type local:PlanSectionExpander}">
+  <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />
+  <Setter Property="IsExpanded" Value="True" /><Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="{x:Type local:PlanSectionExpander}">
+   <StackPanel>
+    <ToggleButton x:Name="HeaderToggle" IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+      HorizontalContentAlignment="Stretch" Foreground="{TemplateBinding Foreground}"
+      AutomationProperties.Name="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}" Padding="4,5" Margin="0,0,0,4">
+     <ToggleButton.Template><ControlTemplate TargetType="ToggleButton">
+      <Border x:Name="Chrome" CornerRadius="4" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /></Trigger>
+       <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /></Trigger>
+       <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /></Trigger>
+       <Trigger Property="IsEnabled" Value="False"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /></Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate></ToggleButton.Template>
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+      <TextBlock x:Name="Chevron" Text="›" FontSize="20" Width="22" VerticalAlignment="Center" />
+      <Border x:Name="Number" Grid.Column="1" Width="30" Height="30" CornerRadius="15" Margin="0,0,10,0" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1">
+       <TextBlock Text="{TemplateBinding Tag}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+      </Border>
+      <TextBlock Grid.Column="2" Text="{TemplateBinding Header}" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level2" />
+     </Grid>
+    </ToggleButton>
+    <ContentPresenter x:Name="Body" ContentSource="Content" HorizontalAlignment="Stretch" Visibility="Collapsed" />
+   </StackPanel>
+   <ControlTemplate.Triggers>
+    <Trigger Property="IsExpanded" Value="True"><Setter TargetName="Body" Property="Visibility" Value="Visible" /><Setter TargetName="Chevron" Property="Text" Value="⌄" /></Trigger>
+    <Trigger Property="Tag" Value="{x:Null}"><Setter TargetName="Number" Property="Visibility" Value="Collapsed" /></Trigger>
+   </ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
  <!-- Same semantic border/surface presentation as Rules feedback, without another notification service. -->
  <DataTemplate x:Key="PlanInfoBox">
   <Border x:Name="Box" BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,2,0,6"

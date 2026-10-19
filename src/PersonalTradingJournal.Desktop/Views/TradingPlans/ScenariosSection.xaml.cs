@@ -9,6 +9,9 @@ namespace PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 public partial class ScenariosSection : UserControl
 {
+    public static readonly DependencyProperty IsSectionExpandedProperty = DependencyProperty.Register(nameof(IsSectionExpanded), typeof(bool), typeof(ScenariosSection), new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+    public bool IsSectionExpanded { get => (bool)GetValue(IsSectionExpandedProperty); set => SetValue(IsSectionExpandedProperty, value); }
+    public void ExpandSection() => SetCurrentValue(IsSectionExpandedProperty, true);
     private readonly PageFocus _focus;
     public static readonly DependencyProperty CardWidthProperty = DependencyProperty.Register(nameof(CardWidth), typeof(double), typeof(ScenariosSection), new PropertyMetadata(400d));
     public double CardWidth { get => (double)GetValue(CardWidthProperty); private set => SetValue(CardWidthProperty, value); }
@@ -26,6 +29,7 @@ public partial class ScenariosSection : UserControl
     {
         if (e.PropertyName != nameof(SessionPreparationViewModel.ValidationAttempt) || sender is not SessionPreparationViewModel vm || vm.FirstInvalidField is not { } field) return;
         if (field != vm.StandAside && !vm.Scenarios.Any(s => s.Fields.Contains(field))) return;
+        ExpandSection();
         _focus.Request(() => Descendants(this).OfType<TextBox>().FirstOrDefault(t => ReferenceEquals(t.DataContext, field)));
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
