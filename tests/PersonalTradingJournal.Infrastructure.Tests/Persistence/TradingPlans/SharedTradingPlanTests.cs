@@ -122,6 +122,14 @@ public sealed class SharedTradingPlanTests
     public async Task SharedScreenshotReadyRetentionCopyForwardAndBackupRestoreExportPreserveOriginalBytes()
     {
         await using var f = await Fixture.Create();
+        // Accept the combined archive, not only each feature's separate round trip:
+        // exact-Account Ready + working Draft, legacy Playbook evidence, global reminders,
+        // and the deleted global Plan with a retained image below.
+        var accountPlan = await f.Ready(await f.CreatePlan());
+        string accountReady = TradingPlanJson.WriteReady(accountPlan.LatestReadyRevision!);
+        accountPlan = await f.Success(TradingPlanWriteOperation.StartDraft, accountPlan, source: accountPlan.LatestReadyRevision!.Id);
+        string accountDraft = TradingPlanJson.WriteDraft(accountPlan.WorkingDraft!);
+        var principles = (await f.Get<IDailyTradingPrincipleStore>().AddAsync("  Следвай плана\r\nБез прибързване  ", 0)).Snapshot!;
         byte[] bytes = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jF9sAAAAASUVORK5CYII=");
         var storage = f.Get<IPlaybookImageStorage>(); var image = await storage.StoreAsync("chart.png", bytes);
         var shot = new TradingPlanScreenshot(Guid.NewGuid(), f.Instrument.Id, TradingPlanTimeframe.H1, image);
@@ -158,7 +166,11 @@ public sealed class SharedTradingPlanTests
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
             Assert.Equal(14, json.RootElement.GetProperty("version").GetInt32());
-            Assert.Single(json.RootElement.GetProperty("tables").GetProperty("tradingPlanAssets").EnumerateArray());
+            var tables = json.RootElement.GetProperty("tables");
+            Assert.Single(tables.GetProperty("tradingPlanAssets").EnumerateArray());
+            Assert.Contains(tables.GetProperty("tradingPlans").EnumerateArray(), row => row.GetProperty("draftJson").GetString() == accountDraft);
+            Assert.Contains(tables.GetProperty("tradingPlanReadyRevisions").EnumerateArray(), row => row.GetProperty("snapshotJson").GetString() == accountReady);
+            Assert.Equal(principles.Entries[0].Text, Assert.Single(tables.GetProperty("dailyTradingPrinciples").EnumerateArray()).GetProperty("text").GetString());
         }
         Assert.Empty(Directory.GetFiles(export, "*.png", SearchOption.AllDirectories));
         await using var target = await Fixture.Create(); await target.Stop();
@@ -168,5 +180,14 @@ public sealed class SharedTradingPlanTests
         Assert.Null(await target.Store.LoadAsync(key));
         Assert.Equal(bytes, await target.Get<IPlaybookImageStorage>().ReadAsync(image));
         Assert.Equal(shot, Assert.Single((await target.Store.LoadReadyAsync(ready.Id))!.Content.Screenshots));
+        var restoredAccount = (await target.Store.LoadAsync(f.Key))!;
+        Assert.Equal(accountPlan.Id, restoredAccount.Id);
+        Assert.Equal(accountPlan.Version, restoredAccount.Version);
+        Assert.Equal(accountReady, TradingPlanJson.WriteReady(restoredAccount.LatestReadyRevision!));
+        Assert.Equal(accountDraft, TradingPlanJson.WriteDraft(restoredAccount.WorkingDraft!));
+        var restoredPrinciples = await target.Get<IDailyTradingPrincipleStore>().ReadAsync();
+        Assert.Equal(principles.Version, restoredPrinciples.Version);
+        Assert.Equal(principles.Entries, restoredPrinciples.Entries);
+        Assert.Equal(JsonSerializer.Serialize(f.Playbook), JsonSerializer.Serialize(await target.Get<ITradingSetupPlaybookStore>().GetLatestAsync(f.Setup.Id)));
     }
 }

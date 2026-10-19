@@ -1,5 +1,89 @@
 # Trading Plan
 
+## M21.10 integrated acceptance — 20 October 2026
+
+M21.10 is resumed. Baseline: clean `develop`, HEAD `67c7bb01cd43367c92a6bfffb48d4d054410dd52`; the approved UI/lifecycle corrections are already committed and preserved. Earlier sections below are chronological records, including superseded checklist/Playbook-authoring decisions and previously paused acceptance. No product redesign or new functionality is introduced here.
+
+### Acceptance matrix
+
+All automated coverage listed below passed in the final complete Release gate on this worktree. Automated WPF input/automation peers, rendered images, service reconstruction and human/live-app acceptance are distinct evidence categories. Overall status: **automated local acceptance passed; live and matching-CI acceptance pending**.
+
+| Requirement | Automated evidence | Visual / interactive evidence and remaining gap |
+| --- | --- | --- |
+| All Accounts default, exact date/scope, read-only empty visit, explicit earlier-saved prefill, no copied identity/images/history | `TradingPlanWorkspaceTests`, `PlanChangesTests`, `PlanLifecycleChangesTests`, `SharedTradingPlanTests` | Workspace empty/prefilled renders; live scope changes still pending. |
+| Shared editor/token, Save/readback/Ready/Start Draft, immutable Ready, Save/Discard/Cancel, conflict/cancellation/duplicate writes | `TradingPlanWorkspaceTests`, `SessionPreparationTests`, `ScenarioTests`, `TradingPlanPersistenceTests`, `TradingPlanReadinessPersistenceTests` | Full-page Draft/Ready/working-after-Ready/error/invalid renders; human guard interaction pending. |
+| Confirmed concurrent Delete, tombstone retention, recreate with new identity | `PlanDeletionTests`, `PlanLifecycleChangesTests`, combined `SharedTradingPlanTests` portability case | Existing compiled deleted-state check; live confirmation pending. |
+| Six optional prices, invalid raw values, instrument/scenario ownership, optional prose, independent pills, Stand Aside, actual risk/currency/reference validation | `SessionPreparationTests`, `ScenarioTests`, `RiskReadinessTests`, `PlanChangesTests` and bound-WPF counterparts | Production-shell screenshots/optional-scenario/invalid states; no checklist is restored. |
+| Timeframes, picker cancellation, missing images, failed-save compensation, Ready/Trade/reference retention | `PlanChangesTests`, `SessionBriefCompositionTests`, `SharedTradingPlanTests`, existing Playbook/Trade persistence cases | Native picker/full-size image viewing remains pending; fake image-picker results are not live acceptance. |
+| Current Playbook edits, compact linked Rules, immutable earlier captures | `TradingPlanPersistenceTests.DirectPlaybookEditRequiresLegacyDraftReconfirmationAndPreservesReadySnapshot`, `ScenarioTests`, `RiskReadinessViewTests`, `PlaybookSqliteViewTests` | Compact Rule rows and context help remain approved; live interaction pending. |
+| Independent ordered Unicode Principles, no Plan writes/evidence, restart/delete/prefill isolation, failure/duplicate handling, focus | `DailyTradingPrincipleTests`, `DailyTradingPrinciplesTests`, `PlanSectionsViewTests`, combined archive round trip | Populated no-Plan/Ready, long rows, collapsed and focused-removal renders; live restart/Narrator pending. |
+| Four collapse headers, rapid reversal, reduced motion, retained expansion/raw input, validation expansion/focus | `PlanSectionsViewTests` uses real WPF clocks, controlled seeking, keyboard routed events and ExpandCollapse peers | Static endpoints/intermediate poses are not human runtime animation acceptance; Windows-helper initialization failed. |
+| Bounded History, exact Ready, historical derivation, copy-forward and guarded navigation recovery | `TradingPlanHistoryTests`, `TradingPlanHistoryViewTests`, `TradingPlanHistoryProjectionTests`, `ReviewPreparationNavigationTests` | History/Ready/conflict renders; human focus/return navigation pending. |
+| Entry-UTC/NY eligibility, specific-over-global fallback, late/Draft/missing/unknown states, consistent Daily/period evidence, no duplicated shared evidence/adherence claims | `DailyReviewEvidenceReaderTests` preparation cases, `CoachingContractTests`, `ReviewPreparationNavigationTests` | Daily/period preparation and saved-source renders; no live provider call. |
+| Saved Daily/Weekly/Monthly evidence survives source edits/deletion/restart and v1/v2 compatibility | `ManualReviewFreezesReadyWithNoTradingActivityAndSurvivesRestartAndSourceDeletion` (all three kinds), existing manual/coaching compatibility cases | Service restart only, not an observed Desktop restart. |
+| Current-schema backup/preflight/offline restore and logical export including deleted Plans, image ledger, Principles and legacy Playbooks | `TradingPlanPortabilityTests`, `DailyTradingPrincipleTests`, extended combined `SharedTradingPlanTests` case | Export **v14**, storage **v2**, latest migration `20261019171746_AddDailyTradingPrinciples`, archive format **v1**. JSON/CSV import is not implemented; older-schema archive restore remains unsupported. |
+
+The existing combined shared-image portability test is strengthened to put exact-Account Ready + working Draft, a deleted global Plan with retained screenshot, Unicode Principles and legacy Playbook data through the **same** backup/preflight/restore/export. It verifies exact serialized snapshots, identities, tokens, reminder order and image bytes after service reconstruction. This closes a combination gap rather than duplicating individual feature tests. No product defect was established by this audit.
+
+### Execution record and limitations
+
+- Initial Release build: zero warnings/errors, 51.59s. `TestResults/M2110/focused` finished **443 passed / 1 failed / zero skipped** (Domain 77, Application 78, Infrastructure 126/1, Desktop 162). The new reconstructed-Playbook assertion used reference equality, not value equality. This is a test-authoring defect, not evidence of a product restore failure. The correction compares exact serialized values.
+- That source correction overlapped the first build: source timestamp 21:13:47 UTC preceded the output DLL timestamp 21:13:58. A later incremental build (zero warnings/errors, 2.48s) therefore retained the old assertion. `TestResults/M2110/corrected` records **10 Desktop passes and the same one Infrastructure failure**, not a new product failure. A deliberate `dotnet build PersonalTradingJournal.sln -c Release --no-restore -t:Rebuild` compiled the corrected source (**zero warnings/errors, 30.30s**). The single integrated portability case then passed **1/1** in `TestResults/M2110/recompiled-portability`. Failed attempts are retained; no assertion, timeout, isolation or scheduling contract was weakened.
+- Supported Windows computer-use initialization failed before any window input: `failed to write kernel assets: The system cannot find the path specified. (os error 3)`. No alternate UI-automation helper is used. Human keyboard/Narrator, real-time folding animation, native picker/image interaction and verified live-app restart remain pending.
+- Read-only GitHub REST query for exact HEAD across all workflow events returned **total_count 0**; the connector's narrower PR-run and commit-status queries were also empty. `.github/workflows/ci.yml` runs `validate` on main pushes/PRs into main, using the same Release gate and ten-minute Test-step bound. No run was triggered and no older success substituted. Uncommitted acceptance changes cannot have matching CI.
+
+Final complete command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/M2110/complete` — **4,916 passed, zero failures/skips, exit 0**. Domain **567**, Application **1,021**, Infrastructure **1,452**, Desktop **1,876** (88 exclusive + 1,788 parallel). Exact run: `TestResults/M2110/complete/release-20261019-212302-53e5c00852794423a5b65b6ab4228245`, including `summary.json`, top-level/child TRX, stdout and VSTest/supervision diagnostics. Gate stages span approximately **8m 26.8s** locally; this is not a CI timing guarantee.
+
+Calendar native child **75.255s / 44.745s headroom** against 120s; Plan History **20.394s / 69.606s**, sections **24.872s / 65.128s**, workspace **26.617s / 63.383s** against their 90s child deadlines. Each exited 0 with confirmed cleanup. No native failure occurred in this complete run; prior host/focus/timing variability is not claimed fixed. EF reports **no pending model changes**, exit 0. Whitespace passes. Local Markdown file-target check: **301 checked, zero missing** (README and docs); remote links are not validated by that check.
+
+### Render inspection
+
+Reproduction commands (repository root; synthetic fixtures only):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -t:Rebuild
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~TradingPlans|FullyQualifiedName~CoachingContractTests|FullyQualifiedName~DailyReviewEvidenceReaderTests|FullyQualifiedName~ManualReview|FullyQualifiedName~PlaybookSqlite' --logger trx --results-directory TestResults/M2110/focused
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~SharedScreenshotReadyRetentionCopyForwardAndBackupRestoreExportPreserveOriginalBytes|FullyQualifiedName~SessionBriefCompositionTests|FullyQualifiedName~TradingPlanHistoryViewTests|FullyQualifiedName~ReviewPreparationViewTests' --logger trx --results-directory TestResults/M2110/corrected
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~SharedScreenshotReadyRetentionCopyForwardAndBackupRestoreExportPreserveOriginalBytes' --logger trx --results-directory TestResults/M2110/recompiled-portability
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/M2110/complete
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git -c core.safecrlf=false diff --check
+```
+
+The sequence actually executed is recorded above; the rebuild precedes the final single-case pass and complete gate. Render runs use absolute paths in `PTJ_PLAN_RENDER_DIRECTORY` (workspace/Principles), `PTJ_BRIEF_RENDER_DIRECTORY` (full shell), `PTJ_PLAN_HISTORY_RENDER_DIRECTORY` and `PTJ_PREPARATION_RENDER_DIRECTORY`. Parent/child TRX, stdout, VSTest and process-supervision logs are retained under each results directory. Documentation validation checks local Markdown file targets in README and `docs/**/*.md`; it does not claim remote-link availability.
+
+Automated production-shell renders are under `artifacts/m2110/shell` (1586 × 1000 DIP at 96 DPI; 1000 × 850 DIP at 240 DPI, both themes). Component/state renders are under `artifacts/m2110/renders`, `artifacts/m2110/history` and `artifacts/m2110/review`. These are synthetic WPF renders, not live screenshots or Narrator evidence.
+
+Inspected: `shell/Light-1586-96-screenshots-and-optional.png`, `shell/Dark-1586-96-ready.png`, `shell/Light-1000-240-working-after-ready.png`, `shell/Dark-1000-240-invalid.png`, `shell/Dark-1586-96-draft-bottom.png`, `shell/Light-1000-240-no-plan.png`; `renders/principles-Light-980-96-populated-no-plan.png`, `renders/principles-Dark-460-240-populated-no-plan.png`, `renders/workspace-Light-980-96-prefilled.png`; `history/history-Dark-460-240-conflict.png`; `review/period-saved-citation-Dark-460-240.png`.
+
+The approved toolbar/badges, distinct actions, compact wrapped Principles, blue centered Key Levels, screenshot timeframes, optional scenarios, read-only Ready and expanded invalid target remain readable. Narrow layouts wrap and use vertical scrolling without observed horizontal page clipping or overlapping controls. The no-Plan instruction card remains distinct from an informational status box. History/conflict and saved-preparation text remain reachable through scrolling. Real-time folding perception/reference fidelity, native focus and screen-reader announcements are not established by these renders.
+
+### Disposable live fixture and manual checklist
+
+The seed utility in `artifacts/m2110/seed` creates only synthetic data. Initial roots `artifacts/m2110/live-data` and `artifacts/m2110/live-data-verified` were rejected while reusing, respectively, a Plan-owned attachment ID and a unique image storage key across Plans. Those attempts are retained; the fixture was corrected to allocate a separate asset and stored image per Plan. Product ownership safeguards are unchanged. Final successful root: `artifacts/m2110/live-isolated`; effective database is `PersonalTradingJournal/journal.db` beneath it. It contains the sole Account **Synthetic M21.10 USD**, a synthetic NQ Setup/Playbook/Rule, three Ready Plans (global 18/19 October 2026 and exact-Account 19 October), screenshots and a Unicode Principle. No Trades or provider calls were used.
+
+After the complete gate, the actual Release executable was launched with `--isolated-data-root "C:\Users\Yovko\source\repos\Personal-Trading-Journal\artifacts\m2110\live-isolated"` and empty OpenAI/Groq environment values. PID **36248**, executable `src/PersonalTradingJournal.Desktop/bin/Release/net10.0-windows/PersonalTradingJournal.Desktop.exe`; its exact command line/path were confirmed through a read-only process query. Normal sandbox process-query access was denied; the approved read-only query succeeded. Startup SQL appears only in the isolated root's log. Desktop DLL SHA-256: `8460DDF9ED49DB48CF9C7C2C2DB3105D767BF5E2DB6E55FCEB631621818359BC`. This proves isolated startup, **not visible UI state or restart persistence**. Human Save/close/reopen confirmation was requested; no result has yet been supplied for this M21.10 fixture.
+
+User-assisted follow-up: the user replied “i did it” to the request to inspect the 19 October / All Accounts Ready Plan and Principle, Start Draft/Edit, change a synthetic field, Save Draft and close normally. The original PID 36248 was confirmed absent. The same Release binary (unchanged SHA-256 above) was relaunched as PID **27440**; its executable and exact isolated-root command line were verified. This records user-reported completion and a real cross-process relaunch, **not yet confirmation that the edited content is visible after restart**. That confirmation is requested separately. No product/test code changed; the completed local gate remains applicable.
+
+Pending human checks, using only that isolated app:
+
+1. On 19 October, inspect All Accounts and exact Account Ready content. Start Draft, edit, Save, close normally and reopen the same isolated root; verify values, images and Principles survived.
+2. Tab/Shift+Tab through controls; activate collapse with Enter/Space, rapidly toggle, then check Windows reduced-motion and Narrator names/expansion/status announcements.
+3. Enter an invalid price/risk value, collapse its section, attempt Save/Ready; verify expansion, focus and retained input. Exercise Save/Discard/Cancel on date, Account, History and Review navigation.
+4. Upload a disposable image at 15m, cancel a second picker, view/remove it from Draft and confirm earlier Ready still shows its retained image. Inspect both themes at normal and high DPI.
+5. Browse exact Ready History, copy/prefill an empty date, decline then accept deletion of a disposable Plan; verify independent Principles and retained historical references. Do not infer adherence from links.
+6. Perform the current-schema backup/preflight/offline restore/relaunch workflow on this isolated root only. Service-level archive tests do not establish native picker or human maintenance/restart acceptance. Portable JSON/CSV has no import workflow.
+
+### Exact changed files
+
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs` — integrated archive/export/restore coverage only.
+- `README.md` — acceptance status and evidence pointer.
+- `docs/trading-plan.md` — matrix, chronology, renders, compatibility and pending checks.
+- `docs/architecture.md` — correct obsolete claims that tests/CI never instantiate WPF; distinguish native automation from human acceptance.
+
+Ignored evidence/fixtures: `TestResults/M2110`, `artifacts/m2110/{renders,shell,history,review}`, seed `Seed.csproj`/`Program.cs`, and the three explicitly synthetic data roots above. No product source/schema changes. **M21.10 is not yet fully accepted.** No production journal, live provider, Git publication or next milestone was used.
+
 ## Key Levels heading refinement (before M21.10)
 
 Starting state: clean `develop`, HEAD `ba301abf803424afaa7802a0a91cbcf0a72f1127`. Removed only the visible Manual levels label and centered the single Key Levels heading across the existing six-field group. The shared dynamic information brush supplies dark blue in Light and pale blue in Dark, distinct from the teal section title. The existing heading-to-fields gap and manual-price tooltip remain; narrow layout still stacks the complete group beneath instrument context. No field binding, validation, persistence, collapse behavior or Daily Trading Principles changes; no new placement/color-only tests.

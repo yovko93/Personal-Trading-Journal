@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M21.10 — integrated Trading Plan acceptance
+
+M21.10 is resumed on clean `develop` at `67c7bb01cd43367c92a6bfffb48d4d054410dd52`, preserving the approved lifecycle and UI. [Acceptance matrix, verification chronology and remaining live/CI gates](docs/trading-plan.md#m2110-integrated-acceptance--20-october-2026). Current-schema backup/restore and export v14 are covered; JSON/CSV import and older-schema restore are not supported. Windows helper initialization is blocked, and no matching GitHub Actions run exists for the baseline SHA. Earlier milestone reports below remain historical; full acceptance is not claimed.
+
+Final local Release gate: **4,916 passed, zero failures/skips, exit 0** (567 Domain, 1,021 Application, 1,452 Infrastructure, 1,876 Desktop). Calendar **75.255s / 44.745s headroom**; Plan History **20.394s**, exit 0. Release rebuild **zero warnings/errors**, EF consistent, whitespace clean, **301 local documentation targets / zero missing**. Extended one integrated portability test; no product changes. Earlier focused test-authoring/stale-binary failures and corrected verification are documented separately. Synthetic Light/Dark full-shell and narrow/240-DPI renders inspected. The actual Release app was launched with verified `artifacts/m2110/live-isolated` paths; human keyboard/Narrator, native picker, runtime folding, Save/restart and live maintenance confirmation remain pending. **M21.10 remains acceptance-pending**, not fully accepted. Four tracked files changed: this README, `docs/architecture.md`, `docs/trading-plan.md`, and `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs`. No production/provider access, publication or next milestone.
+
+Live follow-up: the user reports completing the synthetic Edit/Save/close sequence. The original process exited and the same verified isolated app was relaunched with the unchanged Release binary. Confirmation that saved Draft content and Principles remain visible after restart is still pending; this does not establish the other live or CI checks.
+
 ## Trading Plan Key Levels heading — before M21.10
 
 Session Preparation now has one centered, theme-aware blue **Key Levels** heading across the six-field group; the redundant Manual levels label is removed and its explanatory tooltip retained. Responsive placement, all six field bindings and the approved folding headers/principle rows are unchanged. [Verification and render paths](docs/trading-plan.md#key-levels-heading-refinement-before-m2110). M21.10 remains paused.

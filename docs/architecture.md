@@ -575,7 +575,7 @@ Testing follows the solution layers:
 - **Domain.Tests** contains deterministic tests for the implemented M2 entities, lifecycle rules, calculations, mutations, and invariants.
 - **Application.Tests** covers use-case behavior and authoritative validation, including reference lookup, historical pricing capture, manual Trade creation/correction/closure/deletion, Setup classification, Trade Mistake assignment/removal, and screenshot orchestration.
 - **Infrastructure.Tests** covers implementation and integration behavior, including mapping, real SQLite semantics, relational integrity, migrated temporary databases, runtime initialization, Trade persistence/reads/correction/deletion, Setup and Mistake persistence, Trade Mistake relationships, screenshot storage, and cancellation.
-- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel, navigation, and project-owned XAML-resource behavior using real Application use cases with hand-written test readers and stores. It covers catalog lifecycle, manual Trade and screenshot forms, Trade edit/delete state, classification and association state, authoritative reloads, cancellation, operation gating, Trade browsing, and screenshot lifecycle. The suite does not instantiate WPF `Window`, `Application`, or `UserControl` objects or perform UI automation.
+- **Desktop.Tests** targets `net10.0-windows` and exercises ViewModel/navigation contracts, real SQLite-backed workflows and compiled production-resource WPF controls. Supervised isolated children instantiate `Window`, `Application` and `UserControl`, exercise routed input/automation peers, and render theme/DPI layouts. These automated checks are not human keyboard/Narrator or live application-restart acceptance. Trading Plan's integrated evidence and remaining gaps are recorded in the [M21.10 matrix](trading-plan.md#m2110-integrated-acceptance--20-october-2026).
 
 Domain tests receive timestamps explicitly and do not depend on a real clock, filesystem, database, or network. Infrastructure persistence tests use isolated temporary SQLite databases, fresh contexts, and explicit cleanup rather than the user's real local application data. Path-construction tests separately verify that calculating local paths does not itself create `journal.db`.
 
@@ -587,7 +587,7 @@ GitHub Actions validates the repository on `windows-latest` using this sequence:
 Restore -> Release Build -> Tests
 ```
 
-The workflow runs for pushes to `main` and pull requests targeting `main`, with the SDK resolved from `global.json`. CI does not launch the WPF application.
+The workflow runs for pushes to `main` and pull requests targeting `main`, with the SDK resolved from `global.json`. `scripts/Test-Release.ps1` runs exclusive Calendar/Journal WPF children before the complementary parallel test set. CI's test-owned synthetic WPF windows do not establish human/live-product acceptance.
 
 ## Architecture Rules
 
