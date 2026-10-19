@@ -1,5 +1,97 @@
 # Trading Plan
 
+## History child inactivity follow-up before M21.10
+
+Actual baseline: **clean `develop`, `a27af63b6112ce50b77dc89e73d59c0e14d02280`**, not the previously reported dirty `ddd0c081...` tree. The user had committed the six UI corrections; this task preserves them without editing production code. No production journal, provider request, commit, push, merge or M21.10 work.
+
+### Original failure and evidence
+
+The original complete run remains at `TestResults/PlanUiCorrections/complete/release-20261019-140523-b62b71321f4c44c098b1997f49dd8b2c`: **4,883 passed / 2 failed / zero skipped**. Both parent rows of `TradingPlanHistoryViewTests.CompiledHistoryFrozenViewerTransfersAndRetainedEditorAreAccessible` awaited the same `Lazy<Task>` child. They are **one underlying failure**, not two independent defects. Blame identified the active `(width: 460, dpi: 240)` case; the normal-width child case had not completed independently.
+
+Exact child evidence directory: `parallel/plan-history-20261019-140822-1a230e89858d4aeab8472039a8b1a611` beneath that run. It contains `plan-history.trx`, `stdout.log`, `stderr.log`, `process-supervision.log`, `calendar-sta-phases.log`, `calendar-timings.jsonl`, and `44eb9220-87fc-45cd-a96c-d2e9982663e0/Sequence_47a2ce4a792a4e2e8e11bb5e339f4518.xml` plus `testhost_27436_20261019T170917_hangdump.dmp`. The outer Desktop TRX is `parallel/Yovko_DESKTOP-N2ONT35_2026-10-19_17_08_19_net10.0[1].trx` (verified by its Desktop assembly storage).
+
+The parent command was `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanUiCorrections/complete`; the failure occurred in its `Workload!=ExclusiveWpf` parallel partition. The child command constructed by the unchanged supervisor was `dotnet vstest <Release Desktop.Tests.dll> /TestCaseFilter:FullyQualifiedName~PersonalTradingJournal.Desktop.Tests.TradingPlans.TradingPlanHistoryViewTests /Logger:trx;LogFileName=plan-history.trx /ResultsDirectory:<child directory> /Blame:CollectHangDump;HangDumpType=Mini;TestTimeout=30s`, with `PTJ_PLAN_HISTORY_HOST=1`. The outer child deadline is 90 seconds.
+
+UTC chronology: child process 22400 started **14:08:23.189**; testhost 27436's STA started **14:09:05.298**, acquired its dispatcher by **14:09:05.328**, entered the action at **14:09:05.343**; two theme-resource loads completed (1.304s and 0.651s); dump collection began around **14:09:17**; child exited **1** at **14:09:23.778**, with supervisor-confirmed termination. There is no completed child result in its aborted TRX. The 30-second VSTest test-inactivity collector includes fixture/test work before the STA timer; it is not a 30-second allowance starting at WPF action entry. The outer 90-second supervisor did not expire. No normal fixture-cleanup completion was recorded before forced termination.
+
+The retained dump was decoded with `dotnet-dump` 10.0.750501 (installed only under ignored `artifacts/history-deadline/tools`). Content-free thread/stack evidence is retained in `artifacts/history-deadline/original-managed-stacks.log` and `original-sta-locals.log`. Managed thread 14 / OS thread `0x5518` is cooperative in `XmlLanguage.GetLanguage` → glyph drawing → `TextBlock.OnRender` → Arrange/`ContextLayoutManager.UpdateLayout`, dispatched inside the test's `Pump`. The pool threads shown are idle or handling test-platform transport. No SQLite reader/transaction stack, focus/modal wait or fixture shutdown is shown at capture. This is evidence of active layout at that instant, **not proof of continuous progress throughout the preceding interval** or a complete OS scheduling diagnosis. The narrow case never executes the test's native-window focus branch. A single dump cannot establish a deadlock or prove a specific competing process caused the delay.
+
+The generic stderr “test host process crashed” follows the blame collector's explicit inactivity/dump message; it is not independent evidence of a CLR/product crash. Absence of a completed test event is not absence of output (theme timings were written), and neither alone proves absence of functional progress. The last positively completed logged operation was theme-resource loading; the stack capture adds layout-in-progress evidence but cannot identify which historical navigation step owned that pump. New boundaries remove this diagnostic blind spot without changing the pump or dispatcher priorities.
+
+Original overlap included the Session Preparation WPF child, Dashboard chart cases, inline Journal SQLite fixtures and Infrastructure Trade/Playbook/period-review/import cases. Calendar had already exited in the exclusive lane. Its 114.998s lifetime/5.002s headroom is pressure evidence, not a shared-resource root cause. All database roots are per-fixture, connections are owned by DI/factory contexts and tracked by the existing fixture shutdown barrier; there is no shared journal or schema fixture between these children.
+
+### Correction and diagnostic boundaries
+
+The supported correction is **test case granularity**, not a product fix or a claim that the original host slowdown was reproduced. Previously each width case did migration/seeding, both Light and Dark full History workflows and teardown before VSTest saw a completed case. Each `(width, DPI, theme)` now independently performs that entire workflow on fresh synthetic data. All original validation, exact Ready text, read-only, unsaved-editor retention, declined transfer, collision/recovery, copy verification, accessible bounds and native tab-focus assertions remain. There are four cases instead of two. Normal-width native focus still runs in both themes; narrow/high-DPI coverage remains. This is a real completed-work boundary, not periodic output to keep a watchdog alive.
+
+**Unchanged:** 30s inactivity, 30s STA and 90s aggregate child deadlines; cancellation, fatal/timeout handling and process-tree cleanup; Desktop two-collection and Infrastructure four-collection parallelism; exclusive-lane membership; explicit concurrency tests and CI/local gate command. No sleeps, retries, skips, heartbeat or production changes. The total child remains bounded by the original 90 seconds; splitting a case does not waive that bound.
+
+Diagnostics now cover case entry, fixture construction, seed/Ready writes, theme start/completion, view construction, dispatcher idle, Measure/Arrange/UpdateLayout, async task status/pump, optional bitmap rendering, native Show/Close, cancellation and fixture disposal. Existing `PTJ_CALENDAR_TIMINGS=1` scopes report completed durations; phase files identify start/end boundaries. These bounded logs contain no source content or credentials. Pump durations include dispatcher work and are not pure database or scheduling measurements. Fixture cleanup additionally asserts zero active tracked connections and removal of its private directory, after the existing drain/dispose/pool teardown. No async work is intentionally abandoned.
+
+### Experiments and verification
+
+Evidence directories are under `TestResults/HistoryDeadline/`. Separate attempts remain distinct:
+
+| Run | Environment/workload | Result |
+| --- | --- | --- |
+| `isolated` | Original two-case structure, diagnostics only, sandbox desktop | History 2/2; cold fixture 6.248s, seed 0.348s; Light/Dark narrow workflows 5.553s/1.359s |
+| `overlap` | Same binary plus Session Preparation, Daily chart, period repository/evidence, Playbook and import SQLite tests | Desktop 14/14 + Infrastructure 154/154; cold fixture 7.629s, seed 0.419s; narrow workflows 2.753s/1.465s; History child 24.125s |
+| `parallel-diagnostic` | All parallel-partition tests, same diagnostic binary, **restricted sandbox desktop** | 4,762 passed / 35 failed / zero skipped; History itself 2/2, child 35.358s. Not a complete gate or acceptance pass. |
+| `desktop-baseline` | Original two-case binary on **Default Windows desktop**, same overlap plus synthetic credential tests | Desktop 24/24 + Infrastructure 154/154; History child 22.462s; cases 11.115s / 5.932s |
+| `corrected-overlap` | Four-case correction on Default desktop, above competitors plus History logic, process/STA/scheduling and fixture-lifetime regressions | **69/69 Desktop + 154/154 Infrastructure**; History 4/4, child 20.675s, 69.325s aggregate headroom |
+| Final complete gate | Repository script, Default desktop, corrected Release binaries | **4,887 passed / 0 failed / 0 skipped; exit 0** |
+
+The restricted parallel diagnostic had synthetic credential failures (including unavailable saved-key storage), one linked-root privilege failure and a Breakdown popup assertion propagated through its child. Those are retained, not silently counted as passing. Its phase logs identify `CodexSandboxDesktop-...`, whereas the original failure used `Default`. The normal-desktop baseline rerun was justified by this environment mismatch, not retry-until-green; all ten selected credential tests then passed without code changes. It does not prove every unrelated restricted failure has a common cause. No real key/provider was used.
+
+The original History timeout has **not** recurred in these instrumented comparisons. Timings demonstrate cumulative cold setup and completed layout work, not a reproducible single blocked action. The case-granularity correction bounds that compound work and improves reporting; residual host/load variability and the exact original off-CPU/native cause remain unproven. Full-gate acceptance depends on the final complete result, not this diagnosis or focused passes.
+
+Normal-desktop baseline cold fixture **6.599s**, seeding **0.347s**, dispatcher ready/scheduled **24.743ms / 6.772ms**; Light/Dark narrow workflows **2.046s / 1.532s**. Fixture teardown **12–16ms**. Under the restricted full-parallel diagnostic, cold setup rose to **9.45s**, with about **8.0s** across all pump intervals and **2.6s** in explicit idle drains (inclusive category sums, not pure CPU/scheduler measurements). The largest measured individual boundary was a **2.597s** idle drain, not an unfinished operation. Corrected normal-desktop case durations: Dark normal **8.392s** (cold fixture), Light normal **3.360s**, Dark narrow **2.555s**, Light narrow **2.293s**; minimum case margin **21.608s**. Different schedules and added infrastructure-regression competitors prevent claiming a controlled throughput speedup from these totals. The correction specifically changes the completed-case boundary, not the meaning of a successful workflow.
+
+Commands: baseline History `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~TradingPlanHistoryViewTests --logger trx --results-directory TestResults/HistoryDeadline/isolated`; controlled overlap uses Release `--no-build --no-restore` on the solution with filters for the named classes above (Domain/Application have no matching cases in those targeted runs); parallel diagnostic uses `--filter Workload!=ExclusiveWpf --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini --diag TestResults/HistoryDeadline/parallel-diagnostic/vstest.log`. Each child retains its own TRX and full stdout/stderr/supervision/phase artifacts. Final build, EF, whitespace and complete-gate commands/results are recorded below after execution.
+
+Reproducible corrected competing-load command (normal Windows test desktop, built Release binaries):
+
+```powershell
+$env:PTJ_CALENDAR_TIMINGS = '1'
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/HistoryDeadline/corrected-overlap'
+$loadFilter = 'FullyQualifiedName~TradingPlanHistoryViewTests|FullyQualifiedName~SessionPreparationViewTests|FullyQualifiedName~DailyPnlChartTests|FullyQualifiedName~PeriodReviewRepositoryTests|FullyQualifiedName~DailyReviewEvidenceReaderTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~TradovateImportStoreTests|FullyQualifiedName~CoachingCredentialsTests'
+$regressionFilter = 'FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~CalendarStaTestTests|FullyQualifiedName~ReleaseSchedulingTests|FullyQualifiedName~JournalFixtureLifetimeTests|FullyQualifiedName~TradingPlanHistoryTests'
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter "$loadFilter|$regressionFilter" --logger trx --results-directory TestResults/HistoryDeadline/corrected-overlap
+```
+
+The baseline used `$loadFilter` alone. The earlier sandbox overlap omitted `CoachingCredentialsTests`. No optional PNG output switch was enabled in these timing experiments or the complete gate; the earlier render-enabled 24.668s case is a different workload and remains recorded in the preceding task's report below.
+
+Final gate's **History child passed 4/4**, PID 4420, **15:07:14.592–15:07:43.656 UTC**, **29.063s / 60.937s aggregate headroom**. Case durations: Dark normal **12.093s** (cold setup), Light normal **3.967s**, Dark narrow **3.417s**, Light narrow **4.115s**; minimum case headroom **17.907s**. Cold fixture **6.845s**, seed **0.535s**, dispatcher ready/scheduled **34.840ms / 9.590ms**. Later fixture creations **0.868–1.393s**; all four teardowns **12.512–32.245ms**, with zero active connections and removed roots asserted. Complete output is under the final run's `parallel/plan-history-20261019-150714-c7c40c16dac14ebb93b2f43648089c5c`.
+
+### Final complete verification
+
+`pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/HistoryDeadline/final` completed once on the final code, **exit 0**, run `release-20261019-150359-7e04ab37d1ec4126bba6e221841c1f9f`. UTC **15:03:59.173–15:12:19.383**, **8m20.210s**. **4,887 passed / zero failures / zero skips**:
+
+| Project / partition | Passed |
+| --- | ---: |
+| Domain | 567 |
+| Application | 1,021 |
+| Infrastructure | 1,434 |
+| Desktop exclusive WPF | 88 |
+| Desktop parallel | 1,777 |
+| Desktop combined | 1,865 |
+
+The total increases by two because the two width cases became four width/theme cases, not because coverage was skipped or duplicated in the gate. All original assertion-bearing lines remain unchanged; two fixture-teardown assertions were added. The script's duplicate/empty/skipped-result guards pass. The full failure report and restricted diagnostic are retained separately; no final failed gate was rerun unchanged until green.
+
+Calendar native **69.809s**, **50.191s headroom** to 120s; Journal child **11.183s**, both exit 0 before the parallel phase. No Calendar behavior, assertions or deadlines were changed. These better timings do not establish that host variability is eliminated. The full gate's final summary and top-level TRX are authoritative, rather than summing nested child results.
+
+`dotnet build PersonalTradingJournal.sln -c Release --no-restore`: **0 warnings / 0 errors**, 39.64s. `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`: **no model changes**, using the isolated design-time context. `git -c core.safecrlf=false diff --check`: **passed**. These checks use the final test code; subsequent edits only record documentation/results. No production UI changed, so no new visual acceptance or human interaction is claimed.
+
+**Local complete regression acceptance is green for this test-only correction.** Whitespace and **168 local documentation links** pass. The exact original host-level slowdown remains uncertain, and independent human/CI acceptance remains open. HEAD stays `a27af63b6112ce50b77dc89e73d59c0e14d02280`; **3 modified / 0 new tracked-source files**, listed below. There is no matching CI evidence for these uncommitted changes; no workflow was triggered and no publication was performed.
+
+### Exact changed files and remaining acceptance
+
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs`
+- `README.md`
+- `docs/trading-plan.md`
+
+No production XAML/ViewModel, persistence, schema, migration, runner or workflow is modified. Human keyboard/Narrator, native picker interaction, live application restart and matching CI remain pending. Automated native focus assertions are not human interaction. M21.10 remains paused.
+
 ## Six focused UI corrections before M21.10
 
 Baseline: clean `develop`, HEAD `ddd0c08193249a71d7491d7cbdb9965f72452b56`; prior work was already committed. These are Desktop presentation changes only. Shared editing state, commands, validation, All Accounts, frozen references, screenshots and historical evidence remain intact. No schema/export/backup/provider change; M21.10 remains paused.
