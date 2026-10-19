@@ -1,5 +1,115 @@
 # Trading Plan
 
+## Direct Playbook editing and themed feedback before M21.10
+
+Actual starting state: clean `develop`, HEAD `e06fa03e986c403d591d70a1468fcc1fd7de8f72`. Earlier work was already committed and is preserved. Only the three requested changes are implemented; M21.10 remains paused.
+
+### Presentation
+
+Page-level operation feedback is a compact, wrapping InfoBox immediately below the toolbar, reusing the application's semantic palette and live-announcement mechanism. Information/read-only/progress is blue; verified saves are success; validation/readiness/reference-refresh requirements are warning; conflicts/storage/load failures are error. Empty feedback collapses. The embedded editor and History use the same template without duplicated page messages; inline field errors remain visible. No timer hides actionable errors and the template never moves focus.
+
+Top-right actions are page-local: Save Draft uses a pale-teal fill/outline; Mark as Ready uses filled teal/white; Start Draft / Edit uses filled blue/white. Existing commands and CanExecute remain authoritative. Shared focus/disabled behavior and compact wrapping are retained, with opaque hover/pressed states. Global button styles are unchanged.
+
+### Current editing versus frozen evidence
+
+Playbook Save genuinely replaces a mutable current definition under the existing TradingSetup ID. It no longer appends an immutable authoring row. Current revision selectors, publishing/history/deletion controls are removed from the authoring page; Trading Plan selection says “Use current Playbook.” Five guidance sections, images/annotations, catalog archive/reopen, input retention and optimistic concurrency remain. The compatibility value type still carries its internal token and timestamps; no new catalog is introduced.
+
+The additive `20261019100107_DirectPlaybookDefinitions` migration bridges each Setup to exactly the definition the old reader considered current (highest retained revision). It preserves every historical row. Direct saves subsequently replace one current JSON payload and its example-retention index in an immediate SQLite writer transaction, rechecking Setup state/token and verifying readback before success. Stale or invalid changes write nothing. A retained Trade capture materializes its exact definition in the historical ledger within its own transaction; ordinary edits do not. Legacy append/deletion APIs remain compatibility paths, not active Desktop authoring.
+
+Existing Drafts keep exact Setup identity, entered preparation and legacy expected token. Unchanged migrated criteria stay valid; changed current criteria require explicit selection/reference refresh and renewed confirmations. Ready snapshots stay immutable and keep their original criteria, labels, timestamps and Plan-owned assets. The established Plan reference contract freezes five Playbook guidance sections, not Playbook example/image contents; Trade captures retain their full examples, and existing Review packets keep exactly their supported historical representation. No saved packet is rewritten or upgraded implicitly. This change does not reinterpret an association as adherence.
+
+Current images are retained alongside historical/Trade references. Backup/preflight/offline restore include current-only images and verify definition/index/size/hash consistency. Logical export advances to **v12** with `currentPlaybooks` and `currentPlaybookExamples`; older exports lack this representation and are not treated as v12. Exports remain unencrypted, non-restorable, screenshot metadata only. Credentials remain excluded. Older-schema archive restore remains deferred; installed databases migrate normally, archives are not migrated. Lossy downgrade with direct definitions or stored Plans is refused.
+
+All Accounts defaults, explicit currency, frozen screenshots, optional scenario text, scenario Delete, independent designation/direction pills, shared editor/token, navigation guards and Review fallback are unchanged. No P&L/economics/chronology/provider change.
+
+### Exact changed files
+
+- `docs/architecture.md`
+- `docs/backup-restore.md`
+- `docs/playbook.md`
+- `docs/trading-plan.md`
+- `README.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Setups/ITradingSetupPlaybookStore.cs`
+- `src/PersonalTradingJournal.Application/Setups/SaveTradingSetupPlaybookUseCase.cs`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Setups/PlaybookViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/PlanNotice.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Images.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.RiskReadiness.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Rules.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Scenarios.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.History.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.Review.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Setups/PlaybookView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanHistoryView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Domain/Setups/TradingSetupPlaybookRevision.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019100107_DirectPlaybookDefinitions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019100107_DirectPlaybookDefinitions.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/PlaybookRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/RetainedScreenshotFileStorage.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/TradeScreenshotDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Setups/TradingSetupPlaybookStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/AccountTradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradeDeletionStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradePlaybookAssociationStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Trades/TradePlaybookContextStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferences.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookSqliteViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookValidationDeletionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewModelTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Setups/PlaybookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenariosViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenarioTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/DirectPlaybookTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookImagePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookRevisionDeletionTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs`
+
+### Verification and remaining limits
+
+**Final complete Release gate passed: 4,881 passed, zero failures/skips, exit 0.** Domain 567, Application 1,021, Infrastructure 1,434, Desktop 1,859 (88 exclusive WPF + 1,771 complementary parallel cases). Command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/DirectPlaybook/complete`. Evidence: `TestResults/DirectPlaybook/complete/release-20261019-102723-4c478d88b9ec4950811ad9207a716ad2/summary.json`, stage TRX/VSTest logs and child supervision/phase logs. Calendar native process **71.374s / 48.626s headroom** against 120s; Journal editor child **10.793s**. Assertions, deadlines, isolation and explicit concurrency tests are unchanged. There was no full-gate failure in this change set; this passing run does not prove historical Calendar variability fixed.
+
+Initial failures are retained under `TestResults/DirectPlaybook`: first focused run had 483 passed / 32 failed (obsolete append/history/export/schema assumptions, plus a downgrade-order guard gap). The downgrade refusal now occurs before dropping new tables; compatibility fixtures explicitly seed legacy history. Second focused run had 323 passed / 3 failed in completed Domain/Application/Infrastructure projects, with Desktop blocked by a status-switch compile error. Third run passed 328 Domain/Application/Infrastructure cases; Desktop still hit that compile error. Fourth Desktop attempt exposed a nullable test diagnostic. Both compile errors were corrected before the next run. These are failed/interrupted attempts, not acceptance passes.
+
+New persistence coverage explicitly checks direct current editing with stable identity/no authoring history, two competing writers, metadata rollback/cancellation, authoritative legacy migration, retained Trade history, legacy Draft reconfirmation/unchanged Ready data, and current-only image export → backup → preflight → offline restore. Existing saved Review/packet compatibility and historical navigation tests remain. Obsolete active-authoring expectations were replaced with direct-editing assertions; legacy deletion/history cases remain as compatibility coverage, not advertised UI.
+
+Focused final verification: **517 affected cases passed** across Domain 99, Application 55, Infrastructure 174 and Desktop 189; the final simplified-selection compiled-WPF check passed **1/1** separately after its additional accessibility assertion. Five new SQLite cases increase the complete test set; no unrelated cases or assertions were removed. The fifth Desktop attempt had 187 passed / 2 failed because two stale-write assertions still counted immutable authoring rows; the sixth passed 189/189 after asserting the current token and zero authoring rows instead. The initial WPF build also rejected an unsupported accessibility attached property; it was removed before successful compilation. No timeout or assertion was weakened.
+
+Commands: `dotnet test PersonalTradingJournal.sln -c Release --no-restore --filter 'FullyQualifiedName~Playbook|FullyQualifiedName~TradingPlans|FullyQualifiedName~PortableExport|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~SqlitePersistenceIntegrityTests'`; final Desktop rerun uses its project with `FullyQualifiedName~Playbook|FullyQualifiedName~TradingPlans`, and the final selection check uses `FullyQualifiedName~ScenariosViewTests`. Exact TRX runs are under `TestResults/DirectPlaybook/{first-focused,second-focused,third-focused,fourth-desktop,fifth-desktop,sixth-desktop,scenario-final}`. Compile-blocked attempts have no completed Desktop TRX. `dotnet build PersonalTradingJournal.sln -c Release --no-restore` passes with **0 warnings/errors**; `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build` reports **no pending changes**. Tracked/new-file whitespace and **189 local documentation file links** pass.
+
+Render evidence: `artifacts/direct-playbook/brief` has **48** production-shell-tree images (Light/Dark, 1586×1000 at 96 DPI and 1000×850 at 240 DPI). `playbook` has **56** current/editor/legacy-preview/example/Trade-capture images; `scenarios` has **20** normal/narrow selection/validation/read-only images. Representative images were visually inspected: [Light Save success](../artifacts/direct-playbook/brief/Light-1586-96-save-success.png), [Dark read-only InfoBox](../artifacts/direct-playbook/brief/Dark-1586-96-readonly-info.png), [narrow Light storage error](../artifacts/direct-playbook/brief/Light-1000-240-save-error.png), [narrow Dark Ready](../artifacts/direct-playbook/brief/Dark-1000-240-ready.png), [Dark warning with inline validation](../artifacts/direct-playbook/brief/Dark-1586-96-invalid.png), [direct editor](../artifacts/direct-playbook/playbook/playbook-Light-960-96-editor.png), [narrow Dark current guidance](../artifacts/direct-playbook/playbook/playbook-Dark-480-240-current.png), [current selection](../artifacts/direct-playbook/scenarios/scenarios-Light-1100-96-multiple.png) and [narrow Dark selection](../artifacts/direct-playbook/scenarios/scenarios-Dark-460-240-multiple.png). Info template/empty collapse is tested independently as well as actual success/error command results. Toolbar colors/disabled states are legible, feedback wraps without overlap, and long content remains scrollable. Narrow layouts necessarily require more vertical scrolling; no claim is made that all sections fit at once. Native hover/focus perception remains a human check.
+
+Final documentation file-link check covers **198 links**, including the nine render links added after the earlier 189-link check. The exact inventory above is **67 files: 63 modified, 4 new**; branch/HEAD remain `develop` / `e06fa03e986c403d591d70a1468fcc1fd7de8f72`.
+
+Automated production-resource WPF renders are distinct from human interaction. Native picker/full-image use, human keyboard/Narrator, live application restart and matching CI remain unverified for this change set. No published commit represents these uncommitted changes. Historical Calendar variability is not claimed fixed by a passing run. No production journal or provider was accessed; no commit/push/merge/branch switch occurred.
+
 ## Shared preparation and timeframe screenshots before M21.10
 
 ### Scope, currency and evidence

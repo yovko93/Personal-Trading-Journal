@@ -63,6 +63,36 @@ public sealed partial class PlaybookPersistenceTests
         Assert.Equal(example.Annotation, Assert.Single((await f.History.GetRevisionAsync(g.Setup.Id, 1))!.Guidance.Examples).Annotation);
     }
 
+    [Fact]
+    public async Task CurrentOnlyImageAndDefinitionSurviveExportBackupAndOfflineRestoreWithoutHistory()
+    {
+        await using var f = await Fixture.Create(); var g = await f.Seed();
+        var saved = await SaveImage(f, g); var image = saved.Guidance.Examples[0].Image!;
+        await f.Get<IPlaybookImageStorage>().DeleteUnreferencedAsync(image.StorageKey);
+        Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
+        string export = Path.Combine(f.Root, "current-export");
+        Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
+        using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, PortableExportContract.DataFile))))
+        {
+            var tables = json.RootElement.GetProperty("tables");
+            Assert.Empty(tables.GetProperty("playbookRevisions").EnumerateArray());
+            Assert.Contains(saved.Guidance.MarketContext, Assert.Single(tables.GetProperty("currentPlaybooks").EnumerateArray()).GetProperty("definitionJson").GetString());
+            Assert.Equal(image.Sha256, Assert.Single(tables.GetProperty("currentPlaybookExamples").EnumerateArray()).GetProperty("imageSha256").GetString());
+        }
+        string archive = Path.Combine(f.Root, "current.ptjbackup");
+        Assert.True((await f.Get<IBackupArchiveService>().CreateAsync(archive)).Succeeded);
+        var preview = await f.Get<IRestorePreflightService>().InspectAsync(archive, f.Root);
+        Assert.True(preview.Validated, preview.ToString()); Assert.Equal(2, preview.Summary!.ScreenshotFileCount);
+        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, saved.Revision, Guidance()));
+        await f.Stop();
+        var result = await new JournalRestoreService(f.Paths).RestoreAsync(new(archive, preview.Summary.ArchiveSha256));
+        Assert.True(result.Succeeded, result.ToString()); Assert.True(File.Exists(result.RecoveryArchivePath));
+        await f.Restart();
+        Assert.Equal(image, Assert.Single((await f.Store.GetLatestAsync(g.Setup.Id))!.Guidance.Examples).Image);
+        Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
+        Assert.Empty(await f.History.GetHistoryAsync(g.Setup.Id, null, 10));
+    }
+
     [Theory]
     [InlineData("stale")] [InlineData("metadata-failure")] [InlineData("cancel")]
     public async Task FailedImageAppendCleansNewFilesAndKeepsOriginalRevision(string failure)
@@ -70,7 +100,7 @@ public sealed partial class PlaybookPersistenceTests
         await using var f = await Fixture.Create(); var g = await f.Seed();
         if (failure == "stale") await f.Save(g);
         await using var db = f.Context();
-        if (failure == "metadata-failure") await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER SyntheticImageFailure BEFORE INSERT ON PlaybookExamples BEGIN SELECT RAISE(ABORT, 'synthetic'); END;");
+        if (failure == "metadata-failure") await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER SyntheticImageFailure BEFORE INSERT ON CurrentPlaybookExamples BEGIN SELECT RAISE(ABORT, 'synthetic'); END;");
         var before = Directory.GetFiles(f.Paths.ScreenshotsDirectory).Order().ToArray();
         using var cancellation = new CancellationTokenSource(); if (failure == "cancel") cancellation.Cancel();
         Guid id = Guid.NewGuid();
@@ -94,7 +124,8 @@ public sealed partial class PlaybookPersistenceTests
             if (changed) Assert.IsType<InvalidDataException>(error); else Assert.IsType<FileNotFoundException>(error);
         string archive = Path.Combine(f.Root, "invalid.ptjbackup"); var result = await f.Get<IBackupArchiveService>().CreateAsync(archive);
         Assert.False(result.Succeeded); Assert.False(File.Exists(archive));
-        Assert.Single(await f.History.GetHistoryAsync(g.Setup.Id, null, 10));
+        Assert.Empty(await f.History.GetHistoryAsync(g.Setup.Id, null, 10)); // No capture or immutable authoring revision.
+        await using var current = f.Context(); Assert.Single(await current.CurrentPlaybooks.ToArrayAsync());
         Assert.Equal(first.Guidance.Examples[0].Annotation, (await f.Store.GetLatestAsync(g.Setup.Id))!.Guidance.Examples[0].Annotation);
     }
 

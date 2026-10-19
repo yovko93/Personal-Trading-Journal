@@ -41,7 +41,8 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
 
         var targets = db.Trades.Where(t => t.TradingAccountId == confirmed.AccountId).Select(t => t.Id);
         var screenshotIds = db.TradeScreenshots.Where(s => targets.Contains(s.TradeId)).Select(s => s.Id);
-        if (await db.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken))
+        if (await db.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken) ||
+            await db.CurrentPlaybookExamples.AnyAsync(e => e.SourceScreenshotId.HasValue && screenshotIds.Contains(e.SourceScreenshotId.Value), cancellationToken))
             throw new InvalidOperationException("An Account Trade owns a screenshot retained by Playbook history. No Trades were deleted.");
         // Same ownership rules as TradeDeletionStore: restricted children first; executions,
         // browse projection and both import ledgers cascade with the Trade in the same transaction.
@@ -52,7 +53,8 @@ public sealed class AccountTradeDeletionStore(IDbContextFactory<JournalDbContext
         // Storage keys are normally unique GUID filenames. Protect surviving references even
         // if a legacy/imported database contains shared keys.
         var retainedKeys = await db.TradeScreenshots.Select(s => s.StorageKey)
-            .Concat(db.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!)).Distinct().ToArrayAsync(cancellationToken);
+            .Concat(db.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
+            .Concat(db.CurrentPlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!)).Distinct().ToArrayAsync(cancellationToken);
         var cleanup = current.StorageKeys.Except(retainedKeys, StringComparer.OrdinalIgnoreCase).ToArray();
         await transaction.CommitAsync(cancellationToken);
         return new(AccountTradeDeletionStatus.Deleted, count, cleanup);

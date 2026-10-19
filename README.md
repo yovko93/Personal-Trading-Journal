@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## Direct Playbook editing and Trading Plan feedback — before M21.10
+
+Trading Plan operations now use compact semantic InfoBoxes below the toolbar, with page-local teal Save Draft/Ready and blue Start Draft / Edit actions. Playbook Save updates one current definition under the existing Setup identity; authoring no longer publishes immutable revisions or offers revision selectors/deletion. Frozen Trade captures, Ready Plans and saved Review packets remain historical evidence, not today's mutable guidance. Migration preserves the exact previous current definition; logical export advances to v12 and complete backups include current-only example images. [Compatibility, exact files and verification](docs/trading-plan.md#direct-playbook-editing-and-themed-feedback-before-m2110).
+
+Starting state was clean `develop` at `e06fa03e986c403d591d70a1468fcc1fd7de8f72`. Existing work is preserved. Verification is recorded in the linked report; M21.10 remains paused. No production data or provider access, commit, push or merge.
+
+Final local verification: **517 affected tests passed**, plus a final **1/1** compiled selection check; complete `scripts/Test-Release.ps1` gate **4,881 passed, zero failures/skips, exit 0** (567 Domain, 1,021 Application, 1,434 Infrastructure, 1,859 Desktop). Release build **0 warnings/errors**, EF consistent, whitespace and documentation links pass. Calendar native **71.374s**, **48.626s headroom**; no historical timing defect is claimed fixed. Representative Light/Dark normal/narrow/240-DPI InfoBox, button, editor and selection renders were inspected. **63 modified + 4 new files** remain uncommitted. Native picker/image interaction, human keyboard/Narrator, live restart, matching CI and older-schema archive restore remain open. See the linked report for initial failures, exact files and render paths.
+
 ## Shared Trading Plan and screenshots — before M21.10
 
 Fresh Trading Plan workspaces now default to **All Accounts**, one shared New York-date Plan rather than copies per Account. Exact Account Plans remain separate. Ready preparation uses explicit frozen currency; Review prefers entry-eligible exact preparation, otherwise eligible shared preparation. Optional plan/instrument/timeframe screenshots retain immutable bytes and historical references. Scenario prose/Playbook are optional, stand-aside-only is explicit, and independent teal/violet designation/direction pills plus visible Delete replace the two dropdowns. Instrument Add/Remove actions use compact teal/red styling.

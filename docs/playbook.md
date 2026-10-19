@@ -1,5 +1,17 @@
 # Playbook — Domain, persistence and Desktop management
 
+## Current editing contract — 19 October 2026
+
+This supersedes the active immutable-authoring workflow described in historical milestone reports below. Open a Setup's current Playbook, edit the five guidance sections/examples, and Save replaces its current definition atomically. The same TradingSetup ID and active/archive catalog remain authoritative. The internal monotonically increasing token detects stale writes; it is not a user-facing publishing/revision workflow. Success follows exact database readback; errors/conflicts retain entered fields and examples. Current selection in Trading Plan says “Use current Playbook,” without revision selection.
+
+`CurrentPlaybooks` owns one current definition and `CurrentPlaybookExamples` its retention index. Migration `20261019100107_DirectPlaybookDefinitions` preserves the prior authoritative highest retained revision via an explicit bridge; it does not merge definitions or infer identity from names. First direct edit replaces that bridge with the full current payload. Audit time is retained in the payload. Current Saves do **not** append `PlaybookRevisions`. Legacy rows/readers and frozen capture identifiers remain for historical compatibility; a new Trade capture retains its exact definition in the historical ledger within the association transaction. Existing captures, Ready snapshots and saved Review packets are never rebuilt from current guidance. Historical navigation remains read-only.
+
+The legacy append/deletion services remain for compatibility/tests, but are not exposed by the current authoring UI. Old rows are conservatively retained rather than attempting unsafe reference pruning. Current and historical image references both prevent physical cleanup; removing an example from current guidance does not erase retained capture images. Backup/preflight/restore validate current payloads against the image index; logical export v12 includes both current tables. Older-schema archive restore remains unsupported. A downgrade that would lose direct definitions or leave stored Plans on an incompatible schema is refused.
+
+Existing Draft links keep their Setup identity and expected token. Unchanged migrated definitions resolve unchanged. A changed current definition requires explicit reselection/reference refresh and renewed readiness confirmation; entered preparation is retained. Ready Plans continue freezing the established five guidance fields, **not** Playbook image/example content; Plan-owned screenshots remain a separate frozen contract. Trade captures retain examples and images, and saved Review evidence retains exactly its existing supported packet content. No economics, chronology or provider behavior changes.
+
+See [verification and changed-file inventory](trading-plan.md#direct-playbook-editing-and-themed-feedback-before-m2110). Historical acceptance claims below are dated evidence, not acceptance of this uncommitted change set.
+
 ## M17.7 — Integration acceptance (12 October 2026)
 
 **Acceptance remains open for live UI, current full-suite verification and matching CI.** The initial audit started from clean `develop` at `206dfd3e10d0831eb4750650eefb4c89b4fc0ae4`. The timeout follow-up started clean at `65df73dd9a33aae95c1be184f9fb33ae7b8e22dc`, preserving all earlier M17 changes. The later PR #20 pagination run passed 3,887 of 3,888 tests with one separate Journal History WPF assertion failure; see the M17.5 follow-up below. The matrix retains earlier live acceptance evidence. M18 is not started.

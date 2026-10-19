@@ -160,10 +160,11 @@ public sealed class PlaybookViewModelTests
         var f = new PlaybookFixture(); await f.OpenAsync(); f.Edit("saved"); f.Data.FailReadAfterAppend = true;
         await f.Vm.SaveCommand.ExecuteAsync(null);
         Assert.Single(f.Data.Revisions); Assert.True(f.Vm.IsEditing);
-        Assert.Equal("saved", f.Vm.DisplayedRevision!.Guidance.MarketContext);
-        Assert.Contains("verified in storage", f.Vm.Message); Assert.False(f.Vm.EditCommand.CanExecute(null));
+        Assert.Null(f.Vm.DisplayedRevision);
+        Assert.All(f.Vm.Fields, field => Assert.Equal("saved", field.Text));
+        Assert.Contains("verification or display failed", f.Vm.Message); Assert.False(f.Vm.EditCommand.CanExecute(null));
         f.Data.FailReadAfterAppend = false; f.Dialogs.ConfirmationResult = true; await f.Vm.RefreshCommand.ExecuteAsync(null);
-        Assert.True(f.Vm.EditCommand.CanExecute(null)); Assert.Equal(1, f.Vm.DisplayedRevision.Revision);
+        Assert.True(f.Vm.EditCommand.CanExecute(null)); Assert.Equal(1, f.Vm.DisplayedRevision!.Revision);
     }
 
     [Fact]
@@ -173,8 +174,8 @@ public sealed class PlaybookViewModelTests
         await f.Vm.SaveCommand.ExecuteAsync(null);
         Assert.Single(f.Data.Revisions); Assert.True(f.Vm.IsEditing);
         Assert.All(f.Vm.Fields, field => Assert.Equal("retained", field.Text));
-        Assert.Equal(1, f.Vm.DisplayedRevision!.Revision); Assert.Equal("Edit guidance", f.Vm.EditLabel);
-        Assert.Contains("refreshed view could not", f.Vm.Message);
+        Assert.Null(f.Vm.DisplayedRevision);
+        Assert.Contains("current definition could not be verified", f.Vm.Message);
         Assert.DoesNotContain("Revision 1 saved.", f.Vm.Message);
     }
 
@@ -197,7 +198,7 @@ public sealed class PlaybookViewModelTests
         Assert.Equal(f.Setup.Id, f.Vm.SelectedSetup!.Id); Assert.Equal(fail, f.Vm.IsEditing);
         Assert.All(f.Vm.Fields, field => Assert.Equal("PRIVATE entered text", field.Text));
         Assert.DoesNotContain("PRIVATE", f.Vm.Message);
-        Assert.Contains(fail ? "verification or display failed" : "Revision 2 saved.", f.Vm.Message);
+        Assert.Contains(fail ? "verification or display failed" : "Playbook saved and verified.", f.Vm.Message);
         Assert.Equal(fail ? 1 : 0, f.Vm.EditorExamples.Count);
     }
 }
@@ -247,6 +248,7 @@ internal sealed class PlaybookData : ITradingSetupStore, ITradingSetupReader, IT
     public Task UpdateAsync(TradingSetup s, CancellationToken cancellationToken = default) => Task.CompletedTask;
     public Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid id, CancellationToken cancellationToken = default)
     {
+        if (RevisionRead is { } readback && AppendCount > 0) { RevisionRead = null; return readback; }
         if (FailReadAfterAppend && AppendCount > 0) throw new IOException("SECRET read failure");
         if (MissingCurrentAfterAppend && AppendCount > 0) return Task.FromResult<TradingSetupPlaybookRevision?>(null);
         if (NextRead is { } next) { NextRead = null; return next; }

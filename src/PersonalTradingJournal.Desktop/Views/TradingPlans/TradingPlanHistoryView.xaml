@@ -3,13 +3,13 @@
  xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
  xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
  Foreground="{DynamicResource PtjTextPrimaryBrush}" KeyboardNavigation.TabNavigation="Continue" DataContextChanged="OnDataContextChanged">
- <UserControl.Resources>
+ <UserControl.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="SessionBriefStyles.xaml" /></ResourceDictionary.MergedDictionaries>
   <BooleanToVisibilityConverter x:Key="VisibleIf" />
   <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
   <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="Margin" Value="0,2,8,4" /><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers></Style>
   <Style x:Key="Action" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Margin" Value="0,4,8,4" /></Style>
   <Style x:Key="Card" TargetType="Border" BasedOn="{StaticResource PtjCardStyle}"><Setter Property="Padding" Value="12" /><Setter Property="Margin" Value="0,0,0,8" /></Style>
- </UserControl.Resources>
+ </ResourceDictionary></UserControl.Resources>
  <ScrollViewer x:Name="HistoryScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
   <StackPanel>
    <TextBlock Text="Saved preparation · New York dates" Style="{StaticResource PtjSectionTitleTextStyle}" />
@@ -33,7 +33,7 @@
    <TextBlock Text="{Binding HistoryError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" />
    <TextBlock Text="Unapplied filters · select Search. Displayed Plans still belong to the last applied search." Style="{StaticResource Body}" Visibility="{Binding HasUnappliedHistory, Converter={StaticResource VisibleIf}}" />
    <TextBlock Text="{Binding AppliedHistoryLabel}" Style="{StaticResource Body}" />
-   <TextBlock x:Name="HistoryStatus" Text="{Binding HistoryMessage}" Style="{StaticResource Body}" AutomationProperties.LiveSetting="Polite" interactions:LiveAnnouncement.Text="{Binding HistoryMessage}" />
+   <ContentControl x:Name="HistoryStatus" Content="{Binding HistoryNotice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" />
    <Button Content="Cancel operation" Command="{Binding CancelCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
    <ItemsControl x:Name="Plans" ItemsSource="{Binding HistoryRows}">
     <ItemsControl.ItemTemplate><DataTemplate>
@@ -74,7 +74,7 @@
      <TextBlock Text="{Binding CopyError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" />
      <!-- The single live region above announces this status. Repeat visually near the
           transfer controls so an offscreen header cannot hide progress or a conflict. -->
-     <TextBlock x:Name="TransferStatus" Text="{Binding TransferNotice}" Style="{StaticResource Body}" />
+     <!-- The one History InfoBox above reports transfers as well. -->
      <Button Content="Cancel transfer" Command="{Binding CancelCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
      <TextBlock Text="Copy retains session, focus, instrument identities, scenarios, planned limits and linked Rules. Bias, thesis, levels, news, stand-aside text and all confirmations reset. The new Plan is Draft, never Ready." Style="{StaticResource Body}" />
      <Button Content="Open existing Plan" Command="{Binding OpenRecoveryCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" Visibility="{Binding HasRecoveryTarget, Converter={StaticResource VisibleIf}}" />

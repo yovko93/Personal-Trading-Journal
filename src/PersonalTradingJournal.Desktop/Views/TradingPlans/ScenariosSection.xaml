@@ -96,7 +96,7 @@
                             <ComboBox x:Name="Playbook" ItemsSource="{Binding Owner.AvailablePlaybooks}" DisplayMemberPath="Name" SelectedItem="{Binding Candidate}"
                                       Style="{StaticResource PlanSelect}" IsEnabled="{Binding Owner.CanEdit}" AutomationProperties.Name="Playbook candidate" />
                             <WrapPanel>
-                                <Button Content="Select revision" Command="{Binding LinkCommand}" Style="{StaticResource Action}" />
+                                <Button Content="Use current Playbook" Command="{Binding LinkCommand}" Style="{StaticResource Action}" />
                                 <Button Content="Unlink" Command="{Binding UnlinkCommand}" Style="{StaticResource Action}" />
                                 <Button Content="Open Playbook" Command="{Binding OpenPlaybookCommand}" Style="{StaticResource Action}" />
                             </WrapPanel>

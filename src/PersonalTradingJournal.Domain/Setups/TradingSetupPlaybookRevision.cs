@@ -1,8 +1,9 @@
 namespace PersonalTradingJournal.Domain.Setups;
 
 /// <summary>
-/// An owned extension of the existing TradingSetup, identified by (TradingSetupId, Revision).
-/// Editing produces a new immutable value; archiving uses TradingSetup.IsActive, not a second catalog.
+/// Value carrier for the existing TradingSetup guidance and historical v1 captures.
+/// Current persistence replaces one definition; Revision is its optimistic token, not a publishing workflow.
+/// Captured values retain (TradingSetupId, Revision) identity. Archiving uses TradingSetup.IsActive.
 /// </summary>
 public sealed class TradingSetupPlaybookRevision
 {

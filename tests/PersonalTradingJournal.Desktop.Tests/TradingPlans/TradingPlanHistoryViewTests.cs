@@ -80,7 +80,7 @@ public sealed class TradingPlanHistoryViewTests
                 f.Interaction.Choice = PlanLeaveChoice.Cancel; vm.CopyDate = "16 Oct 2026"; Pump(vm.TransferAsync(true)); Assert.Same(editor, vm.Editor);
                 f.Interaction.Choice = PlanLeaveChoice.Discard; Pump(vm.TransferAsync(true)); Layout();
                 Assert.True(vm.HasRecoveryTarget); Assert.Equal("retained invalid count", editor.MaximumTrades.Text);
-                Assert.Contains("already exists", ((TextBlock)history.FindName("TransferStatus")).Text);
+                Assert.Contains("already exists", ((PersonalTradingJournal.Desktop.ViewModels.TradingPlans.PlanNotice)((ContentControl)history.FindName("HistoryStatus")).Content).Text);
                 Render(page, theme, width, dpi, "conflict");
                 vm.CopyDate = theme == "Light" ? "25 Oct 2026" : "26 Oct 2026"; Pump(vm.TransferAsync(true)); Layout();
                 Assert.False(vm.IsHistorySelected); Assert.Contains("saved and verified", vm.Message); Assert.False(vm.Editor!.IsDirty);

@@ -22,7 +22,7 @@ public sealed partial class SessionPreparationViewModel
         if (!CanEdit) return new(TradingPlanWriteStatus.Invalid);
         if (!IsPreparationComplete || !TryBuildContent(out var content))
         {
-            Message = ReadinessBlockers.FirstOrDefault()?.Message ?? "Save the complete Draft and explicitly confirm preparation first.";
+            Report(ReadinessBlockers.FirstOrDefault()?.Message ?? "Save the complete Draft and explicitly confirm preparation first.", PlanNoticeKind.Warning);
             ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt));
             return new(TradingPlanWriteStatus.Invalid);
         }
@@ -56,7 +56,7 @@ public sealed partial class SessionPreparationViewModel
                 result = new(TradingPlanWriteStatus.StorageFailure);
             }
             ObserveWriteFailure(result.Status);
-            Message = result.Status switch
+            Report(result.Status switch
             {
                 TradingPlanWriteStatus.Conflict => "The Plan changed elsewhere. Reload only after preserving or discarding your entered changes.",
                 TradingPlanWriteStatus.ReferenceChanged => "References changed. Review and explicitly refresh/relink the Draft before reconfirming. A Ready revision is never rewritten.",
@@ -64,11 +64,11 @@ public sealed partial class SessionPreparationViewModel
                 TradingPlanWriteStatus.Cancelled => "Operation cancelled. The current preparation is retained.",
                 TradingPlanWriteStatus.Invalid => "Preparation is not Ready. Save the Draft, resolve the listed requirements and confirm the checklist.",
                 _ => "The transition could not be saved and verified. Current preparation is retained. Reload to check the stored state before trying again."
-            };
+            }, PlanNotice.ForWrite(result.Status));
             return result;
         }
-        catch (OperationCanceledException) { Message = "Operation cancelled. Current preparation is retained."; return new(TradingPlanWriteStatus.Cancelled); }
-        catch (Exception) { ObserveWriteFailure(TradingPlanWriteStatus.StorageFailure); Message = "The transition could not be verified. Current preparation is retained."; return new(TradingPlanWriteStatus.StorageFailure); }
+        catch (OperationCanceledException) { Report("Operation cancelled. Current preparation is retained.", PlanNoticeKind.Info); return new(TradingPlanWriteStatus.Cancelled); }
+        catch (Exception) { ObserveWriteFailure(TradingPlanWriteStatus.StorageFailure); Report("The transition could not be verified. Current preparation is retained.", PlanNoticeKind.Error); return new(TradingPlanWriteStatus.StorageFailure); }
         finally { End(); }
     }
     internal static bool SameContent(TradingPlanContent first, TradingPlanContent second) =>

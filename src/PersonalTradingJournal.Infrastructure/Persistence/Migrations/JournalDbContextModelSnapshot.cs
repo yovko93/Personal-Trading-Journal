@@ -82,6 +82,58 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookExampleRecord", b =>
+                {
+                    b.Property<Guid>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ExampleId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ImageSha256")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ImageSizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ImageStorageKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("SourceScreenshotId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("TradingSetupId", "ExampleId");
+
+                    b.HasIndex("SourceScreenshotId");
+
+                    b.ToTable("CurrentPlaybookExamples", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookRecord", b =>
+                {
+                    b.Property<Guid>("TradingSetupId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefinitionJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("LegacyRevision")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("TradingSetupId");
+
+                    b.HasIndex("TradingSetupId", "LegacyRevision");
+
+                    b.ToTable("CurrentPlaybooks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CurrentPlaybooks_Content", "Version > 0 AND ((LegacyRevision IS NOT NULL AND LegacyRevision = Version AND DefinitionJson IS NULL) OR (LegacyRevision IS NULL AND DefinitionJson IS NOT NULL))");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1291,6 +1343,34 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("TradovateImportedExecutions", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookExampleRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradeScreenshotRecord", null)
+                        .WithMany()
+                        .HasForeignKey("SourceScreenshotId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.CurrentPlaybookRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.TradingSetupRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.PlaybookRevisionRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TradingSetupId", "LegacyRevision")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", b =>

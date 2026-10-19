@@ -136,7 +136,7 @@ public sealed partial class SessionPreparationViewModel
     {
         if (!CanEdit || _referenceReader is null) return;
         if (!TryBuildContent(out var content))
-        { Message = "Correct malformed input before checking references. All input is retained."; ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return; }
+        { Report("Correct malformed input before checking references. All input is retained.", PlanNoticeKind.Warning); ValidationAttempt++; OnPropertyChanged(nameof(ValidationAttempt)); return; }
         using var operation = Begin(ct);
         try
         {
@@ -151,18 +151,19 @@ public sealed partial class SessionPreparationViewModel
             {
                 // A read cannot acknowledge a prior changed-reference result or clear a conflict.
                 if (!_refreshRequired && !_writeConflict) AcceptReferences(refs);
-                Message = _refreshRequired ? "References still require an explicit refresh and reconfirmation." : "References checked. Mark Ready will recheck them at commit.";
+                Report(_refreshRequired ? "References still require an explicit refresh and reconfirmation." : "References checked. Mark Ready will recheck them at commit.",
+                    _refreshRequired ? PlanNoticeKind.Warning : PlanNoticeKind.Info);
             }
             else
             {
                 _verifiedSelection = null; ObserveWriteFailure(result.Status, !result.AccountMatchesBaseline);
                 _referenceError = result.Status == TradingPlanWriteStatus.Conflict ? "The stored Plan changed. Resolve the newer Draft without losing this input." :
                     "A reference changed or is unavailable. Review linked sources and the Account currency, then explicitly refresh/relink and reconfirm.";
-                Message = _referenceError;
+                Report(_referenceError, PlanNotice.ForWrite(result.Status));
             }
         }
-        catch (OperationCanceledException) { Message = "Reference checking cancelled. Input and confirmations are retained."; }
-        catch (Exception) { _verifiedSelection = null; _referenceError = "References could not be verified. Retry the check; input is retained."; Message = _referenceError; }
+        catch (OperationCanceledException) { Report("Reference checking cancelled. Input and confirmations are retained.", PlanNoticeKind.Warning); }
+        catch (Exception) { _verifiedSelection = null; _referenceError = "References could not be verified. Retry the check; input is retained."; Report(_referenceError, PlanNoticeKind.Error); }
         finally { End(); }
     }
     private void AcceptReferences(TradingPlanReferenceSnapshot refs)

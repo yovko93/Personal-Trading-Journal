@@ -60,9 +60,9 @@ public sealed partial class SessionPreparationViewModel
             {
                 var result = await Task.Run(() => _rulesReader.ReadCatalogAsync(page, 100, operation.Token), operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
-                if (result.TotalCount > MaximumRuleChoices) { Message = $"Rule selection supports at most {MaximumRuleChoices} eligible Rules. No partial catalog was loaded."; return; }
+                if (result.TotalCount > MaximumRuleChoices) { Report($"Rule selection supports at most {MaximumRuleChoices} eligible Rules. No partial catalog was loaded.", PlanNoticeKind.Warning); return; }
                 if (version.HasValue && (version != result.CatalogVersion || count != result.TotalCount))
-                { Message = "The Rule catalog changed during loading. Reload Rules; input and links are retained."; return; }
+                { Report("The Rule catalog changed during loading. Reload Rules; input and links are retained.", PlanNoticeKind.Info); return; }
                 version = result.CatalogVersion; count = result.TotalCount;
                 if (result.Items.Any(r => !r.Revision.IsActive || !r.Revision.Definition.IsGlobal) || result.Items.Count > 100 || result.TotalCount < 0)
                     throw new InvalidDataException("Invalid Rule catalog.");
@@ -99,8 +99,8 @@ public sealed partial class SessionPreparationViewModel
                 operation.Token.ThrowIfCancellationRequested();
             }
         }
-        catch (OperationCanceledException) { Message = "Rule loading cancelled. Links and entered input are retained."; }
-        catch (Exception) { Message = "Rules could not be loaded. Retry loading; links and entered input are retained."; }
+        catch (OperationCanceledException) { Report("Rule loading cancelled. Links and entered input are retained.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Rules could not be loaded. Retry loading; links and entered input are retained.", PlanNoticeKind.Error); }
         finally { End(); }
     }
     public async Task LinkRuleAsync(CancellationToken ct = default)
@@ -112,19 +112,19 @@ public sealed partial class SessionPreparationViewModel
             var current = await Task.Run(() => _rulesStore.GetLatestAsync(candidate.Id, operation.Token), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (current is not { IsActive: true, Definition.IsGlobal: true } || current.RuleId != candidate.Id || current.Revision != candidate.Details.Revision.Revision)
-            { Message = "The selected Rule changed or is unavailable. Reload and review the intended revision; existing links are retained."; return; }
+            { Report("The selected Rule changed or is unavailable. Reload and review the intended revision; existing links are retained.", PlanNoticeKind.Error); return; }
             var existing = _linkedRules.SingleOrDefault(r => r.Link.RuleId == current.RuleId);
             var link = new TradingPlanRuleLink(current.RuleId, current.Revision);
-            if (existing?.Link == link) { Message = "This exact Rule revision is already linked."; return; }
+            if (existing?.Link == link) { Report("This exact Rule revision is already linked.", PlanNoticeKind.Info); return; }
             if (existing is null && _linkedRules.Count >= TradingPlanContent.MaximumRules)
-            { Message = $"Link at most {TradingPlanContent.MaximumRules} Rules."; return; }
+            { Report($"Link at most {TradingPlanContent.MaximumRules} Rules.", PlanNoticeKind.Warning); return; }
             if (existing is null) { existing = new(this, link); _linkedRules.Add(existing); }
             else existing.Replace(link);
             existing.Present(FormatRule(current, "selected"), true); Changed();
-            Message = "Rule revision selected for the Draft. Save rechecks references; a link does not assert compliance.";
+            Report("Rule revision selected for the Draft. Save rechecks references; a link does not assert compliance.", PlanNoticeKind.Info);
         }
-        catch (OperationCanceledException) { Message = "Rule selection cancelled. Existing links and input are retained."; }
-        catch (Exception) { Message = "Rule selection failed. Existing links and input are retained."; }
+        catch (OperationCanceledException) { Report("Rule selection cancelled. Existing links and input are retained.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Rule selection failed. Existing links and input are retained.", PlanNoticeKind.Error); }
         finally { End(); }
     }
     internal void RemoveRule(PlanRuleItem row)
@@ -132,9 +132,9 @@ public sealed partial class SessionPreparationViewModel
     internal async Task RequestRuleAsync(PlanRuleItem row, CancellationToken ct)
     {
         if (IsBusy || _disposed || !_linkedRules.Contains(row) || RuleNavigation is not { } request) return;
-        try { if (!await request(row.Link.RuleId, ct)) Message = "Rule navigation was declined or the source is unavailable. Input is retained."; }
-        catch (OperationCanceledException) { Message = "Rule navigation cancelled. Input is retained."; }
-        catch (Exception) { Message = "The current Rule could not be opened. Input and saved context are retained."; }
+        try { if (!await request(row.Link.RuleId, ct)) Report("Rule navigation was declined or the source is unavailable. Input is retained.", PlanNoticeKind.Error); }
+        catch (OperationCanceledException) { Report("Rule navigation cancelled. Input is retained.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("The current Rule could not be opened. Input and saved context are retained.", PlanNoticeKind.Error); }
     }
     private void NotifyRuleAccess()
     {

@@ -150,7 +150,7 @@ public sealed class ScenarioTests
         Assert.DoesNotContain("new IF", reading.Scenarios[0].PlaybookText);
         books.Missing = true; reading.ConfigurePlaybooks(books, books, books); await reading.LoadPlaybooksAsync();
         var saved = reading.Scenarios[0]; Assert.Contains("Synthetic setup", saved.PlaybookText); Assert.Contains("original IF", saved.PlaybookText);
-        Assert.Contains("saved revision 1", saved.PlaybookText); Assert.Contains("unavailable", saved.PlaybookText);
+        Assert.Contains("saved Plan-owned context", saved.PlaybookText); Assert.Contains("unavailable", saved.PlaybookText);
         saved.Condition.Text = "ignored"; saved.UnlinkCommand.Execute(null); saved.RemoveCommand.Execute(null);
         Assert.Equal(ready.Content.Scenarios[0].Condition, saved.Condition.Text); Assert.NotNull(saved.Setup); Assert.Single(reading.Scenarios);
     }

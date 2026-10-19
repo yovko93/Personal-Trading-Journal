@@ -27,6 +27,31 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.TradingPlans;
 public sealed class TradingPlanPersistenceTests
 {
     [Fact]
+    public async Task DirectPlaybookEditRequiresLegacyDraftReconfirmationAndPreservesReadySnapshot()
+    {
+        await using var f = await Fixture.Create(); var ready = await f.Ready(await f.CreatePlan());
+        var id = ready.LatestReadyRevision!.Id; string original = TradingPlanJson.WriteReady(ready.LatestReadyRevision);
+        var draft = await f.Success(TradingPlanWriteOperation.StartDraft, ready, source: id);
+        var edited = await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(f.Setup.Id, 1,
+            new("Changed current context", "New entry", "Confirm", "Invalidate", "Execute")));
+        var stale = await f.Store.WriteAsync(Command(TradingPlanWriteOperation.SaveDraft, draft, draft.WorkingDraft!.Content));
+        Assert.Equal(TradingPlanWriteStatus.ReferenceChanged, stale.Status);
+        Assert.Equal(draft.Version, (await f.Store.LoadAsync(f.Key))!.Version);
+        Assert.Equal(draft.WorkingDraft.Content.Focus, (await f.Store.LoadAsync(f.Key))!.WorkingDraft!.Content.Focus);
+        var old = draft.WorkingDraft.Content; var scenario = old.Scenarios[0];
+        var updated = new TradingPlanContent(old.Session, old.Focus, old.Intent, old.Instruments,
+            [new(scenario.Id, scenario.InstrumentId, scenario.Name, direction: scenario.Direction, condition: scenario.Condition,
+                response: scenario.Response, invalidation: scenario.Invalidation, setup: new(f.Setup.Id, edited.Revision, f.Setup.UpdatedAtUtc))],
+            old.NewsAndRestrictions, old.StandAside, old.RiskLimits, old.Rules);
+        draft = await f.Success(TradingPlanWriteOperation.RefreshReferences, draft, updated);
+        Assert.Equal(TradingPlanChecklist.None, draft.WorkingDraft!.Content.Confirmed);
+        var next = await f.Ready(draft); Assert.Equal(2, next.LatestReadyRevision!.Id.Revision);
+        await f.Restart();
+        Assert.Equal(original, TradingPlanJson.WriteReady((await f.Store.LoadReadyAsync(id))!));
+        Assert.Equal("Changed current context", (await f.Get<ITradingSetupPlaybookStore>().GetLatestAsync(f.Setup.Id))!.Guidance.MarketContext);
+    }
+
+    [Fact]
     public async Task ExactReadyAndHistoryReadsRejectMisattributedOwnerWithoutConsultingCatalogs()
     {
         await using var f = await Fixture.Create(); var p = await f.Ready(await f.CreatePlan());

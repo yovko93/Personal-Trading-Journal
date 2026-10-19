@@ -59,6 +59,12 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
         var setups = await db.TradingSetups.AsNoTracking().Where(x => setupIds.Contains(x.Id)).ToArrayAsync(ct);
         var playbooks = await db.PlaybookRevisions.AsNoTracking().Where(x => setupIds.Contains(x.TradingSetupId) &&
             !db.PlaybookRevisions.Any(n => n.TradingSetupId == x.TradingSetupId && n.Revision > x.Revision)).ToArrayAsync(ct);
+        var current = setupIds.Length == 0 ? [] : await db.CurrentPlaybooks.AsNoTracking().Where(x => setupIds.Contains(x.TradingSetupId)).ToArrayAsync(ct);
+        // Migration preserves the previous authoritative highest revision. Direct edits replace only
+        // the current definition; the existing Plan token still detects changes and requires reconfirmation.
+        playbooks = playbooks.Where(x => !current.Any(c => c.TradingSetupId == x.TradingSetupId && c.DefinitionJson != null))
+            .Concat(current.Where(x => x.DefinitionJson != null).Select(x =>
+                PlaybookPersistenceMapper.ToRecord(PlaybookPersistenceMapper.Deserialize(x.DefinitionJson!)))).ToArray();
         var sources = new List<TradingPlanPlaybookSource>();
         foreach (var id in setupIds)
         {

@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-11 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-12 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -18,6 +18,10 @@ internal static class PortableExportSchema
     private static ExportColumn Y(string n, string alias) => new(n, ExportValueKind.NewYorkDate, alias);
     internal static readonly ExportTable[] Tables =
     [
+        new("currentPlaybooks", "CurrentPlaybooks", "TradingSetupId", false,
+            [I("TradingSetupId"), N("Version"), N("LegacyRevision"), T("DefinitionJson")]),
+        new("currentPlaybookExamples", "CurrentPlaybookExamples", "TradingSetupId,ExampleId", false,
+            [I("TradingSetupId"), I("ExampleId"), I("SourceScreenshotId"), T("ImageStorageKey"), N("ImageSizeBytes"), T("ImageSha256")]),
         new("tradingPlanAssets", "TradingPlanAssets", "PlanId,Id", false,
             [I("Id"), I("PlanId"), I("InstrumentId"), N("Timeframe"), T("StorageKey"), T("FileName"), N("SizeBytes"), T("Sha256")]),
         new("tradingPlans", "TradingPlans", "AccountId,NewYorkDate,Id", false,

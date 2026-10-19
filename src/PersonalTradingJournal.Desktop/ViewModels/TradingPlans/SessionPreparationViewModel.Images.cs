@@ -55,7 +55,7 @@ public sealed partial class SessionPreparationViewModel
             ct.ThrowIfCancellationRequested();
             try { s.Thumbnail = await _images.ThumbnailAsync(s.Image!, ct); }
             catch (OperationCanceledException) { throw; }
-            catch (Exception) { Message = "A saved screenshot is unavailable. Its historical reference is retained."; }
+            catch (Exception) { Report("A saved screenshot is unavailable. Its historical reference is retained.", PlanNoticeKind.Error); }
         }
     }
     private async Task UploadScreenshotAsync(CancellationToken ct)
@@ -69,25 +69,25 @@ public sealed partial class SessionPreparationViewModel
             operation.Token.ThrowIfCancellationRequested();
             if (picked is null) return;
             _screenshots.Add(new(this, Guid.NewGuid(), instrument.InstrumentId, timeframe, null, picked));
-            Message = "Screenshot added to the working Draft. Save Draft to retain it; original image bytes are unchanged.";
+            Report("Screenshot added to the working Draft. Save Draft to retain it; original image bytes are unchanged.", PlanNoticeKind.Info);
         }
-        catch (OperationCanceledException) { Message = "Screenshot upload cancelled. Existing preparation is unchanged."; }
-        catch (Exception) { Message = "Choose a valid PNG/JPEG image up to 8 MiB, 8192 pixels per side and 16 million pixels. Existing content is retained."; }
+        catch (OperationCanceledException) { Report("Screenshot upload cancelled. Existing preparation is unchanged.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Choose a valid PNG/JPEG image up to 8 MiB, 8192 pixels per side and 16 million pixels. Existing content is retained.", PlanNoticeKind.Warning); }
         finally { End(); NotifyImages(); Changed(); }
     }
     internal void RemoveScreenshot(PlanScreenshotItem item)
     {
         if (!CanEdit || !_screenshots.Remove(item)) return;
         NotifyImages(); Changed();
-        Message = "Removed from this Draft only. Preserved historical assets are not deleted.";
+        Report("Removed from this Draft only. Preserved historical assets are not deleted.", PlanNoticeKind.Success);
     }
     internal async Task OpenScreenshotAsync(PlanScreenshotItem item, CancellationToken ct)
     {
         if (IsBusy || _images is null || !_screenshots.Contains(item)) return;
         using var operation = Begin(ct);
         try { await _images.ShowAsync(item.Image, item.Pending, $"Trading Plan screenshot · {item.Label}", operation.Token); }
-        catch (OperationCanceledException) { Message = "Image preview cancelled."; }
-        catch (Exception) { Message = "The screenshot could not be opened. Its saved reference and Draft content are unchanged."; }
+        catch (OperationCanceledException) { Report("Image preview cancelled.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("The screenshot could not be opened. Its saved reference and Draft content are unchanged.", PlanNoticeKind.Error); }
         finally { End(); }
     }
     private void NotifyImages()
@@ -109,7 +109,7 @@ public sealed partial class SessionPreparationViewModel
         foreach (var item in staged)
         {
             try { await _images!.CleanupAsync(item.Image!.StorageKey); item.Image = null; }
-            catch (Exception) { Message += " Temporary screenshot cleanup could not be verified; the image is retained for retry."; }
+            catch (Exception) { Report(Message + " Temporary screenshot cleanup could not be verified; the image is retained for retry.", PlanNoticeKind.Error); }
         }
     }
 }

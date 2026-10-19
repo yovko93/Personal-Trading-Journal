@@ -1,4 +1,47 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions">
+ <!-- Same semantic border/surface presentation as Rules feedback, without another notification service. -->
+ <DataTemplate x:Key="PlanInfoBox">
+  <Border x:Name="Box" BorderThickness="1" CornerRadius="6" Padding="10,7" Margin="0,2,0,6"
+          Background="{DynamicResource PtjInformationSurfaceBrush}" BorderBrush="{DynamicResource PtjInformationBrush}">
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /></Grid.ColumnDefinitions>
+    <TextBlock Text="{Binding Icon}" FontSize="16" FontWeight="Bold" Foreground="{Binding BorderBrush, ElementName=Box}" Margin="0,0,10,0" />
+    <TextBlock x:Name="NoticeText" Grid.Column="1" Text="{Binding Text}" FontSize="13" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}"
+      AutomationProperties.Name="{Binding AccessibleText}" AutomationProperties.LiveSetting="Polite" interactions:LiveAnnouncement.Text="{Binding AccessibleText}" />
+   </Grid>
+  </Border>
+  <DataTemplate.Triggers>
+   <DataTrigger Binding="{Binding HasText}" Value="False"><Setter TargetName="Box" Property="Visibility" Value="Collapsed" /></DataTrigger>
+   <DataTrigger Binding="{Binding Kind}" Value="Success"><Setter TargetName="Box" Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" /><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger>
+   <DataTrigger Binding="{Binding Kind}" Value="Warning"><Setter TargetName="Box" Property="Background" Value="{DynamicResource PtjJournalReviewBrush}" /><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PtjWarningBrush}" /></DataTrigger>
+   <DataTrigger Binding="{Binding Kind}" Value="Error"><Setter TargetName="Box" Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}" /><Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}" /><Setter TargetName="NoticeText" Property="AutomationProperties.LiveSetting" Value="Assertive" /></DataTrigger>
+  </DataTemplate.Triggers>
+ </DataTemplate>
+ <Style x:Key="PlanSaveDraft" TargetType="Button" BasedOn="{StaticResource PtjJournalActionButtonStyle}">
+  <Setter Property="Background" Value="{DynamicResource PtjJournalReviewSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" />
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="12,4" /><Setter Property="Margin" Value="0,2,6,2" />
+  <Style.Triggers>
+   <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" /></Trigger>
+   <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjJournalReviewBorderBrush}" /></Trigger>
+   <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="PlanReadyAction" TargetType="Button" BasedOn="{StaticResource PlanSaveDraft}">
+  <Setter Property="Background" Value="{DynamicResource PtjPlanReadyBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjPlanReadyBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjPlanOnActionBrush}" /><Setter Property="FontWeight" Value="SemiBold" />
+  <Style.Triggers>
+   <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanReadyHoverBrush}" /></Trigger>
+   <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanReadyPressedBrush}" /></Trigger>
+   <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+  </Style.Triggers>
+ </Style>
+ <Style x:Key="PlanEditAction" TargetType="Button" BasedOn="{StaticResource PlanReadyAction}">
+  <Setter Property="Background" Value="{DynamicResource PtjPlanEditBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjPlanEditBrush}" />
+  <Style.Triggers>
+   <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanEditHoverBrush}" /></Trigger>
+   <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanEditPressedBrush}" /></Trigger>
+   <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+  </Style.Triggers>
+ </Style>
  <!-- Local to the Trading Plan components; shared templates retain focus, validation and all interaction states. -->
  <Style x:Key="PlanInput" TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" />

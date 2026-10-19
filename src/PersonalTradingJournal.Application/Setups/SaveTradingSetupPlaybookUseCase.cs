@@ -4,7 +4,7 @@ namespace PersonalTradingJournal.Application.Setups;
 
 public sealed record SaveTradingSetupPlaybookCommand(Guid TradingSetupId, int ExpectedRevision, PlaybookGuidance Guidance);
 
-/// <summary>Explicit authoring policy for future hosts; not wired to the current Setup editor.</summary>
+/// <summary>Explicit direct editing of current Setup guidance with optimistic concurrency.</summary>
 public sealed class SaveTradingSetupPlaybookUseCase(
     ITradingSetupStore setups, ITradingSetupPlaybookStore playbooks, TimeProvider timeProvider)
 {
@@ -29,7 +29,7 @@ public sealed class SaveTradingSetupPlaybookUseCase(
             ? TradingSetupPlaybookRevision.Create(setup, command.Guidance, _timeProvider.GetUtcNow())
             : current.Revise(setup, command.ExpectedRevision, command.Guidance, _timeProvider.GetUtcNow());
         cancellationToken.ThrowIfCancellationRequested();
-        if (!await _playbooks.TryAppendAsync(candidate, command.ExpectedRevision, setup.UpdatedAtUtc, cancellationToken))
+        if (!await _playbooks.TrySaveCurrentAsync(candidate, command.ExpectedRevision, setup.UpdatedAtUtc, cancellationToken))
             throw new InvalidOperationException("The Setup or Playbook changed; reload before saving.");
         return candidate;
     }

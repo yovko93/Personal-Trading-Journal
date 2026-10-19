@@ -33,6 +33,8 @@ public sealed class JournalDbContext : DbContext
     public DbSet<TradingSetupRecord> TradingSetups => Set<TradingSetupRecord>();
 
     public DbSet<PlaybookRevisionRecord> PlaybookRevisions => Set<PlaybookRevisionRecord>();
+    public DbSet<CurrentPlaybookRecord> CurrentPlaybooks => Set<CurrentPlaybookRecord>();
+    public DbSet<CurrentPlaybookExampleRecord> CurrentPlaybookExamples => Set<CurrentPlaybookExampleRecord>();
     public DbSet<PlaybookExampleRecord> PlaybookExamples => Set<PlaybookExampleRecord>();
     public DbSet<TradePlaybookContextRecord> TradePlaybookContexts => Set<TradePlaybookContextRecord>();
     public DbSet<TradePlaybookAssociationRecord> TradePlaybookAssociations => Set<TradePlaybookAssociationRecord>();
@@ -57,6 +59,22 @@ public sealed class JournalDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<CurrentPlaybookRecord>(b =>
+        {
+            b.ToTable("CurrentPlaybooks", t => t.HasCheckConstraint("CK_CurrentPlaybooks_Content",
+                "Version > 0 AND ((LegacyRevision IS NOT NULL AND LegacyRevision = Version AND DefinitionJson IS NULL) OR (LegacyRevision IS NULL AND DefinitionJson IS NOT NULL))"));
+            b.HasKey(x => x.TradingSetupId); b.Property(x => x.TradingSetupId).ValueGeneratedNever();
+            b.Property(x => x.Version).IsConcurrencyToken();
+            b.HasOne<TradingSetupRecord>().WithMany().HasForeignKey(x => x.TradingSetupId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<PlaybookRevisionRecord>().WithMany().HasForeignKey(x => new { x.TradingSetupId, Revision = x.LegacyRevision }).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CurrentPlaybookExampleRecord>(b =>
+        {
+            b.ToTable("CurrentPlaybookExamples"); b.HasKey(x => new { x.TradingSetupId, x.ExampleId });
+            b.Property(x => x.ExampleId).ValueGeneratedNever();
+            b.HasOne<CurrentPlaybookRecord>().WithMany().HasForeignKey(x => x.TradingSetupId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<TradeScreenshotRecord>().WithMany().HasForeignKey(x => x.SourceScreenshotId).OnDelete(DeleteBehavior.Restrict);
+        });
         modelBuilder.ApplyConfiguration<TradingPlanRecord>(new TradingPlanConfiguration());
         modelBuilder.ApplyConfiguration<TradingPlanReadyRecord>(new TradingPlanConfiguration());
         modelBuilder.Entity<TradingPlanAssetRecord>(b =>

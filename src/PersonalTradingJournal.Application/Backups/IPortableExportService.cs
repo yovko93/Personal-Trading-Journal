@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 11; // Shared Plan scope, explicit currency and retained screenshot metadata; binaries remain excluded.
+    public const int Version = 12; // Mutable current Playbooks plus retained historical captures; binaries remain excluded.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

@@ -38,9 +38,9 @@
     <RadioButton Content="History" IsChecked="{Binding IsHistorySelected, Mode=OneWay}" Command="{Binding ShowHistoryCommand}" GroupName="PlanTab" Style="{StaticResource PlanTab}" AutomationProperties.Name="History tab" />
    </StackPanel>
    <WrapPanel x:Name="TopActions" Grid.Column="1" HorizontalAlignment="Right" Visibility="{Binding IsBriefSelected, Converter={StaticResource VisibleIf}}">
-    <Button x:Name="SaveDraft" Content="Save Draft" Command="{Binding SaveCommand}" Style="{StaticResource Action}" />
-    <Button Content="Mark as Ready" Command="{Binding MarkReadyCommand}" Style="{StaticResource PlanPrimary}" />
-    <Button x:Name="StartDraft" Content="Start Draft / Edit" Command="{Binding StartDraftCommand}" Style="{StaticResource Action}" Visibility="{Binding Editor.IsReadOnly, Converter={StaticResource VisibleIf}, FallbackValue=Collapsed, TargetNullValue=Collapsed}" />
+    <Button x:Name="SaveDraft" Content="Save Draft" Command="{Binding SaveCommand}" Style="{StaticResource PlanSaveDraft}" />
+    <Button Content="Mark as Ready" Command="{Binding MarkReadyCommand}" Style="{StaticResource PlanReadyAction}" />
+    <Button x:Name="StartDraft" Content="Start Draft / Edit" Command="{Binding StartDraftCommand}" Style="{StaticResource PlanEditAction}" Visibility="{Binding Editor.IsReadOnly, Converter={StaticResource VisibleIf}, FallbackValue=Collapsed, TargetNullValue=Collapsed}" />
     <Button Content="Cancel operation" Command="{Binding CancelCommand}" Style="{StaticResource Action}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
    </WrapPanel>
   </Grid>
@@ -88,7 +88,7 @@
   <StackPanel Grid.Row="1" Margin="0,4,0,8">
    <TextBlock Text="{Binding DateError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasDateError, Converter={StaticResource VisibleIf}}" />
 
-   <TextBlock x:Name="Status" Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.Name="{Binding Message}" AutomationProperties.LiveSetting="Polite" interactions:LiveAnnouncement.Text="{Binding Message}" />
+   <ContentControl x:Name="Status" Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" />
   </StackPanel>
   <ScrollViewer x:Name="PageScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
    <StackPanel>

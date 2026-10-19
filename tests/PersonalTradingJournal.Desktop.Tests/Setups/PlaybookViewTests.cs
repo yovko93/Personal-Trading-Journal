@@ -75,10 +75,8 @@ public sealed class PlaybookViewTests
                     var returnAction = (Button)view.FindName("ReturnToCurrent");
                     Assert.Same(app.Resources["PtjPlaybookReturnButtonStyle"], returnAction.Style);
                     Assert.NotNull(returnAction.FocusVisualStyle); Assert.True(returnAction.IsEnabled);
-                    var history = (ItemsControl)view.FindName("History");
-                    var deletes = Descendants(history).OfType<Button>().Where(b => Equals(b.Content, "Delete revision")).ToArray();
-                    Assert.Equal(10, deletes.Length);
-                    Assert.All(deletes, b => { Assert.Same(f.Vm.DeleteRevisionCommand, b.Command); Assert.True(b.Focusable && b.IsEnabled); Assert.Same(b.DataContext, b.CommandParameter); Assert.Same(app.Resources["PtjPlaybookRemoveButtonStyle"], b.Style); });
+                    Assert.Null(view.FindName("History"));
+                    Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => Equals(b.Content, "Delete revision") || Equals(b.Content, "View revision"));
                     Assert.All(Descendants(view).OfType<TextBlock>().Where(b => b.Text is "Market context" or "Entry conditions" or "Confirmations" or "Invalidation" or "Execution guidance"),
                         b => Assert.Equal(((SolidColorBrush)app.Resources["PtjAccentBrush"]).Color, ((SolidColorBrush)b.Foreground).Color));
                     Assert.Contains("Historical revision 11", ((TextBlock)view.FindName("Version")).Text);

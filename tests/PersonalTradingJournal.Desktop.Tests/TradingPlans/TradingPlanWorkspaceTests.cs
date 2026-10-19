@@ -75,11 +75,13 @@ public sealed class TradingPlanWorkspaceTests
         await using var f = await Fixture.CreateAsync(seed: true); var editor = f.Vm.Editor!; var token = editor.Token;
         editor.Focus.Text = "unsaved"; editor.Scenarios[0].Response.Text = "retained response"; editor.MaximumTrades.Text = "4";
         f.Store.Status = status; Assert.False(await f.Vm.SaveAsync());
+        Assert.Equal(PlanNotice.ForWrite(status), f.Vm.Notice.Kind);
         Assert.Same(editor, f.Vm.Editor); Assert.Equal(token, editor.Token); Assert.True(editor.IsDirty);
         Assert.Equal("retained response", editor.Scenarios[0].Response.Text); Assert.Equal("4", editor.MaximumTrades.Text);
         Assert.NotEqual("Draft saved and verified.", f.Vm.Message);
         editor.MaximumTrades.Text = "3.5"; int writes = f.Store.Writes;
         Assert.False(await f.Vm.SaveAsync()); Assert.Equal(writes, f.Store.Writes); Assert.Equal("3.5", editor.MaximumTrades.Text);
+        Assert.Equal(PlanNoticeKind.Warning, f.Vm.Notice.Kind);
     }
 
     [Theory]

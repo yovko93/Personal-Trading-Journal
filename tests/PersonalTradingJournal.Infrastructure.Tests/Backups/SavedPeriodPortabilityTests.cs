@@ -29,7 +29,7 @@ public sealed class SavedPeriodPortabilityTests
         Assert.True((await source.Services.GetRequiredService<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            var root = document.RootElement; Assert.Equal(11, root.GetProperty("version").GetInt32());
+            var root = document.RootElement; Assert.Equal(12, root.GetProperty("version").GetInt32());
             Assert.False(root.GetProperty("restorableBackup").GetBoolean()); Assert.Equal("metadata-only", root.GetProperty("screenshotContent").GetString());
             var rows = root.GetProperty("tables").GetProperty("periodReviews"); Assert.Equal(2, rows.GetArrayLength());
             foreach (var r in rows.EnumerateArray())

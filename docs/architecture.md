@@ -1,5 +1,13 @@
 # Architecture
 
+## Current Playbook definitions and historical evidence
+
+Playbook authoring now updates one `CurrentPlaybooks` row per existing TradingSetup, with an optimistic Version and atomic normalized example-retention index. The existing v1 value carrier retains its `Revision` field for capture/packet compatibility; current storage treats it as a concurrency token. `SaveTradingSetupPlaybookUseCase` uses `TrySaveCurrentAsync`, not the legacy append writer. SQLite reserves the writer before rechecking Setup state/token, validating image ownership, replacing metadata and verifying readback. Stale/failed/cancelled writes roll back; cancellation after commit does not undo a reported committed result.
+
+Migration preserves the previous maximum-retained-revision current policy as an explicit bridge. Historical revision/example rows stay immutable and readable; new Trade captures materialize their exact current definition in that ledger only when needed, in the capture transaction. Trading Plan references resolve current guidance in bounded batches and detect token/content changes before Ready. Ready and Review JSON remain unchanged. Current-only image retention participates in Trade deletion, backup inventory, preflight and restore; export v12 includes the two current tables. No second Setup catalog, automatic provider call or historical rewrite is introduced. [Detailed compatibility and verification](trading-plan.md#direct-playbook-editing-and-themed-feedback-before-m2110).
+
+Trading Plan uses the existing semantic feedback palette/LiveAnnouncement behavior through a page-local reusable `PlanInfoBox` template; explicit operation outcomes choose severity. Inline validation remains independent. Page-local button styles retain existing command enablement, focus templates and opaque state colors.
+
 ## Shared preparation and retained Plan images
 
 Trading Plan identity now explicitly derives `AllAccounts` versus `Account` from a nullable exact Account ID plus New York date. Partial unique SQLite indexes enforce each identity; null never stands for a fabricated Account or a frozen membership list. New global Drafts require a canonical explicit currency. Ready references freeze it and trader-wide limits without multiplying limits per Account or converting FX. Specific-Account data remains specific through migration/history/copy. Storage payload v2 reads legacy v1 without filling old evidence; downgrade with stored Plans/assets is refused (empty-schema rollback remains supported).

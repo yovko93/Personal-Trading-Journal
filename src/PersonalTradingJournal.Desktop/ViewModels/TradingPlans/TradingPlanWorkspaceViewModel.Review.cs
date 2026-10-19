@@ -17,7 +17,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
         {
             if (IsBusy || OpenDailyReview is null) return;
             var key = IsHistorySelected ? _viewedRevision?.Key : Editor?.Key;
-            if (key is null) { Message = "Open saved preparation or a Session Brief first."; return; }
+            if (key is null) { Report("Open saved preparation or a Session Brief first.", PlanNoticeKind.Info); return; }
             string label = IsHistorySelected ? _viewedRevision!.References.Account.Name : _account?.Name ?? "Original Account";
             await OpenDailyReview(key, label);
         });

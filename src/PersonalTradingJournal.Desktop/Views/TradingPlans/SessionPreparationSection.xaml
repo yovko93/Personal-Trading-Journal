@@ -41,7 +41,7 @@
    <StackPanel>
     <ContentControl Content="Session Preparation" Tag="01" Style="{StaticResource PlanSectionHeading}" />
     <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
-    <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" AutomationProperties.Name="{Binding Message}" interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
+    <ContentControl Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
     <ComboBox x:Name="SessionSelector" Width="180" HorizontalAlignment="Left" ItemsSource="{Binding Sessions}" SelectedItem="{Binding Session}" Style="{StaticResource PlanSelect}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Session, optional in Draft" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
     <Grid x:Name="ContextGrid">
      <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>

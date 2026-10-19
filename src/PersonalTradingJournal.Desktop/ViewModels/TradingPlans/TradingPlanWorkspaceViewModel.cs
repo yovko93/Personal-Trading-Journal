@@ -124,7 +124,15 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         ? $"{Editor.CurrentPlan.LatestReadyRevision!.References.Account.Name} · {Editor.CurrentPlan.LatestReadyRevision.References.Account.Currency} · saved Account context"
         : _account?.Label ?? "No Account selected");
     public string StateLabel => Editor?.StateLabel ?? "No Plan";
-    public string Message { get => _message; private set => SetProperty(ref _message, value); }
+    public string Message { get => _message; private set => Report(value); }
+    private PlanNoticeKind _messageKind;
+    public PlanNotice Notice => new(Message, _messageKind);
+    private void Report(string text, PlanNoticeKind kind = PlanNoticeKind.Info)
+    {
+        _messageKind = kind;
+        SetProperty(ref _message, text, nameof(Message));
+        OnPropertyChanged(nameof(Notice));
+    }
     public Task ContextTask { get; private set; } = Task.CompletedTask;
     public Func<Guid, CancellationToken, Task<bool>>? OpenPlaybook { get; set; }
     public Func<Guid, CancellationToken, Task<bool>>? OpenRule { get; set; }
@@ -153,7 +161,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         await LoadAsync(refreshAccounts: false); return true;
     }
     private Task MoveDateAsync(int days) => HasDateError ? InvalidDateAsync() : SelectContextAsync(_date.AddDays(days), _account);
-    private Task InvalidDateAsync() { Message = "Correct the typed date, then select Open date (or choose a date from the calendar). The loaded Plan is unchanged."; DateValidationAttempt++; OnPropertyChanged(nameof(DateValidationAttempt)); return Task.CompletedTask; }
+    private Task InvalidDateAsync() { Report("Correct the typed date, then select Open date (or choose a date from the calendar). The loaded Plan is unchanged.", PlanNoticeKind.Warning); DateValidationAttempt++; OnPropertyChanged(nameof(DateValidationAttempt)); return Task.CompletedTask; }
     public int DateValidationAttempt { get; private set; }
     private Task OpenDateAsync() => TryDate(out var date) ? SelectContextAsync(date, _account) : InvalidDateAsync();
     private bool TryDate(out DateOnly date) => DateOnly.TryParse(_dateText, CultureInfo.CurrentCulture, DateTimeStyles.AllowWhiteSpaces, out date) ||
@@ -178,7 +186,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     {
         _load?.Cancel(); using var cancellation = new CancellationTokenSource(); _load = cancellation;
         long epoch = ++_epoch; var date = _date; var account = _account;
-        _loading = true; _contextLoaded = false; Message = "Loading Session Brief…"; Notify();
+        _loading = true; _contextLoaded = false; Report("Loading Session Brief…", PlanNoticeKind.Info); Notify();
         SessionPreparationViewModel? candidate = null;
         try
         {
@@ -195,7 +203,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
                 if (account is { IsAvailable: false }) _choices = [.. _choices, account];
                 _account = account; _initialized = true; OnPropertyChanged(nameof(Accounts)); RestoreSelectors();
             }
-            if (account is null) { _contextLoaded = true; Message = "Select an Account to begin."; return; }
+            if (account is null) { _contextLoaded = true; Report("Select an Account to begin.", PlanNoticeKind.Info); return; }
             var key = new TradingPlanKey(account.Id, date);
             var plan = await Task.Run(() => _store.LoadAsync(key, cancellation.Token), cancellation.Token);
             if (plan is not null && plan.Key != key) throw new InvalidOperationException("Mismatched Plan context.");
@@ -209,8 +217,8 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             ReplaceEditor(candidate); candidate = null; _contextLoaded = true;
             Message = plan is null ? "No Plan saved for this date." : "Session Brief loaded.";
         }
-        catch (OperationCanceledException) { if (epoch == _epoch && !_disposed) Message = "Loading cancelled. Select Reload to try again; no Plan was changed."; }
-        catch (Exception) { if (epoch == _epoch && !_disposed) Message = "Session Brief could not be loaded. Reload to try again; no Plan was changed."; }
+        catch (OperationCanceledException) { if (epoch == _epoch && !_disposed) Report("Loading cancelled. Select Reload to try again; no Plan was changed.", PlanNoticeKind.Info); }
+        catch (Exception) { if (epoch == _epoch && !_disposed) Report("Session Brief could not be loaded. Reload to try again; no Plan was changed.", PlanNoticeKind.Error); }
         finally
         {
             candidate?.Dispose();
@@ -244,13 +252,13 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     }
     private void EditorChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName == nameof(SessionPreparationViewModel.Message)) Message = Editor!.Message;
+        if (args.PropertyName == nameof(SessionPreparationViewModel.Notice)) Report(Editor!.Message, Editor.Notice.Kind);
         if (args.PropertyName is nameof(SessionPreparationViewModel.IsBusy) or nameof(SessionPreparationViewModel.IsDirty) or nameof(SessionPreparationViewModel.StateLabel)) Notify();
     }
     public async Task<bool> SaveAsync()
     {
         if (!CanSave) { if (HasPendingDate) await InvalidDateAsync(); return false; }
-        Message = "Saving Draft…";
+        Report("Saving Draft…", PlanNoticeKind.Info);
         return await Editor!.SaveAsync() == TradingPlanWriteStatus.Success;
     }
     public async Task CreateDraftAsync()
@@ -260,17 +268,18 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         _writing = true; using var cancellation = new CancellationTokenSource(); _write = cancellation; Notify();
         try
         {
-            Message = "Creating Draft…";
+            Report("Creating Draft…", PlanNoticeKind.Info);
             var empty = new TradingPlanContent(planCurrency: IsGlobalScope ? PlanCurrency : null);
             var result = await Task.Run(() => _store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, key, empty), cancellation.Token), cancellation.Token);
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } plan && plan.Key == key &&
                 SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, empty))
-            { ReplaceEditor(CreateEditor(plan)); await LoadSourcesAsync(Editor!, CancellationToken.None); Message = "Draft created and verified. Complete preparation, then Save Draft."; }
-            else Message = result.Status == TradingPlanWriteStatus.TargetAlreadyExists ? "A Plan was created elsewhere. Reload this exact date and Account." :
-                result.Status == TradingPlanWriteStatus.Cancelled ? "Creation cancelled. No success was reported." : "Draft could not be created and verified. Reload to check the stored state.";
+            { ReplaceEditor(CreateEditor(plan)); await LoadSourcesAsync(Editor!, CancellationToken.None); Report("Draft created and verified. Complete preparation, then Save Draft.", PlanNoticeKind.Success); }
+            else Report(result.Status == TradingPlanWriteStatus.TargetAlreadyExists ? "A Plan was created elsewhere. Reload this exact date and Account." :
+                result.Status == TradingPlanWriteStatus.Cancelled ? "Creation cancelled. No success was reported." : "Draft could not be created and verified. Reload to check the stored state.",
+                result.Status == TradingPlanWriteStatus.Cancelled ? PlanNoticeKind.Info : PlanNoticeKind.Error);
         }
-        catch (OperationCanceledException) { Message = "Creation cancelled."; }
-        catch (Exception) { Message = "Draft could not be created and verified. Reload to check the stored state."; }
+        catch (OperationCanceledException) { Report("Creation cancelled.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Draft could not be created and verified. Reload to check the stored state.", PlanNoticeKind.Error); }
         finally { _write = null; _writing = false; Notify(); }
     }
     public async Task MarkReadyAsync()
@@ -280,14 +289,14 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         _writing = true; Notify();
         try
         {
-            Message = "Marking preparation Ready…";
+            Report("Marking preparation Ready…", PlanNoticeKind.Info);
             var result = await Editor.MarkReadyAsync();
             if (result.Status == TradingPlanWriteStatus.Success)
             {
                 ReplaceEditor(CreateEditor(result.Plan!));
                 Editor!.SelectedInstrument = Editor.Contexts.FirstOrDefault(c => c.InstrumentId == selected);
                 await Editor.LoadThumbnailsAsync(CancellationToken.None);
-                Message = $"Ready revision {result.Plan!.LatestReadyRevision!.Id.Revision} saved and verified · read-only.";
+                Report($"Ready revision {result.Plan!.LatestReadyRevision!.Id.Revision} saved and verified · read-only.", PlanNoticeKind.Success);
             }
             else { ReadinessFocusRequest++; OnPropertyChanged(nameof(ReadinessFocusRequest)); }
         }
@@ -298,7 +307,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     {
         if (IsBusy || HasPendingDate || Editor?.IsReadOnly != true) return;
         var editor = Editor; _writing = true; Notify();
-        Message = "Starting a new Draft from the preserved Ready revision…";
+        Report("Starting a new Draft from the preserved Ready revision…", PlanNoticeKind.Info);
         using var cancellation = new CancellationTokenSource(); _write = cancellation;
         try
         {
@@ -307,18 +316,18 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             var saved = editor.CurrentPlan.LatestReadyRevision!.References.Account.Currency;
             if (editor.HasMonetaryLimits && current is not null && current.Currency != saved)
             {
-                if (!_interaction.ConfirmCurrency(saved, current.Currency)) { Message = "Start Draft cancelled. Ready revision unchanged."; return; }
+                if (!_interaction.ConfirmCurrency(saved, current.Currency)) { Report("Start Draft cancelled. Ready revision unchanged.", PlanNoticeKind.Info); return; }
                 reviewed = current.Currency;
             }
             var result = await editor.StartDraftAsync(reviewed, cancellation.Token);
             if (result.Status == TradingPlanWriteStatus.Success)
             {
                 ReplaceEditor(CreateEditor(result.Plan!)); await LoadSourcesAsync(Editor!, CancellationToken.None);
-                Message = "New working Draft saved. The source Ready revision is preserved; confirm preparation again.";
+                Report("New working Draft saved. The source Ready revision is preserved; confirm preparation again.", PlanNoticeKind.Warning);
             }
         }
-        catch (OperationCanceledException) { Message = "Start Draft cancelled. No success was reported."; }
-        catch (Exception) { Message = "Draft transition could not be verified. Ready context is retained; Reload to check stored state."; }
+        catch (OperationCanceledException) { Report("Start Draft cancelled. No success was reported.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Draft transition could not be verified. Ready context is retained; Reload to check stored state.", PlanNoticeKind.Error); }
         finally { _write = null; _writing = false; Notify(); }
     }
 
@@ -335,7 +344,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public async Task<bool> PrepareLeaveAsync()
     {
         if (_guarding || _writing || Editor?.IsBusy == true)
-        { Message = "Wait for the Trading Plan operation, or cancel it before leaving."; return false; }
+        { Report("Wait for the Trading Plan operation, or cancel it before leaving.", PlanNoticeKind.Info); return false; }
         _guarding = true; Notify();
         try
         {
@@ -343,7 +352,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             ClearLeaveConsent();
             if (Editor?.IsDirty != true) return true;
             var choice = _interaction.ConfirmLeave();
-            if (choice == PlanLeaveChoice.Cancel) { Message = "Continue editing. Unsaved preparation is retained."; return false; }
+            if (choice == PlanLeaveChoice.Cancel) { Report("Continue editing. Unsaved preparation is retained.", PlanNoticeKind.Info); return false; }
             if (choice == PlanLeaveChoice.Save)
             {
                 if (HasDateError) { await InvalidDateAsync(); return false; }

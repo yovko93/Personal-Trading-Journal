@@ -98,7 +98,11 @@ public sealed class SharedTradingPlanTests
     {
         await using var f = await Fixture.Create("20261017152354_AddTradingPlans");
         // No attachments: the new store does not query the new ledger for this legacy content.
-        var p = await f.Ready(await f.CreatePlan()); string payload;
+        var legacyContent = new TradingPlanContent(f.Content.Session, f.Content.Focus, instruments: f.Content.Instruments,
+            riskLimits: f.Content.RiskLimits, intent: TradingPlanIntent.StandAside, standAside: "Synthetic stand-aside preparation");
+        var created = await f.Store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, f.Key, legacyContent));
+        Assert.Equal(TradingPlanWriteStatus.Success, created.Status);
+        var p = await f.Ready(created.Plan!); string payload;
         await using (var db = f.Context())
         {
             payload = (await db.TradingPlanReadyRevisions.SingleAsync()).SnapshotJson;
@@ -139,7 +143,7 @@ public sealed class SharedTradingPlanTests
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            Assert.Equal(11, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(12, json.RootElement.GetProperty("version").GetInt32());
             Assert.Single(json.RootElement.GetProperty("tables").GetProperty("tradingPlanAssets").EnumerateArray());
         }
         Assert.Empty(Directory.GetFiles(export, "*.png", SearchOption.AllDirectories));

@@ -95,6 +95,7 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261015091425_AddSavedPeriodReviews",
                     "20261017152354_AddTradingPlans",
                     "20261019080838_SharedTradingPlansAndScreenshots",
+                    "20261019100107_DirectPlaybookDefinitions",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

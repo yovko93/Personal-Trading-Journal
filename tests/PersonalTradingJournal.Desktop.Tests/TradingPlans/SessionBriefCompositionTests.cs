@@ -120,13 +120,34 @@ public sealed class SessionBriefCompositionTests
                     pageScroll.ScrollToEnd(); Layout(); Capture("draft-bottom");
                     editor.MaximumTrades.Text = "invalid"; Pump(vm.SaveAsync()); Layout(); Capture("invalid");
                     Assert.Equal("invalid", editor.MaximumTrades.Text); Assert.True(editor.HasValidationErrors);
+                    Assert.Equal(PlanNoticeKind.Warning, vm.Notice.Kind);
                     editor.MaximumTrades.Text = "3"; foreach (var check in editor.Checklist) check.IsChecked = true;
-                    Pump(vm.SaveAsync()); Pump(vm.MarkReadyAsync());
+                    pageScroll.ScrollToTop();
+                    fixture.Store.Status = TradingPlanWriteStatus.StorageFailure;
+                    Pump(vm.SaveAsync()); Layout(); Capture("save-error");
+                    Assert.Equal(PlanNoticeKind.Error, vm.Notice.Kind); Assert.True(editor.IsDirty);
+                    fixture.Store.Status = null;
+                    Pump(vm.SaveAsync()); Layout(); Capture("save-success");
+                    Assert.Equal(PlanNoticeKind.Success, vm.Notice.Kind);
+                    var notice = (ContentControl)Find(page, "Status");
+                    Assert.Equal(vm.Notice, notice.Content);
+                    var announcement = Descendants(notice).OfType<TextBlock>().Single(t => t.Name == "NoticeText");
+                    Assert.Equal(vm.Notice.AccessibleText, System.Windows.Automation.AutomationProperties.GetName(announcement));
+                    Assert.InRange(announcement.ActualWidth, 1, page.ActualWidth);
+                    Pump(vm.MarkReadyAsync());
                     Assert.True(vm.Editor!.IsReadOnly);
                     Assert.All(vm.Editor.VisibleScreenshots, s => Assert.NotNull(s.Thumbnail));
                     Assert.False(vm.Editor.Scenarios[0].ToggleRoleCommand.CanExecute(null));
                     Assert.False(vm.Editor.VisibleScreenshots[0].RemoveCommand.CanExecute(null));
                     ((ScrollViewer)Find(page, "PageScroll")).ScrollToTop(); Layout(); Capture("ready");
+                    Assert.False(save.IsEnabled);
+                    // Same compiled template: read-only information and empty-state collapse, without a second notification service.
+                    var statusBinding = System.Windows.Data.BindingOperations.GetBindingBase(notice, ContentControl.ContentProperty)!;
+                    notice.Content = new PlanNotice("Read-only saved preparation. Start Draft / Edit to change working content.");
+                    Layout(); Capture("readonly-info");
+                    notice.Content = new PlanNotice(""); Layout();
+                    Assert.Equal(0, notice.ActualHeight);
+                    notice.SetBinding(ContentControl.ContentProperty, statusBinding); Layout();
                     pageScroll.ScrollToEnd(); Layout(); Capture("ready-bottom");
 
                     void Capture(string state)

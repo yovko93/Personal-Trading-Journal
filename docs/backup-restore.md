@@ -1,5 +1,11 @@
 # Backup and restore — M16
 
+## Direct Playbook definitions — current compatibility
+
+Current schema includes `20261019100107_DirectPlaybookDefinitions`. Complete backups package current-only Playbook images as well as legacy capture/Trade/Plan references, verify bytes and hashes, and reconcile mutable definition JSON with its normalized example index before publication/preflight/restore. Recovery capture uses the same complete inventory. Current definitions and legacy evidence remain separate after restore.
+
+Logical export **v12** adds `currentPlaybooks` and `currentPlaybookExamples`; it retains all prior tables and historical payloads. v11 exports lack current-definition representation and are not treated as v12. JSON/CSV remain non-restorable and contain screenshot **metadata only**. Archives/exports are unencrypted; credentials remain excluded. Older-schema archive restore remains deferred: installed databases migrate additively, restore requires the current schema and never migrates an archive. [Tests, results and exact files](trading-plan.md#direct-playbook-editing-and-themed-feedback-before-m2110). Earlier compatibility sections below describe their dated versions.
+
 ## Shared Trading Plans and screenshot assets — current compatibility
 
 Migration `20261019080838_SharedTradingPlansAndScreenshots` preserves exact-Account Plans and adds nullable shared scope with separate partial uniqueness plus the immutable `TradingPlanAssets` ledger. Current-schema complete backups include all retained Plan screenshot binaries alongside Trade/Playbook images. Packaging, preflight and offline restore check sizes/hashes and reconcile Draft/Ready attachment metadata against that ledger. Synthetic backup → preflight → offline restore checks compare original image bytes and frozen Ready attachments.

@@ -50,7 +50,11 @@ public sealed partial class TradingPlanWorkspaceViewModel
     public IReadOnlyList<PlanHistoryStatusOption> HistoryStatuses { get; } = [new(null, "Draft and Ready"), new(TradingPlanStatus.Draft, "Draft (including after Ready)"), new(TradingPlanStatus.Ready, "Ready")];
     public PlanHistoryStatusOption SelectedHistoryStatus { get => HistoryStatuses.Single(s => s.Status == HistoryStatus); set { if (value is not null) HistoryStatus = value.Status; } }
     public string HistoryError => _historyError;
-    public string HistoryMessage { get => _historyMessage; private set { if (SetProperty(ref _historyMessage, value)) OnPropertyChanged(nameof(TransferNotice)); } }
+    public string HistoryMessage { get => _historyMessage; private set { if (SetProperty(ref _historyMessage, value)) { OnPropertyChanged(nameof(TransferNotice)); OnPropertyChanged(nameof(HistoryNotice)); } } }
+    public PlanNotice HistoryNotice => new(HistoryMessage, _historyNoticeKind);
+    private PlanNoticeKind _historyNoticeKind;
+    private void ReportHistory(string text, PlanNoticeKind kind = PlanNoticeKind.Info)
+    { _historyNoticeKind = kind; HistoryMessage = text; OnPropertyChanged(nameof(HistoryNotice)); }
     public string TransferNotice => _transferAttempted ? HistoryMessage : "";
     public bool HasUnappliedHistory => _appliedHistory is not null && (!TryHistoryQuery(out var q) || q!.AccountId != _appliedHistory.AccountId ||
         q.FirstDate != _appliedHistory.FirstDate || q.LastDate != _appliedHistory.LastDate || q.Status != _appliedHistory.Status);
@@ -131,7 +135,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
         if (!CanUseHistory || !ParseHistoryDate(HistoryFrom, out var first) || !ParseHistoryDate(HistoryTo, out var last) || first > last)
         { _historyError = "Enter valid inclusive From/To dates before discovering saved Accounts."; NotifyHistory(); return Task.CompletedTask; }
         if (more && (_discoveryRange != (first, last) || !HasMoreHistoryAccounts))
-        { HistoryMessage = "Dates changed. Select Find saved Accounts to start a fresh discovery."; return Task.CompletedTask; }
+        { ReportHistory("Dates changed. Select Find saved Accounts to start a fresh discovery.", PlanNoticeKind.Warning); return Task.CompletedTask; }
         _historyError = "";
         var offset = more ? _discoveryOffset + HistoryPageSize : 0;
         return HistoryReadAsync(async (ct, owns) =>
@@ -142,7 +146,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             // Retain discovered identities already selected; never substitute a same-name current Account.
             foreach (var a in rows.Take(HistoryPageSize))
             { _discoveredAccounts.RemoveAll(x => x.Id == a.AccountId); _discoveredAccounts.Add(new(a.AccountId, a.Name, a.Currency, a.IsActive, a.IsAvailable)); }
-            _historyError = ""; HistoryMessage = "Saved Account identities added to the History selector. Choose one, then Search. Unavailable Accounts remain read-only.";
+            _historyError = ""; ReportHistory("Saved Account identities added to the History selector. Choose one, then Search. Unavailable Accounts remain read-only.", PlanNoticeKind.Info);
         });
     }
     public Task SearchHistoryAsync()
@@ -172,7 +176,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             var rows = await Task.Run(() => _store.HistoryAsync(query, cursor, ct), ct);
             if (!owns()) return;
             if (page == _historyCursors.Count) _historyCursors.Add(cursor);
-            _historyPage = page; PublishPlans(rows); HistoryMessage = "Saved Plan page loaded.";
+            _historyPage = page; PublishPlans(rows); ReportHistory("Saved Plan page loaded.", PlanNoticeKind.Info);
         });
     }
     private void PublishPlans(IReadOnlyList<TradingPlanLoadedState> rows)
@@ -216,7 +220,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             _viewedRevision = revision; HistoricalViewer = CreateEditor(plan, revision);
             await HistoricalViewer.LoadThumbnailsAsync(ct);
             if (!owns() || _historyPlan != plan) return;
-            HistoryMessage = "Showing frozen Ready preparation. Start Draft uses this revision on its original date; Copy Forward uses it on another date. Neither uses unsaved editor input.";
+            ReportHistory("Showing frozen Ready preparation. Start Draft uses this revision on its original date; Copy Forward uses it on another date. Neither uses unsaved editor input.", PlanNoticeKind.Info);
         });
     }
     private void ClearHistorical()
@@ -228,11 +232,11 @@ public sealed partial class TradingPlanWorkspaceViewModel
     private async Task HistoryReadCoreAsync(Func<CancellationToken, Func<bool>, Task> read)
     {
         _historyLoad?.Cancel(); using var cancellation = new CancellationTokenSource(); _historyLoad = cancellation;
-        long epoch = ++_historyEpoch; _historyLoading = true; HistoryMessage = "Loading saved preparation…"; Notify();
+        long epoch = ++_historyEpoch; _historyLoading = true; ReportHistory("Loading saved preparation…", PlanNoticeKind.Info); Notify();
         bool Owns() => !_disposed && epoch == _historyEpoch && !cancellation.IsCancellationRequested;
         try { await read(cancellation.Token, Owns); cancellation.Token.ThrowIfCancellationRequested(); }
-        catch (OperationCanceledException) { if (epoch == _historyEpoch && !_disposed) HistoryMessage = "History loading cancelled. Existing editor input is retained; select Search or Revisions to retry."; }
-        catch (Exception) { if (epoch == _historyEpoch && !_disposed) HistoryMessage = "Saved preparation could not be loaded. Retry the action; no Plan was changed."; }
+        catch (OperationCanceledException) { if (epoch == _historyEpoch && !_disposed) ReportHistory("History loading cancelled. Existing editor input is retained; select Search or Revisions to retry.", PlanNoticeKind.Info); }
+        catch (Exception) { if (epoch == _historyEpoch && !_disposed) ReportHistory("Saved preparation could not be loaded. Retry the action; no Plan was changed.", PlanNoticeKind.Error); }
         finally { if (epoch == _historyEpoch) { _historyLoading = false; _historyLoad = null; Notify(); } }
     }
     public async Task OpenHistoryPlanAsync(TradingPlanKey key)
@@ -242,23 +246,23 @@ public sealed partial class TradingPlanWorkspaceViewModel
         {
             // Explicit history/recovery opening must re-read even an already selected identity:
             // another writer may have created its Draft while our editor still shows Ready.
-            if (!await PrepareLeaveAsync()) { HistoryMessage = Message; return; }
+            if (!await PrepareLeaveAsync()) { ReportHistory(Message, Notice.Kind); return; }
             CompleteLeave(); ReplaceEditor(null); _dateText = Format(_date); ValidateDate();
             _contextLoaded = false; RestoreSelectors(); await LoadAsync(refreshAccounts: false);
-            if (Editor?.Key == key) SelectTab(false); else HistoryMessage = Message;
+            if (Editor?.Key == key) SelectTab(false); else ReportHistory(Message, Notice.Kind);
             return;
         }
         var option = Accounts.FirstOrDefault(a => a.Id == key.AccountId) ?? new(key.AccountId,
             _viewedRevision?.References.Account.Name ?? "Unavailable Account", _viewedRevision?.References.Account.Currency ?? "Unknown currency", false, false);
         var rawDate = _dateText;
         if (await SelectContextAsync(key.NewYorkDate, option))
-        { if (Editor?.Key == key) SelectTab(false); else HistoryMessage = Message; }
+        { if (Editor?.Key == key) SelectTab(false); else ReportHistory(Message, Notice.Kind); }
         else
         {
             // Toolbar selection normally restores its displayed date on a veto. History is
             // independent: do not normalize the retained Session Brief's malformed raw input.
             _dateText = rawDate; ValidateDate(); RestoreSelectors();
-            HistoryMessage = Message;
+            ReportHistory(Message, Notice.Kind);
         }
     }
     public async Task TransferAsync(bool copy)
@@ -268,11 +272,11 @@ public sealed partial class TradingPlanWorkspaceViewModel
         if (copy && (!ParseHistoryDate(CopyDate, out targetDate) || targetDate == source.Key.NewYorkDate))
         { _copyError = "Enter a valid, different New York target date. Copy Forward stays within the source Account."; NotifyHistory(); return; }
         _copyError = "";
-        _transferAttempted = true; HistoryMessage = "Resolving pending editor input before using the selected Ready revision…";
+        _transferAttempted = true; ReportHistory("Resolving pending editor input before using the selected Ready revision…", PlanNoticeKind.Info);
         _historyTransition = true; Notify();
         try
         {
-            if (!await PrepareLeaveAsync()) { HistoryMessage = Message; return; }
+            if (!await PrepareLeaveAsync()) { ReportHistory(Message, Notice.Kind); return; }
             // A guard may pump the dispatcher. Do not attach a different selection afterward.
             if (_viewedRevision != source || _historyPlan != owner || _disposed) return;
             _writing = true; Notify();
@@ -293,7 +297,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
                 (source.Content.RiskLimits.RiskPerTrade.HasValue || source.Content.RiskLimits.DailyLossLimit.HasValue))
             {
                 if (!_interaction.ConfirmCurrency(source.References.Account.Currency, current.Currency))
-                { HistoryMessage = "Cancelled. Saved preparation and editor input are unchanged."; return; }
+                { ReportHistory("Cancelled. Saved preparation and editor input are unchanged.", PlanNoticeKind.Info); return; }
                 currency = current.Currency;
             }
             var result = await Task.Run(() => _store.WriteAsync(new(copy ? TradingPlanWriteOperation.CopyForward : TradingPlanWriteOperation.StartDraft,
@@ -301,7 +305,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             if (result.Status != TradingPlanWriteStatus.Success)
             {
                 _recoveryTarget = result.Status is TradingPlanWriteStatus.TargetAlreadyExists or TradingPlanWriteStatus.Conflict ? target : null;
-                HistoryMessage = result.Status switch
+                ReportHistory(result.Status switch
                 {
                     TradingPlanWriteStatus.TargetAlreadyExists => "A Plan already exists for that Account and date. Nothing was overwritten. Open existing Plan or choose another date.",
                     TradingPlanWriteStatus.Conflict => "The Plan changed or already has a working Draft. Reload Revisions, or open the existing Plan; nothing was overwritten.",
@@ -309,7 +313,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
                     TradingPlanWriteStatus.ReferenceUnavailable => "A required Account, Instrument, Playbook or Rule is inactive or unavailable. Reopen or review it before retrying; the historical revision remains readable.",
                     TradingPlanWriteStatus.Cancelled => "Operation cancelled. No success was reported; editor input is retained.",
                     _ => "The Draft could not be saved and verified. Input is retained. Check the target before retrying."
-                }; return;
+                }, PlanNotice.ForWrite(result.Status)); return;
             }
             var plan = result.Plan;
             var expected = copy ? source.Content.CopyForward() : new TradingPlanContent(source.Content.Session, source.Content.Focus, source.Content.Intent,
@@ -317,14 +321,14 @@ public sealed partial class TradingPlanWorkspaceViewModel
             if (plan?.WorkingDraft is null || plan.Key != target || !SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, expected) ||
                 (copy ? plan.Id == owner.Id || plan.LatestReadyRevision is not null : plan.Id != owner.Id || plan.Version <= owner.Version ||
                     plan.LatestReadyRevision?.Id != owner.LatestReadyRevision?.Id || plan.WorkingDraft.DerivedFromRevision != source.Id))
-            { HistoryMessage = "Commit readback could not be verified. Input retained; open the target to check its stored state before retrying."; _recoveryTarget = target; return; }
+            { ReportHistory("Commit readback could not be verified. Input retained; open the target to check its stored state before retrying.", PlanNoticeKind.Error); _recoveryTarget = target; return; }
             // Committed success wins over late cancellation. Replace only with the verified returned aggregate.
             var candidate = CreateEditor(plan);
             _date = target.NewYorkDate; _dateText = Format(_date); ValidateDate();
             _account = Accounts.FirstOrDefault(a => a.Id == target.AccountId) ?? new(target.AccountId, source.References.Account.Name, source.References.Account.Currency, false, false);
             ReplaceEditor(candidate); _contextLoaded = true; ClearLeaveConsent(); RestoreSelectors(); SelectTab(false);
             string success = copy ? "Copied Draft saved and verified. Daily context and all confirmations were reset; source Ready revision preserved." : "Draft saved and verified from the selected revision. Confirm preparation again; Ready history is preserved.";
-            HistoryMessage = Message = success;
+            Report(success, PlanNoticeKind.Success); ReportHistory(success, PlanNoticeKind.Success);
             try
             {
                 await LoadSourcesAsync(candidate, CancellationToken.None);
@@ -335,12 +339,12 @@ public sealed partial class TradingPlanWorkspaceViewModel
                 }
                 // Reference/catalog loading also publishes editor messages. Do not let those
                 // replace the verified transfer result that the user needs to see.
-                HistoryMessage = Message = success;
+                Report(success, PlanNoticeKind.Success); ReportHistory(success, PlanNoticeKind.Success);
             }
-            catch (Exception) { HistoryMessage = Message = "Draft committed and read back. Supporting lists could not refresh; reload before further editing. No automatic retry was made."; }
+            catch (Exception) { Report("Draft committed and read back. Supporting lists could not refresh; reload before further editing. No automatic retry was made.", PlanNoticeKind.Error); ReportHistory(Message, Notice.Kind); }
         }
-        catch (OperationCanceledException) { HistoryMessage = "Operation cancelled. Input and the source revision are retained; no success reported."; }
-        catch (Exception) { HistoryMessage = "Operation could not be verified. Input is retained; check the target before retrying."; _recoveryTarget = target; }
+        catch (OperationCanceledException) { ReportHistory("Operation cancelled. Input and the source revision are retained; no success reported.", PlanNoticeKind.Info); }
+        catch (Exception) { ReportHistory("Operation could not be verified. Input is retained; check the target before retrying.", PlanNoticeKind.Error); _recoveryTarget = target; }
         finally { _write = null; }
     }
     private void NotifyHistory()

@@ -13,12 +13,32 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.Setups;
 
 public sealed partial class PlaybookPersistenceTests
 {
+    // Compatibility-only author: the active Save use case no longer creates these legacy rows.
+    private sealed class LegacyAuthor(Fixture f, Graph g)
+    {
+        internal async Task<PersonalTradingJournal.Domain.Setups.TradingSetupPlaybookRevision> ExecuteAsync(SaveTradingSetupPlaybookCommand command)
+        {
+            var prior = await f.Store.GetLatestAsync(g.Setup.Id);
+            var value = prior is null
+                ? PersonalTradingJournal.Domain.Setups.TradingSetupPlaybookRevision.Create(g.Setup, command.Guidance, Now)
+                : prior.Revise(g.Setup, command.ExpectedRevision, command.Guidance, Now);
+            Assert.True(await f.Store.TryAppendAsync(value, command.ExpectedRevision, g.Setup.UpdatedAtUtc));
+            return value;
+        }
+    }
+    private static async Task<PersonalTradingJournal.Domain.Setups.TradingSetupPlaybookRevision> SaveLegacyImage(Fixture f, Graph g)
+    {
+        var image = await f.Get<IPlaybookImageStorage>().StoreAsync("legacy.png", ImageBytes);
+        return await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 0, Guidance(new PersonalTradingJournal.Domain.Setups.PlaybookExample(
+            Guid.NewGuid(), "Legacy annotation", kind: PersonalTradingJournal.Domain.Setups.PlaybookExampleKind.Valid, image: image))));
+    }
+
     [Fact]
     public async Task DeleteMiddleRetainsSharedImagesAndCurrentAndNeverReusesNumbersAfterRestart()
     {
-        await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await SaveImage(f, g);
+        await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await SaveLegacyImage(f, g);
         var image = first.Guidance.Examples.Single().Image!;
-        var save = f.Get<SaveTradingSetupPlaybookUseCase>();
+        var save = new LegacyAuthor(f, g);
         await save.ExecuteAsync(new(g.Setup.Id, 1, first.Guidance));
         await save.ExecuteAsync(new(g.Setup.Id, 2, first.Guidance));
         var deletion = f.Get<IPlaybookRevisionDeletion>();
@@ -29,7 +49,7 @@ public sealed partial class PlaybookPersistenceTests
         await f.Restart();
         Assert.Equal(new[] { 3, 1 }, (await f.History.GetHistoryAsync(g.Setup.Id, null, 10)).Select(r => r.Revision));
         Assert.Equal(ImageBytes, await f.Get<IPlaybookImageStorage>().ReadAsync(image));
-        Assert.Equal(4, (await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 3, Guidance()))).Revision);
+        Assert.Equal(4, (await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 3, Guidance()))).Revision);
         await using var db = f.Context();
         Assert.False(await db.PlaybookExamples.AnyAsync(e => e.Revision == 2)); Assert.Single(await db.Trades.ToArrayAsync());
         Assert.Empty(await db.Database.SqlQueryRaw<string>("SELECT 'broken' AS Value FROM pragma_foreign_key_check").ToArrayAsync());
@@ -46,7 +66,7 @@ public sealed partial class PlaybookPersistenceTests
     public async Task TriggerMigrationPreservesExistingGuidanceAndAllowsOnlyEligibleOlderDeletion()
     {
         await using var f = await Fixture.Create(); var g = await f.Seed(); await f.Save(g, true);
-        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
+        await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         await using var db = f.Context(); var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261011175435_AddTradePlaybookAssociations");
         await Assert.ThrowsAsync<SqliteException>(() => db.Database.ExecuteSqlRawAsync("DELETE FROM PlaybookExamples WHERE Revision=1"));
@@ -69,7 +89,7 @@ public sealed partial class PlaybookPersistenceTests
             Assert.True(await links.TryApplyAsync(await links.PreviewAsync(g.Trade.Id, null)));
         }
         else Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
-        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
+        await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         var deletion = f.Get<IPlaybookRevisionDeletion>();
         Assert.Equal(PlaybookRevisionDeletionStatus.Referenced, (await deletion.CheckAsync(g.Setup.Id, 1)).Status);
         Assert.Equal(PlaybookRevisionDeletionStatus.Referenced, await deletion.DeleteAsync(g.Setup.Id, 1, 2));
@@ -83,7 +103,7 @@ public sealed partial class PlaybookPersistenceTests
     public async Task NewReferenceAfterCheckAndNewRevisionAfterConfirmationAreRechecked()
     {
         await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await f.Save(g);
-        var save = f.Get<SaveTradingSetupPlaybookUseCase>(); await save.ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
+        var save = new LegacyAuthor(f, g); await save.ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         var deletion = f.Get<IPlaybookRevisionDeletion>();
         Assert.Equal(PlaybookRevisionDeletionStatus.Eligible, (await deletion.CheckAsync(g.Setup.Id, 1)).Status);
         Assert.True(await f.Contexts.TryAddAsync(TradePlaybookContext.Capture(g.Trade, g.Setup, first, Now.AddMinutes(1)), Now));
@@ -97,7 +117,7 @@ public sealed partial class PlaybookPersistenceTests
     public async Task ConcurrentDeletionHasOneWinnerAndFailureRollsBackExampleRemoval()
     {
         await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await f.Save(g, true);
-        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
+        await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         var deletion = f.Get<IPlaybookRevisionDeletion>();
         await using var db = f.Context();
         await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER SyntheticDeleteFailure BEFORE DELETE ON PlaybookRevisions BEGIN SELECT RAISE(ABORT, 'synthetic'); END;");
@@ -114,7 +134,7 @@ public sealed partial class PlaybookPersistenceTests
     [Fact]
     public async Task SavedAnalysisIsSelfContainedAfterTradeAndEligibleRevisionDeletion()
     {
-        await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await SaveImage(f, g);
+        await using var f = await Fixture.Create(); var g = await f.Seed(); var first = await SaveLegacyImage(f, g);
         var links = f.Get<ITradePlaybookAssociationStore>();
         Assert.True(await links.TryApplyAsync(await links.PreviewAsync(g.Trade.Id, g.Setup.Id)));
         var packet = CoachingEvidencePacketBuilder.Build(await f.Get<IDailyReviewEvidenceReader>().GetAsync(new(new(2026, 10, 11)))).Packet!;
@@ -122,7 +142,7 @@ public sealed partial class PlaybookPersistenceTests
             new("Synthetic plan", [CoachingEvidencePacketBuilder.PlaybookSource(g.Trade.Id, 1)]), [], [], [], []);
         var saved = await f.Get<ICoachingAnalysisRepository>().SaveAsync(CoachingAnalysisSnapshot.Create(packet,
             new(CoachingGenerationStatus.Success, response, new("Fake", "test-model", "synthetic"), "Success"), Now));
-        await f.Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
+        await new LegacyAuthor(f, g).ExecuteAsync(new(g.Setup.Id, 1, Guidance()));
         Assert.NotNull(await f.Get<ITradeDeletionStore>().DeleteAsync(g.Trade.Id));
         Assert.Equal(PlaybookRevisionDeletionStatus.Deleted, await f.Get<IPlaybookRevisionDeletion>().DeleteAsync(g.Setup.Id, 1, 2));
         await f.Restart();

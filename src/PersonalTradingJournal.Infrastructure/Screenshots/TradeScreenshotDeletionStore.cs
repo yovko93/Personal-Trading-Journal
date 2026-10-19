@@ -54,13 +54,15 @@ public sealed class TradeScreenshotDeletionStore :
             return null;
         }
 
-        if (await context.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId == screenshotId, cancellationToken))
+        if (await context.PlaybookExamples.AnyAsync(e => e.SourceScreenshotId == screenshotId, cancellationToken) ||
+            await context.CurrentPlaybookExamples.AnyAsync(e => e.SourceScreenshotId == screenshotId, cancellationToken))
             throw new InvalidOperationException("This screenshot is retained by Playbook history and cannot be deleted.");
         // SQLite NOCASE only folds ASCII, but legacy storage keys may contain Unicode.
         // Match the other deletion paths' ordinal case-insensitive ownership rule, streaming keys.
         bool retained = false;
         await foreach (string key in context.TradeScreenshots.Where(s => s.Id != screenshotId)
                            .Select(s => s.StorageKey).Concat(context.PlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
+                           .Concat(context.CurrentPlaybookExamples.Where(e => e.ImageStorageKey != null).Select(e => e.ImageStorageKey!))
                            .AsAsyncEnumerable().WithCancellation(cancellationToken))
         {
             if (!StringComparer.OrdinalIgnoreCase.Equals(key, record.StorageKey)) continue;

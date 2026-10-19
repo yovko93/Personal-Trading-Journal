@@ -68,6 +68,8 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingPlanReadyRecord),
             typeof(TradingPlanAssetRecord),
             typeof(PlaybookRevisionRecord),
+            typeof(CurrentPlaybookRecord),
+            typeof(CurrentPlaybookExampleRecord),
             typeof(PlaybookExampleRecord),
             typeof(TradePlaybookContextRecord),
             typeof(TradePlaybookAssociationRecord),
@@ -201,7 +203,13 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
         AssertForeignKey(model, typeof(TradingPlanAssetRecord), nameof(TradingPlanAssetRecord.PlanId),
             typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
-        Assert.Equal(24, foreignKeys.Count);
+        AssertForeignKey(model, typeof(CurrentPlaybookRecord), nameof(CurrentPlaybookRecord.TradingSetupId), typeof(TradingSetupRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.TradingSetupId), typeof(CurrentPlaybookRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.SourceScreenshotId), typeof(TradeScreenshotRecord), false, DeleteBehavior.Restrict);
+        var bridge = Assert.Single(foreignKeys, x => x.DeclaringEntityType.ClrType == typeof(CurrentPlaybookRecord) && x.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
+        Assert.Equal(new[] { "TradingSetupId", "LegacyRevision" }, bridge.Properties.Select(x => x.Name));
+        Assert.Equal(DeleteBehavior.Restrict, bridge.DeleteBehavior);
+        Assert.Equal(28, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
@@ -516,7 +524,7 @@ public sealed class SqlitePersistenceIntegrityTests
                 candidate.Properties[0].Name == foreignKeyProperty);
 
         Assert.Equal(principalType, foreignKey.PrincipalEntityType.ClrType);
-        Assert.Equal("Id", foreignKey.PrincipalKey.Properties.Single().Name);
+        Assert.Equal(principalType == typeof(CurrentPlaybookRecord) ? "TradingSetupId" : "Id", foreignKey.PrincipalKey.Properties.Single().Name);
         Assert.Equal(isRequired, foreignKey.IsRequired);
         Assert.Equal(deleteBehavior, foreignKey.DeleteBehavior);
     }

@@ -337,7 +337,7 @@ public sealed partial class PlaybookPersistenceTests
         string output = Path.Combine(f.Root, "export");
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(output)).Succeeded);
         using var data = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(11, data.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(12, data.RootElement.GetProperty("version").GetInt32());
         var tables = data.RootElement.GetProperty("tables");
         var revisions = tables.GetProperty("playbookRevisions");
         Assert.Equal(new[] { 1, 2 }, revisions.EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));
@@ -480,7 +480,10 @@ public sealed partial class PlaybookPersistenceTests
         internal async Task<TradingSetupPlaybookRevision> Save(Graph g, bool example = false)
         {
             var guidance = example ? Guidance(PlaybookExample.FromScreenshot(Guid.NewGuid(), "Synthetic annotated retest", g.Screenshot)) : Guidance();
-            return await Get<SaveTradingSetupPlaybookUseCase>().ExecuteAsync(new(g.Setup.Id, 0, guidance));
+            // Explicit legacy fixture: these tests protect old immutable rows/captures, not current authoring.
+            var revision = TradingSetupPlaybookRevision.Create(g.Setup, guidance, Now);
+            Assert.True(await Store.TryAppendAsync(revision, 0, g.Setup.UpdatedAtUtc));
+            return revision;
         }
         public async ValueTask DisposeAsync()
         { await services.DisposeAsync(); SqliteTestPoolCleanup.ClearPersistencePools(Paths.DatabasePath); Directory.Delete(Root, true); }

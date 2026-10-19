@@ -95,22 +95,23 @@ public sealed partial class SessionPreparationViewModel
                 var link = group.Key;
                 var live = items.SingleOrDefault(s => s.Id == link.SetupId);
                 var latest = live is null ? null : await Task.Run(() => _playbooks.GetLatestAsync(link.SetupId, operation.Token), operation.Token);
-                var exact = IsReadOnly ? null : await Task.Run(() => _playbookHistory.GetRevisionAsync(link.SetupId, link.ExpectedPlaybookRevision, operation.Token), operation.Token);
+                var exact = IsReadOnly ? null : latest?.Revision == link.ExpectedPlaybookRevision ? latest :
+                    await Task.Run(() => _playbookHistory.GetRevisionAsync(link.SetupId, link.ExpectedPlaybookRevision, operation.Token), operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 foreach (var row in group)
                 {
                     string status = live is null ? "Current Setup unavailable." : !live.IsActive ? "Current Setup archived; new links are not permitted." :
                         latest?.Revision != link.ExpectedPlaybookRevision || live.UpdatedAtUtc != link.ExpectedUpdatedAtUtc
                         ? (IsReadOnly ? "Current Setup changed. The saved context remains unchanged. Start a Draft to change preparation."
-                            : "Current Setup changed. Explicitly select its current revision, then refresh references and reconfirm.") : "Selected reference is current.";
+                            : "Current Setup changed. Explicitly select its current definition, then refresh references and reconfirm.") : "Selected reference is current.";
                     if (IsReadOnly) row.Present(FrozenText(link.SetupId) + "\n\n" + status, live is not null);
-                    else row.Present(exact is null ? "Selected Playbook revision unavailable. Relink or remove it; scenario input is retained.\n" + status :
-                        $"{exact.SetupName} · selected revision {exact.Revision}\n{Guidance(exact.Guidance)}\n\n{status}", live is not null);
+                    else row.Present(exact is null ? "Previously selected Playbook content is no longer current or available. Relink or remove it; scenario input is retained.\n" + status :
+                        $"{exact.SetupName} · selected Playbook\n{Guidance(exact.Guidance)}\n\n{status}", live is not null);
                 }
             }
         }
-        catch (OperationCanceledException) { Message = "Playbook loading cancelled. Draft links and input are unchanged."; }
-        catch (Exception) { Message = "Playbooks could not be loaded. Draft links and input are unchanged; try again."; }
+        catch (OperationCanceledException) { Report("Playbook loading cancelled. Draft links and input are unchanged.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Playbooks could not be loaded. Draft links and input are unchanged; try again.", PlanNoticeKind.Error); }
         finally { End(); }
     }
 
@@ -124,13 +125,13 @@ public sealed partial class SessionPreparationViewModel
             var revision = await Task.Run(() => _playbooks.GetLatestAsync(candidate.Id, operation.Token), operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (live is not { IsActive: true } || revision is null || revision.TradingSetupId != candidate.Id)
-            { Message = "Choose an active Setup with saved Playbook guidance. The previous link and scenario input are retained."; return; }
+            { Report("Choose an active Setup with saved Playbook guidance. The previous link and scenario input are retained.", PlanNoticeKind.Info); return; }
             row.SetLink(new(live.Id, revision.Revision, live.UpdatedAtUtc));
-            row.Present($"{live.Name} · selected revision {revision.Revision}\n{Guidance(revision.Guidance)}\n\nAssociation is not verified adherence.", true);
-            Message = "Playbook selected for this Draft. Save rechecks its exact revision; changed references require explicit refresh and reconfirmation.";
+            row.Present($"{live.Name} · current Playbook\n{Guidance(revision.Guidance)}\n\nAssociation is not verified adherence.", true);
+            Report("Playbook selected for this Draft. Save rechecks its current content; changed references require explicit refresh and reconfirmation.", PlanNoticeKind.Warning);
         }
-        catch (OperationCanceledException) { Message = "Playbook selection cancelled. Previous link and input retained."; }
-        catch (Exception) { Message = "Playbook selection failed. Previous link and input retained; try again."; }
+        catch (OperationCanceledException) { Report("Playbook selection cancelled. Previous link and input retained.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("Playbook selection failed. Previous link and input retained; try again.", PlanNoticeKind.Error); }
         finally { End(); }
     }
     internal async Task RequestPlaybookAsync(ScenarioEditor row, CancellationToken ct)
@@ -138,21 +139,21 @@ public sealed partial class SessionPreparationViewModel
         if (IsBusy || _disposed || !_scenarios.Contains(row) || row.Setup is not { } link || PlaybookNavigation is not { } request) return;
         try
         {
-            if (!await request(link.SetupId, ct)) Message = "Playbook navigation was declined or the source is unavailable. Draft input is retained.";
+            if (!await request(link.SetupId, ct)) Report("Playbook navigation was declined or the source is unavailable. Draft input is retained.", PlanNoticeKind.Error);
         }
-        catch (OperationCanceledException) { Message = "Navigation cancelled. Draft input is retained."; }
-        catch (Exception) { Message = "The linked Playbook could not be opened. Draft input and saved context are retained."; }
+        catch (OperationCanceledException) { Report("Navigation cancelled. Draft input is retained.", PlanNoticeKind.Info); }
+        catch (Exception) { Report("The linked Playbook could not be opened. Draft input and saved context are retained.", PlanNoticeKind.Error); }
     }
     internal void SetFrozenPlaybook(ScenarioEditor row)
     {
         if (row.Setup is { } link) row.Present(IsReadOnly ? FrozenText(link.SetupId) :
-            $"Selected Playbook revision {link.ExpectedPlaybookRevision}. Load Playbooks to inspect criteria and current availability.", false);
+            $"Selected Playbook. Load Playbooks to inspect criteria and current availability.", false);
     }
     private string FrozenText(Guid id)
     {
         var saved = (_historical ?? _plan.LatestReadyRevision)?.References.Setups.SingleOrDefault(s => s.SetupId == id);
         return saved is null ? "Saved Playbook context unavailable." :
-            $"{saved.Name} · saved revision {saved.Revision} · read-only\nMarket context\n{saved.MarketContext}\n\nEntry conditions\n{saved.EntryConditions}\n\nConfirmations\n{saved.Confirmations}\n\nInvalidation\n{saved.Invalidation}\n\nExecution guidance\n{saved.ExecutionGuidance}\n\nSaved context, not proof of adherence. Live navigation availability is checked separately.";
+            $"{saved.Name} · saved Plan-owned context · read-only\nMarket context\n{saved.MarketContext}\n\nEntry conditions\n{saved.EntryConditions}\n\nConfirmations\n{saved.Confirmations}\n\nInvalidation\n{saved.Invalidation}\n\nExecution guidance\n{saved.ExecutionGuidance}\n\nSaved context, not proof of adherence. Live navigation availability is checked separately.";
     }
     private static string Guidance(PersonalTradingJournal.Domain.Setups.PlaybookGuidance g) =>
         $"Market context\n{g.MarketContext}\n\nEntry conditions\n{g.EntryConditions}\n\nConfirmations\n{g.Confirmations}\n\nInvalidation\n{g.Invalidation}\n\nExecution guidance\n{g.ExecutionGuidance}";

@@ -1,5 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="PtjPlanReadyBrush" Color="#28655F" />
+    <SolidColorBrush x:Key="PtjPlanReadyHoverBrush" Color="#31756E" />
+    <SolidColorBrush x:Key="PtjPlanReadyPressedBrush" Color="#205B55" />
+    <SolidColorBrush x:Key="PtjPlanEditBrush" Color="#245B86" />
+    <SolidColorBrush x:Key="PtjPlanEditHoverBrush" Color="#306D9B" />
+    <SolidColorBrush x:Key="PtjPlanEditPressedBrush" Color="#1C5079" />
+    <SolidColorBrush x:Key="PtjPlanOnActionBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="PtjReviewStrengthSurfaceBrush" Color="#244D3F" />
     <SolidColorBrush x:Key="PtjReviewStrengthAccentBrush" Color="#93E9BA" />
     <SolidColorBrush x:Key="PtjReviewImproveSurfaceBrush" Color="#60412F" />
