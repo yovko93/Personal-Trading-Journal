@@ -1,5 +1,149 @@
 # Trading Plan
 
+## Shared preparation and timeframe screenshots before M21.10
+
+### Scope, currency and evidence
+
+Actual starting state was **clean develop**, HEAD `5953be5748cf009721169d77d4bf2fc0defbc8e7`. The supplied older dirty baseline had already been committed; this change preserves that compact Session Brief and its editor/navigation guards.
+
+- A fresh workspace selects **All Accounts**. This is one logical shared New York-date Plan, not a synthetic Account, copied Plans, or frozen list of Account IDs. `TradingPlanScope` distinguishes shared versus exact Account; nullable Account ID encodes shared scope without Guid.Empty. Separate SQLite partial unique indexes enforce global/date and exact-Account/date uniqueness.
+- Exact Account navigation, unavailable historical identities, Ready history and guarded scope switching remain supported. Copy Forward retains the source scope and currency but clears daily screenshots and existing daily/checklist fields according to the established policy.
+- Shared Drafts require explicit canonical currency. A fresh workspace defaults it only if active Accounts have one common currency; mixed/empty catalogs require entry. Limits are one trader-wide plan, not multiplied by Accounts. Currency edits invalidate risk confirmation; Ready freezes the chosen currency. No FX or monetary reinterpretation is introduced.
+- At each Trade's UTC entry/New York entry date, Review prefers the latest eligible exact-Account Ready revision, otherwise eligible global Ready preparation. Draft-only/retrospective exact Plans do not suppress fallback. Shared revisions are deduplicated by stable revision identity, including All accounts and period snapshots. Identity matches remain observations, never adherence.
+- Persisted Draft/Ready payload **v2** reconstructs legacy **v1** unchanged; old Account Plans are not merged. New `daily-coaching.v4` / `period-coaching.v4` use `review-preparation.v2`; saved v1/v2/v3 reviews and supported pending v2/v3 remain readable. Portable export **v11** is independently versioned. No image binaries, filenames or storage keys enter coaching packets; the handling text states images were not inspected.
+
+### Screenshots and scenarios
+
+The optional screenshot row supports **1m, 5m, 15m, 1h, 4h, D, W**, multiple thumbnails per selected Instrument, click-to-view and Draft-only Remove. The native picker filters PNG/JPEG; actual decoding is required, with existing **8 MiB**, **8192 pixels/side**, **16-million-pixel**, single-frame limits. Thumbnails decode to bounded size and release file handles. At most **24 attachments per Plan** are accepted; pending original bytes can occupy up to 192 MiB plus thumbnail/decoding overhead. No OCR, annotation editor or vision call is added.
+
+Selected bytes stay in memory until explicit Save. Storage publishes a fresh immutable key; metadata is written inside the existing optimistic SQLite transaction and verified readback. Failure/cancellation attempts reference-aware compensation and reports cleanup failure, retaining input for retry. Database/file operations are **not** claimed atomic. Immutable `TradingPlanAssets` ownership and Ready/Draft metadata preserve original bytes and timeframe. Removing a saved Draft attachment does not physically delete retained assets; even assets no longer present in any Ready are conservatively retained. No garbage collector is introduced. Copy Forward never carries screenshots into a new date.
+
+Complete current-schema backup/preflight/offline restore includes retained image binaries and checks Draft/Ready metadata against the asset ledger plus sizes/hashes. Logical export v11 carries metadata only, not image binaries, and is not a restorable backup. Older-schema archive restore remains deferred; this migration's downgrade with stored Plans/assets is refused (empty-schema rollback remains supported) rather than discarding assets or fabricating scope.
+
+Instrument actions are **Add** (teal) and **Remove** (red outline), reusing the existing commands. Scenario/screenshot references block Instrument removal. Scenario Name, IF, THEN, INVALID IF and Playbook are optional through Save/Ready/reconstruction; blanks remain unspecified, and empty cards are retained. Direction/identity/reference validity and other existing readiness requirements remain. The prior “Remove trading scenarios…” blocker came from explicit StandAside intent, not missing prose: ordinary no-trade text may coexist with scenarios, while the visible **Stand aside only** checkbox deliberately rejects a contradictory scenario list and explains how to resolve it.
+
+Visible scenario-header **Delete** uses the existing mutation and confirmation invalidation. Primary/Alternative and Long/Short are independent keyboard-operable pills with state/next-action accessible labels, teal/violet text and arrow cues, opaque focus/hover/pressed/disabled styling; card accent follows direction. Ready pills and attachment mutations are disabled. After Mark Ready, thumbnails load on the new read-only editor immediately.
+
+### Verification and remaining acceptance
+
+Only synthetic databases/images and fake HTTP were used. No production journal, API/provider request, commit, push, merge or branch switch. M21.10 remains paused.
+
+Focused verification and complete-gate results are recorded below after the final run. Initial runs exposed outdated exact-Account fixture indexing and packet/export version assertions; these were updated for the intentional contract changes. A new fixture initially added a Domain Account directly to an EF record set (compile error, corrected through the repository), and a new legacy test compared reference-class instances rather than their immutable fields (corrected to compare all fields). No behavioral assertion/deadline was relaxed.
+
+Automated production-resource shell-tree renders cover Light/Dark at **1586×1000 DIP/96 DPI** and **1000×850 DIP/240 DPI**, with global scope, compact empty screenshots, two timeframe thumbnails, optional blank scenario text, expanded Instrument actions, independent pill combinations, invalid input and read-only Ready states. Narrow layout stacks and requires scrolling; screenshots necessarily increase preparation height. These are compiled WPF renders and automated interactions—not a live mouse/picker, human keyboard or Narrator result. Files are under `artifacts/plan-changes/final/`; test results under `TestResults/PlanChanges/`.
+
+Human native picker/full-image interaction, keyboard/Narrator, actual isolated-app restart, and matching CI remain pending. Synthetic SQLite restart and offline restore are covered separately. A passing current gate must not erase the previously recorded Calendar restored-size/117.868s and Breakdown F4 variability, or imply those historical failures were fixed.
+
+### Final local results
+
+Focused final feature run: **404 passed** (Domain 77, Application 35, Infrastructure 145, Desktop 147), zero failed/skipped, exit 0;
+`dotnet test PersonalTradingJournal.sln -c Release --no-restore` with TradingPlans/ReviewPreparation/ManualReview/PortableExport/PeriodSqlite/GroqInputBudget/PeriodCoachingProvider filters, results in `TestResults/PlanChanges/verified-focused/`.
+
+The first complete gate (`full-gate/release-20261019-083756-23293158b0094736bbef4dc5c5f2efbe`) finished **4,866 passed / 10 failed / zero skipped**, exit 1. Five migration round-trip cases hit an over-broad unconditional downgrade rejection; the corrected migration now checks for stored Plans/assets before changing anything and permits only an empty Plan schema to downgrade. The other five failures were exact-schema expectations (migration count, table/column inventory and EF FK/index/entity inventory). Expectations now explicitly include the asset ledger, restricted ownership and both partial scope indexes; none were removed or weakened. SQLite's nullable-column rebuild changes Plan column order, now asserted exactly. All **34 targeted migration/integrity/retention checks pass** in `TestResults/PlanChanges/schema-verified/`. Desktop in that first gate passed **1,859/1,859**, including 88 exclusive WPF cases.
+
+Final complete gate: **4,876 passed, zero failures/skips, exit 0** — Domain **567**, Application **1,021**, Infrastructure **1,429**, Desktop **1,859** (88 exclusive + 1,771 parallel). Command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanChanges/final-gate`; evidence: `release-20261019-084852-b311733db5974f7b89a19bd48ab3150c`. Calendar native **66.202s / 53.798s headroom** against 120s; Journal STA **7.915s / 22.085s headroom** against 30s; Session Brief child **24.001s / 65.999s headroom** against 90s. This is a local pass, not evidence that historical intermittent failures were fixed.
+
+Final Release build: **0 warnings/errors**. EF `has-pending-model-changes` through the in-memory design-time factory: **no changes**. `git diff --check`, all eight new-file whitespace checks and **197 local documentation links** pass. Final HEAD remains `5953be5748cf009721169d77d4bf2fc0defbc8e7` on develop; **73 modified + 8 new files** remain uncommitted. No matching CI acceptance is claimed for these working-tree changes.
+
+Inspected render evidence: Light wide expanded Instrument actions, populated screenshots/optional fields; Light narrow empty screenshots; Dark narrow scrolled Primary + Short pills; Dark wide Ready read-only. The 36-image final set uses production resources. Empty screenshot preparation is **356 DIP** high at the wide viewport, populated is **489 DIP**; narrow populated preparation is **625 DIP** and scrolls. Disabled Add is shown when no additional Instrument is selected; live hover/picker/full-image, human keyboard/Narrator and actual-app restart remain unverified.
+
+| Boundary | Automated evidence | Remaining acceptance |
+| --- | --- | --- |
+| Global/exact scope, currency, uniqueness/history/copy | Real SQLite restart/migration and ViewModel tests | Live fresh-navigation/scope change |
+| Optional scenarios and independent pills | SQLite Save → Ready → restart; bound production WPF commands/readonly states | Human Space/Enter/focus/Narrator |
+| Screenshot upload/remove/retention | Picker cancellation/failure/compensation fakes; real decoder/storage and byte round-trip | Native picker and modal image interaction |
+| Review fallback and compatibility | Entry-time exact/global tests, two-Account deduplication, old v1 reconstruction, manual/fake-HTTP suites | No provider call authorized |
+| Backup/preflight/offline restore/export | Synthetic assets and frozen Ready round-trip; export v11 metadata-only | Older-schema archive restore still deferred |
+| Complete regression / CI | Final local gate reported below | Matching CI cannot cover uncommitted files |
+
+### Exact changed files
+
+The following 81 files differ from the clean starting commit (generated migration designer/model snapshot included):
+
+```text
+README.md
+docs/architecture.md
+docs/backup-restore.md
+docs/daily-review.md
+docs/period-reviews.md
+docs/trading-plan.md
+src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs
+src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingEvidencePacket.cs
+src/PersonalTradingJournal.Application/DailyReview/Coaching/CoachingResponseValidator.cs
+src/PersonalTradingJournal.Application/DailyReview/Coaching/ManualReview.cs
+src/PersonalTradingJournal.Application/PeriodReviews/Coaching/PeriodCoachingPacket.cs
+src/PersonalTradingJournal.Application/TradingPlans/ReviewPlanEvidence.cs
+src/PersonalTradingJournal.Application/TradingPlans/TradingPlanContracts.cs
+src/PersonalTradingJournal.Desktop/App.xaml.cs
+src/PersonalTradingJournal.Desktop/Resources/Themes/DarkTheme.xaml
+src/PersonalTradingJournal.Desktop/Resources/Themes/LightTheme.xaml
+src/PersonalTradingJournal.Desktop/Screenshots/TradingPlanImages.cs
+src/PersonalTradingJournal.Desktop/ViewModels/DailyReview/ReviewPresentation.cs
+src/PersonalTradingJournal.Desktop/ViewModels/PeriodReviews/PeriodPresentation.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/ScenarioEditor.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Images.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.RiskReadiness.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Scenarios.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.History.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.Review.cs
+src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/ScenariosSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanContent.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanIdentity.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReadiness.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanReferenceSnapshot.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanScreenshot.cs
+src/PersonalTradingJournal.Domain/TradingPlans/TradingPlanSnapshotReconstruction.cs
+src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs
+src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs
+src/PersonalTradingJournal.Infrastructure/Backups/TradingPlanAssetInventory.cs
+src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/GroqCoachingProvider.cs
+src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/OpenAiCoachingContract.cs
+src/PersonalTradingJournal.Infrastructure/DailyReview/Coaching/PeriodCoachingWireContract.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/TradingPlanConfiguration.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019080838_SharedTradingPlansAndScreenshots.Designer.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261019080838_SharedTradingPlansAndScreenshots.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs
+src/PersonalTradingJournal.Infrastructure/Persistence/Records/TradingPlanRecords.cs
+src/PersonalTradingJournal.Infrastructure/Screenshots/RetainedScreenshotFileStorage.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/ReviewPlanEvidenceReader.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanJson.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferenceReader.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanReferences.cs
+src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs
+tests/PersonalTradingJournal.Desktop.Tests/PeriodReviews/PeriodSqliteTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanChangesTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ReviewPreparationViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/ScenarioTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs
+tests/PersonalTradingJournal.Domain.Tests/TradingPlans/TradingPlanContractTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/GroqInputBudgetTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/PeriodCoachingProviderTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/DailyReview/ReviewPreparationReaderTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs
+```
+
 ## Session Brief visual correction before M21.10
 
 Baseline: clean `develop`, **`03269f64e555421543cbf10c1c14b0431e7b83ee`**. The reported M21.9 dirty changes had already been committed and are preserved. M21.10 remains paused. This correction changes Desktop composition only: no schema, money, evidence chronology, provider, or saved-data contract change.

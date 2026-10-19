@@ -110,7 +110,7 @@ public sealed class ScenarioTests
         Assert.Equal(length, field.Text.Length); Assert.Equal(1, vm.ValidationAttempt);
         field.Text = ""; Assert.False(vm.HasValidationErrors);
         Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync()); // Blank is incomplete Draft, not Ready.
-        if (name != "StandAside") Assert.Contains(TradingPlanReadiness.Validate(f.Store.Plan.WorkingDraft!.Content), e => e.Field.Contains(name));
+        if (name != "StandAside") Assert.DoesNotContain(TradingPlanReadiness.Validate(f.Store.Plan.WorkingDraft!.Content), e => e.Field.EndsWith("." + name));
     }
 
     [Fact]

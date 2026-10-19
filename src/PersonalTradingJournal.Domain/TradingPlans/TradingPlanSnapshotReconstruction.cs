@@ -23,9 +23,10 @@ internal static class TradingPlanStoredValue
 
 public sealed partial class TradingPlanAccountSnapshot
 {
-    public TradingPlanAccountSnapshot(Guid accountId, string name, string currency, DateTimeOffset updatedAtUtc)
+    public TradingPlanAccountSnapshot(Guid? accountId, string name, string currency, DateTimeOffset updatedAtUtc)
     {
-        AccountId = TradingPlanContent.Id(accountId, nameof(accountId)); Name = TradingPlanStoredValue.Text(name, 128);
+        if (accountId == Guid.Empty) throw new ArgumentException("Invalid Account identity.");
+        AccountId = accountId; Name = TradingPlanStoredValue.Text(name, 128);
         Currency = TradingPlanStoredValue.Currency(currency); UpdatedAtUtc = TradingPlanStoredValue.Utc(updatedAtUtc);
     }
 }

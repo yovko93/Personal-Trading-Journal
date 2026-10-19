@@ -10,7 +10,8 @@ namespace PersonalTradingJournal.Application.PeriodReviews.Coaching;
 
 public static class PeriodCoachingContract
 {
-    public const string Version = "period-coaching.v3";
+    public const string Version = "period-coaching.v4";
+    public const string PreparationVersion = "period-coaching.v3";
     public const string CompactVersion = "period-coaching.v2";
     public const int MaximumPacketBytes = 262_144;
     public const int MaximumSnapshotBytes = 2_097_152;

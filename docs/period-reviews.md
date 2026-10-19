@@ -1,5 +1,13 @@
 # Weekly and Monthly Review — M19.1–M19.7
 
+## Shared preparation — packet v4
+
+Local verification: **404 focused feature tests passed**; the final complete Release gate passed **4,876/4,876**, zero failures/skips, after the documented migration/schema corrections. Build/EF/whitespace pass. Automated renders and synthetic restarts do not establish human keyboard/Narrator, live-app or matching-CI acceptance; those remain pending. M21.10 remains paused.
+
+New `period-coaching.v4` uses the shared/exact Account preparation semantics in `review-preparation.v2`, preserving complete immutable local evidence and the existing bounded, coverage-explicit provider projection. A shared Plan is included once, not once per Account; each Trade uses eligible exact Ready preparation before eligible shared fallback, based on UTC entry/New York entry date. Draft-only/retrospective exact preparation cannot suppress eligible global preparation. Trader-wide currency/limits remain explicit without FX or multiplied budgets. Blank scenario text is unspecified, not compliance.
+
+Screenshot bytes, storage keys and filenames are excluded from coaching evidence; handling notes explicitly deny chart inspection. Existing saved period v1/v2/v3 and supported pending v2/v3 packets remain readable with their original interpretation. Export version **11** is a separate contract from packet **v4**. Manual-only generation, calculated economics and supplied-source citation restrictions are unchanged. [Synthetic verification, exact files and remaining live/CI checks](trading-plan.md#shared-preparation-and-timeframe-screenshots-before-m2110).
+
 ## M21.9 — current and previous preparation
 
 Weekly/Monthly evidence reuses the same snapshot-bound Trading Plan projection as Daily Review. Current and immediately preceding periods carry their own saved Account/date identities, latest Ready context and exact entry-eligible revisions, including entry dates before the closed-Trade period. Absent prior preparation is not filled with today's Plan. Draft prose is never supplied. Trade activity, strict Net/currencies, Rule outcomes and mistake definitions are unchanged.

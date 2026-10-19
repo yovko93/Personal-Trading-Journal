@@ -15,7 +15,7 @@ public sealed partial class TradingPlanAccountSnapshot
     {
         AccountId = account.Id; Name = account.Name; Currency = account.Currency; UpdatedAtUtc = account.UpdatedAtUtc;
     }
-    public Guid AccountId { get; }
+    public Guid? AccountId { get; }
     public string Name { get; }
     public string Currency { get; }
     public DateTimeOffset UpdatedAtUtc { get; }
@@ -87,7 +87,7 @@ public sealed partial class TradingPlanReferenceSnapshot
         Account = account; Instruments = instruments; Setups = setups; Rules = rules; CapturedAtUtc = capturedAtUtc;
     }
 
-    public const int ContractVersion = 1;
+    public const int ContractVersion = 2;
     public TradingPlanAccountSnapshot Account { get; }
     public ImmutableArray<TradingPlanInstrumentSnapshot> Instruments { get; }
     public ImmutableArray<TradingPlanSetupSnapshot> Setups { get; }
@@ -95,16 +95,17 @@ public sealed partial class TradingPlanReferenceSnapshot
     public DateTimeOffset CapturedAtUtc { get; }
 
     public static TradingPlanReferenceSnapshot Capture(TradingPlanKey key, TradingPlanContent content,
-        TradingAccount account, IEnumerable<Instrument> instruments,
+        TradingAccount? account, IEnumerable<Instrument> instruments,
         IEnumerable<TradingPlanPlaybookSource> setups, IEnumerable<TradingRuleRevision> rules,
         DateTimeOffset capturedAtUtc)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(account);
-        CheckTime(capturedAtUtc, account.UpdatedAtUtc);
-        if (account.Id != key.AccountId || !account.IsActive)
+        if (account is not null) CheckTime(capturedAtUtc, account.UpdatedAtUtc);
+        if (key.Scope == TradingPlanScope.Account && (account is null || account.Id != key.AccountId || !account.IsActive))
             throw new InvalidOperationException("The exact active Account is required to finalize preparation.");
+        if (key.Scope == TradingPlanScope.AllAccounts && (account is not null || content.PlanCurrency is null))
+            throw new InvalidOperationException("Shared preparation requires an explicit plan currency, not a substitute Account.");
         var instrumentSources = Read(instruments, TradingPlanContent.MaximumInstruments);
         var setupSources = Read(setups, TradingPlanContent.MaximumScenarios);
         var ruleSources = Read(rules, TradingPlanContent.MaximumRules);
@@ -138,7 +139,7 @@ public sealed partial class TradingPlanReferenceSnapshot
                 throw new InvalidOperationException("A selected global Rule changed or is unavailable. Reload its selection.");
         }
         // Output ordering follows the preparation, independent of catalog query order.
-        return new(new(account), content.Instruments.Select(i => new TradingPlanInstrumentSnapshot(
+        return new(account is null ? new(null, "All Accounts", content.PlanCurrency!, capturedAtUtc) : new(account), content.Instruments.Select(i => new TradingPlanInstrumentSnapshot(
                 instrumentSources.Single(s => s.Id == i.InstrumentId))).ToImmutableArray(),
             content.Scenarios.Where(s => s.Setup is not null).Select(s => s.Setup!.SetupId).Distinct()
                 .Select(id => new TradingPlanSetupSnapshot(setupSources.Single(s => s.Setup.Id == id))).ToImmutableArray(),
@@ -150,6 +151,8 @@ public sealed partial class TradingPlanReferenceSnapshot
     {
         if (key.AccountId != Account.AccountId || CapturedAtUtc != readyAtUtc)
             throw new InvalidOperationException("Capture references for this exact Account and Ready operation.");
+        if (key.Scope == TradingPlanScope.AllAccounts && content.PlanCurrency != Account.Currency)
+            throw new InvalidOperationException("Shared Ready currency must match the explicitly reviewed plan currency.");
         ExactIds(content.Instruments.Select(i => i.InstrumentId), Instruments.Select(i => i.InstrumentId));
         ExactIds(content.Scenarios.Where(s => s.Setup is not null).Select(s => s.Setup!.SetupId).Distinct(), Setups.Select(s => s.SetupId));
         ExactIds(content.Rules.Select(r => r.RuleId), Rules.Select(r => r.RuleId));

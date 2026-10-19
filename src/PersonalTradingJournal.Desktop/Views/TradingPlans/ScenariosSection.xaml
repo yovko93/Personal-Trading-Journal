@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
+             xmlns:plans="clr-namespace:PersonalTradingJournal.Domain.TradingPlans;assembly=PersonalTradingJournal.Domain"
              xmlns:trades="clr-namespace:PersonalTradingJournal.Domain.Trades;assembly=PersonalTradingJournal.Domain"
              xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
              xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
@@ -58,7 +59,7 @@
         <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Margin="0,6" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
         <TextBlock Text="{Binding Message}" Style="{StaticResource Body}" Margin="0,4"
                    interactions:LiveAnnouncement.Text="{Binding Message}" AutomationProperties.LiveSetting="Polite" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
-        <TextBlock Text="No scenarios. Add Scenario using an instrument context from Session Preparation, or choose Stand Aside below. No example conditions are filled automatically."
+        <TextBlock Text="No scenarios. Add Scenario using an instrument from Session Preparation, or choose Stand Aside below. No example conditions are filled automatically."
                    Visibility="{Binding HasNoScenarios, Converter={StaticResource VisibleIf}}" Style="{StaticResource Body}" Margin="0,4" />
         <ItemsControl x:Name="ScenarioCards" ItemsSource="{Binding Scenarios}" SizeChanged="OnCardsSizeChanged">
             <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
@@ -70,24 +71,26 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Border Margin="0,6,12,10" Padding="10" CornerRadius="6" BorderThickness="0,3,0,0"
-                            BorderBrush="{DynamicResource PtjAccentBrush}" Background="{DynamicResource PtjSurfaceBrush}">
+                            Background="{DynamicResource PtjSurfaceBrush}">
+                        <Border.Style><Style TargetType="Border"><Setter Property="BorderBrush" Value="{DynamicResource PtjAccentBrush}" /><Style.Triggers><DataTrigger Binding="{Binding Direction}" Value="{x:Static trades:TradeDirection.Short}"><Setter Property="BorderBrush" Value="{DynamicResource PtjPlanVioletBrush}" /></DataTrigger></Style.Triggers></Style></Border.Style>
                         <StackPanel>
                             <Grid Margin="0,0,0,4">
-                             <Grid.ColumnDefinitions><ColumnDefinition Width="124" /><ColumnDefinition Width="96" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                             <ComboBox x:Name="Role" Margin="0,0,6,0" ItemsSource="{Binding Owner.ScenarioRoles}" SelectedItem="{Binding Role}" Style="{StaticResource PlanSelect}" IsEnabled="{Binding Owner.CanEdit}" AutomationProperties.Name="Scenario designation" />
-                             <ComboBox x:Name="Direction" Grid.Column="1" Margin="0,0,6,0" ItemsSource="{Binding Owner.ScenarioDirections}" SelectedItem="{Binding Direction}" Style="{StaticResource PlanSelect}" IsEnabled="{Binding Owner.CanEdit}" AutomationProperties.Name="Scenario Long or Short direction" />
+                             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                             <Button x:Name="Role" Content="{Binding Role}" Command="{Binding ToggleRoleCommand}" AutomationProperties.Name="{Binding RoleAction}"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource PlanPill}"><Style.Triggers><DataTrigger Binding="{Binding Role}" Value="{x:Static plans:TradingPlanScenarioRole.Alternative}"><Setter Property="Foreground" Value="{DynamicResource PtjPlanVioletBrush}" /><Setter Property="Background" Value="{DynamicResource PtjPlanVioletSurfaceBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style></Button>
+                             <Button x:Name="Direction" Grid.Column="1" Content="{Binding DirectionLabel}" Command="{Binding ToggleDirectionCommand}" AutomationProperties.Name="{Binding DirectionAction}"><Button.Style><Style TargetType="Button" BasedOn="{StaticResource PlanPill}"><Style.Triggers><DataTrigger Binding="{Binding Direction}" Value="{x:Static trades:TradeDirection.Short}"><Setter Property="Foreground" Value="{DynamicResource PtjPlanVioletBrush}" /><Setter Property="Background" Value="{DynamicResource PtjPlanVioletSurfaceBrush}" /></DataTrigger></Style.Triggers></Style></Button.Style></Button>
                              <StackPanel Grid.Column="2" DataContext="{Binding Name}">
                               <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsReadOnly}" Style="{StaticResource PlanInput}" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Error}" validation:FormValidation.IsInvalid="{Binding IsInvalid}" />
                               <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
                              </StackPanel>
+                             <Button Grid.Column="3" Content="Delete" Command="{Binding RemoveCommand}" Style="{StaticResource PlanRemove}" AutomationProperties.Name="Delete Draft scenario" VerticalAlignment="Top" />
                             </Grid>
                             <ContentControl Tag="IF" Content="{Binding Condition}" ContentTemplate="{StaticResource Field}" />
                             <ContentControl Tag="THEN" Content="{Binding Response}" ContentTemplate="{StaticResource Field}" />
                             <ContentControl Tag="INVALID IF" Content="{Binding Invalidation}" ContentTemplate="{StaticResource Field}" />
                             <Expander Header="Playbook &amp; scenario options" Foreground="{DynamicResource PtjAccentBrush}" Margin="0,4">
                              <StackPanel>
-                              <Label Content="Instrument context" Target="{Binding ElementName=Instrument}" />
-                              <ComboBox x:Name="Instrument" ItemsSource="{Binding Owner.Contexts}" DisplayMemberPath="Label" SelectedValuePath="InstrumentId" SelectedValue="{Binding InstrumentId}" IsEnabled="{Binding Owner.CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Scenario instrument context" />
+                              <Label Content="Instrument" Target="{Binding ElementName=Instrument}" />
+                              <ComboBox x:Name="Instrument" ItemsSource="{Binding Owner.Contexts}" DisplayMemberPath="Label" SelectedValuePath="InstrumentId" SelectedValue="{Binding InstrumentId}" IsEnabled="{Binding Owner.CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Scenario instrument" />
                             <Button Content="Load Playbooks" Command="{Binding Owner.ReloadPlaybooksCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" AutomationProperties.Name="Load Playbook choices and availability" />
                             <Label Content="PLAYBOOK — optional existing Setup" Target="{Binding ElementName=Playbook}" />
                             <ComboBox x:Name="Playbook" ItemsSource="{Binding Owner.AvailablePlaybooks}" DisplayMemberPath="Name" SelectedItem="{Binding Candidate}"
@@ -100,7 +103,6 @@
                              <WrapPanel>
                                 <Button Content="Move earlier" Command="{Binding MoveUpCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Move scenario earlier" />
                                 <Button Content="Move later" Command="{Binding MoveDownCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Move scenario later" />
-                                <Button Content="Remove scenario" Command="{Binding RemoveCommand}" Style="{StaticResource Action}" AutomationProperties.Name="Remove Draft scenario" />
                              </WrapPanel>
                              </StackPanel>
                             </Expander>
@@ -119,8 +121,8 @@
                 BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="3,0,0,0">
             <Grid>
              <Grid.ColumnDefinitions><ColumnDefinition Width="155" /><ColumnDefinition /></Grid.ColumnDefinitions>
-                <CheckBox Content="Stand Aside" IsChecked="{Binding IsStandAside}" IsEnabled="{Binding CanEdit}"
-                          Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,4" VerticalAlignment="Center" AutomationProperties.Name="Intentionally stand aside" AutomationProperties.HelpText="{Binding IntentMessage}" ToolTip="{Binding IntentMessage}">
+                <CheckBox Content="Stand aside only" IsChecked="{Binding IsStandAside}" IsEnabled="{Binding CanEdit}"
+                          Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,4" VerticalAlignment="Center" AutomationProperties.Name="Stand aside only — no trading scenarios" AutomationProperties.HelpText="{Binding IntentMessage}" ToolTip="{Binding IntentMessage}">
                     <CheckBox.ContentTemplate><DataTemplate><TextBlock Text="{Binding}" TextWrapping="Wrap" /></DataTemplate></CheckBox.ContentTemplate>
                 </CheckBox>
                 <StackPanel Grid.Column="1" DataContext="{Binding StandAside}">
@@ -129,5 +131,6 @@
                 </StackPanel>
             </Grid>
         </Border>
+        <TextBlock Text="{Binding IntentMessage}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjTextSecondaryBrush}" Margin="0,4" />
     </StackPanel>
 </UserControl>

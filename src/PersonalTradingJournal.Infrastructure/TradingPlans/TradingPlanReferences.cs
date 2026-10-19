@@ -17,10 +17,10 @@ internal sealed class PlanReferenceException(TradingPlanReferenceIssue issue) : 
 internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapshot, Dictionary<string, string> Tokens)
 {
     internal static string Fingerprint(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(TradingPlanJson.Write(value))));
-    internal static void ValidateStored(Guid accountId, TradingPlanContent content, string json)
+    internal static void ValidateStored(Guid? accountId, TradingPlanContent content, string json)
     {
         var tokens = TradingPlanJson.Deserialize<Dictionary<string, string>>(json);
-        var expected = new[] { $"1:{accountId:D}" }
+        var expected = (accountId.HasValue ? new[] { $"1:{accountId:D}" } : Array.Empty<string>())
             .Concat(content.Instruments.Select(x => $"2:{x.InstrumentId:D}"))
             .Concat(content.Scenarios.Where(x => x.Setup is not null).Select(x => $"3:{x.Setup!.SetupId:D}").Distinct())
             .Concat(content.Rules.Select(x => $"4:{x.RuleId:D}"));
@@ -40,10 +40,12 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
                 "Reload the exact source selection; unavailable or changed references cannot be confirmed."));
         }
         var a = await db.TradingAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.Id == key.AccountId, ct);
-        Require(a is not null, TradingPlanReferenceKind.Account, key.AccountId, TradingPlanReferenceState.Unavailable);
-        Require(a!.IsActive, TradingPlanReferenceKind.Account, a.Id, TradingPlanReferenceState.Inactive);
-        // Deliberately conservative: labels and audit changes also require explicit acknowledgement.
-        Token(TradingPlanReferenceKind.Account, a.Id, a);
+        if (key.AccountId is { } accountId)
+        {
+            Require(a is not null, TradingPlanReferenceKind.Account, accountId, TradingPlanReferenceState.Unavailable);
+            Require(a!.IsActive, TradingPlanReferenceKind.Account, a.Id, TradingPlanReferenceState.Inactive);
+            Token(TradingPlanReferenceKind.Account, a.Id, a);
+        }
         var ids = content.Instruments.Select(x => x.InstrumentId).ToArray();
         var instruments = await db.Instruments.AsNoTracking().Where(x => ids.Contains(x.Id)).ToArrayAsync(ct);
         foreach (var id in ids)
@@ -81,7 +83,7 @@ internal sealed record TradingPlanReferences(TradingPlanReferenceSnapshot Snapsh
             Require(r.Revision == link.ExpectedRevision, TradingPlanReferenceKind.Rule, link.RuleId, TradingPlanReferenceState.Changed);
             Token(TradingPlanReferenceKind.Rule, link.RuleId, r);
         }
-        return new(TradingPlanReferenceSnapshot.Capture(key, content, TradingAccountPersistenceMapper.ToDomain(a),
+        return new(TradingPlanReferenceSnapshot.Capture(key, content, a is null ? null : TradingAccountPersistenceMapper.ToDomain(a),
             instruments.Select(InstrumentPersistenceMapper.ToDomain), sources, rules.Select(TradingRuleRepository.ToDomain), now), tokens);
     }
 

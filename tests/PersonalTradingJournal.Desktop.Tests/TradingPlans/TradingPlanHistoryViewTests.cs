@@ -47,7 +47,7 @@ public sealed class TradingPlanHistoryViewTests
             foreach (var theme in themes.Keys)
             {
                 app.Resources = themes[theme]; using var vm = f.NewWorkspace(); Pump(vm.ActivateAsync());
-                Pump(vm.SelectContextAsync(first.Key.NewYorkDate, vm.Accounts[0])); var editor = vm.Editor!;
+                Pump(vm.SelectContextAsync(first.Key.NewYorkDate, vm.Accounts.First(a => a.Id.HasValue))); var editor = vm.Editor!;
                 editor.MaximumTrades.Text = "retained invalid count";
                 var page = new TradingPlanWorkspaceView { DataContext = vm };
                 VisualTreeHelper.SetRootDpi(page, new(dpi / 96d, dpi / 96d));

@@ -12,7 +12,7 @@ public sealed class GroqCoachingProvider(HttpClient client, GroqCoachingOptions 
     Func<string?> credentialAccessor) : ICoachingProvider, IPeriodCoachingProvider
 {
     public Task<CoachingProviderReply> GenerateAsync(CoachingEvidencePacket packet, CancellationToken cancellationToken) =>
-        GenerateCoreAsync(packet.Json, OpenAiCoachingContract.InstructionsFor(packet), "daily_coaching_v3", OpenAiCoachingContract.Schema(), false, cancellationToken);
+        GenerateCoreAsync(packet.Json, OpenAiCoachingContract.InstructionsFor(packet), "daily_coaching_v4", OpenAiCoachingContract.Schema(), false, cancellationToken);
 
     public Task<CoachingProviderReply> GenerateAsync(PeriodCoachingPacket packet, CancellationToken cancellationToken) =>
         GenerateCoreAsync(packet.ProviderJson, PeriodCoachingWireContract.Instructions, PeriodCoachingWireContract.Name, PeriodCoachingWireContract.Schema(), true, cancellationToken);

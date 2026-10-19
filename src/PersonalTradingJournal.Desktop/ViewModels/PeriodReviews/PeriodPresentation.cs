@@ -98,7 +98,7 @@ public sealed class PeriodReport
     public static bool Matches(PeriodReviewSummary s, PeriodReviewQuery q) => s.Kind == q.Kind && s.FirstDate == q.FirstDate && s.LastDate == q.LastDate && s.Scope.AccountId == q.Scope.AccountId;
     public static PeriodReport Read(SavedPeriodReview saved)
     {
-        if (saved.EvidenceContractVersion is not ("period-coaching.v1" or "period-coaching.v2" or "period-coaching.v3") || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
+        if (saved.EvidenceContractVersion is not ("period-coaching.v1" or "period-coaching.v2" or "period-coaching.v3" or "period-coaching.v4") || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
             Encoding.UTF8.GetByteCount(saved.EvidenceJson) > (saved.EvidenceContractVersion == "period-coaching.v1" ? PeriodCoachingContract.MaximumPacketBytes : PeriodCoachingContract.MaximumSnapshotBytes) || Encoding.UTF8.GetByteCount(saved.ResponseJson) > PeriodCoachingContract.MaximumResponseBytes)
             throw new InvalidDataException("Unsupported saved period contract.");
         using var doc = JsonDocument.Parse(saved.EvidenceJson, new() { MaxDepth = 64 });

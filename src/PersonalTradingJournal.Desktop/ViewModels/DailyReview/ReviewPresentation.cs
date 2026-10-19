@@ -161,7 +161,7 @@ public sealed class ReviewSnapshot
 
     public static ReviewSnapshot Read(SavedCoachingAnalysis saved)
     {
-        if (saved.EvidenceContractVersion is not (CoachingContract.Version or CoachingContract.PlaybookVersion or CoachingContract.LegacyVersion) ||
+        if (saved.EvidenceContractVersion is not (CoachingContract.Version or CoachingContract.PreparationVersion or CoachingContract.PlaybookVersion or CoachingContract.LegacyVersion) ||
             saved.ResponseContractVersion != saved.EvidenceContractVersion)
             throw new InvalidDataException("This saved contract version is not supported by this Desktop version.");
         using var document = JsonDocument.Parse(saved.EvidenceJson);

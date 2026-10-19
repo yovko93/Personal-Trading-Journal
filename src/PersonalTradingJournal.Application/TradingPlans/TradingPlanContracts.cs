@@ -63,7 +63,7 @@ public sealed record TradingPlanLoadedState
 public sealed record TradingPlanHistorySummary(string AccountName, string Currency, bool AccountAvailable,
     TradingPlanSession? Session, ImmutableArray<string> Instruments, DateTimeOffset SavedAtUtc);
 
-public sealed record TradingPlanHistoryAccount(Guid AccountId, string Name, string Currency, bool IsAvailable, bool IsActive);
+public sealed record TradingPlanHistoryAccount(Guid? AccountId, string Name, string Currency, bool IsAvailable, bool IsActive);
 
 /// <summary>Input to transactional use cases. Scope is captured at submission; selected
 /// session and navigation never retarget a command.</summary>
@@ -154,7 +154,7 @@ public enum TradingPlanReferenceState { Current = 1, Changed = 2, Inactive = 3, 
 
 /// <summary>Per-reference outcome from the committing store's fresh validation. Historical
 /// readers retain captured content and report availability separately; never resolve by name.</summary>
-public sealed record TradingPlanReferenceIssue(TradingPlanReferenceKind Kind, Guid SourceId,
+public sealed record TradingPlanReferenceIssue(TradingPlanReferenceKind Kind, Guid? SourceId,
     TradingPlanReferenceState State, string Message);
 
 /// <summary>Logical Plan history is keyset paged by New York date descending within an exact
@@ -162,7 +162,7 @@ public sealed record TradingPlanReferenceIssue(TradingPlanReferenceKind Kind, Gu
 /// Status filters the current lifecycle, not the existence of older Ready revisions.</summary>
 public sealed record TradingPlanHistoryQuery
 {
-    public TradingPlanHistoryQuery(Guid accountId, DateOnly firstDate, DateOnly lastDate,
+    public TradingPlanHistoryQuery(Guid? accountId, DateOnly firstDate, DateOnly lastDate,
         TradingPlanStatus? status = null, int limit = 20)
     {
         if (accountId == Guid.Empty) throw new ArgumentException("An exact Account is required.", nameof(accountId));
@@ -175,7 +175,7 @@ public sealed record TradingPlanHistoryQuery
         Status = status;
         Limit = limit;
     }
-    public Guid AccountId { get; }
+    public Guid? AccountId { get; }
     public DateOnly FirstDate { get; }
     public DateOnly LastDate { get; }
     public TradingPlanStatus? Status { get; }

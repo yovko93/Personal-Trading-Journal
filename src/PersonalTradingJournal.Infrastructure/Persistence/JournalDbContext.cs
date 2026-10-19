@@ -14,6 +14,7 @@ public sealed class JournalDbContext : DbContext
     public DbSet<InstrumentRecord> Instruments => Set<InstrumentRecord>();
     public DbSet<TradingPlanRecord> TradingPlans => Set<TradingPlanRecord>();
     public DbSet<TradingPlanReadyRecord> TradingPlanReadyRevisions => Set<TradingPlanReadyRecord>();
+    public DbSet<TradingPlanAssetRecord> TradingPlanAssets => Set<TradingPlanAssetRecord>();
 
     public DbSet<TradingAccountRecord> TradingAccounts => Set<TradingAccountRecord>();
 
@@ -58,6 +59,12 @@ public sealed class JournalDbContext : DbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfiguration<TradingPlanRecord>(new TradingPlanConfiguration());
         modelBuilder.ApplyConfiguration<TradingPlanReadyRecord>(new TradingPlanConfiguration());
+        modelBuilder.Entity<TradingPlanAssetRecord>(b =>
+        {
+            b.ToTable("TradingPlanAssets"); b.HasKey(x => x.Id); b.Property(x => x.Id).ValueGeneratedNever();
+            b.HasIndex(x => x.StorageKey).IsUnique();
+            b.HasOne<TradingPlanRecord>().WithMany().HasForeignKey(x => x.PlanId).OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.ApplyConfiguration(new InstrumentRecordConfiguration());
         modelBuilder.ApplyConfiguration(new TradingAccountRecordConfiguration());

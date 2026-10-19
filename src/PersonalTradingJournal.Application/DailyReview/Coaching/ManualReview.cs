@@ -60,7 +60,7 @@ public static class ManualReviewContract
             if (draft.Request.Kind == ManualReviewKind.Daily)
             {
                 string version = root.GetProperty("contractVersion").GetString()!;
-                if (version is not (CoachingContract.Version or CoachingContract.PlaybookVersion)) return Invalid("Unsupported prepared Daily contract. Keep this draft; do not retarget it.");
+                if (version is not (CoachingContract.Version or CoachingContract.PreparationVersion or CoachingContract.PlaybookVersion)) return Invalid("Unsupported prepared Daily contract. Keep this draft; do not retarget it.");
                 var content = root.GetProperty("content").Deserialize<CoachingEvidenceContent>(ReadOptions)!;
                 if (content.Query.Date != draft.Request.Date || content.Query.TradingAccountId != draft.Request.AccountId) return Invalid("Prepared date or Account scope does not match.");
                 var packet = new CoachingEvidencePacket(content, id, draft.EvidenceJson, Encoding.UTF8.GetByteCount(draft.EvidenceJson), version);
@@ -72,7 +72,7 @@ public static class ManualReviewContract
                     saved with { Summary = saved.Summary with { Id = draft.Id, AccountDisplayName = draft.Request.AccountLabel } });
             }
             string periodVersion = root.GetProperty("contractVersion").GetString()!;
-            if (periodVersion is not (PeriodCoachingContract.Version or PeriodCoachingContract.CompactVersion)) return Invalid("Unsupported prepared period contract. Keep this draft; do not retarget it.");
+            if (periodVersion is not (PeriodCoachingContract.Version or PeriodCoachingContract.PreparationVersion or PeriodCoachingContract.CompactVersion)) return Invalid("Unsupported prepared period contract. Keep this draft; do not retarget it.");
             var query = new PeriodReviewQuery(draft.Request.Kind == ManualReviewKind.Weekly ? ReviewPeriodKind.Week : ReviewPeriodKind.Month, draft.Request.Date, draft.Request.AccountId);
             var projection = root.GetProperty("providerProjection");
             var selected = projection.GetProperty("currentPeriod");

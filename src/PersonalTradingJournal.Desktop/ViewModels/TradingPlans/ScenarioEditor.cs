@@ -27,6 +27,8 @@ public sealed class ScenarioEditor : ObservableObject
         Response = owner.ScenarioField("THEN — intended response", content.Response);
         Invalidation = owner.ScenarioField("INVALID IF — cancellation condition", content.Invalidation);
         RemoveCommand = new RelayCommand(() => owner.RemoveScenario(this), () => owner.CanEdit);
+        ToggleRoleCommand = new RelayCommand(() => Role = Role == TradingPlanScenarioRole.Primary ? TradingPlanScenarioRole.Alternative : TradingPlanScenarioRole.Primary, () => owner.CanEdit);
+        ToggleDirectionCommand = new RelayCommand(() => Direction = Direction == TradeDirection.Long ? TradeDirection.Short : TradeDirection.Long, () => owner.CanEdit);
         MoveUpCommand = new RelayCommand(() => owner.MoveScenario(this, -1), () => owner.CanMoveScenario(this, -1));
         MoveDownCommand = new RelayCommand(() => owner.MoveScenario(this, 1), () => owner.CanMoveScenario(this, 1));
         LinkCommand = new AsyncRelayCommand(ct => owner.LinkPlaybookAsync(this, ct),
@@ -50,7 +52,7 @@ public sealed class ScenarioEditor : ObservableObject
     public TradingPlanScenarioRole Role
     {
         get => _role;
-        set { if (_owner.CanEdit && Enum.IsDefined(value) && SetProperty(ref _role, value)) _owner.ScenarioChanged(); }
+        set { if (_owner.CanEdit && Enum.IsDefined(value) && SetProperty(ref _role, value)) { OnPropertyChanged(nameof(RoleAction)); _owner.ScenarioChanged(); } }
     }
     public TradeDirection? Direction
     {
@@ -58,10 +60,15 @@ public sealed class ScenarioEditor : ObservableObject
         set
         {
             if (_owner.CanEdit && (!value.HasValue || Enum.IsDefined(value.Value)) && SetProperty(ref _direction, value))
-            { OnPropertyChanged(nameof(Heading)); _owner.ScenarioChanged(); }
+            { OnPropertyChanged(nameof(Heading)); OnPropertyChanged(nameof(DirectionLabel)); OnPropertyChanged(nameof(DirectionAction)); _owner.ScenarioChanged(); }
         }
     }
     public string Heading => Direction is { } d ? $"{d} Scenario" : "Scenario · direction not selected";
+    public string RoleAction => $"{Role}. Switch to {(Role == TradingPlanScenarioRole.Primary ? "Alternative" : "Primary")}.";
+    public string DirectionLabel => Direction switch { TradeDirection.Long => "↑ Long", TradeDirection.Short => "↓ Short", _ => "Choose direction" };
+    public string DirectionAction => $"{DirectionLabel}. Switch to {(Direction == TradeDirection.Long ? "Short" : "Long")}.";
+    public IRelayCommand ToggleRoleCommand { get; }
+    public IRelayCommand ToggleDirectionCommand { get; }
     public TradingPlanSetupLink? Setup => _setup;
     public TradingSetupListItem? Candidate
     {
@@ -89,6 +96,7 @@ public sealed class ScenarioEditor : ObservableObject
     { _playbookText = text; _canNavigate = canNavigate; OnPropertyChanged(nameof(PlaybookText)); OpenPlaybookCommand.NotifyCanExecuteChanged(); }
     internal void NotifyAccess()
     {
+        ToggleRoleCommand.NotifyCanExecuteChanged(); ToggleDirectionCommand.NotifyCanExecuteChanged();
         MoveUpCommand.NotifyCanExecuteChanged(); MoveDownCommand.NotifyCanExecuteChanged(); RemoveCommand.NotifyCanExecuteChanged();
         LinkCommand.NotifyCanExecuteChanged(); UnlinkCommand.NotifyCanExecuteChanged(); OpenPlaybookCommand.NotifyCanExecuteChanged();
     }

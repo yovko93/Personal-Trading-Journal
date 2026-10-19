@@ -39,6 +39,8 @@ public sealed partial class TradingPlanWorkspaceViewModel
             RevisionRows = [new(revision)]; _revisionPage = 0; HasOlderRevisions = false;
             _revisionCursors.Clear(); _revisionCursors.Add(null);
             _viewedRevision = revision; HistoricalViewer = CreateEditor(plan, revision); SelectTab(true);
+            await HistoricalViewer.LoadThumbnailsAsync(ct);
+            if (!owns()) return;
             HistoryMessage = "Exact Ready revision from Review. Its actual timestamp determines entry-time eligibility; later preparation is retrospective. Session Brief input is retained.";
             opened = true;
         });

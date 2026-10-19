@@ -17,7 +17,7 @@ public sealed class TradingPlanHistoryTests
         return Assert.IsType<TradingPlanReadyRevision>(vm.Editor!.CurrentPlan.LatestReadyRevision);
     }
     internal static void Filters(TradingPlanWorkspaceViewModel vm)
-    { vm.SelectTab(true); vm.HistoryAccount = vm.Accounts[0]; vm.HistoryFrom = "01 Oct 2026"; vm.HistoryTo = "31 Oct 2026"; }
+    { vm.SelectTab(true); vm.HistoryAccount = vm.Accounts.First(a => a.Id.HasValue); vm.HistoryFrom = "01 Oct 2026"; vm.HistoryTo = "31 Oct 2026"; }
     internal static async Task View(TradingPlanWorkspaceViewModel vm, int revision)
     {
         await vm.SearchHistoryAsync(); await vm.ShowRevisionsAsync(vm.HistoryRows.Single());
@@ -230,7 +230,7 @@ public sealed class TradingPlanHistoryTests
         using var restarted = f.NewWorkspace(); await restarted.ActivateAsync(); restarted.SelectTab(true);
         restarted.HistoryFrom = "17 Oct 2026"; restarted.HistoryTo = "17 Oct 2026"; await restarted.DiscoverAccountsAsync();
         var historical = restarted.HistoryAccounts.Single(a => a.Id == source.Key.AccountId);
-        Assert.False(historical.IsAvailable); Assert.Contains("USD", historical.Label); Assert.Equal(2, restarted.HistoryAccounts.Count);
+        Assert.False(historical.IsAvailable); Assert.Contains("USD", historical.Label); Assert.Equal(3, restarted.HistoryAccounts.Count);
         restarted.HistoryAccount = historical; await restarted.SearchHistoryAsync(); var row = Assert.Single(restarted.HistoryRows);
         Assert.Contains("unavailable", row.Account); Assert.Equal(source.References.Account.Name, row.State.Summary!.AccountName);
         await restarted.ShowRevisionsAsync(row); await restarted.ViewRevisionAsync(restarted.RevisionRows.Single());

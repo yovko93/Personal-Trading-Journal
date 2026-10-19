@@ -35,7 +35,7 @@ public sealed partial class SessionPreparationViewModel
     public string IntentMessage => IsStandAside
         ? (_scenarios.Count == 0 ? "Intentional stand-aside plan. Explain the no-trade decision below; no scenario or Playbook is required."
             : "Stand aside selected. Existing scenarios are retained in this Draft. Remove them explicitly before marking Ready.")
-        : "Opportunity plan. Incomplete scenarios may be saved as Draft; Ready requires name, direction, IF, THEN and INVALID IF.";
+        : "Conditional scenarios and ordinary no-trade conditions may coexist. Scenario text and Playbook links are optional; blank text is unspecified, not completed market evidence.";
     public IReadOnlyList<TradingSetupListItem> AvailablePlaybooks { get => _availablePlaybooks; private set => SetProperty(ref _availablePlaybooks, value); }
     /// <summary>The host routes exact Setup identity through its existing guarded navigation. False means veto/unavailable.
     /// This component neither closes itself nor discards/saves input during a request.</summary>
@@ -60,7 +60,7 @@ public sealed partial class SessionPreparationViewModel
         if (!AddScenarioCommand.CanExecute(null)) return;
         var instrument = SelectedInstrument ?? _contexts[0];
         _scenarios.Add(new(this, new(Guid.NewGuid(), instrument.InstrumentId,
-            role: _scenarios.Count == 0 ? TradingPlanScenarioRole.Primary : TradingPlanScenarioRole.Alternative)));
+            role: _scenarios.Count == 0 ? TradingPlanScenarioRole.Primary : TradingPlanScenarioRole.Alternative, direction: TradeDirection.Long)));
         ScenarioListChanged();
     }
     internal bool CanMoveScenario(ScenarioEditor row, int delta) => CanEdit && _scenarios.Contains(row) && _scenarios.IndexOf(row) + delta >= 0 && _scenarios.IndexOf(row) + delta < _scenarios.Count;

@@ -23,8 +23,12 @@ public sealed class TradingPlanReferenceReader(IDbContextFactory<JournalDbContex
         TradingPlanReferences.ValidateStored(key.AccountId, stored.Content, row.ReferenceStateJson!);
         var baseline = TradingPlanJson.Deserialize<Dictionary<string, string>>(row.ReferenceStateJson!);
         var account = await db.TradingAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == key.AccountId, cancellationToken);
-        TradingPlanAccountSnapshot? current = account is null ? null : new(account.Id, account.Name, account.Currency, account.UpdatedAtUtc);
-        bool matches = account is { IsActive: true } && baseline[$"1:{key.AccountId:D}"] == TradingPlanReferences.Fingerprint(account);
+        TradingPlanAccountSnapshot? current = key.Scope == TradingPlanScope.AllAccounts && proposedContent.PlanCurrency is { } currency
+            ? new(null, "All Accounts", currency, (clock ?? TimeProvider.System).GetUtcNow())
+            : account is null ? null : new(account.Id, account.Name, account.Currency, account.UpdatedAtUtc);
+        bool matches = key.Scope == TradingPlanScope.AllAccounts
+            ? proposedContent.PlanCurrency == stored.Content.PlanCurrency
+            : account is { IsActive: true } && baseline[$"1:{key.AccountId:D}"] == TradingPlanReferences.Fingerprint(account);
         try
         {
             var refs = await TradingPlanReferences.Resolve(db, key, proposedContent, (clock ?? TimeProvider.System).GetUtcNow(), cancellationToken);

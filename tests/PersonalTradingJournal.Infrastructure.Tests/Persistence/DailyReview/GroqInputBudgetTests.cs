@@ -194,7 +194,7 @@ public sealed class GroqInputBudgetTests(ITestOutputHelper output)
             using var body = JsonDocument.Parse(Body);
             // Compare all evidence bytes after transport decoding, not selected fields only.
             Assert.True(packet.Json == body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString());
-            Assert.Equal("daily_coaching_v3", body.RootElement.GetProperty("response_format").GetProperty("json_schema").GetProperty("name").GetString());
+            Assert.Equal("daily_coaching_v4", body.RootElement.GetProperty("response_format").GetProperty("json_schema").GetProperty("name").GetString());
             if (failure == "cancel-during") { cancel!.Cancel(); token.ThrowIfCancellationRequested(); }
             string review = JsonSerializer.Serialize(new {
                 contractVersion = packet.ContractVersion, packetId = failure == "identity" ? "wrong" : packet.PacketId,

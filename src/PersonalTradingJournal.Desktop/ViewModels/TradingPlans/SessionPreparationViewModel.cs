@@ -46,6 +46,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         foreach (var context in _original.Instruments) _contexts.Add(CreateEditor(context));
         _selected = _contexts.FirstOrDefault();
         InitializeScenarios();
+        InitializeImages();
         InitializeRiskReadiness();
         _baseline = Fingerprint();
         AddInstrumentCommand = new RelayCommand(AddInstrument, () => CanEdit && InstrumentToAdd is { IsActive: true });
@@ -64,7 +65,9 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     public bool HasSelectedContext => SelectedInstrument is not null;
     public bool HasNoContext => !HasSelectedContext;
     public bool IsDirty => !IsReadOnly && Fingerprint() != _baseline;
-    public bool HasValidationErrors => Fields.Any(f => f.IsInvalid);
+    public bool HasValidationErrors => Fields.Any(f => f.IsInvalid) || CurrencyError.Length > 0;
+    public string CurrencyError => IsGlobalScope && (string.IsNullOrWhiteSpace(PlanCurrency) || PlanCurrency.Length > 8 || PlanCurrency != PlanCurrency.Trim().ToUpperInvariant())
+        ? "Enter an explicit plan currency using up to 8 uppercase characters." : "";
     public string StateLabel => IsReadOnly ? $"Ready revision {(_historical ?? _plan.LatestReadyRevision)!.Id.Revision} · read-only" :
         IsDirty ? "Working Draft · unsaved changes" : "Working Draft · current saved content";
     public PreparationField Focus { get; }
@@ -80,6 +83,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             if (CanSelectContext && (value is null || _contexts.Contains(value)) && SetProperty(ref _selected, value))
             {
                 RemoveInstrumentCommand.NotifyCanExecuteChanged(); OnPropertyChanged(nameof(HasSelectedContext)); OnPropertyChanged(nameof(HasNoContext));
+                NotifyImages();
             }
         }
     }
@@ -119,7 +123,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         content = null;
         if (HasValidationErrors) return false;
         content = new(Session, Focus.Text, Intent, _contexts.Select(c => c.Build()),
-            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, BuildRisk(), _linkedRules.Select(r => r.Link), Confirmed);
+            _scenarios.Select(s => s.Build()), News.Text, StandAside.Text, BuildRisk(), _linkedRules.Select(r => r.Link), Confirmed, IsGlobalScope ? PlanCurrency : _original.PlanCurrency,
+            _screenshots.Where(s => s.Image is not null).Select(s => new TradingPlanScreenshot(s.Id, s.InstrumentId, s.Timeframe, s.Image!)));
         return true;
     }
 
@@ -140,14 +145,22 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             explicitConfirmations: operationKind == TradingPlanWriteOperation.SaveDraft ? Confirmed : null,
             expectedAccountCurrency: operationKind == TradingPlanWriteOperation.RefreshReferences ? _currentAccount?.Currency : null);
         using var operation = Begin(ct);
+        var staged = new List<PlanScreenshotItem>(); bool committed = false;
         try
         {
+            await StageImagesAsync(staged, operation.Token);
+            if (!TryBuildContent(out content)) return TradingPlanWriteStatus.Invalid;
+            command = new(operationKind, Key, content!, Token,
+                explicitConfirmations: operationKind == TradingPlanWriteOperation.SaveDraft ? Confirmed : null,
+                expectedAccountCurrency: operationKind == TradingPlanWriteOperation.RefreshReferences ? _currentAccount?.Currency : null);
             var result = await Task.Run(() => _store.WriteAsync(command, operation.Token), operation.Token);
             // A committed success remains success even if cancellation arrives after commit.
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } saved &&
                 saved.Id == _plan.Id && saved.Key == Key && saved.Version >= _plan.Version && ReadbackMatches(saved, content!, command))
             {
                 _plan = saved; _original = saved.WorkingDraft.Content;
+                committed = true;
+                foreach (var item in _screenshots) item.Pending = null;
                 AcceptSavedReadiness(result); _baseline = Fingerprint();
                 Message = operationKind == TradingPlanWriteOperation.RefreshReferences
                     ? "References refreshed and Draft saved. All checklist confirmations must be made again."
@@ -174,7 +187,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
             Message = "Draft could not be saved and verified. Entered preparation is retained; try again.";
             return TradingPlanWriteStatus.StorageFailure;
         }
-        finally { End(); Changed(); }
+        finally { if (!committed) await CompensateImagesAsync(staged); End(); Changed(); }
     }
 
     private void AddInstrument()
@@ -194,8 +207,8 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     private void RemoveInstrument()
     {
         if (!CanEdit || SelectedInstrument is not { } selected) return;
-        if (_scenarios.Any(s => s.InstrumentId == selected.InstrumentId))
-        { Message = "This instrument owns scenarios. Remove or reassign those scenarios first; no content was discarded."; return; }
+        if (_scenarios.Any(s => s.InstrumentId == selected.InstrumentId) || _screenshots.Any(s => s.InstrumentId == selected.InstrumentId))
+        { Message = "This instrument owns scenarios or screenshots. Remove or reassign them first; no content was discarded."; return; }
         _contexts.Remove(selected); SelectedInstrument = _contexts.FirstOrDefault(); Changed();
     }
     private InstrumentPreparationEditor CreateEditor(TradingPlanInstrumentContext content) =>
@@ -209,9 +222,10 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
     }
     private string Fingerprint() => System.Text.Json.JsonSerializer.Serialize(new
     {
-        Session, Focus = Focus.Text, News = News.Text, Intent, StandAside = StandAside.Text,
+        Session, PlanCurrency, Focus = Focus.Text, News = News.Text, Intent, StandAside = StandAside.Text,
         Risk = RiskFields.Select(f => f.Text), Rules = _linkedRules.Select(r => r.Link), Confirmed,
         Scenarios = _scenarios.Select(s => s.RawState),
+        Screenshots = _screenshots.Select(s => new { s.Id, s.InstrumentId, s.Timeframe }),
         Instruments = _contexts.Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.Text) })
     });
     private CancellationTokenSource Begin(CancellationToken ct)
@@ -223,6 +237,7 @@ public sealed partial class SessionPreparationViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(CanSelectContext));
         foreach (var field in Fields) field.NotifyAccess();
         NotifyScenarioAccess();
+        NotifyImages();
         NotifyRiskAccess();
         AddInstrumentCommand.NotifyCanExecuteChanged(); RemoveInstrumentCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged(); RefreshReferencesCommand.NotifyCanExecuteChanged(); CancelCommand.NotifyCanExecuteChanged();

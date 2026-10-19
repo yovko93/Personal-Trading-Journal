@@ -49,15 +49,15 @@
      <StackPanel x:Name="ContextFields" Margin="0,0,14,0">
       <WrapPanel>
        <StackPanel Width="180" Margin="0,0,8,4"><Label Content="Instrument" Target="{Binding ElementName=ContextSelector}" Padding="0,2" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
-        <ComboBox x:Name="ContextSelector" ItemsSource="{Binding Contexts}" SelectedItem="{Binding SelectedInstrument}" DisplayMemberPath="Label" IsEnabled="{Binding CanSelectContext}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Selected instrument context" />
+        <ComboBox x:Name="ContextSelector" ItemsSource="{Binding Contexts}" SelectedItem="{Binding SelectedInstrument}" DisplayMemberPath="Label" IsEnabled="{Binding CanSelectContext}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Selected Instrument" />
        </StackPanel>
        <StackPanel Width="142" Margin="0,0,8,4"><Label Content="Bias" Target="{Binding ElementName=BiasSelector}" Padding="0,2" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
         <ComboBox x:Name="BiasSelector" ItemsSource="{Binding Biases}" SelectedItem="{Binding SelectedInstrument.Bias}" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Instrument bias, blank means not selected" />
        </StackPanel>
-       <Expander x:Name="InstrumentPicker" Header="＋ Add Instrument" VerticalAlignment="Bottom" Margin="0,4,0,4" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Add or remove instrument context">
+       <Expander x:Name="InstrumentPicker" Header="＋ Add Instrument" VerticalAlignment="Bottom" Margin="0,4,0,4" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Add or remove Instrument">
         <StackPanel Width="190" Margin="0,6,0,0">
          <ComboBox x:Name="CatalogSelector" ItemsSource="{Binding AvailableInstruments}" SelectedItem="{Binding InstrumentToAdd}" DisplayMemberPath="Symbol" Style="{StaticResource PlanSelect}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Instrument catalog for new context" />
-         <WrapPanel><Button Content="Add context" Command="{Binding AddInstrumentCommand}" Style="{StaticResource PlanAction}" AutomationProperties.Name="Add instrument context" /><Button Content="Remove context" Command="{Binding RemoveInstrumentCommand}" Style="{StaticResource PlanAction}" AutomationProperties.Name="Remove selected instrument context" /></WrapPanel>
+         <WrapPanel><Button Content="Add" Command="{Binding AddInstrumentCommand}" Style="{StaticResource PlanPrimary}" AutomationProperties.Name="Add Instrument" /><Button Content="Remove" Command="{Binding RemoveInstrumentCommand}" Style="{StaticResource PlanRemove}" AutomationProperties.Name="Remove selected Instrument" /></WrapPanel>
         </StackPanel>
        </Expander>
       </WrapPanel>
@@ -78,6 +78,22 @@
       </Grid>
      </StackPanel>
     </Grid>
+    <StackPanel Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}" Margin="0,8,0,0">
+     <WrapPanel>
+      <TextBlock Text="Screenshots · optional" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <ComboBox Width="65" ItemsSource="{Binding AvailableTimeframes}" SelectedItem="{Binding SelectedTimeframe}" DisplayMemberPath="Label" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Screenshot timeframe" />
+      <Button Content="Upload Screenshot" Command="{Binding UploadScreenshotCommand}" Style="{StaticResource PlanPrimary}" AutomationProperties.Name="Upload screenshot for selected Instrument and timeframe" />
+     </WrapPanel>
+     <ItemsControl ItemsSource="{Binding VisibleScreenshots}">
+      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate><DataTemplate><StackPanel Width="128" Margin="0,4,8,0">
+       <Button Command="{Binding OpenCommand}" Style="{StaticResource PlanAction}" AutomationProperties.Name="{Binding Label, StringFormat=Open {0} screenshot}">
+        <StackPanel><Image Source="{Binding Thumbnail}" Height="62" Stretch="Uniform" /><TextBlock Text="{Binding Label}" HorizontalAlignment="Center" /></StackPanel>
+       </Button>
+       <Button Content="Remove" Command="{Binding RemoveCommand}" Style="{StaticResource PlanRemove}" AutomationProperties.Name="{Binding Label, StringFormat=Remove {0} Draft screenshot}" />
+      </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </StackPanel>
     <Grid Margin="0,8,0,0" DataContext="{Binding News}">
      <Grid.ColumnDefinitions><ColumnDefinition Width="155" /><ColumnDefinition /></Grid.ColumnDefinitions>
      <TextBlock Text="News &amp; Restricted Times" Style="{StaticResource Body}" VerticalAlignment="Center" />

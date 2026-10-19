@@ -24,7 +24,7 @@ public static class TradingPlanReadiness
         {
             Required(content.StandAside, "StandAside", "Explain the decision to stand aside.");
             if (!content.Scenarios.IsEmpty)
-                errors.Add(new("Scenarios", "Remove trading scenarios or choose an opportunity plan."));
+                errors.Add(new("Scenarios", "Stand-aside-only mode excludes trading scenarios. Turn off Stand aside only to keep scenarios and ordinary no-trade conditions together."));
         }
         else
         {
@@ -40,11 +40,7 @@ public static class TradingPlanReadiness
         for (int i = 0; i < content.Scenarios.Length; i++)
         {
             var scenario = content.Scenarios[i];
-            Required(scenario.Name, $"Scenarios[{i}].Name", "Name the scenario.");
             if (scenario.Direction is null) errors.Add(new($"Scenarios[{i}].Direction", "Select Long or Short."));
-            Required(scenario.Condition, $"Scenarios[{i}].Condition", "Describe the observable IF condition.");
-            Required(scenario.Response, $"Scenarios[{i}].Response", "Describe the intended THEN response.");
-            Required(scenario.Invalidation, $"Scenarios[{i}].Invalidation", "Describe what invalidates the scenario.");
         }
 
         foreach (var check in new[] { TradingPlanChecklist.ContextAndLevels, TradingPlanChecklist.ScenariosOrStandAside,

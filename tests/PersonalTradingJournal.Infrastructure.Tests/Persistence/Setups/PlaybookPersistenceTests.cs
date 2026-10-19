@@ -337,7 +337,7 @@ public sealed partial class PlaybookPersistenceTests
         string output = Path.Combine(f.Root, "export");
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(output)).Succeeded);
         using var data = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(output, PortableExportContract.DataFile)));
-        Assert.Equal(10, data.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(11, data.RootElement.GetProperty("version").GetInt32());
         var tables = data.RootElement.GetProperty("tables");
         var revisions = tables.GetProperty("playbookRevisions");
         Assert.Equal(new[] { 1, 2 }, revisions.EnumerateArray().Select(r => r.GetProperty("revision").GetInt32()));

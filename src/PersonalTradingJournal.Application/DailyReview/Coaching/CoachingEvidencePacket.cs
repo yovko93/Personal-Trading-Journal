@@ -5,7 +5,8 @@ namespace PersonalTradingJournal.Application.DailyReview.Coaching;
 
 public static class CoachingContract
 {
-    public const string Version = "daily-coaching.v3";
+    public const string Version = "daily-coaching.v4";
+    public const string PreparationVersion = "daily-coaching.v3";
     public const string PlaybookVersion = "daily-coaching.v2";
     public const string LegacyVersion = "daily-coaching.v1";
     public const int MaximumPacketBytes = 262_144;

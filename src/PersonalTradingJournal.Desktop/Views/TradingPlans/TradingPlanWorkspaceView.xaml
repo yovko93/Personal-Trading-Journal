@@ -62,7 +62,7 @@
    <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
     <Label Content="Account" Target="{Binding ElementName=Account}" Padding="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
     <ComboBox x:Name="Account" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Label"
-      Style="{StaticResource PlanSelect}" Width="190" IsEnabled="{Binding CanSelectContext}" Margin="0,4,0,0" AutomationProperties.Name="Exact Trading Plan Account" />
+      Style="{StaticResource PlanSelect}" Width="190" IsEnabled="{Binding CanSelectContext}" Margin="0,4,0,0" AutomationProperties.Name="Trading Plan scope: All Accounts or exact Account" />
    </StackPanel>
    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" Visibility="{Binding HasEditor, Converter={StaticResource VisibleIf}}">
     <Label Content="Session" Target="{Binding ElementName=Session}" Padding="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
@@ -72,6 +72,10 @@
       <Style.Triggers><DataTrigger Binding="{Binding}" Value="{x:Static plan:TradingPlanSession.NewYork}"><Setter Property="Text" Value="New York" /></DataTrigger></Style.Triggers>
      </Style></TextBlock.Style></TextBlock></DataTemplate></ComboBox.ItemTemplate>
     </ComboBox>
+   </StackPanel>
+   <StackPanel Visibility="{Binding IsGlobalScope, Converter={StaticResource VisibleIf}}" Margin="0,0,12,4">
+    <TextBox Width="110" Text="{Binding PlanCurrency, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding Editor.IsReadOnly}" Style="{StaticResource PlanInput}" AutomationProperties.Name="Shared plan currency" AutomationProperties.HelpText="Trader-wide limits, not multiplied by Account. No currency conversion." />
+    <TextBlock Text="{Binding Editor.CurrencyError}" Foreground="{DynamicResource PtjDangerBrush}" TextWrapping="Wrap" />
    </StackPanel>
    <Border VerticalAlignment="Center" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,4,0,0">
     <TextBlock ToolTip="{Binding StateLabel}" AutomationProperties.HelpText="{Binding ContextLabel}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Body}">

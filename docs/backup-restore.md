@@ -1,5 +1,11 @@
 # Backup and restore — M16
 
+## Shared Trading Plans and screenshot assets — current compatibility
+
+Migration `20261019080838_SharedTradingPlansAndScreenshots` preserves exact-Account Plans and adds nullable shared scope with separate partial uniqueness plus the immutable `TradingPlanAssets` ledger. Current-schema complete backups include all retained Plan screenshot binaries alongside Trade/Playbook images. Packaging, preflight and offline restore check sizes/hashes and reconcile Draft/Ready attachment metadata against that ledger. Synthetic backup → preflight → offline restore checks compare original image bytes and frozen Ready attachments.
+
+Logical export is now **v11**, adding `tradingPlanAssets` and nullable Plan scope; Plan JSON carries v2 content/currency/screenshots while older v1 content stays readable. Export v10 lacks this new representation and is not silently treated as v11. JSON/CSV remain non-restorable, **screenshot metadata only**, and unencrypted. Complete archives remain unencrypted and exclude credentials. Older-schema archive restore is still deferred; installed databases migrate normally, but restore does not migrate archives. Downgrade of this migration is refused rather than discarding assets or inventing Account IDs. Retained assets removed from a Draft are still packaged conservatively; no automatic physical garbage collection is added. [Results and exact files](trading-plan.md#shared-preparation-and-timeframe-screenshots-before-m2110).
+
 ## M21.3 — Trading Plan compatibility
 
 The current schema is migration **21**, `20261017152354_AddTradingPlans`. Complete v1 archives include `TradingPlans` (current Draft, exact Account/New York-date identity, version, audit time and hashed reference baseline) and append-only `TradingPlanReadyRevisions` (full frozen content/reference snapshots and chronology). No screenshot files are added by Plans: the established Plan snapshot contract includes five Playbook guidance sections, not Playbook images. A synthetic backup → preflight → offline restore → fresh-service read verifies exact Draft/Ready payload retention and a verified recovery archive. Existing source records and review snapshots are unchanged.

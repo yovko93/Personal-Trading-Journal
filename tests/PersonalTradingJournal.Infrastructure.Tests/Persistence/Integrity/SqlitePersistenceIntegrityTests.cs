@@ -66,6 +66,7 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(PeriodReviewRecord),
             typeof(TradingPlanRecord),
             typeof(TradingPlanReadyRecord),
+            typeof(TradingPlanAssetRecord),
             typeof(PlaybookRevisionRecord),
             typeof(PlaybookExampleRecord),
             typeof(TradePlaybookContextRecord),
@@ -198,7 +199,9 @@ public sealed class SqlitePersistenceIntegrityTests
         Assert.Equal(DeleteBehavior.Restrict, positionKey.DeleteBehavior);
         AssertForeignKey(model, typeof(TradingPlanReadyRecord), nameof(TradingPlanReadyRecord.PlanId),
             typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
-        Assert.Equal(23, foreignKeys.Count);
+        AssertForeignKey(model, typeof(TradingPlanAssetRecord), nameof(TradingPlanAssetRecord.PlanId),
+            typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
+        Assert.Equal(24, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
@@ -286,9 +289,13 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(11, uniqueIndexes.Count);
+        Assert.Equal(13, uniqueIndexes.Count);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
-            index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter is null);
+            index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL");
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
+            index.Properties.SequenceEqual(["NewYorkDate"]) && index.Filter == "AccountId IS NULL");
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanAssetRecord) &&
+            index.Properties.SequenceEqual(["StorageKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&
             index.Properties.SequenceEqual(["RuleId", "RuleRevision", "TargetKey", "EvaluationFingerprint"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&

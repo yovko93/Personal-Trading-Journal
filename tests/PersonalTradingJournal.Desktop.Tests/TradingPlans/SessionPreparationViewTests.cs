@@ -64,7 +64,7 @@ public sealed class SessionPreparationViewTests
                     var selector = (ComboBox)section.FindName("ContextSelector");
                     Assert.Equal(vm.SelectedInstrument, selector.SelectedItem);
                     ((Expander)section.FindName("InstrumentPicker")).IsExpanded = true; Layout();
-                    var add = Descendants(section).OfType<Button>().Single(b => AutomationProperties.GetName(b) == "Add instrument context");
+                    var add = Descendants(section).OfType<Button>().Single(b => AutomationProperties.GetName(b) == "Add Instrument");
                     Assert.False(add.IsEnabled);
                     ((ComboBox)section.FindName("CatalogSelector")).SetCurrentValue(ComboBox.SelectedItemProperty, vm.AvailableInstruments.Last());
                     Assert.True(add.IsEnabled);

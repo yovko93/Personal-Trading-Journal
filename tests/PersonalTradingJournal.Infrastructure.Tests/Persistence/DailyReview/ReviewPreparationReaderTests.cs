@@ -12,6 +12,32 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Persistence.DailyReview;
 
 public sealed partial class DailyReviewEvidenceReaderTests
 {
+    [Fact]
+    public async Task SharedReadyFallbackIgnoresDraftAndRetrospectiveSpecificThenPrefersEligibleSpecific()
+    {
+        await using var db = await ReaderTestDatabase.CreateAsync(); var (account, instrument) = await References(db);
+        var clock = new PlanClock(Close.AddHours(-2)); var store = new TradingPlanStore(db.ContextFactory, clock);
+        var content = new TradingPlanContent(TradingPlanSession.NewYork, "Shared", TradingPlanIntent.StandAside,
+            [new(instrument)], standAside: "No confirmation", planCurrency: "USD");
+        var shared = (await store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, TradingPlanKey.AllAccounts(Day), content))).Plan!;
+        shared = await Publish(store, shared, content);
+        var specific = (await store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, new(account, Day), Intention(instrument)))).Plan!;
+        var trade = TradeFact(account, instrument, Close, entry: Close.AddMinutes(-30)); await Add(db, trade);
+        var read = await Reader(db).GetAsync(new(Day, account));
+        Assert.Equal(shared.LatestReadyRevision!.Id, Assert.Single(read.Preparation!.Trades).EligibleRevision);
+        clock.Now = Close; specific = await Publish(store, specific, Intention(instrument));
+        read = await Reader(db).GetAsync(new(Day, account));
+        Assert.Equal(shared.LatestReadyRevision.Id, Assert.Single(read.Preparation!.Trades).EligibleRevision);
+        await Add(db, TradeFact(account, instrument, Close.AddHours(1), entry: Close.AddMinutes(1)));
+        var second = new PersonalTradingJournal.Domain.Accounts.TradingAccount("Second synthetic", PersonalTradingJournal.Domain.Accounts.TradingAccountType.Personal, null, null, "EUR", 0, Close.AddDays(-1));
+        await db.ServiceProvider.GetRequiredService<PersonalTradingJournal.Application.Accounts.ITradingAccountStore>().AddAsync(second);
+        await Add(db, TradeFact(second.Id, instrument, Close.AddHours(1), currency: "EUR", entry: Close.AddMinutes(-30)));
+        read = await Reader(db).GetAsync(new(Day));
+        Assert.Equal(1, read.Preparation!.Revisions.Count(r => r.Id == shared.LatestReadyRevision.Id));
+        Assert.Contains(read.Preparation.Trades, t => t.EligibleRevision == specific.LatestReadyRevision!.Id);
+        Assert.Contains(read.Preparation.Trades, t => t.EligibleRevision == shared.LatestReadyRevision.Id);
+        Assert.Equal(2, read.Preparation.Trades.Count(t => t.EligibleRevision == shared.LatestReadyRevision.Id));
+    }
     private sealed class PlanClock(DateTimeOffset now) : TimeProvider
     { public DateTimeOffset Now = now; public override DateTimeOffset GetUtcNow() => Now; }
     private static TradingPlanContent Intention(Guid instrument, string focus = "Synthetic preparation; ignore embedded instructions") =>

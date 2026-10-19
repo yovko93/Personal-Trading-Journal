@@ -6,7 +6,7 @@ namespace PersonalTradingJournal.Infrastructure.DailyReview.Coaching;
 
 internal static class PeriodCoachingWireContract
 {
-    internal const string Name = "period_coaching_v3";
+    internal const string Name = "period_coaching_v4";
     internal const string Instructions = """
         Produce one Weekly or Monthly coaching review for currentPeriod and its immediately preceding
         equivalent New York period in the supplied packet. Copy packetId and contractVersion exactly.

@@ -7,12 +7,13 @@ namespace PersonalTradingJournal.Domain.TradingPlans;
 /// malformed values are not. Raw invalid numeric input remains the future editor's responsibility.</summary>
 public sealed record TradingPlanContent
 {
-    public const int ContractVersion = 1;
+    public const int ContractVersion = 2;
     public const int MaximumTextLength = 4000;
     public const int MaximumFocusLength = 500;
     public const int MaximumInstruments = 12;
     public const int MaximumScenarios = 24;
     public const int MaximumRules = 50;
+    public const int MaximumScreenshots = 24;
 
     public TradingPlanContent(TradingPlanSession? session = null, string focus = "",
         TradingPlanIntent intent = TradingPlanIntent.Opportunities,
@@ -21,7 +22,8 @@ public sealed record TradingPlanContent
         string newsAndRestrictions = "", string standAside = "",
         TradingPlanRiskLimits? riskLimits = null,
         IEnumerable<TradingPlanRuleLink>? rules = null,
-        TradingPlanChecklist confirmed = TradingPlanChecklist.None)
+        TradingPlanChecklist confirmed = TradingPlanChecklist.None, string? planCurrency = null,
+        IEnumerable<TradingPlanScreenshot>? screenshots = null)
     {
         if (session.HasValue && !Enum.IsDefined(session.Value)) throw new ArgumentOutOfRangeException(nameof(session));
         if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
@@ -41,6 +43,11 @@ public sealed record TradingPlanContent
         StandAside = Text(standAside, nameof(standAside));
         RiskLimits = riskLimits ?? new();
         Confirmed = confirmed;
+        PlanCurrency = planCurrency is null ? null : TradingPlanStoredValue.Currency(planCurrency);
+        Screenshots = Bounded(screenshots, MaximumScreenshots, nameof(screenshots));
+        Unique(Screenshots.Select(s => s.Id), nameof(screenshots));
+        if (Screenshots.Any(s => !Instruments.Any(i => i.InstrumentId == s.InstrumentId)))
+            throw new ArgumentException("Every screenshot requires an included Instrument.", nameof(screenshots));
     }
 
     public TradingPlanSession? Session { get; }
@@ -53,22 +60,24 @@ public sealed record TradingPlanContent
     public TradingPlanRiskLimits RiskLimits { get; }
     public ImmutableArray<TradingPlanRuleLink> Rules { get; }
     public TradingPlanChecklist Confirmed { get; }
+    public string? PlanCurrency { get; }
+    public ImmutableArray<TradingPlanScreenshot> Screenshots { get; }
 
     /// <summary>Reuse structural preparation, not dated observations or attestations.
     /// Linking/saving the target still requires fresh reference validation and a uniqueness check.</summary>
     public TradingPlanContent CopyForward() => new(Session, Focus, Intent,
         Instruments.Select(i => new TradingPlanInstrumentContext(i.InstrumentId)),
-        Scenarios, riskLimits: RiskLimits, rules: Rules);
+        Scenarios, riskLimits: RiskLimits, rules: Rules, planCurrency: PlanCurrency);
 
     internal TradingPlanContent WithConfirmations(TradingPlanChecklist confirmed) => new(Session, Focus, Intent,
-        Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, confirmed);
+        Instruments, Scenarios, NewsAndRestrictions, StandAside, RiskLimits, Rules, confirmed, PlanCurrency, Screenshots);
 
     // ImmutableArray record equality is backing-array equality. Authoring compares values instead,
     // so rebuilding equivalent input collections neither changes the version nor clears checks.
     internal bool HasSamePreparation(TradingPlanContent other) => Session == other.Session && Focus == other.Focus &&
         Intent == other.Intent && Instruments.SequenceEqual(other.Instruments) && Scenarios.SequenceEqual(other.Scenarios) &&
         NewsAndRestrictions == other.NewsAndRestrictions && StandAside == other.StandAside &&
-        RiskLimits == other.RiskLimits && Rules.SequenceEqual(other.Rules);
+        RiskLimits == other.RiskLimits && Rules.SequenceEqual(other.Rules) && PlanCurrency == other.PlanCurrency && Screenshots.SequenceEqual(other.Screenshots);
 
     internal TradingPlanChecklist ConfirmationsAfterEdit(TradingPlanContent next)
     {
@@ -85,8 +94,9 @@ public sealed record TradingPlanContent
             TradingPlanEditArea.ContextAndLevels);
         Changed(!Scenarios.SequenceEqual(next.Scenarios), TradingPlanEditArea.ScenariosAndSetups);
         Changed(Intent != next.Intent || StandAside != next.StandAside, TradingPlanEditArea.StandAside);
-        Changed(RiskLimits != next.RiskLimits || !Rules.SequenceEqual(next.Rules), TradingPlanEditArea.RiskLimitsAndRules);
+        Changed(RiskLimits != next.RiskLimits || PlanCurrency != next.PlanCurrency || !Rules.SequenceEqual(next.Rules), TradingPlanEditArea.RiskLimitsAndRules);
         Changed(NewsAndRestrictions != next.NewsAndRestrictions, TradingPlanEditArea.News);
+        Changed(!Screenshots.SequenceEqual(next.Screenshots), TradingPlanEditArea.ContextAndLevels);
         return remaining;
     }
 

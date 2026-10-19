@@ -17,6 +17,9 @@ public sealed partial class SessionPreparationViewModel
     private string _referenceError = "Check references or save the Draft to verify the current sources.";
     private TradingPlanAccountSnapshot? _currentAccount;
     public bool IsDisposed => _disposed;
+    private string _planCurrency = "";
+    public bool IsGlobalScope => Key.Scope == TradingPlanScope.AllAccounts;
+    public string PlanCurrency { get => _planCurrency; set { if (CanEdit && SetProperty(ref _planCurrency, value)) { OnPropertyChanged(nameof(CurrencyError)); Changed(); } } }
     public PreparationField RiskPerTrade { get; private set; } = null!;
     public PreparationField DailyLossLimit { get; private set; } = null!;
     public PreparationField MaximumTrades { get; private set; } = null!;
@@ -25,9 +28,10 @@ public sealed partial class SessionPreparationViewModel
     public IReadOnlyList<PlanChecklistItem> Checklist { get; private set; } = [];
     public IAsyncRelayCommand CheckReferencesCommand { get; private set; } = null!;
     public bool CurrencyVerified => IsReadOnly || _currencyVerified;
-    public string CurrencyLabel => _currency is null ? "Account currency unverified" :
+    public string CurrencyLabel => IsGlobalScope ? $"Trader-wide plan currency: {PlanCurrency} · not a per-Account budget" : _currency is null ? "Account currency unverified" :
         CurrencyVerified ? $"Account currency: {_currency}" : $"Last verified currency: {_currency} · recheck required";
     public string CurrencyMessage => IsReadOnly ? "Saved currency and limits from this Ready revision." :
+        IsGlobalScope ? "Optional trader-wide planned amounts in the explicit plan currency. Blank is unset; zero permits none. No FX conversion or per-Account multiplication." :
         !CurrencyVerified && _currentAccount is { } account ? $"Current Account currency: {account.Currency}. Review the amounts, then explicitly refresh references to accept this context. Values are not converted." :
         "Optional planned amounts in this exact Account's currency. Blank is unset; zero permits none. No broker enforcement or loss monitoring.";
     public bool HasMonetaryLimits => !string.IsNullOrWhiteSpace(RiskPerTrade.Text) || !string.IsNullOrWhiteSpace(DailyLossLimit.Text);
@@ -43,6 +47,7 @@ public sealed partial class SessionPreparationViewModel
         {
             if (IsReadOnly) return [];
             var blockers = new List<PlanReadinessBlocker>();
+            if (CurrencyError.Length > 0) blockers.Add(new("Currency", CurrencyError));
             if (IsBusy) blockers.Add(new("Operation", "Wait for the current operation to finish."));
             if (_writeConflict) blockers.Add(new("Conflict", "This Plan changed elsewhere. Keep your input and reload/resolve the newer Draft before continuing."));
             if (_saveFailed) blockers.Add(new("Save", "The last save could not be verified. Retry saving; entered preparation is retained."));
@@ -64,6 +69,7 @@ public sealed partial class SessionPreparationViewModel
 
     private void InitializeRiskReadiness()
     {
+        _planCurrency = _original.PlanCurrency ?? "";
         _pendingConfirmed = _original.Confirmed;
         var limits = _original.RiskLimits;
         PreparationField Amount(string label, decimal? value) => new(label, value?.ToString(_culture) ?? "", 128, true, _culture, () => CanEdit, Changed, minimum: 0, numericNoun: "amount");
@@ -106,11 +112,11 @@ public sealed partial class SessionPreparationViewModel
         {
             [TradingPlanEditArea.Session] = Json(Session), [TradingPlanEditArea.Focus] = Focus.Text,
             [TradingPlanEditArea.Instruments] = Json(_contexts.Select(c => c.InstrumentId).Order()),
-            [TradingPlanEditArea.ContextAndLevels] = Json(_contexts.OrderBy(c => c.InstrumentId).Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.SemanticInput) })),
+            [TradingPlanEditArea.ContextAndLevels] = Json(new { Contexts = _contexts.OrderBy(c => c.InstrumentId).Select(c => new { c.InstrumentId, c.Bias, Thesis = c.Thesis.Text, Levels = c.Levels.Select(f => f.SemanticInput) }), Screenshots = _screenshots.Select(s => s.Id) }),
             [TradingPlanEditArea.ScenariosAndSetups] = Json(_scenarios.Select(s => s.RawState)),
             [TradingPlanEditArea.StandAside] = Json(new { Intent, StandAside = StandAside.Text }),
             [TradingPlanEditArea.News] = News.Text,
-            [TradingPlanEditArea.RiskLimitsAndRules] = Json(new { Limits = RiskFields.Select(f => f.SemanticInput), Rules = _linkedRules.Select(r => r.Link) })
+            [TradingPlanEditArea.RiskLimitsAndRules] = Json(new { PlanCurrency, Limits = RiskFields.Select(f => f.SemanticInput), Rules = _linkedRules.Select(r => r.Link) })
         };
     }
     private void InvalidateEditedConfirmations()
@@ -122,7 +128,7 @@ public sealed partial class SessionPreparationViewModel
                 _pendingConfirmed = TradingPlanChecklistPolicy.AfterEdit(_pendingConfirmed, area);
         _editStates = next;
     }
-    private string ReferenceSelection() => JsonSerializer.Serialize(new { Key.AccountId,
+    private string ReferenceSelection() => JsonSerializer.Serialize(new { Key.AccountId, PlanCurrency,
         Instruments = _contexts.Select(c => c.InstrumentId).Order(), Setups = _scenarios.Select(s => s.Setup).Where(s => s is not null).Distinct().OrderBy(s => s!.SetupId),
         Rules = _linkedRules.Select(r => r.Link).OrderBy(r => r.RuleId) });
 

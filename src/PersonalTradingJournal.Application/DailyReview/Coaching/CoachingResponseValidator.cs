@@ -91,7 +91,7 @@ public static class CoachingResponseValidator
                         CoachingSourceKind.Trade or CoachingSourceKind.Execution),
                     CoachingObservationBasis.UserWrittenJournalObservation => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.Journal),
                     CoachingObservationBasis.UserWrittenPlaybookContext => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.PlaybookAssociation),
-                    CoachingObservationBasis.UserWrittenPreparation => packet.ContractVersion == CoachingContract.Version && item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.TradingPlanRevision),
+                    CoachingObservationBasis.UserWrittenPreparation => packet.ContractVersion is (CoachingContract.Version or CoachingContract.PreparationVersion) && item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.TradingPlanRevision),
                     _ => false,
                 };
                 if (!appropriate) errors.Add(location + ": basis does not match the cited source kinds.");

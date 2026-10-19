@@ -42,13 +42,13 @@ public sealed class TradingPlanWorkspaceViewTests
                 var page = new TradingPlanWorkspaceView { DataContext = vm };
                 VisualTreeHelper.SetRootDpi(page, new DpiScale(dpi / 96d, dpi / 96d));
                 void Layout() { Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle); page.Measure(new Size(width, 950)); page.Arrange(new Rect(0, 0, width, 950)); page.UpdateLayout(); }
-                Layout(); Assert.Contains(Descendants(page).OfType<TextBlock>(), t => t.Text.Contains("Select an exact Account", StringComparison.Ordinal));
+                Layout(); Assert.Contains(Descendants(page).OfType<TextBlock>(), t => t.Text.Contains("No Plan for this scope", StringComparison.Ordinal));
                 var startDraft = (Button)page.FindName("StartDraft"); Assert.False(IsPresented(startDraft));
                 Render(page, theme, width, dpi, "empty");
                 var readEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 var readRelease = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                 fixture.Store.Read = async (key, ct) => { readEntered.SetResult(); await readRelease.Task.WaitAsync(ct); return await fixture.Store.Inner.LoadAsync(key, ct); };
-                var reading = vm.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, vm.Accounts[0]); Pump(readEntered.Task); Layout();
+                var reading = vm.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, vm.Accounts.First(a => a.Id.HasValue)); Pump(readEntered.Task); Layout();
                 Assert.True(vm.IsLoading); Assert.False(vm.SaveCommand.CanExecute(null)); Assert.False(IsPresented(startDraft)); Render(page, theme, width, dpi, "loading");
                 readRelease.SetResult(); Pump(reading); fixture.Store.Read = null; Layout();
                 Assert.Same(vm.Editor, ((SessionPreparationSection)page.FindName("Preparation")).DataContext);
@@ -92,7 +92,7 @@ public sealed class TradingPlanWorkspaceViewTests
             if (width != 980) return; // Real owner/focus scenario runs once; all four sizes render both themes.
             app.Resources = themes["Light"];
             using var focus = fixture.NewWorkspace(); Pump(focus.ActivateAsync());
-            Pump(focus.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, focus.Accounts[0]));
+            Pump(focus.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, focus.Accounts.First(a => a.Id.HasValue)));
             var realPage = new TradingPlanWorkspaceView { DataContext = focus };
             var window = new Window { Content = realPage, Width = 670, Height = 800 }; window.Show();
             try
@@ -113,7 +113,7 @@ public sealed class TradingPlanWorkspaceViewTests
             // Actual MainWindow Closing, including a later subscriber veto. Discard consent must not
             // destroy the retained session until the owner close's final result is accepted.
             using var closing = fixture.NewWorkspace(); Pump(closing.ActivateAsync());
-            Pump(closing.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, closing.Accounts[0]));
+            Pump(closing.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, closing.Accounts.First(a => a.Id.HasValue)));
             using var shell = MainWindowViewModelTests.CreatePlanShell(closing);
             shell.NavigateCommand.Execute(PersonalTradingJournal.Desktop.Navigation.NavigationDestination.TradingPlan);
             app.Resources.Add(new DataTemplateKey(typeof(TradingPlanWorkspaceViewModel)), new DataTemplate(typeof(TradingPlanWorkspaceViewModel))

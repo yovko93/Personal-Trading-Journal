@@ -61,7 +61,7 @@ public sealed class PeriodSqliteTests
         Assert.True(vm.Report is not null, vm.Message); Assert.Equal(1, handler.Calls); Assert.Equal(5, vm.Report.Cards.Count);
         Assert.Contains("Net is unavailable", vm.Current!.Coverage);
         var saved = (await store.GetAsync(Assert.Single(vm.History).Source.Id))!;
-        Assert.Equal(packet.Json, saved.EvidenceJson); Assert.Equal("period-coaching.v3", saved.ResponseContractVersion);
+        Assert.Equal(packet.Json, saved.EvidenceJson); Assert.Equal("period-coaching.v4", saved.ResponseContractVersion);
         Assert.Equal(25, packet.Sources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));
         Assert.Equal(50, packet.Sources.Count(s => s.Kind == PeriodCoachingSourceKind.Execution));
         Assert.Equal(2, packet.SuppliedSources.Count(s => s.Kind == PeriodCoachingSourceKind.Trade));

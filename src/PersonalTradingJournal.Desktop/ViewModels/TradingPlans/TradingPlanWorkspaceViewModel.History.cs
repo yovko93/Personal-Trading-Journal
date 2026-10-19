@@ -214,6 +214,8 @@ public sealed partial class TradingPlanWorkspaceViewModel
             if (revision is null || revision.Id != row.Revision.Id || revision.Key != plan.Key) throw new InvalidDataException("Unavailable revision.");
             if (!owns() || _historyPlan != plan) return;
             _viewedRevision = revision; HistoricalViewer = CreateEditor(plan, revision);
+            await HistoricalViewer.LoadThumbnailsAsync(ct);
+            if (!owns() || _historyPlan != plan) return;
             HistoryMessage = "Showing frozen Ready preparation. Start Draft uses this revision on its original date; Copy Forward uses it on another date. Neither uses unsaved editor input.";
         });
     }
@@ -285,7 +287,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
         HistoryMessage = copy ? "Copying the selected persisted Ready revision…" : "Starting Draft from the selected Ready revision…";
         try
         {
-            var current = await Task.Run(() => _accounts.GetByIdAsync(target.AccountId, cancellation.Token), cancellation.Token);
+            var current = target.AccountId is { } accountId ? await Task.Run(() => _accounts.GetByIdAsync(accountId, cancellation.Token), cancellation.Token) : null;
             string? currency = null;
             if (current is not null && current.Currency != source.References.Account.Currency &&
                 (source.Content.RiskLimits.RiskPerTrade.HasValue || source.Content.RiskLimits.DailyLossLimit.HasValue))
@@ -311,7 +313,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
             }
             var plan = result.Plan;
             var expected = copy ? source.Content.CopyForward() : new TradingPlanContent(source.Content.Session, source.Content.Focus, source.Content.Intent,
-                source.Content.Instruments, source.Content.Scenarios, source.Content.NewsAndRestrictions, source.Content.StandAside, source.Content.RiskLimits, source.Content.Rules);
+                source.Content.Instruments, source.Content.Scenarios, source.Content.NewsAndRestrictions, source.Content.StandAside, source.Content.RiskLimits, source.Content.Rules, planCurrency: source.Content.PlanCurrency, screenshots: source.Content.Screenshots);
             if (plan?.WorkingDraft is null || plan.Key != target || !SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, expected) ||
                 (copy ? plan.Id == owner.Id || plan.LatestReadyRevision is not null : plan.Id != owner.Id || plan.Version <= owner.Version ||
                     plan.LatestReadyRevision?.Id != owner.LatestReadyRevision?.Id || plan.WorkingDraft.DerivedFromRevision != source.Id))

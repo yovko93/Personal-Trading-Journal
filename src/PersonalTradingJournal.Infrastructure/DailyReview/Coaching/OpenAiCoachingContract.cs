@@ -65,7 +65,7 @@ internal static class OpenAiCoachingContract
         {
             model = options.Model, instructions = InstructionsFor(packet),
             input = new[] { new { role = "user", content = packet.Json } },
-            text = new { format = new { type = "json_schema", name = "daily_coaching_v3", strict = true, schema = Schema() } },
+            text = new { format = new { type = "json_schema", name = "daily_coaching_v4", strict = true, schema = Schema() } },
             max_output_tokens = options.MaximumOutputTokens,
             store = false, stream = false, background = false, truncation = "disabled",
         });

@@ -18,9 +18,9 @@ public interface ITradingPlanInteraction
     PlanLeaveChoice ConfirmLeave();
     bool ConfirmCurrency(string savedCurrency, string currentCurrency);
 }
-public sealed record PlanAccountOption(Guid Id, string Name, string Currency, bool IsActive, bool IsAvailable = true)
+public sealed record PlanAccountOption(Guid? Id, string Name, string Currency, bool IsActive, bool IsAvailable = true)
 {
-    public string Label => $"{Name} · {Currency}" + (!IsAvailable ? " · unavailable" : IsActive ? "" : " · inactive");
+    public string Label => Id is null ? "All Accounts" : $"{Name} · {Currency}" + (!IsAvailable ? " · unavailable" : IsActive ? "" : " · inactive");
 }
 
 /// <summary>Retained page coordinator; the section session alone owns draft fields and the save token.
@@ -51,15 +51,16 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private PlanAccountOption? _account;
     private IReadOnlyList<PlanAccountOption> _choices = [];
     private SessionPreparationViewModel? _editor;
+    private readonly PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? _images;
 
     public TradingPlanWorkspaceViewModel(ITradingPlanStore store, ITradingAccountReader accounts, IInstrumentReader instruments,
         ITradingPlanReferenceReader references, ITradingSetupReader setups, ITradingSetupPlaybookStore playbooks,
         ITradingSetupPlaybookHistoryReader history, ITradingRuleReader rules, ITradingRuleStore ruleStore,
-        ITradingPlanInteraction interaction, TimeProvider? clock = null)
+        ITradingPlanInteraction interaction, TimeProvider? clock = null, PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null)
     {
         _store = store; _accounts = accounts; _instruments = instruments; _references = references;
         _setups = setups; _playbooks = playbooks; _history = history; _rules = rules; _ruleStore = ruleStore;
-        _interaction = interaction; _clock = clock ?? TimeProvider.System;
+        _interaction = interaction; _clock = clock ?? TimeProvider.System; _images = images;
         _date = Today; _dateText = Format(_date);
         PreviousDayCommand = new AsyncRelayCommand(() => MoveDateAsync(-1), () => CanSelectContext && _date > DateOnly.MinValue);
         NextDayCommand = new AsyncRelayCommand(() => MoveDateAsync(1), () => CanSelectContext && _date < DateOnly.MaxValue);
@@ -89,6 +90,14 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public bool HasPendingDate => !TryDate(out var date) || date != _date;
     public bool CanInteractEditor => !HasPendingDate && !_loading && !_writing;
     public IReadOnlyList<PlanAccountOption> Accounts => _choices;
+    private string _globalCurrency = "";
+    public bool IsGlobalScope => _account is { Id: null };
+    public string PlanCurrency
+    {
+        get => Editor?.PlanCurrency ?? _globalCurrency;
+        set { if (Editor is { } editor) editor.PlanCurrency = value; else _globalCurrency = value; OnPropertyChanged(); Notify(); }
+    }
+    private static bool ValidCurrency(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 8 && value == value.Trim().ToUpperInvariant();
     public PlanAccountOption? SelectedAccount
     {
         get => _account;
@@ -100,16 +109,17 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public bool IsBusy => _loading || _writing || _historyLoading || _historyTransition || Editor?.IsBusy == true;
     public bool CanSelectContext => !_writing && !_historyTransition && Editor?.IsBusy != true && !_guarding && !_disposed;
     public bool CanSave => Editor?.CanEdit == true && !IsBusy && !HasPendingDate;
-    public bool CanCreateDraft => !HasEditor && !IsBusy && _account?.IsActive == true && !HasPendingDate && _contextLoaded;
+    public bool CanCreateDraft => !HasEditor && !IsBusy && _account?.IsActive == true && !HasPendingDate && _contextLoaded && (!IsGlobalScope || ValidCurrency(PlanCurrency));
     private bool _contextLoaded;
     public bool ShowEmpty => !HasEditor && !IsLoading;
     public string EmptyMessage => !_initialized ? "Load Accounts to begin." : _account is null
         ? Accounts.Count == 0 ? "No Accounts are available. Add an Account in Accounts before creating a Trading Plan." :
             Accounts.All(a => !a.IsActive) ? "No active Accounts. Reopen an Account before creating preparation; existing Plans remain readable under their exact inactive Account." :
-            "Select an exact Account. Trading Plans do not use an All accounts scope."
+            "Select All Accounts for shared preparation, or an exact Account."
         : !_contextLoaded ? "The selected context could not be loaded. Retry loading; no empty Plan has been saved."
         : !_account.IsActive ? "No Plan for this date. Reopen this Account in Accounts before creating preparation."
-        : "No Plan for this Account and New York date. Create Draft explicitly to begin; opening this page saves nothing.";
+        : IsGlobalScope && !ValidCurrency(PlanCurrency) ? "Choose an explicit plan currency (up to 8 uppercase characters) before creating shared preparation. No currency conversion is performed."
+        : "No Plan for this scope and New York date. Create Draft explicitly to begin; opening this page saves nothing.";
     public string ContextLabel => $"{Format(_date)} · New York · " + (Editor?.IsReadOnly == true
         ? $"{Editor.CurrentPlan.LatestReadyRevision!.References.Account.Name} · {Editor.CurrentPlan.LatestReadyRevision.References.Account.Currency} · saved Account context"
         : _account?.Label ?? "No Account selected");
@@ -151,7 +161,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private void ValidateDate()
     { _dateError = TryDate(out _) ? "" : "Enter a valid New York date, for example 19 Oct 2026."; OnPropertyChanged(nameof(DateError)); OnPropertyChanged(nameof(HasDateError)); }
     private void RestoreSelectors()
-    { OnPropertyChanged(nameof(SelectedAccount)); OnPropertyChanged(nameof(CalendarDate)); OnPropertyChanged(nameof(DateText)); Notify(); }
+    { OnPropertyChanged(nameof(SelectedAccount)); OnPropertyChanged(nameof(IsGlobalScope)); OnPropertyChanged(nameof(PlanCurrency)); OnPropertyChanged(nameof(CalendarDate)); OnPropertyChanged(nameof(DateText)); Notify(); }
 
     public async Task ReloadAsync()
     {
@@ -177,9 +187,11 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
                 var rows = await Task.Run(() => _accounts.GetAllAsync(cancellation.Token), cancellation.Token);
                 cancellation.Token.ThrowIfCancellationRequested();
                 if (epoch != _epoch || _disposed) return;
-                _choices = rows.OrderBy(a => a.Name, StringComparer.Ordinal).ThenBy(a => a.Id).Select(a => new PlanAccountOption(a.Id, a.Name, a.Currency, a.IsActive)).ToArray();
+                var currencies = rows.Where(a => a.IsActive).Select(a => a.Currency).Distinct().ToArray();
+                if (!_initialized && currencies.Length == 1) _globalCurrency = currencies[0];
+                _choices = [new(null, "All Accounts", "", true), .. rows.OrderBy(a => a.Name, StringComparer.Ordinal).ThenBy(a => a.Id).Select(a => new PlanAccountOption(a.Id, a.Name, a.Currency, a.IsActive))];
                 // Keep exact unavailable identity; never choose a same-name replacement.
-                account = account is null ? null : _choices.FirstOrDefault(a => a.Id == account.Id) ?? account with { IsActive = false, IsAvailable = false };
+                account = account is null ? _choices[0] : _choices.FirstOrDefault(a => a.Id == account.Id) ?? account with { IsActive = false, IsAvailable = false };
                 if (account is { IsAvailable: false }) _choices = [.. _choices, account];
                 _account = account; _initialized = true; OnPropertyChanged(nameof(Accounts)); RestoreSelectors();
             }
@@ -208,6 +220,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private SessionPreparationViewModel CreateEditor(TradingPlan plan, TradingPlanReadyRevision? historical = null)
     {
         var editor = new SessionPreparationViewModel(plan, _store, _instruments, historical: historical) { IsHosted = true };
+        if (_images is not null) editor.ConfigureImages(_images);
         editor.ConfigurePlaybooks(_setups, _playbooks, _history); editor.ConfigureRules(_rules, _ruleStore); editor.ConfigureReferenceReader(_references);
         editor.PlaybookNavigation = (id, ct) => OpenPlaybook?.Invoke(id, ct) ?? Task.FromResult(false);
         editor.RuleNavigation = (id, ct) => OpenRule?.Invoke(id, ct) ?? Task.FromResult(false);
@@ -216,6 +229,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     private static async Task LoadSourcesAsync(SessionPreparationViewModel editor, CancellationToken ct)
     {
         await editor.LoadCatalogAsync(ct); ct.ThrowIfCancellationRequested();
+        await editor.LoadThumbnailsAsync(ct); ct.ThrowIfCancellationRequested();
         await editor.LoadPlaybooksAsync(ct); ct.ThrowIfCancellationRequested();
         await editor.LoadRulesAsync(ct); ct.ThrowIfCancellationRequested();
         if (!editor.IsReadOnly) await editor.CheckReferencesAsync(ct);
@@ -226,7 +240,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         if (_editor is not null) { _editor.PropertyChanged -= EditorChanged; _editor.Dispose(); }
         _editor = editor;
         if (editor is not null) editor.PropertyChanged += EditorChanged;
-        OnPropertyChanged(nameof(Editor)); Notify();
+        OnPropertyChanged(nameof(Editor)); OnPropertyChanged(nameof(PlanCurrency)); Notify();
     }
     private void EditorChanged(object? sender, PropertyChangedEventArgs args)
     {
@@ -247,7 +261,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         try
         {
             Message = "Creating Draft…";
-            var empty = new TradingPlanContent();
+            var empty = new TradingPlanContent(planCurrency: IsGlobalScope ? PlanCurrency : null);
             var result = await Task.Run(() => _store.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, key, empty), cancellation.Token), cancellation.Token);
             if (result.Status == TradingPlanWriteStatus.Success && result.Plan is { WorkingDraft: not null } plan && plan.Key == key &&
                 SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, empty))
@@ -263,15 +277,21 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     {
         if (IsBusy || HasPendingDate || Editor is null) return;
         var selected = Editor.SelectedInstrument?.InstrumentId;
-        Message = "Marking preparation Ready…";
-        var result = await Editor.MarkReadyAsync();
-        if (result.Status == TradingPlanWriteStatus.Success)
+        _writing = true; Notify();
+        try
         {
-            ReplaceEditor(CreateEditor(result.Plan!));
-            Editor!.SelectedInstrument = Editor.Contexts.FirstOrDefault(c => c.InstrumentId == selected);
-            Message = $"Ready revision {result.Plan!.LatestReadyRevision!.Id.Revision} saved and verified · read-only.";
+            Message = "Marking preparation Ready…";
+            var result = await Editor.MarkReadyAsync();
+            if (result.Status == TradingPlanWriteStatus.Success)
+            {
+                ReplaceEditor(CreateEditor(result.Plan!));
+                Editor!.SelectedInstrument = Editor.Contexts.FirstOrDefault(c => c.InstrumentId == selected);
+                await Editor.LoadThumbnailsAsync(CancellationToken.None);
+                Message = $"Ready revision {result.Plan!.LatestReadyRevision!.Id.Revision} saved and verified · read-only.";
+            }
+            else { ReadinessFocusRequest++; OnPropertyChanged(nameof(ReadinessFocusRequest)); }
         }
-        else { ReadinessFocusRequest++; OnPropertyChanged(nameof(ReadinessFocusRequest)); }
+        finally { _writing = false; Notify(); }
     }
     public int ReadinessFocusRequest { get; private set; }
     public async Task StartDraftAsync()
@@ -283,7 +303,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         try
         {
             string? reviewed = null;
-            var current = await Task.Run(() => _accounts.GetByIdAsync(editor.Key.AccountId, cancellation.Token), cancellation.Token);
+            var current = editor.Key.AccountId is { } accountId ? await Task.Run(() => _accounts.GetByIdAsync(accountId, cancellation.Token), cancellation.Token) : null;
             var saved = editor.CurrentPlan.LatestReadyRevision!.References.Account.Currency;
             if (editor.HasMonetaryLimits && current is not null && current.Currency != saved)
             {

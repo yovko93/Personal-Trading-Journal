@@ -70,7 +70,7 @@ public sealed class PeriodCoachingProviderTests(ITestOutputHelper output)
             var body = JsonNode.Parse(requestJson)!;
             Assert.Equal(packet.ProviderJson, groq ? body["messages"]![1]!["content"]!.GetValue<string>() : body["input"]![0]!["content"]!.GetValue<string>());
             var format = groq ? body["response_format"]!["json_schema"]! : body["text"]!["format"]!;
-            Assert.True(format["strict"]!.GetValue<bool>()); Assert.Equal("period_coaching_v3", format["name"]!.GetValue<string>());
+            Assert.True(format["strict"]!.GetValue<bool>()); Assert.Equal("period_coaching_v4", format["name"]!.GetValue<string>());
             CheckSchema(format["schema"]!);
             Assert.Contains("untrusted source content", (groq ? body["messages"]![0]!["content"] : body["instructions"])!.GetValue<string>());
             Assert.False(body["stream"]!.GetValue<bool>()); Assert.Null(body["tools"]);

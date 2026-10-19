@@ -83,7 +83,7 @@ public sealed class RiskReadinessTests
         await vm.CheckReferencesAsync(); Assert.True(vm.IsPreparationComplete);
         var token = vm.Token; for (int i = 0; i < 3; i++) { _ = vm.ReadinessBlockers; _ = vm.ReadinessSummary; _ = vm.ConfirmationProgress; }
         Assert.Equal(token, vm.Token); Assert.Equal(0, f.Base.Store.Writes);
-        vm.Scenarios[0].Response.Text = ""; Assert.False(vm.HasValidationErrors); Assert.Contains(vm.ReadinessBlockers, b => b.Field.EndsWith(".Response"));
+        vm.Scenarios[0].Direction = null; Assert.False(vm.HasValidationErrors); Assert.Contains(vm.ReadinessBlockers, b => b.Field.EndsWith(".Direction"));
         Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync()); // Incomplete valid Draft.
         vm.MaximumTrades.Text = "1.5"; Assert.True(vm.HasValidationErrors); Assert.Contains(vm.ReadinessBlockers, b => b.Message.Contains("whole number"));
         Assert.Equal(TradingPlanWriteStatus.Invalid, await vm.SaveAsync()); Assert.Same(vm.MaximumTrades, vm.FirstInvalidField);

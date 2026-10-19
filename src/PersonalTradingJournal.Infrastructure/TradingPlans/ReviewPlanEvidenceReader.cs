@@ -28,8 +28,8 @@ internal static class ReviewPlanEvidenceReader
         // json_each keeps the bounded set a single parameter; no lookup per Trade and no SQL assembled from source text.
         var plansQuery = db.TradingPlans.FromSqlInterpolated($"""
             SELECT p.* FROM TradingPlans p
-            WHERE ((p.NewYorkDate >= {first} AND p.NewYorkDate <= {last}) AND ({account} IS NULL OR p.AccountId = {account}))
-               OR EXISTS (SELECT 1 FROM json_each({boundaries}) b WHERE p.AccountId = json_extract(b.value, '$.Account') AND p.NewYorkDate = json_extract(b.value, '$.Date'))
+            WHERE ((p.NewYorkDate >= {first} AND p.NewYorkDate <= {last}) AND ({account} IS NULL OR p.AccountId IS NULL OR p.AccountId = {account}))
+               OR EXISTS (SELECT 1 FROM json_each({boundaries}) b WHERE (p.AccountId IS NULL OR p.AccountId = json_extract(b.value, '$.Account')) AND p.NewYorkDate = json_extract(b.value, '$.Date'))
             """).AsNoTracking();
         var plans = await plansQuery.OrderBy(p => p.NewYorkDate).ThenBy(p => p.AccountId)
             .Select(p => new { p.Id, p.AccountId, p.NewYorkDate, p.LatestReadyRevision, HasDraft = p.DraftJson != null, p.UpdatedAtUtc,
@@ -57,7 +57,7 @@ internal static class ReviewPlanEvidenceReader
             WHERE r.PlanId IN (SELECT value FROM json_each({planIds})) AND
               (r.Revision = p.LatestReadyRevision OR EXISTS (
                 SELECT 1 FROM json_each({boundaries}) b
-                WHERE p.AccountId = json_extract(b.value, '$.Account') AND p.NewYorkDate = json_extract(b.value, '$.Date')
+                WHERE (p.AccountId IS NULL OR p.AccountId = json_extract(b.value, '$.Account')) AND p.NewYorkDate = json_extract(b.value, '$.Date')
                   AND r.Revision = (SELECT q.Revision FROM TradingPlanReadyRevisions q
                     WHERE q.PlanId = p.Id AND q.ReadyAtUtc <= json_extract(b.value, '$.Time')
                     ORDER BY q.ReadyAtUtc DESC, q.Revision DESC LIMIT 1)))

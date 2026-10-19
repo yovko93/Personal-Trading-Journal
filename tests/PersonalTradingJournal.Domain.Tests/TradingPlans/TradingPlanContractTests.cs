@@ -67,13 +67,12 @@ public sealed class TradingPlanContractTests
     }
 
     [Fact]
-    public void EveryScenarioRequiresItsOwnDirectionAndConditionalText()
+    public void ScenarioTextIsOptionalButDirectionRemainsExplicit()
     {
         var content = new TradingPlanContent(TradingPlanSession.London, "Wait",
             instruments: [new(Instrument, TradingPlanBias.Conditional, "Range")],
             scenarios: [new(Guid.NewGuid(), Instrument)], confirmed: TradingPlanChecklist.All);
-        Assert.Equal(new[] { "Scenarios[0].Name", "Scenarios[0].Direction", "Scenarios[0].Condition",
-            "Scenarios[0].Response", "Scenarios[0].Invalidation" }, TradingPlanReadiness.Validate(content).Select(i => i.Field));
+        Assert.Equal(new[] { "Scenarios[0].Direction" }, TradingPlanReadiness.Validate(content).Select(i => i.Field));
     }
 
     [Fact]

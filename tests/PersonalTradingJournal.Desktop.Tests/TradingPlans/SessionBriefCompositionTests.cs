@@ -3,6 +3,12 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using PersonalTradingJournal.Application.Setups;
+using PersonalTradingJournal.Application.TradingPlans;
+using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Domain.TradingPlans;
+using PersonalTradingJournal.Domain.Setups;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.Navigation;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -24,6 +30,11 @@ public sealed class SessionBriefCompositionTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1") { await Native.Value; return; }
         await using var fixture = await TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
+        var original = fixture.Source.Content;
+        var shared = new TradingPlanContent(original.Session, original.Focus, instruments: original.Instruments,
+            scenarios: original.Scenarios, riskLimits: original.RiskLimits, planCurrency: "USD");
+        Assert.Equal(TradingPlanWriteStatus.Success, (await fixture.Store.Inner.WriteAsync(new(TradingPlanWriteOperation.CreateDraft,
+            TradingPlanKey.AllAccounts(fixture.Vm.SelectedDate), shared))).Status);
         await CalendarStaTest.RunAsync(() =>
         {
             var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -32,8 +43,10 @@ public sealed class SessionBriefCompositionTests
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 app.Resources.Add(new DataTemplateKey(typeof(TradingPlanWorkspaceViewModel)), new DataTemplate(typeof(TradingPlanWorkspaceViewModel))
                 { VisualTree = new FrameworkElementFactory(typeof(TradingPlanWorkspaceView)) });
-                using var vm = fixture.NewWorkspace(); Pump(vm.ActivateAsync());
-                Pump(vm.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, vm.Accounts[0]));
+                var images = new SyntheticImages(fixture.Db.Provider.GetRequiredService<IPlaybookImageStorage>());
+                using var vm = fixture.NewWorkspace(images); Pump(vm.ActivateAsync());
+                Assert.Null(vm.SelectedAccount!.Id);
+                Pump(vm.SelectContextAsync(fixture.Vm.SelectedDate, vm.Accounts.Single(a => a.Id is null)));
                 using var shell = MainWindowViewModelTests.CreatePlanShell(vm);
                 shell.NavigateCommand.Execute(PersonalTradingJournal.Desktop.Navigation.NavigationDestination.TradingPlan);
                 var window = new MainWindow(shell) { Width = width, Height = height };
@@ -66,6 +79,16 @@ public sealed class SessionBriefCompositionTests
                     second.Condition.Text = "Opposite context confirms"; second.Response.Text = "Wait for confirmation"; second.Invalidation.Text = "Confirmation fails";
                     second.Direction = PersonalTradingJournal.Domain.Trades.TradeDirection.Short;
                     Layout(); Capture("draft");
+                    foreach (var item in editor.VisibleScreenshots.ToArray()) item.RemoveCommand.Execute(null);
+                    Layout(); Capture("screenshots-empty");
+                    var picker = (Expander)Find(page, "InstrumentPicker"); picker.IsExpanded = true;
+                    Layout(); Capture("instrument-actions"); picker.IsExpanded = false;
+                    Pump(editor.UploadScreenshotCommand.ExecuteAsync(null));
+                    editor.SelectedTimeframe = SessionPreparationViewModel.Timeframes.Single(t => t.Label == "4h");
+                    Pump(editor.UploadScreenshotCommand.ExecuteAsync(null));
+                    Assert.Equal(2, editor.VisibleScreenshots.Count);
+                    editor.Scenarios[0].Name.Text = editor.Scenarios[0].Condition.Text = editor.Scenarios[0].Response.Text = editor.Scenarios[0].Invalidation.Text = "";
+                    Layout(); Capture("screenshots-and-optional");
                     Assert.Same(editor, ((SessionPreparationSection)Find(page, "Preparation")).DataContext);
                     Assert.Equal(0, ((ScrollViewer)Find(page, "PageScroll")).ScrollableWidth);
                     var cards = (ItemsControl)Find(page, "ScenarioCards");
@@ -73,6 +96,19 @@ public sealed class SessionBriefCompositionTests
                     var secondCard = (FrameworkElement)cards.ItemContainerGenerator.ContainerFromIndex(1);
                     var relative = secondCard.TranslatePoint(new Point(), firstCard);
                     Assert.True(width > 1200 ? relative.X >= firstCard.ActualWidth - 1 && Math.Abs(relative.Y) < 1 : relative.Y >= firstCard.ActualHeight - 1);
+                    var role = Descendants(secondCard).OfType<Button>().Single(b => b.Name == "Role");
+                    var direction = Descendants(secondCard).OfType<Button>().Single(b => b.Name == "Direction");
+                    Assert.True(role.IsTabStop); Assert.True(direction.IsTabStop);
+                    Assert.Contains("Switch", System.Windows.Automation.AutomationProperties.GetName(role));
+                    direction.Command.Execute(null); Assert.Equal(PersonalTradingJournal.Domain.Trades.TradeDirection.Long, second.Direction);
+                    Assert.Equal(TradingPlanScenarioRole.Alternative, second.Role);
+                    role.Command.Execute(null); Assert.Equal(TradingPlanScenarioRole.Primary, second.Role);
+                    Assert.Equal(PersonalTradingJournal.Domain.Trades.TradeDirection.Long, second.Direction);
+                    direction.Command.Execute(null); Layout();
+                    secondCard.BringIntoView(); Layout(); Capture("primary-short");
+                    ((ScrollViewer)Find(page, "PageScroll")).ScrollToTop(); Layout();
+                    role.Command.Execute(null); Layout();
+                    Assert.Contains(Descendants(secondCard).OfType<Button>(), b => b.Content as string == "Delete" && b.IsEnabled);
                     var save = (Button)Find(page, "SaveDraft"); var tabs = Find(page, "Tabs");
                     Assert.True(save.IsTabStop); Assert.True(save.IsEnabled);
                     if (width > 1200) Assert.InRange(Math.Abs(save.TranslatePoint(new Point(), tabs).Y), 0, tabs.ActualHeight);
@@ -87,6 +123,9 @@ public sealed class SessionBriefCompositionTests
                     editor.MaximumTrades.Text = "3"; foreach (var check in editor.Checklist) check.IsChecked = true;
                     Pump(vm.SaveAsync()); Pump(vm.MarkReadyAsync());
                     Assert.True(vm.Editor!.IsReadOnly);
+                    Assert.All(vm.Editor.VisibleScreenshots, s => Assert.NotNull(s.Thumbnail));
+                    Assert.False(vm.Editor.Scenarios[0].ToggleRoleCommand.CanExecute(null));
+                    Assert.False(vm.Editor.VisibleScreenshots[0].RemoveCommand.CanExecute(null));
                     ((ScrollViewer)Find(page, "PageScroll")).ScrollToTop(); Layout(); Capture("ready");
                     pageScroll.ScrollToEnd(); Layout(); Capture("ready-bottom");
 
@@ -108,6 +147,23 @@ public sealed class SessionBriefCompositionTests
         }, shutdownDispatcher: false);
     }
     private static FrameworkElement Find(DependencyObject root, string name) => Descendants(root).OfType<FrameworkElement>().First(e => e.Name == name && Presented(e));
+    private sealed class SyntheticImages(IPlaybookImageStorage storage) : ITradingPlanImages
+    {
+        private readonly TradingPlanImages reader = new(storage);
+        public Task<PlanImageSelection?> PickAsync(CancellationToken token)
+        {
+            var source = BitmapSource.Create(64, 32, 96, 96, PixelFormats.Bgr32, null,
+                Enumerable.Repeat(unchecked((int)0x00609F94), 64 * 32).ToArray(), 64 * 4);
+            var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(source));
+            using var stream = new MemoryStream(); encoder.Save(stream);
+            var bytes = stream.ToArray(); var decoded = PlaybookExampleImages.Decode(bytes, true);
+            return Task.FromResult<PlanImageSelection?>(new("synthetic.png", bytes, decoded));
+        }
+        public Task<PlaybookExampleImage> StoreAsync(PlanImageSelection s, CancellationToken ct) => storage.StoreAsync(s.FileName, s.Bytes, ct);
+        public Task<ImageSource> ThumbnailAsync(PlaybookExampleImage image, CancellationToken ct) => reader.ThumbnailAsync(image, ct);
+        public Task ShowAsync(PlaybookExampleImage? image, PlanImageSelection? pending, string label, CancellationToken ct) => throw new NotSupportedException("Native picker/image interaction is not claimed by a render test.");
+        public Task CleanupAsync(string key) => storage.DeleteUnreferencedAsync(key);
+    }
     private static bool Presented(DependencyObject element)
     {
         for (var current = element; current is not null; current = VisualTreeHelper.GetParent(current))

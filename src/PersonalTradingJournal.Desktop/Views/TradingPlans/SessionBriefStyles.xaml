@@ -10,9 +10,30 @@
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,4" />
   <Setter Property="Margin" Value="0,2,6,2" />
  </Style>
- <Style x:Key="PlanPrimary" TargetType="Button" BasedOn="{StaticResource PtjPrimaryButtonStyle}">
+ <Style x:Key="PlanPrimary" TargetType="Button" BasedOn="{StaticResource PtjPlaybookCreateButtonStyle}">
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="12,4" />
   <Setter Property="Margin" Value="0,2,6,2" />
+ </Style>
+ <Style x:Key="PlanRemove" TargetType="Button" BasedOn="{StaticResource PtjPlaybookCloseButtonStyle}">
+  <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" /><Setter Property="Margin" Value="4,2" />
+ </Style>
+ <Style x:Key="PlanPill" TargetType="Button" BasedOn="{StaticResource PlanAction}">
+  <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" /><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+  <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Padding" Value="8,4" />
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+   <Grid>
+    <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1" CornerRadius="12">
+     <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+    </Border>
+    <Border x:Name="Focus" Margin="3" BorderBrush="Transparent" BorderThickness="1" CornerRadius="9" IsHitTestVisible="False" />
+   </Grid>
+   <ControlTemplate.Triggers>
+    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Focus" Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /></Trigger>
+    <Trigger Property="IsPressed" Value="True"><Setter TargetName="Focus" Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+    <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="Focus" Property="BorderBrush" Value="{DynamicResource PtjTextPrimaryBrush}" /></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PtjSurfaceBrush}" /><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /></Trigger>
+   </ControlTemplate.Triggers>
+  </ControlTemplate></Setter.Value></Setter>
  </Style>
  <Style x:Key="PlanSectionHeading" TargetType="ContentControl">
   <Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}" />

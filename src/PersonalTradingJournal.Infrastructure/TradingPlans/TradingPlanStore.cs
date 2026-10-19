@@ -7,7 +7,8 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.TradingPlans;
 
-public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory, TimeProvider? clock = null) : ITradingPlanStore
+public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory, TimeProvider? clock = null,
+    PersonalTradingJournal.Application.Setups.IPlaybookImageStorage? images = null) : ITradingPlanStore
 {
     public async Task<TradingPlan?> LoadAsync(TradingPlanKey key, CancellationToken cancellationToken = default)
     {
@@ -61,8 +62,8 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             return new TradingPlanLoadedState(new(x.AccountId, x.NewYorkDate), new(x.Id, x.Version),
                 draft is not null ? TradingPlanStatus.Draft : TradingPlanStatus.Ready, x.LatestReadyRevision)
             {
-                Summary = new(draft is null ? ready!.References.Account.Name : account?.Name ?? "Unavailable Account",
-                    draft is null ? ready!.References.Account.Currency : account?.Currency ?? "Unknown currency", account is not null,
+                Summary = new(draft is null ? ready!.References.Account.Name : x.AccountId is null ? "All Accounts" : account?.Name ?? "Unavailable Account",
+                    draft is null ? ready!.References.Account.Currency : x.AccountId is null ? content.PlanCurrency! : account?.Currency ?? "Unknown currency", x.AccountId is null || account is not null,
                     content.Session, [.. labels], draft?.UpdatedAtUtc ?? ready!.ReadyAtUtc)
             };
         }).ToArray();
@@ -93,10 +94,11 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
         var latestPlans = inRange.Where(p => ids.Contains(p.AccountId) && p.LatestReadyRevision > 0 &&
             !inRange.Any(n => n.AccountId == p.AccountId && n.LatestReadyRevision > 0 && n.NewYorkDate > p.NewYorkDate));
         var readyRows = await ReadyRows(db, db.TradingPlanReadyRevisions.Where(r => latestPlans.Any(p => p.Id == r.PlanId && p.LatestReadyRevision == r.Revision))).ToArrayAsync(cancellationToken);
-        var saved = readyRows.Select(ReadOwnedReady).ToDictionary(r => r.Key.AccountId, r => r.References.Account);
+        var saved = readyRows.Select(ReadOwnedReady).ToArray();
         return ids.Select(id =>
         {
-            var a = current.GetValueOrDefault(id); var s = saved.GetValueOrDefault(id);
+            var a = id is { } exact ? current.GetValueOrDefault(exact) : null; var s = saved.FirstOrDefault(r => r.Key.AccountId == id)?.References.Account;
+            if (id is null) return new TradingPlanHistoryAccount(null, "All Accounts", s?.Currency ?? "Plan currency", true, true);
             return new TradingPlanHistoryAccount(id, a?.Name ?? s?.Name ?? "Unavailable Account (no saved name)",
                 a?.Currency ?? s?.Currency ?? "Unknown currency", a is not null, a?.IsActive == true);
         }).ToArray();
@@ -146,7 +148,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
                     plan.WorkingDraft.StartedAtUtc, plan.WorkingDraft.UpdatedAtUtc);
                 var comparable = new TradingPlanContent(content.Session, content.Focus, content.Intent, content.Instruments,
                     content.Scenarios, content.NewsAndRestrictions, content.StandAside, content.RiskLimits, content.Rules,
-                    plan.WorkingDraft.Content.Confirmed);
+                    plan.WorkingDraft.Content.Confirmed, content.PlanCurrency, content.Screenshots);
                 if (TradingPlanJson.WriteContent(comparable) != TradingPlanJson.WriteContent(plan.WorkingDraft.Content))
                     return new(TradingPlanWriteStatus.Invalid);
                 plan.SetConfirmations(plan.Version, proposed.Content.Confirmed, now);
@@ -161,7 +163,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
                 monetary && derivedCurrency is { } priorCurrency && priorCurrency != refs.Snapshot.Account.Currency && command.ExpectedAccountCurrency is null)
                 return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
                     TradingPlanReferenceState.Changed, "Review the changed Account currency explicitly; planned amounts are not converted.")]);
-            if (monetary && op == TradingPlanWriteOperation.RefreshReferences && command.ExpectedAccountCurrency is null && row?.ReferenceStateJson is { } baseline &&
+            if (command.Key.AccountId.HasValue && monetary && op == TradingPlanWriteOperation.RefreshReferences && command.ExpectedAccountCurrency is null && row?.ReferenceStateJson is { } baseline &&
                 TradingPlanJson.Deserialize<Dictionary<string, string>>(baseline)[$"1:{command.Key.AccountId:D}"] != refs.Tokens[$"1:{command.Key.AccountId:D}"])
                 return new(TradingPlanWriteStatus.ReferenceChanged, References: [new(TradingPlanReferenceKind.Account, command.Key.AccountId,
                     TradingPlanReferenceState.Changed, "Review the current Account currency before refreshing monetary preparation.")]);
@@ -176,6 +178,24 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
             row.DraftJson = plan.WorkingDraft is null ? null : TradingPlanJson.WriteDraft(plan.WorkingDraft);
             row.ReferenceStateJson = plan.WorkingDraft is null ? null : TradingPlanJson.Write(refs.Tokens);
             if (creating) db.TradingPlans.Add(row);
+            foreach (var attachment in content.Screenshots)
+            {
+                var image = attachment.Image;
+                var prior = await db.TradingPlanAssets.AsNoTracking().SingleOrDefaultAsync(a => a.Id == attachment.Id, cancellationToken);
+                if (prior is not null)
+                {
+                    if (prior.PlanId != plan.Id || prior.InstrumentId != attachment.InstrumentId || prior.Timeframe != (int)attachment.Timeframe ||
+                        prior.StorageKey != image.StorageKey || prior.FileName != image.FileName || prior.SizeBytes != image.SizeBytes || prior.Sha256 != image.Sha256)
+                        return new(TradingPlanWriteStatus.Invalid);
+                }
+                else
+                {
+                    if (images is null) return new(TradingPlanWriteStatus.StorageFailure);
+                    _ = await images.ReadAsync(image, cancellationToken); // Verify original bytes/hash before accepting an asset identity.
+                    db.TradingPlanAssets.Add(new() { Id = attachment.Id, PlanId = plan.Id, InstrumentId = attachment.InstrumentId,
+                        Timeframe = (int)attachment.Timeframe, StorageKey = image.StorageKey, FileName = image.FileName, SizeBytes = image.SizeBytes, Sha256 = image.Sha256 });
+                }
+            }
             if (ready is not null) db.TradingPlanReadyRevisions.Add(new() { PlanId = plan.Id, Revision = ready.Id.Revision,
                 ReadyAtUtc = ready.ReadyAtUtc, SnapshotJson = TradingPlanJson.WriteReady(ready) });
             await db.SaveChangesAsync(cancellationToken);
@@ -223,7 +243,7 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
         var row = await ReadyRows(db, db.TradingPlanReadyRevisions.Where(x => x.PlanId == id.PlanId && x.Revision == id.Revision)).SingleOrDefaultAsync(ct);
         return row is null ? null : ReadOwnedReady(row);
     }
-    private sealed record OwnedReady(TradingPlanReadyRecord Row, Guid AccountId, DateOnly NewYorkDate,
+    private sealed record OwnedReady(TradingPlanReadyRecord Row, Guid? AccountId, DateOnly NewYorkDate,
         DateTimeOffset CreatedAtUtc, DateTimeOffset UpdatedAtUtc, long Version, int LatestReadyRevision);
     private static IQueryable<OwnedReady> ReadyRows(JournalDbContext db, IQueryable<TradingPlanReadyRecord> selected) =>
         selected.AsNoTracking().Join(db.TradingPlans.AsNoTracking(), r => r.PlanId, p => p.Id,

@@ -1,5 +1,13 @@
 # Daily Review with AI Coaching — M15
 
+## Shared preparation — packet v4
+
+Local verification: **404 focused feature tests passed**; the final complete Release gate passed **4,876/4,876**, zero failures/skips, after the documented migration/schema corrections. Build/EF/whitespace pass. Automated renders and synthetic restarts do not establish human keyboard/Narrator, live-app or matching-CI acceptance; those remain pending. M21.10 remains paused.
+
+New `daily-coaching.v4` / `review-preparation.v2` evidence supports one shared All Accounts Plan per New York date. For each Trade, the same consistent reader chooses an entry-eligible exact Account Ready revision first, otherwise an eligible shared revision. Draft-only or retrospective exact preparation does not suppress that fallback. Global evidence is not duplicated per Account. Frozen explicit plan currency describes trader-wide planned limits, not converted or per-Account budgets. Blank scenario fields are unspecified observations, not evidence of completed conditions. Snapshot identity/timing/citation validation remains strict.
+
+Plan screenshots stay local: no binaries, filenames or storage keys enter the coaching projection, and the handling notes say charts were not inspected. Saved v1/v2/v3 packets and supported pending v2/v3 responses remain readable unchanged; new packet versioning does not rewrite them. The manual ChatGPT workflow is unchanged and no live provider request is authorized or used. [Verification and remaining live/CI checks](trading-plan.md#shared-preparation-and-timeframe-screenshots-before-m2110).
+
 ## M21.9 — Trading Plan preparation evidence
 
 The existing explicit **Prepare ChatGPT Prompt → copy/paste → validate → Save Review** workflow now captures saved Ready preparation alongside Trades and Journals in the same SQLite read snapshot. An expandable preparation section distinguishes No Plan, Draft only, Ready and Ready with newer Draft changes. Draft prose is excluded. A Ready-only day can supply user-authored preparation without inventing a trading outcome; Draft-only/no usable evidence still cannot prepare a prompt.

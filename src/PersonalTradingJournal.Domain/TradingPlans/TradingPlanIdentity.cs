@@ -1,17 +1,22 @@
 namespace PersonalTradingJournal.Domain.TradingPlans;
 
-/// <summary>One logical plan per exact Account and selected New York calendar date.
-/// Session and Instrument are deliberately excluded from this key.</summary>
+public enum TradingPlanScope { AllAccounts = 1, Account = 2 }
+
+/// <summary>One shared or exact-Account plan per New York calendar date.
+/// Session and Instrument are deliberately excluded from this key; null is shared applicability, not a fabricated Account.</summary>
 public sealed record TradingPlanKey
 {
-    public TradingPlanKey(Guid accountId, DateOnly newYorkDate)
+    public TradingPlanKey(Guid? accountId, DateOnly newYorkDate)
     {
         if (accountId == Guid.Empty) throw new ArgumentException("Select an exact Account.", nameof(accountId));
         AccountId = accountId;
         NewYorkDate = newYorkDate;
     }
 
-    public Guid AccountId { get; }
+    public Guid? AccountId { get; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public TradingPlanScope Scope => AccountId.HasValue ? TradingPlanScope.Account : TradingPlanScope.AllAccounts;
+    public static TradingPlanKey AllAccounts(DateOnly date) => new(null, date);
     public DateOnly NewYorkDate { get; }
 }
 

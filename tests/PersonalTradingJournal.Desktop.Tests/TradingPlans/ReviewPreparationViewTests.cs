@@ -32,7 +32,7 @@ public sealed class ReviewPreparationViewTests
         var date = ReviewPlanEvidence.EntryDate(ready.ReadyAtUtc.AddMinutes(-1));
         ready = ready with { Key = new(ready.Key.AccountId, date) };
         var trade = ReviewFixture.Evidence(new(date)).Trades[0];
-        trade = trade with { Account = new(ready.Key.AccountId, ready.Account.Name, true), Instrument = new(ready.Instruments[0].InstrumentId, "Synthetic NQ", true),
+        trade = trade with { Account = new(ready.Key.AccountId!.Value, ready.Account.Name, true), Instrument = new(ready.Instruments[0].InstrumentId, "Synthetic NQ", true),
             Facts = trade.Facts! with { OpenedAtUtc = ready.ReadyAtUtc.AddMinutes(-1), ClosedAtUtc = ready.ReadyAtUtc }, Inclusion = DailyReviewTradeInclusion.ClosedOnDate };
         var prep = ReviewPlanEvidence.Build(date, date, ready.Key.AccountId,
             [new(ready.Key, ready.Id.PlanId, ReviewPlanState.ReadyWithDraft, ready.Id.Revision, ready.ReadyAtUtc)], [ready], [trade]);

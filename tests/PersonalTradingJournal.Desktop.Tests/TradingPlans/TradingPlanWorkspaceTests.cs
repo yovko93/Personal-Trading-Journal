@@ -19,8 +19,8 @@ public sealed class TradingPlanWorkspaceTests
     {
         await using var f = await Fixture.CreateAsync(); var vm = f.Vm;
         Assert.Equal(new DateOnly(2026, 10, 17), vm.SelectedDate); // Clock is 18 October UTC.
-        Assert.Null(vm.SelectedAccount); Assert.Null(vm.Editor); Assert.False(vm.CanCreateDraft);
-        await vm.SelectContextAsync(vm.SelectedDate, vm.Accounts[0]); Assert.True(vm.CanCreateDraft);
+        Assert.NotNull(vm.SelectedAccount); Assert.Null(vm.SelectedAccount.Id); Assert.Null(vm.Editor); Assert.True(vm.CanCreateDraft);
+        Assert.Equal(PersonalTradingJournal.Domain.TradingPlans.TradingPlanScope.AllAccounts, new TradingPlanKey(vm.SelectedAccount.Id, vm.SelectedDate).Scope); Assert.True(vm.CanCreateDraft);
         Assert.Equal(0, f.Store.Writes); Assert.Null(await f.Store.Inner.LoadAsync(new(f.Source.Account.Id, vm.SelectedDate)));
         await vm.CreateDraftAsync(); Assert.Equal(1, f.Store.Writes); Assert.NotNull(vm.Editor);
         await vm.NextDayCommand.ExecuteAsync(null); Assert.Equal(new DateOnly(2026, 10, 18), vm.SelectedDate); Assert.Null(vm.Editor);
@@ -146,7 +146,7 @@ public sealed class TradingPlanWorkspaceTests
     public async Task ReferenceConflictRecoveryIsExplicitAndDoesNotReplaceInput()
     {
         await using var f = await Fixture.CreateAsync(seed: true); var vm = f.Vm; var editor = vm.Editor!;
-        using var other = f.NewWorkspace(); await other.ActivateAsync(); await other.SelectContextAsync(vm.SelectedDate, other.Accounts[0]);
+        using var other = f.NewWorkspace(); await other.ActivateAsync(); await other.SelectContextAsync(vm.SelectedDate, other.Accounts.Single(a => a.Id == f.Source.Account.Id));
         other.Editor!.News.Text = "other saved change"; Assert.True(await other.SaveAsync());
         editor.Focus.Text = "my text"; Assert.False(await vm.SaveAsync()); Assert.Equal("my text", editor.Focus.Text);
         f.Interaction.Choice = PlanLeaveChoice.Cancel; await vm.ReloadAsync(); Assert.Same(editor, vm.Editor);
@@ -280,14 +280,14 @@ public sealed class TradingPlanWorkspaceTests
             f.Store = new(f.Db.Provider.GetRequiredService<ITradingPlanStore>());
             if (seed) Assert.Equal(TradingPlanWriteStatus.Success, (await f.Store.Inner.WriteAsync(new(TradingPlanWriteOperation.CreateDraft, f.Source.Store.Plan.Key, f.Source.Content))).Status);
             f.Vm = f.NewWorkspace(); await f.Vm.ActivateAsync();
-            if (seed) await f.Vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, f.Vm.Accounts[0]);
+            if (seed) await f.Vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, f.Vm.Accounts.Single(a => a.Id == f.Source.Account.Id));
             return f;
         }
-        public TradingPlanWorkspaceViewModel NewWorkspace() => new(Store, Db.Provider.GetRequiredService<ITradingAccountReader>(),
+        public TradingPlanWorkspaceViewModel NewWorkspace(PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null) => new(Store, Db.Provider.GetRequiredService<ITradingAccountReader>(),
             Db.Provider.GetRequiredService<IInstrumentReader>(), Db.Provider.GetRequiredService<ITradingPlanReferenceReader>(),
             Db.Provider.GetRequiredService<ITradingSetupReader>(), Db.Provider.GetRequiredService<ITradingSetupPlaybookStore>(),
             Db.Provider.GetRequiredService<ITradingSetupPlaybookHistoryReader>(), Db.Provider.GetRequiredService<ITradingRuleReader>(),
-            Db.Provider.GetRequiredService<ITradingRuleStore>(), Interaction, new Clock());
+            Db.Provider.GetRequiredService<ITradingRuleStore>(), Interaction, new Clock(), images);
         public async ValueTask DisposeAsync() { await Vm.CancelAsync(); Vm.Dispose(); Source.Vm.Dispose(); await Db.DisposeAsync(); }
         private sealed class Clock : TimeProvider { public override DateTimeOffset GetUtcNow() => new(2026, 10, 18, 1, 0, 0, TimeSpan.Zero); }
     }
