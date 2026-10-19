@@ -11,6 +11,7 @@ namespace PersonalTradingJournal.Desktop.Views.TradingPlans;
 public partial class TradingPlanWorkspaceView : UserControl
 {
     private readonly PageFocus _focus;
+    private PrincipleRow? _removingPrinciple;
     public TradingPlanWorkspaceView() { InitializeComponent(); _focus = new(this); }
     private void OnTopBarSizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -21,7 +22,7 @@ public partial class TradingPlanWorkspaceView : UserControl
     }
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        _focus.Invalidate();
+        _focus.Invalidate(); _removingPrinciple = null;
         if (e.OldValue is TradingPlanWorkspaceViewModel old)
         { PropertyChangedEventManager.RemoveHandler(old, OnState, ""); PropertyChangedEventManager.RemoveHandler(old.Principles, OnPrincipleState, ""); }
         if (e.NewValue is TradingPlanWorkspaceViewModel current)
@@ -29,9 +30,31 @@ public partial class TradingPlanWorkspaceView : UserControl
     }
     private void OnPrincipleState(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(DailyTradingPrinciplesViewModel.IsBusy) && sender is DailyTradingPrinciplesViewModel { IsBusy: false })
+            _removingPrinciple = null; // A failed/cancelled removal must not influence a later reload's focus.
         if (e.PropertyName == nameof(DailyTradingPrinciplesViewModel.ValidationAttempt))
             _focus.Request(() => PrincipleInput);
+        if (e.PropertyName == nameof(DailyTradingPrinciplesViewModel.Rows) && _removingPrinciple is { } removed &&
+            sender is DailyTradingPrinciplesViewModel vm && vm.Rows.All(r => r.Value.Id != removed.Value.Id))
+        {
+            _removingPrinciple = null;
+            _focus.Request(() =>
+            {
+                var next = vm.Rows.ElementAtOrDefault(Math.Min(removed.Number - 1, vm.Rows.Count - 1));
+                return next is null ? PrincipleInput : Descendants(PrincipleRows).OfType<Button>()
+                    .FirstOrDefault(b => b.DataContext is PrincipleRow row && row.Value.Id == next.Value.Id);
+            });
+        }
     }
+    private void OnPrincipleEntrySizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        bool narrow = e.NewSize.Width < 320;
+        Grid.SetRow(PrincipleAdd, narrow ? 1 : 0); Grid.SetColumn(PrincipleAdd, narrow ? 0 : 1);
+        Grid.SetColumnSpan(PrincipleInput, narrow ? 2 : 1);
+        PrincipleAdd.HorizontalAlignment = narrow ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+    }
+    private void OnPrincipleRemoveClick(object sender, RoutedEventArgs e)
+    { _removingPrinciple = sender is Button b && (b.IsKeyboardFocusWithin || ReferenceEquals(FocusManager.GetFocusedElement(this), b)) ? b.DataContext as PrincipleRow : null; }
     private void OnState(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TradingPlanWorkspaceViewModel.DateValidationAttempt))

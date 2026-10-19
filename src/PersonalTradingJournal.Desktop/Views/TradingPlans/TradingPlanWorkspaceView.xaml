@@ -109,12 +109,12 @@
     <Border Style="{StaticResource Section}" Padding="12" DataContext="{Binding Principles}">
      <local:PlanSectionExpander x:Name="PrinciplesExpander" Header="Daily Trading Principles" Style="{StaticResource PlanSectionExpander}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" AutomationProperties.Name="Daily Trading Principles" AutomationProperties.HelpText="Current global reminders shared across dates and accounts, not historical preparation or assessments.">
       <StackPanel>
-       <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+       <Grid x:Name="PrincipleEntry" SizeChanged="OnPrincipleEntrySizeChanged"><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <TextBox x:Name="PrincipleInput" Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource PlanInput}" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" Margin="0,2,8,2"
           AutomationProperties.Name="New daily trading principle" AutomationProperties.HelpText="{Binding Error}" AutomationProperties.ItemStatus="{Binding Error}" validation:FormValidation.IsInvalid="{Binding HasError}">
          <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding AddCommand}" /></TextBox.InputBindings>
         </TextBox>
-        <Button Grid.Column="1" Content="Add" Command="{Binding AddCommand}" Style="{StaticResource PlanPrimary}" VerticalAlignment="Top" AutomationProperties.Name="Add daily trading principle" />
+        <Button x:Name="PrincipleAdd" Grid.Column="1" Content="Add" Command="{Binding AddCommand}" Style="{StaticResource PlanPrimary}" VerticalAlignment="Center" AutomationProperties.Name="Add daily trading principle" />
        </Grid>
        <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasError, Converter={StaticResource VisibleIf}}" interactions:LiveAnnouncement.Text="{Binding Error}" AutomationProperties.LiveSetting="Polite" />
        <ContentControl Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" />
@@ -122,13 +122,16 @@
         <Button Content="Reload principles" Command="{Binding ReloadCommand}" Style="{StaticResource PlanAction}" Visibility="{Binding Notice.HasText, Converter={StaticResource VisibleIf}}" />
         <Button Content="Cancel principles operation" Command="{Binding CancelCommand}" Style="{StaticResource PlanAction}" Visibility="{Binding IsBusy, Converter={StaticResource VisibleIf}}" />
        </WrapPanel>
-       <ItemsControl ItemsSource="{Binding Rows}">
+       <ItemsControl x:Name="PrincipleRows" ItemsSource="{Binding Rows}">
         <ItemsControl.ItemTemplate><DataTemplate>
-         <Grid Margin="0,3"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-          <TextBlock Text="{Binding Number, StringFormat={}{0}.}" Foreground="{DynamicResource PtjAccentBrush}" FontWeight="SemiBold" Margin="4,6,10,0" />
+         <Border Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="5" Padding="8,4" Margin="0,3" MinHeight="42">
+         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="38" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+          <Border Width="30" Height="28" CornerRadius="8" Background="{DynamicResource PtjJournalReviewSurfaceBrush}" BorderBrush="{DynamicResource PtjJournalReviewBorderBrush}" BorderThickness="1" VerticalAlignment="Center" HorizontalAlignment="Left">
+           <TextBlock Text="{Binding Number}" Foreground="{DynamicResource PtjAccentBrush}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
           <TextBlock Grid.Column="1" Text="{Binding Text}" Style="{StaticResource Body}" VerticalAlignment="Center" />
-          <Button Grid.Column="2" Content="×" Style="{StaticResource PlanRemove}" VerticalAlignment="Top" Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Text, StringFormat=Remove daily principle: {0}}" />
-         </Grid>
+          <Button Grid.Column="2" Content="×" Style="{StaticResource PlanRemove}" VerticalAlignment="Center" Click="OnPrincipleRemoveClick" Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Text, StringFormat=Remove daily principle: {0}}" />
+         </Grid></Border>
         </DataTemplate></ItemsControl.ItemTemplate>
        </ItemsControl>
       </StackPanel>

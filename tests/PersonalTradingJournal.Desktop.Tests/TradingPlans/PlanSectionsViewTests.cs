@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
@@ -41,11 +42,16 @@ public sealed class PlanSectionsViewTests
                 var peer = new ExpanderAutomationPeer(principles); var pattern = (IExpandCollapseProvider)peer.GetPattern(PatternInterface.ExpandCollapse)!;
                 Assert.Equal(ExpandCollapseState.Expanded, pattern.ExpandCollapseState);
                 var input = (TextBox)page.FindName("PrincipleInput"); Assert.NotEmpty(AutomationProperties.GetName(input));
+                var entry = (Grid)page.FindName("PrincipleEntry"); var add = (Button)page.FindName("PrincipleAdd");
+                entry.Width = 280; Layout(); Assert.True(input.ActualWidth >= 250);
+                Assert.True(add.TranslatePoint(new(), entry).Y >= input.TranslatePoint(new(0, input.ActualHeight), entry).Y);
+                entry.Width = double.NaN; Layout();
                 pattern.Collapse(); vm.Principles.Input = " "; Pump(vm.Principles.AddCommand.ExecuteAsync(null)); Layout();
                 Assert.True(principles.IsExpanded); Assert.Same(input, FocusManager.GetFocusedElement(page)); Assert.True(vm.Principles.HasError);
                 input.Text = "Не търгувай ако си уморен"; Assert.False(vm.Principles.HasError);
                 Assert.Same(vm.Principles.AddCommand, Assert.Single(input.InputBindings.OfType<KeyBinding>()).Command);
                 Pump(vm.Principles.AddCommand.ExecuteAsync(null));
+                Layout(); Render(page, theme, width, dpi, "single");
                 vm.Principles.Input = "Следвай стратегия, не емоции"; Pump(vm.Principles.AddCommand.ExecuteAsync(null));
                 vm.Principles.Input = string.Join(" · ", Enumerable.Repeat("По-добре 2 качествени сделки отколкото 20 хаотични", 5)); Pump(vm.Principles.AddCommand.ExecuteAsync(null));
                 Layout(); double expanded = principles.ActualHeight; Render(page, theme, width, dpi, "populated-no-plan");
@@ -53,8 +59,27 @@ public sealed class PlanSectionsViewTests
                 Assert.False(vm.Principles.IsExpanded); Assert.True(principles.ActualHeight < expanded);
                 Assert.Equal(ExpandCollapseState.Collapsed, pattern.ExpandCollapseState); Render(page, theme, width, dpi, "collapsed");
                 var header = (ToggleButton)principles.Template.FindName("HeaderToggle", principles);
+                var icon = Assert.Single(Descendants(header).OfType<PlanFoldIcon>());
+                Assert.Null(principles.Template.FindName("Chevron", principles));
+                icon.Animate = false; icon.SetState(false); Assert.Equal(0, icon.Progress);
+                Assert.Contains("Expand", header.ToolTip.ToString());
                 header.Focus(); header.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(header), 0, Key.Enter) { RoutedEvent = Keyboard.KeyDownEvent });
                 Layout(); Assert.True(vm.Principles.IsExpanded);
+                Assert.Equal(1, icon.Progress); Assert.Contains("Collapse", header.ToolTip.ToString());
+                icon.Animate = true; pattern.Collapse();
+                icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(100), TimeSeekOrigin.BeginTime);
+                double middle = icon.Progress; Assert.InRange(middle, .1, .9);
+                Assert.False(principles.IsExpanded); // Content changes immediately, independently of the icon clock.
+                pattern.Expand(); Assert.InRange(icon.Progress, middle - .01, middle + .01);
+                icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(200), TimeSeekOrigin.BeginTime);
+                Assert.Equal(1, icon.Progress);
+                for (int toggle = 0; toggle < 12; toggle++) { principles.IsExpanded = !principles.IsExpanded; }
+                icon.SetState(false); Assert.Equal(principles.IsExpanded ? 1 : 0, icon.Progress);
+                icon.Animate = false; pattern.Collapse(); Assert.Null(icon.Clock); Assert.Equal(0, icon.Progress);
+                pattern.Expand(); Assert.Equal(1, icon.Progress);
+                Assert.True(PlanFoldIcon.Strip(.5, -1).Bounds.Width < PlanFoldIcon.Strip(0, -1).Bounds.Width);
+                Assert.NotEqual(PlanFoldIcon.Strip(.5, -1).Bounds.Height, PlanFoldIcon.Strip(0, -1).Bounds.Height);
+                RenderFoldFrames(app, theme, dpi);
                 Pump(vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, vm.Accounts.Single(a => a.Id == f.Source.Account.Id)));
                 var editor = vm.Editor!; var token = editor.Token;
                 editor.RiskPerTrade.Text = "invalid raw amount"; editor.Focus.Text = "unsaved focus";
@@ -84,11 +109,37 @@ public sealed class PlanSectionsViewTests
                 Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.False(vm.RiskExpanded);
                 Assert.All(Descendants(page).OfType<Button>().Where(b => Equals(b.Content, "×")), b =>
                 { Assert.True(b.IsEnabled); Assert.NotEmpty(AutomationProperties.GetName(b)); Assert.True(b.ActualWidth >= 25); Assert.True(b.TranslatePoint(new(b.ActualWidth, 0), page).X <= page.ActualWidth); });
+                // Remove the middle, last, then only row through the actual button/command path.
+                var rows = (ItemsControl)page.FindName("PrincipleRows");
+                foreach (int index in new[] { 1, 1, 0 })
+                {
+                    var buttons = Descendants(rows).OfType<Button>().ToArray(); var remove = buttons[index];
+                    FocusManager.SetFocusedElement(page, remove); remove.Focus();
+                    ((IInvokeProvider)new ButtonAutomationPeer(remove).GetPattern(PatternInterface.Invoke)!).Invoke(); Idle();
+                    Pump(vm.Principles.RemoveCommand.ExecutionTask ?? Task.CompletedTask); Layout();
+                    if (vm.Principles.Rows.Count == 0) Assert.Same(input, FocusManager.GetFocusedElement(page));
+                    else Assert.Same(vm.Principles.Rows[Math.Min(index, vm.Principles.Rows.Count - 1)], ((Button)FocusManager.GetFocusedElement(page)).DataContext);
+                }
+                Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.Empty(vm.Principles.Rows);
             }
             finally { window.Close(); }
         }, shutdownDispatcher: false);
     }
     private static void Idle() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+    private static void RenderFoldFrames(System.Windows.Application app, string theme, int dpi)
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_PLAN_RENDER_DIRECTORY") is not { Length: > 0 } directory) return;
+        var strip = new StackPanel { Orientation = Orientation.Horizontal, Background = (Brush)app.Resources["PtjSurfaceBrush"] };
+        foreach (double progress in new[] { 0, .25, .5, .75, 1 })
+        {
+            var icon = new PlanFoldIcon { Width = 36, Height = 36, Margin = new Thickness(12), Foreground = (Brush)app.Resources["PtjAccentBrush"] };
+            icon.SetValue(PlanFoldIcon.ProgressProperty, progress); strip.Children.Add(icon);
+        }
+        strip.Measure(new(300, 60)); strip.Arrange(new(0, 0, 300, 60)); strip.UpdateLayout();
+        var bitmap = new RenderTargetBitmap(300 * dpi / 96, 60 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(strip);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var file = File.Create(Path.Combine(directory, $"fold-frames-{theme}-{dpi}.png")); encoder.Save(file);
+    }
     private static void Pump(Task task)
     {
         var frame = new DispatcherFrame(); var dispatcher = Dispatcher.CurrentDispatcher;
@@ -103,6 +154,9 @@ public sealed class PlanSectionsViewTests
     private static void Render(FrameworkElement page, string theme, int width, int dpi, string state)
     {
         if (Environment.GetEnvironmentVariable("PTJ_PLAN_RENDER_DIRECTORY") is not { Length: > 0 } directory) return;
+        // Endpoint screenshots are deterministic; intermediate folding frames are captured separately.
+        foreach (var icon in Descendants(page).OfType<PlanFoldIcon>()) icon.SetState(false);
+        page.UpdateLayout(); // Flush the invalidated vector drawing before RenderTargetBitmap reads it.
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap(width * dpi / 96, 950 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(page);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));

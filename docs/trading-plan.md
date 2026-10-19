@@ -1,5 +1,55 @@
 # Trading Plan
 
+## Folding headers and compact principle rows (before M21.10)
+
+Actual starting state: clean `develop`, HEAD `4a105f195e5edf026030871db6ce5a3c9176c127`. The previous collapse/global-list implementation was already committed by the user and is preserved. This is local WPF presentation only: no migration, repository, command, Plan token, Ready snapshot, Rules or Review-evidence changes. No production/provider access or commit/push/merge; M21.10 remains paused.
+
+### Presentation and interaction
+
+- The four existing native Expanders retain their single header toggle, titles/numbers, Enter/Space and ExpandCollapse automation, immediate content visibility, session choices and guarded validation expansion. The decorative icon adds no tab stop or nested button. Tooltips explicitly say Expand/Collapse plus the section name. Shared/sidebar controls are untouched.
+- A 20-DIP vector icon occupies a 36-DIP rounded teal-tinted area. Collapsed is three solid bars, expanded is X. A single 200ms render-only progress clock projects hinged strip geometry with foreshortening and a small rear-face offset; the middle strip contracts into the hinge. It is not just rotation/crossfade, does not animate content/layout, and never loops. Reversal captures the currently displayed pose; a new clock is synchronously positioned at its start to avoid exposing the final base value for a frame. Windows ClientAreaAnimation off and unloading snap to the current actual state, stopping the clock; preference-change subscriptions are released on unload.
+- Principle rows use fixed-width numbered badges, flexible left-aligned text and one right-hand red X, thin themed borders and 6-DIP row separation. Multiline Bulgarian text wraps without overlapping the removal column. The input/Add row stacks at very small available widths. X retains its identifying accessible name and the existing command; guarded focus moves to the next row, preceding last row, or input when empty. New input elsewhere supersedes queued focus through the existing PageFocus guard.
+- Independent global storage, insertion order, identity, cancellation/concurrency, input retention, no-plan/Ready availability and exclusion from historical evidence are unchanged.
+
+### Reference inspection limitation
+
+The user explicitly replaced the earlier [Yet another hamburger menu](https://dribbble.com/shots/2064473-Yet-another-hamburger-menu) with [3d hamburger menu](https://dribbble.com/shots/13943358-3d-hamburger-menu). Web reading exposed the page title but not its animation. Browser and supported Windows helper initialization both failed with `failed to write kernel assets: The system cannot find the path specified. (os error 3)`; an approved direct public-page request returned an empty body. Neither reference's motion/intermediate frames could be inspected. The subsequent reply linked the earlier page again, without explicitly revoking the folding requirement. The implemented motion follows the written folding/depth requirements; **reference visual fidelity remains unverified**, pending an accessible GIF/video or human comparison. It is not represented as an observed reproduction of that animation.
+
+### Verification chronology and renders
+
+All fixtures are synthetic. No assertion, deadline, isolation or test scheduling changes:
+
+- The first test build found xUnit2013 in the new empty-list assertion; corrected to Assert.Empty. Product compilation was successful.
+- `TestResults/PlanFold/initial`: **28 passed / 4 failed**, all four layout cases stopped at the missing Expand/Collapse tooltip prefix. WPF ignores Binding.StringFormat for the object-valued tooltip; the Expander now supplies a string-valued action description.
+- `TestResults/PlanFold/corrected`: **28 passed / 4 failed**, all four cases found a rapid-reversal pose jump: newly attached WPF clock had not ticked, exposing destination 1 instead of captured 0.5. Synchronously seeking the new clock to zero fixes this demonstrated defect without delaying input or changing assertions.
+- `TestResults/PlanFold/clock-corrected`: **32/32**, including controlled clock seeking/reversal, reduced motion, existing raw-input/token/validation assertions, no-plan/Ready, removal focus for middle/last/only row and exact input preservation.
+- `TestResults/PlanFold/final-focused`: **32/32** after the Light badge border and 280-DIP entry-row assertion. Build: **zero warnings/errors**, 14.27s.
+- First complete gate (`TestResults/PlanFold/complete/release-20261019-195219-b34e528c6f00476381a1e1437468dd03`): **4,916 passed, zero failures/skips, exit 0**. Calendar **73.150s / 46.850s headroom**. This run preceded the final two refinements below and is not substituted for final-source verification.
+- Endpoint inspection showed that RenderTargetBitmap could read the cached intermediate drawing after stopping the icon clock. The fixture now flushes invalidated drawing with UpdateLayout before capturing endpoint screenshots (no sleep). Removal-focus bookkeeping is also cleared on operation completion/context replacement, so a failed/cancelled removal cannot influence a later reload. Neither changes persistence or test scheduling.
+- `TestResults/PlanFold/endpoint-focused`: **32/32** on final source; final regenerated endpoint renders show three straight bars/X as intended. `dotnet build PersonalTradingJournal.sln -c Release --no-restore`: **zero warnings/errors**, 13.83s. `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`: **no pending model changes**, exit 0.
+- Final complete command: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanFold/final-complete`: **4,916 passed, zero failures/skips, exit 0**. Domain **567**, Application **1,021**, Infrastructure **1,452**, Desktop **1,876** (88 exclusive + 1,788 parallel). Run `release-20261019-200202-d7c4b29ff9334610ab45842910788908` contains the aggregate summary, parent/child TRX, VSTest diagnostics and supervision logs. Calendar **72.638s / 47.362s headroom**; updated sections child **24.090s / 65.910s aggregate headroom**, exit 0 and cleanup confirmed. History and workspace children also exited 0. Final tracked/new-file whitespace checks passed. All results are local, not matching CI for these uncommitted changes.
+
+Focused command: `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~PlanSectionsViewTests|FullyQualifiedName~DailyTradingPrinciplesTests|FullyQualifiedName~TradingPlanWorkspaceTests' --logger trx --results-directory TestResults/PlanFold/final-focused`. The final synthetic render run sets `PTJ_PLAN_RENDER_DIRECTORY=artifacts/plan-fold-renders-final` and uses the normal Windows desktop. Renders cover Light/Dark, 980 DIP/96 DPI and 460 DIP/240 DPI: empty, single, populated no-plan, collapsed, Ready and Ready-collapsed. A separate 280-DIP entry-row layout check verifies input width and stacked Add bounds. Endpoint screenshots settle icon clocks without a sleep; separate `fold-frames-{theme}-{dpi}.png` contact sheets show geometric poses at 0, .25, .5, .75 and 1, not an external-reference capture.
+
+Human keyboard/Narrator, native picker, live application restart and matching CI remain pending. Automated native focus/providers and static/intermediate renders are not human interaction or screen-reader acceptance. The complete gate must pass independently of focused results.
+
+Inspected final images in `artifacts/plan-fold-renders-final/`: Light and Dark normal Ready-collapsed (all four headers, numbered rows and multiline text), Dark narrow/240-DPI Ready-collapsed (main scrolling retained), Light narrow empty and long populated no-plan, Dark narrow single and collapsed. Intermediate contact sheets for Light/96 and Dark/240 show hinge foreshortening and final X. Row badges have a visible theme-aware outline even where Light surfaces are similar. Reference fidelity and human motion perception are still pending; no known overlapping controls were observed in these automated renders. HEAD remains `4a105f195e5edf026030871db6ce5a3c9176c127` on `develop`; seven modified files and one new file remain uncommitted.
+
+### Exact changed files
+
+Eight files (seven modified, one new); no unrelated existing changes were present or overwritten:
+
+```text
+README.md
+docs/trading-plan.md
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/PlanSectionExpander.cs
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/PlanFoldIcon.cs (new)
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml
+src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml.cs
+tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs
+```
+
 ## Collapsible sections and global Daily Trading Principles (before M21.10)
 
 Actual baseline: clean `develop`, HEAD `6f237f2dfb71c4e1b737d5473f8983ac2b5b28e1`. The previous 57-modified/4-new changes had already been committed; this task preserves them. No production journal/provider access, commit, push, merge or M21.10 work.
