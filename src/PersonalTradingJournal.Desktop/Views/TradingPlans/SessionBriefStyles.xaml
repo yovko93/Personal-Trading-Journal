@@ -43,11 +43,22 @@
   </Style.Triggers>
  </Style>
  <!-- Local to the Trading Plan components; shared templates retain focus, validation and all interaction states. -->
+ <Style x:Key="PlanStatusBadge" TargetType="ContentControl">
+  <Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}" /><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}" />
+  <Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}" /><Setter Property="Margin" Value="0,0,6,4" />
+  <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ContentControl">
+   <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="9,3">
+    <TextBlock Text="{TemplateBinding Content}" Foreground="{TemplateBinding Foreground}" FontSize="12" TextWrapping="Wrap" />
+   </Border>
+  </ControlTemplate></Setter.Value></Setter>
+ </Style>
  <Style x:Key="PlanInput" TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}">
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" />
+  <Setter Property="VerticalContentAlignment" Value="Center" />
  </Style>
  <Style x:Key="PlanSelect" TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}">
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="8,4" />
+  <Setter Property="VerticalContentAlignment" Value="Center" />
  </Style>
  <Style x:Key="PlanAction" TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}">
   <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,4" />

@@ -81,8 +81,10 @@
     <StackPanel Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}" Margin="0,8,0,0">
      <WrapPanel>
       <TextBlock Text="Screenshots · optional" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
-      <ComboBox Width="65" ItemsSource="{Binding AvailableTimeframes}" SelectedItem="{Binding SelectedTimeframe}" DisplayMemberPath="Label" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Screenshot timeframe" />
-      <Button Content="Upload Screenshot" Command="{Binding UploadScreenshotCommand}" Style="{StaticResource PlanPrimary}" AutomationProperties.Name="Upload screenshot for selected Instrument and timeframe" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+       <ComboBox x:Name="ScreenshotTimeframe" Width="100" MinWidth="100" Margin="0,2,8,2" VerticalAlignment="Center" ItemsSource="{Binding AvailableTimeframes}" SelectedItem="{Binding SelectedTimeframe}" DisplayMemberPath="Label" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Screenshot timeframe" />
+       <Button Content="Upload Screenshot" Command="{Binding UploadScreenshotCommand}" Style="{StaticResource PlanPrimary}" VerticalAlignment="Center" AutomationProperties.Name="Upload screenshot for selected Instrument and timeframe" />
+      </StackPanel>
      </WrapPanel>
      <ItemsControl ItemsSource="{Binding VisibleScreenshots}">
       <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>

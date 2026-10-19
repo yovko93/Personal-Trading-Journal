@@ -62,29 +62,26 @@
                 <Border Padding="0" CornerRadius="8" Background="Transparent" Margin="0,12,0,0">
                     <StackPanel>
                         <Expander Header="{Binding LinkedRuleCount}" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Linked Trading Rules"><StackPanel>
-                        <TextBlock Text="Optional links to existing global Rules. Selecting a Rule does not record compliance or run an automatic check."
-                                   Style="{StaticResource Body}" />
                         <Button Content="Load Rules" Command="{Binding LoadRulesCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
                         <Label Content="Rule to link or update" Target="{Binding ElementName=RuleSelector}" Padding="0,4,0,6" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
                         <ComboBox x:Name="RuleSelector" ItemsSource="{Binding RuleChoices}" DisplayMemberPath="Name" SelectedItem="{Binding RuleCandidate}"
                                   IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Existing global Rule to link" />
-                        <TextBlock Text="{Binding RuleCandidate.Statement}" Style="{StaticResource Body}" Margin="0,6" />
-                        <Button Content="Link selected revision" Command="{Binding LinkRuleCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left" />
-                        <ItemsControl ItemsSource="{Binding LinkedRules}">
+                        <Button Content="Link selected rule" Command="{Binding LinkRuleCommand}" Style="{StaticResource Action}" HorizontalAlignment="Left"
+                                AutomationProperties.Name="Link selected rule" AutomationProperties.HelpText="Link the selected Rule definition to this Draft. Save rechecks its version; linking is not an assessment."
+                                ToolTip="Link the selected Rule definition; no compliance assessment or automatic check is performed." />
+                        <ItemsControl x:Name="LinkedRuleList" ItemsSource="{Binding LinkedRules}" HorizontalContentAlignment="Stretch">
                             <ItemsControl.ItemTemplate><DataTemplate>
-                                <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,4">
-                                    <StackPanel>
-                                        <Expander Foreground="{DynamicResource PtjTextPrimaryBrush}" Background="Transparent"
-                                                  AutomationProperties.Name="{Binding Title}">
-                                            <Expander.Header><TextBlock Text="{Binding Title}" Style="{StaticResource Body}" FontWeight="SemiBold" /></Expander.Header>
-                                            <TextBlock Text="{Binding Text}" Style="{StaticResource Body}" Margin="4,8" />
-                                        </Expander>
-                                        <TextBlock Text="{Binding Availability}" Style="{StaticResource Body}" Margin="0,4" />
-                                        <WrapPanel>
-                                            <Button Content="Open current Rule" Command="{Binding OpenCommand}" Style="{StaticResource Action}" />
-                                            <Button Content="Remove Draft link" Command="{Binding RemoveCommand}" Style="{StaticResource Action}" />
-                                        </WrapPanel>
-                                    </StackPanel>
+                                <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="0,1,0,0" Padding="0,4">
+                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Body}" FontWeight="SemiBold" Focusable="True"
+                                                       ToolTip="{Binding ContextHelp}" AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="{Binding ContextHelp}" />
+                                            <TextBlock Text="{Binding Availability}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjWarningBrush}"
+                                                       Visibility="{Binding HasAvailabilityWarning, Converter={StaticResource VisibleIf}}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="×" Command="{Binding RemoveCommand}" Style="{StaticResource PlanRemove}" VerticalAlignment="Center"
+                                                AutomationProperties.Name="{Binding Name, StringFormat=Unlink rule: {0}}" ToolTip="Unlink from this Draft only; the catalog Rule and saved Ready snapshots are retained." />
+                                    </Grid>
                                 </Border>
                             </DataTemplate></ItemsControl.ItemTemplate>
                         </ItemsControl></StackPanel></Expander>

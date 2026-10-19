@@ -81,7 +81,16 @@ public sealed class RiskReadinessViewTests
                 amount.SetCurrentValue(TextBox.TextProperty, "0.00"); vm.MaximumTrades.Text = "3"; Layout(); Assert.False(FormValidation.GetIsInvalid(amount));
                 var rules = Descendants(section).OfType<Expander>().Single(e => AutomationProperties.GetName(e) == "Linked Trading Rules");
                 rules.IsExpanded = true; Layout();
-                var expand = Descendants(rules).OfType<Expander>().Single(); expand.IsExpanded = true; Layout();
+                var list = (ItemsControl)section.FindName("LinkedRuleList");
+                Assert.Empty(Descendants(list).OfType<Expander>());
+                var unlink = Assert.Single(Descendants(list).OfType<Button>());
+                Assert.Equal("Unlink rule: " + vm.LinkedRules[0].Name, AutomationProperties.GetName(unlink));
+                Assert.True(unlink.IsTabStop); Assert.True(unlink.IsEnabled);
+                var name = Descendants(list).OfType<TextBlock>().Single(t => t.Text == vm.LinkedRules[0].Name);
+                Assert.Contains("Synthetic Rule", AutomationProperties.GetHelpText(name));
+                Assert.True(name.Focusable); Assert.False(vm.LinkedRules[0].HasAvailabilityWarning);
+                Assert.True(name.TranslatePoint(new Point(name.ActualWidth, 0), list).X <= unlink.TranslatePoint(new Point(), list).X);
+                Assert.InRange(unlink.TranslatePoint(new Point(unlink.ActualWidth, 0), list).X, list.ActualWidth - 10, list.ActualWidth);
                 scroll.ScrollToEnd(); Layout(); Render(scroll, theme, width, dpi, "rules-bottom");
                 foreach (var item in vm.Checklist) item.IsChecked = true; Layout();
                 Assert.Equal(100, ((ProgressBar)Descendants(section).OfType<ProgressBar>().Single()).Value);
@@ -90,6 +99,7 @@ public sealed class RiskReadinessViewTests
                 Assert.All(Descendants(section).OfType<TextBox>(), t => Assert.True(t.IsReadOnly));
                 Assert.All(Descendants(section).OfType<CheckBox>(), b => Assert.False(b.IsEnabled));
                 Assert.False(ready.LinkRuleCommand.CanExecute(null)); Assert.False(ready.LinkedRules[0].RemoveCommand.CanExecute(null));
+                Assert.False(Assert.Single(Descendants(list).OfType<Button>()).IsEnabled);
                 Assert.Contains("USD", ready.CurrencyLabel); Render(scroll, theme, width, dpi, "ready");
             }
             using var focus = new RiskReadinessTests.Fixture(); var model = focus.Vm;

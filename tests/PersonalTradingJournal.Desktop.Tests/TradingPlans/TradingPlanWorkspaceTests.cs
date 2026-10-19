@@ -20,13 +20,27 @@ public sealed class TradingPlanWorkspaceTests
         await using var f = await Fixture.CreateAsync(); var vm = f.Vm;
         Assert.Equal(new DateOnly(2026, 10, 17), vm.SelectedDate); // Clock is 18 October UTC.
         Assert.NotNull(vm.SelectedAccount); Assert.Null(vm.SelectedAccount.Id); Assert.Null(vm.Editor); Assert.True(vm.CanCreateDraft);
+        Assert.False(vm.Notice.HasText);
         Assert.Equal(PersonalTradingJournal.Domain.TradingPlans.TradingPlanScope.AllAccounts, new TradingPlanKey(vm.SelectedAccount.Id, vm.SelectedDate).Scope); Assert.True(vm.CanCreateDraft);
         Assert.Equal(0, f.Store.Writes); Assert.Null(await f.Store.Inner.LoadAsync(new(f.Source.Account.Id, vm.SelectedDate)));
         await vm.CreateDraftAsync(); Assert.Equal(1, f.Store.Writes); Assert.NotNull(vm.Editor);
         await vm.NextDayCommand.ExecuteAsync(null); Assert.Equal(new DateOnly(2026, 10, 18), vm.SelectedDate); Assert.Null(vm.Editor);
+        Assert.False(vm.Notice.HasText); // Previous creation feedback must not survive a successful empty context load.
         await vm.TodayCommand.ExecuteAsync(null); Assert.NotNull(vm.Editor); Assert.Equal(1, f.Store.Writes);
         vm.DateText = "not a date"; await vm.OpenDateCommand.ExecuteAsync(null); await vm.PreviousDayCommand.ExecuteAsync(null);
         Assert.Equal("not a date", vm.DateText); Assert.True(vm.HasDateError); Assert.False(vm.CanSave); Assert.Equal(1, f.Store.Writes);
+    }
+
+    [Fact]
+    public async Task EmptyContextLoadFailureRemainsVisibleThenSuccessfulReloadClearsItWithoutWriting()
+    {
+        await using var f = await Fixture.CreateAsync();
+        f.Store.Read = (_, _) => throw new InvalidOperationException("Synthetic load failure");
+        await f.Vm.ReloadCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.Editor); Assert.True(f.Vm.Notice.HasText); Assert.Equal(PlanNoticeKind.Error, f.Vm.Notice.Kind);
+        f.Store.Read = null;
+        await f.Vm.ReloadCommand.ExecuteAsync(null);
+        Assert.Null(f.Vm.Editor); Assert.False(f.Vm.Notice.HasText); Assert.True(f.Vm.CanCreateDraft); Assert.Equal(0, f.Store.Writes);
     }
 
     [Fact]

@@ -215,7 +215,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
             cancellation.Token.ThrowIfCancellationRequested();
             if (_disposed || epoch != _epoch || date != _date || account.Id != _account?.Id) return;
             ReplaceEditor(candidate); candidate = null; _contextLoaded = true;
-            Message = plan is null ? "No Plan saved for this date." : "Session Brief loaded.";
+            Message = plan is null ? "" : "Session Brief loaded.";
         }
         catch (OperationCanceledException) { if (epoch == _epoch && !_disposed) Report("Loading cancelled. Select Reload to try again; no Plan was changed.", PlanNoticeKind.Info); }
         catch (Exception) { if (epoch == _epoch && !_disposed) Report("Session Brief could not be loaded. Reload to try again; no Plan was changed.", PlanNoticeKind.Error); }

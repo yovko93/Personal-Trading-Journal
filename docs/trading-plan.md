@@ -1,5 +1,84 @@
 # Trading Plan
 
+## Six focused UI corrections before M21.10
+
+Baseline: clean `develop`, HEAD `ddd0c08193249a71d7491d7cbdb9965f72452b56`; prior work was already committed. These are Desktop presentation changes only. Shared editing state, commands, validation, All Accounts, frozen references, screenshots and historical evidence remain intact. No schema/export/backup/provider change; M21.10 remains paused.
+
+- The context toolbar wraps whole date/Account/session groups using actual available DIP width. Date-picker arrow chrome no longer adds extra vertical margin; compact input/select content is vertically centered. History uses the same page-local input/action sizes and bottom-aligned filter actions. Existing responsive preparation/levels, scenario and risk grids remain intact; the shared header/sidebar are unchanged.
+- Only a **successful empty load** clears its operation notice. No no-plan InfoBox or reserved notice margin remains. Create Draft is still explicit; load/save failures, conflicts and validation are not hidden when no editor exists. Scope loading replaces stale feedback.
+- Screenshot timeframe width is **100 DIP**, reusing the production ComboBox's distinct **32-DIP arrow column**, padding and popup minimum width. Upload stays vertically centered with an 8-DIP gap, and that control pair wraps together. Values and image metadata/commands are unchanged.
+- Status pills sit immediately above the date group: Draft/unsaved amber, Ready green, working Draft after Ready violet, existing opportunity/Stand Aside intent blue, read-only neutral. These derive from the existing editor/Plan state, not a new lifecycle. No status duplicate remains beside Session, and the strip collapses without an editor. Save/Ready teal and Edit blue are retained.
+- The action is **Link selected rule**. Linked rows have a flexible wrapping name column and an Auto-sized X column. Per-Rule expanders, visible revision suffixes, navigation/remove captions and repeated benign paragraphs are removed. Exact frozen content/version and non-assessment explanation remain in keyboard-accessible help/tooltips; changed/unavailable references show a visible warning. The containing Linked Rules section remains expandable.
+- X invokes the existing Draft unlink command. It never deletes catalog content, writes automatically, clears unrelated raw input or reconfirms anything. Ready/historical rows have no enabled unlink operation.
+
+### Verification and remaining checks
+
+Synthetic ViewModel and production-resource WPF tests cover empty/error recovery, old feedback clearing, unlink retention, long Rule names, exact seven timeframe labels, status placement, Light/Dark and narrow/240-DPI composition. Final results are recorded here after completion, separately from live interaction.
+
+Initial focused run (`TestResults/PlanUiCorrections/focused`): **132 passed / 3 failed / 0 skipped**. Two new composition checks included the hidden History upload button in a `Single` lookup; the lookup now targets the actual Session Brief preparation component. The new unlink fixture had marked the editor's shared Plan object Ready, correctly disabling unlink; it now constructs an independent historical Plan before testing the working Draft. No production guard, assertion or deadline was weakened. Initial render inspection also found the empty shared-currency error line stretching toolbar selectors; the empty line now collapses and the selectors remain vertically centered.
+
+Second affected run (`TestResults/PlanUiCorrections/focused-final`): **133 passed / 2 failed / 0 skipped**. Both failures were the added composition expectation saying Draft during the Dark pass, which intentionally reopened the same Plan after the Light pass saved Ready and started a new working Draft. That expectation was corrected to reflect the retained lifecycle rather than changing product state; the following bounded fixture split now exercises the full lifecycle independently in each theme.
+
+The subsequent composition run (`TestResults/PlanUiCorrections/composition-final`) passed its normal child case in **24 seconds**, then aborted the high-DPI child at its **unchanged 30-second inactivity deadline**, propagating to both parent cases. It produced 57 of 60 expected images before aborting; this is not claimed as a product hang or a passing run. The expanded test now runs one theme per case (four combinations instead of two cases with both themes), with a fresh synthetic fixture for each. Every lifecycle, input-retention, layout and timeframe assertion remains; both themes explicitly check Draft → Ready → working Draft after Ready → empty context. Case deadline **30s** and child aggregate deadline **90s** are unchanged. This bounds the added render work without retries, skips or changed production scheduling.
+
+Final composition run (`TestResults/PlanUiCorrections/composition-bounded`): **4/4 passed**, completing **137 distinct affected cases** alongside the 133 passed above. Child durations: Light normal **5.626s**, Dark normal **4.966s**, Light 240 DPI **12.610s**, Dark 240 DPI **18.970s** (minimum case headroom **11.030s**). All 60 Session Brief images were generated. History's standalone render fixture now supplies the actual theme background rather than transparent pixels appearing black in an image viewer; this changes no application behavior.
+
+Final solution Release build: **0 warnings / 0 errors**. EF `has-pending-model-changes`: **no model changes**. Refreshed History render/focus run: **2/2 passed**, normal **7.492s**, narrow/240 DPI **24.668s**; child lifetime **40.075s**. Whitespace and **167 local documentation links** pass.
+
+Complete gate: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanUiCorrections/complete`, run `release-20261019-140523-b62b71321f4c44c098b1997f49dd8b2c`. Exclusive WPF **88/88 passed**. Calendar native lifetime **114.998s**, only **5.002s headroom** at its unchanged 120s deadline; Journal child **25.512s**. Historical timing variability is not claimed fixed.
+
+The parallel phase has an **unresolved History child 30-second inactivity failure**, propagated to both `TradingPlanHistoryViewTests.CompiledHistoryFrozenViewerTransfersAndRetainedEditorAreAccessible` parent cases. Blame identifies `(width: 460, dpi: 240)` as active. Its child process started at 14:08:23.189 UTC; the logged STA test action started at 14:09:05.343; hang collection began around 14:09:17; child exited code 1 at 14:09:23.778. Thus only about 12 seconds of logged WPF action preceded collection; these breadcrumbs do **not** prove a hung UI action or identify whether startup, fixture setup or scheduling caused the failure. The isolated pass does not override it. TRX, phase logs, blame sequence and dump are retained under the run's `parallel/plan-history-20261019-140822-1a230e89858d4aeab8472039a8b1a611`. No retry or deadline/assertion change was made in response. Full-gate acceptance remains open.
+
+**Final complete gate: 4,883 passed / 2 failed / 0 skipped, exit 1**, 4,885 cases executed:
+
+| Project / partition | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Domain | 567 | 0 | 0 |
+| Application | 1,021 | 0 | 0 |
+| Infrastructure | 1,434 | 0 | 0 |
+| Desktop exclusive WPF | 88 | 0 | 0 |
+| Desktop parallel | 1,773 | 2 | 0 |
+
+Final HEAD remains `ddd0c08193249a71d7491d7cbdb9965f72452b56` on `develop`, with **16 modified / 0 new files** listed below. No matching CI acceptance is claimed for these uncommitted changes. The full gate was not rerun to replace its failure. No production journal, provider request, commit, push, merge or M21.10 work.
+
+The bounded Session Brief composition child passed all **4/4** cases in this complete gate: child **69.464s / 20.536s aggregate headroom**; slowest case **26.435s / 3.565s case headroom**. This is measured variability, not a guarantee against future contention. No global runner or isolation changes were made.
+
+Commands used: `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore --filter FullyQualifiedName~TradingPlans` (TRX/output directories above); subsequent focused filters `FullyQualifiedName~SessionBriefCompositionTests` and `FullyQualifiedName~TradingPlanHistoryViewTests`; `dotnet build PersonalTradingJournal.sln -c Release --no-restore`; `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build`; the complete gate above; `git -c core.safecrlf=false diff --check`. Render switches: `PTJ_BRIEF_RENDER_DIRECTORY`, `PTJ_PLAN_RENDER_DIRECTORY`, `PTJ_PLAN_HISTORY_RENDER_DIRECTORY` point only to the synthetic artifact folders below.
+
+Production-resource render sets: `artifacts/plan-ui-corrections/final/brief` (60), `components` (121), `history` (28). Representative images inspected include:
+
+- [Light Ready, normal](../artifacts/plan-ui-corrections/final/brief/Light-1586-96-ready.png)
+- [Dark Ready, narrow/240 DPI](../artifacts/plan-ui-corrections/final/brief/Dark-1000-240-ready.png)
+- [Full 15m label, Light narrow/240 DPI](../artifacts/plan-ui-corrections/final/brief/Light-1000-240-timeframe-15m.png)
+- [No-plan context without a notice strip](../artifacts/plan-ui-corrections/final/brief/Light-1586-96-no-plan.png)
+- [Working Draft after Ready, Dark](../artifacts/plan-ui-corrections/final/brief/Dark-1586-96-working-after-ready.png)
+- [Long Rule row, Light normal](../artifacts/plan-ui-corrections/final/components/risk-Light-1100-96-rules-bottom.png)
+- [Long Rule row, Dark narrow/240 DPI](../artifacts/plan-ui-corrections/final/components/risk-Dark-460-240-rules-bottom.png)
+- [History filters, Light](../artifacts/plan-ui-corrections/final/history/history-Light-980-96-history.png) / [Dark narrow/240 DPI](../artifacts/plan-ui-corrections/final/history/history-Dark-460-240-history.png)
+
+Observed: complete timeframe text with arrow separation, wrapped Rule names without X overlap, compact list spacing, colored status above date, hidden empty notice, retained visible save/error feedback, and intact scrolling in stacked layouts. Automated keyboard focus/validation routing and accessibility properties remain distinct from human interaction.
+
+Native picker/image interaction, human keyboard/Narrator, live application restart and matching CI remain pending. Compiled WPF focus/layout tests and PNG inspection are not human accessibility acceptance. Older-schema archive restore remains unsupported as documented; this presentation-only change does not alter compatibility.
+
+### Exact changed files
+
+- `README.md`
+- `docs/trading-plan.md`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/RiskReadinessItems.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/SessionPreparationViewModel.Rules.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/RiskReadinessSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionBriefStyles.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanHistoryView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanWorkspaceView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/RiskReadinessViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs`
+
 ## Direct Playbook editing and themed feedback before M21.10
 
 Actual starting state: clean `develop`, HEAD `e06fa03e986c403d591d70a1468fcc1fd7de8f72`. Earlier work was already committed and is preserved. Only the three requested changes are implemented; M21.10 remains paused.

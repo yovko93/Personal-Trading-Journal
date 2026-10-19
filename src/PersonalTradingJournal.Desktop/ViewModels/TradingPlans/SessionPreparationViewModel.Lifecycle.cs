@@ -7,6 +7,7 @@ public sealed partial class SessionPreparationViewModel
 {
     internal TradingPlan CurrentPlan => _plan;
     internal string EditIdentity => Fingerprint();
+    public bool HasPreservedReady => !IsReadOnly && _plan.LatestReadyRevision is not null;
     public string PreservedReadyLabel => _plan.WorkingDraft is not null && _plan.LatestReadyRevision is { } ready
         ? $"Working Draft · Ready revision {ready.Id.Revision} remains preserved." : "";
     public bool IsHosted { get; internal set; }

@@ -24,9 +24,11 @@ public sealed class SessionBriefCompositionTests
         typeof(SessionBriefCompositionTests), "brief-composition", Host, TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30)));
 
     [Theory]
-    [InlineData(1586, 1000, 96)]
-    [InlineData(1000, 850, 240)]
-    public async Task ProductionShellDraftReadyAndInvalidComposition(int width, int height, int dpi)
+    [InlineData(1586, 1000, 96, "Light")]
+    [InlineData(1586, 1000, 96, "Dark")]
+    [InlineData(1000, 850, 240, "Light")]
+    [InlineData(1000, 850, 240, "Dark")]
+    public async Task ProductionShellDraftReadyAndInvalidComposition(int width, int height, int dpi, string theme)
     {
         if (Environment.GetEnvironmentVariable(Host) != "1") { await Native.Value; return; }
         await using var fixture = await TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
@@ -38,7 +40,8 @@ public sealed class SessionBriefCompositionTests
         await CalendarStaTest.RunAsync(() =>
         {
             var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            foreach (string theme in new[] { "Light", "Dark" })
+            // One production theme per case bounds high-DPI image encoding under the
+            // unchanged 30-second deadline; all lifecycle/layout assertions run for each.
             {
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
                 app.Resources.Add(new DataTemplateKey(typeof(TradingPlanWorkspaceViewModel)), new DataTemplate(typeof(TradingPlanWorkspaceViewModel))
@@ -81,6 +84,28 @@ public sealed class SessionBriefCompositionTests
                     Layout(); Capture("draft");
                     foreach (var item in editor.VisibleScreenshots.ToArray()) item.RemoveCommand.Execute(null);
                     Layout(); Capture("screenshots-empty");
+                    var timeframe = (ComboBox)Find(page, "ScreenshotTimeframe");
+                    var upload = Descendants(Find(page, "Preparation")).OfType<Button>().Single(b => b.Content as string == "Upload Screenshot");
+                    foreach (var choice in SessionPreparationViewModel.Timeframes)
+                    {
+                        editor.SelectedTimeframe = choice; Layout();
+                        var presenter = Descendants(timeframe).OfType<ContentPresenter>().Single(p => p.TemplatedParent == timeframe);
+                        var text = Descendants(presenter).OfType<TextBlock>().Single();
+                        var measured = new FormattedText(choice.Label, System.Globalization.CultureInfo.CurrentCulture,
+                            FlowDirection.LeftToRight, new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch),
+                            text.FontSize, Brushes.Black, dpi / 96d);
+                        Assert.Equal(choice.Label, text.Text);
+                        Assert.True(presenter.ActualWidth >= measured.WidthIncludingTrailingWhitespace);
+                        Assert.True(presenter.TranslatePoint(new Point(presenter.ActualWidth, 0), timeframe).X <= timeframe.ActualWidth - 32);
+                        Assert.InRange(Math.Abs(upload.TranslatePoint(new Point(0, upload.ActualHeight / 2), timeframe).Y - timeframe.ActualHeight / 2), 0, 1);
+                        Assert.True(upload.TranslatePoint(new Point(), timeframe).X >= timeframe.ActualWidth + 8);
+                    }
+                    editor.SelectedTimeframe = SessionPreparationViewModel.Timeframes.Single(t => t.Label == "15m");
+                    Layout(); Capture("timeframe-15m");
+                    var strip = Find(page, "StatusStrip"); var toolbar = Find(page, "Toolbar");
+                    Assert.Equal("Draft", ((ContentControl)Find(page, "LifecycleBadge")).Content);
+                    Assert.InRange(Math.Abs(strip.TranslatePoint(new Point(), toolbar).X), 0, 1);
+                    Assert.True(strip.TranslatePoint(new Point(0, strip.ActualHeight), toolbar).Y <= 1);
                     var picker = (Expander)Find(page, "InstrumentPicker"); picker.IsExpanded = true;
                     Layout(); Capture("instrument-actions"); picker.IsExpanded = false;
                     Pump(editor.UploadScreenshotCommand.ExecuteAsync(null));
@@ -136,6 +161,7 @@ public sealed class SessionBriefCompositionTests
                     Assert.InRange(announcement.ActualWidth, 1, page.ActualWidth);
                     Pump(vm.MarkReadyAsync());
                     Assert.True(vm.Editor!.IsReadOnly);
+                    Layout(); Assert.Equal("Ready", ((ContentControl)Find(page, "LifecycleBadge")).Content);
                     Assert.All(vm.Editor.VisibleScreenshots, s => Assert.NotNull(s.Thumbnail));
                     Assert.False(vm.Editor.Scenarios[0].ToggleRoleCommand.CanExecute(null));
                     Assert.False(vm.Editor.VisibleScreenshots[0].RemoveCommand.CanExecute(null));
@@ -149,6 +175,13 @@ public sealed class SessionBriefCompositionTests
                     Assert.Equal(0, notice.ActualHeight);
                     notice.SetBinding(ContentControl.ContentProperty, statusBinding); Layout();
                     pageScroll.ScrollToEnd(); Layout(); Capture("ready-bottom");
+                    Pump(vm.StartDraftAsync()); Layout();
+                    Assert.Equal("Working Draft after Ready", ((ContentControl)Find(page, "LifecycleBadge")).Content);
+                    pageScroll.ScrollToTop(); Layout(); Capture("working-after-ready");
+                    // A saved working Draft can navigate to an empty day without an unsaved prompt.
+                    Pump(vm.NextDayCommand.ExecuteAsync(null)); Layout(); Capture("no-plan");
+                    Assert.Null(vm.Editor); Assert.False(vm.Notice.HasText); Assert.Equal(0, notice.ActualHeight);
+                    Assert.Equal(Visibility.Collapsed, strip.Visibility); Assert.True(vm.CanCreateDraft);
 
                     void Capture(string state)
                     {
@@ -158,8 +191,9 @@ public sealed class SessionBriefCompositionTests
                         var bitmap = new RenderTargetBitmap(width * dpi / 96, height * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
                         bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                         using (var file = File.Create(Path.Combine(directory, name + ".png"))) encoder.Save(file);
-                        var prep = (SessionPreparationSection)Find(page, "Preparation");
-                        var scenarios = (ScenariosSection)Find(page, "Scenarios"); var risk = (RiskReadinessSection)Find(page, "Risk");
+                        var prep = Descendants(page).OfType<SessionPreparationSection>().Single(p => p.Name == "Preparation");
+                        var scenarios = Descendants(page).OfType<ScenariosSection>().Single(p => p.Name == "Scenarios");
+                        var risk = Descendants(page).OfType<RiskReadinessSection>().Single(p => p.Name == "Risk");
                         File.WriteAllText(Path.Combine(directory, name + ".txt"), $"Page {page.ActualWidth:F1} x {page.ActualHeight:F1} DIP; preparation {prep.ActualHeight:F1}; scenarios {scenarios.ActualHeight:F1}; risk {risk.ActualHeight:F1}; scroll extent {((ScrollViewer)Find(page, "PageScroll")).ExtentHeight:F1}");
                     }
                 }

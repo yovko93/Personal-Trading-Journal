@@ -22,7 +22,7 @@
        Text="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
        AutomationProperties.Name="New York plan date" AutomationProperties.HelpText="{Binding DateError}"
        validation:FormValidation.IsInvalid="{Binding HasDateError}" KeyDown="OnDateKey" />
-     <Button x:Name="PART_Button" Grid.Column="1" Content="▾" Style="{StaticResource PlanAction}" Padding="0" AutomationProperties.Name="Choose New York date" />
+     <Button x:Name="PART_Button" Grid.Column="1" Content="▾" Style="{StaticResource PlanAction}" Padding="0" Margin="0" AutomationProperties.Name="Choose New York date" />
      <Popup x:Name="PART_Popup" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" />
     </Grid>
    </ControlTemplate></Setter.Value></Setter>
@@ -48,44 +48,56 @@
   <local:TradingPlanHistoryView Visibility="{Binding IsHistorySelected, Converter={StaticResource VisibleIf}}" />
   <Grid Visibility="{Binding IsBriefSelected, Converter={StaticResource VisibleIf}}">
   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+  <StackPanel>
+  <WrapPanel x:Name="StatusStrip" Visibility="{Binding DataContext.HasEditor, RelativeSource={RelativeSource AncestorType=local:TradingPlanWorkspaceView}, Converter={StaticResource VisibleIf}}" DataContext="{Binding Editor}">
+   <ContentControl x:Name="LifecycleBadge" ToolTip="{Binding StateLabel}" AutomationProperties.Name="{Binding StateLabel}"><ContentControl.Style>
+    <Style TargetType="ContentControl" BasedOn="{StaticResource PlanStatusBadge}">
+     <Setter Property="Content" Value="Draft" /><Setter Property="Foreground" Value="{DynamicResource PtjWarningBrush}" /><Setter Property="Background" Value="{DynamicResource PtjJournalReviewBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjWarningBrush}" />
+     <Style.Triggers>
+      <DataTrigger Binding="{Binding HasPreservedReady}" Value="True"><Setter Property="Content" Value="Working Draft after Ready" /><Setter Property="Foreground" Value="{DynamicResource PtjPlanVioletBrush}" /><Setter Property="Background" Value="{DynamicResource PtjPlanVioletSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjPlanVioletBrush}" /></DataTrigger>
+      <DataTrigger Binding="{Binding IsReadOnly}" Value="True"><Setter Property="Content" Value="Ready" /><Setter Property="Foreground" Value="{DynamicResource PtjSuccessBrush}" /><Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}" /><Setter Property="BorderBrush" Value="{DynamicResource PtjSuccessBrush}" /></DataTrigger>
+     </Style.Triggers>
+    </Style></ContentControl.Style></ContentControl>
+   <ContentControl x:Name="IntentBadge" Background="{DynamicResource PtjInformationSurfaceBrush}" Foreground="{DynamicResource PtjInformationBrush}" BorderBrush="{DynamicResource PtjInformationBrush}"><ContentControl.Style>
+    <Style TargetType="ContentControl" BasedOn="{StaticResource PlanStatusBadge}"><Setter Property="Content" Value="Look for opportunities" /><Style.Triggers><DataTrigger Binding="{Binding IsStandAside}" Value="True"><Setter Property="Content" Value="Stand Aside" /></DataTrigger></Style.Triggers></Style>
+   </ContentControl.Style></ContentControl>
+   <ContentControl Content="Read-only" Style="{StaticResource PlanStatusBadge}" Visibility="{Binding IsReadOnly, Converter={StaticResource VisibleIf}}" />
+   <ContentControl Content="Unsaved changes" Style="{StaticResource PlanStatusBadge}" Foreground="{DynamicResource PtjWarningBrush}" Background="{DynamicResource PtjJournalReviewBrush}" BorderBrush="{DynamicResource PtjWarningBrush}" Visibility="{Binding IsDirty, Converter={StaticResource VisibleIf}}" />
+  </WrapPanel>
   <WrapPanel x:Name="Toolbar">
    <StackPanel Margin="0,0,12,4">
-    <WrapPanel>
+    <StackPanel Orientation="Horizontal">
      <Button Content="‹" Command="{Binding PreviousDayCommand}" Style="{StaticResource Action}" Padding="8,4" AutomationProperties.Name="Previous calendar day" />
      <DatePicker x:Name="PlanDate" Width="148" Margin="0,4,8,4" Style="{StaticResource Date}" Tag="{Binding DateText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
         SelectedDate="{Binding CalendarDate}" IsEnabled="{Binding CanSelectContext}" AutomationProperties.Name="New York plan date" />
-     <Button Content="›" Command="{Binding NextDayCommand}" Style="{StaticResource Action}" Padding="10,6" AutomationProperties.Name="Next calendar day" />
+     <Button Content="›" Command="{Binding NextDayCommand}" Style="{StaticResource Action}" Padding="8,4" AutomationProperties.Name="Next calendar day" />
      <Button Content="Go" ToolTip="Apply typed New York date (Enter)" AutomationProperties.Name="Open typed New York date" Command="{Binding OpenDateCommand}" Style="{StaticResource Action}" />
      <Button Content="Today" Command="{Binding TodayCommand}" Style="{StaticResource Action}" />
-    </WrapPanel>
+    </StackPanel>
    </StackPanel>
    <StackPanel Orientation="Horizontal" Margin="0,0,12,4">
     <Label Content="Account" Target="{Binding ElementName=Account}" Padding="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
     <ComboBox x:Name="Account" ItemsSource="{Binding Accounts}" SelectedItem="{Binding SelectedAccount}" DisplayMemberPath="Label"
-      Style="{StaticResource PlanSelect}" Width="190" IsEnabled="{Binding CanSelectContext}" Margin="0,4,0,0" AutomationProperties.Name="Trading Plan scope: All Accounts or exact Account" />
+      Style="{StaticResource PlanSelect}" Width="190" VerticalAlignment="Center" IsEnabled="{Binding CanSelectContext}" Margin="0,4" AutomationProperties.Name="Trading Plan scope: All Accounts or exact Account" />
    </StackPanel>
    <StackPanel Orientation="Horizontal" Margin="0,0,12,4" Visibility="{Binding HasEditor, Converter={StaticResource VisibleIf}}">
     <Label Content="Session" Target="{Binding ElementName=Session}" Padding="0,0,8,0" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
     <ComboBox x:Name="Session" ItemsSource="{Binding Editor.Sessions}" SelectedItem="{Binding Editor.Session}" IsEnabled="{Binding Editor.CanEdit}"
-      Style="{StaticResource PlanSelect}" Width="135" Margin="0,4,0,0" AutomationProperties.Name="Planned session, optional in Draft">
+      Style="{StaticResource PlanSelect}" Width="135" VerticalAlignment="Center" Margin="0,4" AutomationProperties.Name="Planned session, optional in Draft">
      <ComboBox.ItemTemplate><DataTemplate><TextBlock><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Text" Value="{Binding}" />
       <Style.Triggers><DataTrigger Binding="{Binding}" Value="{x:Static plan:TradingPlanSession.NewYork}"><Setter Property="Text" Value="New York" /></DataTrigger></Style.Triggers>
      </Style></TextBlock.Style></TextBlock></DataTemplate></ComboBox.ItemTemplate>
     </ComboBox>
    </StackPanel>
-   <StackPanel Visibility="{Binding IsGlobalScope, Converter={StaticResource VisibleIf}}" Margin="0,0,12,4">
+   <StackPanel Visibility="{Binding IsGlobalScope, Converter={StaticResource VisibleIf}}" Margin="0,4,12,8">
     <TextBox Width="110" Text="{Binding PlanCurrency, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding Editor.IsReadOnly}" Style="{StaticResource PlanInput}" AutomationProperties.Name="Shared plan currency" AutomationProperties.HelpText="Trader-wide limits, not multiplied by Account. No currency conversion." />
-    <TextBlock Text="{Binding Editor.CurrencyError}" Foreground="{DynamicResource PtjDangerBrush}" TextWrapping="Wrap" />
-   </StackPanel>
-   <Border VerticalAlignment="Center" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="12" Padding="10,4" Margin="0,4,0,0">
-    <TextBlock ToolTip="{Binding StateLabel}" AutomationProperties.HelpText="{Binding ContextLabel}"><TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
-     <Setter Property="Text" Value="Draft" /><Style.Triggers><DataTrigger Binding="{Binding Editor.IsReadOnly}" Value="True"><Setter Property="Text" Value="Ready" /></DataTrigger>
-      <DataTrigger Binding="{Binding HasEditor}" Value="False"><Setter Property="Text" Value="No Plan" /></DataTrigger></Style.Triggers>
+    <TextBlock Text="{Binding Editor.CurrencyError}" Foreground="{DynamicResource PtjDangerBrush}" TextWrapping="Wrap"><TextBlock.Style><Style TargetType="TextBlock">
+     <Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger></Style.Triggers>
     </Style></TextBlock.Style></TextBlock>
-   </Border>
-
+   </StackPanel>
   </WrapPanel>
-  <StackPanel Grid.Row="1" Margin="0,4,0,8">
+  </StackPanel>
+  <StackPanel Grid.Row="1">
    <TextBlock Text="{Binding DateError}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding HasDateError, Converter={StaticResource VisibleIf}}" />
 
    <ContentControl x:Name="Status" Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" />

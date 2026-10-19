@@ -143,6 +143,27 @@ public sealed class RiskReadinessTests
         Assert.Same(prior, vm.RuleChoices); Assert.Contains("1000", vm.Message); Assert.False(vm.IsBusy);
     }
     [Fact]
+    public async Task UnlinkRetainsInvalidDraftInputCatalogAndFrozenReadyDefinition()
+    {
+        using var f = new Fixture(); var vm = f.Vm;
+        await vm.LoadRulesAsync(); vm.RuleCandidate = vm.RuleChoices[0]; await vm.LinkRuleAsync();
+        await vm.CheckReferencesAsync(); foreach (var item in vm.Checklist) item.IsChecked = true;
+        Assert.Equal(TradingPlanWriteStatus.Success, await vm.SaveAsync());
+        var saved = f.Base.Store.Plan;
+        var historical = TradingPlan.Rehydrate(saved.Id, saved.Key, saved.Version, saved.WorkingDraft, saved.LatestReadyRevision, saved.CreatedAtUtc, saved.UpdatedAtUtc);
+        var ready = historical.MarkReady(historical.Version, f.References.Snapshot(saved.WorkingDraft!.Content), Fixture.Now);
+        var rule = Assert.Single(ready.References.Rules);
+        var catalog = f.Rules.History.ToArray();
+        // Existing editor still has its independent working copy; no persistence occurs on unlink.
+        vm.Focus.Text = "retained focus"; vm.MaximumTrades.Text = "invalid count";
+        var confirmations = vm.Confirmed; var writes = f.Base.Store.Writes;
+        vm.LinkedRules[0].RemoveCommand.Execute(null);
+        Assert.Empty(vm.LinkedRules); Assert.Equal("retained focus", vm.Focus.Text); Assert.Equal("invalid count", vm.MaximumTrades.Text);
+        Assert.Equal(confirmations & ~TradingPlanChecklist.RiskLimits, vm.Confirmed);
+        Assert.Equal(writes, f.Base.Store.Writes); Assert.Equal(0, f.Rules.Writes); Assert.Equal(catalog, f.Rules.History);
+        Assert.Equal(rule, Assert.Single(ready.References.Rules)); Assert.Single(ready.Content.Rules);
+    }
+    [Fact]
     public async Task StandAsideOnlyAndFrozenReadyUseSavedLimitsCurrencyChecksAndRules()
     {
         using var f = new Fixture(); var vm = f.Vm; await vm.LoadRulesAsync(); vm.RuleCandidate = vm.RuleChoices[0]; await vm.LinkRuleAsync();

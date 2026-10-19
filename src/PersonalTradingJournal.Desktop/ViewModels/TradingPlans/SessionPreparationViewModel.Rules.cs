@@ -40,7 +40,7 @@ public sealed partial class SessionPreparationViewModel
             if (IsReadOnly)
             {
                 var snapshot = (_historical ?? _plan.LatestReadyRevision)!.References.Rules.Single(r => r.RuleId == link.RuleId);
-                row.Present(FormatRule(TradingRuleRevision.Rehydrate(snapshot.RuleId, snapshot.Revision, snapshot.Definition, true, snapshot.RecordedAtUtc), "saved · read-only"), false);
+                row.Present(FormatRule(TradingRuleRevision.Rehydrate(snapshot.RuleId, snapshot.Revision, snapshot.Definition, true, snapshot.RecordedAtUtc), "saved · read-only"), false, name: snapshot.Definition.Name);
             }
         }
         LoadRulesCommand = new AsyncRelayCommand(LoadRulesAsync, () => !IsBusy && !_disposed && _rulesReader is not null);
@@ -85,7 +85,8 @@ public sealed partial class SessionPreparationViewModel
                     var frozen = (_historical ?? _plan.LatestReadyRevision)!.References.Rules.Single(r => r.RuleId == link.RuleId);
                     row.Present(FormatRule(TradingRuleRevision.Rehydrate(frozen.RuleId, frozen.Revision, frozen.Definition, true, frozen.RecordedAtUtc), "saved · read-only") +
                         "\n\n" + (available && current!.Revision != link.ExpectedRevision ? "Current Rule changed. The saved definition remains unchanged; start a Draft to change preparation." : status), available,
-                        available && current!.Revision != link.ExpectedRevision ? "Current Rule changed; saved context is unchanged." : status);
+                        available && current!.Revision != link.ExpectedRevision ? "Current Rule changed; saved context is unchanged." : status,
+                        frozen.Definition.Name, !available || current!.Revision != link.ExpectedRevision);
                 }
                 else
                 {
@@ -93,7 +94,9 @@ public sealed partial class SessionPreparationViewModel
                         link.ExpectedRevision == int.MaxValue ? null : link.ExpectedRevision + 1, 1, operation.Token), operation.Token);
                     var selected = exact.SingleOrDefault(r => r.Revision.Revision == link.ExpectedRevision && r.Revision.RuleId == link.RuleId);
                     row.Present(selected is null ? "Selected Rule definition unavailable. Remove/relink explicitly; input is retained.\n" + status :
-                        FormatRule(selected.Revision, "selected") + "\n\n" + status, available, status);
+                        FormatRule(selected.Revision, "selected") + "\n\n" + status, available,
+                        selected is null ? "Selected Rule definition unavailable. Remove/relink explicitly; input is retained." : status,
+                        selected?.Revision.Definition.Name, !available || current!.Revision != link.ExpectedRevision || selected is null);
                     if (!available || current!.Revision != link.ExpectedRevision || selected is null) ObserveWriteFailure(TradingPlanWriteStatus.ReferenceChanged, invalidateCurrency: false);
                 }
                 operation.Token.ThrowIfCancellationRequested();
@@ -120,7 +123,7 @@ public sealed partial class SessionPreparationViewModel
             { Report($"Link at most {TradingPlanContent.MaximumRules} Rules.", PlanNoticeKind.Warning); return; }
             if (existing is null) { existing = new(this, link); _linkedRules.Add(existing); }
             else existing.Replace(link);
-            existing.Present(FormatRule(current, "selected"), true); Changed();
+            existing.Present(FormatRule(current, "selected"), true, name: current.Definition.Name); Changed();
             Report("Rule revision selected for the Draft. Save rechecks references; a link does not assert compliance.", PlanNoticeKind.Info);
         }
         catch (OperationCanceledException) { Report("Rule selection cancelled. Existing links and input are retained.", PlanNoticeKind.Info); }

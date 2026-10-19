@@ -49,7 +49,7 @@ public sealed class TradingPlanHistoryViewTests
                 app.Resources = themes[theme]; using var vm = f.NewWorkspace(); Pump(vm.ActivateAsync());
                 Pump(vm.SelectContextAsync(first.Key.NewYorkDate, vm.Accounts.First(a => a.Id.HasValue))); var editor = vm.Editor!;
                 editor.MaximumTrades.Text = "retained invalid count";
-                var page = new TradingPlanWorkspaceView { DataContext = vm };
+                var page = new TradingPlanWorkspaceView { DataContext = vm, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
                 VisualTreeHelper.SetRootDpi(page, new(dpi / 96d, dpi / 96d));
                 void Layout() { Idle(); page.Measure(new Size(width, 950)); page.Arrange(new Rect(0, 0, width, 950)); page.UpdateLayout(); }
                 TradingPlanHistoryTests.Filters(vm); vm.HistoryTo = "17 Oct 2026"; Pump(vm.SearchHistoryAsync()); Layout();

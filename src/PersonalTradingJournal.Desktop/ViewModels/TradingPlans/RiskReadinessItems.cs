@@ -19,6 +19,8 @@ public sealed class PlanRuleItem : ObservableObject
     private readonly SessionPreparationViewModel _owner;
     private string _text;
     private bool _available;
+    private string _name = "Linked Rule";
+    private bool _hasAvailabilityWarning = true;
     private string _availability = "Load Rules to check current availability; the selected revision is retained.";
     internal PlanRuleItem(SessionPreparationViewModel owner, TradingPlanRuleLink link)
     {
@@ -29,12 +31,17 @@ public sealed class PlanRuleItem : ObservableObject
     public TradingPlanRuleLink Link { get; private set; }
     public string Text => _text;
     public string Title => _text.Split('\n')[0];
+    public string Name => _name;
+    public string ContextHelp => Text + "\n" + Availability;
+    public bool HasAvailabilityWarning => _hasAvailabilityWarning;
     public string Availability => _availability;
     public IRelayCommand RemoveCommand { get; }
     public IAsyncRelayCommand OpenCommand { get; }
     internal void Replace(TradingPlanRuleLink link) { Link = link; OnPropertyChanged(nameof(Link)); }
-    internal void Present(string text, bool available, string? availability = null)
+    internal void Present(string text, bool available, string? availability = null, string? name = null, bool warning = false)
     { _text = text; _available = available; _availability = availability ?? (available ? "Current Rule available; this link is not an assessment." : "Current navigation unavailable; retained context remains below.");
+        _name = name ?? "Linked Rule"; _hasAvailabilityWarning = warning;
+        OnPropertyChanged(nameof(Name)); OnPropertyChanged(nameof(ContextHelp)); OnPropertyChanged(nameof(HasAvailabilityWarning));
         OnPropertyChanged(nameof(Text)); OnPropertyChanged(nameof(Title)); OnPropertyChanged(nameof(Availability)); NotifyAccess(); }
     internal void NotifyAccess() { RemoveCommand.NotifyCanExecuteChanged(); OpenCommand.NotifyCanExecuteChanged(); }
 }
