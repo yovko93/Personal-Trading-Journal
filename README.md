@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## Trading Plan Key Levels heading — before M21.10
+
+Session Preparation now has one centered, theme-aware blue **Key Levels** heading across the six-field group; the redundant Manual levels label is removed and its explanatory tooltip retained. Responsive placement, all six field bindings and the approved folding headers/principle rows are unchanged. [Verification and render paths](docs/trading-plan.md#key-levels-heading-refinement-before-m2110). M21.10 remains paused.
+
+Local verification: **28/28 focused**, complete Release gate **4,916 passed / zero failures or skips**, Release build **zero warnings/errors**, EF consistent and whitespace clean. Synthetic Light/Dark renders inspected at 1040 DIP/96 DPI and 460 DIP/240 DPI. Three modified files; live interaction and matching CI are not claimed.
+
 ## Trading Plan folding headers and compact principle rows — before M21.10
 
 The four section headers now share a local teal vector hamburger/X treatment with a reversible, render-only folding/depth transition, reduced-motion handling and one accessible header toggle. Daily Trading Principles uses bordered compact rows, number badges, wrapped text and a right-aligned red X; keyboard removal restores guarded focus to the next/previous entry or input. Persistence, Plan state and Review evidence are unchanged. The replacement reference animation could not be inspected with the available tools, so visual fidelity is **not verified**. [Exact files, renders, failed-attempt chronology and final verification](docs/trading-plan.md#folding-headers-and-compact-principle-rows-before-m2110). M21.10 stays paused.

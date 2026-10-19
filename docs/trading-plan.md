@@ -1,5 +1,17 @@
 # Trading Plan
 
+## Key Levels heading refinement (before M21.10)
+
+Starting state: clean `develop`, HEAD `ba301abf803424afaa7802a0a91cbcf0a72f1127`. Removed only the visible Manual levels label and centered the single Key Levels heading across the existing six-field group. The shared dynamic information brush supplies dark blue in Light and pale blue in Dark, distinct from the teal section title. The existing heading-to-fields gap and manual-price tooltip remain; narrow layout still stacks the complete group beneath instrument context. No field binding, validation, persistence, collapse behavior or Daily Trading Principles changes; no new placement/color-only tests.
+
+Existing focused checks: `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~SessionPreparationTests|FullyQualifiedName~SessionPreparationViewTests|FullyQualifiedName~PlanSectionsViewTests' --logger trx --results-directory TestResults/PlanLevels/focused` passed **28/28**, zero failures/skips. Release build (`dotnet build PersonalTradingJournal.sln -c Release --no-restore`) passed with **zero warnings/errors**, 58.03s; final indentation-only cleanup build also passed, 12.73s.
+
+Complete gate: `pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/PlanLevels/complete` passed **4,916 tests, zero failures/skips, exit 0**: Domain 567, Application 1,021, Infrastructure 1,452, Desktop 1,876 (88 exclusive + 1,788 parallel). Evidence directory: `TestResults/PlanLevels/complete/release-20261019-205341-59eb8457f8444a6a89cd8fd5c1af78ee`. Calendar native **66.072s / 53.928s headroom**, exit 0 and cleanup confirmed. No assertion, deadline or scheduling changes. `dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build` reports no model changes; `git -c core.safecrlf=false diff --check` passes. All verification is local, not matching CI for uncommitted source.
+
+Inspected synthetic compiled-WPF draft renders in `artifacts/plan-levels/`: `preparation-Light-1040-96-draft.png`, `preparation-Dark-1040-96-draft.png`, `preparation-Light-460-240-draft.png`, `preparation-Dark-460-240-draft.png`. The centered heading, distinct readable blue accent and six visible fields are preserved in normal and stacked narrow/240-DPI layouts. Long raw prices retain their existing horizontal field scrolling. These are automated renders, not live keyboard/Narrator or native-picker acceptance.
+
+Exact changed files: `src/PersonalTradingJournal.Desktop/Views/TradingPlans/SessionPreparationSection.xaml`, `README.md`, `docs/trading-plan.md`. No production/provider access, commit, push or branch change. Matching CI and other previously pending live checks remain unverified; M21.10 stays paused.
+
 ## Folding headers and compact principle rows (before M21.10)
 
 Actual starting state: clean `develop`, HEAD `4a105f195e5edf026030871db6ce5a3c9176c127`. The previous collapse/global-list implementation was already committed by the user and is preserved. This is local WPF presentation only: no migration, repository, command, Plan token, Ready snapshot, Rules or Review-evidence changes. No production/provider access or commit/push/merge; M21.10 remains paused.

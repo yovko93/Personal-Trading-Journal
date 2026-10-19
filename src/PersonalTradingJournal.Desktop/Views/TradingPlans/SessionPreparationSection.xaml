@@ -66,7 +66,8 @@
       <ContentControl Content="{Binding SelectedInstrument.Thesis}" ContentTemplate="{StaticResource TextField}" Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}" />
      </StackPanel>
      <StackPanel x:Name="LevelFields" Grid.Column="1" Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}">
-      <DockPanel Margin="0,0,0,4"><TextBlock Text="Manual levels" DockPanel.Dock="Right" HorizontalAlignment="Right" Style="{StaticResource Body}" ToolTip="Manual prices. Blank means unknown. Prices are not rounded to tick size." /><TextBlock Text="Key Levels" FontSize="14" FontWeight="SemiBold" /></DockPanel>
+      <TextBlock Text="Key Levels" FontSize="14" FontWeight="SemiBold" TextAlignment="Center" Margin="0,0,0,4"
+       Foreground="{DynamicResource PtjInformationBrush}" ToolTip="Manual prices. Blank means unknown. Prices are not rounded to tick size." />
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
