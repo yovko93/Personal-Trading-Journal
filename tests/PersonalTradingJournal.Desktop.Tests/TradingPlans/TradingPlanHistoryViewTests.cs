@@ -62,6 +62,7 @@ public sealed class TradingPlanHistoryViewTests
                     using var themeTiming = CalendarStaTest.Timing($"History workflow {theme} {width}/{dpi}");
                     WpfStepDiagnostics.Write($"History theme start {theme}");
                     app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme); using var vm = f.NewWorkspace(); Pump(vm.ActivateAsync());
+                    VerifyCurrencyConfirmation(theme, dpi);
                     Pump(vm.SelectContextAsync(first.Key.NewYorkDate, vm.Accounts.First(a => a.Id.HasValue))); var editor = vm.Editor!;
                     editor.MaximumTrades.Text = "retained invalid count";
                     TradingPlanWorkspaceView page;
@@ -133,6 +134,35 @@ public sealed class TradingPlanHistoryViewTests
             Assert.False(Directory.Exists(f.Db.Root));
             WpfStepDiagnostics.Write("History fixture disposed");
         }
+    }
+    private static void VerifyCurrencyConfirmation(string theme, int dpi)
+    {
+        var dialogs = new FakeDialogService();
+        Assert.False(new WpfTradingPlanInteraction(dialogs).ConfirmCopyForwardCurrency("USD", "EUR", "USD"));
+        var dialog = new PersonalTradingJournal.Desktop.Dialogs.PtjDialogWindow(dialogs.ConfirmationRequest!);
+        try
+        {
+            var panel = (FrameworkElement)dialog.Content;
+            VisualTreeHelper.SetRootDpi(panel, new(dpi / 96d, dpi / 96d));
+            panel.Measure(new(408, 760));
+            panel.Arrange(new(0, 0, 408, panel.DesiredSize.Height)); panel.UpdateLayout();
+            var message = (TextBlock)dialog.FindName("DialogMessage");
+            Assert.Contains("USD", new TextBlockAutomationPeer(message).GetName());
+            Assert.Contains("EUR", new TextBlockAutomationPeer(message).GetName());
+            var cancel = (Button)dialog.FindName("CancelButton");
+            var proceed = (Button)dialog.FindName("PrimaryButton");
+            Assert.Equal("Cancel", new ButtonAutomationPeer(cancel).GetName());
+            Assert.Equal("Continue", new ButtonAutomationPeer(proceed).GetName());
+            Assert.True(cancel.IsCancel); Assert.True(cancel.IsDefault);
+            Assert.True(cancel.IsTabStop); Assert.True(proceed.IsTabStop);
+            Assert.InRange(panel.ActualHeight, 100, 760);
+            Assert.True(cancel.TranslatePoint(new(cancel.ActualWidth, 0), panel).X <= proceed.TranslatePoint(new(), panel).X);
+            Assert.InRange(proceed.TranslatePoint(new(proceed.ActualWidth, 0), panel).X, 0, 408);
+            FocusManager.SetFocusedElement(dialog, cancel);
+            Assert.Same(cancel, FocusManager.GetFocusedElement(dialog));
+            Render(panel, theme, 440, dpi, "currency-confirmation");
+        }
+        finally { dialog.Close(); }
     }
     private static bool Presented(DependencyObject e)
     { for (var p = e; p is not null; p = VisualTreeHelper.GetParent(p)) if (p is UIElement u && u.Visibility != Visibility.Visible) return false; return true; }

@@ -36,8 +36,18 @@ public sealed class DailyTradingPrinciplesTests
         vm.Input = "Синтетичен текст"; Assert.False(vm.HasError);
         store.Pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
         var write = vm.AddCommand.ExecuteAsync(null); Assert.True(vm.IsBusy); Assert.False(vm.AddCommand.CanExecute(null));
-        await vm.AddCommand.ExecuteAsync(null); Assert.Equal(1, store.Writes);
-        store.Pending.SetResult(new(PrincipleWriteStatus.StorageFailure)); await write;
+        try
+        {
+            // Busy is set before Task.Run enters the store. Observe actual entry,
+            // not thread-pool scheduling speed, before checking duplicate submission.
+            await store.WriteEntered.Task;
+            await vm.AddCommand.ExecuteAsync(null); Assert.Equal(1, store.Writes);
+        }
+        finally
+        {
+            store.Pending.TrySetResult(new(PrincipleWriteStatus.StorageFailure));
+            await write;
+        }
         Assert.Equal("Синтетичен текст", vm.Input); Assert.Equal(PlanNoticeKind.Error, vm.Notice.Kind); Assert.Empty(vm.Rows);
         store.Pending = null; store.Status = PrincipleWriteStatus.Conflict; await vm.AddCommand.ExecuteAsync(null);
         Assert.Equal(2, store.Reads); Assert.Equal("Синтетичен текст", vm.Input); Assert.Equal(PlanNoticeKind.Warning, vm.Notice.Kind);
@@ -62,13 +72,14 @@ public sealed class DailyTradingPrinciplesTests
     private sealed class ControlledStore : IDailyTradingPrincipleStore
     {
         public int Reads, Writes;
+        public TaskCompletionSource WriteEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<DailyTradingPrinciples>? ReadPending;
         public TaskCompletionSource<PrincipleWriteResult>? Pending;
         public PrincipleWriteStatus Status;
         public Task<DailyTradingPrinciples> ReadAsync(CancellationToken cancellationToken = default)
         { Reads++; return ReadPending?.Task.WaitAsync(cancellationToken) ?? Task.FromResult(new DailyTradingPrinciples(0, [])); }
         public Task<PrincipleWriteResult> AddAsync(string text, long expectedVersion, CancellationToken cancellationToken = default)
-        { Interlocked.Increment(ref Writes); return Pending?.Task.WaitAsync(cancellationToken) ?? Task.FromResult(new PrincipleWriteResult(Status)); }
+        { Interlocked.Increment(ref Writes); WriteEntered.TrySetResult(); return Pending?.Task.WaitAsync(cancellationToken) ?? Task.FromResult(new PrincipleWriteResult(Status)); }
         public Task<PrincipleWriteResult> RemoveAsync(Guid id, long expectedVersion, CancellationToken cancellationToken = default) => AddAsync("", expectedVersion, cancellationToken);
     }
 }

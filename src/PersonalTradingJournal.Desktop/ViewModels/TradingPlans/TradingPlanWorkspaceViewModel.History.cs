@@ -288,11 +288,50 @@ public sealed partial class TradingPlanWorkspaceViewModel
     private async Task TransferCoreAsync(bool copy, TradingPlanReadyRevision source, TradingPlan owner, TradingPlanKey target)
     {
         using var cancellation = new CancellationTokenSource(); _write = cancellation;
+        var originalEditor = Editor;
+        var originalEditIdentity = Editor?.EditIdentity;
+        var originalAccount = _account; var originalDate = _date;
+        bool OwnsTransfer() => !_disposed && _viewedRevision == source && _historyPlan == owner &&
+            ReferenceEquals(Editor, originalEditor) && Editor?.EditIdentity == originalEditIdentity &&
+            _account == originalAccount && _date == originalDate &&
+            (!copy || ParseHistoryDate(CopyDate, out var date) && date == target.NewYorkDate);
+        bool CheckOwnership()
+        {
+            if (OwnsTransfer()) return true;
+            if (!_disposed) ReportHistory("The selected source, target or editor changed. No write was submitted. Review the selection and retry; input is retained.", PlanNoticeKind.Warning);
+            return false;
+        }
+        _recoveryTarget = null;
         HistoryMessage = copy ? "Copying the selected persisted Ready revision…" : "Starting Draft from the selected Ready revision…";
         try
         {
             var current = target.AccountId is { } accountId ? await Task.Run(() => _accounts.GetByIdAsync(accountId, cancellation.Token), cancellation.Token) : null;
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!CheckOwnership()) return;
             string? currency = null;
+            bool monetary = source.Content.RiskLimits.RiskPerTrade.HasValue || source.Content.RiskLimits.DailyLossLimit.HasValue;
+            if (copy && target.AccountId.HasValue)
+            {
+                if (current is null || current.Id != target.AccountId || !current.IsActive)
+                {
+                    ReportHistory("The source Account is unavailable or inactive. No target Draft was created. Reopen or restore the exact Account before retrying; input and historical preparation are retained.", PlanNoticeKind.Error);
+                    return;
+                }
+                if (monetary && current.Currency != source.References.Account.Currency)
+                {
+                    if (!_interaction.ConfirmCopyForwardCurrency(source.References.Account.Currency, current.Currency,
+                        source.Content.PlanCurrency ?? source.References.Account.Currency))
+                    {
+                        ReportHistory("Currency review cancelled. No target Draft was created; editor input and the selected Ready revision are retained.", PlanNoticeKind.Info);
+                        return;
+                    }
+                    currency = current.Currency; // Explicit consent, not merely a successful Account lookup.
+                }
+            }
+            // Modal confirmation can pump the dispatcher. Recheck ownership and cancellation
+            // before submitting; the store revalidates the reviewed currency under its writer transaction.
+            cancellation.Token.ThrowIfCancellationRequested();
+            if (!CheckOwnership()) return;
             var result = await Task.Run(() => _store.WriteAsync(new(copy ? TradingPlanWriteOperation.CopyForward : TradingPlanWriteOperation.StartDraft,
                 target, source.Content, copy ? null : new(owner.Id, owner.Version), source.Id, expectedAccountCurrency: currency), cancellation.Token), cancellation.Token);
             if (result.Status != TradingPlanWriteStatus.Success)
@@ -302,6 +341,8 @@ public sealed partial class TradingPlanWorkspaceViewModel
                 {
                     TradingPlanWriteStatus.TargetAlreadyExists => "A Plan already exists for that Account and date. Nothing was overwritten. Open existing Plan or choose another date.",
                     TradingPlanWriteStatus.Conflict => "The Plan changed or already has a working Draft. Reload Revisions, or open the existing Plan; nothing was overwritten.",
+                    TradingPlanWriteStatus.ReferenceChanged when copy && currency is not null => "The Account currency or another source changed again after review. No target Draft was created. Retry Copy Forward and review the latest context; input is retained.",
+                    TradingPlanWriteStatus.ReferenceChanged when copy => "A source or Account currency changed. No target Draft was created. Review current sources, then retry Copy Forward with the latest context; input is retained.",
                     TradingPlanWriteStatus.ReferenceChanged => "A source or Account currency changed. Review current sources and explicitly refresh references in the existing Draft. Input is retained.",
                     TradingPlanWriteStatus.ReferenceUnavailable => "A required Account, Instrument, Playbook or Rule is inactive or unavailable. Reopen or review it before retrying; the historical revision remains readable.",
                     TradingPlanWriteStatus.Cancelled => "Operation cancelled. No success was reported; editor input is retained.",
@@ -309,7 +350,7 @@ public sealed partial class TradingPlanWorkspaceViewModel
                 }, PlanNotice.ForWrite(result.Status)); return;
             }
             var plan = result.Plan;
-            var expected = copy ? source.Content.CopyForward() : new TradingPlanContent(source.Content.Session, source.Content.Focus, source.Content.Intent,
+            var expected = copy ? source.Content.CopyForward().WithPlanCurrency(source.Content.PlanCurrency ?? (monetary ? source.References.Account.Currency : null)) : new TradingPlanContent(source.Content.Session, source.Content.Focus, source.Content.Intent,
                 source.Content.Instruments, source.Content.Scenarios, source.Content.NewsAndRestrictions, source.Content.StandAside, source.Content.RiskLimits, source.Content.Rules, planCurrency: source.References.Account.Currency, screenshots: source.Content.Screenshots);
             if (plan?.WorkingDraft is null || plan.Key != target || !SessionPreparationViewModel.SameContent(plan.WorkingDraft.Content, expected) ||
                 (copy ? plan.Id == owner.Id || plan.LatestReadyRevision is not null : plan.Id != owner.Id || plan.Version <= owner.Version ||
@@ -321,6 +362,8 @@ public sealed partial class TradingPlanWorkspaceViewModel
             _account = Accounts.FirstOrDefault(a => a.Id == target.AccountId) ?? new(target.AccountId, source.References.Account.Name, source.References.Account.Currency, false, false);
             ReplaceEditor(candidate); _contextLoaded = true; ClearLeaveConsent(); RestoreSelectors(); SelectTab(false);
             string success = copy ? "Copied Draft saved and verified. Daily context was reset; source Ready revision preserved." : "Draft saved and verified from the selected revision. Ready history is preserved.";
+            if (copy && monetary && current is not null && expected.PlanCurrency != current.Currency)
+                success += $" Saved amounts remain in {expected.PlanCurrency}; no FX conversion was performed. Review planned currency and monetary amounts before Ready (current Account: {current.Currency}).";
             Report(success, PlanNoticeKind.Success); ReportHistory(success, PlanNoticeKind.Success);
             try
             {

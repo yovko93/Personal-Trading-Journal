@@ -26,4 +26,10 @@ public sealed class WpfTradingPlanInteraction(IDialogService dialogs) : ITrading
         "Delete Plan", $"Delete the loaded Plan for {date}, {scope}, including its Draft and history from normal browsing? Unsaved input will be discarded. Retained historical evidence and images are not erased.",
         "Delete Plan", "Keep Plan"));
 
+    public bool ConfirmCopyForwardCurrency(string sourceCurrency, string currentCurrency, string plannedCurrency) => dialogs.Confirm(new(
+        "Review Copy Forward currency",
+        $"Source Ready Account currency: {sourceCurrency}. Current Account currency: {currentCurrency}.\n\n" +
+        $"Copied monetary limits retain their saved amounts and planned currency ({plannedCurrency}). No FX conversion is performed.\n\n" +
+        "Continue creates a Draft only. Review its planned currency and monetary amounts before marking it Ready. The source Ready revision is unchanged.",
+        "Continue", "Cancel"));
 }

@@ -165,7 +165,14 @@ public sealed class TradingPlanStore(IDbContextFactory<JournalDbContext> factory
                 var source = await ReadReady(db, command.SourceRevision!, cancellationToken);
                 if (source is null) return new(TradingPlanWriteStatus.Conflict);
                 derivedCurrency = source.References.Account.Currency;
-                if (op == TradingPlanWriteOperation.CopyForward) content = source.Content.CopyForward();
+                // Legacy Ready content may omit PlanCurrency. Derive only from its frozen
+                // Account snapshot, never today's Account label; the source itself is untouched.
+                if (op == TradingPlanWriteOperation.CopyForward)
+                {
+                    content = source.Content.CopyForward();
+                    if (content.PlanCurrency is null && (content.RiskLimits.RiskPerTrade.HasValue || content.RiskLimits.DailyLossLimit.HasValue))
+                        content = content.WithPlanCurrency(derivedCurrency);
+                }
                 else { plan!.StartDraft(plan.Version, source, now); content = plan.WorkingDraft!.Content; }
             }
             if (plan is null) plan = new(command.Key, content, now);

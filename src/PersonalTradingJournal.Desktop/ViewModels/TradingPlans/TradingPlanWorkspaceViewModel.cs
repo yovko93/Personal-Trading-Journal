@@ -17,6 +17,7 @@ public interface ITradingPlanInteraction
 {
     PlanLeaveChoice ConfirmLeave();
     bool ConfirmDelete(string date, string scope) => false;
+    bool ConfirmCopyForwardCurrency(string sourceCurrency, string currentCurrency, string plannedCurrency) => false;
 }
 public sealed record PlanAccountOption(Guid? Id, string Name, string Currency, bool IsActive, bool IsAvailable = true)
 {

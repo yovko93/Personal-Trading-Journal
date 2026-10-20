@@ -1,5 +1,63 @@
 # Trading Plan
 
+## PR #25 Copy Forward currency review — 20 October 2026
+
+Baseline: clean `develop`, HEAD `e82fde2b068e6e404296bfcc6674a2586f48b2d6`, matching the reviewed PR HEAD. All approved Trading Plan UI/lifecycle changes are preserved. [P2 finding](https://github.com/yovko93/Personal-Trading-Journal/pull/25#discussion_r4319403324) was read without posting or resolving it. No production journal/provider access, commit, push, merge or next milestone.
+
+### Cause and correction
+
+`TransferCoreAsync` loaded the exact current Account but always passed null for `ExpectedAccountCurrency`. The store correctly rejected monetary Copy Forward after the frozen Account currency changed, so no target existed; the suggested “refresh references in the existing Draft” recovery was unreachable.
+
+- History now calls `ITradingPlanInteraction.ConfirmCopyForwardCurrency` only for exact-Account monetary copies with changed frozen Account currency. Zero is an explicit monetary limit. The production adapter uses the existing themed confirmation dialog, with **Continue / Cancel**, source/current Account currencies and retained planned currency. Account loading alone is not consent.
+- Continue passes that exact reviewed current currency. The unchanged writer-transaction guard revalidates it; another currency change returns `ReferenceChanged` without creating a target. Retrying reloads and reviews current context. Missing/inactive exact Accounts are rejected before confirmation. Global copies, unchanged-currency copies and copies without monetary limits do not gain this prompt.
+- After Account loading and modal confirmation, cancellation/disposal, exact source/owner/target and pending editor identity are rechecked. Existing duplicate-submission and Save/Discard/Cancel guards remain. Cancel retains pending input and source selection without writing. Existing targets remain protected.
+- Monetary legacy Ready content without `PlanCurrency` is copied with its **frozen Account snapshot currency**, never the current Account currency. The original Ready JSON remains unchanged. Nonmonetary absent-currency content remains absent; no general currency defaulting was introduced. Copy resets and screenshot exclusion remain unchanged.
+- Success requires the existing complete aggregate readback check, now using the same frozen-currency fallback. The success InfoBox explains retained amounts, no conversion and required monetary review before Ready. UI/readiness and transactional Ready checks still reject a planned/current currency mismatch. Failed/cancelled copies do not point to a nonexistent Draft.
+
+### Verification chronology
+
+- `TestResults/CopyCurrency/baseline`: **0 passed / 2 failed**, reproducing absent target Drafts through real SQLite-backed History for positive and zero limits, before product changes.
+- `TestResults/CopyCurrency/focused`: **56 passed / 6 failed**. The first correction defaulted absent currency even for nonmonetary copies; an existing exact-content assertion exposed that overreach. The fallback was narrowed to monetary limits. Three new comparison cases were aligned with the correct monetary-only frozen-currency expectation. Two new fixtures also needed correction: a global Ready fixture lacked a required Instrument, and a legacy fixture tried to update an immutable Ready row. The corrected legacy check inspects an already absent-currency snapshot without updating it or disabling triggers. These failures are retained, not hidden by retries.
+- Corrected focused run: **139 passed / zero failures or skips** (Desktop 72, Infrastructure 59, Application 8; no Domain matches). History native child completed in **26.109s**, exit 0 with confirmed cleanup. Release build: **zero warnings/errors, 25.80s**.
+- The first complete run exposed a separate existing test scheduling race in `DailyTradingPrinciplesTests.InvalidFailedCancelledAndConflictingOperationsKeepInputAndPreventDoubleSubmission`: line 39 expected one store write but observed zero. `DailyTradingPrinciplesViewModel.Begin` sets Busy synchronously, then `WriteCore` queues store entry through `Task.Run`. The assertion had no synchronization with that entry; the observed zero is not a duplicate submission or failed persisted write. The controlled fake now signals actual store entry before the unchanged one-write assertion. Its pending operation is released and awaited in `finally`, including assertion failure. Production Principles code, assertions and deadlines are unchanged. The complete failed run is retained; a rebuilt final gate is required below, not a retry of unchanged binaries.
+- That run finished **4,932 passed / 1 failed / zero skipped, exit 1**, at `TestResults/CopyCurrency/complete/release-20261020-061326-3eef48f3cd1d4e32a745a9ef7039e150`. Domain 567, Application 1,021, Infrastructure 1,452 and exclusive Desktop 88 all passed; parallel Desktop had 1,804 passes / 1 failure. Calendar exited cleanly in **71.968s**, with **48.032s** headroom. After the test-only synchronization correction, Release build passed with **zero warnings/errors, 21.58s**, and `TestResults/CopyCurrency/synchronized` passed **20/20** Copy Forward/Principles cases. EF reports **no pending model changes**. No retries, sleeps, skipped tests, weakened assertions or deadline changes were added.
+
+Coverage includes persisted Continue/Cancel outcomes, explicit zero, fresh retry after a concurrent currency change, legacy immutable reads/restart, source identity/timestamps/content, Ready rejection, unavailable Accounts, global and nonmonetary behavior, modal cancellation/disposal/editor change, duplicate/existing targets, and missing verified readback. The existing History WPF cases also inspect the production confirmation's readable currencies, accessible Continue/Cancel, safe default Cancel, wrapping/focus and action bounds in Light/Dark at normal and 240 DPI.
+
+**Final complete result: 4,933 passed / zero failures or skips, exit 0.** Domain **567**, Application **1,021**, Infrastructure **1,452**, Desktop **1,893** (88 exclusive + 1,805 parallel). Evidence: `TestResults/CopyCurrency/final/release-20261020-062300-8410904957824fb0a749eb2609c8875c`, including `summary.json`, top-level/child TRX, stdout and supervision/VSTest logs. Stage span approximately **8m 3.7s** locally, not a CI timing guarantee. Final Calendar child **67.548s / 52.452s headroom** against 120s; Journal **10.146s**; Plan History **26.762s / 63.238s headroom** against 90s. All exited 0 with confirmed cleanup. No Calendar or History timeout occurred in either complete run; this is not a claim that all timing variability is eliminated. Whitespace is clean, including the new test file; local README/docs Markdown target check **302 checked / zero missing** (remote links excluded).
+
+Commands (repository root, synthetic fixtures only):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/CopyCurrency/corrected'
+$env:PTJ_PLAN_HISTORY_RENDER_DIRECTORY = Join-Path (Get-Location) 'artifacts/copy-currency-renders'
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~CopyForwardCurrencyTests|FullyQualifiedName~TradingPlanHistoryTests|FullyQualifiedName~TradingPlanWorkspaceTests|FullyQualifiedName~TradingPlanHistoryViewTests|FullyQualifiedName~Persistence.TradingPlans|FullyQualifiedName~TradingPlanReadinessSubmissionTests|FullyQualifiedName~DialogRequestTests' --logger trx --results-directory TestResults/CopyCurrency/corrected
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/CopyCurrency/complete
+# After the observed Principles test race was corrected and Release rebuilt:
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~CopyForwardCurrencyTests|FullyQualifiedName~DailyTradingPrinciplesTests' --logger trx --results-directory TestResults/CopyCurrency/synchronized
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/CopyCurrency/final
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git -c core.safecrlf=false diff --check
+```
+
+Inspected automated confirmation renders: `artifacts/copy-currency-renders/history-Light-440-96-currency-confirmation.png`, `history-Dark-440-96-currency-confirmation.png`, `history-Light-440-240-currency-confirmation.png`, and `history-Dark-440-240-currency-confirmation.png` in that same directory. Currency explanations wrap without clipped text or overlapping actions; Continue/Cancel remain distinct in both themes. These are compiled-WPF renders/automation-peer checks, not human keyboard, Narrator or live modal interaction.
+
+### Exact changed files
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.History.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/TradingPlans/TradingPlanLeaveDialog.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/TradingPlans/TradingPlanStore.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/CopyForwardCurrencyTests.cs` (new)
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanHistoryViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/DailyTradingPrinciplesTests.cs` (store-entry synchronization exposed by the complete gate)
+- `README.md`
+- `docs/trading-plan.md`
+
+No schema, archive/export contract, source Ready content, All Accounts semantics or Start Draft policy change. Live confirmation/Narrator acceptance remains pending. [CI run 39332783478](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/39332783478) succeeded for the **uncorrected baseline** HEAD; it does not verify these uncommitted changes. Matching corrected-source CI remains pending. The earlier M21.10 live/restart checks below are not promoted to passed by this regression fix.
+
 ## M21.10 integrated acceptance — 20 October 2026
 
 M21.10 is resumed. Baseline: clean `develop`, HEAD `67c7bb01cd43367c92a6bfffb48d4d054410dd52`; the approved UI/lifecycle corrections are already committed and preserved. Earlier sections below are chronological records, including superseded checklist/Playbook-authoring decisions and previously paused acceptance. No product redesign or new functionality is introduced here.

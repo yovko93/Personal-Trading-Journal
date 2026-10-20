@@ -281,7 +281,13 @@ public sealed class TradingPlanWorkspaceTests
         public bool DeleteAccepted; public int DeletePrompts;
         public bool ConfirmDelete(string date, string scope) { DeletePrompts++; return DeleteAccepted; }
         public PlanLeaveChoice ConfirmLeave() { Prompts++; return Choice; }
-        public bool ConfirmCurrency(string savedCurrency, string currentCurrency) => false;
+        public Func<string, string, string, bool>? CurrencyReview;
+        public readonly List<(string Source, string Current, string Planned)> CurrencyPrompts = [];
+        public bool ConfirmCopyForwardCurrency(string sourceCurrency, string currentCurrency, string plannedCurrency)
+        {
+            CurrencyPrompts.Add((sourceCurrency, currentCurrency, plannedCurrency));
+            return CurrencyReview?.Invoke(sourceCurrency, currentCurrency, plannedCurrency) ?? false;
+        }
     }
     internal sealed class Fixture : IAsyncDisposable
     {
