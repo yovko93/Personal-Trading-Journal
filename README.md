@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.8F — Complete Release measurement after deduplication
+
+**The changed M22.8E harness passed the complete local Release gate.** Verified baseline: develop at **7cb4c7af6b4c325c1134f049a6403668ac82bf3f**, existing worktree C:/Users/Yovko/source/repos/Personal-Trading-Journal. One complete runner invocation: **5223/5223 passed**, **0 failures / 0 skipped**, **exit 0**. Project results, exact commands and phase inventory are in the [Notebook measurement report](docs/notebook.md#m228f--complete-gate-measurement-after-deduplication).
+
+Gate **589.693s**, excluding build/restore; exclusive **86.782s**, parallel **502.306s**. Local margin against 600 seconds: **10.307s**. Calendar **70.927s / 49.073s internal headroom**. This passing local run is **10.307s below 600 seconds**. That establishes only the measured local margin, not hosted CI headroom or repeatability. Matching hosted timing remains **unverified**. Build: **zero warnings/errors**; EF exit **0**. Evidence: TestResults/m228f-verified/summary.json and TestResults/release-20261020-213250-debed1eb87654b3799d6a0d35ff548a4/summary.json. Complete-gate image dispatch: **4 parents / 4 matching distinct children**. Whitespace and **171 local documentation targets / zero missing** pass.
+
+Only README.md and docs/notebook.md change in F. CI timeout, partition ordering, collection limits, assertions and internal deadlines remain intact. Historical C's **5,200-test / 624.851s / exit 0** evidence is preserved. Smallest next action: inspect the next available matching hosted run and its Test-step timing read-only; this measurement does not justify changing timeouts or more suites. No production/provider access, workflow triggering, Git publication or M22.9 work; existing interactive/native-restart/codec/CI and deferred reclamation/M22.11 limitations remain.
+
 ## M22.8E — Image-editor test dispatch deduplication
 
 All four image-editor theory parents remain discoverable. Each now selects its exact parameterized child display name, with escaped VSTest filtering and opt-in TRX validation proving one completed, passed case of the intended identity. The suite runs **four distinct child cases instead of sixteen executions**; its assertions, process isolation, 90-second deadline, 30-second case watchdog and cleanup remain intact. Other Notebook suites are unchanged. [Selector, child identities, results and exact inventory](docs/notebook.md#m228e--image-editor-test-dispatch-deduplication).

@@ -1,6 +1,81 @@
 # Notebook
 
-Current checkpoint: **M22.8E focused image-editor dispatch verification complete; changed-harness complete-gate measurement pending**. Historical M22.8C local acceptance remains passed at its recorded source. Canonical JSON **v1**, logical export **v17**, archive **v1** and retained ownership remain unchanged. Interactive/native-restart/installed-WebP/CI checks remain unverified. Reclamation and full integrated M22.11 acceptance remain deferred; M22.9 onward is pending. Earlier milestone sections record historical phase checkpoints.
+Current checkpoint: **M22.8F changed-harness complete local Release gate passed**. Local CI-budget margin is recorded below; matching hosted timing remains unverified. Historical C/E acceptance evidence is preserved. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 acceptance remain unchanged. M22.9 onward remains pending; earlier sections record historical phase checkpoints.
+
+## M22.8F — Complete gate measurement after deduplication
+
+21 October 2026, Europe/Kiev. Actual verified baseline and unchanged HEAD: **clean `develop`, `7cb4c7af6b4c325c1134f049a6403668ac82bf3f`**, sole existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. M22.8E is already committed here. Repository/ancestor guidance, the current gate/workflow, E's focused source hashes and historical C artifacts were inspected first. No applicable `AGENTS.md`, duplicate active gate or test host was found. One agent, no subagents. No implementation, production source, assertion, deadline, partition or concurrency setting changed in F.
+
+### Complete Release results and measurement scope
+
+**The changed M22.8E harness passed the complete local Release gate.** The full solution rebuilt before testing: **exit 0**, **zero warnings/errors**, **32.56s**, log `TestResults/m228f-verified/release-build.log`. Rebuilt test/dependency hashes are in `verified-binaries.json`; the Desktop Infrastructure copy matches the current Infrastructure output. E's focused source hashes still match; focused suites were not repeated.
+
+The established `scripts/Test-Release.ps1` ran **once**, retaining its `Workload=ExclusiveWpf` then `Workload!=ExclusiveWpf` partitions, complete-result/duplicate-identity guards, Desktop **two** / Infrastructure **four** collection limits, child isolation/cleanup, **90-second image-child / 30-second case** limits and existing VSTest diagnostics. Required Windows symlink/isolated synthetic DPAPI fixtures used their existing capabilities. The workflow's Test-step timeout stays **600 seconds**. **No local 600-second cancellation wrapper was introduced.**
+
+| Project | Total | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| application | 1034 | 1034 | 0 | 0 |
+| desktop | 2029 | 2029 | 0 | 0 |
+| domain | 602 | 602 | 0 | 0 |
+| infrastructure | 1558 | 1558 | 0 | 0 |
+
+Overall **5223 total / 5223 passed / 0 failed / 0 skipped**, observed complete-runner **exit 0**. Desktop comprises **88 exclusive + 1941 parallel**. The 23 additional top-level cases relative to historical C's 5,200 are E's selection/validation regressions; all four original image-editor parents remain. Supervised child cases are evidence within their parents and are not added to totals.
+
+| Measured interval | Wall-clock duration |
+| --- | ---: |
+| Complete gate, including startup and accounting | **589.693s** |
+| Exclusive WPF partition | **86.782s** |
+| Parallel partition, all projects together | **502.306s** |
+| Between-partition accounting gap | 0.030s |
+| Other wrapper startup/final overhead | 0.575s |
+| Local margin against 600 seconds | **10.307s** |
+
+Scope matches historical C's **624.851s**: outer invocation of the same runner through both partitions and gate accounting, **excluding build/restore, EF, documentation checks and later artifact handling**. UTC 2026-10-20T21:32:49.8824800+00:00 through 2026-10-20T21:42:39.5757060+00:00. Partition intervals use each stage's recorded start and the last accounting timestamp for that stage. Project `StageFinishedUtc` values are written after the shared command completes; they are **not individual project completion times**. Parallel project durations are not added. `timings.json` retains the raw definitions, accounting components and signed comparison to the historical run.
+
+This passing local run is **10.307s below 600 seconds**. That establishes only the measured local margin, not hosted CI headroom or repeatability. Historical C is preserved as **5,200 passed / exit 0 / 624.851s**. This is one actual new whole-gate observation, with additional regression cases and potentially different scheduling/load; it is not a repeatability guarantee or attribution of every timing difference to deduplication. **Matching hosted timing remains unverified.** No workflow was triggered.
+
+Calendar native: **70.927s**, **49.073s internal headroom** against its unchanged **120-second aggregate deadline**, child exit **0**. The measurement comes from that child's start/exit supervision timestamps, not summed overlapping case durations. `calendar.json` points to the precise supervision artifact.
+
+### Image dispatch and supporting checks
+
+The complete-gate TRX audit confirms **4 image-editor parents / 4 matching child results**, with **4 distinct test IDs**, each selected once. Every matching child TRX has one total/executed/passed case, no failed/skipped cases, and agrees with its parent display name and test ID. `dispatch.json` records all four theory identities, child artifact paths and validation findings. The helper's opt-in completeness/definition/execution-entry checks remain active in the actual parents. Its zero-match/wrong-row negative-control child processes have separate artifact prefixes and are not counted as successful image-parent children. All **32 helper/scheduling regressions passed** in the complete run.
+
+| Parent/child display name | Child outcome | Matching test ID |
+| --- | --- | --- |
+| `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookImageEditorTests.ImageRoundTripUndoPlacementPasteAndRenders(theme: "Dark", width: 480, dpi: 240)` | Passed | `44dcb1d9-9e81-cbe3-0d08-9237a1d68736` |
+| `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookImageEditorTests.ImageRoundTripUndoPlacementPasteAndRenders(theme: "Light", width: 1280, dpi: 96)` | Passed | `37c3e225-29f4-7e0f-b396-f7e25e55ffb6` |
+| `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookImageEditorTests.ImageRoundTripUndoPlacementPasteAndRenders(theme: "Dark", width: 1280, dpi: 96)` | Passed | `d9ad7ac6-561d-c4e6-eb55-ea5f68588b5a` |
+| `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookImageEditorTests.ImageRoundTripUndoPlacementPasteAndRenders(theme: "Light", width: 480, dpi: 240)` | Passed | `a9a357f9-e426-8251-d39c-9f92aa569832` |
+
+Image parent-suite wall interval in this complete run: **37.106s**, including child startup; this interval overlaps other parallel work and is not added to gate time. `coverage.json` retains actual top-level image, atomic-placement, ownership, recovery and archive/export regression coverage, including the **eight B1 interruption/order/recovery cases**.
+
+EF: **No changes have been made to the model since the last migration.**, observed **exit 0**, `TestResults/m228f-verified/ef-consistency.txt`. Final tracked whitespace and **171 local Markdown targets / 0 missing** are recorded with inventory/source checks in `summary.json`. URL/fragment validation is outside the documentation check. The final F inventory is exactly the two documentation files below. No runtime gate was repeated solely for documentation changes.
+
+The runner's unchanged summary is **`TestResults/release-20261020-213250-debed1eb87654b3799d6a0d35ff548a4/summary.json`**. Raw partition output/TRX, VSTest diagnostics, child logs and supervision are underneath that run directory. **`TestResults/m228f-verified/summary.json`** combines the actual exit/timestamps, partition/project counts, local budget comparison, Calendar and dispatch evidence, source/binary/settings hashes and supporting checks. `gate-start.json` guards against an accidental replacement invocation; `gate-exit.json` records the actual final exit; `complete-gate-output.log` retains output. The wrapper records the same scope as C and does not impose a new timeout.
+
+Commands used:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m228f-verified/release-build.log
+pwsh -NoProfile -File TestResults/m228f-run-gate.ps1 # times one invocation of scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+pwsh -NoProfile -File TestResults/m228f-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m228f-audit-gate.ps1
+pwsh -NoProfile -File TestResults/m228f-measure.ps1
+pwsh -NoProfile -File TestResults/m228f-summarize.ps1
+```
+
+Smallest next action: inspect the next available matching hosted run and its Test-step timing read-only; this measurement does not justify changing timeouts or more suites. Existing Light/Dark visual evidence and production behavior are unchanged. Human keyboard/mouse/Narrator, real clipboard/picker/viewer, native journal restart, successful installed-codec WebP admission and matching-source CI remain explicitly unverified. Canonical document/archive **v1**, export **v17**, prepared-file retention and deferred reclamation/full M22.11 acceptance are unchanged. No Git publication, workflow triggering, production/provider access or M22.9 work occurred.
+
+### Exact M22.8F phase inventory
+
+Relative to clean baseline `7cb4c7af6b4c325c1134f049a6403668ac82bf3f`: **2 modified documentation files, no added source files**, uncommitted. E's six-file dispatch/helper/documentation change is already committed in this baseline; C/E evidence remains preserved. Ignored TestResults logs/TRX/measurement scripts are local evidence outside source inventory.
+
+```text
+README.md
+docs/notebook.md
+```
 
 ## M22.8E — Image-editor test dispatch deduplication
 
