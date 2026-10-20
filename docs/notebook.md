@@ -52,6 +52,7 @@ dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -
 dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore --filter "FullyQualifiedName~Notebook|FullyQualifiedName~Portability|FullyQualifiedName~PortableExport|FullyQualifiedName~InitialMigration|FullyQualifiedName~JournalDatabaseInitializer|FullyQualifiedName~ProductionPersistenceIntegration" --logger trx --results-directory TestResults/m226-focused-infra-final
 dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore --filter "FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookNavigationTests|FullyQualifiedName~NotebookEditingTests" --logger trx --results-directory TestResults/m226-final-coordination
 dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter "FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~NotebookRecoveryTests|FullyQualifiedName~NotebookPortabilityTests|FullyQualifiedName~PortableExportTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests" --logger trx --results-directory TestResults/m226-inventory-verified
 pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
 dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
 git diff --check
@@ -59,7 +60,27 @@ git diff --check
 
 Development chronology: initial compilation caught two invalid target-typed generic constructor expressions. The first focused Desktop run was **64 passed / 2 failed**: an accidentally relaxed Save-button enablement rule violated the existing no-duplicate-in-flight assertion. The existing rule was restored; no assertion changed. Initial affected Infrastructure was **107 passed / 2 failed**: the explicit schema lists already included the migration, but two migration-count checks still expected 26 instead of 27; those expectations now include the additive migration.
 
-Subsequent focused runs: **71/71 Notebook Desktop**, **114/114 persistence/portability**, then **38/38 final coordination** cases passed, zero skips. These overlap; they are not additive unique totals. Final solution Release build: **0 warnings/errors**, 6.50 seconds; EF reports no pending model changes using the existing in-memory design-time factory. Complete gate is running at `TestResults/release-20261020-161829-bf9a8e8f1d794dd0a29d185534755e39/`; final results are not yet claimed.
+Subsequent focused runs: **71/71 Notebook Desktop**, **114/114 persistence/portability**, then **38/38 final coordination** cases passed, zero skips. These overlap; they are not additive unique totals. The preceding solution Release build passed with **0 warnings/errors**, 6.50 seconds.
+
+The first complete gate finished with **5,107 passed / 1 failed / zero skipped**, exit 1, at `TestResults/release-20261020-161829-bf9a8e8f1d794dd0a29d185534755e39/summary.json`. The sole failure was `SqlitePersistenceIntegrityTests.ModelContainsExactlyExpectedRecordsWithDomainOwnedIdentifiers` (line 91 in that build): its explicit expected inventory omitted the new `NotebookRecoveryRecord`. Calendar passed in **79.106 s**, leaving **40.894 s**. The one-line inventory addition was already present in the worktree but postdated the tested binary; this failed run is retained, not reclassified as successful.
+
+**Final verification, 20 October 2026:** the actual baseline had advanced to clean `develop`, **`7dbcd657ee48313d582a92952cf12fcc4954f060`**, already containing all 35 M22.6 files and the inventory correction. No test process was active before the rebuild. Inspection confirmed the recovery record is deliberately mapped, has an application-assigned `Id` with `ValueGeneratedNever`, and participates in the unchanged exact-inventory and all-primary-key assertions. Foreign-key/cascade checks remain unchanged; recovery deliberately has no source-note FK so source deletion cannot silently erase unresolved work. No further production/test correction was necessary.
+
+Rebuilt the entire solution from this HEAD: **0 warnings/errors**, **1m01.31s**. The rebuilt-binary affected run above passed **81/81**, zero failures/skips, **43s**; evidence `TestResults/m226-inventory-verified/Yovko_DESKTOP-N2ONT35_2026-10-20_19_51_38_net10.0.trx`. It covers the full integrity class plus checkpoint, migration, initialization, export and portability checks. Infrastructure test DLL SHA-256: `E57BC1C5238416D395CB8AA2CDF3EFC5CEAF135CC449F7269A7C424E59C1B51F`.
+
+The **final complete Release gate passed 5,108/5,108**, zero failures/skips, exit **0**, using those rebuilt binaries and the unchanged repository scheduling/deadlines/assertions. Evidence directory: `TestResults/release-20261020-165252-3c7dae4b44fd491ea3a0867595b81443/`; `summary.json`, partition TRX, VSTest diagnostics and supervised child logs are retained. The formerly failing integrity test also passed in this full run.
+
+| Final partition / project | Passed | Failed / skipped |
+| --- | ---: | ---: |
+| Exclusive WPF / Desktop | 88 | 0 / 0 |
+| Parallel / Domain | 602 | 0 / 0 |
+| Parallel / Application | 1,032 | 0 / 0 |
+| Parallel / Infrastructure | 1,504 | 0 / 0 |
+| Parallel / Desktop | 1,882 | 0 / 0 |
+
+Calendar native process: **69.942 s / 120 s**, **50.058 s headroom**, exit 0 and confirmed cleanup (`exclusive-wpf/calendar-native-20261020-165256-3104b8759f93481a96d1a6140e5d7283/process-supervision.log`). Parallel Infrastructure took **4m32s** and Desktop **7m30s**. These timings describe this local run, not a guarantee against future contention or CI deadlines.
+
+EF reports **no pending model changes**, using the existing in-memory design-time factory. Final whitespace checks cover the full M22.6 slice and completion edits; local documentation target-existence checks pass **163 targets / zero missing** (not anchor validation). Only `README.md` and `docs/notebook.md` changed during this completion, after runtime verification; no additional runtime gate was needed for these documentation-only edits.
 
 Compiled-WPF renders: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-autosave-renders/{Light|Dark}-{1280-96|480-240}-{recovery-available|recovered|saving|saved|failed|conflict}.png`. Inspected Light/Dark at 1280 × 900 DIP / 96 DPI and 480 × 720 DIP / 240 DPI: recovery actions, wrapped status/help, disabled in-flight actions and retained document are readable. Narrow content/organization use the established panel switcher and vertical scrolling. These are automated renders and bound interactions, **not live human or screen-reader acceptance**.
 
@@ -68,13 +89,15 @@ Compiled-WPF renders: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/ne
 | Autosave/version/guard/recovery deterministic checks | Passed focused |
 | SQLite migration, CAS/rollback, restart, source retention and export/restore | Passed focused |
 | Compiled WPF retained document/selection, accessible status and layout | Passed focused; renders inspected |
-| Complete repository Release gate | In progress |
+| Complete repository Release gate | Passed 5,108/5,108; zero failures/skips |
 | Human keyboard/mouse/Narrator and native-process restart | Not performed; pending |
-| Matching published-source CI | Not verified; work is uncommitted |
+| Matching published-source CI | Not checked/claimed for `7dbcd657…`; local passing gate is not CI acceptance |
 
-No production journal, provider, real clipboard or browser access. No commits/push/merge. **M22.7–M22.12 remain pending.**
+No production journal, provider, real clipboard or browser access during implementation/verification. This completion made no commits, pushes or merges and leaves its documentation edits uncommitted. **M22.6 implementation and local automated verification are complete; human interaction, native-process restart and matching CI remain separate unverified checks. M22.7–M22.12 remain pending.**
 
 ### Exact M22.6 changed-file inventory
+
+The full slice relative to `0a89d26ff036b12561160e6bb4c569954a5a28c3` contains **26 modified + 9 added files** below, now included in `7dbcd657…`. The only additional uncommitted changes from this verification/completion are `README.md` and `docs/notebook.md`, already included in that inventory. No implementation/test files were altered during this completion.
 
 Modified:
 
