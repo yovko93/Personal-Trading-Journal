@@ -72,9 +72,10 @@ internal sealed class NotebookFake : INotebookService
         if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookDocument.Empty }; Notes.Add(n); }
         else
         {
-            var id = c is MoveNotebookNote m ? m.NoteId : ((SetNotebookPin)c).NoteId;
+            var id = c is SaveNotebookDraft d ? d.NoteId : c is MoveNotebookNote m ? m.NoteId : ((SetNotebookPin)c).NoteId;
             int index = Notes.FindIndex(n => n.Id == id); n = Notes[index];
-            n = c is MoveNotebookNote move ? n with { FolderId = move.FolderId, Version = n.Version + 1 } : n with { IsPinned = ((SetNotebookPin)c).IsPinned, Version = n.Version + 1 };
+            n = c is SaveNotebookDraft draft ? n with { Title = draft.Title.Trim(), Document = draft.Document, Version = n.Version + 1 } :
+                c is MoveNotebookNote move ? n with { FolderId = move.FolderId, Version = n.Version + 1 } : n with { IsPinned = ((SetNotebookPin)c).IsPinned, Version = n.Version + 1 };
             Notes[index] = n;
         }
         return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n));

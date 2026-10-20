@@ -4,13 +4,15 @@
  xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Notebook"
  Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="14"
  Loaded="OnLoaded" Unloaded="OnUnloaded" SizeChanged="OnSizeChanged" DataContextChanged="OnContextChanged">
- <UserControl.InputBindings><KeyBinding Key="N" Modifiers="Control" Command="{Binding NewNoteCommand}" /></UserControl.InputBindings>
+ <UserControl.InputBindings><KeyBinding Key="N" Modifiers="Control" Command="{Binding NewNoteCommand}" /><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}"/></UserControl.InputBindings>
  <UserControl.Resources>
   <BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/>
+  <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}"/>
+  <Style TargetType="TextBlock"><Style.Triggers><Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed"/></Trigger></Style.Triggers></Style>
   <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Padding" Value="10,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
-  <Style x:Key="QuietText" TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <Style x:Key="QuietText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
   <Style x:Key="PanelBorder" TargetType="Border"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="16"/></Style>
   <Style x:Key="Row" TargetType="ListBoxItem">
    <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10"/><Setter Property="Margin" Value="0,0,0,4"/>
@@ -90,25 +92,56 @@
     </Grid>
    </Border>
    <Border x:Name="ContentPanel" Grid.Column="2" Style="{StaticResource PanelBorder}">
+    <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid>
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*" MinHeight="240"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <StackPanel>
       <TextBlock Text="{Binding Breadcrumb}" Style="{StaticResource QuietText}"/>
-      <TextBlock Text="{Binding NoteTitle}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,14,0,6"/>
+      <TextBox x:Name="TitleEditor" Text="{Binding DraftTitle, UpdateSourceTrigger=PropertyChanged}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,6" AutomationProperties.Name="Note title">
+       <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="IsReadOnly" Value="True"/><Style.Triggers><DataTrigger Binding="{Binding CanEditDraft}" Value="True"><Setter Property="IsReadOnly" Value="False"/></DataTrigger></Style.Triggers></Style></TextBox.Style>
+      </TextBox>
       <TextBlock Text="{Binding TagText}" Foreground="{DynamicResource PtjAccentBrush}" TextWrapping="Wrap"/>
       <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,6,0,12"/>
       <WrapPanel>
+       <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Save title and content. Control S."/>
+       <Button Content="Discard" Command="{Binding DiscardCommand}" Margin="0,0,8,8"/>
        <Button Content="{Binding PinText}" Command="{Binding PinCommand}" Margin="0,0,8,8"/>
        <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding MoveFolder}" DisplayMemberPath="Name" Width="170" IsEnabled="{Binding CanInteract}" Margin="0,0,8,8" AutomationProperties.Name="Move note to folder"/>
        <Button Content="Move" Command="{Binding MoveCommand}" Margin="0,0,0,8"/>
       </WrapPanel>
       <TextBlock Text="{Binding ContentMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
+      <TextBlock Text="{Binding SaveState}" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock Text="{Binding DraftError}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <WrapPanel x:Name="FormattingToolbar" IsEnabled="{Binding CanEditBody}" Margin="0,6,0,6" AutomationProperties.Name="Note formatting">
+       <ComboBox x:Name="ParagraphStyle" Width="122" SelectionChanged="StyleChanged" AutomationProperties.Name="Paragraph style" Margin="0,0,4,4">
+        <ComboBoxItem Content="Paragraph"/><ComboBoxItem Content="Heading 1"/><ComboBoxItem Content="Heading 2"/><ComboBoxItem Content="Heading 3"/>
+       </ComboBox>
+       <Button x:Name="BoldButton" Content="B" FontWeight="Bold" Click="ToggleBold" AutomationProperties.Name="Bold" Margin="0,0,4,4"/>
+       <Button x:Name="ItalicButton" Content="I" FontStyle="Italic" Click="ToggleItalic" AutomationProperties.Name="Italic" Margin="0,0,4,4"/>
+       <Button x:Name="UnderlineButton" Content="U" Click="ToggleUnderline" AutomationProperties.Name="Underline" Margin="0,0,4,4"/>
+       <Button Content="• List" Click="ToggleBullets" AutomationProperties.Name="Bulleted list" Margin="0,0,4,4"/>
+       <Button Content="1. List" Click="ToggleNumbering" AutomationProperties.Name="Numbered list" Margin="0,0,4,4"/>
+       <Button Content="☐ List" Click="AddChecklist" AutomationProperties.Name="Create checklist" Margin="0,0,4,4"/>
+       <Button Content="Toggle check" Click="ToggleCheck" AutomationProperties.HelpText="Toggle current checklist item. Control Enter." Margin="0,0,4,4"/>
+       <Button x:Name="UndoButton" Content="Undo" Click="Undo" Margin="0,0,4,4"/>
+       <Button x:Name="RedoButton" Content="Redo" Click="Redo" Margin="0,0,4,4"/>
+      </WrapPanel>
+      <Expander x:Name="LinkActions" Header="Hyperlink" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,0,0,6" AutomationProperties.Name="Hyperlink actions">
+       <WrapPanel>
+        <TextBox x:Name="LinkUrl" Width="200" AutomationProperties.Name="HTTP or HTTPS link URL" Margin="0,4,4,4"/>
+        <Button Content="Apply link" Click="ApplyLink" IsEnabled="{Binding CanEditBody}" Margin="0,4,4,4"/>
+        <Button Content="Remove link" Click="RemoveLink" IsEnabled="{Binding CanEditBody}" Margin="0,4,4,4"/>
+        <Button Content="Open link" Click="OpenLink" Margin="0,4,4,4"/>
+       </WrapPanel>
+      </Expander>
+      <TextBlock x:Name="EditorFeedback" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>
      </StackPanel>
-     <RichTextBox x:Name="Preview" Grid.Row="1" IsReadOnly="True" IsDocumentEnabled="False" BorderThickness="0" Background="Transparent" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Read-only note content" AutomationProperties.HelpText="Read and select saved text. Checklists show recorded state."/>
+     <RichTextBox x:Name="Preview" Grid.Row="1" MaxHeight="500" IsReadOnly="{Binding BodyReadOnly}" IsDocumentEnabled="False" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}" CaretBrush="{DynamicResource PtjTextPrimaryBrush}" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="BodyChanged" SelectionChanged="SelectionChanged" PreviewKeyDown="EditorKeyDown" AllowDrop="False" AutomationProperties.Name="Note content" AutomationProperties.HelpText="Edit text. Control B, I, U formats the selection; Control Enter toggles a checklist item. Control S saves."/>
      <ScrollViewer Grid.Row="2" MaxHeight="120" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,12,0,0" AutomationProperties.Name="Linked records">
       <TextBlock Text="{Binding LinkText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextSecondaryBrush}"/>
      </ScrollViewer>
     </Grid>
+    </ScrollViewer>
    </Border>
   </Grid>
  </Grid>

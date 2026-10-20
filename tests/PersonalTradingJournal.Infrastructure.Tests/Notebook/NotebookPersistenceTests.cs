@@ -14,6 +14,31 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Notebook;
 public sealed class NotebookPersistenceTests
 {
     [Fact]
+    public async Task EditorSaveIsOneVersionedTransactionIncludingTitleAndProjection()
+    {
+        await using var f = await NotebookFixture.Create();
+        var original = await f.CreateNote();
+        var document = NotebookCodecTests.Rich();
+        using var cancel = new CancellationTokenSource();
+        var rolledBack = await f.Service(new AfterSave(() => cancel.Cancel())).ExecuteAsync(
+            new SaveNotebookDraft(original.Id, original.Version, "Must roll back", document, []), cancel.Token);
+        Assert.Equal(NotebookWriteStatus.Cancelled, rolledBack.Status);
+        var unchanged = (await f.Service().LoadAsync(original.Id)).Note!;
+        Assert.Equal(original.Title, unchanged.Title); Assert.Equal(original.Version, unchanged.Version);
+        Assert.Equal(original.Document.PlainText, unchanged.Document.PlainText);
+        var attempts = await Task.WhenAll(
+            f.Service().ExecuteAsync(new SaveNotebookDraft(original.Id, original.Version, "First", document, [])),
+            f.Service().ExecuteAsync(new SaveNotebookDraft(original.Id, original.Version, "Second", document, [])));
+        var winner = Assert.Single(attempts, r => r.Status == NotebookWriteStatus.Success).Note!;
+        Assert.Single(attempts, r => r.Status == NotebookWriteStatus.Conflict);
+        Assert.Equal(original.Version + 1, winner.Version);
+        var stored = (await f.Service().LoadAsync(original.Id)).Note!;
+        Assert.Equal(winner.Title, stored.Title); Assert.Equal(f.Codec.Encode(document), f.Codec.Encode(stored.Document));
+        var archived = Success(await f.Service().ExecuteAsync(new ArchiveNotebookNote(stored.Id, stored.Version)));
+        Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new SaveNotebookDraft(archived.Id, archived.Version, "Forbidden", document, []))).Status);
+    }
+
+    [Fact]
     public async Task CancellationAfterCommitReturnsSuccessAndCatalogCancellationBeforeCommitRestoresReferences()
     {
         await using var f = await NotebookFixture.Create(); var folder = await f.Folder();
@@ -94,6 +119,9 @@ public sealed class NotebookPersistenceTests
         Assert.Null(loaded.Images[1].StorageKey);
         var edited = Success(await f.Service().ExecuteAsync(new UpdateNotebookTitle(note.Id, note.Version, "Metadata only")));
         Assert.Equal(loaded.Images.ToArray(), edited.Images.ToArray());
+        edited = Success(await f.Service().ExecuteAsync(new SaveNotebookDraft(note.Id, edited.Version, "Protected editor save", doc, loaded.Images)));
+        Assert.Equal(loaded.Images.ToArray(), edited.Images.ToArray());
+        Assert.Equal(f.Codec.Encode(doc), f.Codec.Encode(edited.Document));
         NotebookCommand[] deferred = [
             new DuplicateNotebookNote(note.Id, edited.Version), new DeleteNotebookNote(note.Id, edited.Version, true),
             new AddNotebookImage(note.Id, edited.Version, Guid.NewGuid(), doc, loaded.Images),
@@ -117,6 +145,7 @@ public sealed class NotebookPersistenceTests
         Assert.Equal(status, load.Status); Assert.Null(load.Note); Assert.Equal(original, load.OriginalContent);
         Assert.Equal(note.Id, load.UnavailableMetadata!.Id);
         Assert.Equal(NotebookWriteStatus.UnsupportedContent, (await f.Service().ExecuteAsync(new UpdateNotebookTitle(note.Id, note.Version, "Not overwritten"))).Status);
+        Assert.Equal(NotebookWriteStatus.UnsupportedContent, (await f.Service().ExecuteAsync(new SaveNotebookDraft(note.Id, note.Version, "Not replaced", NotebookDocument.Empty, []))).Status);
         Assert.Equal(NotebookWriteStatus.Success, (await f.Service().ExecuteCatalogAsync(new DeleteNotebookTag(tag.Id, tag.Version, true))).Status);
         Assert.Equal(NotebookWriteStatus.Success, (await f.Service().ExecuteCatalogAsync(new DeleteNotebookFolder(folder.Id, folder.Version, true))).Status);
         await using var read = f.Context(); var row = await read.NotebookNotes.SingleAsync();

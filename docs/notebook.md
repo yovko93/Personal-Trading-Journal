@@ -1,6 +1,102 @@
 # Notebook
 
-Current checkpoint: **M22.4 workspace and navigation**, with read-only content preview. Logical export v15 includes all six Notebook tables; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Editing/autosave, Notebook-owned image-file copying/restoration and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.5 rich-text editor and manual Save**. Logical export v15 includes all six Notebook tables; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Autosave, Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+
+## M22.5 — rich-text editor and manual Save
+
+20 October 2026. Starting baseline: **clean `develop`, `41f0bfac263f5214e99bcee614f00491d4dbe953`**, preserving committed M22.1–M22.4. No applicable repository/ancestor `AGENTS.md` was found. Existing Journal text controls, Notebook immutable nodes/codec, transactional mutations, theme resources, supervised STA tests and shell close/navigation guards were inspected before implementation.
+
+### Canonical content and editing
+
+- Desktop-only `NotebookEditorAdapter` explicitly maps canonical JSON-v1 nodes to/from WPF paragraphs, headings 1–3, marked runs, line breaks, HTTP(S) hyperlinks, bulleted/numbered lists and checklist items. WPF `Tag` retains document-local identities where an element survives; native splitting/insertion receives unique IDs. Semantic dirty comparison ignores IDs, not content or formatting. No WPF/XAML/RTF payload is persisted or deserialized.
+- Native undoable paragraph properties carry heading presentation. Selection-based formatting reports On/Off/Mixed states; title text remains outside body formatting. Native undo/redo is retained across Save. Checklist markers expose readable Checked/Not checked text; click their marker, use Toggle check or Ctrl+Enter. Enter at the end adds an unchecked item; mid-item Enter inserts a line break. Editing a structural marker directly gives a recoverable validation error rather than silently losing its state.
+- Images retain exact canonical reference nodes and metadata. This milestone deliberately makes a body containing image references read-only, with a clear explanation; title editing still works. No fabricated image insertion/viewing workflow or lossy placeholder serialization. Archived/trashed and unavailable/unsupported content remain read-only.
+- Paste is explicit, Unicode-text only, including line boundaries. Unsupported external formatting is normalized with visible feedback; HTML scripts, XAML, RTF objects, fonts/colors and images are never imported. Admission validates the complete candidate tree and existing codec byte/node/text/depth limits before touching the live selection. Oversized/invalid input leaves the draft intact. Clipboard access occurs only in Paste execution, never command enablement, activation or polling. Clipboard failure produces a recoverable message.
+- Links are validated against the existing HTTP(S)-only domain policy before editing. Creation requires text in one paragraph; edit/remove preserve surrounding content. Opening requires the separate Open link action and repeats validation before OS URI launch. No existing general HTTP-link launcher was found to reuse; this small explicit handler does not fetch content. Tests do not launch browsers or inspect the actual clipboard.
+
+### Manual save and draft protection
+
+`SaveNotebookDraft` adds one atomic title+document mutation through the existing application service, Domain validation and SQLite expected-version transaction/readback. Validation happens before mutation; cancellation before commit rolls back. No schema/migration, export version or financial/source semantics changed. Existing image metadata cannot be changed through this command.
+
+The workspace tracks captured note identity/version, saved semantic content, current draft generation and confirmed Save status. Duplicate submissions are disabled. Edits remain possible during saving: only the captured generation is acknowledged; newer input stays dirty. Successful Save does not replace the live FlowDocument, selection/caret or undo stack. The affected row/search membership/counts refresh through bounded reads without reloading the selected document. A saved note outside the current filter/page keeps its editor and explains why the list no longer contains it.
+
+Failures and conflicts keep all draft text; no automatic overwrite/retry. Save / Discard / Cancel protects note/scope/sort/search/Refresh, creation, metadata changes, shell navigation and application close. Pin/move construct their mutation using the post-save version; Move captures its exact requested destination before Save refreshes the bounded catalog, including Unfiled and later-page folders. Departure during an unfinished write is blocked until completion or explicit cancellation. Discard consent is not destructive until the owning navigation/close actually accepts; later veto clears consent and preserves the draft. Disposal cancels/drains tracked operations and rejects late publication. A canceled operation may already have committed; a confirmed returned commit is acknowledged truthfully.
+
+Shortcuts: Ctrl+N creates, Ctrl+F focuses search, Ctrl+S saves; Ctrl+B/I/U formats, Ctrl+Z/Y undoes/redoes; Ctrl+K opens link editing; Ctrl+Enter toggles the current checklist item. All toolbar actions remain reachable by keyboard. Autosave timers, crash recovery of unsaved drafts, image operations and linked-target opening are not implemented here.
+
+### Visual and verification evidence
+
+Automated compiled-WPF renders use 1280 × 900 DIP at 96 DPI and 480 × 650 DIP at 240 DPI, in Light/Dark. Files are under `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-editor-renders/`: `{Light|Dark}-{1280-96|480-240}-{long-title|saved|document}.png`. The wide view follows the supplied reference's organization/list/editor composition; separate title, secondary metadata, wrapping toolbar and readable document area are retained within the existing shell. Narrow layouts use the established panel switcher and scrollable content; long content and toolbar remain reachable. Image previews, rich imported formatting and a one-line graphical checkbox treatment are not claimed to match the mockup.
+
+Development checks caught checklist TextRange export prefixes, native heading undo representation, normalized hyperlink selection boundaries and stale test paragraph references after native undo. The adapter now reads explicit marker runs, uses undoable paragraph styling and resolves selected link intersections. Two compile errors in the last toolbar/checklist test extension (bool-returning Undo/Redo method groups and IReadOnlyList.Count) were corrected before execution. Final render review caught a blank initial paragraph-style selector; it now initializes from the current selection. Coordination review added regressions for retaining an Unfiled/later-page Move destination across Save. Failed intermediate checks are retained under `TestResults/m225/`; they are not acceptance evidence. Assertions/deadlines/isolation/concurrency were not weakened.
+
+Commands (synthetic data only):
+
+```powershell
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore --filter "FullyQualifiedName~Notebook" --logger "trx;LogFileName=editor-verified.trx" --results-directory TestResults/m225
+dotnet test tests/PersonalTradingJournal.Domain.Tests -c Release --no-build --no-restore --filter "FullyQualifiedName~Notebook" --logger "trx;LogFileName=domain.trx" --results-directory TestResults/m225
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter "FullyQualifiedName~Notebook|FullyQualifiedName~PortableExportTests" --logger "trx;LogFileName=persistence-export.trx" --results-directory TestResults/m225
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+```
+
+Focused Domain **35/35** and Infrastructure Notebook/export **82/82** passed, zero failures/skips; logs `domain.trx` and `persistence-export.trx`. The initial complete gate passed **5,072/5,072**, exit 0, at `TestResults/release-20261020-121301-656044d633ae4e88b561b0df42303fbe/`. Calendar child wall time was **61.370 s / 120 s** (58.630 s headroom). This gate preceded the final style-initialization/Move-destination correction and is not substituted for final-source verification.
+
+Final focused Desktop verification passed **50/50**, zero failures/skips, 42 seconds (`editor-verified.trx`), including both Move destinations and the initial style-state check. Final solution Release build passed with **0 warnings/errors**, 4.58 seconds. EF reports no pending model changes, using the existing in-memory design-time factory. Tracked and all five new files passed whitespace checks; new files additionally used `git diff --no-index --check -- /dev/null <path>`. Documentation target-existence validation checked **162 local links / zero missing** (not anchor validation).
+
+Final **complete Release gate: 5,074 passed, zero failures/skips, exit 0**. Freshly built final binaries, unchanged scheduling/deadlines, outside the restricted sandbox for the existing native/symlink tests. Evidence directory: `TestResults/release-20261020-122506-76b995df1971421982df95e4644726ed/` (summary JSON, per-project TRX, VSTest diagnostics and supervised child output).
+
+| Final gate partition / project | Passed | Failed / skipped |
+| --- | ---: | ---: |
+| Exclusive WPF / Desktop | 88 | 0 / 0 |
+| Parallel / Domain | 602 | 0 / 0 |
+| Parallel / Application | 1,032 | 0 / 0 |
+| Parallel / Infrastructure | 1,495 | 0 / 0 |
+| Parallel / Desktop | 1,857 | 0 / 0 |
+
+Calendar native child: **66.346 seconds**, **53.654 seconds headroom** to the unchanged 120-second deadline, exit 0 and confirmed cleanup. Infrastructure duration 4m37s; parallel Desktop 6m56s. These measurements describe these runs, not a guarantee against future machine contention.
+
+| Acceptance evidence | Status |
+| --- | --- |
+| Canonical editor mapping, atomic/conflicting saves, guards, lifecycle, cancellation, synthetic restart/export | Passed focused and complete automated gates |
+| Bound WPF formatting, mixed selection, checklist/undo, links, paste, retained document/caret and narrow reachability | Passed automated checks |
+| Light/Dark normal and narrow/240-DPI long-title, saved and scrolled-document renders | Inspected; initial selector and narrow-scroll issues corrected |
+| Human keyboard/mouse, Narrator, real clipboard, explicit browser opening and live restart | Not performed; pending |
+| CI matching these changes | Not verified; changes are uncommitted, no matching-source CI acceptance claimed |
+
+Human keyboard/mouse, Narrator, real clipboard/browser launch, live app restart and matching published-source CI remain unverified. Automated WPF interaction and synthetic SQLite restart are not substitutes for those checks.
+
+Final branch/HEAD remain **`develop` / `41f0bfac263f5214e99bcee614f00491d4dbe953`**, with **15 modified + 5 new files** below. No production journal, provider, credentials, real clipboard or browser was accessed; no commit/push/merge. **M22.6–M22.12 remain pending.**
+
+### Exact M22.5 changed-file inventory
+
+Modified:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs`
+- `src/PersonalTradingJournal.Domain/Notebook/NotebookNote.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Domain.Tests/Notebook/NotebookNoteTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+
+Added:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookLeaveInteraction.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookEditingTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookEditorViewTests.cs`
 
 ## M22.4 — workspace and navigation
 
@@ -303,7 +399,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.3 | EF/additive migration, bounded reads, safe codec, transactional projection and concurrency | Implemented; historical verification below |
 | M22.3A | Logical export completeness and current-schema database round-trip compatibility | Correction and verification above; owned image files still deferred |
 | M22.4 | Shell workspace, folders, responsive navigation and guards | Implemented; verification above |
-| M22.5 | Formatting/checklists/images adapter, paste normalization, undo/caret and round trips | Pending |
+| M22.5 | Rich-text adapter, protected image references, safe paste, manual Save and draft guards | Implemented; automated verification and live/CI limits above |
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Pending |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |

@@ -27,7 +27,7 @@ public sealed record NotebookRow(NotebookListItem Item)
 
 /// <summary>One read owner spans list, detail and link resolution. Superseded operations are drained,
 /// but cannot publish. Writes are exclusive and retain captured identity/version until verified completion.</summary>
-public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
+public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisposable
 {
     private readonly INotebookService _service;
     private readonly IDialogService _dialogs;
@@ -47,31 +47,44 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     private int _panel = 1;
     private long _total;
 
-    public NotebookWorkspaceViewModel(INotebookService service, IDialogService dialogs)
+    public NotebookWorkspaceViewModel(INotebookService service, IDialogService dialogs,
+        INotebookInteraction? interaction = null, INotebookContentCodec? codec = null)
     {
-        _service = service; _dialogs = dialogs; _sort = SortOptions[0];
+        _service = service; _dialogs = dialogs; _sort = SortOptions[0]; _interaction = interaction; _codec = codec;
         RefreshCommand = new(() => ReloadAsync(), () => CanRead);
         SearchCommand = new(() => ReloadAsync(), () => CanRead);
         MoreNotesCommand = new(() => ReadAsync(ct => ReadPageAsync(true, null, ct)), () => CanMutate && ScopeMatchesList && _cursor is not null);
         MoreFoldersCommand = new(LoadMoreFoldersAsync, () => CanMutate && _folderCursor is not null);
         MoreTagsCommand = new(LoadMoreTagsAsync, () => CanMutate && _tagCursor is not null);
-        NewNoteCommand = new(CreateAsync, () => CanMutate);
-        CreateFolderCommand = new(() => CatalogAsync(new CreateNotebookFolder(FolderName)), () => CanMutate);
-        RenameFolderCommand = new(() => ManagedFolder?.Id is Guid id
-            ? CatalogAsync(new RenameNotebookFolder(id, ManagedFolder.Version, FolderName)) : Task.CompletedTask,
+        NewNoteCommand = new(() => GuardedAsync(CreateAsync), () => CanMutate);
+        CreateFolderCommand = new(() => GuardedAsync(() => CatalogAsync(new CreateNotebookFolder(FolderName))), () => CanMutate);
+        RenameFolderCommand = new(() => GuardedAsync(() => ManagedFolder?.Id is Guid id
+            ? CatalogAsync(new RenameNotebookFolder(id, ManagedFolder.Version, FolderName)) : Task.CompletedTask),
             () => CanMutate && ManagedFolder?.Id is not null);
-        DeleteFolderCommand = new(DeleteFolderAsync, () => CanMutate && ManagedFolder?.Id is not null);
-        MoveCommand = new(() => Note is { } n && MoveFolder is { } f
-            ? WriteNoteAsync(new MoveNotebookNote(n.Id, n.Version, f.Id)) : Task.CompletedTask, () => CanEditNote && MoveFolder is not null);
-        PinCommand = new(() => Note is { } n ? WriteNoteAsync(new SetNotebookPin(n.Id, n.Version, !n.IsPinned)) : Task.CompletedTask, () => CanEditNote);
+        DeleteFolderCommand = new(() => GuardedAsync(DeleteFolderAsync), () => CanMutate && ManagedFolder?.Id is not null);
+        MoveCommand = new(() =>
+        {
+            var target = MoveFolder; // Save may refresh the bounded folder catalog; retain the user's exact destination.
+            return GuardedAsync(() => Note is { } n && target is { } f
+                ? WriteNoteAsync(new MoveNotebookNote(n.Id, n.Version, f.Id)) : Task.CompletedTask);
+        }, () => CanEditNote && MoveFolder is not null);
+        PinCommand = new(() => GuardedAsync(() => Note is { } n ? WriteNoteAsync(new SetNotebookPin(n.Id, n.Version, !n.IsPinned)) : Task.CompletedTask), () => CanEditNote);
         CancelCommand = new(CancelAsync, () => IsBusy);
         ClearFolderCommand = new(() => FolderName = "");
+        SaveCommand = new(async () => { await SaveDraftAsync(); }, () => CanMutate && CanEditDraft && IsDirty);
+        DiscardCommand = new(() => { if (_dialogs.Confirm(new("Discard changes?", "Restore the last successfully saved title and content?", "Discard"))) RestoreDraft(); }, () => CanMutate && IsDirty);
     }
     public ObservableCollection<NotebookScopeOption> Scopes { get; } = [];
     public ObservableCollection<NotebookFolderOption> Folders { get; } = [new(null, "Unfiled")];
     public ObservableCollection<NotebookRow> Notes { get; } = [];
     public static NotebookSortOption[] SortOptions { get; } = [new(NotebookSort.RecentlyUpdated, "Recently updated"), new(NotebookSort.Title, "Title")];
-    public NotebookSortOption Sort { get => _sort; set { if (SetProperty(ref _sort, value) && !_publishing && CanRead) LoadTask = ReloadAsync(); } }
+    public NotebookSortOption Sort { get => _sort; set
+    {
+        if (_publishing) { SetProperty(ref _sort, value); return; }
+        if (value == _sort || !CanRead) return;
+        LoadTask = GuardedAsync(async () => { SetProperty(ref _sort, value); await ReloadAsync(); });
+        OnPropertyChanged(nameof(Sort));
+    } }
     public NotebookScopeOption? Scope
     {
         get => _scope;
@@ -79,9 +92,13 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         {
             if (_publishing) { SetProperty(ref _scope, value); return; }
             if (!CanRead || value is null || (_scope?.Scope == value.Scope && _scope.FolderId == value.FolderId)) return;
-            SetProperty(ref _scope, value); OnPropertyChanged(nameof(ScopeName));
-            if (value.FolderId is Guid id) ManagedFolder = Folders.FirstOrDefault(f => f.Id == id);
-            LoadTask = ReloadAsync(preserveSelection: false); Panel = 1;
+            LoadTask = GuardedAsync(async () =>
+            {
+                SetProperty(ref _scope, value, nameof(Scope)); OnPropertyChanged(nameof(ScopeName));
+                if (value.FolderId is Guid id) ManagedFolder = Folders.FirstOrDefault(f => f.Id == id);
+                await ReloadAsync(preserveSelection: false); Panel = 1;
+            });
+            OnPropertyChanged(nameof(Scope));
         }
     }
     public NotebookRow? SelectedNote
@@ -91,15 +108,18 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         {
             if (_publishing) { SetProperty(ref _selected, value); SelectionLabels(); return; }
             if (!CanRead || !ScopeMatchesList || _selected?.Id == value?.Id) return;
-            SetProperty(ref _selected, value);
-            SelectionLabels();
-            LoadTask = ReadAsync(ct => ReadDetailAsync(value, ct));
-            if (value is not null) Panel = 2;
+            LoadTask = GuardedAsync(async () =>
+            {
+                SetProperty(ref _selected, value, nameof(SelectedNote)); SelectionLabels();
+                if (value is not null) Panel = 2;
+                await ReadAsync(ct => ReadDetailAsync(value, ct));
+            });
+            OnPropertyChanged(nameof(SelectedNote));
         }
     }
     public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); NotifyCommands(); } }
     public string NoteTitle => Note?.Title ?? SelectedNote?.Title ?? "Select a note";
-    public string Metadata => Note is { } n ? $"{n.State} · Updated {TradingTimePolicy.ConvertUtcToTradingTime(n.UpdatedAtUtc):g} NY · Read-only"
+    public string Metadata => Note is { } n ? $"{n.State} · Updated {TradingTimePolicy.ConvertUtcToTradingTime(n.UpdatedAtUtc):g} NY"
         : SelectedNote is { } row ? $"{row.Item.State} · Updated {row.Updated}" : "";
     public string Breadcrumb => (Note is not null ? Note.FolderId : SelectedNote?.Item.FolderId) is Guid id ? Folders.FirstOrDefault(f => f.Id == id)?.Name ?? "Folder unavailable" : "Unfiled";
     public string TagText => SelectedNote?.Tags ?? "";
@@ -144,6 +164,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public Task CompletionTask { get { lock (_pending) return Task.WhenAll(_pending.ToArray()); } }
     public Task DeactivationTask { get; private set; } = Task.CompletedTask;
+    public event EventHandler? NoteCreated;
 
     public Task ActivateAsync()
     {
@@ -152,15 +173,15 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     }
     public bool TryLeave()
     {
-        if (!IsWriting) return true;
-        Message = "A Notebook change is in progress. Wait or cancel before leaving."; return false;
+        if (!IsWriting && (!IsDirty || HasLeaveConsent)) return true;
+        Message = IsWriting ? "A Notebook change is in progress. Wait or cancel before leaving." : "Save, discard or keep editing before leaving."; return false;
     }
     public void Deactivate()
     {
         _active = false; ++_generation; _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
         IsBusy = false; NotifyCommands();
-        // Folder text is retained across navigation; there is no editable note body in this workspace.
+        // Departure consent is coordinated by the shell; late operations cannot publish here.
     }
     public async Task CancelAsync()
     {
@@ -186,6 +207,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     private Task ReloadAsync(bool preserveSelection = true)
     {
         if (!CanRead) return Task.CompletedTask;
+        if (IsDirty && !_guarding) return GuardedAsync(() => ReloadAsync(preserveSelection));
         return ReadAsync(ct => ReadPageAsync(false, preserveSelection ? SelectedNote?.Id : null, ct));
     }
     private Task ReadAsync(Func<CancellationToken, Task> work)
@@ -239,6 +261,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         var old = Scope;
         var oldFolder = Folders.FirstOrDefault(f => f.Id == old?.FolderId);
         var managedId = ManagedFolder?.Id;
+        var moveId = MoveFolder is { } move ? move.Id : Note?.FolderId;
         Scopes.Clear();
         foreach (var (scope, label) in new[] { (NotebookScope.AllNotes, "All Notes"), (NotebookScope.Pinned, "Pinned"), (NotebookScope.Unfiled, "Unfiled") })
             Scopes.Add(new(scope, null, label, summary.ScopeCounts.FirstOrDefault(c => c.Scope == scope)?.Count ?? 0));
@@ -254,6 +277,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         _tags.Clear(); _tags.AddRange(summary.Tags.Items); _tagCursor = summary.Tags.NextCursor;
         OnPropertyChanged(nameof(TagCatalogText));
         ManagedFolder = Folders.FirstOrDefault(f => f.Id == managedId);
+        MoveFolder = Folders.FirstOrDefault(f => f.Id == moveId);
         OnPropertyChanged(nameof(ScopeName)); OnPropertyChanged(nameof(Breadcrumb));
     }
     private void AddFolder(NotebookCatalogItem folder)
@@ -292,12 +316,13 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     private async Task ReadDetailAsync(NotebookRow? row, CancellationToken ct)
     {
         if (!Current(ct)) return;
-        Note = null; LinkText = ""; OnPropertyChanged(nameof(LinkText));
+        Note = null; InstallDraft(); LinkText = ""; OnPropertyChanged(nameof(LinkText));
         ContentMessage = row is null ? "Choose a note to read its content." : "Loading note…";
         if (row is null) return;
         var result = await Task.Run(() => _service.LoadAsync(row.Id, ct), ct);
         if (!Current(ct) || SelectedNote?.Id != row.Id) return;
         Note = result.Note;
+        InstallDraft();
         ContentMessage = result.Status switch
         {
             NotebookLoadStatus.Success => Note!.Document.Blocks.Count == 0 ? "This note has no content." : "",
@@ -324,7 +349,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         SearchText = ""; Sort = SortOptions[0]; Scope = Scopes.FirstOrDefault(s => folder is null ? s.Scope == NotebookScope.AllNotes : s.FolderId == folder);
         _publishing = false;
         await ReadPageAsync(false, result.Note!.Id, ct);
-        if (Current(ct)) { Panel = 2; Message = "Note created."; }
+        if (Current(ct)) { Panel = 2; Message = "Note created."; NoteCreated?.Invoke(this, EventArgs.Empty); }
     });
     private Task WriteNoteAsync(NotebookCommand command) => MutateAsync(async ct =>
     {
@@ -364,7 +389,7 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
         {
             NotebookWriteStatus.Success => "Saved. Refreshing stored data…",
             NotebookWriteStatus.Invalid => string.IsNullOrWhiteSpace(validation) ? "Check the entered value and try again." : validation,
-            NotebookWriteStatus.Conflict => "This record changed elsewhere. Refresh before trying again. Your entered folder name is retained.",
+            NotebookWriteStatus.Conflict => "This record changed elsewhere. Your input is retained. Preserve or discard your changes before refreshing the stored version.",
             NotebookWriteStatus.Cancelled => "Change cancelled.",
             NotebookWriteStatus.NotFound or NotebookWriteStatus.UnavailableTarget => "The selected record is no longer available. Refresh to continue.",
             _ => "The change could not be saved. Your input is retained; refresh or try again."
@@ -387,6 +412,8 @@ public sealed class NotebookWorkspaceViewModel : ObservableObject, IDisposable
     }
     private void NotifyCommands()
     {
+        SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanEditDraft)); OnPropertyChanged(nameof(CanEditBody)); OnPropertyChanged(nameof(BodyReadOnly));
         OnPropertyChanged(nameof(HasMoreNotes)); OnPropertyChanged(nameof(HasMoreFolders)); OnPropertyChanged(nameof(HasMoreTags));
         foreach (var c in new[] { RefreshCommand, SearchCommand, MoreNotesCommand, MoreFoldersCommand, MoreTagsCommand, NewNoteCommand, CreateFolderCommand, RenameFolderCommand, DeleteFolderCommand, MoveCommand, PinCommand, CancelCommand })
             c?.NotifyCanExecuteChanged();

@@ -8,6 +8,30 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed partial class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData(NotebookLeaveChoice.Cancel)]
+    [InlineData(NotebookLeaveChoice.Discard)]
+    [InlineData(NotebookLeaveChoice.Save)]
+    public async Task NotebookDirtyDraftUsesShellAsyncConsentWithoutDiscardingBeforeFinalClose(NotebookLeaveChoice choice)
+    {
+        var store = new NotebookFake();
+        var interaction = new NotebookChoices { Choice = choice };
+        using var vm = new NotebookWorkspaceViewModel(store, new FakeDialogService(), interaction);
+        using var shell = CreateFixture(notebook: vm).Main;
+        shell.NavigateCommand.Execute(NavigationDestination.Notebook); await vm.LoadTask;
+        await vm.NewNoteCommand.ExecuteAsync(null); vm.DraftTitle = "Dirty title";
+        Assert.True(shell.NeedsPlanClosePreparation);
+        bool accepted = await shell.PreparePlanCloseAsync();
+        Assert.Equal(choice != NotebookLeaveChoice.Cancel, accepted);
+        if (choice == NotebookLeaveChoice.Discard)
+        {
+            Assert.True(vm.IsDirty); shell.CancelPlanClose(); Assert.True(vm.IsDirty); Assert.False(shell.CanCloseWindow());
+        }
+        shell.NavigateCommand.Execute(NavigationDestination.Dashboard); await shell.PlanNavigationTask;
+        Assert.Equal(choice == NotebookLeaveChoice.Cancel ? NavigationDestination.Notebook : NavigationDestination.Dashboard, shell.CurrentDestination);
+        if (choice != NotebookLeaveChoice.Cancel) Assert.False(vm.IsDirty);
+        Assert.Equal(choice == NotebookLeaveChoice.Save ? 2 : 1, store.Writes);
+    }
     [Fact]
     public async Task NotebookUsesExistingDestinationAndGuardsPendingWriteThenCancelsOwnedReadsOnDeparture()
     {

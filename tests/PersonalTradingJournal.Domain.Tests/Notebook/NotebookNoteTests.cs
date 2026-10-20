@@ -5,6 +5,20 @@ namespace PersonalTradingJournal.Domain.Tests.Notebook;
 public sealed class NotebookNoteTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 20, 12, 0, 0, TimeSpan.Zero);
+    [Fact]
+    public void EditorDraftValidatesEverythingBeforeAdvancingOneVersion()
+    {
+        var note = new NotebookNote(Now);
+        var body = new NotebookDocument([NotebookNode.Paragraph(Guid.NewGuid(), [NotebookNode.Run(Guid.NewGuid(), "Retained body")])]);
+        Assert.ThrowsAny<ArgumentException>(() => note.SaveDraft(" ", body, [], Now.AddSeconds(1)));
+        Assert.Equal("Untitled", note.Title); Assert.Empty(note.Document.Blocks); Assert.Equal(1, note.Version);
+        var missingImage = new NotebookDocument([NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid())]);
+        Assert.ThrowsAny<ArgumentException>(() => note.SaveDraft("Valid title", missingImage, [], Now.AddSeconds(1)));
+        Assert.Equal("Untitled", note.Title); Assert.Equal(1, note.Version);
+        note.SaveDraft(" Research ", body, [], Now.AddSeconds(1));
+        Assert.Equal("Research", note.Title); Assert.Same(body, note.Document); Assert.Equal(2, note.Version);
+        Assert.Equal("Retained body\n", note.Document.PlainText);
+    }
 
     [Fact]
     public void NewNoteIsUntitledActiveUnfiledAndIndependentlyIdentified()

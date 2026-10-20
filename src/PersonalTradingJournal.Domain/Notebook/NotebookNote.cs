@@ -65,6 +65,14 @@ public sealed class NotebookNote : AuditableEntity
         if (Title == value) return;
         Advance(now); Title = value;
     }
+    public void SaveDraft(string title, NotebookDocument document, IEnumerable<NotebookImage> images, DateTimeOffset now)
+    {
+        RequireActive();
+        var value = NotebookLimits.NoteTitle(title);
+        ArgumentNullException.ThrowIfNull(document);
+        var copy = ValidateImages(document, images);
+        Advance(now); Title = value; Document = document; Images = copy;
+    }
 
     /// <summary>Image additions/removals/caption edits and their document references form one atomic domain edit.</summary>
     public void UpdateContent(NotebookDocument document, IEnumerable<NotebookImage> images, DateTimeOffset now)

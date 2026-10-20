@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.5 — Notebook rich text and manual Save
+
+Active notes now have a separate title and a theme-aware rich-text editor: paragraph/headings, bold/italic/underline, lists, interactive checklist state, explicit HTTP(S) links and native undo/redo. Manual Save atomically persists title and canonical JSON v1 content with one expected-version advance. Newer typing, failed/conflicting drafts and later navigation vetoes retain the editor; Save / Discard / Cancel guards cover replacement and departure. No autosave or image-insertion control is implied. [Mapping, exact files, verification and limits](docs/notebook.md#m225--rich-text-editor-and-manual-save).
+
+Starting baseline: clean `develop`, `41f0bfac263f5214e99bcee614f00491d4dbe953`; branch/HEAD unchanged, **15 modified + 5 new files**, uncommitted. Final verification: **50 Desktop + 35 Domain + 82 persistence/export focused tests passed; complete Release gate 5,074/5,074**, zero failures/skips, exit 0. Release build **0 warnings/errors**, EF consistent, whitespace clean and 162 local documentation targets checked. Light/Dark normal/narrow-240-DPI renders inspected. Existing image-reference bodies remain explicitly read-only (title editing preserves their exact references). External paste accepts bounded Unicode text with normalization feedback, not arbitrary HTML/RTF/XAML. Schema, export v15 and backup compatibility are unchanged. Human interaction and matching CI remain separate, unverified checks. **M22.6 onward remains pending.**
+
 ## M22.4 — Notebook workspace and navigation
 
 Notebook now opens a database-backed three-panel workspace in the existing shell: organization/counts, bounded note list, and a dominant **read-only** document preview. Search, sorting, paging, Untitled creation, folder create/rename/confirmed deletion, move-to-folder/Unfiled and pinning use the existing transactional contracts. Narrow layouts expose Organization / Notes / Content without duplicating the selected note. No rich-text editing, autosave, image loading or linked-target navigation is implied. [Behavior, exact files, renders and verification](docs/notebook.md#m224--workspace-and-navigation).

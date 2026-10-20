@@ -81,6 +81,13 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
                 var now = Now;
                 switch (command)
                 {
+                    case SaveNotebookDraft draft:
+                        if (draft.Images.IsDefault) return new(NotebookWriteStatus.Invalid);
+                        if (!draft.Images.SequenceEqual(note.Images)) return new(NotebookWriteStatus.Deferred);
+                        note.SaveDraft(draft.Title, draft.Document, draft.Images, now);
+                        try { encoded = codec.Encode(note.Document); }
+                        catch (ArgumentOutOfRangeException) { return new(NotebookWriteStatus.TooLarge); }
+                        break;
                     case UpdateNotebookTitle title: note.UpdateTitle(title.Title, now); break;
                     case UpdateNotebookContent content:
                         if (content.Images.IsDefault) return new(NotebookWriteStatus.Invalid);
@@ -141,6 +148,7 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
 
     private static (Guid, long) Identity(NotebookCommand c) => c switch
     {
+        SaveNotebookDraft x => (x.NoteId, x.ExpectedVersion),
         UpdateNotebookTitle x => (x.NoteId, x.ExpectedVersion), UpdateNotebookContent x => (x.NoteId, x.ExpectedVersion),
         MoveNotebookNote x => (x.NoteId, x.ExpectedVersion), SetNotebookPin x => (x.NoteId, x.ExpectedVersion),
         AssignNotebookTag x => (x.NoteId, x.ExpectedVersion), RemoveNotebookTag x => (x.NoteId, x.ExpectedVersion),
