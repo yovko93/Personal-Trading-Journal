@@ -1,5 +1,13 @@
 # Backup and restore — M16
 
+## Notebook database compatibility — M22.3A
+
+Logical export **v15** adds all six Notebook tables and every persisted column, retaining original content JSON (including unreadable/future payloads), search text, audit/version, lifecycle/restoration metadata, folders/tags, links and image ownership metadata. Earlier exports lack these records; no logical JSON/CSV version is a supported restore input. The four CSVs remain unchanged. Exports are unencrypted, metadata-only for images and exclude credentials.
+
+Complete archive format remains **v1**. The existing whole-database backup/preflight/offline-restore workflow retains the current 26-migration schema, including `20261020085611_AddNotebook`; no new restore engine or migration is introduced by M22.3A. Populated-database tests cover exact Notebook and existing-record recovery, cancellation, switch failure and interrupted recovery. Pre-Notebook archives require the still-deferred staged upgrade and are rejected before replacement; future schema/archive versions are rejected too. Installed-database migration is a separate supported path.
+
+**Notebook-owned image bytes are not yet included/restored.** Ownership/reference metadata is preserved, not converted into file-backup support. Existing Trade/Playbook/Plan image guarantees are unchanged. Notebook image inventory, retention and full portability acceptance remain M22.8/M22.11 responsibilities. [Exact compatibility boundaries, results and changed files](notebook.md#m223a--export-completeness-and-database-compatibility). Earlier sections below describe their dated versions.
+
 ## Direct Playbook definitions — current compatibility
 
 Current schema includes `20261019100107_DirectPlaybookDefinitions`. Complete backups package current-only Playbook images as well as legacy capture/Trade/Plan references, verify bytes and hashes, and reconcile mutable definition JSON with its normalized example index before publication/preflight/restore. Recovery capture uses the same complete inventory. Current definitions and legacy evidence remain separate after restore.

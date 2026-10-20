@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.3A — Notebook export completeness and database compatibility
+
+Logical export **v15** now includes all six Notebook tables and every persisted field, preserving original unreadable/future content strings, versions, lifecycle/restoration data, links and image metadata. The original completeness assertion remains unchanged. Current-schema **v1 database archives** use the existing backup/preflight/offline-restore workflow; JSON/CSV remain non-restorable. No migration or restore algorithm change was needed. [Root cause, compatibility policy, exact 13-file inventory and verification](docs/notebook.md#m223a--export-completeness-and-database-compatibility).
+
+Final local verification: **188 focused, 1,494 complete Infrastructure and 1,032 complete Application Release tests passed**, zero failures/skips; the original export-completeness failure is resolved. Release solution build **zero warnings/errors**, EF consistent, whitespace clean and **172 local documentation targets / zero missing**. Initial new-test fixture corrections are recorded separately in the report. **12 modified + 1 new file**, uncommitted on unchanged `develop` / `1402f6a3909d3fef479fccd9297decc9047acf3c`.
+
+Notebook-owned image-file copying/restoration, full M22.11 integrated portability and M22.4 onward remain pending. Existing image-backup guarantees and Deferred operations are preserved. No full Desktop gate, live or matching CI acceptance is implied.
+
 ## M22.3 — Notebook persistence and content format
 
 Implemented strict, bounded Notebook JSON v1, additive migration `20261020085611_AddNotebook`, EF records/rehydration and DI-backed transactional note/catalog access. Expected-version writes, verified readback, cancellation boundaries, bounded snapshot queries and unavailable-source/content handling are covered with real SQLite tests. Duplicate/permanent-delete/image-file operations explicitly return `Deferred`; no Desktop or autosave work was added. [Decisions, exact 25-file inventory, commands and limitations](docs/notebook.md#m223--persistence-migrations-and-content-format).
