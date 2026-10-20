@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.3 — Notebook persistence and content format
+
+Implemented strict, bounded Notebook JSON v1, additive migration `20261020085611_AddNotebook`, EF records/rehydration and DI-backed transactional note/catalog access. Expected-version writes, verified readback, cancellation boundaries, bounded snapshot queries and unavailable-source/content handling are covered with real SQLite tests. Duplicate/permanent-delete/image-file operations explicitly return `Deferred`; no Desktop or autosave work was added. [Decisions, exact 25-file inventory, commands and limitations](docs/notebook.md#m223--persistence-migrations-and-content-format).
+
+Starting baseline: clean `develop` at `66243544eae985b58f68a104f54f7a94f68a81cc`; branch/HEAD unchanged. **109 focused persistence regressions passed** (including 34 new Notebook checks); complete Release **Domain 601/601 and Application 1,032/1,032** passed. Final complete Infrastructure run: **1,485 passed / 1 failed / zero skipped**, exit 1. The remaining unchanged export-completeness test correctly detects that export v14 omits the six Notebook tables: the user explicitly deferred backup/export-format changes to **M22.11**, so this integration blocker is documented, not suppressed. The first run's schema-inventory expectations were extended, and its symbolic-link privilege failure passed outside the sandbox. Final solution build **zero warnings/errors**; EF consistent; whitespace and **159 local documentation targets** checked successfully. **No full integrated/CI acceptance claim. M22.4 onward remains pending.**
+
 ## M22.2 — Notebook Domain and Application foundations
 
 Notebook now has auditable Note/Folder/Tag types, validated immutable document nodes and derived search text, lifecycle/restoration behavior, managed-image versus Trade-screenshot ownership, and typed **Trade / Trading Setup** links. Application contracts define bounded queries/catalog pages, immutable snapshots, expected-version commands and explicit failure outcomes; persistence, codec implementation, file orchestration, autosave and Desktop remain deferred. [Design decisions, exact 13-file inventory and verification](docs/notebook.md#m222--domain-model-and-application-contracts).

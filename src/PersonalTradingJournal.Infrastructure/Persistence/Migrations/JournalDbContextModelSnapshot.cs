@@ -348,6 +348,241 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.ToTable("Instruments", (string)null);
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookFolderRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameKey")
+                        .IsUnique();
+
+                    b.ToTable("NotebookFolders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookFolders_Metadata", "Version > 0 AND length(trim(Name)) BETWEEN 1 AND 128 AND UpdatedAtUtc >= CreatedAtUtc");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookImageRecord", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AlternativeText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Caption")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Ownership")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Sha256")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("StorageKey")
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<Guid?>("TradeId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("TradeScreenshotId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NoteId", "Id");
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique()
+                        .HasFilter("StorageKey IS NOT NULL");
+
+                    b.HasIndex("NoteId", "Position")
+                        .IsUnique();
+
+                    b.ToTable("NotebookImages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookImages_Ownership", "(Ownership = 1 AND StorageKey IS NOT NULL AND SizeBytes BETWEEN 1 AND 8388608 AND SizeBytes IS NOT NULL AND length(Sha256) = 64 AND Sha256 IS NOT NULL AND TradeId IS NULL AND TradeScreenshotId IS NULL) OR (Ownership = 2 AND StorageKey IS NULL AND SizeBytes IS NULL AND Sha256 IS NULL AND TradeId IS NOT NULL AND TradeScreenshotId IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_NotebookImages_Position", "Position BETWEEN 0 AND 31 AND length(Caption) <= 2000 AND length(AlternativeText) <= 500");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookLinkRecord", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastKnownLabel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NoteId", "Kind", "TargetId");
+
+                    b.ToTable("NotebookLinks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookLinks_Kind", "Kind IN (1,2) AND length(LastKnownLabel) BETWEEN 1 AND 2000");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookNoteRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ContentVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("FolderId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PlainText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("PreviousFolderId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("PreviousState")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SearchText")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("State")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TitleKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PreviousFolderId");
+
+                    b.HasIndex("FolderId", "State");
+
+                    b.HasIndex("State", "TitleKey", "Id");
+
+                    b.HasIndex("State", "UpdatedAtUtc", "Id");
+
+                    b.ToTable("NotebookNotes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookNotes_Metadata", "Version > 0 AND length(trim(Title)) BETWEEN 1 AND 200 AND State IN (1,2,3) AND UpdatedAtUtc >= CreatedAtUtc");
+
+                            t.HasCheckConstraint("CK_NotebookNotes_Restore", "(State = 3 AND PreviousState IN (1,2) AND PreviousState IS NOT NULL AND PreviousFolderId IS FolderId) OR (State <> 3 AND PreviousState IS NULL AND PreviousFolderId IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookTagAssignmentRecord", b =>
+                {
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("NoteId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("NotebookTagAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookTagRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("BINARY");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameKey")
+                        .IsUnique();
+
+                    b.ToTable("NotebookTags", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookTags_Metadata", "Version > 0 AND length(trim(Name)) BETWEEN 1 AND 64 AND UpdatedAtUtc >= CreatedAtUtc");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.PeriodReviewRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1441,6 +1676,52 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.DailyJournalRecord", null)
                         .WithMany()
                         .HasForeignKey("JournalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookImageRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookNoteRecord", null)
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookLinkRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookNoteRecord", null)
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookNoteRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookFolderRecord", null)
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookFolderRecord", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousFolderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookTagAssignmentRecord", b =>
+                {
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookNoteRecord", null)
+                        .WithMany()
+                        .HasForeignKey("NoteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookTagRecord", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

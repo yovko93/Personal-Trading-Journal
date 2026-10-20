@@ -12,6 +12,12 @@ public sealed class JournalDbContext : DbContext
     }
 
     public DbSet<DailyTradingPrincipleRecord> DailyTradingPrinciples => Set<DailyTradingPrincipleRecord>();
+    public DbSet<NotebookNoteRecord> NotebookNotes => Set<NotebookNoteRecord>();
+    public DbSet<NotebookFolderRecord> NotebookFolders => Set<NotebookFolderRecord>();
+    public DbSet<NotebookTagRecord> NotebookTags => Set<NotebookTagRecord>();
+    public DbSet<NotebookTagAssignmentRecord> NotebookTagAssignments => Set<NotebookTagAssignmentRecord>();
+    public DbSet<NotebookLinkRecord> NotebookLinks => Set<NotebookLinkRecord>();
+    public DbSet<NotebookImageRecord> NotebookImages => Set<NotebookImageRecord>();
     public DbSet<DailyTradingPrincipleStateRecord> DailyTradingPrincipleState => Set<DailyTradingPrincipleStateRecord>();
 
     public DbSet<InstrumentRecord> Instruments => Set<InstrumentRecord>();
@@ -62,6 +68,7 @@ public sealed class JournalDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        NotebookConfiguration.Configure(modelBuilder);
         modelBuilder.Entity<DailyTradingPrincipleRecord>(b =>
         {
             b.ToTable("DailyTradingPrinciples", t => t.HasCheckConstraint("CK_DailyTradingPrinciples_Content", "length(trim(Text)) > 0 AND length(Text) <= 500 AND Position > 0"));

@@ -49,6 +49,12 @@ public sealed class SqlitePersistenceIntegrityTests
         using JournalDbContext context = CreateModelContext();
         Type[] expectedRecordTypes =
         [
+            typeof(NotebookNoteRecord),
+            typeof(NotebookFolderRecord),
+            typeof(NotebookTagRecord),
+            typeof(NotebookTagAssignmentRecord),
+            typeof(NotebookLinkRecord),
+            typeof(NotebookImageRecord),
             typeof(DailyTradingPrincipleRecord),
             typeof(DailyTradingPrincipleStateRecord),
             typeof(InstrumentRecord),
@@ -211,7 +217,13 @@ public sealed class SqlitePersistenceIntegrityTests
         var bridge = Assert.Single(foreignKeys, x => x.DeclaringEntityType.ClrType == typeof(CurrentPlaybookRecord) && x.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
         Assert.Equal(new[] { "TradingSetupId", "LegacyRevision" }, bridge.Properties.Select(x => x.Name));
         Assert.Equal(DeleteBehavior.Restrict, bridge.DeleteBehavior);
-        Assert.Equal(28, foreignKeys.Count);
+        AssertForeignKey(model, typeof(NotebookNoteRecord), nameof(NotebookNoteRecord.FolderId), typeof(NotebookFolderRecord), false, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(NotebookNoteRecord), nameof(NotebookNoteRecord.PreviousFolderId), typeof(NotebookFolderRecord), false, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(NotebookImageRecord), nameof(NotebookImageRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(NotebookLinkRecord), nameof(NotebookLinkRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.NoteId), typeof(NotebookNoteRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(NotebookTagAssignmentRecord), nameof(NotebookTagAssignmentRecord.TagId), typeof(NotebookTagRecord), true, DeleteBehavior.Restrict);
+        Assert.Equal(34, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
@@ -299,7 +311,11 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(14, uniqueIndexes.Count);
+        Assert.Equal(18, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookFolderRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookTagRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookImageRecord) && index.Properties.SequenceEqual(["NoteId", "Position"]) && index.Filter is null);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookImageRecord) && index.Properties.SequenceEqual(["StorageKey"]) && index.Filter == "StorageKey IS NOT NULL");
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyTradingPrincipleRecord) && index.Properties.SequenceEqual(["Position"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
             index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL AND DeletedAtUtc IS NULL");

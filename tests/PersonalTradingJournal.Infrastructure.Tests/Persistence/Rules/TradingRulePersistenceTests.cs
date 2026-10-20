@@ -42,7 +42,7 @@ public sealed partial class TradingRulePersistenceTests
             Assert.Empty(await db.TradingRuleRevisions.ToArrayAsync()); Assert.Empty(await db.TradingRuleAssessments.ToArrayAsync());
             var execution = await db.TradeExecutions.OrderBy(e => e.Sequence).FirstAsync();
             Assert.Null(execution.Commission); Assert.Equal(trade.Id, execution.TradeId);
-            Assert.Equal("20261019171746_AddDailyTradingPrinciples", (await db.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Equal("20261020085611_AddNotebook", (await db.Database.GetAppliedMigrationsAsync()).Last());
         }
         Assert.Equal(TradingRuleWriteStatus.Saved, (await f.Get<WriteTradingRuleUseCase>().ExecuteAsync(
             new(Guid.NewGuid(), 0, TradingRuleAuthoringAction.Create, Definition(trade.TradingAccountId)))).Status);
