@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.4 — Notebook workspace and navigation
+
+Notebook now opens a database-backed three-panel workspace in the existing shell: organization/counts, bounded note list, and a dominant **read-only** document preview. Search, sorting, paging, Untitled creation, folder create/rename/confirmed deletion, move-to-folder/Unfiled and pinning use the existing transactional contracts. Narrow layouts expose Organization / Notes / Content without duplicating the selected note. No rich-text editing, autosave, image loading or linked-target navigation is implied. [Behavior, exact files, renders and verification](docs/notebook.md#m224--workspace-and-navigation).
+
+Starting baseline: clean `develop`, `d974177bdaca3743210c335af8bac329d88ae53d`, preserving committed M22.1–M22.3A. Final local verification: **27 focused tests and the complete 5,049-test Release gate passed**, zero failures/skips, gate exit 0; Release build zero warnings/errors, EF consistent, whitespace clean and 161 local documentation targets checked. Synthetic Light/Dark normal/narrow-240-DPI renders inspected; human keyboard/Narrator, live window interaction and matching CI remain unverified. Exact **6 modified + 8 new files**, commands and evidence are in the linked report. Export v15, schema, current archive recovery and existing Deferred operations are unchanged. **M22.5 onward remains pending.**
+
 ## M22.3A — Notebook export completeness and database compatibility
 
 Logical export **v15** now includes all six Notebook tables and every persisted field, preserving original unreadable/future content strings, versions, lifecycle/restoration data, links and image metadata. The original completeness assertion remains unchanged. Current-schema **v1 database archives** use the existing backup/preflight/offline-restore workflow; JSON/CSV remain non-restorable. No migration or restore algorithm change was needed. [Root cause, compatibility policy, exact 13-file inventory and verification](docs/notebook.md#m223a--export-completeness-and-database-compatibility).

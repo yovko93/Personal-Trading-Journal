@@ -167,6 +167,7 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.ITradingPlanInteraction, PersonalTradingJournal.Desktop.Views.TradingPlans.WpfTradingPlanInteraction>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel>();
+            builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Notebook.NotebookWorkspaceViewModel>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>();
             builder.Services.AddSingleton<IRuleAssessmentDialog>(s => new WpfRuleAssessmentDialog(
                 () => s.GetRequiredService<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>()));

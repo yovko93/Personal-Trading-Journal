@@ -1,0 +1,115 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.Notebook.NotebookWorkspaceView"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Notebook"
+ Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="14"
+ Loaded="OnLoaded" Unloaded="OnUnloaded" SizeChanged="OnSizeChanged" DataContextChanged="OnContextChanged">
+ <UserControl.InputBindings><KeyBinding Key="N" Modifiers="Control" Command="{Binding NewNoteCommand}" /></UserControl.InputBindings>
+ <UserControl.Resources>
+  <BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/>
+  <Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Padding" Value="10,6"/><Setter Property="MinHeight" Value="34"/></Style>
+  <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
+  <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
+  <Style x:Key="QuietText" TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <Style x:Key="PanelBorder" TargetType="Border"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="16"/></Style>
+  <Style x:Key="Row" TargetType="ListBoxItem">
+   <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10"/><Setter Property="Margin" Value="0,0,0,4"/>
+   <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Border x:Name="Surface" Background="{TemplateBinding Background}" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="0" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsSelected" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}"/><Setter TargetName="Surface" Property="BorderThickness" Value="3,0,0,0"/></Trigger>
+     <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="2"/></Trigger>
+     <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}"/></Trigger>
+    </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </UserControl.Resources>
+ <Grid x:Name="Root">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <WrapPanel Margin="0,0,0,10">
+   <TextBlock Text="Ideas, research and lessons in one place." VerticalAlignment="Center" Margin="0,0,20,8" Style="{StaticResource QuietText}"/>
+   <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanInteract}" MaxLength="256" Width="210" Margin="0,0,8,8" AutomationProperties.Name="Search notes">
+    <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding SearchCommand}"/></TextBox.InputBindings>
+   </TextBox>
+   <Button Content="Search" Command="{Binding SearchCommand}" Margin="0,0,8,8"/>
+   <Button Content="+ New note" Command="{Binding NewNoteCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an Untitled note. Control N."/>
+   <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8"/>
+   <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,0,8"/>
+  </WrapPanel>
+  <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{DynamicResource PtjInformationBrush}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Message}">
+   <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Message}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+  </TextBlock>
+  <WrapPanel x:Name="NarrowNavigation" Grid.Row="2" Visibility="Collapsed" Margin="0,0,0,8">
+   <Button Content="Organization" Click="ShowOrganization" Margin="0,0,8,0"/>
+   <Button Content="Notes" Click="ShowNotes" Margin="0,0,8,0"/>
+   <Button Content="Content" Click="ShowContent"/>
+  </WrapPanel>
+  <Grid Grid.Row="3" x:Name="Panels">
+   <Grid.ColumnDefinitions><ColumnDefinition x:Name="OrganizationColumn" Width="210"/><ColumnDefinition x:Name="NotesColumn" Width="290"/><ColumnDefinition x:Name="ContentColumn" Width="*"/></Grid.ColumnDefinitions>
+   <Border x:Name="OrganizationPanel" Style="{StaticResource PanelBorder}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel IsEnabled="{Binding CanInteract}">
+      <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" Margin="0,0,0,12"/>
+      <ListBox x:Name="ScopeList" ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}" DisplayMemberPath="Label" ItemContainerStyle="{StaticResource Row}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook organization" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+       <ListBox.Resources><Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style></ListBox.Resources>
+      </ListBox>
+      <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
+      <Expander Header="Manage folders" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Manage Notebook folders">
+       <StackPanel Margin="0,10,0,0">
+        <TextBlock Text="Folder" Style="{StaticResource QuietText}"/>
+        <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding ManagedFolder}" DisplayMemberPath="Name" AutomationProperties.Name="Folder to rename or delete"/>
+        <TextBlock Text="New or replacement name" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
+        <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" AutomationProperties.Name="Folder name"/>
+        <WrapPanel Margin="0,8,0,0"><Button Content="Create" Command="{Binding CreateFolderCommand}" Margin="0,0,4,4"/><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
+       </StackPanel>
+      </Expander>
+      <TextBlock Text="Scope counts include all notes in that scope, before search." Style="{StaticResource QuietText}" Margin="0,20,0,0"/>
+      <TextBlock Text="TAGS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
+      <TextBlock Text="{Binding TagCatalogText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjAccentBrush}"/>
+      <Button Content="More tag names" Command="{Binding MoreTagsCommand}" Visibility="{Binding HasMoreTags, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0"/>
+     </StackPanel>
+    </ScrollViewer>
+   </Border>
+   <Border x:Name="NotesPanel" Grid.Column="1" Style="{StaticResource PanelBorder}">
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel><TextBlock Text="{Binding ScopeName}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding ListSummary}" Style="{StaticResource QuietText}" Margin="0,5,0,10"/>
+      <ComboBox ItemsSource="{x:Static vm:NotebookWorkspaceViewModel.SortOptions}" DisplayMemberPath="Name" SelectedItem="{Binding Sort}" IsEnabled="{Binding CanInteract}" AutomationProperties.Name="Sort notes"/>
+     </StackPanel>
+     <TextBlock Grid.Row="1" Text="{Binding EmptyMessage}" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
+     <ListBox x:Name="NoteList" Grid.Row="2" ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" IsEnabled="{Binding CanSelectNote}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Notes">
+      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}"><Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}"/></Style></ListBox.ItemContainerStyle>
+      <ListBox.ItemTemplate><DataTemplate><StackPanel>
+       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+       <TextBlock Text="{Binding Preview}" Style="{StaticResource QuietText}" MaxHeight="48" TextTrimming="CharacterEllipsis" Margin="0,6,0,6"/>
+       <TextBlock Text="{Binding Tags}" Foreground="{DynamicResource PtjAccentBrush}" TextWrapping="Wrap"/>
+       <WrapPanel><TextBlock Text="{Binding Updated}" Style="{StaticResource QuietText}" FontSize="12" Margin="0,5,8,0"/><TextBlock Text="{Binding Pin}" Foreground="{DynamicResource PtjAccentBrush}" FontSize="12" Margin="0,5,0,0"/></WrapPanel>
+      </StackPanel></DataTemplate></ListBox.ItemTemplate>
+     </ListBox>
+     <Button Grid.Row="3" Content="Load more notes" Command="{Binding MoreNotesCommand}" Visibility="{Binding HasMoreNotes, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0"/>
+    </Grid>
+   </Border>
+   <Border x:Name="ContentPanel" Grid.Column="2" Style="{StaticResource PanelBorder}">
+    <Grid>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel>
+      <TextBlock Text="{Binding Breadcrumb}" Style="{StaticResource QuietText}"/>
+      <TextBlock Text="{Binding NoteTitle}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,14,0,6"/>
+      <TextBlock Text="{Binding TagText}" Foreground="{DynamicResource PtjAccentBrush}" TextWrapping="Wrap"/>
+      <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,6,0,12"/>
+      <WrapPanel>
+       <Button Content="{Binding PinText}" Command="{Binding PinCommand}" Margin="0,0,8,8"/>
+       <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding MoveFolder}" DisplayMemberPath="Name" Width="170" IsEnabled="{Binding CanInteract}" Margin="0,0,8,8" AutomationProperties.Name="Move note to folder"/>
+       <Button Content="Move" Command="{Binding MoveCommand}" Margin="0,0,0,8"/>
+      </WrapPanel>
+      <TextBlock Text="{Binding ContentMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
+     </StackPanel>
+     <RichTextBox x:Name="Preview" Grid.Row="1" IsReadOnly="True" IsDocumentEnabled="False" BorderThickness="0" Background="Transparent" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Read-only note content" AutomationProperties.HelpText="Read and select saved text. Checklists show recorded state."/>
+     <ScrollViewer Grid.Row="2" MaxHeight="120" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,12,0,0" AutomationProperties.Name="Linked records">
+      <TextBlock Text="{Binding LinkText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextSecondaryBrush}"/>
+     </ScrollViewer>
+    </Grid>
+   </Border>
+  </Grid>
+ </Grid>
+</UserControl>
