@@ -41,6 +41,8 @@ public sealed class NotebookTagViewTests
                 vm.ManagedTag = vm.Tags[0]; vm.TagName = "Long research observations with multiple words and context";
                 Pump(vm.RenameTagCommand.ExecuteAsync(null));
                 Pump(vm.ToggleTagFilterCommand.ExecuteAsync(vm.Tags[0])); Pump(vm.ToggleTagFilterCommand.ExecuteAsync(vm.Tags[1]));
+                vm.SearchText = "observation"; Pump(vm.SearchCommand.ExecuteAsync(null));
+                Assert.Single(vm.Notes); Assert.Equal(2, vm.SelectedTagFilters.Count);
                 vm.Panel = 0; ((Expander)view.FindName("TagManagement")).IsExpanded = true;
                 Layout(); Render("filters");
                 var filters = Descendants<CheckBox>((ItemsControl)view.FindName("TagFilters")).ToArray();
@@ -48,7 +50,12 @@ public sealed class NotebookTagViewTests
                 Assert.All(filters, c => Assert.Contains("Filter", AutomationProperties.GetHelpText(c)));
                 vm.TagName = " "; Pump(vm.CreateTagCommand.ExecuteAsync(null)); Layout(); Render("validation");
                 Assert.Contains(Descendants<TextBlock>(view), t => t.Text == vm.TagMessage && AutomationProperties.GetLiveSetting(t) == AutomationLiveSetting.Polite);
+                ((Expander)view.FindName("TagManagement")).BringIntoView(); Layout(); Render("management");
+                vm.Panel = 1; Layout(); Render("combined-filters");
                 vm.Panel = 2; Layout();
+                var addTag = Descendants<Expander>(view).Single(e => AutomationProperties.GetName(e) == "Assign an existing tag to this note");
+                addTag.IsExpanded = true; vm.AssignmentTag = vm.Tags[0];
+                Layout(); Render("assignments");
                 var editor = (RichTextBox)view.FindName("Preview"); var document = editor.Document;
                 long revision = vm.EditorRevision;
                 var assignment = vm.AssignedTags[0];

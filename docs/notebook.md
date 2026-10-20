@@ -1,6 +1,6 @@
 # Notebook
 
-Current checkpoint: **M22.7 tags, assignments and combined filters — focused verification complete; final Release acceptance pending**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.7 tags, assignments and combined filters — local automated Release verification complete; human/native-restart and matching CI acceptance unverified**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
 
 ## M22.7 — tags, assignments and combined filters: focused verification
 
@@ -39,9 +39,75 @@ All commands exited **0**. Desktop includes the existing autosave, editing, work
 
 Tag WPF renders were regenerated for Light/Dark at 1280 DIP / 96 DPI and 480 DIP / 240 DPI under `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-tag-renders/`. Sampled Light normal and Dark narrow filter renders were inspected; the narrow organization pane uses vertical scrolling. Bound tests assert retained editor identity, accessible labels/live validation and visible button bounds. This is automated render/interaction evidence, not human or Narrator acceptance. Final whitespace checks pass.
 
-### Remaining work and acceptance boundary
+### Focused-phase acceptance boundary (historical)
 
-**Focused M22.7 verification is complete. No known M22.7 implementation defect remains from these checks. Final Release acceptance remains pending.** The complete Release gate was deliberately not launched; the historical M22.6 gate below does not accept this changed worktree. Full Release verification, live keyboard/mouse/Narrator and actual native-process restart acceptance, and matching-source CI are still unverified. No EF/schema or image-ownership work was introduced. M22.8 onward remains deferred and was not started.
+At the focused checkpoint, **final Release acceptance was pending**: the complete gate had deliberately not been launched. The historical M22.6 gate did not accept the changed worktree. The subsequent complete verification below supersedes that automated-verification gap. No EF/schema or image-ownership work was introduced; M22.8 onward remains deferred.
+
+### Complete Release verification — 20 October 2026
+
+This phase resumed on **clean `develop`, `97b0ee82a7622ebd578b150db946d5c661b6c4ef`**, which already commits the implementation and focused corrections described above. The worktree remains `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; no applicable repository/ancestor `AGENTS.md` or duplicate test process was present. The existing tag-view harness was extended only to capture saved-body search combined with both selected tags, the scrolled management controls, and the expanded note assignment picker in all four theme/size cases. Its existing assertions, process/STA deadlines, and concurrency remain intact; additional exact list/filter-count assertions confirm the combined state. No production code changed during this completion.
+
+The entire solution was rebuilt after this capture extension: **0 warnings/errors, 8.06 s**, log `TestResults/m227-complete-release-build-final.log`. EF's existing in-memory design-time factory reports **no pending model changes**, with no production database access. `TestResults/m227-complete-source-manifest.json` records the tested HEAD, Notebook source hashes and Desktop/Infrastructure test-binary SHA-256 values. Full-gate execution uses the established Windows context for synthetic credential/symlink checks and the unchanged `scripts/Test-Release.ps1` partition scheduling.
+
+Commands executed for the final source:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m227-complete-release-build-final.log
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+# After final documentation edits:
+git diff --check 4520b3f782453ff5ef1bdeac509b765fac7b7099
+pwsh -NoProfile -File TestResults/m227-check-doc-links.ps1
+```
+
+The **complete Release gate passed 5,131/5,131, zero failures/skips, exit 0**, once, without retries, removed cases, relaxed assertions/deadlines, or scheduling changes. It ran from **20:40:16.226 to 20:50:03.114 Europe/Kiev**, **9m46.887s**. The wrapper preserved the actual process exit code in `TestResults/m227-complete-release-exit-code.txt`.
+
+| Complete partition / project | Passed | Failed / skipped |
+| --- | ---: | ---: |
+| Exclusive WPF / Desktop | 88 | 0 / 0 |
+| Parallel / Domain | 602 | 0 / 0 |
+| Parallel / Application | 1,032 | 0 / 0 |
+| Parallel / Infrastructure | 1,512 | 0 / 0 |
+| Parallel / Desktop | 1,897 | 0 / 0 |
+| Total | 5,131 | 0 / 0 |
+
+Combined Desktop total: **1,985**. The complete gate includes all **15 M22.7 Desktop workflow/visual cases and 8 Infrastructure tag workflow cases**, alongside existing Notebook and repository regressions. These are included in the table, not additional totals. Reported test durations: Infrastructure **4m58s**, parallel Desktop **8m08s**. Calendar native process exited **0** in **72.7175179 s**, leaving **47.2824821 s** against its unchanged **120 s** deadline; process cleanup was confirmed.
+
+Durable gate evidence:
+
+- `TestResults/release-20261020-174016-954f7bd34d35413a860b961ced6ad1e9/summary.json` — complete project/partition totals.
+- Same directory: partition TRX, VSTest diagnostics, supervised child results/stdout/stderr/phase and process logs; `m227-verification.json` records exit/totals/timing, verified unchanged source/binary hashes and the 28 render hashes.
+- Calendar timing/cleanup: `exclusive-wpf/calendar-native-20261020-174020-7907050c66364b1197b9de627883bc3a/process-supervision.log` beneath that gate directory.
+
+**Visual verification:** the existing compiled-WPF harness generated **28 PNGs**, copied without modification from `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-tag-renders/` into the gate's **`m227-visuals/`** directory. The filename pattern is `{Light|Dark}-{1280-96|480-240}-{state}.png`; dimensions are 1280 × 960 DIP / 96 DPI and 480 × 760 DIP / 240 DPI. All **12** combinations of the four theme/size prefixes and `management`, `combined-filters`, `assignments` states were inspected. Additional retained states are `filters`, `validation`, `assignment-removed`, `cleared`.
+
+Management captures show the scrolled Create/Rename/Delete globally controls and explanatory text; combined-filter captures show `observation` search, both selected tags, one matching saved note and filter help; assignment captures show full chips, remove buttons, the expanded picker and disabled duplicate assignment. Narrow views wrap buttons/text and expose lower content by vertical scrolling. No blocking layout defect was found. **Minor visual limitation:** long selected names truncate in the compact management/assignment combo boxes; full names remain readable in chips/filter labels. Render fixtures use synthetic stub catalog counts; actual count correctness is covered by SQLite query/workflow tests. These captures and bound tests do not establish human keyboard/mouse/Narrator acceptance.
+
+Final whitespace checks cover the full M22.7 slice, including the capture extension and completion documentation. Local Markdown target-existence checks passed **165 targets / zero missing**, for README and this document; evidence `TestResults/m227-documentation-links.json`, reproducible with the retained local `TestResults/m227-check-doc-links.ps1`. External URLs and fragment/anchor validation are outside that target-existence check. Only documentation changed after the passing runtime gate, so it was not repeated.
+
+**M22.7 local automated Release verification is complete.** Human interaction, actual native-process restart and matching-source CI remain **unverified**. The local gate used **586.887 s**, approximately **13.113 s** below CI's configured **600 s** test-step timeout before wrapper/runner overhead; hosted timing margin is not assured. No production/provider access, publication, new EF/schema work or M22.8 implementation was performed. Notebook image ownership/backup and linked-target workflows remain deferred to their planned slices.
+
+### Exact final M22.7 changed-file inventory
+
+Relative to starting HEAD **`4520b3f782453ff5ef1bdeac509b765fac7b7099`**, M22.7 contains **8 modified + 4 added files**. The implementation is committed in `97b0ee8…`; this completion additionally edits only `README.md`, `docs/notebook.md`, and the existing `NotebookTagViewTests.cs` capture harness, leaving them uncommitted. Durable local test/log/render artifacts are ignored evidence, not additional source files.
+
+Modified:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Application/Notebook/NotebookQueries.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Queries.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs`
+
+Added:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Tags.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookTagWorkflowTests.cs`
 
 ## M22.6 — autosave, concurrency and durable recovery
 
@@ -580,7 +646,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.4 | Shell workspace, folders, responsive navigation and guards | Implemented; verification above |
 | M22.5 | Rich-text adapter, protected image references, safe paste, manual Save and draft guards | Implemented; automated verification and live/CI limits above |
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
-| M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; focused verification 90/90 Desktop, 99/99 Infrastructure; final Release acceptance pending above |
+| M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
 | M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | Pending |
 | M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
