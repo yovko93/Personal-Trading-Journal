@@ -88,7 +88,7 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
                         note.SaveDraft(editor.Title, editor.Document, editor.Images, now);
                         encoded = codec.Encode(note.Document);
                         break;
-                    case AddNotebookImage or UpdateNotebookImage or RemoveNotebookImage:
+                    case AddNotebookImage or PlaceNotebookImage or UpdateNotebookImage or RemoveNotebookImage:
                         var imageStatus = await ApplyImageCommand(db, note, command, now, ct);
                         if (imageStatus != NotebookWriteStatus.Success) return new(imageStatus);
                         try { encoded = codec.Encode(note.Document); }
@@ -168,6 +168,7 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
         SaveNotebookImageDraft x => (x.NoteId, x.ExpectedVersion),
         SaveNotebookDraft x => (x.NoteId, x.ExpectedVersion),
         AddNotebookImage x => (x.NoteId, x.ExpectedVersion), UpdateNotebookImage x => (x.NoteId, x.ExpectedVersion),
+        PlaceNotebookImage x => (x.NoteId, x.ExpectedVersion),
         RemoveNotebookImage x => (x.NoteId, x.ExpectedVersion),
         UpdateNotebookTitle x => (x.NoteId, x.ExpectedVersion), UpdateNotebookContent x => (x.NoteId, x.ExpectedVersion),
         MoveNotebookNote x => (x.NoteId, x.ExpectedVersion), SetNotebookPin x => (x.NoteId, x.ExpectedVersion),

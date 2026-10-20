@@ -36,9 +36,10 @@ public sealed partial class NotebookWorkspaceViewModel
         return images.ToImmutable();
     }
 
-    /// <summary>Import owns the canonical append exactly once. The editor then applies a native,
-    /// undoable insertion at its live bookmark; its next save reconciles placement/selection and newer typing.</summary>
-    public async Task<bool> ImportImageAsync(Guid noteId, byte[] bytes, Action<NotebookNode> insert)
+    /// <summary>Import commits the final candidate once. Acknowledgement updates the editor without
+    /// replacing newer typing; only edits made after the candidate was captured need another save.</summary>
+    public async Task<bool> ImportImageAsync(Guid noteId, byte[] bytes, Action<NotebookNode> insert,
+        Func<NotebookNode, NotebookDocument>? placement = null)
     {
         if (_preparingImage || _imageOperation || _images is null || Note?.Id != noteId || !CanEditBody || _recoveryConflict) return false;
         _preparingImage = true;
@@ -53,7 +54,7 @@ public sealed partial class NotebookWorkspaceViewModel
             if (IsDirty && !await SaveDraftAsync()) { Message = "Save pending content before inserting the image. Your selection is unchanged."; return false; }
             if (!CanMutate || Note?.Id != noteId || !ReferenceEquals(activation, _lifetime)) return false;
             var captured = Note; var node = NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid());
-            var proposed = new NotebookDocument(captured.Document.Blocks.Append(node));
+            var proposed = placement?.Invoke(node) ?? new NotebookDocument(captured.Document.Blocks.Append(node));
             ValidateDocument(proposed);
             _imageOperation = true; IsSaving = true; StopDebounce(); DraftChanged();
             bool applied = false;
@@ -62,7 +63,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 await MutateAsync(async ct =>
                 {
                     using var input = new MemoryStream(bytes, false);
-                    var result = await Task.Run(() => _images.ImportAsync(new(noteId, captured.Version, node.ImageId!.Value, proposed), input, ct), ct);
+                    var result = await Task.Run(() => _images.ImportAsync(new(noteId, captured.Version, node.ImageId!.Value, proposed, placement is not null), input, ct), ct);
                     if (_disposed || !_active || !ReferenceEquals(activation, _lifetime) || Note?.Id != noteId) return;
                     if (result.Status != NotebookWriteStatus.Success || result.Note is not { } saved || saved.Id != noteId ||
                         saved.Version != captured.Version + 1 || Signature(saved.Title, saved.Document) != Signature(captured.Title, proposed))

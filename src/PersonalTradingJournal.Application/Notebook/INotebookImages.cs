@@ -18,8 +18,9 @@ public sealed class UnavailableNotebookImageValidator : INotebookImageValidator
 public sealed record NotebookStoredImage(string StorageKey, long SizeBytes, string Sha256);
 public sealed record NotebookImageContent(NotebookImageStatus Status, NotebookStoredImage? Metadata = null, byte[]? Original = null);
 /// <summary>The caller owns Content's stream. Document is the entire proposed document, including the new ImageId.
-/// Other nodes remain exact. Position/caption/alt text derive from the image node, never a separate projection.</summary>
-public sealed record ImportNotebookImage(Guid NoteId, long ExpectedVersion, Guid ImageId, NotebookDocument Document);
+/// Other nodes remain exact unless EditorPlacement supplies the validated editor's selection replacement/paragraph split.
+/// Position/caption/alt text derive from the image node, never a separate projection.</summary>
+public sealed record ImportNotebookImage(Guid NoteId, long ExpectedVersion, Guid ImageId, NotebookDocument Document, bool EditorPlacement = false);
 public interface INotebookImages
 {
     Task<NotebookWriteResult> ImportAsync(ImportNotebookImage request, Stream content, CancellationToken token = default);

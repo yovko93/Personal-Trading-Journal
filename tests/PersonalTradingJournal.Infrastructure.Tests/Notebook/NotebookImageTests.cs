@@ -10,7 +10,7 @@ using PersonalTradingJournal.Infrastructure.Storage;
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Notebook;
 
-public sealed class NotebookImageTests
+public sealed partial class NotebookImageTests
 {
     internal static readonly byte[] Png = Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
     internal sealed class Probe(NotebookImageProbe? result = null) : INotebookImageValidator

@@ -54,16 +54,35 @@ public partial class NotebookWorkspaceView
         var paragraph = start.Paragraph;
         var trial = NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid());
         NotebookEditorAdapter.InsertImage(Preview, trial, start, end, model.ValidateDocument, trialOnly: true);
-        var operation = model.ImportImageAsync(id, bytes, image =>
+        NotebookDocument? candidate = null; long candidateRevision = 0;
+        void CheckBookmark()
         {
             if (!ReferenceEquals(_model, model) || Preview.Document != document || model.Note?.Id != id)
                 throw new ArgumentException("The insertion position is no longer available.");
             if (paragraph is not null && paragraph.Parent is null ||
                 (replacing || paragraph is null) && selectedRevision != model.DraftRevision)
                 throw new ArgumentException("Content changed while importing. Your newer draft is preserved; choose the position again.");
+        }
+        var operation = model.ImportImageAsync(id, bytes, image =>
+        {
+            CheckBookmark();
             EnableReferenceHistory();
-            NotebookEditorAdapter.InsertImage(Preview, image, start, end, model.ValidateDocument, CreateImageBlock);
+            if (model.DraftRevision == candidateRevision)
+            {
+                // Publish the exact committed node identities, including generated paragraph/run splits.
+                // Rendering is guarded so no intermediate empty editor becomes an autosave draft.
+                _updating = true;
+                try { Preview.Document = document = NotebookEditorAdapter.Create(candidate!, CreateImageBlock); }
+                finally { _updating = false; }
+                var block = NotebookEditorAdapter.Images(document).Single(b => ((NotebookNode)b.Tag).ImageId == image.ImageId);
+                Preview.CaretPosition = block.NextBlock!.ContentStart;
+            }
+            else NotebookEditorAdapter.InsertImage(Preview, image, start, end, model.ValidateDocument, CreateImageBlock);
             BodyChanged(Preview, null!); UpdateUndo();
+        }, image =>
+        {
+            CheckBookmark(); candidateRevision = model.DraftRevision;
+            return candidate = NotebookEditorAdapter.InsertImage(Preview, image, start, end, model.ValidateDocument, trialOnly: true);
         });
         ImageOperationTask = operation;
         bool inserted = await operation;

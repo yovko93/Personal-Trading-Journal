@@ -24,19 +24,23 @@ public sealed class NotebookImageService(IDbContextFactory<JournalDbContext> fac
             if (loaded.Status == NotebookLoadStatus.NotFound) return new(NotebookWriteStatus.NotFound);
             if (loaded.Note is not { } note) return new(NotebookWriteStatus.UnsupportedContent);
             if (note.Version != request.ExpectedVersion) return new(NotebookWriteStatus.Conflict);
-            if (note.Images.Length >= NotebookLimits.Images) return new(NotebookWriteStatus.TooLarge);
+            if (!request.EditorPlacement && note.Images.Length >= NotebookLimits.Images) return new(NotebookWriteStatus.TooLarge);
             await using (var ownership = await factory.CreateDbContextAsync(token))
                 if (await ownership.NotebookOwnedImageFiles.AnyAsync(x => x.Id == request.ImageId, token)) return new(NotebookWriteStatus.Invalid);
             if (note.State != NotebookNoteState.Active || note.Images.Any(x => x.Id == request.ImageId)) return new(NotebookWriteStatus.Invalid);
-            if (request.Document.ImageNodes.Count != note.Images.Length + 1) return new(NotebookWriteStatus.Invalid);
+            if (request.Document.ImageNodes.Count > NotebookLimits.Images ||
+                (!request.EditorPlacement && request.Document.ImageNodes.Count != note.Images.Length + 1)) return new(NotebookWriteStatus.Invalid);
             var node = request.Document.ImageNodes.Single(n => n.ImageId == request.ImageId);
-            if (codec.Encode(NotebookService.WithoutImage(request.Document, request.ImageId)).Json != codec.Encode(note.Document).Json)
+            if (!request.EditorPlacement && codec.Encode(NotebookService.WithoutImage(request.Document, request.ImageId)).Json != codec.Encode(note.Document).Json)
                 return new(NotebookWriteStatus.Invalid);
             codec.Encode(request.Document); // Enforce the unchanged canonical document bound before staging bytes.
             staged = await files.StageAsync(note.Id, request.ImageId, content, token);
             var added = NotebookImage.Owned(request.ImageId, 0, staged.StorageKey, staged.SizeBytes, staged.Sha256, node.Caption, node.AlternativeText);
             var images = request.Document.ImageNodes.Select((n, i) => NotebookService.At(n.ImageId == request.ImageId ? added : note.Images.Single(x => x.Id == n.ImageId), i)).ToImmutableArray();
-            result = await notes.ExecuteAsync(new AddNotebookImage(note.Id, note.Version, added.Id, request.Document, images), token);
+            NotebookCommand command = request.EditorPlacement
+                ? new PlaceNotebookImage(note.Id, note.Version, added.Id, request.Document, images)
+                : new AddNotebookImage(note.Id, note.Version, added.Id, request.Document, images);
+            result = await notes.ExecuteAsync(command, token);
             if (result.Status == NotebookWriteStatus.Success) return result;
         }
         catch (OperationCanceledException) { result = new(NotebookWriteStatus.Cancelled); }

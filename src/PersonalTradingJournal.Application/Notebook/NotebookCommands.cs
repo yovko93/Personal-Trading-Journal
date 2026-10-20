@@ -39,6 +39,10 @@ public sealed record DeleteNotebookNote(Guid NoteId, long ExpectedVersion, bool 
 // cannot leave the searchable projection or another block out of sync. The handler checks the named operation's delta.
 public sealed record AddNotebookImage(Guid NoteId, long ExpectedVersion, Guid AddedImageId,
     NotebookDocument Document, ImmutableArray<NotebookImage> Images) : NotebookCommand;
+/// <summary>Admit one staged original and save its final editor placement, including selection replacement.
+/// Remaining references must preserve their existing immutable ownership and node identities.</summary>
+public sealed record PlaceNotebookImage(Guid NoteId, long ExpectedVersion, Guid AddedImageId,
+    NotebookDocument Document, ImmutableArray<NotebookImage> Images) : NotebookCommand;
 public sealed record UpdateNotebookImage(Guid NoteId, long ExpectedVersion, Guid ImageId,
     NotebookDocument Document, ImmutableArray<NotebookImage> Images) : NotebookCommand;
 public sealed record RemoveNotebookImage(Guid NoteId, long ExpectedVersion, Guid RemovedImageId,

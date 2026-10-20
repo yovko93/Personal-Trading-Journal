@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.8B1 — Atomic Notebook image placement
+
+Image import now commits the intended editor position, paragraph/selection changes, ordered image metadata, retained ownership and one note-version advance in the same SQLite transaction. The previous append-then-autosave sequence could expose an unintended tail position after interruption. File admission/staging remains preparatory; it cannot publish an intermediate canonical note. Newer editor revisions remain dirty and protected. [Transaction boundaries, interruption evidence and exact inventory](docs/notebook.md#m228b1--atomic-image-placement).
+
+Baseline/HEAD: clean `develop`, **`aa75cdc884e1c9acff7bb15fee4c75296c2507dd`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; no unrelated starting changes. **M22.8B1 focused implementation/verification complete:** Release **111/111 Desktop**, **521/521 Infrastructure** (including eight new boundary/order/recovery cases), **13/13 Application**, zero failures/skips, all exits **0**. Affected builds have **zero warnings/errors**; EF, whitespace and **168 local documentation targets / zero missing** pass. Evidence: `TestResults/m228b1-verified/summary.json`; exact **14 modified + 1 added** files and commands are in the Notebook report. Overall **M22.8 acceptance and the complete M22.8C Release gate remain pending**. Native-process restart, human interaction and matching CI remain unverified; no production/provider access, Git publication or reclamation.
+
 ## M22.8B — Notebook Desktop image integration
 
 Implemented local-file insertion and image paste, bounded inline previews, wrapped captions, explicit original viewing, and caption/order/reference-removal actions. Supported image-bearing bodies remain editable; unsupported/future content stays protected. Native image-object undo is replaced by bounded semantic undo/redo so references, formatting and preview visuals survive restoration. Save/import coordination preserves newer typing, validates selection ownership and retains originals through removal/recovery. [Actions, coordination, compatibility, evidence and exact inventory](docs/notebook.md#m228b--desktop-image-integration).

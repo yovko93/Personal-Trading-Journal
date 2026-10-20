@@ -23,10 +23,12 @@ public sealed class NotebookImageCoordinationTests
         int applied = 0; var before = vm.Note!;
         vm.DraftTitle = "Flush first";
         var operation = vm.ImportImageAsync(before.Id, [1, 2], node =>
-        { applied++; vm.SetDraftDocument(new(vm.DraftDocument.Blocks.Append(node))); });
+        { applied++; vm.SetDraftDocument(new(vm.DraftDocument.Blocks.Append(node))); },
+            node => new([NotebookEditingTests.Text("Orig").Blocks.Single(), node, NotebookEditingTests.Text("inal").Blocks.Single()]));
         try
         {
             var request = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(request.EditorPlacement); Assert.Equal("Orig\n\ninal\n", request.Document.PlainText);
             Assert.Equal(before.Version + 1, request.ExpectedVersion); Assert.Equal("Flush first", vm.Note!.Title);
             Assert.False(await vm.PrepareLeaveAsync()); Assert.False(vm.TryLeave());
             vm.SelectedNote = null; Assert.Equal(before.Id, vm.Note.Id);

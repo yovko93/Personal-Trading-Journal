@@ -1,4 +1,5 @@
 using System.IO;
+using System.Collections.Immutable;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -110,6 +111,10 @@ public sealed class NotebookImageEditorTests
                 var inserted = NotebookEditorAdapter.Read(editor.Document);
                 Assert.Equal("Before \n\n after\nIllustrative chart · NQ, 5m\nRetained reference with unavailable original\nReview the context before forming a conclusion.\n", inserted.PlainText);
                 Assert.Equal(3, inserted.ImageNodes.Count); Assert.Equal(input.Bytes, imports.LastBytes);
+                Assert.False(vm.IsDirty);
+                Assert.Equal(codec.Encode(inserted).Json, codec.Encode(vm.Note!.Document).Json);
+                Assert.Equal(inserted.ImageNodes.Select(n => n.ImageId!.Value), vm.Note.Images.Select(i => i.Id));
+                Assert.Equal(new[] { 0, 1, 2 }, vm.Note.Images.Select(i => i.Position));
                 Assert.True(PumpResult(vm.SaveDraftAsync()));
                 ApplicationCommands.Undo.Execute(null, editor); Assert.Equal(original, codec.Encode(NotebookEditorAdapter.Read(editor.Document)).Json);
                 Assert.True(PumpResult(vm.SaveDraftAsync())); ApplicationCommands.Redo.Execute(null, editor);
@@ -159,7 +164,7 @@ public sealed class NotebookImageEditorTests
                 ApplicationCommands.Paste.Execute(null, editor); Pump(view.ImageOperationTask);
                 Assert.Equal(encoded, imports.LastBytes); Assert.Equal(4, vm.DraftDocument.ImageNodes.Count);
                 Assert.True(PumpResult(vm.SaveDraftAsync()));
-                // Selected content changed during async import: preserve newer typing and remove the canonical staging reference on save.
+                // Selected content changed during async import: preserve newer typing; its later save is a new edit.
                 paragraph = (Paragraph)editor.Document.Blocks.FirstBlock!;
                 selected = paragraph.Inlines.FirstInline!;
                 editor.Selection.Select(selected.ContentStart, selected.ContentEnd);
@@ -222,8 +227,16 @@ public sealed class NotebookImageEditorTests
             int index = data.Notes.FindIndex(x => x.Id == request.NoteId); var previous = data.Notes[index];
             if (previous.Version != request.ExpectedVersion) return new(NotebookWriteStatus.Conflict);
             var node = request.Document.ImageNodes.Single(x => x.ImageId == request.ImageId);
+            var known = previous.Images.ToDictionary(x => x.Id);
+            known.Add(request.ImageId, NotebookImage.Owned(request.ImageId, 0, $"{request.ImageId:N}.png", 1, new string('A', 64), node.Caption, node.AlternativeText));
             var saved = previous with { Document = request.Document, Version = previous.Version + 1,
-                Images = previous.Images.Add(NotebookImage.Owned(request.ImageId, previous.Images.Length, $"{request.ImageId:N}.png", 1, new string('A', 64), node.Caption, node.AlternativeText)) };
+                Images = request.Document.ImageNodes.Select((n, i) =>
+                {
+                    var image = known[n.ImageId!.Value];
+                    return image.Ownership == NotebookImageOwnership.NoteOwned
+                        ? NotebookImage.Owned(image.Id, i, image.StorageKey!, image.SizeBytes!.Value, image.Sha256!, n.Caption, n.AlternativeText)
+                        : NotebookImage.TradeReference(image.Id, i, image.TradeId!.Value, image.TradeScreenshotId!.Value, n.Caption, n.AlternativeText);
+                }).ToImmutableArray() };
             data.Notes[index] = saved; return new(NotebookWriteStatus.Success, saved);
         }
         public Task<NotebookImageContent> ReadOriginalAsync(Guid noteId, Guid imageId, CancellationToken token = default)

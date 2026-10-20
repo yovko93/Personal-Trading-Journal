@@ -1,6 +1,94 @@
 # Notebook
 
-Current checkpoint: **M22.8B Desktop image integration; M22.8 overall acceptance pending**. Logical export **v17**, canonical JSON **v1**, current-schema archive **v1** and M22.8A retention remain unchanged. Desktop insertion, previews and reference editing are implemented below. Complete Release acceptance belongs to **M22.8C**; duplication/permanent deletion, reclamation, linked-target navigation and integrated M22.11 acceptance remain deferred. Earlier milestone sections are historical decisions/results.
+Current checkpoint: **M22.8B1 atomic image placement; M22.8 overall acceptance pending**. Logical export **v17**, canonical JSON **v1**, current-schema archive **v1** and M22.8A retention remain unchanged. Desktop insertion, previews and reference editing are implemented below. Complete Release acceptance belongs to **M22.8C**; duplication/permanent deletion, reclamation, linked-target navigation and integrated M22.11 acceptance remain deferred. Earlier milestone sections are historical decisions/results.
+
+## M22.8B1 — Atomic image placement
+
+20 October 2026. Actual baseline and unchanged HEAD: **clean `develop`, `aa75cdc884e1c9acff7bb15fee4c75296c2507dd`**, sole existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`, containing the verified B implementation. Repository/ancestor guidance, this contract, import/placement, ownership ledger, save/checkpoint/recovery and prior artifacts were inspected first. No applicable `AGENTS.md` or duplicate active test run was found. One agent, no subagents; all existing implementation is preserved.
+
+### Cause and transaction boundaries
+
+Previously the ViewModel constructed an appended-image document. `NotebookImageService.ImportAsync` staged the original and invoked `AddNotebookImage`, whose strict delta validation permitted only an isolated attachment addition. The first SQLite commit advanced the version and saved that appended document, derived search projection, image metadata and ownership ledger. Only after acknowledgement did the view split paragraphs/replace its selection at a live bookmark. A second ordinary autosave committed that position and another version. Thus the first commit made the image canonical at the tail, and interruption before the second write preserved that unintended placement. A dirty draft could also require a separate preceding flush; it was not the cause of the placement gap.
+
+The corrected Desktop route captures the final validated cloned editor candidate **after draining pending autosave and flushing the dirty draft**, before asynchronous admission. The candidate contains the real new attachment/node IDs, selection replacement, split paragraph/run IDs and intended image position. `ImportNotebookImage.EditorPlacement` selects the explicit `PlaceNotebookImage` command; legacy isolated additions retain their strict unchanged-other-nodes contract. This extension permits editor text/structure changes and removal of selected references, while remaining references must preserve immutable file/Trade ownership and node identity. It cannot introduce a second new or rebound attachment.
+
+The transaction sequence is now:
+
+1. Bound, decode/admit, hash and copy the original bytes to a private temporary file; flush/close and publish a fresh managed filename. This preparatory filesystem operation changes no canonical note or current image row. A failure/cancellation before publication removes only the operation's private temporary file.
+2. Acquire the existing immediate SQLite writer transaction and recheck the note's expected version and lifecycle. Verify the new managed original and decoder admission, adopt existing owned references into retention, and add/verify the new ledger identity. Save the **final candidate document**, searchable projection and exact ordered metadata; advance the note version **once**. Verified readback and the existing last cancellation boundary precede the non-cancellable commit. All these database changes roll back together on rejection/failure.
+3. Acknowledge only verified success. If the editor revision is unchanged, render the exact committed candidate under the existing update guard, preserving semantic undo history and the following-paragraph caret; it is Saved without a placement autosave. If typing/title changes occurred meanwhile, a still-valid live bookmark applies the same identity to that newer draft and it remains dirty. A changed nonempty selection/removed anchor is never overwritten; the newer draft remains available for its ordinary guarded save. That later write represents newer editing, not a required correction to canonical placement.
+
+Before canonical commit, a fresh reader sees the previous exact note and no new current reference/ledger row. After commit, including before client acknowledgement, a fresh reader sees the intended middle position with matching metadata/ownership and the single version advance. Lost acknowledgement uses the existing fresh, non-cancelled ledger/document resolution; uncertain outcomes retain bytes and report uncertainty. Precommit failures compensate published uncommitted files only after the existing writer-locked ownership/recovery recheck. Abrupt death after file publication but before the database commit can leave unreferenced bytes; no reclamation is introduced. There is **no restart-time or background compensating move**.
+
+The existing exclusive import ownership, lifetime cancellation, navigation veto and disposal drain remain. A stale expected version preserves newer persisted content. Later saves/checkpoints use the acknowledged version; stale recovery remains conflict-protected. Removal, selection replacement and undo do not reclaim originals. Restored references continue to resolve through the same note's immutable retained ledger, including missing-file placeholders. Original bytes, document JSON **1**, logical export **17**, archive **1** and exact archive inventories are unchanged.
+
+### Focused verification
+
+Eight new deterministic Infrastructure cases cover middle-paragraph replacement before commit, committed-before-acknowledgement fresh reads, private preparation failure/cancellation, cancellation after staging and at the final precommit boundary, a newer-content conflict after staging, consecutive middle placements, exact metadata/order/version and retained originals through undo/redo and a freshly loaded recovery checkpoint. All eight passed in `TestResults/m228b1-verified/atomic-boundaries.trx`. Fresh service/context instances are used at interruption/recovery boundaries; these are **not native-process restart tests**.
+
+Desktop coverage additionally asserts exact committed editor JSON and ordered metadata immediately on insertion, with no dirty placement save. The real SQLite/Windows-decoder test now inserts between paragraphs, verifies the separate dirty flush plus exactly one image commit, and retains its original-byte, preview/file-handle and fresh-workspace recovery checks. Existing coordination tests now exercise the final-placement contract with newer typing/disposal. Existing exact JSON/content assertions, canonical paragraph newlines, deadlines and concurrency settings remain intact.
+
+**M22.8B1 focused implementation/verification is complete.** Final affected Release builds passed with **zero warnings/errors**: Desktop/tests **9.62 s** (`TestResults/m228b1-desktop-build-focused.log`), Infrastructure/tests **12.41 s** (`m228b1-infrastructure-build.log`), Application/tests **3.47 s** (`m228b1-application-build.log`). The earlier successful Desktop build (**55.93 s**, `m228b1-desktop-build.log`) precedes the final coordination-test extension. No runtime source changed after the final builds/runs.
+
+Evidence root: **`TestResults/m228b1-verified/`**; `summary.json` records actual commands/exits/counters, baseline, source/binary hashes, checks and exact inventory. Every focused run exited **0**, with zero failures/skips:
+
+| Final focused run | Passed / total | Reported test duration | TRX under evidence root |
+| --- | ---: | --- | --- |
+| Desktop — all Notebook editor, image, autosave, recovery, tag, navigation and SQLite cases | 111 / 111 | 3m4s | `desktop-focused.trx` |
+| Infrastructure — Notebook/storage/schema/export/archive/restore and attachment compatibility | 521 / 521 | 3m44s | `infrastructure-focused.trx` |
+| Application — Notebook contracts | 13 / 13 | 73 ms | `application-focused.trx` |
+
+The earlier **8/8** boundary-only run (**5 s**, `atomic-boundaries.trx`) overlaps the 521 Infrastructure cases and is not added again. **20 final isolated report/log sets** are preserved in `isolated/`. All **12 regenerated renders** are preserved in `renders/notebook-image-renders/` using `{Light|Dark}-{1280-96|480-240}-{codec-error|inline-caption-missing|missing-and-actions}.png`. The four inline-caption-missing theme/size combinations were inspected in B1: aspect ratio, caption wrapping, placeholder and Dark contrast remain readable; no blocking visual regression was found. Narrow content retains the established inner/outer scrolling and viewport clipping. These are synthetic renders, not live-shell acceptance.
+
+EF reports **no pending model changes** in `ef-consistency.txt`. Final tracked/added whitespace and **168 local Markdown target-existence checks / zero missing** pass; URL and anchor validation are outside that documentation check. `inventory-check.json` confirms the exact inventory below. An initial whitespace invocation with `core.autocrlf=false` exited **2**, treating the existing README CRLF endings as trailing whitespace; its output is preserved in `whitespace-raw-crlf.txt`. The repository-configured `git diff --check` passes, without changing whitespace rules or content assertions. New-file `git diff --no-index --check -- NUL <path>` exit 1 with no whitespace diagnostics is the normal added-file diff. Only documentation/evidence changed afterward; passing runtime runs were not repeated solely for documentation edits. **No complete Release gate or Calendar/headroom measurement was run.**
+
+Commands actually used (Infrastructure's focused portability fixtures ran with their required Windows symlink/isolated synthetic DPAPI capabilities):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b1-desktop-build-focused.log
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b1-infrastructure-build.log
+dotnet build tests/PersonalTradingJournal.Application.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b1-application-build.log
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~FinalMiddlePlacement|FullyQualifiedName~ConsecutiveMiddlePlacements' --logger 'trx;LogFileName=atomic-boundaries.trx' --results-directory TestResults/m228b1-verified --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=desktop-focused.trx' --results-directory TestResults/m228b1-verified --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests|FullyQualifiedName~TradingRulePersistenceTests|FullyQualifiedName~TradingRulePortabilityTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~PlaybookImagePersistenceTests|FullyQualifiedName~DailyTradingPrincipleTests|FullyQualifiedName~SharedTradingPlanTests|FullyQualifiedName~TradingPlanPortabilityTests|FullyQualifiedName~LocalTradeScreenshotFileStorageTests' --logger 'trx;LogFileName=infrastructure-focused.trx' --results-directory TestResults/m228b1-verified --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Application.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=application-focused.trx' --results-directory TestResults/m228b1-verified -v minimal
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+git diff --no-index --check -- NUL tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImagePlacementTests.cs
+pwsh -NoProfile -File TestResults/m228b1-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m228b1-summarize.ps1
+```
+
+### Exact M22.8B1 changed-file inventory
+
+Relative to clean baseline `aa75cdc884e1c9acff7bb15fee4c75296c2507dd`: **14 modified + 1 added file**, uncommitted. B's historical inventory below belongs to its earlier checkpoint; its implementation is already in this baseline. Ignored TestResults evidence/checkers are outside the source inventory.
+
+Modified:
+
+```text
+README.md
+docs/notebook.md
+src/PersonalTradingJournal.Application/Notebook/INotebookImages.cs
+src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Images.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.Images.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Images.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageService.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Images.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageAdmissionTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageCoordinationTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageEditorTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImageTests.cs
+```
+
+Added:
+
+```text
+tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImagePlacementTests.cs
+```
+
+**M22.8 overall acceptance remains pending. Stop before M22.8C.** Human keyboard/mouse/Narrator, real clipboard/picker/viewer, native-process restart, actual installed-codec WebP success and matching-source CI remain unverified. No production/provider access, Git publication, file reclamation or M22.9 work occurred.
 
 ## M22.8B — Desktop image integration
 
@@ -18,7 +106,7 @@ Inline previews use the existing bounded decoder (longest preview dimension at m
 
 ### Save coordination, undo and retention
 
-Import drains an in-flight checkpoint/save and saves pending dirty content before capturing the current note/version. A's import already commits a document and reference: it appends the new reference **once** to the canonical note. On verified success the editor applies that same identity at its still-valid live bookmark. Placement/selected-content replacement and any newer typing form a dirty editor draft, reconciled by the normal guarded save/autosave; navigation cannot abandon that draft without its existing save/discard decision. This is deliberately two versioned commits when final placement differs from the append, not an assertion of atomic caret placement across process death. A restart before the second save can expose the successfully imported image at the canonical tail. The editor does not claim newer placement/typing is Saved merely because import completed.
+Import drains an in-flight checkpoint/save and saves pending dirty content before capturing the current note/version. **M22.8B1 supersedes B's original two-write placement sequence:** the final editor candidate, image metadata/ledger and one note-version advance now commit together. See the transaction and interruption verification above. Only newer edits made during import require a subsequent ordinary save; navigation continues to guard that newer dirty draft.
 
 The import owns the existing exclusive write and lifetime cancellation boundary. Navigation is guarded during preparation/import; disposal cancels ownership before draining. Failure retains the draft; serious conflict/storage outcomes pause automatic retries. Rejected formats/codecs do not pause unrelated autosave. A stale selection after a committed import is preserved, and the next draft save removes the unused current reference while retaining its bytes. No second import or duplicate reference is issued.
 

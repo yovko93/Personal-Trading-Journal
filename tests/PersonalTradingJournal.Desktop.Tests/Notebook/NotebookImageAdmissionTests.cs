@@ -60,10 +60,14 @@ public sealed class NotebookImageAdmissionTests
             var note = (await notes.ExecuteAsync(new CreateNotebookNote())).Note!;
             using var vm = new NotebookWorkspaceViewModel(notes, new FakeDialogService(), codec: codec, recovery: recovery, time: new NotebookClock(), images: images);
             await vm.ActivateAsync(); vm.SelectedNote = vm.Notes.Single(); await vm.LoadTask;
-            vm.SetDraftDocument(NotebookEditingTests.Text("Draft with image")); byte[] original = Encode(720, 180);
-            Assert.True(await vm.ImportImageAsync(note.Id, original, node => vm.SetDraftDocument(new(vm.DraftDocument.Blocks.Append(node)))));
+            var before = NotebookEditingTests.Text("Draft before").Blocks.Single(); var after = NotebookEditingTests.Text("Draft after").Blocks.Single();
+            vm.SetDraftDocument(new([before, after])); byte[] original = Encode(720, 180); NotebookDocument? placed = null;
+            Assert.True(await vm.ImportImageAsync(note.Id, original, _ => vm.SetDraftDocument(placed!),
+                node => placed = new([before, node, after])));
             Assert.False(vm.IsDirty); var saved = vm.Note!; var image = saved.Images.Single();
-            Assert.Equal("Draft with image\n\n", saved.Document.PlainText);
+            Assert.Equal(note.Version + 2, saved.Version); // Dirty flush, then exactly one canonical image placement.
+            Assert.Equal("Draft before\n\nDraft after\n", saved.Document.PlainText);
+            Assert.Equal(codec.Encode(placed!).Json, codec.Encode((await new NotebookService(factory, codec, imageFiles: files).LoadAsync(note.Id)).Note!.Document).Json);
             var preview = await new NotebookImagePresentation(images, new NoTrade()).PreviewAsync(note.Id, image, CancellationToken.None);
             Assert.True(preview.IsFrozen); Assert.InRange(((BitmapSource)preview).PixelWidth, 1, 384);
             using (File.Open(Path.Combine(paths.ScreenshotsDirectory, image.StorageKey!), FileMode.Open, FileAccess.Read, FileShare.None)) { }

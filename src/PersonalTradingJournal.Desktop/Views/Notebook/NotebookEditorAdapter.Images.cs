@@ -6,7 +6,7 @@ namespace PersonalTradingJournal.Desktop.Views.Notebook;
 
 internal static partial class NotebookEditorAdapter
 {
-    internal static void InsertImage(RichTextBox editor, NotebookNode image, TextPointer start, TextPointer end,
+    internal static NotebookDocument InsertImage(RichTextBox editor, NotebookNode image, TextPointer start, TextPointer end,
         Action<NotebookDocument> validate, Func<NotebookNode, BlockUIContainer>? factory = null, bool trialOnly = false)
     {
         // Trial uses the exact text-container shape; no selection replacement before full admission.
@@ -15,9 +15,10 @@ internal static partial class NotebookEditorAdapter
         var trial = new RichTextBox { Document = copy };
         int a = editor.Document.ContentStart.GetOffsetToPosition(start), b = editor.Document.ContentStart.GetOffsetToPosition(end);
         trial.Selection.Select(copy.ContentStart.GetPositionAtOffset(a)!, copy.ContentStart.GetPositionAtOffset(b)!);
-        InsertCore(trial, image, null); validate(Read(copy));
-        if (trialOnly) return;
+        InsertCore(trial, image, null); var candidate = Read(copy); validate(candidate);
+        if (trialOnly) return candidate;
         editor.Selection.Select(start, end); InsertCore(editor, image, factory);
+        return Read(editor.Document);
     }
     private static void InsertCore(RichTextBox editor, NotebookNode image, Func<NotebookNode, BlockUIContainer>? factory)
     {

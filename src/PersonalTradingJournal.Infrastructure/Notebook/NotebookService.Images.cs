@@ -79,6 +79,7 @@ public sealed partial class NotebookService
         var (id, document, images, adding, removing) = command switch
         {
             AddNotebookImage c => (c.AddedImageId, c.Document, c.Images, true, false),
+            PlaceNotebookImage c => (c.AddedImageId, c.Document, c.Images, true, false),
             UpdateNotebookImage c => (c.ImageId, c.Document, c.Images, false, false),
             RemoveNotebookImage c => (c.RemovedImageId, c.Document, c.Images, false, true),
             _ => throw new ArgumentException()
@@ -88,14 +89,17 @@ public sealed partial class NotebookService
         var old = note.Images.SingleOrDefault(x => x.Id == id);
         var changed = images.SingleOrDefault(x => x.Id == id);
         if (adding ? old is not null || changed is null : old is null || (removing ? changed is not null : changed is null)) return NotebookWriteStatus.Invalid;
-        if (images.Length != note.Images.Count + (adding ? 1 : removing ? -1 : 0)) return NotebookWriteStatus.Invalid;
+        bool placement = command is PlaceNotebookImage;
+        if (images.Select(x => x.Id).Distinct().Count() != images.Length ||
+            (placement ? images.Length > note.Images.Count + 1 : images.Length != note.Images.Count + (adding ? 1 : removing ? -1 : 0))) return NotebookWriteStatus.Invalid;
         foreach (var image in images.Where(x => x.Id != id))
-            if (note.Images.SingleOrDefault(x => x.Id == image.Id) is not { } original || At(original, 0) != At(image, 0)) return NotebookWriteStatus.Invalid;
+            if (note.Images.SingleOrDefault(x => x.Id == image.Id) is not { } original || At(original, 0) != At(image, 0) ||
+                placement && note.Document.ImageNodes.Single(n => n.ImageId == image.Id).Id != document.ImageNodes.Single(n => n.ImageId == image.Id).Id) return NotebookWriteStatus.Invalid;
         if (!adding && !removing && (At(old!, 0, changed!.Caption, changed.AlternativeText) != At(changed, 0) ||
             note.Document.ImageNodes.Single(n => n.ImageId == id).Id != document.ImageNodes.Single(n => n.ImageId == id).Id)) return NotebookWriteStatus.Invalid;
         try
         {
-            if (codec.Encode(WithoutImage(note.Document, id)).Json != codec.Encode(WithoutImage(document, id)).Json) return NotebookWriteStatus.Invalid;
+            if (!placement && codec.Encode(WithoutImage(note.Document, id)).Json != codec.Encode(WithoutImage(document, id)).Json) return NotebookWriteStatus.Invalid;
         }
         catch (ArgumentOutOfRangeException) { return NotebookWriteStatus.TooLarge; }
         // Adopt existing owned metadata into retention before an edit can remove its last current reference.
