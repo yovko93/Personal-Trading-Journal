@@ -7,6 +7,8 @@ using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Application.PeriodReviews;
 using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 using PersonalTradingJournal.Desktop.ViewModels.DailyReview;
+using PersonalTradingJournal.Application.TradingPlans;
+using PersonalTradingJournal.Desktop.ViewModels.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.PeriodReviews;
 
@@ -15,10 +17,11 @@ public sealed record PeriodHistoryRow(PeriodReviewSummary Source)
     public string Heading => $"{ReviewDisplay.Time(Source.GeneratedAtUtc)} · {ReviewDisplay.Provider(Source.Provider, Source.Model)}";
     public string Scope => Source.Scope.AccountId.HasValue ? $"Exact Account: {Source.AccountDisplayName ?? "Historical Account"}" : "All accounts · aggregate review";
 }
-public sealed record PeriodCitation(string Label, string Detail, Guid? TradeId = null, DailyReviewJournalEvidence? Journal = null)
+public sealed record PeriodCitation(string Label, string Detail, Guid? TradeId = null, DailyReviewJournalEvidence? Journal = null, ReviewPlanRevision? Preparation = null)
 {
     public bool HasTrade => TradeId.HasValue;
     public bool HasJournal => Journal is not null;
+    public bool HasPreparation => Preparation is not null;
 }
 public sealed record PeriodFinding(string Basis, string Text, IReadOnlyList<PeriodCitation> Citations)
 {
@@ -34,6 +37,8 @@ public sealed class PeriodCurrentPresentation
     public PeriodCurrentPresentation(PeriodReviewComparison comparison)
     {
         var current = comparison.Current; var e = current.Evidence;
+        Preparation = new(e.Preparation);
+        PreviousPreparation = new(comparison.Previous.Evidence.Preparation);
         Summary = (current.Population.Closed.Count == 0 ? "No closed trades" : $"{current.Population.Closed.Count} closed Trades") +
             $" · {current.ActiveDays.Count} active trading days · {e.Journals.Count} Journal entries";
         Coverage = ReviewDisplay.ActivityWarning(current.Population) + (current.Currencies.Count > 1 ? " Currencies are separate; no FX conversion or cross-currency total." : "");
@@ -66,6 +71,8 @@ public sealed class PeriodCurrentPresentation
     internal static IReadOnlyList<ReviewMetricRow> MetricsFor(IReadOnlyList<PeriodCurrencyStatistics> currencies) => currencies.SelectMany(c => c.Accounts.Select(a =>
         new ReviewMetricRow($"{ReviewDisplay.Account(a.Account)} · {c.Currency}", c.Currency, a.Statistics.Population, a.Statistics.Gross.Outcomes, a.Statistics.Net.Outcomes, a.Account.Id))).ToArray();
     public string Summary { get; }
+    public ReviewPreparation Preparation { get; }
+    public ReviewPreparation PreviousPreparation { get; }
     public string Coverage { get; }
     public IReadOnlyList<ReviewMetricRow> Metrics { get; }
     public IReadOnlyList<ReviewJournalRow> Journals { get; }
@@ -85,11 +92,13 @@ public sealed class PeriodReport
     public required string Metadata { get; init; }
     public required IReadOnlyList<PeriodCard> Cards { get; init; }
     public required IReadOnlyList<ReviewMetricRow> Metrics { get; init; }
+    public ReviewPreparation Preparation { get; init; } = new(null);
+    public ReviewPreparation PreviousPreparation { get; init; } = new(null);
     public string Notice => "Saved AI interpretation and saved evidence · not current records. Citations identify supplied evidence, not proof that a claim is true.";
     public static bool Matches(PeriodReviewSummary s, PeriodReviewQuery q) => s.Kind == q.Kind && s.FirstDate == q.FirstDate && s.LastDate == q.LastDate && s.Scope.AccountId == q.Scope.AccountId;
     public static PeriodReport Read(SavedPeriodReview saved)
     {
-        if (saved.EvidenceContractVersion is not ("period-coaching.v1" or "period-coaching.v2") || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
+        if (saved.EvidenceContractVersion is not ("period-coaching.v1" or "period-coaching.v2" or "period-coaching.v3" or "period-coaching.v4") || saved.ResponseContractVersion != saved.EvidenceContractVersion ||
             Encoding.UTF8.GetByteCount(saved.EvidenceJson) > (saved.EvidenceContractVersion == "period-coaching.v1" ? PeriodCoachingContract.MaximumPacketBytes : PeriodCoachingContract.MaximumSnapshotBytes) || Encoding.UTF8.GetByteCount(saved.ResponseJson) > PeriodCoachingContract.MaximumResponseBytes)
             throw new InvalidDataException("Unsupported saved period contract.");
         using var doc = JsonDocument.Parse(saved.EvidenceJson, new() { MaxDepth = 64 });
@@ -99,19 +108,37 @@ public sealed class PeriodReport
             S(period, "kind") != saved.Summary.Kind.ToString() || DateOnly.Parse(S(period, "firstDate")) != saved.Summary.FirstDate || DateOnly.Parse(S(period, "lastDate")) != saved.Summary.LastDate ||
             Id(period.GetProperty("scope"), "accountId") != saved.Summary.Scope.AccountId) throw new InvalidDataException("Saved identity mismatch.");
         var sources = content.GetProperty("sources").Deserialize<PeriodCoachingSource[]>(JsonOptions) ?? throw new InvalidDataException();
-        if (saved.EvidenceContractVersion == "period-coaching.v2" &&
+        if (saved.EvidenceContractVersion != "period-coaching.v1" &&
             (S(root.GetProperty("providerProjection"), "packetId") != saved.PacketId ||
              S(root.GetProperty("providerProjection"), "contractVersion") != saved.EvidenceContractVersion))
             throw new InvalidDataException("Saved projection identity mismatch.");
         // v2 citations can reference only the provider projection, never local-only examples.
-        var supplied = saved.EvidenceContractVersion == "period-coaching.v2"
+        var supplied = saved.EvidenceContractVersion != "period-coaching.v1"
             ? root.GetProperty("providerProjection").GetProperty("sources").Deserialize<PeriodCoachingSource[]>(JsonOptions)!
             : sources;
         var map = supplied.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        ReviewPreparation PreparationFor(string side)
+        {
+            var captured = sources.SingleOrDefault(s => s.Id == side + ":preparation");
+            if (captured is null || !captured.Content.GetProperty("captured").GetBoolean()) return new(null);
+            var dates = content.GetProperty(side + "Period");
+            return new(new(DateOnly.Parse(S(dates, "firstDate")), DateOnly.Parse(S(dates, "lastDate")), saved.Summary.Scope.AccountId,
+                captured.Content.GetProperty("days").Deserialize<ReviewPlanDay[]>(JsonOptions)!,
+                sources.Where(s => s.Period == side && s.Kind == PeriodCoachingSourceKind.TradingPlanRevision).Select(s => s.Content.Deserialize<ReviewPlanRevision>(JsonOptions)!).ToArray(),
+                captured.Content.GetProperty("trades").Deserialize<ReviewPlanTradeComparison[]>(JsonOptions)!));
+        }
         PeriodCitation Cite(string id)
         {
             if (!map.TryGetValue(id, out var source)) throw new InvalidDataException("Unknown saved citation.");
             var c = source.Content; string side = source.Period == "previous" ? "Previous period" : source.Period == "both" ? "Both periods" : "Selected period";
+            if (source.Kind == PeriodCoachingSourceKind.TradingPlanRevision)
+            {
+                var p = c.Deserialize<ReviewPlanRevision>(JsonOptions) ?? throw new InvalidDataException();
+                var row = new ReviewPreparationRow(p);
+                return new(side + " · Saved preparation · " + row.Heading, row.Timing + "\n" + row.Focus + "\n" + row.Detail, Preparation: p);
+            }
+            if (source.Kind == PeriodCoachingSourceKind.PreparationComparison)
+                return new(side + " · Saved preparation coverage", "Calculated entry-time eligibility and recorded Instrument/Setup identities only. Retrospective preparation is not applied before entry. Missing preparation and initial risk remain unknown. No adherence score or new Rule violation is calculated.");
             if (source.Kind is PeriodCoachingSourceKind.Trade or PeriodCoachingSourceKind.Execution)
             {
                 Guid tradeId = Id(c, "tradeId") ?? throw new InvalidDataException();
@@ -178,6 +205,7 @@ public sealed class PeriodReport
             Heading = $"{saved.Summary.FirstDate:dd MMM yyyy} – {saved.Summary.LastDate:dd MMM yyyy} · New York · {new PeriodHistoryRow(saved.Summary).Scope}",
             Metadata = $"{(saved.Metadata.Provider == ManualReviewContract.ProviderId ? "Prepared" : "Generated")} {ReviewDisplay.Time(saved.Summary.GeneratedAtUtc)} · {ReviewDisplay.Provider(saved.Metadata.Provider, saved.Metadata.Model)}\nTokens: input {usage?.InputTokens?.ToString() ?? "unknown"}, output {usage?.OutputTokens?.ToString() ?? "unknown"}, total {usage?.TotalTokens?.ToString() ?? "unknown"}. Monetary cost unknown.",
             Metrics = PeriodCurrentPresentation.MetricsFor(currencies),
+            Preparation = PreparationFor("current"), PreviousPreparation = PreparationFor("previous"),
             Cards = [Card("Strengths", response.Strengths), Card("Areas for Improvement", response.AreasForImprovement), Card("Mistakes Observed", response.MistakesObserved), Card("Progress", response.ProgressVersusPreviousPeriod), new("Action Plan", response.ActionPlan.InsufficientEvidence ? "Evidence insufficient" : "At most three measurable next steps", plan)],
         };
     }

@@ -81,7 +81,7 @@ public sealed class PlaybookSqliteViewTests
                     Assert.Equal(2, vm.DisplayedRevision?.Revision);
                     Assert.Equal("Synthetic Market context, revision 2", vm.DisplayedRevision?.Guidance.MarketContext);
                     Assert.Single(vm.DisplayedRevision!.Guidance.Examples);
-                    Assert.Equal(2, vm.Revisions.Count);
+                    Assert.Empty(vm.Revisions);
                     Assert.Equal("Current revision 2", ((TextBlock)view.FindName("Version")).Text);
                     return;
                 }
@@ -142,12 +142,14 @@ public sealed class PlaybookSqliteViewTests
                     // The click, exact next SQLite revision and independent restart read are the oracle.
                     Await(vm.SaveCommand.ExecutionTask);
                     window.UpdateLayout();
-                    Assert.Equal($"Revision {revision} saved.", ((TextBlock)view.FindName("Status")).Text);
+                    Assert.Equal("Playbook saved and verified.", ((TextBlock)view.FindName("Status")).Text);
                     Assert.False(vm.IsEditing, vm.Message);
                     Assert.Equal(setup.Id, vm.SelectedSetup?.Id);
                     Assert.Equal(revision, vm.DisplayedRevision?.Revision);
                     Assert.Equal($"Current revision {revision}", ((TextBlock)view.FindName("Version")).Text);
-                    Assert.Equal(revision, vm.Revisions.Count);
+                    Assert.Empty(vm.Revisions);
+                    using (var persisted = provider.GetRequiredService<IDbContextFactory<JournalDbContext>>().CreateDbContext())
+                    { Assert.Equal(1, persisted.CurrentPlaybooks.Count()); Assert.Empty(persisted.PlaybookRevisions); }
                     Assert.Equal("Edit guidance", vm.EditLabel);
                     Assert.Single(vm.DisplayedRevision!.Guidance.Examples);
                     Assert.True(vm.TryLeave()); vm.Deactivate(); Await(vm.ActivateAsync());
@@ -197,12 +199,12 @@ public sealed class PlaybookSqliteViewTests
         vm.EditorExamples.Add(new(new PlaybookExample(Guid.NewGuid(), "Keep example notes")));
         var example = vm.EditorExamples.Single();
         await using var context = await db.ContextFactory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlRawAsync("CREATE TRIGGER synthetic_reject BEFORE INSERT ON PlaybookRevisions BEGIN SELECT RAISE(ABORT, 'Synthetic write rejection'); END;");
+        await context.Database.ExecuteSqlRawAsync("CREATE TRIGGER synthetic_reject BEFORE INSERT ON CurrentPlaybookExamples BEGIN SELECT RAISE(ABORT, 'Synthetic write rejection'); END;");
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.True(vm.IsEditing); Assert.Contains("could not be saved", vm.Message);
         Assert.All(vm.Fields, field => Assert.Equal("Keep entered " + field.Label, field.Text));
         Assert.Same(example, Assert.Single(vm.EditorExamples));
-        Assert.Equal(existing ? 1 : 0, await context.PlaybookRevisions.CountAsync());
+        Assert.Equal(existing ? 1 : 0, await context.CurrentPlaybooks.CountAsync()); Assert.Empty(await context.PlaybookRevisions.ToArrayAsync());
         await context.Database.ExecuteSqlRawAsync("DROP TRIGGER synthetic_reject;");
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.False(vm.IsEditing, vm.Message); Assert.Equal(existing ? 2 : 1, vm.DisplayedRevision?.Revision);
@@ -215,7 +217,8 @@ public sealed class PlaybookSqliteViewTests
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.True(vm.IsEditing); Assert.Contains("changed", vm.Message);
         Assert.Equal("Stale editor retains this", vm.Fields[0].Text); Assert.Single(vm.EditorExamples);
-        Assert.Equal(existing ? 3 : 2, await context.PlaybookRevisions.CountAsync());
+        Assert.Equal(existing ? 3 : 2, (await context.CurrentPlaybooks.AsNoTracking().SingleAsync()).Version);
+        Assert.Empty(await context.PlaybookRevisions.ToArrayAsync());
         vm.Deactivate(); other.Deactivate();
     }
 

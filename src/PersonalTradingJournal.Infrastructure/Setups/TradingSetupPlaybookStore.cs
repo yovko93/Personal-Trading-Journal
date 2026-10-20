@@ -11,8 +11,90 @@ namespace PersonalTradingJournal.Infrastructure.Setups;
 public sealed class TradingSetupPlaybookStore(IDbContextFactory<JournalDbContext> factory, IPlaybookImageStorage? images = null)
     : ITradingSetupPlaybookStore, ITradingSetupPlaybookHistoryReader
 {
-    public async Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid tradingSetupId, CancellationToken cancellationToken = default) =>
-        (await GetHistoryAsync(tradingSetupId, null, 1, cancellationToken)).SingleOrDefault();
+    public async Task<TradingSetupPlaybookRevision?> GetLatestAsync(Guid tradingSetupId, CancellationToken cancellationToken = default)
+    {
+        ValidateId(tradingSetupId);
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        return await ReadCurrentAsync(db, tradingSetupId, cancellationToken);
+    }
+
+    internal static async Task<TradingSetupPlaybookRevision?> ReadCurrentAsync(JournalDbContext db, Guid id, CancellationToken ct)
+    {
+        var row = await db.CurrentPlaybooks.AsNoTracking().SingleOrDefaultAsync(x => x.TradingSetupId == id, ct);
+        if (row?.DefinitionJson is { } json)
+        {
+            var definition = PlaybookPersistenceMapper.Deserialize(json);
+            if (definition.TradingSetupId != id || definition.Revision != row.Version)
+                throw new InvalidDataException("Current Playbook identity mismatch.");
+            return definition;
+        }
+        var number = row?.LegacyRevision ?? await db.PlaybookRevisions.Where(x => x.TradingSetupId == id).MaxAsync(x => (int?)x.Revision, ct);
+        return number is { } version ? await ReadRevisionAsync(db, id, version, ct) : null;
+    }
+
+    public async Task<bool> TrySaveCurrentAsync(TradingSetupPlaybookRevision definition, int expectedVersion,
+        DateTimeOffset expectedSetupUpdatedAtUtc, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        if (expectedVersion < 0 || expectedVersion == int.MaxValue || definition.Revision != expectedVersion + 1)
+            throw new ArgumentException("A consecutive concurrency token is required.", nameof(expectedVersion));
+        if (expectedSetupUpdatedAtUtc.Offset != TimeSpan.Zero) throw new ArgumentException("UTC required.", nameof(expectedSetupUpdatedAtUtc));
+        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await db.Database.OpenConnectionAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);
+        await db.Database.UseTransactionAsync(transaction, cancellationToken);
+        var setup = await db.TradingSetups.AsNoTracking().SingleOrDefaultAsync(x => x.Id == definition.TradingSetupId, cancellationToken);
+        var current = await ReadCurrentAsync(db, definition.TradingSetupId, cancellationToken);
+        if (setup is null || !setup.IsActive || setup.UpdatedAtUtc != expectedSetupUpdatedAtUtc ||
+            setup.Name != definition.SetupName || setup.Description != definition.SetupDescription ||
+            definition.RecordedAtUtc < setup.UpdatedAtUtc || (current?.Revision ?? 0) != expectedVersion ||
+            current is not null && definition.RecordedAtUtc < current.RecordedAtUtc) return false;
+        foreach (var example in definition.Guidance.Examples)
+        {
+            if (example.Image is { } image)
+            {
+                if (images is null) throw new InvalidOperationException("Playbook image storage is unavailable.");
+                _ = await images.ReadAsync(image, cancellationToken);
+            }
+            if (example.SourceScreenshotId is { } screenshot && !await db.TradeScreenshots.AnyAsync(
+                x => x.Id == screenshot && x.TradeId == example.SourceTradeId, cancellationToken))
+                throw new InvalidOperationException("An example screenshot is unavailable or belongs to another Trade.");
+        }
+        var row = await db.CurrentPlaybooks.SingleOrDefaultAsync(x => x.TradingSetupId == definition.TradingSetupId, cancellationToken);
+        if (row is null) { row = new() { TradingSetupId = definition.TradingSetupId }; db.CurrentPlaybooks.Add(row); }
+        row.Version = definition.Revision; row.LegacyRevision = null;
+        row.DefinitionJson = PlaybookPersistenceMapper.Serialize(definition);
+        await db.CurrentPlaybookExamples.Where(x => x.TradingSetupId == definition.TradingSetupId).ExecuteDeleteAsync(cancellationToken);
+        db.CurrentPlaybookExamples.AddRange(definition.Guidance.Examples.Select(x => new CurrentPlaybookExampleRecord
+        {
+            TradingSetupId = definition.TradingSetupId, ExampleId = x.Id, SourceScreenshotId = x.SourceScreenshotId,
+            ImageStorageKey = x.Image?.StorageKey, ImageSizeBytes = x.Image?.SizeBytes, ImageSha256 = x.Image?.Sha256,
+        }));
+        await db.SaveChangesAsync(cancellationToken);
+        var readback = await ReadCurrentAsync(db, definition.TradingSetupId, cancellationToken);
+        if (readback is null || PlaybookPersistenceMapper.Serialize(readback) != row.DefinitionJson)
+            throw new InvalidDataException("Current Playbook readback failed.");
+        cancellationToken.ThrowIfCancellationRequested();
+        await transaction.CommitAsync(CancellationToken.None);
+        return true;
+    }
+
+    // Called only inside a capture's writer transaction. Ordinary authoring never appends history.
+    internal static async Task RetainCaptureAsync(JournalDbContext db, TradingSetupPlaybookRevision definition, CancellationToken ct)
+    {
+        var prior = await ReadRevisionAsync(db, definition.TradingSetupId, definition.Revision, ct);
+        if (prior is not null)
+        {
+            if (PlaybookPersistenceMapper.Serialize(prior) != PlaybookPersistenceMapper.Serialize(definition))
+                throw new InvalidDataException("Historical Playbook identity collision.");
+            return;
+        }
+        db.PlaybookRevisions.Add(PlaybookPersistenceMapper.ToRecord(definition));
+        db.PlaybookExamples.AddRange(PlaybookPersistenceMapper.Examples(definition));
+        await db.SaveChangesAsync(ct);
+    }
 
     public async Task<TradingSetupPlaybookRevision?> GetRevisionAsync(Guid setupId, int revision, CancellationToken cancellationToken = default)
     {

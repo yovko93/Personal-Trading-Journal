@@ -45,7 +45,9 @@ public sealed record PeriodReviewEvidence(PeriodReviewQuery Query,
     IReadOnlyList<PeriodJournalRevision> JournalRevisions,
     IReadOnlyList<TradingRuleRevision> ApplicableRules,
     IReadOnlyList<TradingRuleAssessmentDetails> Assessments,
-    IReadOnlyList<TradingRuleAssessmentDetails> UnattributedTradeAssessments)
+    IReadOnlyList<TradingRuleAssessmentDetails> UnattributedTradeAssessments,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    TradingPlans.ReviewPlanEvidence? Preparation = null)
 {
     public const string ContractVersion = "period-evidence.v1";
 

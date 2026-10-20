@@ -43,9 +43,13 @@ public sealed class TradePlaybookContextStore(IDbContextFactory<JournalDbContext
         var opened = await db.TradeExecutions.Where(e => e.TradeId == trade.Id).OrderBy(e => e.Sequence)
             .Select(e => (DateTimeOffset?)e.ExecutedAtUtc).FirstOrDefaultAsync(cancellationToken);
         if (opened != context.TradeOpenedAtUtc) return false;
-        var definition = await TradingSetupPlaybookStore.ReadRevisionAsync(db, setup.Id, context.Definition.Revision, cancellationToken);
+        // Legacy capture callers may explicitly supply an already-retained historical definition.
+        // The normal Trade association workflow always previews and rechecks current content.
+        var definition = await TradingSetupPlaybookStore.ReadRevisionAsync(db, setup.Id, context.Definition.Revision, cancellationToken)
+            ?? await TradingSetupPlaybookStore.ReadCurrentAsync(db, setup.Id, cancellationToken);
         string json = PlaybookPersistenceMapper.Serialize(context.Definition);
         if (definition is null || PlaybookPersistenceMapper.Serialize(definition) != json) return false;
+        await TradingSetupPlaybookStore.RetainCaptureAsync(db, definition, cancellationToken);
         db.TradePlaybookContexts.Add(new TradePlaybookContextRecord
         {
             TradeId = context.TradeId, ContractVersion = TradePlaybookContext.ContractVersion,

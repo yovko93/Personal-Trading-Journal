@@ -133,9 +133,10 @@ public sealed class PeriodReviewEvidenceReader(IDbContextFactory<JournalDbContex
                 daily.Journals, Array.AsReadOnly(revisions.Select(r => new PeriodJournalRevision(r.JournalId, r)).ToArray()),
                 Array.AsReadOnly(rules.Select(TradingRuleRepository.ToDomain).ToArray()),
                 Array.AsReadOnly(details.Where(d => attributed.Contains(d.Assessment.Id)).ToArray()),
-                Array.AsReadOnly(details.Where(d => unknown.Contains(d.Assessment.Id)).ToArray())), null);
+                Array.AsReadOnly(details.Where(d => unknown.Contains(d.Assessment.Id)).ToArray()), daily.Preparation), null);
         }
         catch (EvidenceLimitException ex) { return new(PeriodEvidenceStatus.LimitExceeded, null, ex.Code); }
+        catch (Application.TradingPlans.ReviewPlanLimitException) { return new(PeriodEvidenceStatus.LimitExceeded, null, "trading-plan-evidence"); }
     }
 
     private sealed class EvidenceLimitException(string code) : Exception { public string Code { get; } = code; }

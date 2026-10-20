@@ -44,8 +44,8 @@ public static class PeriodCoachingResponseValidator
                     if (f is null || !Text(f.Text) || !Refs(f.SourceIds) || !Enum.IsDefined(f.Basis)) return Invalid("finding");
                     bool validBasis = f.SourceIds.All(id => f.Basis switch
                     {
-                        PeriodFindingBasis.CalculatedFact => sources[id].Kind is PeriodCoachingSourceKind.CalculatedStatistics or PeriodCoachingSourceKind.CalculatedPatterns or PeriodCoachingSourceKind.Comparison,
-                        PeriodFindingBasis.UserObservation => sources[id].Kind is PeriodCoachingSourceKind.Journal or PeriodCoachingSourceKind.JournalRevision or PeriodCoachingSourceKind.PlaybookAssociation or PeriodCoachingSourceKind.RuleRevision,
+                        PeriodFindingBasis.CalculatedFact => sources[id].Kind is PeriodCoachingSourceKind.CalculatedStatistics or PeriodCoachingSourceKind.CalculatedPatterns or PeriodCoachingSourceKind.Comparison or PeriodCoachingSourceKind.PreparationComparison,
+                        PeriodFindingBasis.UserObservation => sources[id].Kind is PeriodCoachingSourceKind.Journal or PeriodCoachingSourceKind.JournalRevision or PeriodCoachingSourceKind.PlaybookAssociation or PeriodCoachingSourceKind.RuleRevision or PeriodCoachingSourceKind.TradingPlanRevision,
                         PeriodFindingBasis.RecordedEvidence => sources[id].Kind is PeriodCoachingSourceKind.Trade or PeriodCoachingSourceKind.Execution or PeriodCoachingSourceKind.Assessment or PeriodCoachingSourceKind.UnattributedAssessment or PeriodCoachingSourceKind.RuleRevision,
                         PeriodFindingBasis.Interpretation => true,
                         _ => false,

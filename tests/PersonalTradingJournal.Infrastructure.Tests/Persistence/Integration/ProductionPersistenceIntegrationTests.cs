@@ -93,6 +93,11 @@ public sealed class ProductionPersistenceIntegrationTests
                     "20261011220636_AllowUnreferencedPlaybookRevisionDeletion",
                     "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder",
                     "20261015091425_AddSavedPeriodReviews",
+                    "20261017152354_AddTradingPlans",
+                    "20261019080838_SharedTradingPlansAndScreenshots",
+                    "20261019100107_DirectPlaybookDefinitions",
+                    "20261019160256_TombstoneTradingPlans",
+                    "20261019171746_AddDailyTradingPrinciples",
                 ],
                 await readContext.Database.GetAppliedMigrationsAsync());
 

@@ -52,7 +52,14 @@ public static class CoachingEvidencePacketBuilder
                 if (trade.Executions.Any(e => e.Id == Guid.Empty || !executionIds.Add(e.Id)))
                     return Invalid("Execution identities must be nonempty and unique.");
             }
-            var snapshot = new DailyReviewEvidence(evidence.Query, Array.AsReadOnly(trades), Array.AsReadOnly(journals));
+            var preparation = evidence.Preparation is { } suppliedPreparation
+                ? JsonSerializer.Deserialize<TradingPlans.ReviewPlanEvidence>(SerializeBounded(suppliedPreparation, cancellationToken), CoachingContract.JsonOptions) : null;
+            if (preparation is not null && (preparation.FirstDate != evidence.Query.Date || preparation.LastDate != evidence.Query.Date ||
+                preparation.AccountId != evidence.Query.TradingAccountId)) return Invalid("Preparation does not match this Review scope.");
+            preparation?.Validate(trades);
+            if (preparation is not null) preparation = TradingPlans.ReviewPlanEvidence.Build(preparation.FirstDate, preparation.LastDate,
+                preparation.AccountId, preparation.Days, preparation.Revisions, trades);
+            var snapshot = new DailyReviewEvidence(evidence.Query, Array.AsReadOnly(trades), Array.AsReadOnly(journals), preparation);
             var statistics = DailyReviewStatisticsCalculator.Calculate(snapshot, cancellationToken);
             var sources = new List<CoachingSource> { new("calculated:day", CoachingSourceKind.DayStatistics,
                 evidence.Query.TradingAccountId) };
@@ -76,17 +83,21 @@ public static class CoachingEvidencePacketBuilder
             }
             sources.AddRange(journals.Select(j => new CoachingSource(JournalSource(j), CoachingSourceKind.Journal,
                 j.TradingAccountId, JournalId: j.JournalId, Revision: j.Revision)));
+            if (preparation is not null) sources.Add(new("calculated:preparation", CoachingSourceKind.PreparationComparison, evidence.Query.TradingAccountId));
+            sources.AddRange((preparation?.Revisions ?? []).Select(p => new CoachingSource(TradingPlans.ReviewPlanEvidence.SourceId(p.Id),
+                CoachingSourceKind.TradingPlanRevision, p.Key.AccountId, p.Account.Currency, Revision: p.Id.Revision, PlanId: p.Id.PlanId)));
             var gaps = journals.Select(j => new CoachingJournalGaps(JournalSource(j), Array.AsReadOnly(
                 new[] { ("text", j.Text), ("wentWell", j.Answers.WentWell),
                     ("needsImprovement", j.Answers.NeedsImprovement), ("nextTradingDay", j.Answers.NextTradingDay) }
                 .Where(f => string.IsNullOrWhiteSpace(f.Item2)).Select(f => f.Item1).ToArray()))).ToArray();
-            var content = new CoachingEvidenceContent(snapshot.Query, CoachingContract.ContentHandling + " " + CoachingContract.PlaybookContentHandling, statistics,
+            var content = new CoachingEvidenceContent(snapshot.Query, CoachingContract.ContentHandling + " " + CoachingContract.PlaybookContentHandling +
+                (preparation is null ? "" : " " + TradingPlans.ReviewPlanEvidence.Handling), statistics,
                 snapshot.Trades, snapshot.Journals,
                 new(trades.Length == 0, statistics.Population.Closed.Count == 0, journals.Length == 0, false,
                     Array.AsReadOnly(trades.Select(t => (Guid?)t.Account.Id).Append(evidence.Query.TradingAccountId)
                         .Distinct().Where(id => !journalScopes.Contains(id)).Order().ToArray()), Array.AsReadOnly(gaps),
                     "Trades have no durable revision token. Audit timestamps and projection format versions do not recreate past evidence."),
-                Array.AsReadOnly(sources.OrderBy(s => s.Id, StringComparer.Ordinal).ToArray()));
+                Array.AsReadOnly(sources.OrderBy(s => s.Id, StringComparer.Ordinal).ToArray()), preparation);
             cancellationToken.ThrowIfCancellationRequested();
             // Bound the actual escaped UTF-8 wire format, not characters or an estimated token count.
             var hashBytes = SerializeBounded(new { ContractVersion = CoachingContract.Version, Content = content }, cancellationToken);
@@ -96,15 +107,17 @@ public static class CoachingEvidencePacketBuilder
             return new(CoachingPacketBuildStatus.Ready, new(content, packetId, Encoding.UTF8.GetString(bytes), bytes.Length), null);
         }
         catch (PacketLimitException) { return TooLarge(); }
+        catch (TradingPlans.ReviewPlanLimitException) { return TooLarge(); }
         catch (OverflowException) { return new(CoachingPacketBuildStatus.CalculationOverflow, null, "Statistics exceed decimal capacity; no packet was produced."); }
         catch (ArgumentException) { return Invalid("Evidence has invalid identities, scope, currency or closure facts; no packet was produced."); }
+        catch (JsonException) { return Invalid("Invalid preparation evidence; no packet was produced."); }
     }
 
     private static string JournalSource(DailyReviewJournalEvidence journal) =>
         "journal:" + journal.JournalId.ToString("N") + ":revision:" + journal.Revision.ToString(CultureInfo.InvariantCulture);
 
     private static CoachingPacketBuildResult TooLarge() => new(CoachingPacketBuildStatus.TooLarge, null,
-        "Complete evidence, including retained Playbook context, exceeds the packet limits. No records, text or statistics were truncated; no packet was produced.");
+        "Complete evidence, including retained Playbook and Ready preparation context, exceeds the packet limits. No records, text or statistics were truncated; no packet was produced.");
     private static CoachingPacketBuildResult Invalid(string error) => new(CoachingPacketBuildStatus.InvalidEvidence, null, error);
 
     public static string PlaybookSource(Guid tradeId, int sequence) =>

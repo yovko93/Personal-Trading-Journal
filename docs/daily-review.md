@@ -1,5 +1,27 @@
 # Daily Review with AI Coaching — M15
 
+## Shared preparation — packet v4
+
+Local verification: **404 focused feature tests passed**; the final complete Release gate passed **4,876/4,876**, zero failures/skips, after the documented migration/schema corrections. Build/EF/whitespace pass. Automated renders and synthetic restarts do not establish human keyboard/Narrator, live-app or matching-CI acceptance; those remain pending. M21.10 remains paused.
+
+New `daily-coaching.v4` / `review-preparation.v2` evidence supports one shared All Accounts Plan per New York date. For each Trade, the same consistent reader chooses an entry-eligible exact Account Ready revision first, otherwise an eligible shared revision. Draft-only or retrospective exact preparation does not suppress that fallback. Global evidence is not duplicated per Account. Frozen explicit plan currency describes trader-wide planned limits, not converted or per-Account budgets. Blank scenario fields are unspecified observations, not evidence of completed conditions. Snapshot identity/timing/citation validation remains strict.
+
+Plan screenshots stay local: no binaries, filenames or storage keys enter the coaching projection, and the handling notes say charts were not inspected. Saved v1/v2/v3 packets and supported pending v2/v3 responses remain readable unchanged; new packet versioning does not rewrite them. The manual ChatGPT workflow is unchanged and no live provider request is authorized or used. [Verification and remaining live/CI checks](trading-plan.md#shared-preparation-and-timeframe-screenshots-before-m2110).
+
+## M21.9 — Trading Plan preparation evidence
+
+The existing explicit **Prepare ChatGPT Prompt → copy/paste → validate → Save Review** workflow now captures saved Ready preparation alongside Trades and Journals in the same SQLite read snapshot. An expandable preparation section distinguishes No Plan, Draft only, Ready and Ready with newer Draft changes. Draft prose is excluded. A Ready-only day can supply user-authored preparation without inventing a trading outcome; Draft-only/no usable evidence still cannot prepare a prompt.
+
+Eligibility uses the Trade's canonical UTC opening timestamp and its **New York entry date**, not its closure date or the date label on a later Plan. Latest Ready timestamp at/before entry wins; equal timestamps use highest revision. Equality means the same recorded instant, not proof of event ordering. Latest Ready may be displayed as context but cannot retroactively apply to earlier Trades. Entry-day dependencies can precede the selected closure-date range. Unknown opening data, missing Ready, retrospective-only preparation, unclassified Setup, currency mismatch and unknown actual initial risk remain explicit.
+
+`daily-coaching.v3` adds exact `plan:…:ready:…` sources, a calculated preparation-comparison source and `UserWrittenPreparation`. Intention sources cannot masquerade as calculated facts. Prompt instructions treat all Plan prose as untrusted source data. Existing finding/action/citation bounds remain unchanged. Source selection compares recorded Instrument/Setup identities and Stand Aside intention only; it does **not** check price action, initial risk, trade-count/loss-limit compliance or create Rule violations. Existing Gross/Net and cost coverage are untouched.
+
+Saved v3 reports retain their exact payload and labels; opening an exact Ready source uses the historical viewer, not the newest Plan. Return to Review preserves selection and saved report; related Plan→Daily navigation retains dirty/invalid editor text. Missing live revisions show a safe unavailable message without changing the saved evidence. Saved v1/v2 and supported pending v2 responses remain readable; absence of preparation in older packets means **not captured**, not No Plan. Existing backup/portable JSON carries completed review JSON verbatim; pending working-file exclusions remain unchanged. No migration or provider/key change.
+
+See [M21.9 verification, initial failures, exact files and remaining acceptance](trading-plan.md#m219--trades-review-and-ai-evidence-integration). This slice uses synthetic fixtures/fake HTTP only, not live ChatGPT, a provider or the production journal. Human keyboard/Narrator, live isolated-app restart and matching CI remain pending for M21.10.
+
+Local status: **1,097 affected tests passed** and inspected Light/Dark normal/narrow/240-DPI renders passed their assertions. Final complete gate: **4,776 passed / 87 failed / zero skipped, exit 1**. **Complete-gate acceptance remains blocked** by the separate Calendar restored-size (86 propagated parent failures) and Breakdown date-popup assertions documented in that report; focused success does not supersede them. Build, EF consistency and whitespace checks pass. No live provider or production access.
+
 ## M19.8 CI #95 follow-up — 15 October 2026
 
 **Acceptance remains OPEN.** Matching [CI #95](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/38792076087) failed for develop **`52ce58592b4f0c8c7096d7bda0229bb1b43fbba8`**, tested as PR #22 merge **`13588c00d192db3bca8f1b0d4436324d3a2bc70e`**. This supersedes earlier statements that no matching run existed. [Detailed timeline, ownership and causal limits](ci-wpf-tests.md#m198--ci-95-child-shutdown-and-unfinished-infrastructure-15-october-2026).

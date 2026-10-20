@@ -49,6 +49,8 @@ public sealed class SqlitePersistenceIntegrityTests
         using JournalDbContext context = CreateModelContext();
         Type[] expectedRecordTypes =
         [
+            typeof(DailyTradingPrincipleRecord),
+            typeof(DailyTradingPrincipleStateRecord),
             typeof(InstrumentRecord),
             typeof(TradeBrowseRecord),
             typeof(TradingAccountRecord),
@@ -64,7 +66,12 @@ public sealed class SqlitePersistenceIntegrityTests
             typeof(DailyJournalRevisionRecord),
             typeof(CoachingAnalysisRecord),
             typeof(PeriodReviewRecord),
+            typeof(TradingPlanRecord),
+            typeof(TradingPlanReadyRecord),
+            typeof(TradingPlanAssetRecord),
             typeof(PlaybookRevisionRecord),
+            typeof(CurrentPlaybookRecord),
+            typeof(CurrentPlaybookExampleRecord),
             typeof(PlaybookExampleRecord),
             typeof(TradePlaybookContextRecord),
             typeof(TradePlaybookAssociationRecord),
@@ -194,7 +201,17 @@ public sealed class SqlitePersistenceIntegrityTests
         Assert.Equal(new[] { "RuleId", "InitialRevision" }, positionKey.Properties.Select(p => p.Name));
         Assert.True(positionKey.IsRequired);
         Assert.Equal(DeleteBehavior.Restrict, positionKey.DeleteBehavior);
-        Assert.Equal(22, foreignKeys.Count);
+        AssertForeignKey(model, typeof(TradingPlanReadyRecord), nameof(TradingPlanReadyRecord.PlanId),
+            typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(TradingPlanAssetRecord), nameof(TradingPlanAssetRecord.PlanId),
+            typeof(TradingPlanRecord), isRequired: true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(CurrentPlaybookRecord), nameof(CurrentPlaybookRecord.TradingSetupId), typeof(TradingSetupRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.TradingSetupId), typeof(CurrentPlaybookRecord), true, DeleteBehavior.Restrict);
+        AssertForeignKey(model, typeof(CurrentPlaybookExampleRecord), nameof(CurrentPlaybookExampleRecord.SourceScreenshotId), typeof(TradeScreenshotRecord), false, DeleteBehavior.Restrict);
+        var bridge = Assert.Single(foreignKeys, x => x.DeclaringEntityType.ClrType == typeof(CurrentPlaybookRecord) && x.PrincipalEntityType.ClrType == typeof(PlaybookRevisionRecord));
+        Assert.Equal(new[] { "TradingSetupId", "LegacyRevision" }, bridge.Properties.Select(x => x.Name));
+        Assert.Equal(DeleteBehavior.Restrict, bridge.DeleteBehavior);
+        Assert.Equal(28, foreignKeys.Count);
 
         IForeignKey[] cascades = foreignKeys
             .Where(foreignKey =>
@@ -282,7 +299,14 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(10, uniqueIndexes.Count);
+        Assert.Equal(14, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(DailyTradingPrincipleRecord) && index.Properties.SequenceEqual(["Position"]) && index.Filter is null);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
+            index.Properties.SequenceEqual(["AccountId", "NewYorkDate"]) && index.Filter == "AccountId IS NOT NULL AND DeletedAtUtc IS NULL");
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanRecord) &&
+            index.Properties.SequenceEqual(["NewYorkDate"]) && index.Filter == "AccountId IS NULL AND DeletedAtUtc IS NULL");
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingPlanAssetRecord) &&
+            index.Properties.SequenceEqual(["StorageKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&
             index.Properties.SequenceEqual(["RuleId", "RuleRevision", "TargetKey", "EvaluationFingerprint"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(TradingRuleAssessmentRecord) &&
@@ -503,7 +527,7 @@ public sealed class SqlitePersistenceIntegrityTests
                 candidate.Properties[0].Name == foreignKeyProperty);
 
         Assert.Equal(principalType, foreignKey.PrincipalEntityType.ClrType);
-        Assert.Equal("Id", foreignKey.PrincipalKey.Properties.Single().Name);
+        Assert.Equal(principalType == typeof(CurrentPlaybookRecord) ? "TradingSetupId" : "Id", foreignKey.PrincipalKey.Properties.Single().Name);
         Assert.Equal(isRequired, foreignKey.IsRequired);
         Assert.Equal(deleteBehavior, foreignKey.DeleteBehavior);
     }

@@ -34,8 +34,7 @@ public sealed class TradePlaybookAssociationStore(IDbContextFactory<JournalDbCon
         var setup = setupId is Guid id ? await db.TradingSetups.AsNoTracking().SingleOrDefaultAsync(s => s.Id == id, ct) : null;
         if (setupId.HasValue && (setup is null || !setup.IsActive))
             throw new InvalidOperationException("The selected Setup is unavailable or archived. Choose an active Setup.");
-        var number = setupId.HasValue ? await db.PlaybookRevisions.Where(r => r.TradingSetupId == setupId).MaxAsync(r => (int?)r.Revision, ct) : null;
-        var definition = number.HasValue ? await TradingSetupPlaybookStore.ReadRevisionAsync(db, setupId!.Value, number.Value, ct) : null;
+        var definition = setupId.HasValue ? await TradingSetupPlaybookStore.ReadCurrentAsync(db, setupId.Value, ct) : null;
         return new(tradeId, setupId, setup?.Name, definition, Hash(new { trade, executions, last, legacy, mistakes, screenshots }),
             Hash(new { setup, Definition = definition is null ? null : PlaybookPersistenceMapper.Serialize(definition) }));
     }
@@ -60,6 +59,7 @@ public sealed class TradePlaybookAssociationStore(IDbContextFactory<JournalDbCon
         if (current.Definition is { } definition && recorded < definition.RecordedAtUtc) recorded = definition.RecordedAtUtc;
         var last = await db.TradePlaybookAssociations.Where(a => a.TradeId == trade.Id).MaxAsync(a => (int?)a.Sequence, cancellationToken) ?? 0;
         var openedAt = await db.TradeExecutions.Where(e => e.TradeId == trade.Id).OrderBy(e => e.Sequence).Select(e => e.ExecutedAtUtc).FirstAsync(cancellationToken);
+        if (current.Definition is { } captured) await TradingSetupPlaybookStore.RetainCaptureAsync(db, captured, cancellationToken);
         db.TradePlaybookAssociations.Add(new()
         {
             TradeId = trade.Id, Sequence = checked(last + 1), TradingSetupId = current.SetupId,

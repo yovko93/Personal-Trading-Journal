@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-9 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-14 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -18,6 +18,20 @@ internal static class PortableExportSchema
     private static ExportColumn Y(string n, string alias) => new(n, ExportValueKind.NewYorkDate, alias);
     internal static readonly ExportTable[] Tables =
     [
+        new("dailyTradingPrinciples", "DailyTradingPrinciples", "Position,Id", false,
+            [I("Id"), T("Text"), N("Position"), U("CreatedAtUtc")]),
+        new("dailyTradingPrincipleState", "DailyTradingPrincipleState", "Id", false, [N("Id"), N("Version")]),
+        new("currentPlaybooks", "CurrentPlaybooks", "TradingSetupId", false,
+            [I("TradingSetupId"), N("Version"), N("LegacyRevision"), T("DefinitionJson")]),
+        new("currentPlaybookExamples", "CurrentPlaybookExamples", "TradingSetupId,ExampleId", false,
+            [I("TradingSetupId"), I("ExampleId"), I("SourceScreenshotId"), T("ImageStorageKey"), N("ImageSizeBytes"), T("ImageSha256")]),
+        new("tradingPlanAssets", "TradingPlanAssets", "PlanId,Id", false,
+            [I("Id"), I("PlanId"), I("InstrumentId"), N("Timeframe"), T("StorageKey"), T("FileName"), N("SizeBytes"), T("Sha256")]),
+        new("tradingPlans", "TradingPlans", "AccountId,NewYorkDate,Id", false,
+            [I("Id"), I("AccountId"), Y("NewYorkDate", "newYorkDate"), N("Version"), N("LatestReadyRevision"),
+             T("DraftJson"), T("ReferenceStateJson"), U("CreatedAtUtc"), U("UpdatedAtUtc"), U("DeletedAtUtc")]),
+        new("tradingPlanReadyRevisions", "TradingPlanReadyRevisions", "PlanId,Revision", false,
+            [I("PlanId"), N("Revision"), T("SnapshotJson"), U("ReadyAtUtc")]),
         new("periodReviews", "PeriodReviews", "Kind,FirstDate,LastDate,GeneratedAtUtc,Id", false,
             [I("Id"), N("Kind"), Y("FirstDate", "firstDateNewYork"), Y("LastDate", "lastDateNewYork"), U("FromUtc"), U("BeforeUtc"),
              N("ScopeKind"), I("AccountId"), T("AccountDisplayName"), U("GeneratedAtUtc"), T("Provider"), T("Model"),

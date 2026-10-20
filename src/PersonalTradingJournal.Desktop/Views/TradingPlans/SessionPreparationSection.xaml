@@ -1,0 +1,112 @@
+<UserControl x:Class="PersonalTradingJournal.Desktop.Views.TradingPlans.SessionPreparationSection"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
+ xmlns:validation="clr-namespace:PersonalTradingJournal.Desktop.Validation"
+ xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
+ DataContextChanged="OnDataContextChanged" SizeChanged="OnSizeChanged" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="13" KeyboardNavigation.TabNavigation="Continue">
+ <UserControl.Resources><ResourceDictionary>
+  <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="SessionBriefStyles.xaml" /></ResourceDictionary.MergedDictionaries>
+  <BooleanToVisibilityConverter x:Key="VisibleIf" />
+  <Style TargetType="ScrollBar" BasedOn="{StaticResource PtjScrollBarStyle}" />
+  <Style x:Key="Body" TargetType="TextBlock" BasedOn="{StaticResource PtjBodyTextStyle}"><Setter Property="FontSize" Value="13" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
+  <Style x:Key="Field" TargetType="TextBox" BasedOn="{StaticResource PlanInput}">
+   <Setter Property="Text" Value="{Binding Text, UpdateSourceTrigger=PropertyChanged}" /><Setter Property="IsReadOnly" Value="{Binding IsReadOnly}" />
+   <Setter Property="AutomationProperties.Name" Value="{Binding Label}" /><Setter Property="AutomationProperties.HelpText" Value="{Binding Error}" />
+   <Setter Property="AutomationProperties.ItemStatus" Value="{Binding Error}" /><Setter Property="validation:FormValidation.IsInvalid" Value="{Binding IsInvalid}" />
+  </Style>
+  <DataTemplate x:Key="TextField"><StackPanel>
+   <Label Content="{Binding Label}" Target="{Binding ElementName=TextInput}" Padding="0,2" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+   <TextBox x:Name="TextInput" Style="{StaticResource Field}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="42" MaxHeight="110" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+   <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
+  </StackPanel></DataTemplate>
+  <DataTemplate x:Key="LevelField"><Grid Margin="0,2,8,2">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="78" /><ColumnDefinition /></Grid.ColumnDefinitions>
+   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+   <Label Content="{Binding Tag, RelativeSource={RelativeSource AncestorType=ContentControl}}" ToolTip="{Binding Label}" Target="{Binding ElementName=PriceInput}" Padding="0" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextSecondaryBrush}" />
+   <TextBox x:Name="PriceInput" Grid.Column="1" Style="{StaticResource Field}" MinWidth="0" HorizontalScrollBarVisibility="Auto" />
+   <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
+  </Grid></DataTemplate>
+ </ResourceDictionary></UserControl.Resources>
+ <StackPanel>
+  <Border x:Name="FocusBanner" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,0,8">
+   <Grid>
+    <Grid.ColumnDefinitions><ColumnDefinition Width="155" /><ColumnDefinition /></Grid.ColumnDefinitions>
+    <TextBlock Text="◎  Today's Focus" Foreground="{DynamicResource PtjAccentBrush}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+    <StackPanel Grid.Column="1" DataContext="{Binding Focus}">
+     <TextBox Style="{StaticResource Field}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+     <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
+    </StackPanel>
+   </Grid>
+  </Border>
+  <Border Style="{StaticResource PtjCardStyle}" Padding="12">
+   <local:PlanSectionExpander x:Name="SectionExpander" Header="Session Preparation" Tag="01" Style="{StaticResource PlanSectionExpander}" IsExpanded="{Binding IsSectionExpanded, RelativeSource={RelativeSource AncestorType=local:SessionPreparationSection}, Mode=TwoWay}" AutomationProperties.Name="Session Preparation">
+   <StackPanel>
+    <TextBlock Text="{Binding StateLabel}" Style="{StaticResource Body}" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
+    <ContentControl Content="{Binding Notice}" ContentTemplate="{StaticResource PlanInfoBox}" HorizontalContentAlignment="Stretch" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
+    <ComboBox x:Name="SessionSelector" Width="180" HorizontalAlignment="Left" ItemsSource="{Binding Sessions}" SelectedItem="{Binding Session}" Style="{StaticResource PlanSelect}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Session, optional in Draft" Visibility="{Binding ShowComponentContext, Converter={StaticResource VisibleIf}}" />
+    <Grid x:Name="ContextGrid">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="3*" /><ColumnDefinition Width="2*" /></Grid.ColumnDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+     <StackPanel x:Name="ContextFields" Margin="0,0,14,0">
+      <WrapPanel>
+       <StackPanel Width="180" Margin="0,0,8,4"><Label Content="Instrument" Target="{Binding ElementName=ContextSelector}" Padding="0,2" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+        <ComboBox x:Name="ContextSelector" ItemsSource="{Binding Contexts}" SelectedItem="{Binding SelectedInstrument}" DisplayMemberPath="Label" IsEnabled="{Binding CanSelectContext}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Selected Instrument" />
+       </StackPanel>
+       <StackPanel Width="142" Margin="0,0,8,4"><Label Content="Bias" Target="{Binding ElementName=BiasSelector}" Padding="0,2" Foreground="{DynamicResource PtjTextPrimaryBrush}" />
+        <ComboBox x:Name="BiasSelector" ItemsSource="{Binding Biases}" SelectedItem="{Binding SelectedInstrument.Bias}" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Instrument bias, blank means not selected" />
+       </StackPanel>
+       <Expander x:Name="InstrumentPicker" Header="＋ Add Instrument" VerticalAlignment="Bottom" Margin="0,4,0,4" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.Name="Add or remove Instrument">
+        <StackPanel Width="190" Margin="0,6,0,0">
+         <ComboBox x:Name="CatalogSelector" ItemsSource="{Binding AvailableInstruments}" SelectedItem="{Binding InstrumentToAdd}" DisplayMemberPath="Symbol" Style="{StaticResource PlanSelect}" IsEnabled="{Binding CanEdit}" AutomationProperties.Name="Instrument catalog for new context" />
+         <WrapPanel><Button Content="Add" Command="{Binding AddInstrumentCommand}" Style="{StaticResource PlanPrimary}" AutomationProperties.Name="Add Instrument" /><Button Content="Remove" Command="{Binding RemoveInstrumentCommand}" Style="{StaticResource PlanRemove}" AutomationProperties.Name="Remove selected Instrument" /></WrapPanel>
+        </StackPanel>
+       </Expander>
+      </WrapPanel>
+      <TextBlock Text="Add an instrument to prepare its context and optional levels." Style="{StaticResource Body}" Visibility="{Binding HasNoContext, Converter={StaticResource VisibleIf}}" />
+      <ContentControl Content="{Binding SelectedInstrument.Thesis}" ContentTemplate="{StaticResource TextField}" Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}" />
+     </StackPanel>
+     <StackPanel x:Name="LevelFields" Grid.Column="1" Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}">
+      <TextBlock Text="Key Levels" FontSize="14" FontWeight="SemiBold" TextAlignment="Center" Margin="0,0,0,4"
+       Foreground="{DynamicResource PtjInformationBrush}" ToolTip="Manual prices. Blank means unknown. Prices are not rounded to tick size." />
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition /></Grid.ColumnDefinitions>
+       <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+       <ContentControl Tag="PDH" Content="{Binding SelectedInstrument.Levels[0]}" ContentTemplate="{StaticResource LevelField}" />
+       <ContentControl Tag="PDL" Grid.Column="1" Content="{Binding SelectedInstrument.Levels[1]}" ContentTemplate="{StaticResource LevelField}" />
+       <ContentControl Tag="Asia High" Grid.Row="1" Content="{Binding SelectedInstrument.Levels[2]}" ContentTemplate="{StaticResource LevelField}" />
+       <ContentControl Tag="Asia Low" Grid.Row="1" Grid.Column="1" Content="{Binding SelectedInstrument.Levels[3]}" ContentTemplate="{StaticResource LevelField}" />
+       <ContentControl Tag="London High" Grid.Row="2" Content="{Binding SelectedInstrument.Levels[4]}" ContentTemplate="{StaticResource LevelField}" />
+       <ContentControl Tag="London Low" Grid.Row="2" Grid.Column="1" Content="{Binding SelectedInstrument.Levels[5]}" ContentTemplate="{StaticResource LevelField}" />
+      </Grid>
+     </StackPanel>
+    </Grid>
+    <StackPanel Visibility="{Binding HasSelectedContext, Converter={StaticResource VisibleIf}}" Margin="0,8,0,0">
+     <WrapPanel>
+      <TextBlock Text="Screenshots · optional" Style="{StaticResource Body}" VerticalAlignment="Center" Margin="0,0,8,0" />
+      <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+       <ComboBox x:Name="ScreenshotTimeframe" Width="100" MinWidth="100" Margin="0,2,8,2" VerticalAlignment="Center" ItemsSource="{Binding AvailableTimeframes}" SelectedItem="{Binding SelectedTimeframe}" DisplayMemberPath="Label" IsEnabled="{Binding CanEdit}" Style="{StaticResource PlanSelect}" AutomationProperties.Name="Screenshot timeframe" />
+       <Button Content="Upload Screenshot" Command="{Binding UploadScreenshotCommand}" Style="{StaticResource PlanPrimary}" VerticalAlignment="Center" AutomationProperties.Name="Upload screenshot for selected Instrument and timeframe" />
+      </StackPanel>
+     </WrapPanel>
+     <ItemsControl ItemsSource="{Binding VisibleScreenshots}">
+      <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate><DataTemplate><StackPanel Width="128" Margin="0,4,8,0">
+       <Button Command="{Binding OpenCommand}" Style="{StaticResource PlanAction}" AutomationProperties.Name="{Binding Label, StringFormat=Open {0} screenshot}">
+        <StackPanel><Image Source="{Binding Thumbnail}" Height="62" Stretch="Uniform" /><TextBlock Text="{Binding Label}" HorizontalAlignment="Center" /></StackPanel>
+       </Button>
+       <Button Content="Remove" Command="{Binding RemoveCommand}" Style="{StaticResource PlanRemove}" AutomationProperties.Name="{Binding Label, StringFormat=Remove {0} Draft screenshot}" />
+      </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </StackPanel>
+    <Grid Margin="0,8,0,0" DataContext="{Binding News}">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="155" /><ColumnDefinition /></Grid.ColumnDefinitions>
+     <TextBlock Text="News &amp; Restricted Times" Style="{StaticResource Body}" VerticalAlignment="Center" />
+     <StackPanel Grid.Column="1"><TextBox Style="{StaticResource Field}" AcceptsReturn="True" TextWrapping="Wrap" MaxHeight="110" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" />
+      <TextBlock Text="{Binding Error}" Style="{StaticResource Body}" Foreground="{DynamicResource PtjDangerBrush}" Visibility="{Binding IsInvalid, Converter={StaticResource VisibleIf}}" />
+     </StackPanel>
+    </Grid>
+   </StackPanel>
+   </local:PlanSectionExpander>
+  </Border>
+ </StackPanel>
+</UserControl>

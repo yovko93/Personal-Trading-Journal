@@ -1,0 +1,17 @@
+<Window x:Class="PersonalTradingJournal.Desktop.Views.TradingPlans.TradingPlanLeaveDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Unsaved Trading Plan" Width="460" SizeToContent="Height" ResizeMode="NoResize" ShowInTaskbar="False"
+ WindowStartupLocation="CenterOwner" Style="{StaticResource PtjWindowStyle}">
+ <Border Style="{StaticResource PtjCardStyle}" Margin="16" Padding="20">
+  <StackPanel>
+   <TextBlock Text="Unsaved Trading Plan" Style="{StaticResource PtjSectionTitleTextStyle}" TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+   <TextBlock Text="Save your preparation before continuing? Discard removes only unsaved changes, never a saved Draft or Ready revision."
+              Style="{StaticResource PtjBodyTextStyle}" TextWrapping="Wrap" Margin="0,12,0,20" />
+   <WrapPanel HorizontalAlignment="Right">
+    <Button Content="Keep editing" IsCancel="True" IsDefault="True" Click="Cancel" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+    <Button Content="Discard" Click="Discard" Style="{StaticResource PtjSecondaryButtonStyle}" Margin="0,0,8,8" />
+    <Button Content="Save Draft" Click="Save" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,0,8" />
+   </WrapPanel>
+  </StackPanel>
+ </Border>
+</Window>

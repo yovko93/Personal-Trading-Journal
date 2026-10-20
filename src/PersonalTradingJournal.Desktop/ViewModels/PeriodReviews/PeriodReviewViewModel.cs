@@ -9,6 +9,7 @@ using PersonalTradingJournal.Application.PeriodReviews;
 using PersonalTradingJournal.Application.PeriodReviews.Coaching;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Desktop.ViewModels.DailyReview;
+using PersonalTradingJournal.Application.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.PeriodReviews;
 
@@ -72,6 +73,13 @@ public sealed class PeriodReviewViewModel : ObservableObject
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, () => Manual is null && _active && !IsBusy && Query is not null && !_account.IsHistorical && !NeedsConfiguration);
         CancelGenerationCommand = new RelayCommand(CancelGeneration, () => _generating && _request?.IsCancellationRequested == false);
         ConfigureCommand = new RelayCommand(() => OpenSettings?.Invoke());
+        OpenPreparationCommand = new AsyncRelayCommand<ReviewPlanRevision>(async p =>
+        {
+            if (p is null || IsBusy || OpenPreparationAsync is null) return;
+            try { if (!await OpenPreparationAsync(p)) Message = "The exact Ready revision could not be opened or navigation was cancelled. Saved evidence is unchanged."; }
+            catch (Exception) { Message = "Preparation navigation failed. Saved evidence and editor input are unchanged."; }
+            Notify();
+        });
         OpenCommand = new AsyncRelayCommand<PeriodHistoryRow>(OpenAsync, row => row is not null && !_deleting, AsyncRelayCommandOptions.AllowConcurrentExecutions);
         CloseCommand = new RelayCommand(() => { ClearDetail(); Notify(); });
         DeleteCommand = new AsyncRelayCommand<PeriodHistoryRow>(DeleteAsync, row => row is not null && !IsBusy);
@@ -128,6 +136,8 @@ public sealed class PeriodReviewViewModel : ObservableObject
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public Action? OpenSettings { get; set; }
     public Func<Guid, Task>? OpenTradeAsync { get; set; }
+    public Func<ReviewPlanRevision, Task<bool>>? OpenPreparationAsync { get; set; }
+    public IAsyncRelayCommand<ReviewPlanRevision> OpenPreparationCommand { get; }
     public Func<DailyReviewJournalEvidence, Task>? OpenJournalAsync { get; set; }
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand TodayCommand { get; }
@@ -156,7 +166,9 @@ public sealed class PeriodReviewViewModel : ObservableObject
         if (_deleting) { Message = "Wait for deletion to finish before leaving."; Notify(); return false; }
         return !_generating || _dialogs.Confirm(new("Leave while generating?", "Leaving cancels this local request. An accepted provider request may still incur charges; a completed save remains in history.", "Cancel generation and leave"));
     }
-    public void Deactivate() { _active = false; CancelGeneration(); CancelLoad(); }
+    public void Deactivate() => Deactivate(false);
+    public void Deactivate(bool retainForPreparation) { _active = false; CancelGeneration(); if (!retainForPreparation) CancelLoad(); }
+    public void ResumeFromPreparation() { _active = true; Notify(); }
     public void OnDataCommitted() { if (_active && !_generating && !_deleting) LoadTask = LoadAsync(); }
     private void MovePeriod(int direction) { if (Query is { } q) try { SelectedDate = (Kind == ReviewPeriodKind.Week ? q.FirstDate.AddDays(direction * 7) : q.FirstDate.AddMonths(direction)).ToDateTime(TimeOnly.MinValue); } catch (ArgumentOutOfRangeException) { Message = "That period is outside the supported calendar."; Notify(); } }
     private Task Page(int direction) { _page += direction; return LoadTask = LoadAsync(); }

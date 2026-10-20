@@ -93,7 +93,7 @@ public sealed class ManualReviewViewModel : ObservableObject
     public string Prompt => _draft?.Prompt ?? "";
     public string PendingScope => _draft is null ? "" : $"Frozen {_draft.ScopeLabel} · prepared {_draft.PreparedAtUtc:u}. This does not follow the selectors above.";
     public string Size => _draft is null ? "" : $"Exact prompt: {System.Text.Encoding.UTF8.GetByteCount(Prompt):N0} UTF-8 bytes. PTJ limit 300,000 bytes; ChatGPT limits may be lower.";
-    public string Disclosure => "Prepare locally, copy only when ready, then paste the JSON response from ChatGPT. No API key or automatic upload. Prompts contain sensitive Trade and Journal information.";
+    public string Disclosure => "Prepare locally, copy only when ready, then paste the JSON response from ChatGPT. No API key or automatic upload. Prompts contain sensitive Trade and Journal information, frozen Playbook context and saved Ready Trading Plan preparation. Period prompts also include recorded Rule coverage; individual examples are bounded and explicitly identified.";
     public string Details => "Daily includes the complete daily evidence; weekly/monthly include complete aggregates and explicitly bounded source examples. Local snapshots retain all source facts. No chart images are copied. Pending prompts and responses are unencrypted local working files, retained across restart but excluded from portable backups/exports. Keep response draft before leaving. Saved reviews remain in normal backup/export history. PTJ verifies structure and citations, not the service used or the truth of an AI claim.";
     public object? Preview { get; private set; }
     public IReadOnlyList<ManualPreviewCard> PreviewCards => Preview switch

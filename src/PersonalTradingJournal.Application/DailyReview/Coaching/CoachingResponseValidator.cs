@@ -27,7 +27,7 @@ public static class CoachingResponseValidator
         cancellationToken.ThrowIfCancellationRequested();
         if (response is null) return Invalid("Response must be an object.");
         var errors = new List<string>();
-        if (response.ContractVersion != CoachingContract.Version) errors.Add("Unsupported contractVersion.");
+        if (response.ContractVersion != packet.ContractVersion) errors.Add("Unsupported contractVersion.");
         if (response.PacketId != packet.PacketId) errors.Add("packetId does not match the supplied evidence.");
         var sources = packet.Content.Sources.ToDictionary(s => s.Id, StringComparer.Ordinal);
         CheckStatement(response.DaySummary, "daySummary");
@@ -86,11 +86,12 @@ public static class CoachingResponseValidator
                 bool appropriate = item.Basis switch
                 {
                     CoachingObservationBasis.CalculatedFact => item.SourceIds.All(id => sources[id].Kind is
-                        CoachingSourceKind.DayStatistics or CoachingSourceKind.CurrencyStatistics or CoachingSourceKind.AccountStatistics),
+                        CoachingSourceKind.DayStatistics or CoachingSourceKind.CurrencyStatistics or CoachingSourceKind.AccountStatistics or CoachingSourceKind.PreparationComparison),
                     CoachingObservationBasis.RecordedTradeFact => item.SourceIds.All(id => sources[id].Kind is
                         CoachingSourceKind.Trade or CoachingSourceKind.Execution),
                     CoachingObservationBasis.UserWrittenJournalObservation => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.Journal),
                     CoachingObservationBasis.UserWrittenPlaybookContext => item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.PlaybookAssociation),
+                    CoachingObservationBasis.UserWrittenPreparation => packet.ContractVersion is (CoachingContract.Version or CoachingContract.PreparationVersion) && item.SourceIds.All(id => sources[id].Kind == CoachingSourceKind.TradingPlanRevision),
                     _ => false,
                 };
                 if (!appropriate) errors.Add(location + ": basis does not match the cited source kinds.");

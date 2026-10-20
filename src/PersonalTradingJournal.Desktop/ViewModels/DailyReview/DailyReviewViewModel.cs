@@ -5,6 +5,7 @@ using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Application.DailyReview;
 using PersonalTradingJournal.Application.DailyReview.Coaching;
 using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Application.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels.DailyReview;
 
@@ -66,6 +67,13 @@ public sealed class DailyReviewViewModel : ObservableObject
                 () => SelectedDate is { } d && !SelectedAccount.IsHistorical ? new(ManualReviewKind.Daily, DateOnly.FromDateTime(d), SelectedAccount.Id, SelectedAccount.Label) : null,
                 dialogs, clipboard ?? new Views.DailyReview.WpfReviewClipboard(), () => StartLoadAsync(true));
         ConfigureAiCommand = new RelayCommand(() => OpenAiSettings?.Invoke());
+        OpenPreparationCommand = new AsyncRelayCommand<ReviewPlanRevision>(async p =>
+        {
+            if (p is null || IsLoading || _deleting || OpenPreparationAsync is null) return;
+            try { if (!await OpenPreparationAsync(p)) CurrentError = "The exact Ready revision could not be opened or navigation was cancelled. Saved preparation is unchanged."; }
+            catch (Exception) { CurrentError = "Preparation navigation failed. Saved evidence and editor input are unchanged."; }
+            Notify();
+        });
         GenerateCommand = new AsyncRelayCommand(GenerateAsync, CanGenerate);
         CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsGenerating && _generationRequest?.IsCancellationRequested == false);
         _date = Today.ToDateTime(TimeOnly.MinValue);
@@ -146,6 +154,8 @@ public sealed class DailyReviewViewModel : ObservableObject
         : "Exact-account analysis history. Original scope and names are retained in each snapshot.";
     public Task LoadTask { get; private set; } = Task.CompletedTask;
     public Func<Guid, Task>? OpenTradeAsync { get; set; }
+    public Func<ReviewPlanRevision, Task<bool>>? OpenPreparationAsync { get; set; }
+    public IAsyncRelayCommand<ReviewPlanRevision> OpenPreparationCommand { get; }
     public Func<DailyReviewJournalEvidence, Task>? OpenJournalAsync { get; set; }
     public IAsyncRelayCommand RefreshCommand { get; }
     public IRelayCommand TodayCommand { get; }
@@ -170,7 +180,9 @@ public sealed class DailyReviewViewModel : ObservableObject
         await (LoadTask = StartLoadAsync(false));
         if (Manual is not null) await Manual.LoadAsync();
     }
-    public void Deactivate() { _active = false; CancelGeneration(); CancelLoad(); }
+    public void Deactivate() => Deactivate(false);
+    public void Deactivate(bool retainForPreparation) { _active = false; CancelGeneration(); if (!retainForPreparation) CancelLoad(); }
+    public void ResumeFromPreparation() { _active = true; Notify(); }
     public void OnDataCommitted() { if (_active) LoadTask = StartLoadAsync(false); }
 
     private void CancelLoad()

@@ -1219,6 +1219,11 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(NavigationDestination.Accounts, main.CurrentDestination);
     }
 
+    internal static MainWindowViewModel CreatePlanShell(PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel plan,
+        PlaybookViewModel? playbook = null, PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
+        PersonalTradingJournal.Desktop.ViewModels.DailyReview.DailyReviewViewModel? dailyReview = null) =>
+        CreateFixture(tradingPlan: plan, playbook: playbook, rules: rules, dailyReview: dailyReview).Main;
+
     private static ViewModelFixture CreateFixture(
         AppTheme preferredTheme = AppTheme.System,
         AppTheme? effectiveTheme = null,
@@ -1238,7 +1243,8 @@ public sealed partial class MainWindowViewModelTests
         PlaybookViewModel? playbook = null,
         PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel? rules = null,
         PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periods = null,
-        PersonalTradingJournal.Desktop.ViewModels.Breakdown.BreakdownViewModel? breakdown = null)
+        PersonalTradingJournal.Desktop.ViewModels.Breakdown.BreakdownViewModel? breakdown = null,
+        PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel? tradingPlan = null)
     {
         var accountReader = new FakeTradingAccountReader();
         accountReader.EnqueueResult([]);
@@ -1410,7 +1416,7 @@ public sealed partial class MainWindowViewModelTests
             trades,
             settings,
             themeService,
-            topstepChanges, dailyReview, playbook, rules, periods, breakdown);
+            topstepChanges, dailyReview, playbook, rules, periods, breakdown, tradingPlan);
 
         return new ViewModelFixture(
             main,

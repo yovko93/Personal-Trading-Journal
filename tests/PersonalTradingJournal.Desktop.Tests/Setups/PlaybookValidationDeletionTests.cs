@@ -17,7 +17,7 @@ public sealed class PlaybookValidationDeletionTests
         f.Vm.Fields[0].Text = "fixed"; Assert.False(f.Vm.Fields[0].IsInvalid); Assert.True(f.Vm.HasValidationErrors);
         f.Vm.Fields[2].Text = "fixed"; f.Vm.Fields[4].Text = "fixed";
         Assert.False(f.Vm.HasValidationErrors); Assert.Empty(f.Vm.ValidationSummary);
-        await f.Vm.SaveCommand.ExecuteAsync(null); Assert.False(f.Vm.IsEditing); Assert.Contains("Revision 2 saved.", f.Vm.Message);
+        await f.Vm.SaveCommand.ExecuteAsync(null); Assert.False(f.Vm.IsEditing); Assert.Contains("Playbook saved and verified.", f.Vm.Message);
     }
 
     [Theory]

@@ -59,10 +59,11 @@ public static class ManualReviewContract
             var metadata = new CoachingRequestMetadata(ProviderId, "unverified", draft.Id.ToString("N"));
             if (draft.Request.Kind == ManualReviewKind.Daily)
             {
-                if (root.GetProperty("contractVersion").GetString() != CoachingContract.Version) return Invalid("Unsupported prepared Daily contract. Keep this draft; do not retarget it.");
+                string version = root.GetProperty("contractVersion").GetString()!;
+                if (version is not (CoachingContract.Version or CoachingContract.PreparationVersion or CoachingContract.PlaybookVersion)) return Invalid("Unsupported prepared Daily contract. Keep this draft; do not retarget it.");
                 var content = root.GetProperty("content").Deserialize<CoachingEvidenceContent>(ReadOptions)!;
                 if (content.Query.Date != draft.Request.Date || content.Query.TradingAccountId != draft.Request.AccountId) return Invalid("Prepared date or Account scope does not match.");
-                var packet = new CoachingEvidencePacket(content, id, draft.EvidenceJson, Encoding.UTF8.GetByteCount(draft.EvidenceJson));
+                var packet = new CoachingEvidencePacket(content, id, draft.EvidenceJson, Encoding.UTF8.GetByteCount(draft.EvidenceJson), version);
                 var result = CoachingResponseValidator.Validate(json, packet, token);
                 if (!result.IsValid) return Invalid(string.Join("\n", result.Errors.Take(8)));
                 var snapshot = CoachingAnalysisSnapshot.Create(packet, new(CoachingGenerationStatus.Success, result.Response, metadata, Provenance), draft.PreparedAtUtc, token);
@@ -70,7 +71,8 @@ public static class ManualReviewContract
                 return new(true, Provenance + ". Citations validated; service and truth of claims are not verified. Preview only until Save Review.",
                     saved with { Summary = saved.Summary with { Id = draft.Id, AccountDisplayName = draft.Request.AccountLabel } });
             }
-            if (root.GetProperty("contractVersion").GetString() != PeriodCoachingContract.Version) return Invalid("Unsupported prepared period contract. Keep this draft; do not retarget it.");
+            string periodVersion = root.GetProperty("contractVersion").GetString()!;
+            if (periodVersion is not (PeriodCoachingContract.Version or PeriodCoachingContract.PreparationVersion or PeriodCoachingContract.CompactVersion)) return Invalid("Unsupported prepared period contract. Keep this draft; do not retarget it.");
             var query = new PeriodReviewQuery(draft.Request.Kind == ManualReviewKind.Weekly ? ReviewPeriodKind.Week : ReviewPeriodKind.Month, draft.Request.Date, draft.Request.AccountId);
             var projection = root.GetProperty("providerProjection");
             var selected = projection.GetProperty("currentPeriod");
@@ -78,7 +80,7 @@ public static class ManualReviewContract
                 selected.GetProperty("scope").GetProperty("accountId").Deserialize<Guid?>() != query.Scope.AccountId ||
                 selected.GetProperty("kind").GetString() != query.Kind.ToString()) return Invalid("Prepared period or Account scope does not match.");
             var packet2 = new PeriodCoachingPacket(query, id, draft.EvidenceJson, Encoding.UTF8.GetByteCount(draft.EvidenceJson),
-                root.GetProperty("content").GetProperty("sources").Deserialize<PeriodCoachingSource[]>(ReadOptions)!)
+                root.GetProperty("content").GetProperty("sources").Deserialize<PeriodCoachingSource[]>(ReadOptions)!, periodVersion)
             {
                 ProviderJson = projection.GetRawText(),
                 SuppliedSources = projection.GetProperty("sources").Deserialize<PeriodCoachingSource[]>(ReadOptions)!,

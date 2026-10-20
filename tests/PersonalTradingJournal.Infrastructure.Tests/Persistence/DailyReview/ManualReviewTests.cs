@@ -115,7 +115,7 @@ public sealed class ManualReviewTests
         Assert.Equal(1, await context.CoachingAnalyses.CountAsync() + await context.PeriodReviews.CountAsync());
     }
 
-    private static async Task<ManualReviewService> Service(ReaderTestDatabase db, bool failAfterCommit = false)
+    internal static async Task<ManualReviewService> Service(ReaderTestDatabase db, bool failAfterCommit = false)
     {
         await using var context = await db.ContextFactory.CreateDbContextAsync();
         string path = new SqliteConnectionStringBuilder(context.Database.GetConnectionString()).DataSource;
