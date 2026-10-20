@@ -1,6 +1,133 @@
 # Notebook
 
-Current checkpoint: **M22.8B1 atomic image placement; M22.8 overall acceptance pending**. Logical export **v17**, canonical JSON **v1**, current-schema archive **v1** and M22.8A retention remain unchanged. Desktop insertion, previews and reference editing are implemented below. Complete Release acceptance belongs to **M22.8C**; duplication/permanent deletion, reclamation, linked-target navigation and integrated M22.11 acceptance remain deferred. Earlier milestone sections are historical decisions/results.
+Current checkpoint: **M22.8 automated local Release acceptance complete (M22.8C)**. Canonical JSON **v1**, logical export **v17**, archive **v1** and retained ownership remain unchanged. Interactive/native-restart/installed-WebP/CI checks remain unverified. Reclamation and full integrated M22.11 acceptance remain deferred; M22.9 onward is pending. Earlier milestone sections record historical phase checkpoints.
+
+## M22.8C — Automated Release verification and acceptance
+
+20 October 2026 UTC. Verified source: **clean `develop`, `a86b0c02a728006391fa5c939d8249415d2084d1`**, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. This HEAD already contains A, B and B1. Repository/ancestor guidance, the Notebook contract, durable focused summaries and current Git/process state were inspected first; no applicable `AGENTS.md` or duplicate active test run was found. One agent, no subagents. C changes **only README.md and docs/notebook.md**; implementation, assertions, deadlines, concurrency and unrelated files are preserved.
+
+### Complete gate and supporting checks
+
+**M22.8 local automated Release acceptance is complete.** The full solution was rebuilt from this source before the established `scripts/Test-Release.ps1` gate. Build: **zero warnings/errors**, exit **0**, **62.04 s**, log `TestResults/m228c-verified/release-build.log`. The runner used its unchanged complementary `Workload=ExclusiveWpf` and `Workload!=ExclusiveWpf` partitions, Desktop two-collection / Infrastructure four-collection limits, original child deadlines and three-minute VSTest inactivity diagnostics. Required Windows symlink and isolated synthetic DPAPI fixtures ran with their existing capabilities. No production/provider access occurred.
+
+Complete gate: **5200 / 5200 passed**, zero failures/skips, final **exit 0**. Exclusive WPF **88/88**; parallel project totals follow. Isolated child TRX files overlap the top-level cases and are not added again.
+
+| Project | Passed / total | Partition |
+| --- | ---: | --- |
+| Domain | 602 / 602 | Parallel |
+| Application | 1034 / 1034 | Parallel |
+| Infrastructure | 1558 / 1558 | Parallel |
+| Desktop | 2006 / 2006 | 88 exclusive + 1918 parallel |
+
+UTC **2026-10-20T20:57:27.4035688+00:00–2026-10-20T21:07:52.2543115+00:00**, **624.851 s** elapsed (21 October locally at completion). Calendar native child: **73.332 s**, **46.668 s headroom** against its unchanged **120 s** aggregate deadline, exit **0**. The CI Test step remains configured for ten minutes; this local measurement exceeds that duration by **24.851 s** and is not a hosted-run guarantee or matching-source CI result.
+
+The unchanged complete-gate summary is `TestResults/release-20261020-205728-e45bbd22cd194a1884bf16a73a64ded6/summary.json`, with partition output/TRX, VSTest diagnostics, child supervision and timing artifacts beneath that directory. **`TestResults/m228c-verified/summary.json`** ties together source/binary/settings hashes, observed gate exit/timestamps, coverage, visual provenance, phase inventory and supporting checks. `gate-exit.json` retains the actual process exit; `complete-gate-output.log` retains its output. Calendar timing comes from `exclusive-wpf/calendar-native-20261020-205733-ae14d5c36a564184b7dfb9e207d5a765/process-supervision.log`, not summed overlapping test durations.
+
+`coverage.json` audits actual passed top-level identities for image admission/persistence, final atomic placement, ordered reference reconciliation, retained ownership, autosave/recovery and Notebook archive/export/restore. All **eight B1 interruption/order/recovery cases** are present in the complete gate. The prior focused **111 Desktop / 521 Infrastructure / 13 Application** results are reused from `TestResults/m228b1-verified/summary.json`; their source hashes match the current implementation. No focused suite was repeated without a failure, source change or uncovered requirement.
+
+EF reports **no pending model changes**, exit **0**, evidence `TestResults/m228c-verified/ef-consistency.txt`. Final repository-configured whitespace and **169 local documentation targets / zero missing** pass. Documentation checks cover local Markdown target existence, not external URLs or fragments. `inventory-check.json` compares the documented overall inventory with Git and confirms C's two documentation changes. No runtime code changed after the passing gate; it was not repeated for documentation edits.
+
+Commands actually used:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m228c-verified/release-build.log
+pwsh -NoProfile -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+pwsh -NoProfile -File TestResults/m228c-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m228c-summarize.ps1
+```
+
+The local `TestResults/m228c-run-gate.ps1` wrapper invokes that exact runner, captures its output and persists the process exit/timestamps without changing gate settings. Ignored evidence/checker files are not source changes.
+
+### Final image evidence and behavior
+
+All **12** Light/Dark normal/narrow-high-DPI captures were inspected in C. Reused copies are under **`TestResults/m228c-verified/visuals/`**, filename matrix `{Light|Dark}-{1280-96|480-240}-{inline-caption-missing|missing-and-actions|codec-error}.png`. Normal: 1280×1000 pixels / 96 DPI. Narrow: 1200×2125 pixels for 480×850 DIP / 240 DPI. They originate from B1's final harness run, `TestResults/m228b1-verified/renders/notebook-image-renders/`; `visual-provenance.json` verifies each hash against that phase's summary, and the relevant view/presenter sources remain unchanged. No missing/affected visual coverage required a new render run.
+
+Inline aspect ratio and border/caption spacing remain correct; long captions and codec feedback wrap, unavailable images retain readable placeholders, and expanded caption/alternative text/order/removal controls remain reachable and readable in both themes. Dark image-action contrast remains corrected. Narrow captures use the established inner/outer scrolling; scrolled captures intentionally clip earlier content above the viewport. **No blocking visual defect was found.** These are synthetic workspace captures, not human/live-shell interaction acceptance.
+
+B1's final candidate is captured after pending save/dirty-draft coordination. The original is admitted/staged outside the canonical transaction; final intended document position, selection/paragraph changes, metadata/projection, ownership ledger and one expected-version advance commit together. There is no intermediate canonical tail placement and no background move after restart. Fresh readers before commit see the previous note; after commit, even before client acknowledgement, they see the final position and matching ownership. Newer editor changes remain a protected dirty draft, stale writes/recovery cannot replace newer persisted content, and undo/redo/recovery retain original identities. Fresh-context interruption verification is not a claimed native journal process restart.
+
+### Storage compatibility and remaining limits
+
+Canonical document **JSON v1**, complete archive **v1**, and logical export **v17** remain unchanged in B/B1/C. A introduced the additive `20261020180223_AddNotebookOwnedImageFiles` migration (28 current migrations) and export 16→17. Complete archives include current and retained Notebook-owned originals with exact size/hash verification; missing/tampered required files fail explicitly. Logical metadata export is not an image-byte restore input. Older-schema archives remain rejected by exact-schema preflight; no archive upgrade mechanism is introduced.
+
+Prepared originals can remain after abrupt death between filesystem publication and canonical commit. Committed originals and ownership ledger entries remain intentionally retained through reference removal, undo/redo and recovery. Uncertain commit/cleanup outcomes preserve bytes. **File reclamation, duplication/permanent-note deletion and full integrated M22.11 acceptance remain deferred.** No production files were reclaimed.
+
+Human keyboard/mouse/Narrator interaction, real OS clipboard/native picker/full-original viewer interaction, actual native journal restart, successful installed-codec WebP admission and matching-source CI remain **explicitly unverified**. The local automated gate and synthetic visuals do not establish those checks. M22.9 onward remains pending; no provider access, Git publication or later milestone work occurred.
+
+### Exact overall M22.8 changed-file inventory
+
+Overall baseline: `e0682d3a898742ff8612857de5a2245267eae041` (completed M22.7). Net through verified HEAD plus C documentation: **59 files — 39 modified + 20 added**. Status is relative to that overall baseline; phases identify each later touch. A/B/B1 are already committed at this verification baseline, while C leaves only README.md and docs/notebook.md modified. Counts below overlap and must not be summed as unique files.
+
+| Phase | From → through | Phase delta |
+| --- | --- | --- |
+| A — storage/application | `e0682d3` → `80eada6` | 28 modified + 11 added = 39 |
+| B — Desktop integration | `80eada6` → `aa75cdc` | 19 modified + 8 added = 27 |
+| B1 — atomic placement | `aa75cdc` → `a86b0c0` | 14 modified + 1 added = 15 |
+| C — verification/documentation | `a86b0c0` → current worktree | 2 modified, no added source files |
+
+| Net status | File | Changed in phases |
+| --- | --- | --- |
+| M | `README.md` | A, B, B1, C |
+| M | `docs/notebook.md` | A, B, B1, C |
+| M | `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs` | A |
+| A | `src/PersonalTradingJournal.Application/Notebook/INotebookImages.cs` | A, B1 |
+| M | `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs` | A |
+| M | `src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs` | B, B1 |
+| M | `src/PersonalTradingJournal.Desktop/App.xaml.cs` | A, B |
+| A | `src/PersonalTradingJournal.Desktop/Screenshots/NotebookImages.cs` | B |
+| A | `src/PersonalTradingJournal.Desktop/Screenshots/WpfNotebookImageValidator.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs` | B |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` | B |
+| A | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Images.cs` | B, B1 |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` | B |
+| A | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.Images.cs` | B, B1 |
+| M | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.cs` | B |
+| A | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.History.cs` | B |
+| A | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Images.cs` | B, B1 |
+| M | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` | B |
+| M | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs` | B |
+| M | `src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.cs` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageService.cs` | A, B, B1 |
+| A | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Images.cs` | A, B, B1 |
+| M | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs` | A, B, B1 |
+| M | `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/NotebookConfiguration.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020180223_AddNotebookOwnedImageFiles.Designer.cs` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020180223_AddNotebookOwnedImageFiles.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Persistence/Records/NotebookRecords.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Screenshots/RetainedScreenshotFileStorage.cs` | A |
+| A | `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookImageContractTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookAutosaveTests.cs` | B |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookEditingTests.cs` | B |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageAdmissionTests.cs` | A, B, B1 |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageCoordinationTests.cs` | B, B1 |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageEditorTests.cs` | B, B1 |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs` | B |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs` | B |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs` | A, B |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImageDraftTests.cs` | B |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImagePlacementTests.cs` | B1 |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImageTests.cs` | A, B1 |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookPersistenceTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs` | A |
 
 ## M22.8B1 — Atomic image placement
 
@@ -88,7 +215,7 @@ Added:
 tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImagePlacementTests.cs
 ```
 
-**M22.8 overall acceptance remains pending. Stop before M22.8C.** Human keyboard/mouse/Narrator, real clipboard/picker/viewer, native-process restart, actual installed-codec WebP success and matching-source CI remain unverified. No production/provider access, Git publication, file reclamation or M22.9 work occurred.
+**At the B1 checkpoint, overall acceptance remained pending; C verification is recorded above.** Human keyboard/mouse/Narrator, real clipboard/picker/viewer, native-process restart, actual installed-codec WebP success and matching-source CI remain unverified. No production/provider access, Git publication, file reclamation or M22.9 work occurred.
 
 ## M22.8B — Desktop image integration
 

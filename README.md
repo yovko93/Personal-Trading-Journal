@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.8C — Notebook images: automated Release verified
+
+**M22.8 local automated Release acceptance is complete.** Verified clean baseline: develop at **a86b0c02a728006391fa5c939d8249415d2084d1**, existing worktree C:/Users/Yovko/source/repos/Personal-Trading-Journal. The rebuilt complete gate passed **5200/5200**, zero failures/skips, **exit 0**: Domain **602**, Application **1034**, Infrastructure **1558**, Desktop **2006** (88 exclusive + 1918 parallel). Release build: **zero warnings/errors**; EF, whitespace and **169 local documentation targets / zero missing** pass. Gate **624.851 s**; Calendar **73.332 s / 46.668 s headroom** to its unchanged 120-second deadline.
+
+Evidence: TestResults/m228c-verified/summary.json and TestResults/release-20261020-205728-e45bbd22cd194a1884bf16a73a64ded6/summary.json. All **12** final Light/Dark normal/narrow-240-DPI image/caption/control/unavailable-state captures were reviewed, with no blocking visual defect; hash-verified copies and provenance are in TestResults/m228c-verified/visuals/. Final intended placement, metadata, retained ownership and one expected-version advance commit atomically. Document/archive **v1** and logical export **v17** remain compatible. [Commands, timing, exact overall 59-file inventory with phase boundaries and limitations](docs/notebook.md#m228c--automated-release-verification-and-acceptance).
+
+Only README.md and docs/notebook.md are modified in C. The local gate exceeded CI's configured ten-minute Test-step duration by **24.851 s**; hosted CI timing remains unresolved. Native journal restart, human keyboard/mouse/Narrator, real clipboard/picker/viewer, installed-codec WebP success and matching-source CI remain **unverified**. Prepared files can survive abrupt precommit death; retention/reclamation and integrated M22.11 acceptance remain deferred. **M22.9 onward remains pending.** No production/provider access or Git publication. Earlier entries below retain their phase-specific historical results.
+
 ## M22.8B1 — Atomic Notebook image placement
 
 Image import now commits the intended editor position, paragraph/selection changes, ordered image metadata, retained ownership and one note-version advance in the same SQLite transaction. The previous append-then-autosave sequence could expose an unintended tail position after interruption. File admission/staging remains preparatory; it cannot publish an intermediate canonical note. Newer editor revisions remain dirty and protected. [Transaction boundaries, interruption evidence and exact inventory](docs/notebook.md#m228b1--atomic-image-placement).
@@ -12,7 +20,7 @@ Implemented local-file insertion and image paste, bounded inline previews, wrapp
 
 Actual baseline and unchanged HEAD: clean `develop` at **`80eada6b7a758997505de3bad49fe8a0a52b9940`**, with M22.8A already committed. **19 modified + 8 added files**, uncommitted. Final focused Release results: **111/111 Desktop**, **513/513 Infrastructure**, **13/13 Application**, zero failures/skips, all exits **0**; affected builds have **zero warnings/errors** and EF is consistent. Evidence: `TestResults/m228b-verified/summary.json`, final TRX files and **12 inspected Light/Dark normal/narrow-240-DPI renders** in `renders/`; the Dark image-actions contrast defect is fixed. Export **v17**, canonical JSON **v1**, archive **v1** and retention remain intact. Final tracked/new-file whitespace and **167 local documentation targets / zero missing** pass.
 
-**M22.8B implementation/focused verification is complete; M22.8 overall acceptance remains pending.** No complete Release gate was run. Import and final placement can require two saves; a restart between them can show the imported reference at the canonical tail. Human interaction, real OS clipboard/native picker or viewer/restart, installed-codec WebP and matching CI remain unverified. M22.8C, reclamation, duplication/permanent deletion and integrated M22.11 acceptance remain outside this phase.
+**M22.8B implementation/focused verification is complete; M22.8 overall acceptance remains pending.** No complete Release gate was run. B1 supersedes the original two-save placement sequence: final placement now commits atomically. Human interaction, real OS clipboard/native picker or viewer/restart, installed-codec WebP and matching CI remain unverified. M22.8C, reclamation, duplication/permanent deletion and integrated M22.11 acceptance remain outside this phase.
 
 ## M22.8A — Notebook image storage and application operations
 
