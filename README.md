@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.8B — Notebook Desktop image integration
+
+Implemented local-file insertion and image paste, bounded inline previews, wrapped captions, explicit original viewing, and caption/order/reference-removal actions. Supported image-bearing bodies remain editable; unsupported/future content stays protected. Native image-object undo is replaced by bounded semantic undo/redo so references, formatting and preview visuals survive restoration. Save/import coordination preserves newer typing, validates selection ownership and retains originals through removal/recovery. [Actions, coordination, compatibility, evidence and exact inventory](docs/notebook.md#m228b--desktop-image-integration).
+
+Actual baseline and unchanged HEAD: clean `develop` at **`80eada6b7a758997505de3bad49fe8a0a52b9940`**, with M22.8A already committed. **19 modified + 8 added files**, uncommitted. Final focused Release results: **111/111 Desktop**, **513/513 Infrastructure**, **13/13 Application**, zero failures/skips, all exits **0**; affected builds have **zero warnings/errors** and EF is consistent. Evidence: `TestResults/m228b-verified/summary.json`, final TRX files and **12 inspected Light/Dark normal/narrow-240-DPI renders** in `renders/`; the Dark image-actions contrast defect is fixed. Export **v17**, canonical JSON **v1**, archive **v1** and retention remain intact. Final tracked/new-file whitespace and **167 local documentation targets / zero missing** pass.
+
+**M22.8B implementation/focused verification is complete; M22.8 overall acceptance remains pending.** No complete Release gate was run. Import and final placement can require two saves; a restart between them can show the imported reference at the canonical tail. Human interaction, real OS clipboard/native picker or viewer/restart, installed-codec WebP and matching CI remain unverified. M22.8C, reclamation, duplication/permanent deletion and integrated M22.11 acceptance remain outside this phase.
+
 ## M22.8A — Notebook image storage and application operations
 
 Implemented managed original-image import/read, caption/order updates and reference removal, with expected-version transactions and exact document-delta checks. Note-owned bytes use generated `notebook-*` keys in managed screenshot storage; committed originals and a durable ownership ledger survive reference removal for recovery and future undo. Failed imports compensate only after fresh ownership resolution; ambiguous commits retain bytes and report uncertainty. The Windows admission adapter validates PNG/JPEG and installed-codec WebP within the existing byte/dimension/single-frame limits, without adding image UI.

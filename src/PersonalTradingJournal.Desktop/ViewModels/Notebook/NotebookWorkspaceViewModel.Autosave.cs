@@ -28,6 +28,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private void ScheduleAutosave()
     {
         StopDebounce();
+        if (_imageOperation) return;
         if (_recovery is null || !_active || _disposed || (!IsDirty && _recoveryId is null) || _lifetime?.IsCancellationRequested != false) return;
         var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _debounce = owner;
@@ -45,6 +46,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     public Task<bool> SaveDraftAsync()
     {
+        if (_imageOperation) return Task.FromResult(false);
         StopDebounce();
         return FlushAsync(manual: true, _lifetime?.Token ?? CancellationToken.None);
     }
@@ -180,8 +182,7 @@ public sealed partial class NotebookWorkspaceViewModel
             _draftTitle = draft.Title; _draftDocument = draft.Document;
             _draftRevision = Math.Max(_draftRevision + 1, draft.Revision + 1);
             _detachedRecovery = Note is null || Note.State != NotebookNoteState.Active;
-            _recoveryConflict = _detachedRecovery || Note!.Version != draft.ExpectedVersion ||
-                !Note.Document.ImageNodes.Select(x => x.ImageId).Order().SequenceEqual(draft.Document.ImageNodes.Select(x => x.ImageId).Order());
+            _recoveryConflict = _detachedRecovery || Note!.Version != draft.ExpectedVersion;
             _autosavePaused = true; // Recovery is explicit; first canonical save requires Save.
             _saveState = _recoveryConflict ? "Recovered draft conflicts with the current note — preserve its text or discard before refreshing."
                 : "Recovered unsaved draft — select Save to persist.";

@@ -3,6 +3,11 @@ using PersonalTradingJournal.Domain.Notebook;
 
 namespace PersonalTradingJournal.Application.Notebook;
 
+/// <summary>Editor save with reference reconciliation. New owned bytes must first pass ImportAsync;
+/// restored references must match the same note's immutable retention ledger.</summary>
+public sealed record SaveNotebookImageDraft(Guid NoteId, long ExpectedVersion, string Title, NotebookDocument Document,
+    ImmutableArray<NotebookImage> Images) : NotebookCommand;
+
 // Transport commands are validated by the future handler; bad input returns Invalid without writes.
 // ExpectedVersion is mandatory for mutations of an existing note, including metadata and deletion.
 public abstract record NotebookCommand;

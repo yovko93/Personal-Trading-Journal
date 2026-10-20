@@ -1,6 +1,113 @@
 # Notebook
 
-Current checkpoint: **M22.8A image storage and application operations; M22.8 overall acceptance pending**. Logical export **v17** includes canonical Notebook records, recovery checkpoints and retained owned-file metadata. Current-schema archive **v1** includes required Notebook originals; JSON/CSV are not restore inputs. Desktop image insertion/rendering, duplication/permanent deletion, file reclamation, linked-target navigation and full integrated M22.11 acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.8B Desktop image integration; M22.8 overall acceptance pending**. Logical export **v17**, canonical JSON **v1**, current-schema archive **v1** and M22.8A retention remain unchanged. Desktop insertion, previews and reference editing are implemented below. Complete Release acceptance belongs to **M22.8C**; duplication/permanent deletion, reclamation, linked-target navigation and integrated M22.11 acceptance remain deferred. Earlier milestone sections are historical decisions/results.
+
+## M22.8B — Desktop image integration
+
+20 October 2026. Actual baseline: **clean `develop`, `80eada6b7a758997505de3bad49fe8a0a52b9940`**, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The supplied request described M22.8A as uncommitted, but the actual baseline already contains it. Repository/ancestor instructions, this contract, A's import/read/retention operations, editor, autosave and existing artifacts were inspected; no applicable `AGENTS.md` or duplicate active test run was found. One agent, no subagents; no production/provider access or Git publication.
+
+### Image actions, paste and projection
+
+Active supported JSON v1 documents containing images are now editable. The adapter projects each image as a protected semantic block carrying its existing node ID and attachment ID. Captions/alternative text and ordered reference metadata remain in the established model; image bytes, WPF objects and source filenames never enter canonical JSON. Future/unreadable payloads still have no editable draft and are preserved. Archived/Trashed image bodies and caption inputs remain read-only.
+
+**Insert image** opens the existing local file picker. PNG/JPEG and installed-decoder WebP use A's actual signature, single-frame, byte and dimension admission; original file bytes are retained exactly. WebP is explicitly conditional on an installed decoder. Paste accepts an explicit encoded PNG stream when available, or encodes a bounded clipboard bitmap as lossless PNG. The editor's existing non-image Unicode-text paste and title limits remain; HTML/RTF images are never fetched or imported. Cancellation and invalid/unavailable codecs leave selected content intact, with useful feedback. No OS clipboard read occurs during activation, selection or CanExecute.
+
+Insertion validates a cloned text-container candidate before touching the live selection. Paragraph splitting uses a direct text-pointer operation, preserving surrounding marks and content. Each new image has an editable following paragraph, including document-end insertion and consecutive bitmap pastes. Control-V selects an actually present clipboard format through a testable read port. A live bookmark follows typing at a caret. A changed nonempty selection, removed anchor, replaced editor or different note prevents delayed replacement. Image paste uses the same insertion route and testable input port. Cut exports readable Unicode text and removes selected references through the same validated editor path; it does not copy managed ownership into another note.
+
+Inline previews use the existing bounded decoder (longest preview dimension at most 384 pixels), at most two concurrent view loads, uniform aspect ratio and editor-constrained width. Originals retain their full resolution. Long captions wrap under the image, following the supplied mockup's bordered chart/caption treatment. **Open original** explicitly opens the existing themed scrollable viewer pattern; reading a note never opens an external viewer. **Image actions** provides caption/alternative text, Move earlier/later within the containing block collection, and Remove reference. Missing, corrupt and unsupported originals have a readable placeholder while surrounding text remains editable. Owned reads use A's reader; Trade references use the existing screenshot reader and verify the returned Trade/screenshot identities. Source streams are disposed; preview bitmaps are frozen and retain no source-file handle. Cancelled or obsolete note loads cannot publish a late preview.
+
+### Save coordination, undo and retention
+
+Import drains an in-flight checkpoint/save and saves pending dirty content before capturing the current note/version. A's import already commits a document and reference: it appends the new reference **once** to the canonical note. On verified success the editor applies that same identity at its still-valid live bookmark. Placement/selected-content replacement and any newer typing form a dirty editor draft, reconciled by the normal guarded save/autosave; navigation cannot abandon that draft without its existing save/discard decision. This is deliberately two versioned commits when final placement differs from the append, not an assertion of atomic caret placement across process death. A restart before the second save can expose the successfully imported image at the canonical tail. The editor does not claim newer placement/typing is Saved merely because import completed.
+
+The import owns the existing exclusive write and lifetime cancellation boundary. Navigation is guarded during preparation/import; disposal cancels ownership before draining. Failure retains the draft; serious conflict/storage outcomes pause automatic retries. Rejected formats/codecs do not pause unrelated autosave. A stale selection after a committed import is preserved, and the next draft save removes the unused current reference while retaining its bytes. No second import or duplicate reference is issued.
+
+Necessary Application integration: **`SaveNotebookImageDraft`** atomically saves title, document and the bounded image projection for text edits, multiple keyboard removals, caption/order changes and undo. Existing file identities cannot be rebound; current attachment/node identities are checked, and any restored owned ID/key/size/hash must match this same note's immutable ledger. It cannot stage/import new bytes. New Trade references must resolve to their authoritative Trade screenshot; existing unavailable references remain preservable. Ordinary `SaveNotebookDraft`/`UpdateNotebookContent` still reject arbitrary metadata changes. Lifecycle/version checks, verified readback and transaction rollback remain. Missing retained originals can be restored semantically to placeholders without rewriting or discarding the reference; the owned reader now returns resolved metadata with a missing/unreadable status so recovery can preserve that identity safely.
+
+Native WPF undo was found to recreate split Runs without their IDs and sometimes restore an empty image visual child. Therefore, from the first image reference onward, the view uses **100 undo steps / 101 immutable document states**, including exact image identities and surrounding formatting, with selection offsets. Toolbar and Control-Z/Control-Y use that history; native image-object undo is disabled. Restoring a state renders fresh previews from semantic references. Text-only documents retain native undo, with semantic states recorded in case an image is subsequently inserted. Save does not clear history; replacement/refresh of the note does. Invalid image-editor structure can undo to the last valid state. Programmatic rendering/loading does not create dirty content or saves; actual undo/redo is an editor change and participates in autosave.
+
+Undo/removal never delete originals. A's ledger and file retention are unchanged and intentionally indefinite, including recovery and removed references. Trade originals are never transferred or deleted by Notebook removal. No garbage collection, duplication or permanent-note deletion is enabled. Same-version recovery may restore an image-bearing checkpoint from the retained ledger; stale versions remain conflict-protected. Complete archives still include exact current/retained originals and fail on missing/tampered required files; logical export stays **17**, document/archive formats stay **1**.
+
+### Focused verification and visual evidence
+
+**M22.8B implementation and focused verification are complete.** Final affected Release builds passed with **zero warnings/errors**: Desktop/test **13.00 s** (`TestResults/m228b-desktop-build-caret-complete.log`), Infrastructure/test **7.14 s** (`m228b-infrastructure-build-complete.log`), Application/test **4.75 s** (`m228b-application-build-final.log`). EF reports **no pending model changes**, recorded in `TestResults/m228b-verified/ef-consistency.txt`; no schema/export/archive version changed in B.
+
+Durable evidence root: **`TestResults/m228b-verified/`**. **`summary.json`** records baseline/HEAD, exact inventory, source and binary hashes, final counters, exit codes and timestamps. The Desktop test output's Infrastructure binary matches the current Infrastructure build. Every final focused run exited **0**, with zero failures/skips:
+
+| Final focused run | Passed / total | Failed / skipped | Reported test duration | TRX under evidence root |
+| --- | ---: | ---: | --- | --- |
+| Desktop — all Notebook editor, image, autosave, recovery, tag, navigation and SQLite cases | 111 / 111 | 0 / 0 | 2m | `desktop-focused-caret-complete.trx` |
+| Infrastructure — Notebook/storage/schema/export/archive/restore and existing attachment compatibility | 513 / 513 | 0 / 0 | 3m10s | `infrastructure-focused-complete.trx` |
+| Application — Notebook contracts | 13 / 13 | 0 / 0 | 97 ms | `application-focused.trx` |
+
+Top-level TRX counts are reported once; repeated isolated child-suite executions overlap those cases and are not added to the totals. **20 final isolated process reports/log sets** are copied to `isolated-caret-final/`; earlier isolated reports are retained separately. New coverage comprises **14 Desktop cases and 7 Infrastructure cases**, plus the existing archive round trip now using the editor reconciliation command. Controlled gates cover dirty/in-flight autosave, newer typing, selected-content protection, conflict/cancellation, navigation/disposal and obsolete preview completion. Real isolated SQLite/Windows decoder coverage verifies import, original bytes, retained removal/recovery, missing originals, bounded preview decode and released file handles. Trade preview tests verify actual owner identity and stream disposal. Full JSON/format/reference assertions and canonical paragraph/image newlines remain exact; values are not trimmed to hide differences.
+
+All **12 final renders** were inspected from `renders/`, with the supplied reference preserved as `reference-workspace.png`. Filename matrix: `{Light|Dark}-{1280-96|480-240}-{codec-error|inline-caption-missing|missing-and-actions}.png`. Normal renders are 1280×1000 pixels at 96 DPI; narrow renders are 1200×2125 pixels for 480×850 DIP at 240 DPI. Inline charts retain the reference's wide aspect ratio, thin border and caption spacing; long captions wrap within the editor. Missing references, expanded caption/order/removal controls and codec feedback remain readable. The discovered Dark-mode black **Image actions** label is corrected with the theme foreground and a regression assertion. No blocking defect remains in these captures. Long content uses the existing inner/outer scrolling at narrow sizes; scrolled evidence intentionally clips earlier content above the viewport. These are synthetic workspace renders, not human/live-shell acceptance or pixel-perfect reproduction of the supplied mockup.
+
+Intermediate failures are preserved: `TestResults/m228b/images-initial.trx` **6 passed / 4 failed** exposed the routed paragraph-break placement defect; `images-placement.trx` **6 / 4** exposed native undo losing Run identities. Visual inspection additionally found native undo restoring an empty image child, motivating semantic image history. `desktop-focused-first.trx` **104 / 4** found the inconsistent text-only fixture's unrelated image metadata; the fixture was corrected without weakening its Saved/content assertions. `TestResults/m228b-verified/desktop-focused.trx` **110 / 1** expected IOException where corrupt decoding actually throws InvalidDataException; the assertion now specifies each exact failure type. The initial `infrastructure-focused.trx` **506 / 7** compared ImmutableArray storage identity; explicit element-by-element equality now verifies every image field. An early test build's **CS0649** for the not-yet-connected `Imports.Before` gate is retained in `TestResults/m228b-desktop-build-tests.log`; connecting the coordination seam resolved it. The pre-contrast successful Desktop run (**111/111**, `desktop-focused-complete.trx`) is retained separately; the final run above includes the contrast fix and expanded/scrolled evidence. Assertions, existing process deadlines and concurrency settings were not relaxed.
+
+Final tracked and all **8 added-file whitespace checks pass**. README/Notebook local Markdown target-existence checks pass **167 targets / zero missing**, evidence `TestResults/m228b-documentation-links.json`; URL/fragment validation is outside that check. The documented inventory exactly matches all **27 current changed files**, evidence `TestResults/m228b-verified/inventory-check.json`. Only documentation/evidence changed after final runtime verification; runtime gates were not repeated for those edits. **No complete Release gate or new Calendar/headroom measurement was run.** Human keyboard/mouse/Narrator, real OS clipboard, native picker/viewer interaction, native-process restart, installed-codec WebP success and matching-source CI remain **unverified**. Synthetic clipboard data, controlled ports and isolated WPF renders do not establish those checks. M22.8 overall acceptance and M22.8C remain pending; retention/reclamation, duplication/permanent deletion and integrated M22.11 limitations above remain.
+
+Commands (PowerShell from the repository root; the existing in-memory design-time factory is used by EF):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b-desktop-build-caret-complete.log
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b-infrastructure-build-complete.log
+dotnet build tests/PersonalTradingJournal.Application.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228b-application-build-final.log
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=desktop-focused-caret-complete.trx' --results-directory TestResults/m228b-verified --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests|FullyQualifiedName~TradingRulePersistenceTests|FullyQualifiedName~TradingRulePortabilityTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~PlaybookImagePersistenceTests|FullyQualifiedName~DailyTradingPrincipleTests|FullyQualifiedName~SharedTradingPlanTests|FullyQualifiedName~TradingPlanPortabilityTests|FullyQualifiedName~LocalTradeScreenshotFileStorageTests' --logger 'trx;LogFileName=infrastructure-focused-complete.trx' --results-directory TestResults/m228b-verified --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Application.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=application-focused.trx' --results-directory TestResults/m228b-verified -v minimal
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+pwsh -NoProfile -File TestResults/m228b-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m228b-summarize.ps1
+```
+
+Final command-path review added an explicit bitmap-only Control-V test. `desktop-focused-clipboard-final.trx` retained **107 passed / 4 failed**: after the first document-end image, the caret had no paragraph and the consecutive image paste left the reference count at **3 instead of 4**. Insertion now leaves an editable following paragraph and safely handles an image boundary. The format-selection correction and consecutive command paste are included in the final Desktop run above; `desktop-focused-final.trx` retains the earlier successful **111/111** contrast verification. The caret patch's initial **CS1503** (unsupported Paragraph constructor) and **CS0136** (local/pattern name collision) builds are retained in `m228b-desktop-build-boundary-final.log` and `m228b-desktop-build-boundary-complete.log`; the explicit block insertion and renamed local compile with zero warnings/errors in `m228b-desktop-build-caret-complete.log`.
+
+Infrastructure fixtures ran with their required Windows link/DPAPI capabilities in isolated temporary directories/databases. Whitespace for each added file also uses `git diff --no-index --check -- NUL <path>`; exit 1 with no whitespace diagnostics is the normal new-file diff, not a failed whitespace check.
+
+
+### Exact M22.8B changed-file inventory
+
+Relative to clean baseline `80eada6b7a758997505de3bad49fe8a0a52b9940`: **19 modified + 8 added files**, all uncommitted. M22.8A is preserved in the baseline; its historical 39-file inventory below is not a second set of current changes. Ignored TestResults logs/TRX/renders/checkers/summary are local evidence outside source inventory.
+
+Modified:
+
+```text
+README.md
+docs/notebook.md
+src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs
+src/PersonalTradingJournal.Desktop/App.xaml.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageService.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Images.cs
+src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookAutosaveTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookEditingTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageAdmissionTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs
+```
+
+Added:
+
+```text
+src/PersonalTradingJournal.Desktop/Screenshots/NotebookImages.cs
+src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Images.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookEditorAdapter.Images.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.History.cs
+src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Images.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageCoordinationTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageEditorTests.cs
+tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImageDraftTests.cs
+```
 
 ## M22.8A — image storage and application operations
 

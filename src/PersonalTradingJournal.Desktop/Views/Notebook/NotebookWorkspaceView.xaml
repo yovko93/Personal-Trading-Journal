@@ -186,6 +186,7 @@
        <Button Content="Toggle check" Click="ToggleCheck" AutomationProperties.HelpText="Toggle current checklist item. Control Enter." Margin="0,0,4,4"/>
        <Button x:Name="UndoButton" Content="Undo" Click="Undo" Margin="0,0,4,4"/>
        <Button x:Name="RedoButton" Content="Redo" Click="Redo" Margin="0,0,4,4"/>
+       <Button x:Name="InsertImageButton" Content="Insert image" Click="InsertImage" Margin="0,0,4,4" ToolTip="Local PNG/JPEG or WebP with an installed decoder. Maximum 8 MiB."/>
       </WrapPanel>
       <Expander x:Name="LinkActions" Header="Hyperlink" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,0,0,6" AutomationProperties.Name="Hyperlink actions">
        <WrapPanel>
@@ -197,7 +198,7 @@
       </Expander>
       <TextBlock x:Name="EditorFeedback" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>
      </StackPanel>
-     <RichTextBox x:Name="Preview" Grid.Row="1" MaxHeight="500" IsReadOnly="{Binding BodyReadOnly}" IsDocumentEnabled="False" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}" CaretBrush="{DynamicResource PtjTextPrimaryBrush}" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="BodyChanged" SelectionChanged="SelectionChanged" PreviewKeyDown="EditorKeyDown" AllowDrop="False" AutomationProperties.Name="Note content" AutomationProperties.HelpText="Edit text. Control B, I, U formats the selection; Control Enter toggles a checklist item. Control S saves."/>
+     <RichTextBox x:Name="Preview" Grid.Row="1" MaxHeight="500" IsReadOnly="{Binding BodyReadOnly}" IsDocumentEnabled="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}" CaretBrush="{DynamicResource PtjTextPrimaryBrush}" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="BodyChanged" SelectionChanged="SelectionChanged" PreviewKeyDown="EditorKeyDown" AllowDrop="False" AutomationProperties.Name="Note content" AutomationProperties.HelpText="Edit text. Control B, I, U formats the selection; Control Enter toggles a checklist item. Control S saves."/>
      <ScrollViewer Grid.Row="2" MaxHeight="120" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,12,0,0" AutomationProperties.Name="Linked records">
       <TextBlock Text="{Binding LinkText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextSecondaryBrush}"/>
      </ScrollViewer>

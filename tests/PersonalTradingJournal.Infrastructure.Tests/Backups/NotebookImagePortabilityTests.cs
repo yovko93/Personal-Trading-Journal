@@ -36,7 +36,7 @@ public sealed class NotebookImagePortabilityTests
         var image = note.Images[0];
         var recovery = source.Services.GetRequiredService<INotebookRecoveryStore>();
         Assert.Equal(NotebookWriteStatus.Success, await recovery.PutAsync(new(Guid.NewGuid(), note.Id, note.Version, 1, "Recover image", note.Document, DateTimeOffset.UtcNow), 0));
-        note = NotebookFixture.Success(await s.Notes.ExecuteAsync(new RemoveNotebookImage(note.Id, note.Version, image.Id, NotebookDocument.Empty, [])));
+        note = NotebookFixture.Success(await s.Notes.ExecuteAsync(new SaveNotebookImageDraft(note.Id, note.Version, note.Title, NotebookDocument.Empty, [])));
         Assert.Empty(note.Images);
         await source.Services.GetRequiredService<ITradeScreenshotFileStorage>().DeleteIfExistsAsync(image.StorageKey!);
         Assert.True(File.Exists(Path.Combine(source.Paths.ScreenshotsDirectory, image.StorageKey!)));

@@ -203,7 +203,7 @@ public sealed class NotebookAutosaveTests
         Assert.Equal(1, f.Data.Writes);
     }
     [Fact]
-    public async Task DirtyMetadataMutationFlushesFirstAndImageReferenceBodyRemainsProtected()
+    public async Task DirtyMetadataMutationFlushesFirstAndImageReferenceBodyRemainsEditable()
     {
         await using var f = await Fixture.Open(); var vm = f.Vm;
         vm.DraftTitle = "Before pin"; await vm.PinCommand.ExecuteAsync(null);
@@ -211,7 +211,7 @@ public sealed class NotebookAutosaveTests
         Assert.Equal("Before pin", vm.Note.Title); Assert.Equal(2, f.Data.Writes); Assert.Equal(0, f.Choices.Prompts);
         var image = NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid(), "Caption", "Alt");
         f.Data.Notes[0] = f.Data.Notes[0] with { Document = new([image]) }; await vm.RefreshCommand.ExecuteAsync(null);
-        Assert.False(vm.CanEditBody); Assert.True(vm.CanEditDraft);
+        Assert.True(vm.CanEditBody); Assert.True(vm.CanEditDraft);
         vm.DraftTitle = "Image title"; await f.Quiet();
         Assert.Same(image, vm.Note!.Document.ImageNodes.Single()); Assert.Equal("Image title", vm.Note.Title);
     }

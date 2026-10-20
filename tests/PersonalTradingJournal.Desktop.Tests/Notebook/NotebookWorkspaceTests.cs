@@ -62,7 +62,19 @@ internal sealed class NotebookFake : INotebookService
     }
     public Task<NotebookCatalogPage> ListCatalogAsync(NotebookCatalogQuery q, CancellationToken ct = default) => Task.FromResult(Catalog(q));
     public Task<NotebookLoadResult> LoadAsync(Guid id, CancellationToken ct = default)
-    { Loads++; return OnLoad?.Invoke(id, ct) ?? Task.FromResult(Notes.FirstOrDefault(n => n.Id == id) is { } n ? new NotebookLoadResult(NotebookLoadStatus.Success, n) : new(NotebookLoadStatus.NotFound)); }
+    {
+        Loads++;
+        if (OnLoad is not null) return OnLoad(id, ct);
+        int index = Notes.FindIndex(n => n.Id == id);
+        if (index < 0) return Task.FromResult(new NotebookLoadResult(NotebookLoadStatus.NotFound));
+        var note = Notes[index];
+        // Test document replacements must also project matching attachment metadata, as the real store does.
+        note = note with { Images = [.. note.Document.ImageNodes.Select((node, i) =>
+            note.Images.FirstOrDefault(x => x.Id == node.ImageId) ?? NotebookImage.Owned(node.ImageId!.Value, i,
+                $"synthetic-{i}.png", 1, new string('A', 64), node.Caption, node.AlternativeText))] };
+        Notes[index] = note;
+        return Task.FromResult(new NotebookLoadResult(NotebookLoadStatus.Success, note));
+    }
     public Task<NotebookWriteResult> ExecuteAsync(NotebookCommand c, CancellationToken ct = default)
     {
         Writes++;
@@ -72,13 +84,14 @@ internal sealed class NotebookFake : INotebookService
         if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookDocument.Empty }; Notes.Add(n); }
         else
         {
-            var id = c switch { SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
+            var id = c switch { SaveNotebookImageDraft d => d.NoteId, SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
             int index = Notes.FindIndex(n => n.Id == id); n = Notes[index];
             if (c is AssignNotebookTag assign)
             { n = n with { TagIds = n.TagIds.Add(assign.TagId), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
             if (c is RemoveNotebookTag remove)
             { n = n with { TagIds = n.TagIds.Remove(remove.TagId), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
-            n = c is SaveNotebookDraft draft ? n with { Title = draft.Title.Trim(), Document = draft.Document, Version = n.Version + 1 } :
+            n = c is SaveNotebookImageDraft editor ? n with { Title = editor.Title.Trim(), Document = editor.Document, Images = editor.Images, Version = n.Version + 1 } :
+                c is SaveNotebookDraft draft ? n with { Title = draft.Title.Trim(), Document = draft.Document, Images = draft.Images, Version = n.Version + 1 } :
                 c is MoveNotebookNote move ? n with { FolderId = move.FolderId, Version = n.Version + 1 } : n with { IsPinned = ((SetNotebookPin)c).IsPinned, Version = n.Version + 1 };
             Notes[index] = n;
         }

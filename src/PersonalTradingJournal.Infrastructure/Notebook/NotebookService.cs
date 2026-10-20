@@ -82,6 +82,12 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
                 var now = Now;
                 switch (command)
                 {
+                    case SaveNotebookImageDraft editor:
+                        var editorStatus = await ReconcileEditorImages(db, note, editor, ct);
+                        if (editorStatus != NotebookWriteStatus.Success) return new(editorStatus);
+                        note.SaveDraft(editor.Title, editor.Document, editor.Images, now);
+                        encoded = codec.Encode(note.Document);
+                        break;
                     case AddNotebookImage or UpdateNotebookImage or RemoveNotebookImage:
                         var imageStatus = await ApplyImageCommand(db, note, command, now, ct);
                         if (imageStatus != NotebookWriteStatus.Success) return new(imageStatus);
@@ -159,6 +165,7 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
 
     private static (Guid, long) Identity(NotebookCommand c) => c switch
     {
+        SaveNotebookImageDraft x => (x.NoteId, x.ExpectedVersion),
         SaveNotebookDraft x => (x.NoteId, x.ExpectedVersion),
         AddNotebookImage x => (x.NoteId, x.ExpectedVersion), UpdateNotebookImage x => (x.NoteId, x.ExpectedVersion),
         RemoveNotebookImage x => (x.NoteId, x.ExpectedVersion),

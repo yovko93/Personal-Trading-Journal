@@ -7,16 +7,16 @@ using List = System.Windows.Documents.List;
 namespace PersonalTradingJournal.Desktop.Views.Notebook;
 
 /// <summary>Allowlisted bidirectional Desktop projection. No XAML/RTF deserialization or external fetching.</summary>
-internal static class NotebookEditorAdapter
+internal static partial class NotebookEditorAdapter
 {
-    internal static FlowDocument Create(NotebookDocument source)
+    internal static FlowDocument Create(NotebookDocument source, Func<NotebookNode, BlockUIContainer>? imageFactory = null)
     {
         var result = new FlowDocument { PagePadding = new(4), FontSize = 15, LineHeight = 23 };
         result.SetResourceReference(TextElement.ForegroundProperty, "PtjTextPrimaryBrush");
-        foreach (var node in source.Blocks) result.Blocks.Add(CreateBlock(node));
+        foreach (var node in source.Blocks) result.Blocks.Add(CreateBlock(node, imageFactory));
         return result;
     }
-    private static Block CreateBlock(NotebookNode n)
+    private static Block CreateBlock(NotebookNode n, Func<NotebookNode, BlockUIContainer>? imageFactory = null)
     {
         if (n.Kind is NotebookNodeKind.BulletedList or NotebookNodeKind.NumberedList or NotebookNodeKind.Checklist)
         {
@@ -27,13 +27,16 @@ internal static class NotebookEditorAdapter
                 var item = new ListItem { Tag = child.Id };
                 if (n.Kind == NotebookNodeKind.Checklist)
                     item.Blocks.Add(new Paragraph(new Run(child.IsChecked == true ? "☑ Checked" : "☐ Not checked")) { Margin = new(0), Tag = "check" });
-                foreach (var block in child.Children) item.Blocks.Add(CreateBlock(block));
+                foreach (var block in child.Children) item.Blocks.Add(CreateBlock(block, imageFactory));
                 list.ListItems.Add(item);
             }
             return list;
         }
         if (n.Kind == NotebookNodeKind.Image)
+        {
+            if (imageFactory is not null) return imageFactory(n);
             return new BlockUIContainer(new TextBlock { Text = $"Image · {n.Caption}\n{n.AlternativeText}\nImage preview unavailable.", TextWrapping = TextWrapping.Wrap }) { Tag = n };
+        }
         var p = new Paragraph { Tag = n.Id, Margin = new(0, 0, 0, 12),
             LineHeight = n.Kind == NotebookNodeKind.Heading ? n.HeadingLevel switch { 1 => 32, 2 => 28, _ => 25 } : 23,
             FontSize = n.Kind == NotebookNodeKind.Heading ? n.HeadingLevel switch { 1 => 24, 2 => 20, _ => 17 } : 15 };
@@ -239,6 +242,8 @@ internal static class NotebookEditorAdapter
     }
     private static Block CloneBlock(Block source)
     {
+        if (source is BlockUIContainer { Tag: NotebookNode image } && image.Kind == NotebookNodeKind.Image)
+            return CreateBlock(image);
         if (source is Paragraph p)
         {
             var copy = Formatting(p, new Paragraph { LineHeight = p.LineHeight });

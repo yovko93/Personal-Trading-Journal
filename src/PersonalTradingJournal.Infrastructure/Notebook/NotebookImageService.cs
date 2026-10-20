@@ -78,12 +78,13 @@ public sealed class NotebookImageService(IDbContextFactory<JournalDbContext> fac
 
     public async Task<NotebookImageContent> ReadOriginalAsync(Guid noteId, Guid imageId, CancellationToken token = default)
     {
+        NotebookStoredImage? metadata = null;
         try
         {
             NotebookLimits.Id(noteId, nameof(noteId)); NotebookLimits.Id(imageId, nameof(imageId));
             await using var db = await factory.CreateDbContextAsync(token);
             var ledger = await db.NotebookOwnedImageFiles.AsNoTracking().SingleOrDefaultAsync(x => x.Id == imageId && x.NoteId == noteId, token);
-            NotebookStoredImage? metadata = ledger is null ? null : new(ledger.StorageKey, ledger.SizeBytes, ledger.Sha256);
+            metadata = ledger is null ? null : new(ledger.StorageKey, ledger.SizeBytes, ledger.Sha256);
             if (metadata is null)
             {
                 var row = await db.NotebookImages.AsNoTracking().SingleOrDefaultAsync(x => x.NoteId == noteId && x.Id == imageId, token);
@@ -94,10 +95,10 @@ public sealed class NotebookImageService(IDbContextFactory<JournalDbContext> fac
             return new(NotebookImageStatus.Success, metadata, await files.ReadAsync(metadata, token));
         }
         catch (OperationCanceledException) { return new(NotebookImageStatus.Cancelled); }
-        catch (NotebookImageFileException e) { return new(e.Status); }
-        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return new(NotebookImageStatus.Missing); }
+        catch (NotebookImageFileException e) { return new(e.Status, metadata); }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException) { return new(NotebookImageStatus.Missing, metadata); }
         catch (ArgumentException) { return new(NotebookImageStatus.Invalid); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
-        { return new(NotebookImageStatus.Unreadable); }
+        { return new(NotebookImageStatus.Unreadable, metadata); }
     }
 }

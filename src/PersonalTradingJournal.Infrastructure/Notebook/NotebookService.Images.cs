@@ -9,6 +9,51 @@ namespace PersonalTradingJournal.Infrastructure.Notebook;
 
 public sealed partial class NotebookService
 {
+    private async Task<NotebookWriteStatus> ReconcileEditorImages(JournalDbContext db, NotebookNote note,
+        SaveNotebookImageDraft draft, CancellationToken ct)
+    {
+        if (draft.Images.IsDefault || draft.Document is null) return NotebookWriteStatus.Invalid;
+        // Validate the bounded whole-document/reference projection before any database mutation.
+        if (draft.Images.Length > NotebookLimits.Images || draft.Images.Length != draft.Document.ImageNodes.Count ||
+            draft.Images.Select(x => x.Id).Distinct().Count() != draft.Images.Length) return NotebookWriteStatus.Invalid;
+        for (int i = 0; i < draft.Images.Length; i++)
+        {
+            var image = draft.Images[i]; var node = draft.Document.ImageNodes[i];
+            if (image.Id != node.ImageId || image.Position != i || image.Caption != node.Caption || image.AlternativeText != node.AlternativeText)
+                return NotebookWriteStatus.Invalid;
+        }
+        foreach (var image in draft.Images)
+        {
+            var previous = note.Images.SingleOrDefault(x => x.Id == image.Id);
+            if (previous is not null)
+            {
+                if (At(previous, 0, image.Caption, image.AlternativeText) != At(image, 0)) return NotebookWriteStatus.Invalid;
+                if (note.Document.ImageNodes.Single(n => n.ImageId == image.Id).Id !=
+                    draft.Document.ImageNodes.Single(n => n.ImageId == image.Id).Id) return NotebookWriteStatus.Invalid;
+            }
+            else if (image.Ownership == NotebookImageOwnership.NoteOwned)
+            {
+                var retained = await db.NotebookOwnedImageFiles.AsNoTracking().SingleOrDefaultAsync(x => x.Id == image.Id, ct);
+                if (retained is null || retained.NoteId != note.Id || retained.StorageKey != image.StorageKey ||
+                    retained.SizeBytes != image.SizeBytes || retained.Sha256 != image.Sha256) return NotebookWriteStatus.Invalid;
+                // Restoration is semantic: missing bytes still produce an editable placeholder.
+                // Only previously admitted immutable ledger identities can enter this path.
+            }
+            else if (!await db.TradeScreenshots.AnyAsync(x => x.Id == image.TradeScreenshotId && x.TradeId == image.TradeId, ct))
+                return NotebookWriteStatus.UnavailableTarget;
+        }
+        foreach (var owned in note.Images.Where(x => x.Ownership == NotebookImageOwnership.NoteOwned))
+        {
+            var retained = await db.NotebookOwnedImageFiles.SingleOrDefaultAsync(x => x.Id == owned.Id, ct);
+            if (retained is null) db.NotebookOwnedImageFiles.Add(new() { Id = owned.Id, NoteId = note.Id,
+                StorageKey = owned.StorageKey!, SizeBytes = owned.SizeBytes!.Value, Sha256 = owned.Sha256! });
+            else if (retained.NoteId != note.Id || retained.StorageKey != owned.StorageKey || retained.SizeBytes != owned.SizeBytes || retained.Sha256 != owned.Sha256)
+                return NotebookWriteStatus.Invalid;
+        }
+        await db.NotebookImages.Where(x => x.NoteId == note.Id).ExecuteDeleteAsync(ct);
+        foreach (var image in draft.Images) db.NotebookImages.Add(NotebookMapper.Image(note.Id, image));
+        return NotebookWriteStatus.Success;
+    }
     internal static NotebookImage At(NotebookImage image, int position, string? caption = null, string? alternative = null) =>
         image.Ownership == NotebookImageOwnership.NoteOwned
             ? NotebookImage.Owned(image.Id, position, image.StorageKey!, image.SizeBytes!.Value, image.Sha256!, caption ?? image.Caption, alternative ?? image.AlternativeText)

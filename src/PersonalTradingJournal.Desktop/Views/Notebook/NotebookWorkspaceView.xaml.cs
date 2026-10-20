@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -19,6 +20,12 @@ public partial class NotebookWorkspaceView : UserControl
         InputBindings.Add(new KeyBinding(new CommunityToolkit.Mvvm.Input.RelayCommand(() => SearchBox.Focus()), Key.F, ModifierKeys.Control));
         DataObject.AddPastingHandler(Preview, OnPaste);
         DataObject.AddPastingHandler(TitleEditor, OnTitlePaste);
+        Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, e) => { e.Handled = true; UndoEditor(false); },
+            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanEditBody == true && CanUndoEditor; }));
+        Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, e) => { e.Handled = true; UndoEditor(true); },
+            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanEditBody == true && CanRedoEditor; }));
+        Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Cut, (_, e) => CutText(e),
+            (_, e) => { e.CanExecute = _model?.CanEditBody == true && !Preview.Selection.IsEmpty; e.Handled = true; }));
         // Do not inspect the clipboard during CanExecute, activation or selection.
         Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Paste, (_, e) => PasteFromClipboard(false, e),
             (_, e) => { e.CanExecute = _model?.CanEditBody == true; e.Handled = true; }));
@@ -34,8 +41,23 @@ public partial class NotebookWorkspaceView : UserControl
             { e.Handled = true; Preview.CaretPosition = position; Edit(() => NotebookEditorAdapter.ToggleCheck(Preview)); }
         };
     }
+    internal Action<string> WriteClipboardText { get; set; } = text => Clipboard.SetText(text, TextDataFormat.UnicodeText);
+    internal Func<IDataObject?> ReadClipboardData { get; set; } = Clipboard.GetDataObject;
+    private void CutText(ExecutedRoutedEventArgs e)
+    {
+        e.Handled = true;
+        if (_model?.CanEditBody != true || Preview.Selection.IsEmpty) return;
+        try
+        {
+            // Cut exports readable text only. Reference removal uses the same validated native undo unit.
+            WriteClipboardText(Preview.Selection.Text);
+            NotebookEditorAdapter.PasteText(Preview, "", _model.ValidateDocument);
+        }
+        catch (Exception ex) when (ex is ArgumentException or System.Runtime.InteropServices.ExternalException)
+        { EditorFeedback.Text = "Cut could not finish. The selected content is retained."; }
+    }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
-    private void OnUnloaded(object sender, RoutedEventArgs e) { Detach(); _model = null; }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { _imageLoads?.Cancel(); Detach(); _model = null; }
     private void Detach() { if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e) { LayoutPanels(); TitleEditor.Focus(); TitleEditor.SelectAll(); }
     private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { if (IsLoaded) Attach(); }
@@ -56,21 +78,21 @@ public partial class NotebookWorkspaceView : UserControl
         _updating = true;
         try
         {
-            bool protectedBody = _model?.DraftDocument.ImageNodes.Count > 0;
-            Preview.Document = protectedBody ? NotebookDocumentPreview.Create(_model?.DraftDocument) : NotebookEditorAdapter.Create(_model?.DraftDocument ?? NotebookDocument.Empty);
-            EditorFeedback.Text = protectedBody ? "This body contains protected image references and is read-only. The title can still be edited." : "";
-            AutomationProperties.SetName(Preview, protectedBody ? "Read-only note content" : "Note content");
+            _imageLoads?.Cancel(); _imageLoads = new();
+            Preview.Document = NotebookEditorAdapter.Create(_model?.DraftDocument ?? NotebookDocument.Empty, CreateImageBlock);
+            EditorFeedback.Text = "";
+            AutomationProperties.SetName(Preview, "Note content");
             if (_model?.HasDraft != true) TitleEditor.SetCurrentValue(TextBox.TextProperty, _model?.NoteTitle ?? "Select a note");
         }
         finally { _updating = false; }
-        UpdateUndo();
+        ResetHistory(); UpdateUndo();
         SelectionChanged(Preview, new RoutedEventArgs());
     }
     private void BodyChanged(object sender, TextChangedEventArgs e)
     {
         if (_updating || _model?.CanEditBody != true) return;
-        try { var document = NotebookEditorAdapter.Read(Preview.Document); _model.ValidateDocument(document); _model.SetDraftDocument(document); }
-        catch (ArgumentException) { _model.SetDraftError("Content exceeds its limits or has an unsupported structure. Undo or correct the change before saving."); }
+        try { var document = NotebookEditorAdapter.Read(Preview.Document); _model.ValidateDocument(document); _model.SetDraftDocument(document); _invalidEditor = false; RecordHistory(document); }
+        catch (ArgumentException) { _invalidEditor = true; _model.SetDraftError("Content exceeds its limits or has an unsupported structure. Undo or correct the change before saving."); }
         UpdateUndo();
     }
     private void Edit(Action action)
@@ -86,6 +108,7 @@ public partial class NotebookWorkspaceView : UserControl
     private void SelectionChanged(object sender, RoutedEventArgs e)
     {
         if (Preview is null || BoldButton is null || _selectionUpdating) return;
+        RememberSelection();
         _selectionUpdating = true;
         try
         {
@@ -109,7 +132,7 @@ public partial class NotebookWorkspaceView : UserControl
         finally { _selectionUpdating = false; }
     }
     private void AddChecklist(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.Checklist(Preview));
-    private void UpdateUndo() { if (UndoButton is not null) { UndoButton.IsEnabled = Preview.CanUndo; RedoButton.IsEnabled = Preview.CanRedo; } }
+    private void UpdateUndo() { if (UndoButton is not null) { UndoButton.IsEnabled = CanUndoEditor; RedoButton.IsEnabled = CanRedoEditor; } }
     private void ToggleBold(object sender, RoutedEventArgs e) => Edit(() => Preview.Selection.ApplyPropertyValue(TextElement.FontWeightProperty,
         Equals(Preview.Selection.GetPropertyValue(TextElement.FontWeightProperty), FontWeights.Bold) ? FontWeights.Normal : FontWeights.Bold));
     private void ToggleItalic(object sender, RoutedEventArgs e) => Edit(() => Preview.Selection.ApplyPropertyValue(TextElement.FontStyleProperty,
@@ -118,8 +141,8 @@ public partial class NotebookWorkspaceView : UserControl
         Preview.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection values && values.Any(d => d.Location == TextDecorationLocation.Underline) ? new TextDecorationCollection() : TextDecorations.Underline));
     private void ToggleBullets(object sender, RoutedEventArgs e) => Edit(() => EditingCommands.ToggleBullets.Execute(null, Preview));
     private void ToggleNumbering(object sender, RoutedEventArgs e) => Edit(() => EditingCommands.ToggleNumbering.Execute(null, Preview));
-    private void Undo(object sender, RoutedEventArgs e) => Edit(() => Preview.Undo());
-    private void Redo(object sender, RoutedEventArgs e) => Edit(() => Preview.Redo());
+    private void Undo(object sender, RoutedEventArgs e) => UndoEditor(false);
+    private void Redo(object sender, RoutedEventArgs e) => UndoEditor(true);
     private void ToggleCheck(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.ToggleCheck(Preview));
     private void ApplyLink(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.SetLink(Preview, LinkUrl.Text.Trim()));
     private void RemoveLink(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.SetLink(Preview, null));
@@ -163,26 +186,34 @@ public partial class NotebookWorkspaceView : UserControl
         e.Handled = true;
         try
         {
-            var data = Clipboard.GetDataObject();
+            var data = ReadClipboardData();
             if (data is null) { EditorFeedback.Text = "No text was available to paste."; return; }
-            var request = new DataObjectPastingEventArgs(data, false, DataFormats.UnicodeText);
+            var format = data.GetDataPresent(DataFormats.UnicodeText, false) ? DataFormats.UnicodeText
+                : data.GetDataPresent("PNG", false) ? "PNG"
+                : data.GetDataPresent(DataFormats.Bitmap, false) ? DataFormats.Bitmap
+                : data.GetFormats(false).FirstOrDefault() ?? throw new ArgumentException("No supported clipboard format.");
+            var request = new DataObjectPastingEventArgs(data, false, format);
             if (title) OnTitlePaste(TitleEditor, request); else OnPaste(Preview, request);
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException or InvalidOperationException or ArgumentException)
         { EditorFeedback.Text = "The clipboard could not be read. Your draft is unchanged; try Paste again."; }
     }
-    private void OnPaste(object sender, DataObjectPastingEventArgs e)
+    private async void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
         e.CancelCommand();
         if (_model?.CanEditBody != true) return;
+        var owner = _model;
         try
         {
+            if (ImageInput.ClipboardImage(e.DataObject) is { } bytes)
+            { await InsertBytesAsync(bytes); return; }
             if (e.DataObject.GetData(DataFormats.UnicodeText, false) is not string text) throw new ArgumentException();
             NotebookEditorAdapter.PasteText(Preview, text, _model.ValidateDocument);
-            EditorFeedback.Text = "Pasted as readable text; external formatting and images were not imported.";
+            EditorFeedback.Text = "Pasted as readable text; external formatting was not imported.";
         }
-        catch (Exception ex) when (ex is ArgumentException or System.Runtime.InteropServices.ExternalException)
-        { EditorFeedback.Text = "Paste rejected. Use Unicode text within the document limits; the draft was not changed."; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is ArgumentException or System.Runtime.InteropServices.ExternalException or IOException or InvalidDataException or InvalidOperationException or NotSupportedException or FormatException)
+        { if (_model == owner) EditorFeedback.Text = "Paste rejected. Use supported image content or Unicode text within the document limits; the draft was not changed."; }
     }
     private void OnSizeChanged(object sender, SizeChangedEventArgs e) => LayoutPanels();
     private void LayoutPanels()

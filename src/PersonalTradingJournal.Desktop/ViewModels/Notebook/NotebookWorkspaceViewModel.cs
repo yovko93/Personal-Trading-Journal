@@ -49,10 +49,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
 
     public NotebookWorkspaceViewModel(INotebookService service, IDialogService dialogs,
         INotebookInteraction? interaction = null, INotebookContentCodec? codec = null,
-        INotebookRecoveryStore? recovery = null, TimeProvider? time = null)
+        INotebookRecoveryStore? recovery = null, TimeProvider? time = null, INotebookImages? images = null,
+        Screenshots.INotebookImagePresentation? imagePresentation = null)
     {
         _service = service; _dialogs = dialogs; _sort = SortOptions[0]; _interaction = interaction; _codec = codec;
         _recovery = recovery; _time = time ?? TimeProvider.System;
+        _images = images; ImagePresentation = imagePresentation;
         InitializeTags();
         RecoverCommand = new(item => GuardedAsync(() => RecoverAsync(item)), _ => CanMutate);
         DeleteRecoveryCommand = new(DeleteRecoveryAsync, _ => CanMutate);

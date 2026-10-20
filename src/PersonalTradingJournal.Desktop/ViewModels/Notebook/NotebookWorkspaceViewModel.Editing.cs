@@ -32,9 +32,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
     public bool HasDraft => Note is not null || _detachedRecovery;
     public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
-    // Existing image nodes are displayed intact in a protected body. Title edits remain available.
-    // File/image editing is deliberately not approximated by editable placeholder text.
-    public bool CanEditBody => CanEditDraft && _draftDocument.ImageNodes.Count == 0 && Note!.Document.ImageNodes.Count == 0;
+    public bool CanEditBody => CanEditDraft;
     public bool BodyReadOnly => !CanEditBody;
     public bool NeedsClosePreparation => IsDirty || IsWriting;
     public bool HasLeaveConsent => !IsWriting && (!IsDirty || _acceptedRevision == _draftRevision);
@@ -44,6 +42,8 @@ public sealed partial class NotebookWorkspaceViewModel
     { n.Kind, n.Text, n.Marks, n.HeadingLevel, n.IsChecked, n.Url, n.ImageId, n.Caption, n.AlternativeText, Children = n.Children.Select(Value).ToArray() };
     private void InstallDraft()
     {
+        _knownImages.Clear();
+        if (Note is not null) RememberImages(Note);
         StopDebounce(); _recoveryId = null; _checkpointRevision = 0;
         _autosavePaused = false; _recoveryConflict = false; _detachedRecovery = false;
         _draftTitle = Note?.Title ?? "";
@@ -91,6 +91,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     public async Task<bool> PrepareLeaveAsync()
     {
+        if (_imageOperation || _preparingImage) { Message = "Wait for the image operation before leaving."; return false; }
         if (_recovery is not null)
         {
             StopDebounce();
@@ -138,19 +139,24 @@ public sealed partial class NotebookWorkspaceViewModel
                 try { NotebookLimits.NoteTitle(title); ValidateDocument(document); }
                 catch (ArgumentException) { Message = "Use a nonblank title of at most 200 characters and content within the document limits."; return; }
                 ct.ThrowIfCancellationRequested();
-                var result = await Task.Run(() => _service.ExecuteAsync(new SaveNotebookDraft(captured.Id, captured.Version, title, document, captured.Images), ct), ct);
+                var references = await DraftImagesAsync(captured.Id, document, ct);
+                if (references is null) { Message = "An image reference could not be resolved. The draft is retained."; return; }
+                NotebookCommand command = references.Value.SequenceEqual(captured.Images)
+                    ? new SaveNotebookDraft(captured.Id, captured.Version, title, document, references.Value)
+                    : new SaveNotebookImageDraft(captured.Id, captured.Version, title, document, references.Value);
+                var result = await Task.Run(() => _service.ExecuteAsync(command, ct), ct);
                 // A successful commit is authoritative even if cancellation arrived just after commit.
                 if (_disposed || !_active || !ReferenceEquals(activation, _lifetime) || Note?.Id != captured.Id) return;
                 if (result.Status != NotebookWriteStatus.Success || result.Note is not { } persisted || persisted.Id != captured.Id ||
                     persisted.Version <= captured.Version || persisted.Title != title.Trim() ||
-                    Signature(persisted.Title, persisted.Document) != Signature(title.Trim(), document))
+                    Signature(persisted.Title, persisted.Document) != Signature(title.Trim(), document) || !persisted.Images.SequenceEqual(references.Value))
                 {
                     PublishWrite(result.Status == NotebookWriteStatus.Success ? NotebookWriteStatus.StorageFailure : result.Status, "");
                     _saveState = _recovery is null ? "Could not save" : result.Status == NotebookWriteStatus.Conflict
                         ? "Conflict — keep or discard your draft before refreshing." : "Save failed — use Save to retry.";
                     _autosavePaused = true; return;
                 }
-                committed = true; _autosavePaused = false; Note = persisted; _savedSignature = Signature(persisted.Title, persisted.Document);
+                committed = true; _autosavePaused = false; RememberImages(persisted); Note = persisted; _savedSignature = Signature(persisted.Title, persisted.Document);
                 if (_draftRevision == revision) { _draftTitle = persisted.Title; OnPropertyChanged(nameof(DraftTitle)); }
                 _saveState = IsDirty ? "Unsaved changes" : "Saved"; saved = !IsDirty;
                 Message = ""; // Do not reload/rebuild the document or clear undo/caret on save.

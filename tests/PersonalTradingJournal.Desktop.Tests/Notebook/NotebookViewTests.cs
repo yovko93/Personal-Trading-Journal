@@ -51,9 +51,10 @@ public sealed class NotebookViewTests
                 vm.SelectedNote = vm.Notes.Single(n => n.Title.StartsWith("NQ")); Pump(vm.LoadTask); Layout();
                 var preview = (RichTextBox)view.FindName("Preview");
                 string text = new TextRange(preview.Document.ContentStart, preview.Document.ContentEnd).Text;
-                Assert.Contains("Observation", text); Assert.Contains("Checked", text); Assert.Contains("Image preview unavailable", text);
-                Assert.True(preview.IsReadOnly); Assert.NotNull(new RichTextBoxAutomationPeer(preview).GetPattern(PatternInterface.Text));
-                Assert.Equal("Read-only note content", AutomationProperties.GetName(preview));
+                Assert.Contains("Observation", text); Assert.Contains("Checked", text);
+                Assert.Single(NotebookEditorAdapter.Read(preview.Document).ImageNodes);
+                Assert.False(preview.IsReadOnly); Assert.NotNull(new RichTextBoxAutomationPeer(preview).GetPattern(PatternInterface.Text));
+                Assert.Equal("Note content", AutomationProperties.GetName(preview));
                 Assert.Equal(0, data.Writes);
                 Assert.Same(vm.SelectedNote, ((ListBox)view.FindName("NoteList")).SelectedItem);
                 Assert.Equal(width < 1000 ? Visibility.Collapsed : Visibility.Visible, ((Border)view.FindName("OrganizationPanel")).Visibility);

@@ -107,14 +107,15 @@ public sealed class NotebookEditingTests
         finally { release.TrySetResult(new(NotebookWriteStatus.Cancelled)); await save.WaitAsync(TimeSpan.FromSeconds(10)); }
     }
     [Fact]
-    public async Task PinCoordinatesSavedDraftVersionAndImagesRemainProtected()
+    public async Task PinCoordinatesSavedDraftVersionAndImageBodyIsEditable()
     {
         var data = new NotebookFake(); using var vm = await Open(data, new() { Choice = NotebookLeaveChoice.Save });
         vm.DraftTitle = "Before pin"; await vm.PinCommand.ExecuteAsync(null);
         Assert.Equal(2, data.Writes); Assert.True(vm.Note!.IsPinned); Assert.Equal("Before pin", vm.Note.Title); Assert.False(vm.IsDirty);
         var image = NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid(), "caption", "alt");
-        data.Notes[0] = data.Notes[0] with { Document = new([image]) }; await vm.RefreshCommand.ExecuteAsync(null);
-        Assert.False(vm.CanEditBody); Assert.True(vm.CanEditDraft);
+        data.Notes[0] = data.Notes[0] with { Document = new([image]), Images =
+            [NotebookImage.Owned(image.ImageId!.Value, 0, "synthetic.png", 1, new string('A', 64), image.Caption, image.AlternativeText)] }; await vm.RefreshCommand.ExecuteAsync(null);
+        Assert.True(vm.CanEditBody); Assert.True(vm.CanEditDraft);
         vm.DraftTitle = "Image title"; Assert.True(await vm.SaveDraftAsync()); Assert.Same(image, vm.Note!.Document.Blocks[0]);
     }
     [Theory]
