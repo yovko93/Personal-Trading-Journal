@@ -8,7 +8,8 @@ using PersonalTradingJournal.Infrastructure.Persistence.Records;
 
 namespace PersonalTradingJournal.Infrastructure.Notebook;
 
-public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> factory, INotebookContentCodec codec, TimeProvider? clock = null) : INotebookService
+public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> factory, INotebookContentCodec codec, TimeProvider? clock = null,
+    INotebookImageFiles? imageFiles = null) : INotebookService
 {
     private DateTimeOffset Now => (clock ?? TimeProvider.System).GetUtcNow();
     public async Task<NotebookLoadResult> LoadAsync(Guid noteId, CancellationToken cancellationToken = default)
@@ -52,8 +53,8 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
         {
             cancellationToken.ThrowIfCancellationRequested();
             ArgumentNullException.ThrowIfNull(command);
-            if (command is DuplicateNotebookNote or DeleteNotebookNote or AddNotebookImage or UpdateNotebookImage or RemoveNotebookImage)
-                return new(NotebookWriteStatus.Deferred, Issues: [new("Operation", "Image/file ownership orchestration is not available in M22.3.")]);
+            if (command is DuplicateNotebookNote or DeleteNotebookNote)
+                return new(NotebookWriteStatus.Deferred, Issues: [new("Operation", "Duplication and permanent note deletion are not available in M22.8A.")]);
             await using var db = await factory.CreateDbContextAsync(cancellationToken);
             await db.Database.OpenConnectionAsync(cancellationToken);
             await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);
@@ -81,6 +82,12 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
                 var now = Now;
                 switch (command)
                 {
+                    case AddNotebookImage or UpdateNotebookImage or RemoveNotebookImage:
+                        var imageStatus = await ApplyImageCommand(db, note, command, now, ct);
+                        if (imageStatus != NotebookWriteStatus.Success) return new(imageStatus);
+                        try { encoded = codec.Encode(note.Document); }
+                        catch (ArgumentOutOfRangeException) { return new(NotebookWriteStatus.TooLarge); }
+                        break;
                     case SaveNotebookDraft draft:
                         if (draft.Images.IsDefault) return new(NotebookWriteStatus.Invalid);
                         if (!draft.Images.SequenceEqual(note.Images)) return new(NotebookWriteStatus.Deferred);
@@ -137,9 +144,13 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
         catch (MissingNoteException) { return new(NotebookWriteStatus.NotFound); }
         catch (OperationCanceledException) { return new(NotebookWriteStatus.Cancelled); }
         catch (DbUpdateConcurrencyException) { return new(NotebookWriteStatus.Conflict); }
+        catch (NotebookImageFileException ex) { return new(ex.Status switch
+            { NotebookImageStatus.TooLarge => NotebookWriteStatus.TooLarge, NotebookImageStatus.Unsupported => NotebookWriteStatus.UnsupportedContent,
+              NotebookImageStatus.Unreadable => NotebookWriteStatus.StorageFailure, _ => NotebookWriteStatus.Invalid },
+            Issues: [new("Image", ex.Status.ToString())]); }
         catch (ArgumentException) { return new(NotebookWriteStatus.Invalid); }
         catch (InvalidOperationException) { return new(NotebookWriteStatus.Invalid); }
-        catch (Exception ex) when (ex is SqliteException or DbUpdateException or IOException or OverflowException)
+        catch (Exception ex) when (ex is SqliteException or DbUpdateException or IOException or UnauthorizedAccessException or OverflowException)
         { return new(NotebookWriteStatus.StorageFailure); }
     }
     private sealed class MissingNoteException : Exception;
@@ -149,6 +160,8 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
     private static (Guid, long) Identity(NotebookCommand c) => c switch
     {
         SaveNotebookDraft x => (x.NoteId, x.ExpectedVersion),
+        AddNotebookImage x => (x.NoteId, x.ExpectedVersion), UpdateNotebookImage x => (x.NoteId, x.ExpectedVersion),
+        RemoveNotebookImage x => (x.NoteId, x.ExpectedVersion),
         UpdateNotebookTitle x => (x.NoteId, x.ExpectedVersion), UpdateNotebookContent x => (x.NoteId, x.ExpectedVersion),
         MoveNotebookNote x => (x.NoteId, x.ExpectedVersion), SetNotebookPin x => (x.NoteId, x.ExpectedVersion),
         AssignNotebookTag x => (x.NoteId, x.ExpectedVersion), RemoveNotebookTag x => (x.NoteId, x.ExpectedVersion),

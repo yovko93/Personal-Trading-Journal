@@ -56,7 +56,7 @@ public sealed class JournalDatabaseInitializerTests
             Assert.Equal(
                 [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                     TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", "20261015091425_AddSavedPeriodReviews", "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", "20261020085611_AddNotebook", "20261020130020_AddNotebookRecovery"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", "20261015091425_AddSavedPeriodReviews", "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", "20261020085611_AddNotebook", "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles"],
                 await context.Database.GetAppliedMigrationsAsync());
             Assert.Equal(0, await context.Instruments.CountAsync());
             Assert.Equal(0, await context.TradingAccounts.CountAsync());
@@ -131,7 +131,7 @@ public sealed class JournalDatabaseInitializerTests
                 Assert.Equal(
                     [InitialMigrationId, RemoveStrategiesMigrationId, TradeBrowseMigrationId,
                         TradovateImportMigrationId, FillAllocationsMigrationId, TopstepImportMigrationId,
-                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", "20261015091425_AddSavedPeriodReviews", "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", "20261020085611_AddNotebook", "20261020130020_AddNotebookRecovery"],
+                    DailyJournalsMigrationId, DailyReviewMigrationId, CoachingAnalysisMigrationId, PlaybookMigrationId, PlaybookImagesMigrationId, "20261011175435_AddTradePlaybookAssociations", "20261011220636_AllowUnreferencedPlaybookRevisionDeletion", "20261012163222_AddTradingRules", "20261012194059_AddDeterministicRuleChecks", "20261012205801_GlobalTradingRuleCatalog", "20261012214801_OptionalGlobalRuleEvidence", "20261013090509_OptionalGlobalRuleCriterion", "20261013102243_AddTradingRuleOrder", "20261015091425_AddSavedPeriodReviews", "20261017152354_AddTradingPlans", "20261019080838_SharedTradingPlansAndScreenshots", "20261019100107_DirectPlaybookDefinitions", "20261019160256_TombstoneTradingPlans", "20261019171746_AddDailyTradingPrinciples", "20261020085611_AddNotebook", "20261020130020_AddNotebookRecovery", "20261020180223_AddNotebookOwnedImageFiles"],
                     await context.Database.GetAppliedMigrationsAsync());
             }
 
@@ -145,7 +145,7 @@ public sealed class JournalDatabaseInitializerTests
 
             await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\";";
-            Assert.Equal(27L, (long)(await command.ExecuteScalarAsync())!);
+            Assert.Equal(28L, (long)(await command.ExecuteScalarAsync())!);
         });
     }
 

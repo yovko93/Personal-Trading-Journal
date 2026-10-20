@@ -124,12 +124,11 @@ public sealed class NotebookPersistenceTests
         Assert.Equal(f.Codec.Encode(doc), f.Codec.Encode(edited.Document));
         NotebookCommand[] deferred = [
             new DuplicateNotebookNote(note.Id, edited.Version), new DeleteNotebookNote(note.Id, edited.Version, true),
-            new AddNotebookImage(note.Id, edited.Version, Guid.NewGuid(), doc, loaded.Images),
-            new RemoveNotebookImage(note.Id, edited.Version, owned.Id, NotebookDocument.Empty, []),
-            new UpdateNotebookImage(note.Id, edited.Version, owned.Id, doc, loaded.Images),
             new UpdateNotebookContent(note.Id, edited.Version, NotebookDocument.Empty, [])
         ];
         foreach (var command in deferred) Assert.Equal(NotebookWriteStatus.Deferred, (await f.Service().ExecuteAsync(command)).Status);
+        Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new AddNotebookImage(note.Id, edited.Version, Guid.NewGuid(), doc, loaded.Images))).Status);
+        Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new RemoveNotebookImage(note.Id, edited.Version, owned.Id, NotebookDocument.Empty, []))).Status);
         Assert.Equal(edited.Version, (await f.Service().LoadAsync(note.Id)).Note!.Version);
     }
     [Theory]

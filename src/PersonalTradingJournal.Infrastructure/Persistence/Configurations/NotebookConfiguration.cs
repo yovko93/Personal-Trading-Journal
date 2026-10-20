@@ -9,6 +9,13 @@ internal static class NotebookConfiguration
 {
     internal static void Configure(ModelBuilder model)
     {
+        var owned = model.Entity<NotebookOwnedImageRecord>();
+        owned.ToTable("NotebookOwnedImageFiles", t => t.HasCheckConstraint("CK_NotebookOwnedImageFiles_Metadata",
+            "SizeBytes BETWEEN 1 AND 8388608 AND length(Sha256) = 64 AND length(StorageKey) BETWEEN 1 AND 180"));
+        owned.HasKey(x => x.Id); owned.Property(x => x.Id).ValueGeneratedNever();
+        owned.Property(x => x.StorageKey).IsRequired().UseCollation("NOCASE");
+        owned.Property(x => x.Sha256).IsRequired();
+        owned.HasIndex(x => x.StorageKey).IsUnique(); owned.HasIndex(x => x.NoteId);
         var recovery = model.Entity<NotebookRecoveryRecord>();
         recovery.ToTable("NotebookRecoveryDrafts", t => t.HasCheckConstraint("CK_NotebookRecovery_Metadata",
             "EnvelopeVersion > 0 AND ExpectedVersion > 0 AND Revision > 0 AND length(Title) <= 200"));

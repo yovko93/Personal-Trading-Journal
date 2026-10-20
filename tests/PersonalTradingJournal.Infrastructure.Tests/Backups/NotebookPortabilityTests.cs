@@ -60,8 +60,11 @@ public sealed class NotebookPortabilityTests
         }
         await using (var db = f.Context())
         {
-            // Metadata fixture only. Admission/copying of note-owned bytes remains Deferred.
-            var owned = NotebookImage.Owned(Guid.NewGuid(), 0, "notebook-not-copied.png", 7, new string('A', 64), "Owned metadata", "Alt");
+            // Legacy owned metadata fixture: complete archives now require its exact original bytes too.
+            byte[] ownedBytes = [7, 6, 5, 4, 3, 2, 1];
+            await File.WriteAllBytesAsync(Path.Combine(f.Paths.ScreenshotsDirectory, "notebook-owned.png"), ownedBytes);
+            var owned = NotebookImage.Owned(Guid.NewGuid(), 0, "notebook-owned.png", ownedBytes.Length,
+                Convert.ToHexString(SHA256.HashData(ownedBytes)), "Owned metadata", "Alt");
             var reference = NotebookImage.TradeReference(Guid.NewGuid(), 1, trade, screenshot, "Trade image");
             var content = new NotebookDocument([NotebookNode.Image(Guid.NewGuid(), owned.Id, owned.Caption, owned.AlternativeText),
                 NotebookNode.Image(Guid.NewGuid(), reference.Id, reference.Caption, reference.AlternativeText)]);
@@ -94,8 +97,8 @@ public sealed class NotebookPortabilityTests
         Assert.True(result.Succeeded, result.ToString()); Assert.False(result.CleanupFailed);
         using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.DataFile)));
         using var inventory = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.InventoryFile)));
-        Assert.Equal(16, json.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(16, inventory.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(17, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(17, inventory.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", json.RootElement.GetProperty("screenshotContent").GetString());
         var tables = json.RootElement.GetProperty("tables");
@@ -126,7 +129,7 @@ public sealed class NotebookPortabilityTests
         EqualRows(await db.NotebookImages.OrderBy(x => x.NoteId).ThenBy(x => x.Position).ThenBy(x => x.Id).ToArrayAsync(), tables.GetProperty("notebookImages"));
         Assert.Equal(Unreadable, tables.GetProperty("notebookNotes").EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == seeded.Invalid).GetProperty("documentJson").GetString());
         Assert.Equal(Future, tables.GetProperty("notebookNotes").EnumerateArray().Single(x => x.GetProperty("id").GetGuid() == seeded.Future).GetProperty("documentJson").GetString());
-        Assert.False(File.Exists(Path.Combine(f.Paths.ScreenshotsDirectory, "notebook-not-copied.png")));
+        Assert.Equal(new byte[] { 7, 6, 5, 4, 3, 2, 1 }, await File.ReadAllBytesAsync(Path.Combine(f.Paths.ScreenshotsDirectory, "notebook-owned.png")));
         Assert.Equal(tables.GetRawText(), (await Export(f)).GetRawText());
     }
 

@@ -64,6 +64,10 @@ public static class PersistenceServiceCollectionExtensions
         });
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddSingleton<INotebookContentCodec, NotebookJsonCodec>();
+        services.AddSingleton<INotebookImageValidator, UnavailableNotebookImageValidator>();
+        services.AddTransient<INotebookImageFiles>(provider => new NotebookImageFiles(applicationPaths,
+            provider.GetRequiredService<IDbContextFactory<JournalDbContext>>(), provider.GetRequiredService<INotebookImageValidator>()));
+        services.AddTransient<INotebookImages, NotebookImageService>();
         services.AddTransient<INotebookService, NotebookService>();
         services.AddTransient<INotebookRecoveryStore, NotebookRecoveryStore>();
         services.AddTransient<ITradingPlanStore, TradingPlanStore>();

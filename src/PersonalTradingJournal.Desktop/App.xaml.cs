@@ -84,6 +84,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.Notebook.INotebookImageValidator,
+                WpfNotebookImageValidator>();
             builder.Services.AddSingleton(new CoachingConfiguration(applicationPaths.CoachingProviderPath,
                 new(applicationPaths.CoachingCredentialsPath, () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 new(applicationPaths.GroqCredentialsPath, () => Environment.GetEnvironmentVariable("GROQ_API_KEY")),

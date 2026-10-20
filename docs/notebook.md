@@ -1,6 +1,124 @@
 # Notebook
 
-Current checkpoint: **M22.7 tags, assignments and combined filters — local automated Release verification complete; human/native-restart and matching CI acceptance unverified**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.8A image storage and application operations; M22.8 overall acceptance pending**. Logical export **v17** includes canonical Notebook records, recovery checkpoints and retained owned-file metadata. Current-schema archive **v1** includes required Notebook originals; JSON/CSV are not restore inputs. Desktop image insertion/rendering, duplication/permanent deletion, file reclamation, linked-target navigation and full integrated M22.11 acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+
+## M22.8A — image storage and application operations
+
+20 October 2026. Actual starting baseline: **clean `develop`, `e0682d3a898742ff8612857de5a2245267eae041`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. M22.7 automated verification was already committed. Inspected repository/ancestor instructions (no applicable `AGENTS.md`), this contract, existing Deferred commands, recovery, screenshot storage/capture/retention, Playbook admission, export and archive/restore implementations. One agent; no subagents. This phase preserves existing work and makes no Git publication or production/provider requests.
+
+### Operations and admission
+
+- `INotebookImages.ImportAsync` receives a caller-owned readable stream, note ID, expected version, new attachment ID and the complete proposed document. The source path/name is never stored. Import returns a verified canonical snapshot through the existing `AddNotebookImage` command. Stream ownership stays with the caller; managed read/write handles are disposed internally. No clipboard or image-insertion control is added.
+- Existing `UpdateNotebookImage` and `RemoveNotebookImage` commands now persist caption, alternative-text, ordering and reference removal. The immutable domain image model is unchanged. Image positions/captions/alt text must match the document's image nodes exactly; the command's named delta must preserve every unrelated node, identity, mark, reference and metadata value. Ordering is a move of the named image in the document plus matching ordered metadata. The canonical document, derived search text, metadata, audit time and one version advance commit together.
+- Ordinary title/body saves cannot smuggle file metadata changes. Archived/Trashed notes remain read-only to image mutations. Unsupported/malformed original documents are not rewritten or replaced by an empty body. Duplicate and permanent-note deletion remain explicitly **Deferred**.
+- Byte reads are bounded before decode: nonempty, at most **8 MiB**; signatures must be PNG/JPEG/WebP. Host decoding enforces one frame, dimensions at most **8,192 each**, at most **16,000,000 pixels**, and actual pixel materialization. APNG/WebP animation chunks are explicitly rejected even if an installed decoder exposes only the first frame. The existing Playbook decoder policy is reused by a thin Windows admission adapter, serialized to bound concurrent full decoding. Original bytes are never re-encoded. Cancellation is checked during bounded reads and around decode/staging/commit boundaries; native decode itself is a bounded synchronous operation.
+- The decoder is an Application interface; all WPF code remains in Desktop. Non-Desktop hosts fail closed with `Unsupported` unless they provide a decoder. Import distinguishes Invalid, UnsupportedContent, TooLarge, Conflict, NotFound, Cancelled and StorageFailure. `ReadOriginalAsync` explicitly distinguishes Success, Missing, Unreadable, Invalid, Unsupported, TooLarge and Cancelled, verifying frozen size/hash before returning bounded original bytes and stored file metadata. Trade screenshot references return Unsupported through this **owned-image** reader; they do not grant ownership or authorize Trade mutation.
+
+### Storage, commit and retention
+
+Originals use a dedicated **`notebook-{noteId:N}-{imageId:N}-{random:N}.{png|jpg|webp}` namespace** in `IApplicationPaths.ScreenshotsDirectory`, normally `%LocalAppData%/PersonalTradingJournal/screenshots`. This deliberately reuses the documented flat managed-key model, application paths, backup attachment layout and screenshot capture lease instead of introducing another image root/archive path convention. No source paths or file-name identities survive import. A newly generated key cannot collide with a referenced Trade screenshot key. Resolution rejects path traversal, links/aliases and unsafe keys using the existing storage and opened-handle identity checks.
+
+Sequence: validate version/document delta → read bounded source and decode → write/flush/close a private temporary file → publish a fresh immutable original → expected-version SQLite writer transaction inserts the ownership ledger/current reference and writes the canonical document/projection → verify readback → non-cancellable commit → return Success. Direct add/restoration commands also verify original size/hash and actual admission; a caller-supplied metadata array is not proof of a valid image.
+
+Before-publication failure/cancellation cleans the private temporary file. After publication, unsuccessful canonical writes are resolved through a fresh non-cancelled database read. A verified committed result returns Success even if its original acknowledgement/cancellation was ambiguous. Compensation acquires the existing capture lease and an immediate SQLite writer transaction in the established lock order, rechecking all ownership catalogs before deletion. A failed/unavailable resolution **never deletes the original**; `CleanupPending` and sanitized issues explicitly report uncertain outcomes or failed cleanup. Process death can leave uncommitted staging/orphan bytes; this phase does not promise automatic orphan reclamation.
+
+Additive migration **`20261020180223_AddNotebookOwnedImageFiles`** introduces `NotebookOwnedImageFiles`: application-assigned attachment ID, original Note ID, unique storage key, byte count and SHA-256. It has no note FK/cascade, so future source deletion cannot silently destroy recovery ownership. Current image references remain in `NotebookImages`; the ledger records immutable file identity, not a second image/document model. Existing owned metadata is adopted into retention before image edits can remove its current reference.
+
+Reference removal deletes current metadata/document nodes **only**. Ledger entries/originals remain indefinitely across Active/Archived/Trash, recovery and upcoming undo/redo, including an explicit restoration of a retained same-note ID/key. Screenshot/Playbook cleanup now checks both Notebook catalogs as well as existing owners. If a recovery checkpoint wins while an import is waiting for its canonical write, compensation retains the staged original and records its ownership even when the note write is cancelled. Unreadable/future/oversized or over-capacity recovery inventories are conservatively treated as potential references; their raw originals are untouched. Ordinary note/image/recovery reads never create retention records or change canonical content.
+
+**Physical cleanup responsibility:** no committed owned-file reclamation occurs here. Later lifecycle/undo work must prove absence from every retained note, durable checkpoint and live undo/redo history before reclaiming ledger/file pairs under the same capture/writer locks. Uncertain staging cleanup requires later verified resolution, not deletion by filename age. Until that ownership/lifecycle work ships, disk retention is intentional; deleting a reference or recovery draft alone cannot release bytes. Trade-owned originals are never deleted by Notebook reference removal.
+
+### Export and archive compatibility
+
+The ledger adds a persisted record set, so logical export advances **16 → 17**, exporting every ledger field and preserving the exact table/column completeness assertions. Document JSON remains **v1**. Complete archive format remains **v1** because the existing managed `screenshots/` paths, manifest entry kind, size/hash and capture/restore machinery already represent these files. Inventory now includes **both current owned Notebook images and the retained ledger**, across all lifecycle states and recovery-only copies. Missing required files or metadata/hash mismatches fail capture/preflight instead of publishing an apparently complete archive. Offline restore includes those originals using the existing atomic switch/recovery path. Logical JSON/CSV still contain metadata, not image bytes, and are not restore inputs.
+
+Existing metadata-only portability fixtures now supply exact owned originals; their exact content/recovery assertions remain intact. Migration, model/column/index inventories and export-version assertions include the additive table and unique key. The installed schema now has **28 migrations**. Older-schema archives remain rejected by exact-schema preflight; a live additive migration is not an offline archive-upgrade mechanism. **Full integrated M22.11 acceptance remains pending**, including the later image UI/lifecycle/duplication workflows, reclamation, broader fault scenarios and any separately designed old-schema archive upgrade path.
+
+### Focused verification and limitations
+
+Final affected Release builds passed with **0 warnings/errors**: Infrastructure/test project **8.12 s**, Desktop/test project **8.88 s**, Application/test project **2.97 s**. Final build logs are `TestResults/m228a-infrastructure-build-complete.log`, `TestResults/m228a-desktop-build-complete.log` and `TestResults/m228a-application-build-ready.log`; earlier build logs are also retained. EF reports **no pending model changes** through the existing in-memory design-time factory.
+
+Durable final evidence is under **`TestResults/m228a-verified/`**, including **`summary.json`** with actual counters, durations, source inventory and binary/source hashes. Final focused runs all exited **0**, with zero failures/skips:
+
+| Final focused run | Passed | Failed / skipped | Reported test duration | TRX |
+| --- | ---: | ---: | --- | --- |
+| Infrastructure storage/Notebook/schema/export/archive/restore compatibility | 506 | 0 / 0 | 2m39s | `infrastructure-focused-complete.trx` |
+| Desktop admission/editor/autosave/SQLite coordination | 49 | 0 / 0 | 11s | `admission-and-editor-complete.trx` |
+| Application Notebook contracts | 13 | 0 / 0 | 124 ms | `application-focused.trx` |
+
+This includes **27 new image/storage/fault/retention cases, 4 new archive/ownership cases, 7 actual Windows decoder/import cases, and 2 portable header-policy cases**, alongside unchanged editor/recovery content assertions and focused existing storage, schema, export, backup, preflight, offline restore and compatibility suites. The older/intermediate runs below overlap these totals; they are not additional cases. Fixtures use isolated temporary paths/databases; deterministic interceptors and operation boundaries replace timing sleeps.
+
+Earlier artifacts are retained: `TestResults/m228a/images-initial.trx` passed **16/16**; `images-and-archives.trx` recorded **19 passed / 1 failed**, exposing a paths-DI registration omission; `admission-and-editor-coordination.trx` recorded **40 passed / 8 failed**, seven from that same DI issue and one from an uncaught WPF `FileFormatException`. The factory registration and exception mapping were corrected. The first broader Infrastructure run at `TestResults/m228a-verified/infrastructure-focused.trx` recorded **504 passed / 1 failed**, zero skips: migration test `InitialMigrationTests.LatestMigrationsCreateOnlyTheApprovedSchema` still expected 18 unique indexes, now 19 with `NotebookOwnedImageFiles.StorageKey`. The exact inventory now includes and asserts that new index; no assertion/deadline/concurrency rule was relaxed.
+
+The corrected migration-inventory run passed **505/505**, retained as `infrastructure-focused-final.trx`. Final API review then corrected low-level image-command outcome mapping (UnsupportedContent for an unavailable decoder, StorageFailure for unreadable storage) and made null/invalid-version import requests explicit Invalid results. One added direct-admission regression proves those boundaries; the rebuilt final source passed **506/506** Infrastructure and **49/49** Desktop in the `*-complete.trx` runs above. `summary-before-api-review.json` retains the earlier source/binary hashes; `summary.json` identifies the final tested source.
+
+Final tracked/new-file whitespace checks pass. README/Notebook local Markdown target-existence checks passed **166 targets / zero missing**, evidence `TestResults/m228a-documentation-links.json`; the retained local checker is `TestResults/m228a-check-doc-links.ps1`. External URLs and fragment/anchor validation are outside that target-existence check. Only documentation/evidence changed after final runtime verification, so passing runtime suites were not repeated for those edits.
+
+**M22.8A focused implementation/verification is complete; M22.8 overall acceptance remains pending.** No complete Release gate was launched in M22.8A. Desktop insertion, inline rendering/thumbnails, clipboard admission flows, caret/undo integration and image-reference-body editing are M22.8B work; image-reference bodies remain read-only in the existing editor. Complete integrated verification belongs to M22.8C. Native-process restart, human interaction/Narrator, matching CI and actual installed-codec WebP success on this machine are unverified. The decoder implementation supports WebP only when the installed codec actually accepts it; PNG/JPEG success and animated/malformed rejection are tested. No M22.8B work or Git publication was performed.
+
+Commands for this focused phase (the Infrastructure filter intentionally includes every modified compatibility-test class):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228a-infrastructure-build-complete.log
+dotnet build tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228a-desktop-build-complete.log
+dotnet build tests/PersonalTradingJournal.Application.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228a-application-build-ready.log
+dotnet ef migrations add AddNotebookOwnedImageFiles --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests|FullyQualifiedName~TradingRulePersistenceTests|FullyQualifiedName~TradingRulePortabilityTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~PlaybookImagePersistenceTests|FullyQualifiedName~DailyTradingPrincipleTests|FullyQualifiedName~SharedTradingPlanTests|FullyQualifiedName~TradingPlanPortabilityTests|FullyQualifiedName~LocalTradeScreenshotFileStorageTests' --logger 'trx;LogFileName=infrastructure-focused-complete.trx' --results-directory TestResults/m228a-verified
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookImageAdmissionTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookSqliteWorkspaceTests' --logger 'trx;LogFileName=admission-and-editor-complete.trx' --results-directory TestResults/m228a-verified
+dotnet test tests/PersonalTradingJournal.Application.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=application-focused.trx' --results-directory TestResults/m228a-verified
+git diff --check
+pwsh -NoProfile -File TestResults/m228a-check-doc-links.ps1
+```
+
+### Exact M22.8A changed-file inventory
+
+Relative to starting HEAD `e0682d3a898742ff8612857de5a2245267eae041`: **28 modified + 11 added files**, all uncommitted. Generated migration/designer/snapshot changes belong to the single additive ownership-ledger migration. Existing test-file changes preserve the exact schema/export/content assertions while including the new table/index/version. Ignored TestResults artifacts are additional local evidence, not source inventory.
+
+Modified:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs`
+- `src/PersonalTradingJournal.Desktop/App.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/NotebookConfiguration.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/NotebookRecords.cs`
+- `src/PersonalTradingJournal.Infrastructure/Screenshots/RetainedScreenshotFileStorage.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs`
+
+Added:
+
+- `src/PersonalTradingJournal.Application/Notebook/INotebookImages.cs`
+- `src/PersonalTradingJournal.Desktop/Screenshots/WpfNotebookImageValidator.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageService.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Images.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020180223_AddNotebookOwnedImageFiles.Designer.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020180223_AddNotebookOwnedImageFiles.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookImageContractTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageAdmissionTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookImageTests.cs`
 
 ## M22.7 — tags, assignments and combined filters: focused verification
 

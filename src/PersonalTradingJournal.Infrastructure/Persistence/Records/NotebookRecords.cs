@@ -1,5 +1,15 @@
 namespace PersonalTradingJournal.Infrastructure.Persistence.Records;
 
+/// <summary>Durable ownership ledger, retained after reference removal for recovery/undo. No source-note cascade.</summary>
+public sealed class NotebookOwnedImageRecord
+{
+    public Guid Id { get; set; }
+    public Guid NoteId { get; set; }
+    public string StorageKey { get; set; } = "";
+    public long SizeBytes { get; set; }
+    public string Sha256 { get; set; } = "";
+}
+
 public sealed class NotebookNoteRecord
 {
     public Guid Id { get; set; }

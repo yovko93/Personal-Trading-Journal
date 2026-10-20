@@ -1,5 +1,15 @@
 # Personal Trading Journal
 
+## M22.8A — Notebook image storage and application operations
+
+Implemented managed original-image import/read, caption/order updates and reference removal, with expected-version transactions and exact document-delta checks. Note-owned bytes use generated `notebook-*` keys in managed screenshot storage; committed originals and a durable ownership ledger survive reference removal for recovery and future undo. Failed imports compensate only after fresh ownership resolution; ambiguous commits retain bytes and report uncertainty. The Windows admission adapter validates PNG/JPEG and installed-codec WebP within the existing byte/dimension/single-frame limits, without adding image UI.
+
+Additive migration `20261020180223_AddNotebookOwnedImageFiles` adds retained ownership metadata; logical export advances **v16 → v17**, while document JSON **v1** and complete archive format **v1** remain unchanged. Archive capture/preflight/restore now include current and retained Notebook-owned files and verify their exact size/hash; missing or altered required originals fail explicitly. Old-schema archives still require exact-schema compatibility. [Operations, retention, compatibility, focused evidence and exact file inventory](docs/notebook.md#m228a--image-storage-and-application-operations).
+
+Starting baseline: clean `develop`, **`e0682d3a898742ff8612857de5a2245267eae041`**, preserved with all **28 modified + 11 added files** uncommitted. Focused Release verification passed **506/506 Infrastructure**, **49/49 Desktop admission/editor coordination**, **13/13 Application**, zero failures/skips; affected builds have **zero warnings/errors**, EF is consistent, and final whitespace plus **166 local documentation targets / zero missing** pass. Evidence: `TestResults/m228a-verified/summary.json`; failed intermediate artifacts and their corrections are retained in the Notebook report.
+
+**M22.8A focused implementation/verification is complete; M22.8 overall acceptance remains pending.** M22.8B insertion/rendering, duplication/permanent deletion, retained-file reclamation and full M22.11 acceptance are deferred. Image-reference bodies remain read-only in the existing Desktop editor. No complete Release gate was launched; M22.8C, human interaction/native-process restart, matching CI and actual installed-codec WebP success remain unverified. No production/provider access or Git publication.
+
 ## M22.7 — Notebook tags and combined filters: automated Release verified
 
 The existing worktree implements Desktop tag creation/rename/global deletion, per-note assignments, AND tag/text/scope filters, stable paging and counts, and a separate 300 ms search debounce. Verification resumed on `develop` at **`4520b3f782453ff5ef1bdeac509b765fac7b7099`**, preserving the interrupted implementation. Both paragraph-newline expectation corrections already existed and match the canonical document contract; exact content assertions remain intact. A regression exposed deleted selected tags retained in catalog/pickers through the old open-note snapshot; filter repair now removes those stale catalog entries.

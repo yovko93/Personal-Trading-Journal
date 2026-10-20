@@ -6,7 +6,7 @@ namespace PersonalTradingJournal.Application.Notebook;
 public enum NotebookWriteStatus { Success, Invalid, Conflict, NotFound, UnavailableTarget, UnsupportedContent, TooLarge, Cancelled, StorageFailure, Deferred }
 public sealed record NotebookValidationIssue(string Field, string Message);
 public sealed record NotebookWriteResult(NotebookWriteStatus Status, NotebookNoteSnapshot? Note = null,
-    Guid? DeletedNoteId = null, ImmutableArray<NotebookValidationIssue> Issues = default);
+    Guid? DeletedNoteId = null, ImmutableArray<NotebookValidationIssue> Issues = default, bool CleanupPending = false);
 public sealed record NotebookCatalogResult(NotebookWriteStatus Status, NotebookNamedItem? Item = null,
     Guid? DeletedItemId = null, ImmutableArray<NotebookValidationIssue> Issues = default);
 public enum NotebookLoadStatus { Success, NotFound, UnsupportedContent, InvalidContent, TooLarge }
@@ -18,12 +18,12 @@ public sealed record NotebookLoadResult(NotebookLoadStatus Status, NotebookNoteS
     NotebookUnavailableMetadata? UnavailableMetadata = null);
 
 /// <summary>
-/// Database-backed implementation in M22.3; cross-resource operations explicitly return Deferred.
+/// Database-backed implementation; managed image admission uses INotebookImages. Duplication/permanent deletion remain Deferred.
 /// Reads throw cancellation/storage errors. Mutations validate commands, versions, catalog existence and target
 /// identity transactionally, return sanitized outcomes, and publish only verified committed snapshots.
 /// A post-commit cancellation must not report an uncommitted Cancelled result.
 /// Folder/tag name uniqueness uses normalized names and the domain ordinal-ignore-case comparers.
-/// Duplicate/image/delete orchestration stages and compensates owned files, and rechecks all retention references;
+/// Image orchestration stages and compensates owned files, and rechecks all retention references;
 /// neither links nor Trade screenshot references authorize a target mutation/deletion.
 /// </summary>
 public interface INotebookService

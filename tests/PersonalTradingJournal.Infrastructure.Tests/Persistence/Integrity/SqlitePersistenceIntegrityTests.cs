@@ -51,6 +51,7 @@ public sealed class SqlitePersistenceIntegrityTests
         [
             typeof(NotebookNoteRecord),
             typeof(NotebookRecoveryRecord),
+            typeof(NotebookOwnedImageRecord),
             typeof(NotebookFolderRecord),
             typeof(NotebookTagRecord),
             typeof(NotebookTagAssignmentRecord),
@@ -312,7 +313,8 @@ public sealed class SqlitePersistenceIntegrityTests
                 }))
             .ToList();
 
-        Assert.Equal(18, uniqueIndexes.Count);
+        Assert.Equal(19, uniqueIndexes.Count);
+        Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookOwnedImageRecord) && index.Properties.SequenceEqual(["StorageKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookFolderRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookTagRecord) && index.Properties.SequenceEqual(["NameKey"]) && index.Filter is null);
         Assert.Contains(uniqueIndexes, index => index.EntityType == typeof(NotebookImageRecord) && index.Properties.SequenceEqual(["NoteId", "Position"]) && index.Filter is null);
