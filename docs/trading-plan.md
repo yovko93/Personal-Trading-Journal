@@ -1,5 +1,63 @@
 # Trading Plan
 
+## Initial Principles load cancellation race — 20 October 2026
+
+Baseline: clean `develop` at `cc4c43ecd00bbc050f615f9e6ce07f2926acd2f2`. The committed PR #25 Copy Forward currency correction and previous Principles write-entry test synchronization are preserved.
+
+### CI and demonstrated cause
+
+[CI run 39381348030](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/39381348030), job `validate` / `118490924478`, checked out PR merge `e131534a34150e5e2ca007dacbf9223c81caed9f` (this head into base `c76d819541e0b47341fc913518744c8c9410c7df`). Build passed; the complete gate finished with **4,932 passed / 1 failed / zero skipped**, not a host crash or action timeout. Exclusive WPF passed 88/88. At 06:40:20 UTC, `InitialReminderLoadBelongsToPublicContextTaskAndCancellationDrainsIt` failed at line 69: expected zero Plan reads, observed one. Parallel Domain 567, Application 1,021 and Infrastructure 1,452 passed; Desktop had 1,804 passes / 1 failure. The Test step finished with failure at approximately 06:46:35 UTC; diagnostics upload succeeded.
+
+This is **not** the earlier test that inspected a write count before `Task.Run` entered the store. `DailyTradingPrinciplesViewModel.LoadCore` catches cancellation and completes normally. Workspace `CancelAsync` used to cancel that dependency first, and only then cancel `_load`. A continuation released in that gap passes the workspace token check and starts Account/Plan reads. `PrepareLeaveAsync` had the same ordering; disposal set `_disposed` first, preventing later publication but not the first Account query.
+
+The controlled regression captures actual workspace/Principles continuations in a bounded test synchronization context. After read entry, the fake's cancellation callback cancels its pending read and drains the captured activation to completion **before returning from child cancellation**. This deliberately exposes the gap; it does not rely on sleeps, repeated reruns or thread-pool speed. Against unchanged production code, all three cases fail:
+
+| Entry point | Account reads | Plan reads | Original result |
+| --- | ---: | ---: | --- |
+| Cancel | 1 | 1 | Zero-Plan-read assertion fails |
+| Navigation away | 1 | 1 | Zero-Plan-read assertion fails |
+| Dispose | 1 | 0 | Zero-Account-read assertion fails |
+
+The correction cancels the workspace context owner before cancelling/releasing Principles in these three paths. `DailyTradingPrinciplesViewModel` itself is unchanged. The public `ContextTask`, tracked context/history loads and existing write/editor drains retain their ownership and behavior; no scheduler, query, UI, persistence, deadline or concurrency policy was redesigned.
+
+With the correction the same callback yields **zero Account/Plan reads and zero writes**, activation/owner completion, cleared busy states and no queued continuations. The tests drain pending work in `finally`, use interlocked counters and bounded 30-second workflow waits, check idle/repeated cancellation, and successfully reactivate after Cancel/navigation-away. Disposal remains terminal. Existing workspace/history/navigation and Copy Forward checks retain their assertions.
+
+### Verification record
+
+- Initial regression build stopped on warning-as-error CS0649 for the old, now-unused fake `ReadPending` field. Removed that obsolete field; this was a test-authoring build failure, not a product test result.
+- `TestResults/PrinciplesCancellation/baseline`: **0 passed / 3 failed**, against original production code, with the controlled read counts above recorded in TRX output.
+- `TestResults/PrinciplesCancellation/focused`: **69 passed / zero failures or skips** after the production correction, including Principles, workspace, History, Copy Forward and Review navigation.
+- Release solution build: **zero warnings/errors, 19.22s**. Competing-load run: **119 passed / zero failures or skips** (Desktop 60, Infrastructure 59; Domain/Application had no matching cases), including the controlled cancellation/navigation checks alongside real SQLite and compiled History/workspace WPF workflows. EF: **no pending model changes**.
+- Final complete gate: **4,935 passed / zero failures or skips, exit 0**. Domain **567**, Application **1,021**, Infrastructure **1,452**, Desktop **1,895** (88 exclusive + 1,807 parallel). The two additional cases are the expanded navigation-away/disposal variants of the original cancellation regression, not duplicate counting of supervised child tests.
+- Evidence: `TestResults/release-20261020-071813-24d1f671389443769161461d8e9e815f`, including `summary.json`, TRX, child output, supervision and VSTest diagnostics. All three controlled cases again record zero Account/Plan reads and completed owners in this full run. Stage span **8m 23.95s** locally; this is not a CI timing guarantee.
+- Calendar **75.758s / 44.242s headroom** against its unchanged 120s deadline; Journal **12.069s**; Plan History **25.687s / 64.313s headroom** and workspace **28.207s / 61.793s headroom** against 90s. All exited 0 with confirmed cleanup. No timeout occurred; general native timing variability is not claimed eliminated.
+- Whitespace passed; README/docs local Markdown target check **303 checked / zero missing** (not remote-link validation). No automatic retries, arbitrary delays, skipped tests, relaxed assertions, serialization or deadline increases are added.
+
+Commands (repository root; synthetic data only):
+
+```powershell
+# Controlled regression against unchanged production code:
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~InitialReminderLoadBelongsToPublicContextTaskAndCancellationDrainsIt' --logger trx --results-directory TestResults/PrinciplesCancellation/baseline
+# After correcting owner-before-child cancellation:
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore --filter 'FullyQualifiedName~DailyTradingPrinciplesTests|FullyQualifiedName~TradingPlanWorkspaceTests|FullyQualifiedName~TradingPlanHistoryTests|FullyQualifiedName~CopyForwardCurrencyTests|FullyQualifiedName~ReviewPreparationNavigationTests' --logger trx --results-directory TestResults/PrinciplesCancellation/focused
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/PrinciplesCancellation/competing'
+dotnet test PersonalTradingJournal.sln -c Release --no-build --no-restore --filter 'FullyQualifiedName~DailyTradingPrinciplesTests|FullyQualifiedName~TradingPlanWorkspaceTests|FullyQualifiedName~TradingPlanHistoryTests|FullyQualifiedName~ReviewPreparationNavigationTests|FullyQualifiedName~TradingPlanWorkspaceViewTests|FullyQualifiedName~TradingPlanHistoryViewTests|FullyQualifiedName~Persistence.TradingPlans' --logger trx --results-directory TestResults/PrinciplesCancellation/competing
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure/PersonalTradingJournal.Infrastructure.csproj --context JournalDbContext --configuration Release --no-build
+git -c core.safecrlf=false diff --check
+```
+
+### Exact changed files
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/TradingPlans/TradingPlanWorkspaceViewModel.cs` — owner-before-dependent cancellation in Cancel/navigation-away/disposal.
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/DailyTradingPrinciplesTests.cs` — controlled interleaving, zero-read/write assertions, bounded cleanup/retry coverage.
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceTests.cs` — optional Account reader injection for counting actual calls.
+- `README.md`
+- `docs/trading-plan.md`
+
+These corrections remain uncommitted; the failed published-head CI run is not superseded by local testing. Matching corrected-source CI and existing human keyboard/Narrator, native picker and live restart acceptance remain pending. No production journal/provider access, commit, push, merge or next milestone.
+
 ## PR #25 Copy Forward currency review — 20 October 2026
 
 Baseline: clean `develop`, HEAD `e82fde2b068e6e404296bfcc6674a2586f48b2d6`, matching the reviewed PR HEAD. All approved Trading Plan UI/lifecycle changes are preserved. [P2 finding](https://github.com/yovko93/Personal-Trading-Journal/pull/25#discussion_r4319403324) was read without posting or resolving it. No production journal/provider access, commit, push, merge or next milestone.

@@ -307,7 +307,7 @@ public sealed class TradingPlanWorkspaceTests
             if (seed) await f.Vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, f.Vm.Accounts.Single(a => a.Id == f.Source.Account.Id));
             return f;
         }
-        public TradingPlanWorkspaceViewModel NewWorkspace(PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null, IDailyTradingPrincipleStore? principles = null) => new(Store, Db.Provider.GetRequiredService<ITradingAccountReader>(),
+        public TradingPlanWorkspaceViewModel NewWorkspace(PersonalTradingJournal.Desktop.Screenshots.ITradingPlanImages? images = null, IDailyTradingPrincipleStore? principles = null, ITradingAccountReader? accounts = null) => new(Store, accounts ?? Db.Provider.GetRequiredService<ITradingAccountReader>(),
             Db.Provider.GetRequiredService<IInstrumentReader>(), Db.Provider.GetRequiredService<ITradingPlanReferenceReader>(),
             Db.Provider.GetRequiredService<ITradingSetupReader>(), Db.Provider.GetRequiredService<ITradingSetupPlaybookStore>(),
             Db.Provider.GetRequiredService<ITradingSetupPlaybookHistoryReader>(), Db.Provider.GetRequiredService<ITradingRuleReader>(),

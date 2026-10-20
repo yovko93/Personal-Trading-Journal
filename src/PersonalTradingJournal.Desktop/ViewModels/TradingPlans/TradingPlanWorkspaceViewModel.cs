@@ -381,8 +381,11 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
 
     public async Task CancelAsync()
     {
+        // Child cancellation completes normally and may synchronously release the
+        // awaiting context. Invalidate that owner before releasing its dependency.
+        _load?.Cancel();
         var principlesCancellation = Principles.CancelAsync();
-        _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); Editor?.CancelOperation();
+        _write?.Cancel(); _historyLoad?.Cancel(); Editor?.CancelOperation();
         await principlesCancellation;
         Task[] loads; lock (_loadSync) loads = _loads.ToArray();
         await Task.WhenAll(loads);
@@ -394,6 +397,7 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
     public bool HasLeaveConsent => !Principles.IsBusy && !IsBusy && !HasOutstandingLoads && (Editor?.IsDirty != true || _acceptedIdentity == Editor.EditIdentity);
     public async Task<bool> PrepareLeaveAsync()
     {
+        _load?.Cancel(); // Same owner-before-dependency ordering as CancelAsync.
         await Principles.CancelAsync();
         if (_guarding || _writing || Editor?.IsBusy == true)
         { Report("Wait for the Trading Plan operation, or cancel it before leaving.", PlanNoticeKind.Info); return false; }
@@ -429,5 +433,5 @@ public sealed partial class TradingPlanWorkspaceViewModel : ObservableObject, ID
         NotifyHistory();
     }
     public void Dispose()
-    { _disposed = true; Principles.Dispose(); ++_epoch; _load?.Cancel(); _write?.Cancel(); _historyLoad?.Cancel(); HistoricalViewer?.Dispose(); ReplaceEditor(null); }
+    { _disposed = true; _load?.Cancel(); Principles.Dispose(); ++_epoch; _write?.Cancel(); _historyLoad?.Cancel(); HistoricalViewer?.Dispose(); ReplaceEditor(null); }
 }
