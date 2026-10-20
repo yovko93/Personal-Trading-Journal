@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.1 — Notebook scope and UX contract
+
+[Notebook design, repository reuse and milestone boundaries](docs/notebook.md) now define the local-first three-panel workspace, safe versioned rich-text JSON, bounded content/images, autosave ownership, lifecycle and portability requirements. **M22.1 is documentation only**: the existing Notebook placeholder remains unchanged; entities, migrations and editor implementation begin in later slices. Per the user's scope clarification, M22.9 is **Linked Trades & Trading Setups**. Playbook definitions belong to Trading Setups; no separate Strategy catalog, persistence or placeholder link type is introduced.
+
+Reviewed clean `develop` at `a279aaf28845e614b8ca94a2e533aaa52f45957c`. Changed files: `README.md` and `docs/notebook.md`. Verification: **157 local documentation targets, zero missing; tracked/new-file whitespace passed**. No new build, runtime tests, renders, live interaction or CI acceptance is claimed. The preceding Release results remain historical evidence, not Notebook acceptance. M22.2–M22.12 remain pending; no production data or provider access.
+
 ## M21.10 — initial Principles cancellation ownership
 
 Fixed a demonstrated production ordering race: cancelling initial Daily Trading Principles loading could complete normally and release the awaiting workspace before its context token was cancelled, allowing Account/Plan reads after cancellation. Cancel, navigation-away and disposal now cancel the context owner first. Existing draining, guards, Copy Forward currency review and deadlines remain intact. A controlled cancellation callback/continuation regression fails against the original implementation and verifies zero reads/writes, completed lifetimes, clean busy states and successful later activation with the correction. [CI evidence, exact files and verification](docs/trading-plan.md#initial-principles-load-cancellation-race--20-october-2026).
