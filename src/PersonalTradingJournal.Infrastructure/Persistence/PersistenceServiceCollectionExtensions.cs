@@ -65,6 +65,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddTransient<JournalDatabaseInitializer>();
         services.AddSingleton<INotebookContentCodec, NotebookJsonCodec>();
         services.AddTransient<INotebookService, NotebookService>();
+        services.AddTransient<INotebookRecoveryStore, NotebookRecoveryStore>();
         services.AddTransient<ITradingPlanStore, TradingPlanStore>();
         services.AddTransient<IDailyTradingPrincipleStore, DailyTradingPrincipleStore>();
         services.AddTransient<ITradingPlanReferenceReader, TradingPlanReferenceReader>();

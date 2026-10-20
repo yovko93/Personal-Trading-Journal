@@ -75,6 +75,13 @@ public sealed class NotebookPortabilityTests
             invalid.DocumentJson = Unreadable;
             var future = await db.NotebookNotes.SingleAsync(x => x.Id == notes[5].Id);
             future.DocumentJson = Future; future.ContentVersion = 99;
+            db.NotebookRecoveryDrafts.AddRange(
+                new NotebookRecoveryRecord { Id = Guid.NewGuid(), NoteId = n.Id, ExpectedVersion = n.Version, Revision = 7, Title = "Unfinished recovery",
+                    DocumentJson = new NotebookJsonCodec().Encode(NotebookCodecTests.Rich()).Json, CheckpointedAtUtc = DateTimeOffset.UtcNow },
+                new NotebookRecoveryRecord { Id = Guid.NewGuid(), NoteId = notes[4].Id, ExpectedVersion = 1, Revision = 9, Title = "Unreadable recovery",
+                    DocumentJson = Unreadable, CheckpointedAtUtc = DateTimeOffset.UtcNow },
+                new NotebookRecoveryRecord { Id = Guid.NewGuid(), NoteId = notes[5].Id, ExpectedVersion = 1, Revision = 2, Title = "Future recovery",
+                    EnvelopeVersion = 99, DocumentJson = Future, CheckpointedAtUtc = DateTimeOffset.UtcNow });
             await db.SaveChangesAsync();
         }
         return new(notes[0].Id, notes[4].Id, notes[5].Id);
@@ -87,8 +94,8 @@ public sealed class NotebookPortabilityTests
         Assert.True(result.Succeeded, result.ToString()); Assert.False(result.CleanupFailed);
         using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.DataFile)));
         using var inventory = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.InventoryFile)));
-        Assert.Equal(15, json.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(15, inventory.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(16, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(16, inventory.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", json.RootElement.GetProperty("screenshotContent").GetString());
         var tables = json.RootElement.GetProperty("tables");
@@ -111,6 +118,7 @@ public sealed class NotebookPortabilityTests
         var tables = await Export(f);
         await using var db = f.Context();
         EqualRows(await db.NotebookNotes.OrderBy(x => x.Id).ToArrayAsync(), tables.GetProperty("notebookNotes"));
+        EqualRows(await db.NotebookRecoveryDrafts.OrderBy(x => x.Id).ToArrayAsync(), tables.GetProperty("notebookRecoveryDrafts"));
         EqualRows(await db.NotebookFolders.OrderBy(x => x.Id).ToArrayAsync(), tables.GetProperty("notebookFolders"));
         EqualRows(await db.NotebookTags.OrderBy(x => x.Id).ToArrayAsync(), tables.GetProperty("notebookTags"));
         EqualRows(await db.NotebookTagAssignments.OrderBy(x => x.NoteId).ThenBy(x => x.TagId).ToArrayAsync(), tables.GetProperty("notebookTagAssignments"));

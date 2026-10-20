@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 15; // Adds all Notebook records, preserving original content and image metadata.
+    public const int Version = 16; // Includes durable Notebook recovery checkpoints, separate from canonical notes.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

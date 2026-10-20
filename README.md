@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.6 — Notebook autosave and durable recovery
+
+Notebook edits use a **750 ms quiet-period autosave**, the existing verified expected-version Save command, and serialized checkpoint/save completion. Manual Save is immediate; failures pause automatic canonical retries. Newer typing remains dirty, metadata changes flush first, and explicit discard cannot resurrect an abandoned draft. Recovery is offered separately from canonical Saved status, with conflicts/unavailable sources protected from overwrite or recreation.
+
+An additive `AddNotebookRecovery` migration stores bounded local checkpoints in the managed journal database. Canonical document **JSON v1** is unchanged; logical export **v16** and current-schema complete backup/preflight/offline restore include checkpoints, including unreadable/future originals. Older-schema archives still fail exact-schema preflight. [Decisions, exact files, verification and limits](docs/notebook.md#m226--autosave-concurrency-and-durable-recovery).
+
+Starting baseline: clean `develop`, `0a89d26ff036b12561160e6bb4c569954a5a28c3`. Focused checks: **71 Notebook Desktop**, **114 persistence/portability**, then **38 final coordination** cases passed. Release build **zero warnings/errors**; EF consistent. Light/Dark normal/narrow-240-DPI recovery/status renders inspected. The complete Release gate is in progress; no complete-regression acceptance is claimed yet. Human keyboard/Narrator, actual native restart and matching-source CI remain unverified. **M22.7 onward remains pending.**
+
 ## M22.5 — Notebook rich text and manual Save
 
 Active notes now have a separate title and a theme-aware rich-text editor: paragraph/headings, bold/italic/underline, lists, interactive checklist state, explicit HTTP(S) links and native undo/redo. Manual Save atomically persists title and canonical JSON v1 content with one expected-version advance. Newer typing, failed/conflicting drafts and later navigation vetoes retain the editor; Save / Discard / Cancel guards cover replacement and departure. No autosave or image-insertion control is implied. [Mapping, exact files, verification and limits](docs/notebook.md#m225--rich-text-editor-and-manual-save).

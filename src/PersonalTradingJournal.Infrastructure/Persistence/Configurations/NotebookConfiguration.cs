@@ -9,6 +9,15 @@ internal static class NotebookConfiguration
 {
     internal static void Configure(ModelBuilder model)
     {
+        var recovery = model.Entity<NotebookRecoveryRecord>();
+        recovery.ToTable("NotebookRecoveryDrafts", t => t.HasCheckConstraint("CK_NotebookRecovery_Metadata",
+            "EnvelopeVersion > 0 AND ExpectedVersion > 0 AND Revision > 0 AND length(Title) <= 200"));
+        recovery.HasKey(x => x.Id); recovery.Property(x => x.Id).ValueGeneratedNever();
+        recovery.Property(x => x.Revision).IsConcurrencyToken();
+        recovery.Property(x => x.Title).IsRequired(); recovery.Property(x => x.DocumentJson).IsRequired();
+        recovery.Property(x => x.CheckpointedAtUtc).HasConversion<SqliteUtcDateTimeOffsetConverter>();
+        recovery.HasIndex(x => x.NoteId);
+        // No FK: source deletion must not cascade into loss of unresolved local work.
         var notes = model.Entity<NotebookNoteRecord>();
         notes.ToTable("NotebookNotes", t =>
         {

@@ -1,6 +1,121 @@
 # Notebook
 
-Current checkpoint: **M22.5 rich-text editor and manual Save**. Logical export v15 includes all six Notebook tables; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Autosave, Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.6 autosave, concurrency and durable recovery**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+
+## M22.6 — autosave, concurrency and durable recovery
+
+20 October 2026. Starting baseline: **clean `develop`, `0a89d26ff036b12561160e6bb4c569954a5a28c3`**, preserving committed M22.1–M22.5. No applicable repository/ancestor `AGENTS.md` was found. Existing SaveNotebookDraft, semantic draft generations, shell close/navigation consent, managed application paths, short-lived SQLite context/transaction ownership, portable-export completeness and controlled-time conventions were inspected.
+
+### Autosave and operation ownership
+
+- A meaningful title/document edit replaces the **750 ms** quiet-period timer, using injectable `TimeProvider`. Loading, preview rendering and selecting do not save. Undo to the persisted semantic value cancels unnecessary canonical work; an obsolete checkpoint can still be cleaned up.
+- One tracked pipeline serializes checkpoint, existing `SaveNotebookDraft`, returned-version acknowledgement and checkpoint cleanup. It is not a second canonical write path. Ctrl+S/Save cancels the pending timer and requests immediate saving; its UI remains disabled during an entered write. Captured identity, expected version, draft generation and activation owner prevent stale acknowledgement. Cancellation of a replaced timer does not cancel a write already entered.
+- Typing during saving keeps the live editor and newer generation. A successful older save advances the persisted baseline/version but cannot mark newer input Saved. Remaining dirty content receives another quiet interval without overlapping writes. Pin and move flush first and then use the returned version; existing destination capture and guards are retained.
+- Any failed/invalid/conflicting save pauses automatic canonical attempts. Further meaningful edits can checkpoint the latest draft, but do not retry a failing canonical write. Use Save explicitly to retry. Stale-version conflicts never fetch a new version to overwrite it. There is no periodic retry, popup loop, merge or duplicate-note workaround.
+- The existing editor status distinguishes Unsaved, Saving, Saved, failure/retry and conflict. Checkpoint success explicitly says **not yet saved as a note**. Only canonical success/readback produces Saved. Background acknowledgement does not recreate the FlowDocument or reset selection/caret/scroll/undo.
+
+### Checkpoint format, limits and portability
+
+The earlier architecture paragraph promised only canonical-save durability. This slice explicitly strengthens that guarantee with the requested durable dirty-draft checkpoints; it does not promise durability for every keystroke.
+
+`INotebookRecoveryStore` is the application port; `NotebookRecoveryStore` is a DI-wired infrastructure adapter. Additive migration **`20261020130020_AddNotebookRecovery`** adds `NotebookRecoveryDrafts` inside `IApplicationPaths.DatabasePath`: `journal.db` in the managed data directory (normally `%LocalAppData%/PersonalTradingJournal`, overridden for isolated tests). No Desktop control performs filesystem persistence.
+
+The **envelope version is 1**: editing-session/checkpoint ID, original Note ID, expected canonical version, monotonic checkpoint revision, title, canonical document JSON v1 and UTC checkpoint time. Empty/temporarily invalid titles are recoverable within the unchanged 200-character bound. Document limits remain **1 MiB serialized UTF-8**, 200,000 plain-text characters, 4,096 nodes/depth 16/list depth 3. Invalid editor structures cannot be checkpointed; their last successful checkpoint remains intact and the editor reports the limitation.
+
+At most **128 checkpoints** are retained, discovered in deterministic ID order through **50-row pages**. Capacity failure is explicit; no eviction or silent truncation. Each writer owns an immediate SQLite transaction and short-lived context/connection. Updates require the exact previous checkpoint revision and stable note identity, with no backwards expected-version change. Failed/cancelled writes roll back. Cleanup uses the captured checkpoint revision, so an old acknowledgement cannot delete a newer checkpoint. Updating an ID after its removal conflicts instead of recreating it. No note FK/cascade is used: deleting the source cannot erase unresolved work.
+
+Checkpoint and canonical transactions are intentionally separate. A process can stop between canonical commit and cleanup. Recovery compares semantic title/document content with the current note, recognizes an already-persisted copy and cleans it without another canonical write. A cleanup failure does not deny a confirmed canonical save.
+
+Logical export advances **v15 → v16**, explicitly exporting every checkpoint field alongside all existing records. The unchanged completeness assertion covers the new table. Complete SQLite archives remain format **v1**, including checkpoints; synthetic export, preflight, offline restore, cancellation, rollback and interrupted-restore tests seed valid, malformed and future-envelope recovery copies and compare their raw fields. Credentials remain excluded; note/recovery text is sensitive local content. Earlier logical exports contain no checkpoints and are not restore inputs. **Older-schema archives are still rejected by exact-schema preflight**; the normal additive live-database migration does not make offline old-schema archives compatible. No Notebook image-file restore workflow is added.
+
+### Recovery and departure decisions
+
+Activation/Refresh discovers recovery copies in Organization → Recovery drafts, including a bounded More action. **Recover** reads the original copy and current source before installing a draft. Nothing is automatically overwritten on discovery. A matching active source version allows explicit Save; recovery initially pauses automatic canonical saving. A changed version, missing source, archived/trashed source or incompatible image references remains protected. Missing/non-editable sources show recovered title/body read-only and are never recreated/reactivated. Existing image bodies remain read-only with title-only editing. Unreadable/future/oversized recovery originals remain stored; only explicit confirmed discard removes them.
+
+For conflicts, preserve/copy the text you need, or explicitly discard the pending draft before refreshing the current note. There is no merge engine, automatic adoption of the latest source version, duplication workflow or attachment editing.
+
+Before replacing/closing a dirty draft, the existing guard cancels its pending timer, drains the entered save and attempts a final flush unless automatic attempts are paused. Successful persistence proceeds without a dialog. Otherwise the existing Save / Discard / Cancel choice remains. Cancel keeps the editor. Explicit Discard drains the pipeline and removes the exact durable checkpoint before granting departure consent; failure to remove it refuses departure. The in-memory editor is restored only after the ancestor accepts. A later ancestor veto retains the input, clears consent and schedules a new checkpoint; until that checkpoint succeeds, the retained in-memory edits are not crash-durable. Discard does not undo an already committed autosave.
+
+Actual deactivation/disposal cancels the activation owner before linked operations, drains tracked tasks/timers and prevents late publication. Re-entry waits for prior deactivation work before loading. A returned successful commit can still be acknowledged when cancellation arrived after the commit boundary; cancelled cleanup leaves a comparable recovery copy rather than claiming nothing was written.
+
+**Durability boundary:** only the last successfully committed checkpoint/canonical note survives abrupt termination. Edits inside the debounce, edits made during an earlier save but not yet checkpointed, invalid editor structures, capacity failures and failed checkpoint writes may remain memory-only. Abrupt-process recovery is not a substitute for backups.
+
+### Verification and remaining acceptance
+
+Synthetic data only; controlled clock/timer tests and explicit operation gates, not timing sleeps. Coverage includes debounce replacement/undo, manual flush, newer edits/returned versions, metadata coordination, image restrictions, failure pause/retry, discard/later veto, cancellation/draining, checkpoint CAS/rollback/capacity/paging, restart conflicts, source deletion/read-only sources, future/malformed content, interrupted cleanup and export/restore inclusion.
+
+Commands:
+
+```powershell
+dotnet ef migrations add AddNotebookRecovery --project src/PersonalTradingJournal.Infrastructure --configuration Release
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore --filter "FullyQualifiedName~Notebook" --logger trx --results-directory TestResults/m226-focused-desktop-final
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore --filter "FullyQualifiedName~Notebook|FullyQualifiedName~Portability|FullyQualifiedName~PortableExport|FullyQualifiedName~InitialMigration|FullyQualifiedName~JournalDatabaseInitializer|FullyQualifiedName~ProductionPersistenceIntegration" --logger trx --results-directory TestResults/m226-focused-infra-final
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore --filter "FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookNavigationTests|FullyQualifiedName~NotebookEditingTests" --logger trx --results-directory TestResults/m226-final-coordination
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+pwsh -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+```
+
+Development chronology: initial compilation caught two invalid target-typed generic constructor expressions. The first focused Desktop run was **64 passed / 2 failed**: an accidentally relaxed Save-button enablement rule violated the existing no-duplicate-in-flight assertion. The existing rule was restored; no assertion changed. Initial affected Infrastructure was **107 passed / 2 failed**: the explicit schema lists already included the migration, but two migration-count checks still expected 26 instead of 27; those expectations now include the additive migration.
+
+Subsequent focused runs: **71/71 Notebook Desktop**, **114/114 persistence/portability**, then **38/38 final coordination** cases passed, zero skips. These overlap; they are not additive unique totals. Final solution Release build: **0 warnings/errors**, 6.50 seconds; EF reports no pending model changes using the existing in-memory design-time factory. Complete gate is running at `TestResults/release-20261020-161829-bf9a8e8f1d794dd0a29d185534755e39/`; final results are not yet claimed.
+
+Compiled-WPF renders: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-autosave-renders/{Light|Dark}-{1280-96|480-240}-{recovery-available|recovered|saving|saved|failed|conflict}.png`. Inspected Light/Dark at 1280 × 900 DIP / 96 DPI and 480 × 720 DIP / 240 DPI: recovery actions, wrapped status/help, disabled in-flight actions and retained document are readable. Narrow content/organization use the established panel switcher and vertical scrolling. These are automated renders and bound interactions, **not live human or screen-reader acceptance**.
+
+| Evidence | Status |
+| --- | --- |
+| Autosave/version/guard/recovery deterministic checks | Passed focused |
+| SQLite migration, CAS/rollback, restart, source retention and export/restore | Passed focused |
+| Compiled WPF retained document/selection, accessible status and layout | Passed focused; renders inspected |
+| Complete repository Release gate | In progress |
+| Human keyboard/mouse/Narrator and native-process restart | Not performed; pending |
+| Matching published-source CI | Not verified; work is uncommitted |
+
+No production journal, provider, real clipboard or browser access. No commits/push/merge. **M22.7–M22.12 remain pending.**
+
+### Exact M22.6 changed-file inventory
+
+Modified:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Configurations/NotebookConfiguration.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/JournalDbContext.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integrity/SqlitePersistenceIntegrityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs`
+
+Added:
+
+- `src/PersonalTradingJournal.Application/Notebook/INotebookRecoveryStore.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookRecoveryStore.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Records/NotebookRecoveryRecord.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020130020_AddNotebookRecovery.cs`
+- `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261020130020_AddNotebookRecovery.Designer.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookAutosaveTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookAutosaveViewTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookRecoveryTests.cs`
 
 ## M22.5 — rich-text editor and manual Save
 

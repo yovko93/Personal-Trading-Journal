@@ -12,6 +12,49 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 public sealed class NotebookSqliteWorkspaceTests
 {
     [Fact]
+    public async Task AutosaveConflictCheckpointRestartsAsProtectedDraftAndNeverRetargetsTheVersion()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        var recovery = db.Provider.GetRequiredService<INotebookRecoveryStore>();
+        var codec = db.Provider.GetRequiredService<INotebookContentCodec>();
+        var clock = new NotebookClock();
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService { ConfirmationResult = true }, codec: codec, recovery: recovery, time: clock);
+        await vm.ActivateAsync(); await vm.NewNoteCommand.ExecuteAsync(null);
+        vm.DraftTitle = "Autosaved"; vm.SetDraftDocument(NotebookEditingTests.Text("Canonical observation"));
+        clock.Advance(750); await vm.AutosaveTask.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(vm.IsDirty); Assert.Equal("Saved", vm.SaveState);
+        var saved = vm.Note!;
+        Assert.Equal("Autosaved", (await service.LoadAsync(saved.Id)).Note!.Title);
+        Assert.Empty((await recovery.ListAsync()).Items);
+        var external = await service.ExecuteAsync(new UpdateNotebookTitle(saved.Id, saved.Version, "External revision"));
+        Assert.Equal(NotebookWriteStatus.Success, external.Status);
+        vm.DraftTitle = "Keep my local title"; vm.SetDraftDocument(NotebookEditingTests.Text("Keep my local body"));
+        clock.Advance(750); await vm.AutosaveTask.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.StartsWith("Conflict", vm.SaveState); Assert.True(vm.IsDirty);
+        var checkpoint = Assert.Single((await recovery.ListAsync()).Items);
+        vm.Dispose(); await vm.DeactivationTask;
+        await using var context = await db.ContextFactory.CreateDbContextAsync();
+        string root = Path.GetDirectoryName(Path.GetDirectoryName(context.Database.GetDbConnection().DataSource))!;
+        await using var fresh = new ServiceCollection().AddPersistence(new LocalApplicationPaths(root)).BuildServiceProvider();
+        using var restarted = new NotebookWorkspaceViewModel(fresh.GetRequiredService<INotebookService>(), new FakeDialogService { ConfirmationResult = true },
+            codec: fresh.GetRequiredService<INotebookContentCodec>(), recovery: fresh.GetRequiredService<INotebookRecoveryStore>(), time: clock);
+        try
+        {
+            await restarted.ActivateAsync();
+            await restarted.RecoverCommand.ExecuteAsync(Assert.Single(restarted.RecoveryDrafts));
+            Assert.Equal("Keep my local title", restarted.DraftTitle); Assert.Contains("local body", restarted.DraftDocument.PlainText);
+            Assert.False(await restarted.SaveDraftAsync());
+            Assert.Equal("External revision", (await service.LoadAsync(saved.Id)).Note!.Title);
+            Assert.Equal(external.Note!.Version, (await service.LoadAsync(saved.Id)).Note!.Version);
+            Assert.Equal(checkpoint.Id, Assert.Single((await recovery.ListAsync()).Items).Id);
+            await restarted.DiscardCommand.ExecuteAsync(null);
+            Assert.False(restarted.IsDirty); Assert.Empty((await recovery.ListAsync()).Items);
+            Assert.Equal("External revision", restarted.DraftTitle);
+        }
+        finally { restarted.Dispose(); await restarted.DeactivationTask; }
+    }
+    [Fact]
     public async Task AtomicEditorSaveRestartConflictAndInvalidWriteRetainTheWholeNote()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();

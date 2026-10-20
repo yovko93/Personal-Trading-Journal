@@ -50,6 +50,7 @@ public sealed class SqlitePersistenceIntegrityTests
         Type[] expectedRecordTypes =
         [
             typeof(NotebookNoteRecord),
+            typeof(NotebookRecoveryRecord),
             typeof(NotebookFolderRecord),
             typeof(NotebookTagRecord),
             typeof(NotebookTagAssignmentRecord),

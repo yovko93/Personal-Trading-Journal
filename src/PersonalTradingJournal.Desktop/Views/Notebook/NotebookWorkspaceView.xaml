@@ -51,6 +51,21 @@
    <Border x:Name="OrganizationPanel" Style="{StaticResource PanelBorder}">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
      <StackPanel IsEnabled="{Binding CanInteract}">
+      <TextBlock Text="{Binding RecoveryMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
+      <Expander Header="Recovery drafts" Foreground="{DynamicResource PtjTextPrimaryBrush}" Visibility="{Binding HasRecovery, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12" AutomationProperties.Name="Local unsaved recovery drafts">
+       <StackPanel>
+        <ItemsControl ItemsSource="{Binding RecoveryDrafts}">
+         <ItemsControl.ItemTemplate><DataTemplate><StackPanel Margin="0,8,0,8">
+          <TextBlock Text="{Binding Title}" TextWrapping="Wrap"/>
+          <WrapPanel>
+           <Button Content="Recover" Command="{Binding DataContext.RecoverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,4,4,0" AutomationProperties.HelpText="Compare this checkpoint with the saved note before restoring."/>
+           <Button Content="Discard" Command="{Binding DataContext.DeleteRecoveryCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,4,0,0" AutomationProperties.HelpText="Confirm deletion of this recovery copy only."/>
+          </WrapPanel>
+         </StackPanel></DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Button Content="More recovery drafts" Command="{Binding MoreRecoveryCommand}" Visibility="{Binding HasMoreRecovery, Converter={StaticResource VisibleWhenTrue}}"/>
+       </StackPanel>
+      </Expander>
       <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" Margin="0,0,0,12"/>
       <ListBox x:Name="ScopeList" ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}" DisplayMemberPath="Label" ItemContainerStyle="{StaticResource Row}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook organization" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
        <ListBox.Resources><Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style></ListBox.Resources>
@@ -110,7 +125,8 @@
        <Button Content="Move" Command="{Binding MoveCommand}" Margin="0,0,0,8"/>
       </WrapPanel>
       <TextBlock Text="{Binding ContentMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
-      <TextBlock Text="{Binding SaveState}" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock Text="{Binding SaveState}" TextWrapping="Wrap" Foreground="{DynamicResource PtjAccentBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock Text="{Binding RecoveryMessage}" Style="{StaticResource QuietText}" Margin="0,4,0,4"/>
       <TextBlock Text="{Binding DraftError}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
       <WrapPanel x:Name="FormattingToolbar" IsEnabled="{Binding CanEditBody}" Margin="0,6,0,6" AutomationProperties.Name="Note formatting">
        <ComboBox x:Name="ParagraphStyle" Width="122" SelectionChanged="StyleChanged" AutomationProperties.Name="Paragraph style" Margin="0,0,4,4">

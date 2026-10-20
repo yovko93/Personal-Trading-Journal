@@ -56,11 +56,11 @@ public partial class NotebookWorkspaceView : UserControl
         _updating = true;
         try
         {
-            bool protectedBody = _model?.Note?.Document.ImageNodes.Count > 0;
+            bool protectedBody = _model?.DraftDocument.ImageNodes.Count > 0;
             Preview.Document = protectedBody ? NotebookDocumentPreview.Create(_model?.DraftDocument) : NotebookEditorAdapter.Create(_model?.DraftDocument ?? NotebookDocument.Empty);
             EditorFeedback.Text = protectedBody ? "This body contains protected image references and is read-only. The title can still be edited." : "";
             AutomationProperties.SetName(Preview, protectedBody ? "Read-only note content" : "Note content");
-            if (_model?.Note is null) TitleEditor.SetCurrentValue(TextBox.TextProperty, _model?.NoteTitle ?? "Select a note");
+            if (_model?.HasDraft != true) TitleEditor.SetCurrentValue(TextBox.TextProperty, _model?.NoteTitle ?? "Select a note");
         }
         finally { _updating = false; }
         UpdateUndo();

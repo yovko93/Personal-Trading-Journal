@@ -17,7 +17,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private long _draftRevision, _acceptedRevision = -1, _editorRevision;
     private bool _guarding, _discardConsent;
     public AsyncRelayCommand SaveCommand { get; }
-    public RelayCommand DiscardCommand { get; }
+    public AsyncRelayCommand DiscardCommand { get; }
     public string DraftTitle
     {
         get => _draftTitle;
@@ -29,11 +29,12 @@ public sealed partial class NotebookWorkspaceViewModel
     public string DraftError => _draftError;
     public string SaveState => IsSaving ? "Saving…" : _saveState;
     public bool IsSaving { get; private set; }
-    public bool IsDirty => Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
-    public bool CanEditDraft => _active && !_disposed && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
+    public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
+    public bool HasDraft => Note is not null || _detachedRecovery;
+    public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
     // Existing image nodes are displayed intact in a protected body. Title edits remain available.
     // File/image editing is deliberately not approximated by editable placeholder text.
-    public bool CanEditBody => CanEditDraft && Note!.Document.ImageNodes.Count == 0;
+    public bool CanEditBody => CanEditDraft && _draftDocument.ImageNodes.Count == 0 && Note!.Document.ImageNodes.Count == 0;
     public bool BodyReadOnly => !CanEditBody;
     public bool NeedsClosePreparation => IsDirty || IsWriting;
     public bool HasLeaveConsent => !IsWriting && (!IsDirty || _acceptedRevision == _draftRevision);
@@ -43,11 +44,13 @@ public sealed partial class NotebookWorkspaceViewModel
     { n.Kind, n.Text, n.Marks, n.HeadingLevel, n.IsChecked, n.Url, n.ImageId, n.Caption, n.AlternativeText, Children = n.Children.Select(Value).ToArray() };
     private void InstallDraft()
     {
+        StopDebounce(); _recoveryId = null; _checkpointRevision = 0;
+        _autosavePaused = false; _recoveryConflict = false; _detachedRecovery = false;
         _draftTitle = Note?.Title ?? "";
         _draftDocument = Note?.Document ?? NotebookDocument.Empty;
         _savedSignature = Signature(_draftTitle, _draftDocument); _draftError = ""; _saveState = "";
         ++_draftRevision; ++_editorRevision; ClearLeaveConsent();
-        OnPropertyChanged(nameof(DraftTitle)); OnPropertyChanged(nameof(EditorRevision)); DraftChanged();
+        OnPropertyChanged(nameof(HasDraft)); OnPropertyChanged(nameof(DraftTitle)); OnPropertyChanged(nameof(EditorRevision)); DraftChanged();
     }
     public void SetDraftDocument(NotebookDocument document)
     {
@@ -63,8 +66,10 @@ public sealed partial class NotebookWorkspaceViewModel
     private void Edited()
     {
         ++_draftRevision; ClearLeaveConsent();
-        _saveState = IsDirty ? "Unsaved changes" : "";
+        _saveState = !IsDirty ? "" : _recoveryConflict ? "Conflict — preserve your draft or discard before refreshing." :
+            _autosavePaused && _recovery is not null ? "Unsaved changes — autosave paused; select Save to retry." : "Unsaved changes";
         DraftChanged();
+        ScheduleAutosave();
     }
     private void DraftChanged()
     {
@@ -73,7 +78,12 @@ public sealed partial class NotebookWorkspaceViewModel
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
     }
     private void RestoreDraft() => InstallDraft();
-    public void ClearLeaveConsent() { _acceptedRevision = -1; _discardConsent = false; }
+    public void ClearLeaveConsent()
+    {
+        bool resume = _discardConsent && IsDirty;
+        _acceptedRevision = -1; _discardConsent = false;
+        if (resume) ScheduleAutosave(); // A later ancestor veto retained the editor; checkpoint it again.
+    }
     public void CompleteLeave()
     {
         if (_discardConsent && HasLeaveConsent) RestoreDraft();
@@ -81,12 +91,19 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     public async Task<bool> PrepareLeaveAsync()
     {
+        if (_recovery is not null)
+        {
+            StopDebounce();
+            await _flushTask;
+            if (_active && !_disposed && IsDirty && !_autosavePaused && !_recoveryConflict && await SaveDraftAsync()) return true;
+        }
         if (_disposed || IsWriting) { Message = "Wait for the Notebook change, or cancel it before leaving."; return false; }
         ClearLeaveConsent();
         if (!IsDirty) return true;
         var choice = _interaction?.ConfirmLeave() ?? NotebookLeaveChoice.Cancel;
         if (choice == NotebookLeaveChoice.Cancel) return false;
         if (choice == NotebookLeaveChoice.Save && !await SaveDraftAsync()) return false;
+        if (choice == NotebookLeaveChoice.Discard && !await DiscardCheckpointAsync()) return false;
         _acceptedRevision = _draftRevision; _discardConsent = choice == NotebookLeaveChoice.Discard;
         return !_disposed;
     }
@@ -102,34 +119,43 @@ public sealed partial class NotebookWorkspaceViewModel
         finally { _guarding = false; ClearLeaveConsent(); }
         if (_active && !_disposed) await action();
     }
-    public async Task<bool> SaveDraftAsync()
+    private async Task<bool> SaveCoreAsync(bool checkpointOnly, CancellationToken owner)
     {
         if (!CanMutate || !CanEditDraft) return false;
         if (!IsDirty) return true;
-        if (_draftError.Length != 0) { _saveState = "Could not save"; DraftChanged(); return false; }
-        try { NotebookLimits.NoteTitle(_draftTitle); ValidateDocument(_draftDocument); }
-        catch (ArgumentException) { _saveState = "Could not save"; Message = "Use a nonblank title of at most 200 characters and content within the document limits."; DraftChanged(); return false; }
+        owner.ThrowIfCancellationRequested();
         var captured = Note!; var revision = _draftRevision; var title = _draftTitle; var document = _draftDocument;
+        var activation = _lifetime;
         bool saved = false, committed = false;
         IsSaving = true; DraftChanged();
         try
         {
             await MutateAsync(async ct =>
             {
+                if (_draftError.Length != 0) { Message = "Correct or undo the invalid editor content before saving."; return; }
+                if (_recovery is not null && !await CheckpointAsync(captured, revision, title, document, ct)) return;
+                if (checkpointOnly || _recoveryConflict) return;
+                try { NotebookLimits.NoteTitle(title); ValidateDocument(document); }
+                catch (ArgumentException) { Message = "Use a nonblank title of at most 200 characters and content within the document limits."; return; }
+                ct.ThrowIfCancellationRequested();
                 var result = await Task.Run(() => _service.ExecuteAsync(new SaveNotebookDraft(captured.Id, captured.Version, title, document, captured.Images), ct), ct);
                 // A successful commit is authoritative even if cancellation arrived just after commit.
-                if (_disposed || !_active || Note?.Id != captured.Id) return;
+                if (_disposed || !_active || !ReferenceEquals(activation, _lifetime) || Note?.Id != captured.Id) return;
                 if (result.Status != NotebookWriteStatus.Success || result.Note is not { } persisted || persisted.Id != captured.Id ||
                     persisted.Version <= captured.Version || persisted.Title != title.Trim() ||
                     Signature(persisted.Title, persisted.Document) != Signature(title.Trim(), document))
                 {
                     PublishWrite(result.Status == NotebookWriteStatus.Success ? NotebookWriteStatus.StorageFailure : result.Status, "");
-                    _saveState = "Could not save"; return;
+                    _saveState = _recovery is null ? "Could not save" : result.Status == NotebookWriteStatus.Conflict
+                        ? "Conflict — keep or discard your draft before refreshing." : "Save failed — use Save to retry.";
+                    _autosavePaused = true; return;
                 }
-                committed = true; Note = persisted; _savedSignature = Signature(persisted.Title, persisted.Document);
+                committed = true; _autosavePaused = false; Note = persisted; _savedSignature = Signature(persisted.Title, persisted.Document);
                 if (_draftRevision == revision) { _draftTitle = persisted.Title; OnPropertyChanged(nameof(DraftTitle)); }
                 _saveState = IsDirty ? "Unsaved changes" : "Saved"; saved = !IsDirty;
                 Message = ""; // Do not reload/rebuild the document or clear undo/caret on save.
+                await CleanupCheckpointAsync(ct);
+                if (!Current(owner) || Note?.Id != captured.Id) return;
                 int index = Notes.ToList().FindIndex(n => n.Id == persisted.Id);
                 if (index >= 0)
                 {
@@ -161,7 +187,17 @@ public sealed partial class NotebookWorkspaceViewModel
                 }
             });
         }
-        finally { IsSaving = false; if (!_disposed) { if (!committed) _saveState = "Could not save"; DraftChanged(); } }
+        finally
+        {
+            IsSaving = false;
+            if (!committed) _autosavePaused = true;
+            if (!_disposed)
+            {
+                if (!committed && !checkpointOnly && !_recoveryConflict && (_recovery is null || !_saveState.StartsWith("Conflict")))
+                    _saveState = _recovery is null ? "Could not save" : "Save failed — use Save to retry.";
+                DraftChanged();
+            }
+        }
         return saved && !IsDirty;
     }
 }

@@ -13,6 +13,7 @@ public sealed class JournalDbContext : DbContext
 
     public DbSet<DailyTradingPrincipleRecord> DailyTradingPrinciples => Set<DailyTradingPrincipleRecord>();
     public DbSet<NotebookNoteRecord> NotebookNotes => Set<NotebookNoteRecord>();
+    public DbSet<NotebookRecoveryRecord> NotebookRecoveryDrafts => Set<NotebookRecoveryRecord>();
     public DbSet<NotebookFolderRecord> NotebookFolders => Set<NotebookFolderRecord>();
     public DbSet<NotebookTagRecord> NotebookTags => Set<NotebookTagRecord>();
     public DbSet<NotebookTagAssignmentRecord> NotebookTagAssignments => Set<NotebookTagAssignmentRecord>();

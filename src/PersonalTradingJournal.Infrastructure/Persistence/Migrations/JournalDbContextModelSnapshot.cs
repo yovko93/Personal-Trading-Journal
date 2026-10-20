@@ -533,6 +533,45 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookRecoveryRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CheckpointedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DocumentJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("EnvelopeVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ExpectedVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("NoteId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NoteId");
+
+                    b.ToTable("NotebookRecoveryDrafts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotebookRecovery_Metadata", "EnvelopeVersion > 0 AND ExpectedVersion > 0 AND Revision > 0 AND length(Title) <= 200");
+                        });
+                });
+
             modelBuilder.Entity("PersonalTradingJournal.Infrastructure.Persistence.Records.NotebookTagAssignmentRecord", b =>
                 {
                     b.Property<Guid>("NoteId")

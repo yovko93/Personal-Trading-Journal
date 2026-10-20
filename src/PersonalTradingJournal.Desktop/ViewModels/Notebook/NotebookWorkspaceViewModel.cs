@@ -48,9 +48,14 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private long _total;
 
     public NotebookWorkspaceViewModel(INotebookService service, IDialogService dialogs,
-        INotebookInteraction? interaction = null, INotebookContentCodec? codec = null)
+        INotebookInteraction? interaction = null, INotebookContentCodec? codec = null,
+        INotebookRecoveryStore? recovery = null, TimeProvider? time = null)
     {
         _service = service; _dialogs = dialogs; _sort = SortOptions[0]; _interaction = interaction; _codec = codec;
+        _recovery = recovery; _time = time ?? TimeProvider.System;
+        RecoverCommand = new(item => GuardedAsync(() => RecoverAsync(item)), _ => CanMutate);
+        DeleteRecoveryCommand = new(DeleteRecoveryAsync, _ => CanMutate);
+        MoreRecoveryCommand = new(() => ReadAsync(ct => DiscoverRecoveryAsync(true, ct)), () => CanMutate && _recoveryCursor is not null);
         RefreshCommand = new(() => ReloadAsync(), () => CanRead);
         SearchCommand = new(() => ReloadAsync(), () => CanRead);
         MoreNotesCommand = new(() => ReadAsync(ct => ReadPageAsync(true, null, ct)), () => CanMutate && ScopeMatchesList && _cursor is not null);
@@ -72,7 +77,11 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         CancelCommand = new(CancelAsync, () => IsBusy);
         ClearFolderCommand = new(() => FolderName = "");
         SaveCommand = new(async () => { await SaveDraftAsync(); }, () => CanMutate && CanEditDraft && IsDirty);
-        DiscardCommand = new(() => { if (_dialogs.Confirm(new("Discard changes?", "Restore the last successfully saved title and content?", "Discard"))) RestoreDraft(); }, () => CanMutate && IsDirty);
+        DiscardCommand = new(async () =>
+        {
+            if (_dialogs.Confirm(new("Discard changes?", "Discard pending changes and their recovery checkpoint? Already saved changes are not undone.", "Discard")) &&
+                await DiscardCheckpointAsync()) RestoreDraft();
+        }, () => CanMutate && IsDirty);
     }
     public ObservableCollection<NotebookScopeOption> Scopes { get; } = [];
     public ObservableCollection<NotebookFolderOption> Folders { get; } = [new(null, "Unfiled")];
@@ -169,7 +178,15 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public Task ActivateAsync()
     {
         if (_disposed || _active) return LoadTask;
-        _active = true; return LoadTask = ReloadAsync();
+        _active = true;
+        _lifetime?.Dispose(); _lifetime = new();
+        var owner = _lifetime; var drain = DeactivationTask;
+        return LoadTask = ActivateCoreAsync();
+        async Task ActivateCoreAsync()
+        {
+            await drain;
+            if (ReferenceEquals(_lifetime, owner) && Current(owner.Token)) await ReloadAsync();
+        }
     }
     public bool TryLeave()
     {
@@ -178,17 +195,19 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     public void Deactivate()
     {
-        _active = false; ++_generation; _read?.Cancel(); _write?.Cancel();
+        _active = false; ++_generation;
+        _lifetime?.Cancel(); StopDebounce(); _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
         IsBusy = false; NotifyCommands();
         // Departure consent is coordinated by the shell; late operations cannot publish here.
     }
     public async Task CancelAsync()
     {
-        ++_generation; _read?.Cancel(); _write?.Cancel();
+        ++_generation; _lifetime?.Cancel(); StopDebounce(); _read?.Cancel(); _write?.Cancel();
         await CompletionTask;
         if (!_disposed)
         {
+            _lifetime?.Dispose(); _lifetime = new();
             IsBusy = false;
             Message = "Operation stopped. Refresh to reload stored data; a completed change may already be saved.";
             if (ContentMessage == "Loading note…") ContentMessage = "Note loading stopped. Select Refresh to try again.";
@@ -212,7 +231,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private Task ReadAsync(Func<CancellationToken, Task> work)
     {
-        _read?.Cancel(); var owner = new CancellationTokenSource(); _read = owner; var generation = ++_generation;
+        _read?.Cancel(); var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime?.Token ?? CancellationToken.None); _read = owner; var generation = ++_generation;
         IsBusy = true; Message = "";
         return LoadTask = Track(RunAsync());
         async Task RunAsync()
@@ -254,7 +273,11 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         }
         finally { _publishing = false; }
         OnPropertyChanged(nameof(ListSummary)); OnPropertyChanged(nameof(EmptyMessage)); NotifyCommands();
-        if (!more) await ReadDetailAsync(SelectedNote, ct);
+        if (!more)
+        {
+            await ReadDetailAsync(SelectedNote, ct);
+            if (Current(ct)) await DiscoverRecoveryAsync(false, ct);
+        }
     }
     private void PublishCatalog(NotebookWorkspaceSummary summary)
     {
@@ -399,7 +422,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private Task MutateAsync(Func<CancellationToken, Task> work)
     {
         if (!CanMutate) return Task.CompletedTask;
-        var owner = new CancellationTokenSource(); _write = owner; IsWriting = true; IsBusy = true;
+        var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime?.Token ?? CancellationToken.None); _write = owner; IsWriting = true; IsBusy = true;
         return Track(RunAsync());
         async Task RunAsync()
         {
@@ -412,6 +435,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private void NotifyCommands()
     {
+        RecoverCommand?.NotifyCanExecuteChanged(); DeleteRecoveryCommand?.NotifyCanExecuteChanged(); MoreRecoveryCommand?.NotifyCanExecuteChanged();
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditDraft)); OnPropertyChanged(nameof(CanEditBody)); OnPropertyChanged(nameof(BodyReadOnly));
         OnPropertyChanged(nameof(HasMoreNotes)); OnPropertyChanged(nameof(HasMoreFolders)); OnPropertyChanged(nameof(HasMoreTags));
