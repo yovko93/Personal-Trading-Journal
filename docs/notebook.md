@@ -1,6 +1,78 @@
 # Notebook
 
-Current checkpoint: **M22.8 automated local Release acceptance complete (M22.8C)**. Canonical JSON **v1**, logical export **v17**, archive **v1** and retained ownership remain unchanged. Interactive/native-restart/installed-WebP/CI checks remain unverified. Reclamation and full integrated M22.11 acceptance remain deferred; M22.9 onward is pending. Earlier milestone sections record historical phase checkpoints.
+Current checkpoint: **M22.8E focused image-editor dispatch verification complete; changed-harness complete-gate measurement pending**. Historical M22.8C local acceptance remains passed at its recorded source. Canonical JSON **v1**, logical export **v17**, archive **v1** and retained ownership remain unchanged. Interactive/native-restart/installed-WebP/CI checks remain unverified. Reclamation and full integrated M22.11 acceptance remain deferred; M22.9 onward is pending. Earlier milestone sections record historical phase checkpoints.
+
+## M22.8E — Image-editor test dispatch deduplication
+
+21 October 2026, Europe/Kiev. Actual starting and unchanged HEAD: **clean `develop`, `2c6b73a483470181394ac9317f5aa503b3815070`**, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The C documentation was already committed. Repository/ancestor guidance, current suite/helper, discovery/child TRX conventions and existing timing evidence were inspected first; no applicable `AGENTS.md` or active duplicate test run was found. One agent, no subagents. This phase changes only the image-editor dispatch, additive test-helper validation/regressions and documentation.
+
+### Exact theory-row dispatch and result proof
+
+Previously every one of the four `NotebookImageEditorTests` theory parents called `RunSuiteAsync` with its default class-wide filter. The historical C artifacts contain four child processes, each running all four theory rows: **16 executions of four distinct child cases**. The top-level partitions were already disjoint; there was no duplicate restore/build or second complete gate to remove.
+
+Each parent now constructs the exact fully qualified xUnit display name, including named theme/width/DPI arguments, using invariant formatting. `ExactDisplayNameFilter` uses the installed TestPlatform's public `FilterHelper.Escape` and the **`DisplayName=`** equality operator. A class/method-only selector would still match four rows. Parent discovery is preserved verbatim in `TestResults/m228e-verified/discovery.txt`; actual execution proves that the installed xUnit adapter distinguishes each selected display name.
+
+The helper's new optional `expectedTestName` argument enables single-case validation only for opted-in callers. After the existing nonzero-exit failure propagation, a successful child must supply exactly one root TRX file, a Completed run, exact one-executed/one-passed counters with no skipped/failed/pending outcomes, and exactly one passed result whose full display name matches the intended case. Its definition and execution entry must agree with that result's nonempty identities; completion timestamps must be valid. Missing/empty/malformed/extra reports, extra/duplicate results, skipped/failed outcomes and mismatched identities are rejected. Zero-match VSTest success cannot pass the parent. Diagnostics/TRX remain in the existing per-process artifact directories, including when validation fails.
+
+All **four discoverable parents**, their full assertions and host-variable recursion protection remain. Process isolation, the **90-second aggregate process deadline**, **30-second case-hang watchdog**, process-tree cleanup, output/error propagation and diagnostic artifacts are unchanged. Existing whole-suite helper callers keep their previous contract unless they explicitly opt into validation. The other three Notebook suites are not optimized here. Release partition ordering, full-set/duplicate-identity guards, CI's **600-second Test-step timeout**, Desktop **two** / Infrastructure **four** collection limits and all production code remain unchanged.
+
+### Focused Release verification and timing
+
+Affected Desktop/test Release build passed, **exit 0**, **zero warnings/errors**, **53.85s**, log `TestResults/m228e-verified/release-build.log`. Discovery exited **0** and listed the same four parents. Image and helper measurements ran separately; helper negative-control children are not part of the measured four-parent image run.
+
+| Focused run | Passed / total | Failed / skipped | Process exit | Evidence |
+| --- | ---: | ---: | ---: | --- |
+| Image-editor theory parents | 4 / 4 | 0 / 0 | 0 | `image/parents.trx` |
+| Helper, selection and Release scheduling regressions | 32 / 32 | 0 / 0 | 0 | `helpers/helpers.trx` |
+
+All paths in this section are under **`TestResults/m228e-verified/`**, unless given in full. `dispatch.json` verifies one child per parent, exact name and test-ID agreement, and **four distinct child names/IDs**. Each child result is Passed with no additional/skipped cases. Common method: `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookImageEditorTests.ImageRoundTripUndoPlacementPasteAndRenders`.
+
+| Theme | Width / DPI | Parent count | Child passed / total | Matching parent/child test ID |
+| --- | --- | ---: | ---: | --- |
+| Light | 1280 / 96 | 1 | 1 / 1 | `37c3e225-29f4-7e0f-b396-f7e25e55ffb6` |
+| Dark | 1280 / 96 | 1 | 1 / 1 | `d9ad7ac6-561d-c4e6-eb55-ea5f68588b5a` |
+| Light | 480 / 240 | 1 | 1 / 1 | `a9a357f9-e426-8251-d39c-9f92aa569832` |
+| Dark | 480 / 240 | 1 | 1 / 1 | `44dcb1d9-9e81-cbe3-0d08-9237a1d68736` |
+
+The **parent-suite wall interval is 27.964s**, measured from the first parent's start to the last parent's completion; this includes child startup and supervision. Full focused-command elapsed time, including outer VSTest startup/discovery, is **32.578s**, recorded with process timestamps/Stopwatch in `image-exit.json`. The console reports 27s of image test duration. The helper run reports 22s; its 32 cases comprise **23 new selection/validation regressions**, **8 existing process-supervision regressions**, and **1 existing scheduling regression**. Real negative-control subprocesses prove that a zero-match exit 0 and a passed but different theory row both fail opt-in selection validation. Existing timeout/cancellation/tree termination, diagnostic-write/output-pump failures and nonzero synthetic exits still pass their unchanged assertions.
+
+`baseline.json` retains the C complete-gate parent/child identities and **52.082s** parent interval from `TestResults/release-20261020-205728-e45bbd22cd194a1884bf16a73a64ded6/parallel/`. That baseline included competing full-gate workloads; the new focused run did not. The cardinality correction **16 → 4** is verified, but these timings are not a controlled A/B estimate or proof of a whole-gate saving. Historical M22.8C acceptance remains **5,200 passed / zero failures or skips / exit 0**, with **624.851s** gate duration. **No complete gate was launched in E; full-load timing, compliance with the 600-second CI step and matching hosted CI remain pending.**
+
+`summary.json` records baseline/HEAD, exact inventory/source and binary hashes, actual commands/exits, child identities, timing definitions and unchanged settings. Final tracked/added whitespace checks and **170 local Markdown targets / zero missing** pass; URL/fragment validation is outside that documentation check. No runtime rerun is required solely for final documentation changes.
+
+Commands used:
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m228e-verified/release-build.log
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --list-tests --filter 'FullyQualifiedName~NotebookImageEditorTests'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookImageEditorTests' --logger 'trx;LogFileName=parents.trx' --results-directory TestResults/m228e-verified/image --blame-hang-timeout 3m -v minimal
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~IsolatedTestSelectionTests|FullyQualifiedName~ReleaseSchedulingTests' --logger 'trx;LogFileName=helpers.trx' --results-directory TestResults/m228e-verified/helpers --blame-hang-timeout 3m -v minimal
+git diff --check
+pwsh -NoProfile -File TestResults/m228e-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m228e-summarize.ps1
+```
+
+The image/helper wrapper scripts set `PTJ_TEST_RESULTS_DIRECTORY` to their separate evidence subdirectories and capture observed process exits and wall time. No production/provider access, workflow triggering, Git publication or M22.9 work occurred. Existing interactive/native-journal-restart/codec/CI limitations remain; storage/archive compatibility and deferred reclamation/M22.11 acceptance are unchanged.
+
+### Exact M22.8E changed-file inventory
+
+Relative to clean baseline `2c6b73a483470181394ac9317f5aa503b3815070`: **4 modified + 2 added files**, uncommitted. Historical acceptance artifacts are preserved; ignored TestResults scripts/logs/TRX are evidence outside the source inventory.
+
+Modified:
+
+```text
+README.md
+docs/notebook.md
+tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookImageEditorTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/IsolatedTestProcess.cs
+```
+
+Added:
+
+```text
+tests/PersonalTradingJournal.Desktop.Tests/Calendar/IsolatedTestSelectionTests.cs
+tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/IsolatedTestProcess.Selection.cs
+```
 
 ## M22.8C — Automated Release verification and acceptance
 

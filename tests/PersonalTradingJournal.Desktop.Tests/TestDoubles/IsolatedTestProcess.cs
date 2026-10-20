@@ -10,17 +10,22 @@ namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 /// Supervises a test-only child process. An in-process task timeout cannot stop a
 /// blocked WPF/foreground STA thread; this boundary can terminate that entire host.
 /// </summary>
-internal static class IsolatedTestProcess
+internal static partial class IsolatedTestProcess
 {
     private static readonly TimeSpan TerminationTimeout = TimeSpan.FromSeconds(10);
 
     internal static async Task RunSuiteAsync(Type suiteType, string suiteName, string hostVariable,
         TimeSpan timeout, CancellationToken cancellationToken = default, TimeSpan? caseHangTimeout = null,
-        string? testCaseFilter = null)
+        string? testCaseFilter = null, string? expectedTestName = null)
     {
         ArgumentNullException.ThrowIfNull(suiteType);
         ArgumentException.ThrowIfNullOrWhiteSpace(hostVariable);
         if (testCaseFilter is not null) ArgumentException.ThrowIfNullOrWhiteSpace(testCaseFilter);
+        if (expectedTestName is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(expectedTestName);
+            ArgumentException.ThrowIfNullOrWhiteSpace(testCaseFilter);
+        }
         string results = CreateResultsDirectory(suiteName);
         var start = new ProcessStartInfo("dotnet");
         start.ArgumentList.Add("vstest");
@@ -43,6 +48,7 @@ internal static class IsolatedTestProcess
             throw new InvalidOperationException($"Isolated test suite '{suiteName}' failed with exit {result.ExitCode}. " +
                 $"Individual child cases and complete output: {result.ResultsDirectory}.{Environment.NewLine}" +
                 DisplayTail(result.StandardOutput) + Environment.NewLine + DisplayTail(result.StandardError));
+        if (expectedTestName is not null) ValidateSingleCaseResult(results, expectedTestName);
     }
 
     internal static async Task<IsolatedProcessResult> RunAsync(ProcessStartInfo start, string diagnosticName,

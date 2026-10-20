@@ -1,5 +1,6 @@
 using System.IO;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -30,8 +31,11 @@ public sealed class NotebookImageEditorTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string expected = string.Create(CultureInfo.InvariantCulture,
+                $"{typeof(NotebookImageEditorTests).FullName}.{nameof(ImageRoundTripUndoPlacementPasteAndRenders)}(theme: \"{theme}\", width: {width}, dpi: {dpi})");
             await IsolatedTestProcess.RunSuiteAsync(typeof(NotebookImageEditorTests), "notebook-image-editor", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30)); return;
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected); return;
         }
         await CalendarStaTest.RunAsync(() =>
         {

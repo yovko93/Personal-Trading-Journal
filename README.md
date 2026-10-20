@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.8E — Image-editor test dispatch deduplication
+
+All four image-editor theory parents remain discoverable. Each now selects its exact parameterized child display name, with escaped VSTest filtering and opt-in TRX validation proving one completed, passed case of the intended identity. The suite runs **four distinct child cases instead of sixteen executions**; its assertions, process isolation, 90-second deadline, 30-second case watchdog and cleanup remain intact. Other Notebook suites are unchanged. [Selector, child identities, results and exact inventory](docs/notebook.md#m228e--image-editor-test-dispatch-deduplication).
+
+Baseline: clean `develop`, `2c6b73a483470181394ac9317f5aa503b3815070`. Focused Release verification passed **4/4 image parents** and **32/32 helper/scheduling cases**, zero failures/skips, both exits **0**; build **zero warnings/errors**. Parent-suite wall interval **27.964s**, including child startup; complete focused command **32.578s**. Historical full-load interval **52.082s** is not a controlled performance comparison or guaranteed whole-gate saving. Evidence: `TestResults/m228e-verified/summary.json`. **Complete-gate measurement of the changed harness remains pending**; the historical M22.8C **5,200-test pass** remains recorded below. CI timeout, partition ordering and concurrency remain unchanged. No production-code changes, workflow triggering, Git publication or M22.9 work.
+
 ## M22.8C — Notebook images: automated Release verified
 
 **M22.8 local automated Release acceptance is complete.** Verified clean baseline: develop at **a86b0c02a728006391fa5c939d8249415d2084d1**, existing worktree C:/Users/Yovko/source/repos/Personal-Trading-Journal. The rebuilt complete gate passed **5200/5200**, zero failures/skips, **exit 0**: Domain **602**, Application **1034**, Infrastructure **1558**, Desktop **2006** (88 exclusive + 1918 parallel). Release build: **zero warnings/errors**; EF, whitespace and **169 local documentation targets / zero missing** pass. Gate **624.851 s**; Calendar **73.332 s / 46.668 s headroom** to its unchanged 120-second deadline.
