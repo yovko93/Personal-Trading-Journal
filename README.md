@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.2 — Notebook Domain and Application foundations
+
+Notebook now has auditable Note/Folder/Tag types, validated immutable document nodes and derived search text, lifecycle/restoration behavior, managed-image versus Trade-screenshot ownership, and typed **Trade / Trading Setup** links. Application contracts define bounded queries/catalog pages, immutable snapshots, expected-version commands and explicit failure outcomes; persistence, codec implementation, file orchestration, autosave and Desktop remain deferred. [Design decisions, exact 13-file inventory and verification](docs/notebook.md#m222--domain-model-and-application-contracts).
+
+Starting baseline: clean `develop` at `ab9097c008755acf512c91c1e2b6b9f7cf3b36e2`; M22.1 was already committed and is preserved. **45 focused checks passed**; complete Release **Domain 601/601 + Application 1,032/1,032**, zero failures/skips. Release solution build **zero warnings/errors**; EF consistent using the in-memory design-time factory; tracked/new-file whitespace passed; **158 local documentation targets, zero missing**. No full Desktop/Infrastructure gate, UI, backup round trip or matching CI acceptance is claimed for this contract-only slice. **M22.3 onward remains pending.**
+
 ## M22.1 — Notebook scope and UX contract
 
 [Notebook design, repository reuse and milestone boundaries](docs/notebook.md) now define the local-first three-panel workspace, safe versioned rich-text JSON, bounded content/images, autosave ownership, lifecycle and portability requirements. **M22.1 is documentation only**: the existing Notebook placeholder remains unchanged; entities, migrations and editor implementation begin in later slices. Per the user's scope clarification, M22.9 is **Linked Trades & Trading Setups**. Playbook definitions belong to Trading Setups; no separate Strategy catalog, persistence or placeholder link type is introduced.
