@@ -11,6 +11,90 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
 public sealed class NotebookSqliteWorkspaceTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(51)]
+    public async Task RefreshRepairsExternallyDeletedSelectedTagAndKeepsRemainingFilter(int precedingTags)
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        for (int i = 0; i < precedingTags; i++)
+            await service.ExecuteCatalogAsync(new CreateNotebookTag($"0 tag {i:00}"));
+        var a = (await service.ExecuteCatalogAsync(new CreateNotebookTag("A"))).Item!;
+        var b = (await service.ExecuteCatalogAsync(new CreateNotebookTag("B"))).Item!;
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService(), new NotebookChoices(),
+            db.Provider.GetRequiredService<INotebookContentCodec>(), db.Provider.GetRequiredService<INotebookRecoveryStore>(), new NotebookClock());
+        try
+        {
+            await vm.ActivateAsync(); await vm.NewNoteCommand.ExecuteAsync(null);
+            foreach (var tag in new[] { a, b })
+            {
+                while (vm.HasMoreTags) await vm.MoreTagsCommand.ExecuteAsync(null);
+                vm.AssignmentTag = vm.Tags.Single(t => t.Id == tag.Id);
+                await vm.AssignTagCommand.ExecuteAsync(null);
+                await vm.ToggleTagFilterCommand.ExecuteAsync(vm.Tags.Single(t => t.Id == tag.Id));
+            }
+            Assert.Single(vm.Notes); Assert.Equal(2, vm.SelectedTagFilters.Count);
+            vm.ManagedTag = vm.AssignmentTag = vm.Tags.Single(t => t.Id == a.Id);
+            Assert.Equal(NotebookWriteStatus.Success, (await service.ExecuteCatalogAsync(new DeleteNotebookTag(a.Id, a.Version, true))).Status);
+            await vm.RefreshCommand.ExecuteAsync(null);
+            Assert.Equal(b.Id, Assert.Single(vm.SelectedTagFilters).Id);
+            Assert.Single(vm.Notes); Assert.Equal(b.Id, Assert.Single(vm.AssignedTags).Id);
+            Assert.DoesNotContain(vm.Tags, t => t.Id == a.Id);
+            Assert.Null(vm.ManagedTag); Assert.Null(vm.AssignmentTag);
+            Assert.True(vm.CanSelectNote);
+            Assert.Contains("Deleted tag filters", vm.TagMessage);
+        }
+        finally { vm.Dispose(); await vm.DeactivationTask; }
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TagChangesFlushDirtyContentAndExternalDeletionProtectsRecoveryAcrossRestart(bool deleteCatalog)
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        var recovery = db.Provider.GetRequiredService<INotebookRecoveryStore>();
+        var tag = (await service.ExecuteCatalogAsync(new CreateNotebookTag("Research"))).Item!;
+        var clock = new NotebookClock();
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService { ConfirmationResult = true },
+            new NotebookChoices(), db.Provider.GetRequiredService<INotebookContentCodec>(), recovery, clock);
+        try
+        {
+            await vm.ActivateAsync(); await vm.NewNoteCommand.ExecuteAsync(null);
+            vm.DraftTitle = "Research"; vm.SetDraftDocument(NotebookEditingTests.Text("Keep local observation"));
+            vm.AssignmentTag = vm.Tags.Single(t => t.Id == tag.Id);
+            await vm.AssignTagCommand.ExecuteAsync(null);
+            Assert.Single(vm.AssignedTags); Assert.False(vm.IsDirty); Assert.Equal(3, vm.Note!.Version);
+            Assert.Equal(NotebookEditingTests.Text("Keep local observation").PlainText, (await service.LoadAsync(vm.Note.Id)).Note!.Document.PlainText);
+            var status = deleteCatalog
+                ? (await service.ExecuteCatalogAsync(new DeleteNotebookTag(tag.Id, tag.Version, true))).Status
+                : (await service.ExecuteAsync(new RemoveNotebookTag(vm.Note.Id, vm.Note.Version, tag.Id))).Status;
+            Assert.Equal(NotebookWriteStatus.Success, status);
+            vm.DraftTitle = "Conflicting newer title"; clock.Advance(750); await vm.AutosaveTask.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.StartsWith("Conflict", vm.SaveState); Assert.True(vm.IsDirty); Assert.Single((await recovery.ListAsync()).Items);
+            var saved = (await service.LoadAsync(vm.Note.Id)).Note!; Assert.Empty(saved.TagIds); Assert.Equal("Research", saved.Title);
+            vm.Dispose(); await vm.DeactivationTask;
+            using var restarted = new NotebookWorkspaceViewModel(service, new FakeDialogService(), new NotebookChoices(),
+                db.Provider.GetRequiredService<INotebookContentCodec>(), recovery, clock);
+            try
+            {
+                await restarted.ActivateAsync();
+                await restarted.RecoverCommand.ExecuteAsync(Assert.Single(restarted.RecoveryDrafts));
+                Assert.False(await restarted.SaveDraftAsync());
+                Assert.Equal("Conflicting newer title", restarted.DraftTitle);
+                Assert.Equal("Keep local observation\n", restarted.DraftDocument.PlainText);
+                var stored = (await service.LoadAsync(saved.Id)).Note!;
+                Assert.Empty(stored.TagIds); Assert.Equal(saved.Version, stored.Version);
+                Assert.Equal("Research", stored.Title); Assert.Equal("Keep local observation\n", stored.Document.PlainText);
+                Assert.Single((await recovery.ListAsync()).Items);
+                Assert.Equal(deleteCatalog ? 0 : 1, (await service.ListCatalogAsync(new(NotebookCatalogKind.Tags))).Items.Length);
+            }
+            finally { restarted.Dispose(); await restarted.DeactivationTask; }
+        }
+        finally { vm.Dispose(); await vm.DeactivationTask; }
+    }
     [Fact]
     public async Task AutosaveConflictCheckpointRestartsAsProtectedDraftAndNeverRetargetsTheVersion()
     {

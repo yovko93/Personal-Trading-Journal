@@ -44,10 +44,10 @@ internal sealed class NotebookFake : INotebookService
             NotebookScope.Trash => Notes.Where(n => n.State == NotebookNoteState.Trashed),
             _ => active
         };
-        filtered = filtered.Where(n => n.Title.Contains(q.Search, StringComparison.OrdinalIgnoreCase));
+        filtered = filtered.Where(n => (n.Title + "\n" + n.Document.PlainText).Contains(q.Search, StringComparison.OrdinalIgnoreCase) && q.TagIds.All(n.TagIds.Contains));
         filtered = q.Sort == NotebookSort.Title ? filtered.OrderBy(n => n.Title).ThenBy(n => n.Id) : filtered.OrderByDescending(n => n.UpdatedAtUtc).ThenBy(n => n.Id);
         var all = filtered.ToArray(); int start = q.Cursor is null ? 0 : int.Parse(q.Cursor);
-        return new([.. all.Skip(start).Take(q.Limit).Select(Row)], all.Length, start + q.Limit < all.Length ? (start + q.Limit).ToString() : null,
+        return new([.. all.Skip(start).Take(q.Limit).Select(n => Row(n) with { Tags = [.. Tags.Where(t => n.TagIds.Contains(t.Id))] })], all.Length, start + q.Limit < all.Length ? (start + q.Limit).ToString() : null,
             new([new(NotebookScope.AllNotes, null, active.Count()), new(NotebookScope.Pinned, null, active.Count(n => n.IsPinned)),
                 new(NotebookScope.Unfiled, null, active.Count(n => n.FolderId is null)), new(NotebookScope.Archived, null, Notes.Count(n => n.State == NotebookNoteState.Archived)), new(NotebookScope.Trash, null, Notes.Count(n => n.State == NotebookNoteState.Trashed))],
                 Catalog(new(NotebookCatalogKind.Folders)), Catalog(new(NotebookCatalogKind.Tags))));
@@ -72,8 +72,12 @@ internal sealed class NotebookFake : INotebookService
         if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookDocument.Empty }; Notes.Add(n); }
         else
         {
-            var id = c is SaveNotebookDraft d ? d.NoteId : c is MoveNotebookNote m ? m.NoteId : ((SetNotebookPin)c).NoteId;
+            var id = c switch { SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
             int index = Notes.FindIndex(n => n.Id == id); n = Notes[index];
+            if (c is AssignNotebookTag assign)
+            { n = n with { TagIds = n.TagIds.Add(assign.TagId), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
+            if (c is RemoveNotebookTag remove)
+            { n = n with { TagIds = n.TagIds.Remove(remove.TagId), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
             n = c is SaveNotebookDraft draft ? n with { Title = draft.Title.Trim(), Document = draft.Document, Version = n.Version + 1 } :
                 c is MoveNotebookNote move ? n with { FolderId = move.FolderId, Version = n.Version + 1 } : n with { IsPinned = ((SetNotebookPin)c).IsPinned, Version = n.Version + 1 };
             Notes[index] = n;
@@ -84,6 +88,17 @@ internal sealed class NotebookFake : INotebookService
     {
         Writes++;
         if (NextWrite != NotebookWriteStatus.Success) return Task.FromResult(new NotebookCatalogResult(NextWrite));
+        if (c is CreateNotebookTag tag)
+        { var t = new NotebookNamedItem(Guid.NewGuid(), tag.Name.Trim(), 1); Tags.Add(t); return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, t)); }
+        if (c is RenameNotebookTag renameTag)
+        { int i = Tags.FindIndex(t => t.Id == renameTag.TagId); Tags[i] = Tags[i] with { Name = renameTag.Name.Trim(), Version = Tags[i].Version + 1 }; return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, Tags[i])); }
+        if (c is DeleteNotebookTag deleteTag)
+        {
+            Tags.RemoveAll(t => t.Id == deleteTag.TagId);
+            for (int i = 0; i < Notes.Count; i++) if (Notes[i].TagIds.Contains(deleteTag.TagId))
+                Notes[i] = Notes[i] with { TagIds = Notes[i].TagIds.Remove(deleteTag.TagId), Version = Notes[i].Version + 1 };
+            return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, DeletedItemId: deleteTag.TagId));
+        }
         if (c is CreateNotebookFolder create)
         { var f = new NotebookNamedItem(Guid.NewGuid(), create.Name, 1); Folders.Add(f); return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, f)); }
         if (c is RenameNotebookFolder rename)

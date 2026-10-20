@@ -80,10 +80,32 @@
         <WrapPanel Margin="0,8,0,0"><Button Content="Create" Command="{Binding CreateFolderCommand}" Margin="0,0,4,4"/><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
        </StackPanel>
       </Expander>
-      <TextBlock Text="Scope counts include all notes in that scope, before search." Style="{StaticResource QuietText}" Margin="0,20,0,0"/>
+      <TextBlock Text="Scope counts are before text/tag filters. Tag counts are active-note assignments." Style="{StaticResource QuietText}" Margin="0,20,0,0"/>
       <TextBlock Text="TAGS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
-      <TextBlock Text="{Binding TagCatalogText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjAccentBrush}"/>
+      <TextBlock Text="Filter notes · all selected tags required" Style="{StaticResource QuietText}" Margin="0,0,0,6"/>
+      <ItemsControl x:Name="TagFilters" ItemsSource="{Binding Tags}">
+       <ItemsControl.ItemTemplate><DataTemplate>
+        <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding DataContext.ToggleTagFilterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,3,0,3"
+                  Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="{Binding FilterLabel}" AutomationProperties.HelpText="Filter notes by this tag. All selected tags are required.">
+         <TextBlock Text="{Binding FilterLabel}" TextWrapping="Wrap"/>
+        </CheckBox>
+       </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
       <Button Content="More tag names" Command="{Binding MoreTagsCommand}" Visibility="{Binding HasMoreTags, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0"/>
+      <Expander x:Name="TagManagement" Header="Manage tags" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,12,0,0" AutomationProperties.Name="Manage global Notebook tags">
+       <StackPanel Margin="0,8,0,0">
+        <ComboBox ItemsSource="{Binding Tags}" SelectedItem="{Binding ManagedTag}" DisplayMemberPath="Name" AutomationProperties.Name="Tag to rename or delete"/>
+        <TextBlock Text="New or replacement name" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
+        <TextBox Text="{Binding TagName, UpdateSourceTrigger=PropertyChanged}" MaxLength="64" AutomationProperties.Name="Tag name"/>
+        <WrapPanel Margin="0,8,0,0">
+         <Button Content="Create tag" Command="{Binding CreateTagCommand}" Margin="0,0,4,4"/>
+         <Button Content="Rename tag" Command="{Binding RenameTagCommand}" Margin="0,0,4,4"/>
+         <Button Content="Delete globally" Command="{Binding DeleteTagCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/>
+        </WrapPanel>
+        <TextBlock Text="Create here, then choose the tag in the note's Add tag picker. Global deletion removes assignments, not notes." Style="{StaticResource QuietText}"/>
+       </StackPanel>
+      </Expander>
+      <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,8,0,0"/>
      </StackPanel>
     </ScrollViewer>
    </Border>
@@ -92,6 +114,12 @@
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <StackPanel><TextBlock Text="{Binding ScopeName}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding ListSummary}" Style="{StaticResource QuietText}" Margin="0,5,0,10"/>
       <ComboBox ItemsSource="{x:Static vm:NotebookWorkspaceViewModel.SortOptions}" DisplayMemberPath="Name" SelectedItem="{Binding Sort}" IsEnabled="{Binding CanInteract}" AutomationProperties.Name="Sort notes"/>
+      <TextBlock Text="{Binding FilterSummary}" Style="{StaticResource QuietText}" Margin="0,6,0,4"/>
+      <ItemsControl ItemsSource="{Binding SelectedTagFilters}">
+       <ItemsControl.ItemTemplate><DataTemplate><Button Command="{Binding DataContext.ToggleTagFilterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,2,0,2" HorizontalContentAlignment="Left"
+           AutomationProperties.Name="{Binding Name}" AutomationProperties.HelpText="Remove this tag filter; do not change note assignments."><TextBlock Text="{Binding Name, StringFormat='× {0}'}" TextWrapping="Wrap"/></Button></DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" HorizontalAlignment="Left" Margin="0,4,0,4" AutomationProperties.HelpText="Clear text and tags. Keep scope and sort."/>
      </StackPanel>
      <TextBlock Grid.Row="1" Text="{Binding EmptyMessage}" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
      <ListBox x:Name="NoteList" Grid.Row="2" ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" IsEnabled="{Binding CanSelectNote}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Notes">
@@ -115,7 +143,24 @@
       <TextBox x:Name="TitleEditor" Text="{Binding DraftTitle, UpdateSourceTrigger=PropertyChanged}" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,10,0,6" AutomationProperties.Name="Note title">
        <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="IsReadOnly" Value="True"/><Style.Triggers><DataTrigger Binding="{Binding CanEditDraft}" Value="True"><Setter Property="IsReadOnly" Value="False"/></DataTrigger></Style.Triggers></Style></TextBox.Style>
       </TextBox>
-      <TextBlock Text="{Binding TagText}" Foreground="{DynamicResource PtjAccentBrush}" TextWrapping="Wrap"/>
+      <ItemsControl x:Name="AssignedTagList" ItemsSource="{Binding AssignedTags}">
+       <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+       <ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource PtjSurfaceElevatedBrush}" CornerRadius="4" Padding="6,2" Margin="0,2,4,2" MaxWidth="280">
+        <DockPanel><Button DockPanel.Dock="Right" Content="×" Command="{Binding DataContext.RemoveTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+            AutomationProperties.Name="{Binding Name, StringFormat='Remove tag {0} from this note'}" AutomationProperties.HelpText="Remove this assignment only; keep the global tag." Margin="6,0,0,0"/>
+         <TextBlock Text="{Binding Name}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource PtjAccentBrush}"/>
+        </DockPanel>
+       </Border></DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Expander Header="Add tag" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Assign an existing tag to this note" Margin="0,6,0,4">
+       <StackPanel>
+        <WrapPanel><ComboBox x:Name="TagPicker" ItemsSource="{Binding Tags}" SelectedItem="{Binding AssignmentTag}" DisplayMemberPath="PickerLabel" Width="240" MaxWidth="280" Margin="0,4,6,4" AutomationProperties.Name="Tag to assign"/>
+         <Button Content="Assign tag" Command="{Binding AssignTagCommand}" Margin="0,4,0,4"/></WrapPanel>
+        <Button Content="More tags" Command="{Binding MoreTagsCommand}" Visibility="{Binding HasMoreTags, Converter={StaticResource VisibleWhenTrue}}" HorizontalAlignment="Left"/>
+        <TextBlock Text="Already assigned tags cannot be added twice. Create new tags in Organization → Manage tags." Style="{StaticResource QuietText}"/>
+       </StackPanel>
+      </Expander>
+      <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
       <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,6,0,12"/>
       <WrapPanel>
        <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Save title and content. Control S."/>

@@ -70,8 +70,11 @@ public sealed record NotebookScopeCount(NotebookScope Scope, Guid? FolderId, lon
 public sealed record NotebookCatalogItem(NotebookNamedItem Item, long ActiveNoteCount);
 /// <summary>Names ordered using the catalog comparer, then stable ID. Every omitted entry remains reachable.</summary>
 public sealed record NotebookCatalogPage(ImmutableArray<NotebookCatalogItem> Items, long TotalCount, string? NextCursor);
+/// <summary>RequestedTags resolves the bounded selected filter IDs in the same snapshot, even
+/// beyond the first catalog page. Missing IDs are deleted; default means resolution is not supplied.</summary>
 public sealed record NotebookWorkspaceSummary(ImmutableArray<NotebookScopeCount> ScopeCounts,
-    NotebookCatalogPage Folders, NotebookCatalogPage Tags);
+    NotebookCatalogPage Folders, NotebookCatalogPage Tags,
+    ImmutableArray<NotebookCatalogItem> RequestedTags = default);
 /// <summary>Rows, filtered total and sidebar counts share one consistent read.
 /// Sidebar counts exclude text/tag filters. NextCursor uses the last displayed row, not a lookahead row.
 /// Enumerations exceeding declared limits fail explicitly, never truncate a supposedly complete catalog.</summary>

@@ -53,11 +53,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     {
         _service = service; _dialogs = dialogs; _sort = SortOptions[0]; _interaction = interaction; _codec = codec;
         _recovery = recovery; _time = time ?? TimeProvider.System;
+        InitializeTags();
         RecoverCommand = new(item => GuardedAsync(() => RecoverAsync(item)), _ => CanMutate);
         DeleteRecoveryCommand = new(DeleteRecoveryAsync, _ => CanMutate);
         MoreRecoveryCommand = new(() => ReadAsync(ct => DiscoverRecoveryAsync(true, ct)), () => CanMutate && _recoveryCursor is not null);
         RefreshCommand = new(() => ReloadAsync(), () => CanRead);
-        SearchCommand = new(() => ReloadAsync(), () => CanRead);
+        SearchCommand = new(ApplySearchAsync, () => CanRead);
         MoreNotesCommand = new(() => ReadAsync(ct => ReadPageAsync(true, null, ct)), () => CanMutate && ScopeMatchesList && _cursor is not null);
         MoreFoldersCommand = new(LoadMoreFoldersAsync, () => CanMutate && _folderCursor is not null);
         MoreTagsCommand = new(LoadMoreTagsAsync, () => CanMutate && _tagCursor is not null);
@@ -126,12 +127,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             OnPropertyChanged(nameof(SelectedNote));
         }
     }
-    public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); NotifyCommands(); } }
+    public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); PublishTags(); NotifyCommands(); } }
     public string NoteTitle => Note?.Title ?? SelectedNote?.Title ?? "Select a note";
     public string Metadata => Note is { } n ? $"{n.State} · Updated {TradingTimePolicy.ConvertUtcToTradingTime(n.UpdatedAtUtc):g} NY"
         : SelectedNote is { } row ? $"{row.Item.State} · Updated {row.Updated}" : "";
     public string Breadcrumb => (Note is not null ? Note.FolderId : SelectedNote?.Item.FolderId) is Guid id ? Folders.FirstOrDefault(f => f.Id == id)?.Name ?? "Folder unavailable" : "Unfiled";
-    public string TagText => SelectedNote?.Tags ?? "";
+    public string TagText => string.Join(" · ", AssignedTags.Select(t => t.Name));
     public string LinkText { get; private set; } = "";
     private void SelectionLabels() { OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(Breadcrumb)); }
     public string ContentMessage { get => _contentMessage; private set => SetProperty(ref _contentMessage, value); }
@@ -141,9 +142,11 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public bool HasMoreNotes => _cursor is not null;
     public bool HasMoreFolders => _folderCursor is not null;
     public bool HasMoreTags => _tagCursor is not null;
-    public string EmptyMessage => IsBusy ? "Loading notes…" : Notes.Count == 0 ? "No notes in this view. Create a note or choose another scope." : "";
+    public string EmptyMessage => IsBusy ? "Loading notes…" : Notes.Count != 0 ? "" :
+        _query.Search.Length != 0 || _query.TagIds.Length != 0 ? "No notes match these filters. Clear filters or change the search." :
+        "No notes in this view. Create a note or choose another scope.";
     public string Message { get => _message; private set => SetProperty(ref _message, value); }
-    public string SearchText { get => _search; set => SetProperty(ref _search, value); }
+    public string SearchText { get => _search; set { if (SetProperty(ref _search, value) && !_publishing) ScheduleSearch(); } }
     public string FolderName { get => _folderName; set => SetProperty(ref _folderName, value); }
     public NotebookFolderOption? ManagedFolder { get => _managedFolder; set { SetProperty(ref _managedFolder, value); NotifyCommands(); } }
     public NotebookFolderOption? MoveFolder { get => _moveFolder; set { SetProperty(ref _moveFolder, value); NotifyCommands(); } }
@@ -152,7 +155,8 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); OnPropertyChanged(nameof(CanInteract)); NotifyCommands(); } }
     public bool CanInteract => !_disposed && !IsWriting;
     public bool CanSelectNote => CanInteract && !IsBusy && ScopeMatchesList;
-    private bool ScopeMatchesList => Scope is null || (_query.Scope == Scope.Scope && _query.FolderId == Scope.FolderId);
+    private bool ScopeMatchesList => (Scope is null || (_query.Scope == Scope.Scope && _query.FolderId == Scope.FolderId)) &&
+        _query.Search == SearchText && _query.TagIds.Order().SequenceEqual(_filterIds.Order()) && _query.Sort == Sort.Value;
     private bool CanRead => _active && !_disposed && !IsWriting;
     private bool CanMutate => CanRead && !IsBusy;
     private bool CanEditNote => CanMutate && Note?.State == NotebookNoteState.Active;
@@ -196,18 +200,19 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public void Deactivate()
     {
         _active = false; ++_generation;
-        _lifetime?.Cancel(); StopDebounce(); _read?.Cancel(); _write?.Cancel();
+        _lifetime?.Cancel(); StopDebounce(); StopSearch(); _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
         IsBusy = false; NotifyCommands();
         // Departure consent is coordinated by the shell; late operations cannot publish here.
     }
     public async Task CancelAsync()
     {
-        ++_generation; _lifetime?.Cancel(); StopDebounce(); _read?.Cancel(); _write?.Cancel();
+        ++_generation; _lifetime?.Cancel(); StopDebounce(); StopSearch(); _read?.Cancel(); _write?.Cancel();
         await CompletionTask;
         if (!_disposed)
         {
             _lifetime?.Dispose(); _lifetime = new();
+            RestoreAppliedFilters();
             IsBusy = false;
             Message = "Operation stopped. Refresh to reload stored data; a completed change may already be saved.";
             if (ContentMessage == "Loading note…") ContentMessage = "Note loading stopped. Select Refresh to try again.";
@@ -225,6 +230,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private Task ReloadAsync(bool preserveSelection = true)
     {
+        StopSearch();
         if (!CanRead) return Task.CompletedTask;
         if (IsDirty && !_guarding) return GuardedAsync(() => ReloadAsync(preserveSelection));
         return ReadAsync(ct => ReadPageAsync(false, preserveSelection ? SelectedNote?.Id : null, ct));
@@ -257,12 +263,28 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         }
     }
     private bool Current(CancellationToken ct) => !ct.IsCancellationRequested && _active && !_disposed;
-    private async Task ReadPageAsync(bool more, Guid? selected, CancellationToken ct)
+    private async Task ReadPageAsync(bool more, Guid? selected, CancellationToken ct, bool keepEditor = false)
     {
-        var query = more ? new NotebookQuery(_query.Scope, _query.FolderId, _query.Search, sort: _query.Sort, cursor: _cursor)
-            : new NotebookQuery(Scope?.Scope ?? NotebookScope.AllNotes, Scope?.FolderId, SearchText, sort: Sort.Value);
+        var query = more ? new NotebookQuery(_query.Scope, _query.FolderId, _query.Search, _query.TagIds, sort: _query.Sort, cursor: _cursor)
+            : new NotebookQuery(Scope?.Scope ?? NotebookScope.AllNotes, Scope?.FolderId, SearchText, _filterIds, sort: Sort.Value);
         var page = await Task.Run(() => _service.ListAsync(query, ct), ct);
         if (!Current(ct)) return;
+        if (!more && !page.Summary.RequestedTags.IsDefault)
+        {
+            var present = page.Summary.RequestedTags.Select(t => t.Item.Id).ToHashSet();
+            var deleted = _filterIds.Where(id => !present.Contains(id)).ToHashSet();
+            if (deleted.Count > 0)
+            {
+                _filterIds.ExceptWith(deleted);
+                // The selected-ID resolution is authoritative even outside the catalog page.
+                // Drop deleted entries before catalog retention sees the old open-note snapshot.
+                _tags.RemoveAll(t => deleted.Contains(t.Item.Id));
+                TagMessage = "Deleted tag filters were removed. Notes and assignments were not changed.";
+                query = new(query.Scope, query.FolderId, query.Search, _filterIds, query.Sort);
+                page = await Task.Run(() => _service.ListAsync(query, ct), ct); // One bounded filter repair, never a retry loop.
+                if (!Current(ct)) return;
+            }
+        }
         _publishing = true;
         try
         {
@@ -272,8 +294,9 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             if (!more) SelectedNote = Notes.FirstOrDefault(n => n.Id == selected);
         }
         finally { _publishing = false; }
+        PublishTags(); OnPropertyChanged(nameof(FilterSummary));
         OnPropertyChanged(nameof(ListSummary)); OnPropertyChanged(nameof(EmptyMessage)); NotifyCommands();
-        if (!more)
+        if (!more && !keepEditor)
         {
             await ReadDetailAsync(SelectedNote, ct);
             if (Current(ct)) await DiscoverRecoveryAsync(false, ct);
@@ -297,7 +320,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             Scopes.Add(new(scope, null, label, summary.ScopeCounts.FirstOrDefault(c => c.Scope == scope)?.Count ?? 0));
         Scope = Scopes.FirstOrDefault(s => s.Scope == old?.Scope && s.FolderId == old.FolderId) ?? Scopes[0];
         _folderCursor = summary.Folders.NextCursor;
-        _tags.Clear(); _tags.AddRange(summary.Tags.Items); _tagCursor = summary.Tags.NextCursor;
+        var retained = _tags.Where(t => _filterIds.Contains(t.Item.Id) || Note?.TagIds.Contains(t.Item.Id) == true).ToArray();
+        _tags.Clear(); _tags.AddRange(summary.Tags.Items);
+        if (!summary.RequestedTags.IsDefault)
+            foreach (var tag in summary.RequestedTags) { _tags.RemoveAll(t => t.Item.Id == tag.Item.Id); _tags.Add(tag); }
+        foreach (var tag in retained) if (_tags.All(t => t.Item.Id != tag.Item.Id)) _tags.Add(tag);
+        _tagCursor = summary.Tags.NextCursor; PublishTags();
         OnPropertyChanged(nameof(TagCatalogText));
         ManagedFolder = Folders.FirstOrDefault(f => f.Id == managedId);
         MoveFolder = Folders.FirstOrDefault(f => f.Id == moveId);
@@ -333,8 +361,8 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         var query = new NotebookCatalogQuery(NotebookCatalogKind.Tags, cursor: _tagCursor);
         var page = await Task.Run(() => _service.ListCatalogAsync(query, ct), ct);
         if (!Current(ct)) return;
-        foreach (var item in page.Items) if (_tags.All(t => t.Item.Id != item.Item.Id)) _tags.Add(item);
-        _tagCursor = page.NextCursor; OnPropertyChanged(nameof(TagCatalogText)); NotifyCommands();
+        foreach (var item in page.Items) { _tags.RemoveAll(t => t.Item.Id == item.Item.Id); _tags.Add(item); }
+        _tagCursor = page.NextCursor; PublishTags(); OnPropertyChanged(nameof(TagCatalogText)); NotifyCommands();
     });
     private async Task ReadDetailAsync(NotebookRow? row, CancellationToken ct)
     {
@@ -369,6 +397,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         if (!Current(ct)) return;
         if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message)))) return;
         _publishing = true;
+        _filterIds.Clear(); PublishTags();
         SearchText = ""; Sort = SortOptions[0]; Scope = Scopes.FirstOrDefault(s => folder is null ? s.Scope == NotebookScope.AllNotes : s.FolderId == folder);
         _publishing = false;
         await ReadPageAsync(false, result.Note!.Id, ct);
@@ -435,6 +464,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private void NotifyCommands()
     {
+        NotifyTagCommands();
         RecoverCommand?.NotifyCanExecuteChanged(); DeleteRecoveryCommand?.NotifyCanExecuteChanged(); MoreRecoveryCommand?.NotifyCanExecuteChanged();
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditDraft)); OnPropertyChanged(nameof(CanEditBody)); OnPropertyChanged(nameof(BodyReadOnly));

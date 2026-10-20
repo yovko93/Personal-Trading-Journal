@@ -85,8 +85,15 @@ public sealed partial class NotebookService
         scopes.Add(new(NotebookScope.Archived, null, counts.FirstOrDefault(x => x.State == 2)?.Total ?? 0));
         scopes.Add(new(NotebookScope.Trash, null, counts.FirstOrDefault(x => x.State == 3)?.Total ?? 0));
         if (query.Scope == NotebookScope.Folder) scopes.Add(new(NotebookScope.Folder, query.FolderId, scopeCount));
+        // Resolve at most 32 selected identities in the same snapshot, independently of
+        // the first catalog page. Absence is authoritative, not a paging omission.
+        var requestedIds = query.TagIds.ToArray();
+        var requestedTags = await db.NotebookTags.AsNoTracking().Where(t => requestedIds.Contains(t.Id))
+            .Select(t => new NotebookCatalogItem(new(t.Id, t.Name, t.Version),
+                db.NotebookTagAssignments.LongCount(a => a.TagId == t.Id && db.NotebookNotes.Any(n => n.Id == a.NoteId && n.State == 1))))
+            .Take(NotebookLimits.Tags).ToArrayAsync(ct);
         return new(items, count, next, new(scopes.ToImmutable(),
-            await CatalogPage(db, new(NotebookCatalogKind.Folders), ct), await CatalogPage(db, new(NotebookCatalogKind.Tags), ct)));
+            await CatalogPage(db, new(NotebookCatalogKind.Folders), ct), await CatalogPage(db, new(NotebookCatalogKind.Tags), ct), [.. requestedTags]));
     }
     public async Task<NotebookCatalogPage> ListCatalogAsync(NotebookCatalogQuery query, CancellationToken cancellationToken = default)
     {

@@ -1,6 +1,47 @@
 # Notebook
 
-Current checkpoint: **M22.6 autosave, concurrency and durable recovery**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+Current checkpoint: **M22.7 tags, assignments and combined filters — focused verification complete; final Release acceptance pending**. Logical export v16 includes the six canonical Notebook tables plus recovery checkpoints; current-schema v1 archives preserve their database records through preflight/offline restore. JSON/CSV are not restore inputs. Notebook-owned image-file copying/restoration, linked-target navigation and full integrated acceptance remain deferred. Earlier milestone sections below are historical decisions/results.
+
+## M22.7 — tags, assignments and combined filters: focused verification
+
+20 October 2026. Resumed the interrupted implementation in **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**, branch **`develop`**, unchanged HEAD **`4520b3f782453ff5ef1bdeac509b765fac7b7099`**. One agent; no subagents. Inspected ancestor/repository instructions (no applicable `AGENTS.md`), existing changes, this contract and prior TRX. Process inspection confirmed reusable MSBuild workers only, with no active test run before rebuilding. All existing changes were preserved; this phase made no commits, pushes, resets or clean operations.
+
+### Existing implementation and focused corrections
+
+- Desktop tag creation, rename and confirmed global deletion are distinct from assigning/removing a tag on one active note. Identity/version checks and dirty-draft flushes coordinate with autosave without replacing the editor. Global deletion removes assignments across lifecycle states while preserving note content.
+- Text over saved title/body, all selected tags and the selected scope combine with AND. Stable cursor paging preserves tag IDs; selected filters resolve independently of the first catalog page in the same SQLite read snapshot. Sidebar counts precede text/tag filters; list totals reflect them. Search has a separate **300 ms** debounce with superseded-read suppression and cancellation/draining. Clear filters retains scope/sort.
+- Prior artifacts remain unchanged: `TestResults/m227-desktop/` records **85 passed / 2 failed / zero skipped**; `TestResults/m227-infrastructure/` records **96/96 passed**. The two failures expected paragraph text without its canonical LF. **Both corrections already existed on resumption**, comparing the full expected document projection. `NotebookDocument.Visit` appends `"\n"` after paragraphs/headings, consistent with the original domain projection test and this document's content contract. No production serialization change, trimming, weakened content assertion or timeout adjustment was used.
+- Expanded SQLite refresh coverage to selected tags both within and beyond the first 50 catalog entries, retaining another selected filter. The new assertion exposed a deleted tag retained in catalog/pickers from the pre-refresh open-note snapshot. Filter repair now removes authoritatively deleted selected identities from the retained catalog before republishing it. It preserves remaining filters and uses the existing single bounded repair read.
+- Expanded Desktop recovery coverage for both external global deletion and removal of one assignment. A stale autosave conflicts, keeps exact title/body in recovery, and cannot restore an assignment after workspace restart. Added deterministic Infrastructure cases proving stale-version rejection after either removal and proving a subsequent explicitly refreshed content save also leaves the assignment removed. Existing concurrent deletion/save coverage remains intact.
+
+The initial added regression run is retained at `TestResults/m227-resumed-regression/selected-tag-regression.trx`: **0 passed / 2 failed**. One failure exposed stale catalog retention; the beyond-first-page case also revealed a test setup omission, fixed by loading the next catalog page before each selection. Both variants pass in the final focused run below.
+
+### Verified focused results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m227-resumed-desktop-build-final.log
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-restore -v minimal -flp:logfile=TestResults/m227-resumed-infrastructure-build.log
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=notebook-desktop.trx' --results-directory TestResults/m227-resumed-focused
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook|FullyQualifiedName~PortableExportTests' --logger 'trx;LogFileName=notebook-infrastructure.trx' --results-directory TestResults/m227-resumed-focused
+dotnet test tests/PersonalTradingJournal.Domain.Tests -c Release --no-restore --filter 'FullyQualifiedName~NotebookDocumentTests.ProjectionIncludesVisibleTextAndCaptionsNotUrlsOrAlternativeText' --logger 'trx;LogFileName=document-projection-contract.trx' --results-directory TestResults/m227-resumed-focused
+git diff --check
+```
+
+Both affected Release test-project builds, including their production dependencies, passed with **0 warnings/errors**: Desktop **16.27 s**, Infrastructure **5.25 s**. The domain contract run also rebuilt its test project. Final TRX under `TestResults/m227-resumed-focused/`:
+
+| Focused run | Passed | Failed / skipped | Reported test duration | Evidence |
+| --- | ---: | ---: | --- | --- |
+| Notebook Desktop, including matching shell navigation cases | 90 | 0 / 0 | 2m01s | `notebook-desktop.trx` |
+| Notebook Infrastructure and portable export | 99 | 0 / 0 | 1m09s | `notebook-infrastructure.trx` |
+| Exact canonical document projection | 1 | 0 / 0 | 27 ms | `document-projection-contract.trx` |
+
+All commands exited **0**. Desktop includes the existing autosave, editing, workspace, navigation, SQLite restart, tag coordination and isolated compiled-WPF view suites. Coverage retains entered-autosave/newer-typing coordination, returned versions, guarded/failed filter changes, failure recovery, stale search suppression, paging/counts, outside-filter editor retention, cancellation and reactivation. Infrastructure includes codec, query, persistence, migration, recovery, tag workflow and portability/export checks. Isolated child suites can repeat cases internally; these table totals are the outer TRX counts, not sums of nested runs.
+
+Tag WPF renders were regenerated for Light/Dark at 1280 DIP / 96 DPI and 480 DIP / 240 DPI under `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/net10.0-windows/notebook-tag-renders/`. Sampled Light normal and Dark narrow filter renders were inspected; the narrow organization pane uses vertical scrolling. Bound tests assert retained editor identity, accessible labels/live validation and visible button bounds. This is automated render/interaction evidence, not human or Narrator acceptance. Final whitespace checks pass.
+
+### Remaining work and acceptance boundary
+
+**Focused M22.7 verification is complete. No known M22.7 implementation defect remains from these checks. Final Release acceptance remains pending.** The complete Release gate was deliberately not launched; the historical M22.6 gate below does not accept this changed worktree. Full Release verification, live keyboard/mouse/Narrator and actual native-process restart acceptance, and matching-source CI are still unverified. No EF/schema or image-ownership work was introduced. M22.8 onward remains deferred and was not started.
 
 ## M22.6 — autosave, concurrency and durable recovery
 
@@ -93,7 +134,7 @@ Compiled-WPF renders: `tests/PersonalTradingJournal.Desktop.Tests/bin/Release/ne
 | Human keyboard/mouse/Narrator and native-process restart | Not performed; pending |
 | Matching published-source CI | Not checked/claimed for `7dbcd657…`; local passing gate is not CI acceptance |
 
-No production journal, provider, real clipboard or browser access during implementation/verification. This completion made no commits, pushes or merges and leaves its documentation edits uncommitted. **M22.6 implementation and local automated verification are complete; human interaction, native-process restart and matching CI remain separate unverified checks. M22.7–M22.12 remain pending.**
+No production journal, provider, real clipboard or browser access during implementation/verification. This completion made no commits, pushes or merges and leaves its documentation edits uncommitted. **M22.6 implementation and local automated verification are complete; human interaction, native-process restart and matching CI remain separate unverified checks. M22.7–M22.12 were pending at that checkpoint.**
 
 ### Exact M22.6 changed-file inventory
 
@@ -539,7 +580,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.4 | Shell workspace, folders, responsive navigation and guards | Implemented; verification above |
 | M22.5 | Rich-text adapter, protected image references, safe paste, manual Save and draft guards | Implemented; automated verification and live/CI limits above |
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
-| M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Pending |
+| M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; focused verification 90/90 Desktop, 99/99 Infrastructure; final Release acceptance pending above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
 | M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | Pending |
 | M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
