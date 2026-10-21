@@ -33,7 +33,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private readonly IDialogService _dialogs;
     private readonly HashSet<Task> _pending = [];
     private CancellationTokenSource? _read, _write;
-    private long _generation;
+    private long _generation, _selectionGeneration;
     private bool _active, _disposed, _busy, _writing, _publishing;
     private NotebookScopeOption? _scope;
     private NotebookRow? _selected;
@@ -120,16 +120,23 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         get => _selected;
         set
         {
-            if (_publishing) { SetProperty(ref _selected, value); SelectionLabels(); return; }
+            if (_publishing) { AcceptSelection(value); return; }
             if (!CanRead || !ScopeMatchesList || _selected?.Id == value?.Id) return;
             LoadTask = GuardedAsync(async () =>
             {
-                SetProperty(ref _selected, value, nameof(SelectedNote)); SelectionLabels();
+                AcceptSelection(value);
                 if (value is not null) Panel = 2;
                 await ReadAsync(ct => ReadDetailAsync(value, ct));
             });
             OnPropertyChanged(nameof(SelectedNote));
         }
+    }
+    private void AcceptSelection(NotebookRow? value)
+    {
+        // Invalidate before notifications or the replacement detail read can yield.
+        // A same-note save/list refresh is not a new accepted selection.
+        if (_selected?.Id != value?.Id) ++_selectionGeneration;
+        SetProperty(ref _selected, value, nameof(SelectedNote)); SelectionLabels();
     }
     public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); PublishTags(); NotifyCommands(); } }
     public string NoteTitle => Note?.Title ?? SelectedNote?.Title ?? "Select a note";

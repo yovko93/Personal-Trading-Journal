@@ -94,9 +94,11 @@ internal static class UiKeyboardProbe
             trace.Record("after KeyDown / before pressed observation");
             Require(HasCapture(target, source), target,
                 "Space key-down did not acquire managed and native capture. Check input-desktop access; a native HWND capture alone is insufficient.");
+            RequireReleasedInput(target, source, "after capture acquisition", trace);
             whilePressed?.Invoke();
             trace.Record("after pressed observation / before KeyUp");
             Require(HasCapture(target, source), target, "Space capture was lost before key-up.");
+            RequireReleasedInput(target, source, "immediately before Space key-up", trace);
             target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyUpEvent });
             trace.Record("after KeyUp");
             WaitForRelease(target, source, trace);
@@ -108,6 +110,28 @@ internal static class UiKeyboardProbe
 
     private static bool HasCapture(ButtonBase target, HwndSource source) =>
         target.IsMouseCaptured && ReferenceEquals(Mouse.Captured, target) && GetCapture() == source.Handle;
+
+    internal readonly record struct MousePrerequisites(bool ExpectedSourceActive, MouseButtonState WpfLeft,
+        ModifierKeys Modifiers, short ThreadKeyState, short AsyncKeyState)
+    {
+        // These are separate observations, not interchangeable evidence of physical input.
+        internal bool Released => ExpectedSourceActive && WpfLeft == MouseButtonState.Released &&
+            Modifiers == ModifierKeys.None && (ThreadKeyState & 0x8000) == 0 && (AsyncKeyState & 0x8000) == 0;
+        public override string ToString() => $"expectedMouseSourceActive={ExpectedSourceActive}; WPF.Mouse.LeftButton={WpfLeft}; " +
+            $"modifiers={Modifiers}; GetKeyState(VK_LBUTTON)=0x{(ushort)ThreadKeyState:X4}; " +
+            $"GetAsyncKeyState(VK_LBUTTON)=0x{(ushort)AsyncKeyState:X4}; samples sequential, high bits tested separately";
+    }
+    private static MousePrerequisites SampleMouse(HwndSource? source) => new(
+        source is not null && ReferenceEquals(Mouse.PrimaryDevice.ActiveSource, source),
+        Mouse.LeftButton, Keyboard.Modifiers, GetKeyState(0x01), GetAsyncKeyState(0x01));
+    private static void RequireReleasedInput(ButtonBase target, HwndSource source, string phase, InputTrace trace)
+    {
+        var sample = SampleMouse(source);
+        trace.Record($"mouse prerequisite {phase}: {sample}");
+        // Fail at the causal boundary; do not inject release, repair capture, or send
+        // key-up down WPF's held-mouse branch and mislabel it a release timeout.
+        Require(sample.Released, target, $"Space input prerequisite unmet {phase}: {sample}.");
+    }
 
     private static void WaitForRelease(ButtonBase target, HwndSource source, InputTrace trace)
     {
@@ -242,6 +266,7 @@ internal static class UiKeyboardProbe
             $"pressed={(target as ButtonBase)?.IsPressed}; clickMode={(target as ButtonBase)?.ClickMode}; " +
             $"captured={Identify(Mouse.Captured)}; isMouseCaptured={target.IsMouseCaptured}; nativeCapture=0x{GetCapture():X}; " +
             $"spaceDown={Keyboard.IsKeyDown(Key.Space)}; leftMouse={Mouse.LeftButton}; " +
+            $"nativeMouseSample=[{SampleMouse(PresentationSource.FromVisual(target) as HwndSource)}]; " +
             $"mouseSource={Identify(Mouse.PrimaryDevice.ActiveSource)}; keyboardSource={Identify(Keyboard.PrimaryDevice.ActiveSource)}; " +
             $"window loaded={owner?.IsLoaded},visible={owner?.IsVisible},active={owner?.IsActive}; " +
             $"target loaded={target.IsLoaded},visible={target.IsVisible},enabled={target.IsEnabled},focusable={target.Focusable}; " +
@@ -263,4 +288,6 @@ internal static class UiKeyboardProbe
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern IntPtr GetFocus();
     [DllImport("user32.dll")] private static extern IntPtr GetCapture();
+    [DllImport("user32.dll")] private static extern short GetKeyState(int key);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
 }

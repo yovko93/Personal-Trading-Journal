@@ -8,6 +8,31 @@ namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 public sealed class UiHarnessDiagnosticsTests
 {
     [Theory]
+    [InlineData(false, false, false, false, false)] // Inactive WPF source can report Released spuriously.
+    [InlineData(true, true, false, false, false)]
+    [InlineData(true, false, true, false, false)] // Thread and async observations cannot substitute for each other.
+    [InlineData(true, false, false, true, false)]
+    [InlineData(true, false, false, false, true)]
+    public void UnsafeMousePrerequisitesAreRejectedWithDistinctSamplingDiagnostics(
+        bool active, bool wpfPressed, bool threadPressed, bool asyncPressed, bool modifier)
+    {
+        var state = new UiKeyboardProbe.MousePrerequisites(active,
+            wpfPressed ? MouseButtonState.Pressed : MouseButtonState.Released,
+            modifier ? ModifierKeys.Shift : ModifierKeys.None,
+            threadPressed ? short.MinValue : (short)0, asyncPressed ? short.MinValue : (short)0);
+        Assert.False(state.Released);
+        Assert.Contains("GetKeyState(VK_LBUTTON)", state.ToString());
+        Assert.Contains("GetAsyncKeyState(VK_LBUTTON)", state.ToString());
+        Assert.Contains("samples sequential", state.ToString());
+    }
+    [Fact]
+    public void NativeToggleBitsAreNotMistakenForPressedButtons()
+    {
+        var state = new UiKeyboardProbe.MousePrerequisites(true, MouseButtonState.Released, ModifierKeys.None, 1, 1);
+        Assert.True(state.Released);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task SpaceRequiresCaptureAndCompletesReleaseBeforeReturning(bool loseCapture)

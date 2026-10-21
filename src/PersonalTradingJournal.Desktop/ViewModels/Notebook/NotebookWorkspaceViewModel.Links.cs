@@ -33,7 +33,25 @@ public sealed partial class NotebookWorkspaceViewModel
     public static NotebookTargetKind SetupLinkKind => NotebookTargetKind.TradingSetup;
     public ObservableCollection<NotebookLinkOption> LinkTargets { get; } = [];
     public ObservableCollection<NotebookLinkedItem> LinkedItems { get; } = [];
-    public Func<NotebookLink, CancellationToken, Task<bool>>? OpenLinkedTarget { get; set; }
+    internal Func<LinkedNavigationRequest, Task<bool>>? OpenLinkedTarget { get; set; }
+    internal sealed class LinkedNavigationRequest
+    {
+        private readonly NotebookWorkspaceViewModel _owner;
+        private readonly CancellationTokenSource? _activation;
+        private readonly long _selection;
+        internal LinkedNavigationRequest(NotebookWorkspaceViewModel owner, NotebookLink link, Guid noteId)
+        {
+            _owner = owner; Link = link; NoteId = noteId;
+            _activation = owner._lifetime; _selection = owner._selectionGeneration;
+            Cancellation = _activation?.Token ?? CancellationToken.None;
+        }
+        internal NotebookLink Link { get; }
+        internal Guid NoteId { get; }
+        internal CancellationToken Cancellation { get; }
+        internal bool IsCurrent => _owner.Current(Cancellation) && ReferenceEquals(_activation, _owner._lifetime) &&
+            _selection == _owner._selectionGeneration && _owner.SelectedNote?.Id == NoteId && _owner.Note?.Id == NoteId &&
+            _owner.Note.Links.Any(x => SameTarget(x, Link));
+    }
     public Task LinkSearchTask { get; private set; } = Task.CompletedTask;
     public string LinkMessage { get => _linkMessage; private set => SetProperty(ref _linkMessage, value); }
     public string TargetMessage { get => _targetMessage; private set => SetProperty(ref _targetMessage, value); }
@@ -182,19 +200,20 @@ public sealed partial class NotebookWorkspaceViewModel
     private async Task OpenLinkedItemAsync(NotebookLinkedItem? item)
     {
         if (item is null || !item.IsAvailable || OpenLinkedTarget is null || Note is not { } note) return;
-        var activation = _lifetime;
-        var ct = activation?.Token ?? CancellationToken.None;
+        var request = new LinkedNavigationRequest(this, item.Link, note.Id);
+        if (!request.IsCurrent) return;
+        var ct = request.Cancellation;
         try
         {
             // Re-resolve identity immediately before navigation. Never substitute a similarly named row.
             var resolved = await _service.ResolveLinksAsync([item.Link], ct);
-            if (!Current(ct) || Note?.Id != note.Id || !ReferenceEquals(activation, _lifetime) || !Note.Links.Any(x => SameTarget(x, item.Link))) return;
+            if (!request.IsCurrent) return;
             if (resolved.Length != 1 || resolved[0].Availability != NotebookTargetAvailability.Available)
-            { await ResolveCurrentLinksAsync(ct); LinkMessage = "The linked record is unavailable. Its reference is retained and can be removed."; return; }
-            if (!await OpenLinkedTarget(item.Link, ct) && Current(ct)) LinkMessage = "The record could not be opened. Your Notebook context is retained.";
+            { await ResolveCurrentLinksAsync(ct); if (request.IsCurrent) LinkMessage = "The linked record is unavailable. Its reference is retained and can be removed."; return; }
+            if (!await OpenLinkedTarget(request) && request.IsCurrent) LinkMessage = "The record could not be opened. Your Notebook context is retained.";
         }
         catch (OperationCanceledException) { }
-        catch (Exception) { if (Current(ct)) LinkMessage = "The record could not be opened. Your Notebook context is retained."; }
+        catch (Exception) { if (request.IsCurrent) LinkMessage = "The record could not be opened. Your Notebook context is retained."; }
     }
     internal void ReportLinkedNavigationFailure()
     { if (_active && !_disposed) LinkMessage = "The linked record is unavailable or could not be opened. Your Notebook context and reference are retained."; }

@@ -16,6 +16,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private NotebookDocument _draftDocument = NotebookDocument.Empty;
     private long _draftRevision, _acceptedRevision = -1, _editorRevision;
     private bool _guarding, _discardConsent;
+    private LinkedNavigationRequest? _linkedLeaveConsent;
     public AsyncRelayCommand SaveCommand { get; }
     public AsyncRelayCommand DiscardCommand { get; }
     public string DraftTitle
@@ -81,7 +82,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public void ClearLeaveConsent()
     {
         bool resume = _discardConsent && IsDirty;
-        _acceptedRevision = -1; _discardConsent = false;
+        _acceptedRevision = -1; _discardConsent = false; _linkedLeaveConsent = null;
         if (resume) ScheduleAutosave(); // A later ancestor veto retained the editor; checkpoint it again.
     }
     public void CompleteLeave()
@@ -89,8 +90,17 @@ public sealed partial class NotebookWorkspaceViewModel
         if (_discardConsent && HasLeaveConsent) RestoreDraft();
         ClearLeaveConsent();
     }
-    public async Task<bool> PrepareLeaveAsync(bool linkOperation = false, bool noteOperation = false)
+    public Task<bool> PrepareLeaveAsync(bool linkOperation = false, bool noteOperation = false) =>
+        PrepareLeaveCoreAsync(linkOperation, noteOperation, null);
+    internal Task<bool> PrepareLinkedLeaveAsync(LinkedNavigationRequest request) => PrepareLeaveCoreAsync(false, false, request);
+    internal void ClearLinkedLeaveConsent(LinkedNavigationRequest request)
     {
+        if (ReferenceEquals(_linkedLeaveConsent, request)) ClearLeaveConsent();
+    }
+    private async Task<bool> PrepareLeaveCoreAsync(bool linkOperation, bool noteOperation, LinkedNavigationRequest? request)
+    {
+        bool Owns() => request is null || request.IsCurrent;
+        if (!Owns()) return false;
         if (_noteOperation && !noteOperation) { Message = "Wait for the note operation before leaving."; return false; }
         if (_linkOperation && !linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
         if (_imageOperation || _preparingImage) { Message = "Wait for the image operation before leaving."; return false; }
@@ -98,16 +108,21 @@ public sealed partial class NotebookWorkspaceViewModel
         {
             StopDebounce();
             await _flushTask;
-            if (_active && !_disposed && IsDirty && !_autosavePaused && !_recoveryConflict && await SaveDraftAsync()) return true;
+            if (!Owns()) return false;
+            if (_active && !_disposed && IsDirty && !_autosavePaused && !_recoveryConflict && await SaveDraftAsync()) return Owns();
+            if (!Owns()) return false;
         }
         if (_disposed || IsWriting) { Message = "Wait for the Notebook change, or cancel it before leaving."; return false; }
         ClearLeaveConsent();
         if (!IsDirty) return true;
         var choice = _interaction?.ConfirmLeave() ?? NotebookLeaveChoice.Cancel;
+        if (!Owns()) return false; // Modal consent can pump selection/activation changes.
         if (choice == NotebookLeaveChoice.Cancel) return false;
         if (choice == NotebookLeaveChoice.Save && !await SaveDraftAsync()) return false;
+        if (!Owns()) return false;
         if (choice == NotebookLeaveChoice.Discard && !await DiscardCheckpointAsync()) return false;
-        _acceptedRevision = _draftRevision; _discardConsent = choice == NotebookLeaveChoice.Discard;
+        if (!Owns()) return false;
+        _acceptedRevision = _draftRevision; _discardConsent = choice == NotebookLeaveChoice.Discard; _linkedLeaveConsent = request;
         return !_disposed;
     }
     private async Task GuardedAsync(Func<Task> action, bool linkOperation = false)

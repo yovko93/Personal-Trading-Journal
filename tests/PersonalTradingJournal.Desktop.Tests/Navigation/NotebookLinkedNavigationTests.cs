@@ -10,6 +10,116 @@ namespace PersonalTradingJournal.Desktop.Tests.Navigation;
 
 public sealed partial class MainWindowViewModelTests
 {
+    [Fact]
+    public async Task LinkedShellRechecksOriginAfterAncestorGuardBeforeTouchingAnotherDraft()
+    {
+        await using var plan = await TradingPlans.TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
+        var store = new NotebookFake(); var target = Guid.NewGuid();
+        var origin = NotebookFake.Note("Origin") with { Document = NotebookEditingTests.Text("Origin body"), Links = [new(NotebookTargetKind.TradingSetup, target, "Study")] };
+        var other = NotebookFake.Note("Other") with { Document = NotebookEditingTests.Text("Other body") };
+        store.Notes.AddRange([origin, other]);
+        store.OnResolve = (links, _) => Task.FromResult<ImmutableArray<NotebookResolvedLink>>([.. links.Select(l => new NotebookResolvedLink(l, NotebookTargetAvailability.Available, "Study"))]);
+        var choices = new NotebookChoices { Choice = NotebookLeaveChoice.Discard };
+        using var notebook = new NotebookWorkspaceViewModel(store, new FakeDialogService(), choices);
+        using var shell = CreateFixture(notebook: notebook, tradingPlan: plan.Vm).Main;
+        shell.NavigateCommand.Execute(NavigationDestination.Notebook); await notebook.LoadTask;
+        notebook.SelectedNote = notebook.Notes.Single(n => n.Id == origin.Id); await notebook.LoadTask;
+        plan.Vm.Editor!.Focus.Text = "Pending ancestor save";
+        plan.Interaction.Choice = PersonalTradingJournal.Desktop.ViewModels.TradingPlans.PlanLeaveChoice.Save;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        plan.Store.BeforeWrite = _ => { entered.TrySetResult(); return release.Task; };
+        var navigation = notebook.OpenLinkedItemCommand.ExecuteAsync(notebook.LinkedItems.Single());
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            notebook.SelectedNote = notebook.Notes.Single(n => n.Id == other.Id); await notebook.LoadTask;
+            notebook.DraftTitle = "Retain this newer draft";
+            notebook.SetDraftDocument(NotebookEditingTests.Text("Retain exact newer body"));
+            release.SetResult(); await navigation.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(0, choices.Prompts); Assert.Equal(0, store.Writes);
+            Assert.Equal(NavigationDestination.Notebook, shell.CurrentDestination); Assert.False(shell.CanReturnToNotebook);
+            Assert.Equal(other.Id, notebook.Note!.Id); Assert.Equal("Retain this newer draft", notebook.DraftTitle);
+            Assert.Equal("Retain exact newer body\n", notebook.DraftDocument.PlainText); Assert.True(notebook.IsDirty);
+            Assert.False(notebook.OpenLinkedItemCommand.IsRunning);
+        }
+        finally { release.TrySetResult(); await navigation.WaitAsync(TimeSpan.FromSeconds(10)); }
+    }
+
+    [Theory]
+    [InlineData("resolution")] [InlineData("round-trip")] [InlineData("save-completion")]
+    public async Task LinkedShellRejectsAbandonedSelectionAndCanNavigateAgain(string boundary)
+    {
+        var store = new NotebookFake(); var target = Guid.NewGuid();
+        var origin = NotebookFake.Note("Origin") with { Document = NotebookEditingTests.Text("Origin body"), Links = [new(NotebookTargetKind.TradingSetup, target, "Study")] };
+        var other = NotebookFake.Note("Other") with { Document = NotebookEditingTests.Text("Other body") };
+        store.Notes.AddRange([origin, other]);
+        static Task<ImmutableArray<NotebookResolvedLink>> Resolve(ImmutableArray<NotebookLink> links, CancellationToken _) =>
+            Task.FromResult<ImmutableArray<NotebookResolvedLink>>([.. links.Select(l => new NotebookResolvedLink(l, NotebookTargetAvailability.Available, "Study"))]);
+        store.OnResolve = Resolve;
+        var choices = new NotebookChoices { Choice = NotebookLeaveChoice.Save };
+        using var notebook = new NotebookWorkspaceViewModel(store, new FakeDialogService(), choices);
+        var fixture = CreateFixture(notebook: notebook); using var shell = fixture.Main;
+        shell.NavigateCommand.Execute(NavigationDestination.Notebook); await notebook.LoadTask;
+        notebook.SelectedNote = notebook.Notes.Single(n => n.Id == origin.Id); await notebook.LoadTask;
+        var item = notebook.LinkedItems.Single(); var originRow = notebook.SelectedNote!;
+        var otherRow = notebook.Notes.Single(n => n.Id == other.Id);
+        var now = DateTimeOffset.UtcNow;
+        fixture.SetupReader.DetailsToReturn = new(target, "Study", "Description", false, now, now);
+        using var reads = new PausedNotebookReads();
+        bool changed = false;
+        void ChangeSelection()
+        {
+            changed = true; reads.Select(notebook, otherRow);
+            if (boundary == "round-trip") reads.Select(notebook, originRow);
+        }
+        var pending = new TaskCompletionSource<ImmutableArray<NotebookResolvedLink>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var writeResult = new TaskCompletionSource<NotebookWriteResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Saved(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            // Save has published the origin and released write ownership, but its
+            // asynchronous leave guard has not returned to the shell yet.
+            if (e.PropertyName == nameof(notebook.IsWriting) && !notebook.IsWriting && !changed) ChangeSelection();
+        }
+        if (boundary == "save-completion")
+        {
+            notebook.DraftTitle = "Saved origin";
+            store.OnWrite = (_, _) => { writeEntered.TrySetResult(); return writeResult.Task; };
+            notebook.PropertyChanged += Saved;
+        }
+        else store.OnResolve = (_, _) => pending.Task;
+        var navigation = notebook.OpenLinkedItemCommand.ExecuteAsync(item);
+        if (boundary == "save-completion")
+        {
+            await writeEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(NavigationDestination.Notebook, shell.CurrentDestination);
+            var saved = origin with { Title = "Saved origin", Version = origin.Version + 1 };
+            store.Notes[0] = saved; writeResult.SetResult(new(NotebookWriteStatus.Success, saved));
+        }
+        else
+        {
+            ChangeSelection();
+            Assert.Equal(origin.Id, notebook.Note!.Id); Assert.False(notebook.LoadTask.IsCompleted);
+            pending.SetResult([new(item.Link, NotebookTargetAvailability.Available, "Study")]);
+        }
+        await navigation.WaitAsync(TimeSpan.FromSeconds(10)); notebook.PropertyChanged -= Saved;
+        Assert.True(changed); Assert.Equal(NavigationDestination.Notebook, shell.CurrentDestination);
+        Assert.False(shell.CanReturnToNotebook); Assert.False(shell.ReturnToNotebookCommand.CanExecute(null));
+        Assert.False(notebook.OpenLinkedItemCommand.IsRunning);
+        Assert.Equal(boundary == "save-completion" ? 1 : 0, choices.Prompts);
+        Assert.Equal(boundary == "save-completion" ? 1 : 0, store.Writes);
+        Assert.Equal("Other", store.Notes.Single(n => n.Id == other.Id).Title);
+        store.OnResolve = Resolve; store.OnWrite = null;
+        reads.Dispose(); await notebook.LoadTask;
+        notebook.SelectedNote = notebook.Notes.Single(n => n.Id == origin.Id); await notebook.LoadTask;
+        await notebook.OpenLinkedItemCommand.ExecuteAsync(notebook.LinkedItems.Single());
+        Assert.Equal(NavigationDestination.Setups, shell.CurrentDestination); Assert.True(shell.CanReturnToNotebook);
+        shell.ReturnToNotebookCommand.Execute(null); await notebook.LoadTask;
+        Assert.Equal(origin.Id, notebook.Note!.Id); Assert.Equal("Origin body\n", notebook.DraftDocument.PlainText);
+        Assert.False(shell.CanReturnToNotebook);
+    }
+
     [Theory]
     [InlineData(NotebookTargetKind.Trade)] [InlineData(NotebookTargetKind.TradingSetup)]
     public async Task LinkedIdentityOpensExistingDetailsAndReturnsToSameNotebookContext(NotebookTargetKind kind)
@@ -63,5 +173,6 @@ public sealed partial class MainWindowViewModelTests
         Assert.Equal(NavigationDestination.Notebook, shell.CurrentDestination); Assert.Equal("Retain title", vm.DraftTitle);
         Assert.Equal("Retain exact body\n", vm.DraftDocument.PlainText); Assert.True(vm.IsDirty); Assert.Single(vm.Note!.Links);
         Assert.DoesNotContain("private", vm.LinkMessage);
+        Assert.False(vm.HasLeaveConsent); // Failed destination recovery must resume the retained draft, not keep discard consent.
     }
 }

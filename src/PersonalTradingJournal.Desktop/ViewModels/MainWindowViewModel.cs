@@ -551,7 +551,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         return _dailyReviewViewModel.LoadTask;
     }
 
-    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null, bool retainReview = false)
+    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null, bool retainReview = false, Func<bool>? commitGuard = null)
     {
         if (_disposed) return;
         if (destination == NavigationDestination.Notebook && destination == CurrentDestination) return;
@@ -572,6 +572,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             !_journalViewModel.TryLeave())
             return;
 
+        if (commitGuard?.Invoke() == false) return; // Synchronous leave guards can pump modal UI.
         var changed = InvalidateTopstepChanges();
         if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
@@ -587,6 +588,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
         bool returningToBreakdown = destination == NavigationDestination.Breakdown && CurrentDestination == NavigationDestination.Trades && _tradesViewModel.HasBreakdownScope;
         if (breakdownScope is not null && !_tradesViewModel.SetBreakdownScope(breakdownScope)) return;
+        if (commitGuard?.Invoke() == false) return;
         if (CurrentDestination == NavigationDestination.Trades) _tradesViewModel.DeactivateBrowse();
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Breakdown) _breakdownViewModel?.Deactivate();

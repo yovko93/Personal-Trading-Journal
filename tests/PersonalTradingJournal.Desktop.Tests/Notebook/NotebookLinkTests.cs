@@ -127,11 +127,49 @@ public sealed class NotebookLinkTests
         var pending = new TaskCompletionSource<ImmutableArray<NotebookResolvedLink>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         store.OnResolve = (links, _) => { entered.TrySetResult(); return pending.Task; }; int opens = 0;
-        vm.OpenLinkedTarget = (_, _) => { opens++; return Task.FromResult(true); };
+        vm.OpenLinkedTarget = _ => { opens++; return Task.FromResult(true); };
         var item = vm.LinkedItems[0]; var navigation = vm.OpenLinkedItemCommand.ExecuteAsync(item); await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        vm.SelectedNote = vm.Notes.Single(n => n.Title == "Other");
-        pending.SetResult([new(item.Link, NotebookTargetAvailability.Available, "Study")]); await navigation; await vm.LoadTask;
+        using var reads = new PausedNotebookReads();
+        var origin = vm.Note;
+        reads.Select(vm, vm.Notes.Single(n => n.Title == "Other"));
+        Assert.Same(origin, vm.Note); Assert.False(vm.LoadTask.IsCompleted);
+        pending.SetResult([new(item.Link, NotebookTargetAvailability.Available, "Study")]); await navigation;
+        Assert.Equal(0, opens); Assert.Same(origin, vm.Note);
+        reads.Dispose(); await vm.LoadTask;
         Assert.Equal(0, opens); Assert.Equal("Other", vm.DraftTitle);
+    }
+    [Theory]
+    [InlineData("round-trip")] [InlineData("reactivate")] [InlineData("dispose")]
+    public async Task AbandonedNavigationCannotReviveOrPublishFailureInNewContext(string change)
+    {
+        var store = new NotebookFake(); using var vm = await Open(store);
+        store.Notes.Add(NotebookFake.Note("Other") with { Document = NotebookEditingTests.Text("Other content") });
+        await Pick(vm); await vm.AddLinkCommand.ExecuteAsync(null);
+        var item = vm.LinkedItems.Single(); var row = vm.SelectedNote!;
+        var pending = new TaskCompletionSource<ImmutableArray<NotebookResolvedLink>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.OnResolve = (_, _) => pending.Task;
+        int opens = 0; vm.OpenLinkedTarget = _ => { opens++; return Task.FromResult(false); };
+        var navigation = vm.OpenLinkedItemCommand.ExecuteAsync(item);
+        using var reads = new PausedNotebookReads();
+        if (change == "round-trip")
+        {
+            reads.Select(vm, vm.Notes.Single(n => n.Title == "Other")); reads.Select(vm, row);
+            Assert.Equal(row.Id, vm.SelectedNote!.Id); Assert.Equal(row.Id, vm.Note!.Id);
+        }
+        else
+        {
+            vm.Deactivate(); await vm.DeactivationTask;
+            if (change == "dispose") vm.Dispose();
+            else
+            {
+                store.OnResolve = (links, _) => Task.FromResult<ImmutableArray<NotebookResolvedLink>>([.. links.Select(l => new NotebookResolvedLink(l, NotebookTargetAvailability.Available, "Study"))]);
+                await vm.ActivateAsync();
+            }
+        }
+        var message = vm.LinkMessage;
+        pending.SetResult([new(item.Link, NotebookTargetAvailability.Available, "Study")]); await navigation;
+        Assert.Equal(0, opens); Assert.Equal(message, vm.LinkMessage); Assert.False(vm.OpenLinkedItemCommand.IsRunning);
+        reads.Dispose(); await vm.LoadTask;
     }
     [Fact]
     public async Task LateMetadataAcknowledgementAfterDisposalCannotReplaceTheEditor()
@@ -144,5 +182,42 @@ public sealed class NotebookLinkTests
         var add = vm.AddLinkCommand.ExecuteAsync(null); await entered.Task.WaitAsync(TimeSpan.FromSeconds(10)); vm.Dispose();
         result.SetResult(new(NotebookWriteStatus.Success, original with { Version = original.Version + 1, Links = [new(Choice.Kind, Choice.Id, Choice.Label)] }));
         await add; Assert.Same(original, vm.Note); Assert.Empty(vm.LinkedItems);
+    }
+}
+
+// Hold ReadAsync's initial Task.Yield without changing production scheduling. Navigation
+// continues on the original context while the old detail is deliberately still installed.
+internal sealed class PausedNotebookReads : SynchronizationContext, IDisposable
+{
+    private readonly SynchronizationContext? _previous = Current;
+    private readonly Queue<(SendOrPostCallback Callback, object? State)> _queued = new();
+    private bool _released;
+    public override void Post(SendOrPostCallback d, object? state)
+    {
+        lock (_queued)
+        {
+            if (!_released) { _queued.Enqueue((d, state)); return; }
+        }
+        Forward(d, state);
+    }
+    private void Forward(SendOrPostCallback callback, object? state)
+    {
+        if (_previous is not null) _previous.Post(callback, state);
+        else ThreadPool.QueueUserWorkItem(_ => callback(state));
+    }
+    internal void Select(NotebookWorkspaceViewModel vm, NotebookRow row)
+    {
+        var previous = Current;
+        try { SetSynchronizationContext(this); vm.SelectedNote = row; }
+        finally { SetSynchronizationContext(previous); }
+    }
+    public void Dispose()
+    {
+        lock (_queued)
+        {
+            _released = true;
+            while (_queued.TryDequeue(out var next))
+                Forward(next.Callback, next.State);
+        }
     }
 }

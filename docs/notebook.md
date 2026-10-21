@@ -1,6 +1,79 @@
 # Notebook
 
-Current checkpoint: **M22.11A integration additions complete; focused regression selection has two unresolved Desktop failures (727 passed / 729 total). M22.11B complete acceptance pending**. Historical M22.10 local automated acceptance remains passed — **5,339/5,339, exit 0**. Its **769.349s** gate exceeds the unchanged 600-second CI Test budget by **169.349s**; CI timing risk remains unresolved and no matching hosted failure is established. Matching hosted input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**, logical export **v18**, exact database schema **29 migrations**. General prepared-file reclamation remains deferred; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.11A2 navigation correction verified; original lifecycle family passed, but two Breakdown cases stopped at the strengthened input prerequisite (final focused selections: 201 passed / 203 distinct parents, zero skipped). M22.11B complete acceptance pending**. Historical M22.10 local automated acceptance remains passed — **5,339/5,339, exit 0**. Its **769.349s** gate exceeds the unchanged 600-second CI Test budget by **169.349s**; CI timing risk remains unresolved and no matching hosted failure is established. Matching hosted input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**, logical export **v18**, exact database schema **29 migrations**. General prepared-file reclamation remains deferred; earlier sections preserve historical phase evidence.
+
+## M22.11A2 — Linked-navigation ownership and keyboard prerequisites
+
+21 October 2026, Europe/Kiev. Actual baseline: clean **`develop` at `2d2317b5bc7461e87eaef0e98c2c2c2d77e3cb00`**, existing worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. A's nine files were already committed. No repository/ancestor AGENTS.md or active test process was found. One agent; no subagents. Verification applies to this HEAD plus the implementation/test changes below, not HEAD alone. `TestResults/m2211a2-verified/verified-runtime-source.json` records the tested sources/binaries before documentation edits; `verified-source.json` includes the final documentation inventory. Earlier artifacts remain unchanged.
+
+### Ownership correction and controlled coverage
+
+A1 confirmed that accepting a new selection advances the read operation while `Note` can still contain the old detail until `ReadAsync` resumes after `Task.Yield`. The previous linked-navigation check compared the loaded note and activation, so a suspended resolver could invoke its callback from that abandoned selection. The shell then captured the loaded note again, losing the original ownership boundary.
+
+The internal callback now carries one request containing origin note identity, workspace activation/cancellation and accepted-selection generation. Selection changes invalidate it before property notifications or replacement detail loading; same-note metadata refresh does not advance the generation. A→B→A remains stale. Resolution, unavailable-target messaging and failure publication check this request. The shell checks it before the ancestor/Notebook guards, after asynchronous guard completion and synchronously at navigation commitment, including after synchronous guards that can pump modal UI. Notebook preparation rechecks ownership after flush/save/discard awaits and modal consent before touching another draft. No application/storage contract changed.
+
+Leave consent is associated with the linked request: stale cleanup cannot clear a newer request's consent, and failed destination recovery clears its own discard consent so the retained draft can resume autosave. Commands release their existing busy state. Return eligibility records the captured origin only after successful destination opening; abandoned requests create no return context. Existing Save/Discard/Cancel, unavailable-target fallback, image/editor history, autosave and recovery checks remain intact.
+
+The original zero-callback assertion is retained and made deterministic by holding the replacement read's initial continuation while completing resolution with the old detail still installed. Added cases cover A→B→A, disposal/reactivation, production-shell rejection during resolution and save completion, and selection while an ancestor save guard is suspended. The latter installs a newer dirty draft and verifies no prompt/write/discard or shell transition touches it. Tests also verify no return-context mutation, command recovery, subsequent successful navigation and return to the correct origin. Existing trade/setup return tests retain exact body, folder, tag, search and sort assertions; cancellation retains the draft.
+
+### Keyboard behavior and retained new failures
+
+`UiKeyboardProbe` retains focused routed Space activation, actual managed/native capture acquisition, exactly one Click, fresh command-task validation and real release completion. It now requires the expected active mouse source, WPF Released, no modifiers, and released high bits from **both separately sampled** `GetKeyState(VK_LBUTTON)` and `GetAsyncKeyState(VK_LBUTTON)`, after acquisition and immediately before key-up. The trace names sampling methods and records event order, identities, capture, focus and source activity. The observations are sequential, not an atomic snapshot or interchangeable proof of physical versus queued input. Invalid prerequisites fail explicitly at that boundary; no forced state/release, injected mouse-up, direct command, arbitrary sleep or cleanup-as-success was introduced. Existing five-second readiness/release waits, 90-second child deadline, 30-second watchdog, isolation, partition/collection limits and CI settings remain unchanged.
+
+The retained **Dark/1280/96 lifecycle case passed once**, then the **complete four-case family passed** through four distinct exact children. The original activation, command and release requirements completed. Two separate Breakdown regressions failed at the new prerequisite, before Space key-up/Click/command completion; their release requirements are **not verified** by those failed runs:
+
+| Exact child identity (`BreakdownAccessibilityViewTests`) | Earliest failure / observed input | Retained child directory under `breakdown-regressions/` |
+| --- | --- | --- |
+| `OwnedFocusValidationAutomationAndRetainedStatesInBothThemes` | 15:17:04.286 UTC, `MoreFiltersButton#2964F2E`, HWND `0x7090C`: active WPF source, left Pressed, modifiers None; `GetKeyState=0xFF80`, `GetAsyncKeyState=0x8000`; managed/native capture and focus correct. | `breakdown-accessibility-20261021-151655-e8cabc799ffa487b8d326a403443aab4/` |
+| `ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(inputDuringDelete: False)` | 15:17:14.011 UTC, button `#308DFAD`, HWND `0x1E0904`: active WPF source, left Pressed, modifiers None; `GetKeyState=0xFF81`, `GetAsyncKeyState=0x8000`; managed/native capture and focus correct. | `breakdown-accessibility-20261021-151705-d05d286c37d546ee81473fe1758e680d/` |
+
+Both traces already show pressed native high bits **before key-down**, while the inactive WPF mouse source reports Released. Capture exposes the active WPF Pressed state; these observations do not establish which physical/device/queued-input source caused it. Foreground HWND `0x2C055A` differed, but that alone does not establish causation. There is no evidenced permission denial, wrong dispatcher or incomplete acquisition. The `inputDuringDelete: True` child passed. Each parent matches exactly one distinct child, including failures; no skipped/extra/zero-match child is accepted. Raw TRX, `keyboard-readiness.log`, phase logs, stdout/stderr and process-supervision logs remain in each directory. These ordinary prerequisite failures produced no hang dump. `failure-diagnostics.json` maps parent/child identities, errors, stacks and timestamps. No failing native case was retried and no production lifecycle behavior was changed. The new prerequisite diagnosis and passing lifecycle runs do not explain the earlier A Pressed observation.
+
+### Focused Release results, context and commands
+
+Durable root **`TestResults/m2211a2-verified/`**; `summary.json` preserves all invocations, including unsuccessful preliminary work. `dispatch.json` validates parent/child identity, cardinality and matching outcome; `audit.ps1` checks result completeness and duplicate identity without treating failed tests as passes.
+
+| Final selection | Passed / total | Failed / skipped | Exit | Command wall time |
+| --- | ---: | ---: | ---: | ---: |
+| Navigation / save / autosave / recovery / image regressions | 139 / 139 | 0 / 0 | 0 | 21.987s |
+| Exact retained Dark lifecycle precheck | 1 / 1 | 0 / 0 | 0 | 12.719s |
+| Complete lifecycle family | 4 / 4 | 0 / 0 | 0 | 37.883s |
+| Keyboard / isolation / exact dispatch / scheduling | 47 / 47 | 0 / 0 | 0 | 26.152s |
+| Breakdown D1 + STA regressions | 11 / 13 | 2 / 0 | 1 | 46.898s |
+
+The last row comprises **STA 10/10 and Breakdown 1/3**. Final distinct parent results: **201 passed / 203 total**, two failed, zero skipped; the Dark precheck overlaps the family and children are not added to parent totals. These are focused selections, not a complete-gate timing benchmark.
+
+The first navigation invocation (`navigation-focused/`) aborted under the unchanged three-minute inactivity watchdog after **231 completed passes**, exit **1**. The new deterministic pause helper forwarded its initially queued continuation but accidentally held subsequent continuations; it now forwards all posts after release. The abort, TRX, sequence XML and `testhost_9956_20261021T181044_hangdump.dmp` remain preserved. The final rebuilt selection is narrowed to the requested Notebook/navigation regressions and verifies the correction; the incomplete run is not acceptance evidence. Initial `build-desktop.log` records a nullable-reference compile error, corrected before execution; final `build-final.log` passed with **zero warnings/errors**. `lifecycle-dark-exact/` records **MSB4177** from literal quotes in an MSBuild parent selector before discovery/execution. The equivalent unique parameter selector below selected one parent; its existing child dispatch still uses the exact full display name and single-result validation. This command parsing failure is distinct from a test failure.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2211a2-verified/context.ps1
+pwsh -NoProfile -File TestResults/m2211a2-verified/run-tests.ps1 -Name navigation-final -Project Desktop -Filter 'FullyQualifiedName~NotebookLinkTests|(FullyQualifiedName~MainWindowViewModelTests&(FullyQualifiedName~Notebook|FullyQualifiedName~Linked))|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookImageCoordinationTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookCopyDeleteTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookImageAdmissionTests|FullyQualifiedName~DataBackupsFlowTests'
+pwsh -NoProfile -File TestResults/m2211a2-verified/run-tests.ps1 -Name lifecycle-dark-selected -Project Desktop -Filter 'FullyQualifiedName=PersonalTradingJournal.Desktop.Tests.Notebook.NotebookLifecycleViewTests.TemplateAndReversibleLifecycleControls&DisplayName~Dark&DisplayName~1280&DisplayName~96'
+pwsh -NoProfile -File TestResults/m2211a2-verified/run-tests.ps1 -Name lifecycle-family -Project Desktop -Filter 'FullyQualifiedName~NotebookLifecycleViewTests'
+pwsh -NoProfile -File TestResults/m2211a2-verified/run-tests.ps1 -Name keyboard-regressions -Project Desktop -Filter 'FullyQualifiedName~UiHarnessDiagnosticsTests|FullyQualifiedName~IsolatedTestSelectionTests|FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~ReleaseSchedulingTests'
+pwsh -NoProfile -File TestResults/m2211a2-verified/run-tests.ps1 -Name breakdown-regressions -Project Desktop -Filter 'FullyQualifiedName~BreakdownAccessibilityViewTests|FullyQualifiedName~CalendarStaTestTests'
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File TestResults/m2211a2-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2211a2-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2211a2-verified/check-doc-links.ps1
+```
+
+The reused wrapper refuses to overwrite a run directory and records exact arguments/exit/timing in each `summary.json`. It expands to `dotnet test <Desktop.Tests.csproj> -c Release --no-build --no-restore --filter <selection> --logger 'trx;LogFileName=parents.trx' --results-directory <run> --diag <run>/vstest.log --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini`. Literal-path readers preserve bracket-bearing artifact names. Runtime tests used the already authorized supported executor: session **1**, interactive **WinSta0/Default**, cursor available/error **0**, existing administrator token, no UAC/token/desktop switching. `execution-context.json`, `execution-context-after-abort.json` and `execution-context-final.json` record this and absence of test processes before/after runs; reusable MSBuild nodes are not duplicate tests. EF reports no pending model changes. Whitespace and local documentation target existence checks run after these edits; URL/fragment validation is outside that link check's scope.
+
+### Exact A2 inventory and remaining work
+
+**11 modified files, zero added source files**; no pre-existing dirty files. Ignored diagnostic artifacts are separate.
+
+| Area | Exact repository-relative paths |
+| --- | --- |
+| Workspace ownership and consent (3) | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Links.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` |
+| Shell commit and captured origin (2) | `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs`; `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.Notebook.cs` |
+| Deterministic navigation coverage (2) | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkTests.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookLinkedNavigationTests.cs` |
+| Input prerequisites and regression coverage (2) | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiKeyboardProbe.cs`; `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiHarnessDiagnosticsTests.cs` |
+| Documentation (2) | `README.md`; `docs/notebook.md` |
+
+Navigation correction is focused-verified. Original lifecycle activation/release passed, while two Breakdown cases remain blocked by native input prerequisites. The smallest next action is to review their retained native-input traces and establish the released-input prerequisite in the supported desktop before authorizing further focused verification; no force-release, timeout increase, retry-to-green or production lifecycle change is justified by these traces. Full M22.11 acceptance and M22.11B remain pending. Historical M22.10 acceptance, the **169.349s** CI-budget deficit, document/archive **v1**, export **v18**, 29 migrations and deferred general reclamation remain unchanged. Hosted timing/input compatibility, human interaction and native journal restart remain unverified. No complete gate, production/provider access, Git publication or workflow triggering occurred.
 
 ## M22.11A — Integrated Notebook backup and restore
 
