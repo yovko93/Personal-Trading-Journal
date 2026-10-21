@@ -1,6 +1,104 @@
 # Notebook
 
-Current checkpoint: **M22.9 automated acceptance pending; complete-gate findings recorded below**. Actual verified source/state, full results and local CI-budget margin are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.9 automated acceptance pending; M22.9D focused harness results include one retained Breakdown failure**. Actual verified source/state, focused results and historical complete-gate findings are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+
+## M22.9D — UI test isolation, keyboard readiness and diagnostics
+
+21 October 2026, Europe/Kiev. Starting and verified HEAD: **`6f82eeae6ebce27f6c13b650ede071b314f2db0a`**, clean `develop`, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. Results apply to that HEAD **plus the six uncommitted test/helper files listed below**, not HEAD alone. README and this document were edited afterward. No applicable repository/ancestor `AGENTS.md` or active duplicate test host was found. One agent, no subagents. Existing implementation and B/C evidence are preserved. Evidence root for this phase: **`TestResults/m229d-20261021-093039-46dc5ef268c440d6958173add86c0597/`**, abbreviated **D evidence** below; `start.json` records entry state and `summary.json` records final inventory/hashes/checks.
+
+### Demonstrated defects and scoped corrections
+
+C's read-only diagnosis found that eleven failed B parents represented five child launches: four Plan Sections parents shared one child, four Session Brief parents shared one child, and each of three Breakdown parents dispatched the entire three-case class. Breakdown also reused `Application.Current` after its original dispatcher shut down. Some synthetic keys never started the expected command. Plan's retained dump sampled automation/layout work; Brief's sampled a dispatcher pump waiting on an unidentified task. Neither sample proved deadlock or 30 seconds of stalled UI work, and foreground competition remained a hypothesis. The three exact-row C probes passed; they did not establish a complete family pass. Original B evidence remains under `TestResults/m229b-verified/` and its referenced release directory; C probes remain under `TestResults/m229c-diagnostic/`.
+
+Breakdown now constructs each parent’s complete discoverable display name, including the Boolean row argument, and passes `ExactDisplayNameFilter` plus `expectedTestName` to the existing supervisor. All three parents remain discoverable. Existing single-result validation still checks completed counters, exact result/definition/entry identities and timestamps; child failure propagation, recursion protection and process-tree cleanup are unchanged. Each child asserts that no previous Application exists, creates its own Application on its STA, checks the live dispatcher before theme iteration, and calls Application shutdown only during final cleanup. The two themes and all offscreen variants within the Owned case retain the same live Application; they do not shut it down between iterations. Final STA logs show shutdown completed before process exit, with no later case reusing that Application.
+
+`UiKeyboardProbe` requires a loaded/visible window, a connected target on the same dispatcher/HWND, enabled/focusable state, command readiness and actual keyboard focus. It flushes layout/bindings at ContextIdle, activates only the test thread's HWND through `SetActiveWindow`, and checks activation/focus through bounded event-driven readiness with a **five-second** limit inside the unchanged outer deadlines. It does not request global foreground activation, sleep arbitrarily or repair post-action focus. UTC diagnostics include window/target state, keyboard/native focus, foreground HWND and command readiness. Space must produce exactly one actual Click; async consumers must observe a non-null execution task distinct from the previous invocation. Detail-read fixtures stay pending until the test verifies the reader call and fresh task, then release the original command normally. Missing/stale tasks fail instead of being replaced or null-suppressed. All original focus, keyboard, validation, rendering and accessibility assertions remain; production `PageFocus` is untouched.
+
+Plan Sections and Session Brief retain their original four-case shared child and persistent dispatcher. `UiCaseTrace` writes UTC and monotonic timing at child entry, fixture/task creation, STA scheduling/action entry, application/resources/window initialization, layout/Idle boundaries, named task waits, cleanup and case exit. Operation expression, source line, task ID/status, process and thread IDs make the pending operation traceable from its creation site. Original pump priorities/behavior remain; no hot event/layout callback is instrumented. Window/fixture cleanup and the unchanged child-process ownership of dispatcher shutdown are explicit. Plan's automation-remove path now fails if no command task exists instead of accepting a completed-task fallback. No speculative layout/performance or production correction was made.
+
+### Focused Release verification
+
+The Desktop test project and referenced Release projects were rebuilt. Final build **exit 0, zero warnings/errors, 16.90s**: `release-build-final.log`. Initial `release-build.log` retains **CS0619/xUnit2014** caused by selecting xUnit's obsolete Task-returning `Assert.Throws` overload in a new synchronous validation test; using an Action block corrected that compile error before any runtime test. No failed build evidence was overwritten.
+
+Each family below ran **once through normal parent dispatch**, in separate focused invocations, without changing project/collection concurrency or partition membership. The complete gate was not run.
+
+| Selection | Parent passed/total | Failed / skipped | Exit | Parent invocation wall time |
+| --- | ---: | ---: | ---: | ---: |
+| Breakdown accessibility | 2/3 | 1 / 0 | 1 | 25.150s |
+| Plan Sections | 4/4 | 0 / 0 | 0 | 29.179s |
+| Session Brief | 4/4 | 0 / 0 | 0 | 25.969s |
+| Isolation, STA, scheduling and new diagnostic regressions | 26/26 | 0 / 0 | 0 | 34.455s |
+| Exact-selection regressions | 23/23 | 0 / 0 | 0 | 12.771s |
+
+Combined disjoint focused parents: **59 passed / 60 total, one failed, zero skipped**. Children are evidence within parents and are not additional totals. Parent wall times include test-command startup, child startup/execution and return, and exclude build/restore. These separate runs do not establish complete-gate runtime, CI margin or the earlier gate's failure cause. Process deadlines remain **90s**, case watchdogs **30s**, supervisor cleanup **10s**; existing STA/scheduling probe deadlines are unchanged. CI's Test budget, exclusive partition ordering, Desktop two / Infrastructure four collection limits and production code are unchanged.
+
+`dispatch.json` verifies the full child/parent name sets, distinct identities, completion timestamps and definition/entry mappings. Breakdown launched exactly one matching child for each of:
+
+- `OwnedFocusValidationAutomationAndRetainedStatesInBothThemes`: **failed**, child `breakdown/breakdown-accessibility-20261021-093409-2191bb31207c400983e3f45b9068079d/`, supervised wall **6.745s**, exit **1**.
+- `ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(inputDuringDelete: False)`: **passed**, child `breakdown/breakdown-accessibility-20261021-093415-1f80ba9c2ede4c42bcb9ec917f3c5fbf/`, **7.262s**, exit **0**.
+- `ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(inputDuringDelete: True)`: **passed**, child `breakdown/breakdown-accessibility-20261021-093423-9abf86f84eaa4acba8c95334c9197c1c/`, **6.528s**, exit **0**.
+
+All three use class prefix `PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests.`. Each retained child TRX has exactly **one executed result**, no extra/zero/skipped case. Failed child exit propagates to its parent; it is not reported as a successful single-case validation. Plan's one child (`plan/plan-sections-20261021-093443-684fe8d3de2040669b99887ebb0ce0ce/`) passed all four Light/Dark × 980/96 or 460/240 rows, supervised wall **25.363s**, exit **0**. Brief's one child (`brief/brief-composition-20261021-093553-bb435a155cc042c98385a50f86a0cf05/`) passed all four Light/Dark × 1586×1000/96 or 1000×850/240 rows, **22.151s**, exit **0**. Supervision logs retain normal exits and cleanup; no relevant test host remains active.
+
+The **49** regression cases include the existing 32 isolation/selection/scheduling cases, ten STA-lifetime cases and seven new diagnostics/readiness cases. They exercise actual zero-match/wrong-row VSTest results, malformed/missing/extra/duplicate/skipped/incomplete TRX, expected failure propagation, cancellation/tree cleanup and unchanged scheduling. New cases reject absent/stale command tasks and disconnected input targets, preserve command failures, and verify task-identity/timing records for pending/completed/failed/cancelled operations.
+
+### Remaining failure and measured Plan/Brief phases
+
+The Owned child's earliest failure is **line 179**, `Idle(); Assert.False(moreAction.IsPressed);`, in the first **Light** action-state iteration. Readiness logged at **09:34:15.2317363 UTC**: loaded/visible/active HWND, actual keyboard focus on `MoreFiltersButton`, enabled/focusable target and no modifiers. At **09:34:15.2756654 UTC**, Space had produced exactly **one Click**. The original pressed-state assertion then found **true** after key-up/Idle. This is an ordinary assertion failure, not a watchdog, null-task failure, selection mismatch or demonstrated foreground race. `keyboard-readiness.log`, `stdout.log`, `stderr.log`, `calendar-sta-phases.log`, `process-supervision.log` and the child/parent TRX are retained in the paths above. No hang dump was required/generated for this completed assertion failure.
+
+This run proves command-start/readiness behavior for both scoped rows and Click delivery for the first Owned action. It does **not** establish the remaining Owned Dark, validation, cancellation, date-picker or retained-render assertions: the case stopped before them. The new failure's native mouse-capture/release state was not recorded, so attributing it to capture or foreground competition would be a hypothesis. The smallest next action is a narrowly scoped capture/pressed-state observation around that existing Space key-up, followed by a correction justified by that evidence and a complete Breakdown family check. Keep the pressed-state assertion, actual key input, deadlines and production code intact. No rerun-until-green or additional implementation change followed this failed family.
+
+Measured boundary timings, in seconds (`phase-timings.json` contains exact records and all named task/phase spans):
+
+| Child case | Fixture creation | STA scheduling | STA action | Longest layout/Idle boundary |
+| --- | ---: | ---: | ---: | ---: |
+| Plan Dark 980/96 | 5.372 | 0.085 | 5.204 | 0.082 |
+| Plan Light 980/96 | 0.697 | 0.008 | 3.363 | 0.292 |
+| Plan Dark 460/240 | 0.837 | 0.010 | 2.137 | 0.034 |
+| Plan Light 460/240 | 0.905 | 0.008 | 2.519 | 0.032 |
+| Brief Dark 1000×850/240 | 4.674 | 0.109 | 4.561 | 2.014 |
+| Brief Light 1000×850/240 | 1.258 | 0.010 | 2.647 | 0.950 |
+| Brief Dark 1586×1000/96 | 0.821 | 0.009 | 2.241 | 0.630 |
+| Brief Light 1586×1000/96 | 0.605 | 0.010 | 1.499 | 0.430 |
+
+Fixture durations include synchronous work before the returned task becomes observable. Longest recorded post-creation task waits were **0.421s** for Plan `vm.MarkReadyAsync()` and **0.413s** for Brief `vm.StartDraftAsync()`; all recorded tasks completed successfully. These overlapping phase/task spans are not summed into runtime. The first cases spend substantial time before STA action entry; this supports distinguishing startup/fixture work from UI action time, but does not retroactively explain B's watchdogs. No deadlock, specific pending operation in B, or foreground competition has been established. Persistent Plan/Brief dispatcher shutdown remains owned by the child process and is evidenced by its exit, not a fabricated in-case shutdown timestamp.
+
+### Commands, supporting checks and exact phase inventory
+
+From repository root (D evidence stores `run-focused.ps1`, which preserves the exact dotnet argument array, timestamps, exit and counters in each selection's `summary.json`):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore -v minimal -flp:logfile=TestResults/m229d-20261021-093039-46dc5ef268c440d6958173add86c0597/release-build-final.log
+$evidence = 'TestResults/m229d-20261021-093039-46dc5ef268c440d6958173add86c0597'
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family regressions
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family breakdown
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family plan
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family brief
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family selection
+pwsh -NoProfile -File "$evidence/audit.ps1"
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+pwsh -NoProfile -File "$evidence/check-doc-links.ps1"
+```
+
+Each focused command uses `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter <selection> --logger 'trx;LogFileName=parents.trx' --results-directory <unique family path> --diag <family>/vstest.log`. Family filters are `FullyQualifiedName~BreakdownAccessibilityViewTests`, `FullyQualifiedName~PlanSectionsViewTests`, and `FullyQualifiedName~SessionBriefCompositionTests`. Regression filters are `FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~CalendarStaTestTests|FullyQualifiedName~ReleaseSchedulingTests|FullyQualifiedName~UiHarnessDiagnosticsTests`, then separately `FullyQualifiedName~IsolatedTestSelectionTests`. Existing `PTJ_TEST_RESULTS_DIRECTORY` and opt-in `PTJ_CALENDAR_TIMINGS=1` retain diagnostic output; child host flags are set only by the supervisor. Evidence directories are guarded against overwrite/retry.
+
+EF **exit 0**, no pending model changes, `ef-consistency.log`. Final whitespace **exit 0** (all eight tracked/new files checked); documentation **174 local targets / zero missing, exit 0**, recorded in `summary.json`, `whitespace.log` and `documentation-links.json`; URL/fragment validation is outside that check. No passing runtime selection was repeated for documentation edits.
+
+Exact D source inventory: **five modified + three added = eight files**, all uncommitted over the clean starting HEAD. Earlier A/B inventory/evidence is preserved as historical phase scope. Ignored TestResults artifacts/scripts are local evidence outside the source inventory.
+
+| Status | File | Purpose |
+| --- | --- | --- |
+| Modified | `README.md` | Focused outcome and retained limitation |
+| Modified | `docs/notebook.md` | This phase's evidence, commands and inventory |
+| Modified | `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs` | Exact children, case-owned Application, keyboard readiness and fresh command tasks |
+| Modified | `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs` | Phase/task/cleanup breadcrumbs |
+| Modified | `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs` | Phase/task/cleanup breadcrumbs |
+| Added | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiKeyboardProbe.cs` | Bounded keyboard prerequisites, Click/fresh-task evidence and failure diagnostics |
+| Added | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiCaseTrace.cs` | UTC/monotonic operation/task boundary diagnostics |
+| Added | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiHarnessDiagnosticsTests.cs` | Seven readiness/task-diagnostic regressions |
+
+**Overall M22.9 acceptance remains pending.** No complete gate, production/provider access, Git publication, workflow triggering, deadline increase, assertion removal or production-code change occurred. Human interaction, native journal restart, real clipboard/picker/viewer, installed-codec WebP and matching hosted CI remain unverified. Document/archive v1, export v17 and deferred reclamation/full M22.11 acceptance are unchanged. **M22.10 onward remains pending; this phase stops after M22.9D.**
 
 ## M22.9B — Release verification and acceptance
 

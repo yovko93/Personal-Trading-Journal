@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
@@ -26,104 +27,124 @@ public sealed class PlanSectionsViewTests
     public async Task GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation(string theme, int width, int dpi)
     {
         if (Environment.GetEnvironmentVariable(Host) != "1") { await Suite.Value; return; }
-        await using var f = await TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
-        await CalendarStaTest.RunAsync(() =>
+        string scenario = $"PlanSections/{theme}/{width}/{dpi}";
+        var trace = new UiCaseTrace(scenario);
+        trace.Write("child case", "entry");
+        var f = await trace.Await(() => TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true));
+        try
         {
-            var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-            app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
-            using var vm = f.NewWorkspace(); Pump(vm.ActivateAsync());
-            var page = new TradingPlanWorkspaceView { DataContext = vm, Width = width, Height = 950, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
-            var window = new Window { Content = page, SizeToContent = SizeToContent.WidthAndHeight }; window.Show();
-            try
+            trace.Write("STA", "scheduling");
+            await CalendarStaTest.RunAsync(() =>
             {
-                void Layout() { page.Measure(new(width, 950)); page.Arrange(new(0, 0, width, 950)); page.UpdateLayout(); Idle(); }
-                Layout(); Assert.Null(vm.Editor); Assert.True(vm.Principles.CanWrite); Render(page, theme, width, dpi, "empty");
-                var principles = (PlanSectionExpander)page.FindName("PrinciplesExpander");
-                var peer = new ExpanderAutomationPeer(principles); var pattern = (IExpandCollapseProvider)peer.GetPattern(PatternInterface.ExpandCollapse)!;
-                Assert.Equal(ExpandCollapseState.Expanded, pattern.ExpandCollapseState);
-                var input = (TextBox)page.FindName("PrincipleInput"); Assert.NotEmpty(AutomationProperties.GetName(input));
-                var entry = (Grid)page.FindName("PrincipleEntry"); var add = (Button)page.FindName("PrincipleAdd");
-                entry.Width = 280; Layout(); Assert.True(input.ActualWidth >= 250);
-                Assert.True(add.TranslatePoint(new(), entry).Y >= input.TranslatePoint(new(0, input.ActualHeight), entry).Y);
-                entry.Width = double.NaN; Layout();
-                pattern.Collapse(); vm.Principles.Input = " "; Pump(vm.Principles.AddCommand.ExecuteAsync(null)); Layout();
-                Assert.True(principles.IsExpanded); Assert.Same(input, FocusManager.GetFocusedElement(page)); Assert.True(vm.Principles.HasError);
-                input.Text = "Не търгувай ако си уморен"; Assert.False(vm.Principles.HasError);
-                Assert.Same(vm.Principles.AddCommand, Assert.Single(input.InputBindings.OfType<KeyBinding>()).Command);
-                Pump(vm.Principles.AddCommand.ExecuteAsync(null));
-                Layout(); Render(page, theme, width, dpi, "single");
-                vm.Principles.Input = "Следвай стратегия, не емоции"; Pump(vm.Principles.AddCommand.ExecuteAsync(null));
-                vm.Principles.Input = string.Join(" · ", Enumerable.Repeat("По-добре 2 качествени сделки отколкото 20 хаотични", 5)); Pump(vm.Principles.AddCommand.ExecuteAsync(null));
-                Layout(); double expanded = principles.ActualHeight; Render(page, theme, width, dpi, "populated-no-plan");
-                vm.Principles.Input = "Unsubmitted reminder"; pattern.Collapse(); Layout();
-                Assert.False(vm.Principles.IsExpanded); Assert.True(principles.ActualHeight < expanded);
-                Assert.Equal(ExpandCollapseState.Collapsed, pattern.ExpandCollapseState); Render(page, theme, width, dpi, "collapsed");
-                var header = (ToggleButton)principles.Template.FindName("HeaderToggle", principles);
-                var icon = Assert.Single(Descendants(header).OfType<PlanFoldIcon>());
-                Assert.Null(principles.Template.FindName("Chevron", principles));
-                icon.Animate = false; icon.SetState(false); Assert.Equal(0, icon.Progress);
-                Assert.Contains("Expand", header.ToolTip.ToString());
-                header.Focus(); header.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(header), 0, Key.Enter) { RoutedEvent = Keyboard.KeyDownEvent });
-                Layout(); Assert.True(vm.Principles.IsExpanded);
-                Assert.Equal(1, icon.Progress); Assert.Contains("Collapse", header.ToolTip.ToString());
-                icon.Animate = true; pattern.Collapse();
-                icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(100), TimeSeekOrigin.BeginTime);
-                double middle = icon.Progress; Assert.InRange(middle, .1, .9);
-                Assert.False(principles.IsExpanded); // Content changes immediately, independently of the icon clock.
-                pattern.Expand(); Assert.InRange(icon.Progress, middle - .01, middle + .01);
-                icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(200), TimeSeekOrigin.BeginTime);
-                Assert.Equal(1, icon.Progress);
-                for (int toggle = 0; toggle < 12; toggle++) { principles.IsExpanded = !principles.IsExpanded; }
-                icon.SetState(false); Assert.Equal(principles.IsExpanded ? 1 : 0, icon.Progress);
-                icon.Animate = false; pattern.Collapse(); Assert.Null(icon.Clock); Assert.Equal(0, icon.Progress);
-                pattern.Expand(); Assert.Equal(1, icon.Progress);
-                Assert.True(PlanFoldIcon.Strip(.5, -1).Bounds.Width < PlanFoldIcon.Strip(0, -1).Bounds.Width);
-                Assert.NotEqual(PlanFoldIcon.Strip(.5, -1).Bounds.Height, PlanFoldIcon.Strip(0, -1).Bounds.Height);
-                RenderFoldFrames(app, theme, dpi);
-                Pump(vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, vm.Accounts.Single(a => a.Id == f.Source.Account.Id)));
-                var editor = vm.Editor!; var token = editor.Token;
-                editor.RiskPerTrade.Text = "invalid raw amount"; editor.Focus.Text = "unsaved focus";
-                var preparation = (SessionPreparationSection)page.FindName("Preparation");
-                var scenarios = (ScenariosSection)page.FindName("Scenarios"); var risk = (RiskReadinessSection)page.FindName("Risk");
-                var riskField = Descendants(risk).OfType<TextBox>().Single(t => ReferenceEquals(t.DataContext, editor.RiskPerTrade));
-                vm.PreparationExpanded = vm.ScenariosExpanded = vm.RiskExpanded = false; Layout();
-                Assert.False(preparation.IsSectionExpanded); Assert.False(scenarios.IsSectionExpanded); Assert.False(risk.IsSectionExpanded);
-                Assert.Equal(token, editor.Token); Assert.Equal("invalid raw amount", editor.RiskPerTrade.Text);
-                Pump(vm.SaveAsync()); Layout(); Assert.True(vm.RiskExpanded); Assert.Same(editor.RiskPerTrade, ((TextBox)FocusManager.GetFocusedElement(risk)).DataContext);
-                Assert.Same(riskField, Descendants(risk).OfType<TextBox>().Single(t => ReferenceEquals(t.DataContext, editor.RiskPerTrade)));
-                Assert.True(riskField.IsVisible); Assert.Equal(token, editor.Token); Assert.Equal(0, f.Store.Writes);
-                editor.Contexts[0].Levels[0].Text = "bad level"; Pump(vm.SaveAsync()); Layout(); Assert.True(vm.PreparationExpanded);
-                Assert.Same(editor.Contexts[0].Levels[0], ((TextBox)FocusManager.GetFocusedElement(preparation)).DataContext);
-                editor.Contexts[0].Levels[0].Text = "1"; editor.RiskPerTrade.Text = "1";
-                editor.Scenarios[0].Condition.Text = new string('x', 4001); Pump(vm.SaveAsync()); Layout(); Assert.True(vm.ScenariosExpanded);
-                Assert.Same(editor.Scenarios[0].Condition, ((TextBox)FocusManager.GetFocusedElement(scenarios)).DataContext);
-                editor.Scenarios[0].Condition.Text = ""; editor.Scenarios[0].Direction = null; Pump(vm.SaveAsync());
-                vm.ScenariosExpanded = false; Pump(vm.MarkReadyAsync()); Layout(); Assert.True(vm.ScenariosExpanded);
-                Assert.Equal("Direction", Assert.IsType<Button>(FocusManager.GetFocusedElement(page)).Name);
-                editor.Scenarios[0].ToggleDirectionCommand.Execute(null); Pump(vm.SaveAsync()); Pump(vm.MarkReadyAsync()); Layout(); Assert.True(vm.Editor!.IsReadOnly);
-                Assert.True(vm.Principles.AddCommand.CanExecute(null)); Assert.Equal("Unsubmitted reminder", vm.Principles.Input);
-                var scroll = (ScrollViewer)page.FindName("PageScroll"); scroll.ScrollToTop(); Layout(); Render(page, theme, width, dpi, "ready");
-                vm.PreparationExpanded = vm.ScenariosExpanded = vm.RiskExpanded = false; scroll.ScrollToTop(); Layout(); Render(page, theme, width, dpi, "ready-collapsed");
-                vm.SelectTab(true); vm.SelectTab(false); Layout(); Assert.False(vm.RiskExpanded);
-                Pump(vm.NextDayCommand.ExecuteAsync(null)); Layout(); Assert.Null(vm.Editor); Assert.Single(vm.Principles.Rows, x => x.Number == 3);
-                Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.False(vm.RiskExpanded);
-                Assert.All(Descendants(page).OfType<Button>().Where(b => Equals(b.Content, "×")), b =>
-                { Assert.True(b.IsEnabled); Assert.NotEmpty(AutomationProperties.GetName(b)); Assert.True(b.ActualWidth >= 25); Assert.True(b.TranslatePoint(new(b.ActualWidth, 0), page).X <= page.ActualWidth); });
-                // Remove the middle, last, then only row through the actual button/command path.
-                var rows = (ItemsControl)page.FindName("PrincipleRows");
-                foreach (int index in new[] { 1, 1, 0 })
+                trace.Write("STA", "action entry");
+                using var actionPhase = trace.Phase("STA action / application and window lifetime");
+                trace.Write("application/resources", "initializing");
+                var app = System.Windows.Application.Current ?? new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+                app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme);
+                trace.Write("application/resources", "initialized");
+                using var vm = f.NewWorkspace(); trace.Pump(() => vm.ActivateAsync());
+                trace.Write("window", "initializing and showing");
+                var page = new TradingPlanWorkspaceView { DataContext = vm, Width = width, Height = 950, Background = (Brush)app.Resources["PtjBackgroundBrush"] };
+                var window = new Window { Content = page, SizeToContent = SizeToContent.WidthAndHeight }; window.Show();
+                trace.Write("window", "shown");
+                try
                 {
-                    var buttons = Descendants(rows).OfType<Button>().ToArray(); var remove = buttons[index];
-                    FocusManager.SetFocusedElement(page, remove); remove.Focus();
-                    ((IInvokeProvider)new ButtonAutomationPeer(remove).GetPattern(PatternInterface.Invoke)!).Invoke(); Idle();
-                    Pump(vm.Principles.RemoveCommand.ExecutionTask ?? Task.CompletedTask); Layout();
-                    if (vm.Principles.Rows.Count == 0) Assert.Same(input, FocusManager.GetFocusedElement(page));
-                    else Assert.Same(vm.Principles.Rows[Math.Min(index, vm.Principles.Rows.Count - 1)], ((Button)FocusManager.GetFocusedElement(page)).DataContext);
+                    void Layout([CallerLineNumber] int line = 0) { using var phase = trace.Phase("layout / ApplicationIdle", line); page.Measure(new(width, 950)); page.Arrange(new(0, 0, width, 950)); page.UpdateLayout(); Idle(); }
+                    Layout(); Assert.Null(vm.Editor); Assert.True(vm.Principles.CanWrite); Render(page, theme, width, dpi, "empty");
+                    var principles = (PlanSectionExpander)page.FindName("PrinciplesExpander");
+                    var peer = new ExpanderAutomationPeer(principles); var pattern = (IExpandCollapseProvider)peer.GetPattern(PatternInterface.ExpandCollapse)!;
+                    Assert.Equal(ExpandCollapseState.Expanded, pattern.ExpandCollapseState);
+                    var input = (TextBox)page.FindName("PrincipleInput"); Assert.NotEmpty(AutomationProperties.GetName(input));
+                    var entry = (Grid)page.FindName("PrincipleEntry"); var add = (Button)page.FindName("PrincipleAdd");
+                    entry.Width = 280; Layout(); Assert.True(input.ActualWidth >= 250);
+                    Assert.True(add.TranslatePoint(new(), entry).Y >= input.TranslatePoint(new(0, input.ActualHeight), entry).Y);
+                    entry.Width = double.NaN; Layout();
+                    pattern.Collapse(); vm.Principles.Input = " "; trace.Pump(() => vm.Principles.AddCommand.ExecuteAsync(null)); Layout();
+                    Assert.True(principles.IsExpanded); Assert.Same(input, FocusManager.GetFocusedElement(page)); Assert.True(vm.Principles.HasError);
+                    input.Text = "Не търгувай ако си уморен"; Assert.False(vm.Principles.HasError);
+                    Assert.Same(vm.Principles.AddCommand, Assert.Single(input.InputBindings.OfType<KeyBinding>()).Command);
+                    trace.Pump(() => vm.Principles.AddCommand.ExecuteAsync(null));
+                    Layout(); Render(page, theme, width, dpi, "single");
+                    vm.Principles.Input = "Следвай стратегия, не емоции"; trace.Pump(() => vm.Principles.AddCommand.ExecuteAsync(null));
+                    vm.Principles.Input = string.Join(" · ", Enumerable.Repeat("По-добре 2 качествени сделки отколкото 20 хаотични", 5)); trace.Pump(() => vm.Principles.AddCommand.ExecuteAsync(null));
+                    Layout(); double expanded = principles.ActualHeight; Render(page, theme, width, dpi, "populated-no-plan");
+                    vm.Principles.Input = "Unsubmitted reminder"; pattern.Collapse(); Layout();
+                    Assert.False(vm.Principles.IsExpanded); Assert.True(principles.ActualHeight < expanded);
+                    Assert.Equal(ExpandCollapseState.Collapsed, pattern.ExpandCollapseState); Render(page, theme, width, dpi, "collapsed");
+                    var header = (ToggleButton)principles.Template.FindName("HeaderToggle", principles);
+                    var icon = Assert.Single(Descendants(header).OfType<PlanFoldIcon>());
+                    Assert.Null(principles.Template.FindName("Chevron", principles));
+                    icon.Animate = false; icon.SetState(false); Assert.Equal(0, icon.Progress);
+                    Assert.Contains("Expand", header.ToolTip.ToString());
+                    header.Focus(); header.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(header), 0, Key.Enter) { RoutedEvent = Keyboard.KeyDownEvent });
+                    Layout(); Assert.True(vm.Principles.IsExpanded);
+                    Assert.Equal(1, icon.Progress); Assert.Contains("Collapse", header.ToolTip.ToString());
+                    icon.Animate = true; pattern.Collapse();
+                    icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(100), TimeSeekOrigin.BeginTime);
+                    double middle = icon.Progress; Assert.InRange(middle, .1, .9);
+                    Assert.False(principles.IsExpanded); // Content changes immediately, independently of the icon clock.
+                    pattern.Expand(); Assert.InRange(icon.Progress, middle - .01, middle + .01);
+                    icon.Clock!.Controller!.SeekAlignedToLastTick(TimeSpan.FromMilliseconds(200), TimeSeekOrigin.BeginTime);
+                    Assert.Equal(1, icon.Progress);
+                    for (int toggle = 0; toggle < 12; toggle++) { principles.IsExpanded = !principles.IsExpanded; }
+                    icon.SetState(false); Assert.Equal(principles.IsExpanded ? 1 : 0, icon.Progress);
+                    icon.Animate = false; pattern.Collapse(); Assert.Null(icon.Clock); Assert.Equal(0, icon.Progress);
+                    pattern.Expand(); Assert.Equal(1, icon.Progress);
+                    Assert.True(PlanFoldIcon.Strip(.5, -1).Bounds.Width < PlanFoldIcon.Strip(0, -1).Bounds.Width);
+                    Assert.NotEqual(PlanFoldIcon.Strip(.5, -1).Bounds.Height, PlanFoldIcon.Strip(0, -1).Bounds.Height);
+                    RenderFoldFrames(app, theme, dpi);
+                    trace.Pump(() => vm.SelectContextAsync(f.Source.Store.Plan.Key.NewYorkDate, vm.Accounts.Single(a => a.Id == f.Source.Account.Id)));
+                    var editor = vm.Editor!; var token = editor.Token;
+                    editor.RiskPerTrade.Text = "invalid raw amount"; editor.Focus.Text = "unsaved focus";
+                    var preparation = (SessionPreparationSection)page.FindName("Preparation");
+                    var scenarios = (ScenariosSection)page.FindName("Scenarios"); var risk = (RiskReadinessSection)page.FindName("Risk");
+                    var riskField = Descendants(risk).OfType<TextBox>().Single(t => ReferenceEquals(t.DataContext, editor.RiskPerTrade));
+                    vm.PreparationExpanded = vm.ScenariosExpanded = vm.RiskExpanded = false; Layout();
+                    Assert.False(preparation.IsSectionExpanded); Assert.False(scenarios.IsSectionExpanded); Assert.False(risk.IsSectionExpanded);
+                    Assert.Equal(token, editor.Token); Assert.Equal("invalid raw amount", editor.RiskPerTrade.Text);
+                    trace.Pump(() => vm.SaveAsync()); Layout(); Assert.True(vm.RiskExpanded); Assert.Same(editor.RiskPerTrade, ((TextBox)FocusManager.GetFocusedElement(risk)).DataContext);
+                    Assert.Same(riskField, Descendants(risk).OfType<TextBox>().Single(t => ReferenceEquals(t.DataContext, editor.RiskPerTrade)));
+                    Assert.True(riskField.IsVisible); Assert.Equal(token, editor.Token); Assert.Equal(0, f.Store.Writes);
+                    editor.Contexts[0].Levels[0].Text = "bad level"; trace.Pump(() => vm.SaveAsync()); Layout(); Assert.True(vm.PreparationExpanded);
+                    Assert.Same(editor.Contexts[0].Levels[0], ((TextBox)FocusManager.GetFocusedElement(preparation)).DataContext);
+                    editor.Contexts[0].Levels[0].Text = "1"; editor.RiskPerTrade.Text = "1";
+                    editor.Scenarios[0].Condition.Text = new string('x', 4001); trace.Pump(() => vm.SaveAsync()); Layout(); Assert.True(vm.ScenariosExpanded);
+                    Assert.Same(editor.Scenarios[0].Condition, ((TextBox)FocusManager.GetFocusedElement(scenarios)).DataContext);
+                    editor.Scenarios[0].Condition.Text = ""; editor.Scenarios[0].Direction = null; trace.Pump(() => vm.SaveAsync());
+                    vm.ScenariosExpanded = false; trace.Pump(() => vm.MarkReadyAsync()); Layout(); Assert.True(vm.ScenariosExpanded);
+                    Assert.Equal("Direction", Assert.IsType<Button>(FocusManager.GetFocusedElement(page)).Name);
+                    editor.Scenarios[0].ToggleDirectionCommand.Execute(null); trace.Pump(() => vm.SaveAsync()); trace.Pump(() => vm.MarkReadyAsync()); Layout(); Assert.True(vm.Editor!.IsReadOnly);
+                    Assert.True(vm.Principles.AddCommand.CanExecute(null)); Assert.Equal("Unsubmitted reminder", vm.Principles.Input);
+                    var scroll = (ScrollViewer)page.FindName("PageScroll"); scroll.ScrollToTop(); Layout(); Render(page, theme, width, dpi, "ready");
+                    vm.PreparationExpanded = vm.ScenariosExpanded = vm.RiskExpanded = false; scroll.ScrollToTop(); Layout(); Render(page, theme, width, dpi, "ready-collapsed");
+                    vm.SelectTab(true); vm.SelectTab(false); Layout(); Assert.False(vm.RiskExpanded);
+                    trace.Pump(() => vm.NextDayCommand.ExecuteAsync(null)); Layout(); Assert.Null(vm.Editor); Assert.Single(vm.Principles.Rows, x => x.Number == 3);
+                    Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.False(vm.RiskExpanded);
+                    Assert.All(Descendants(page).OfType<Button>().Where(b => Equals(b.Content, "×")), b =>
+                    { Assert.True(b.IsEnabled); Assert.NotEmpty(AutomationProperties.GetName(b)); Assert.True(b.ActualWidth >= 25); Assert.True(b.TranslatePoint(new(b.ActualWidth, 0), page).X <= page.ActualWidth); });
+                    // Remove the middle, last, then only row through the actual button/command path.
+                    var rows = (ItemsControl)page.FindName("PrincipleRows");
+                    foreach (int index in new[] { 1, 1, 0 })
+                    {
+                        var buttons = Descendants(rows).OfType<Button>().ToArray(); var remove = buttons[index];
+                        FocusManager.SetFocusedElement(page, remove); remove.Focus();
+                        using var removal = trace.Phase($"automation remove row {index}: command creation through Invoke");
+                        ((IInvokeProvider)new ButtonAutomationPeer(remove).GetPattern(PatternInterface.Invoke)!).Invoke(); Idle();
+                        trace.Pump(() => vm.Principles.RemoveCommand.ExecutionTask ?? throw new InvalidOperationException("Automation removal did not start a command task.")); Layout();
+                        if (vm.Principles.Rows.Count == 0) Assert.Same(input, FocusManager.GetFocusedElement(page));
+                        else Assert.Same(vm.Principles.Rows[Math.Min(index, vm.Principles.Rows.Count - 1)], ((Button)FocusManager.GetFocusedElement(page)).DataContext);
+                    }
+                    Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.Empty(vm.Principles.Rows);
                 }
-                Assert.Equal("Unsubmitted reminder", vm.Principles.Input); Assert.Empty(vm.Principles.Rows);
-            }
-            finally { window.Close(); }
-        }, shutdownDispatcher: false);
+                finally { using var cleanup = trace.Phase("window cleanup"); window.Close(); }
+            }, scenario: scenario, shutdownDispatcher: false);
+            trace.Write("STA", "action returned; shared child dispatcher remains live until process exit");
+        }
+        finally
+        {
+            await trace.Await(() => f.DisposeAsync().AsTask(), "fixture disposal");
+            trace.Write("child case", "exit; dispatcher shutdown is owned by isolated child process");
+        }
     }
     private static void Idle() => Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
     private static void RenderFoldFrames(System.Windows.Application app, string theme, int dpi)
@@ -139,12 +160,6 @@ public sealed class PlanSectionsViewTests
         var bitmap = new RenderTargetBitmap(300 * dpi / 96, 60 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(strip);
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
         using var file = File.Create(Path.Combine(directory, $"fold-frames-{theme}-{dpi}.png")); encoder.Save(file);
-    }
-    private static void Pump(Task task)
-    {
-        var frame = new DispatcherFrame(); var dispatcher = Dispatcher.CurrentDispatcher;
-        _ = task.ContinueWith(_ => dispatcher.BeginInvoke(() => frame.Continue = false), TaskScheduler.Default);
-        if (!task.IsCompleted) Dispatcher.PushFrame(frame); task.GetAwaiter().GetResult(); Idle();
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)
     {
