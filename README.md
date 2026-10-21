@@ -1,5 +1,15 @@
 # Personal Trading Journal
 
+## M22.11B — Complete Release verification
+
+**M22.11 local automated acceptance remains pending.** The single authorized complete gate finished **5,356 passed / 5,361 total, five failed, zero skipped; exit 1**. Domain **602/602**, Application **1,048/1,048**, Infrastructure **1,605/1,605**, Desktop **2,101/2,106** (exclusive **92/92**, parallel **2,009/2,014**). Four failed Plan Workspace parents share one failed 980/96 child; Session Preparation contributes the other failed child. Both are null keyboard-focus assertions, with no demonstrated common cause. No retries, speculative fixes or assertion/scheduling changes were made.
+
+Actual tested baseline was clean `develop` at **36f507afb057437971038bc15de84d3556cc40e9**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; A3 was already committed. Runtime source stayed unchanged; B modifies only README.md and docs/notebook.md afterward. Restore, Release build (zero warnings/errors) and EF consistency passed. Existing tracing was enabled in the authorized **session 1 / WinSta0 / Default** desktop and reached isolated children; no native-down high bit was observed in its 1,230 samples. This does not explain or erase A2's **201/203, two failed** or A3's two separate single diagnostic passes.
+
+Gate **696.258s (11m36.258s)** excluding restore/build; exclusive **134.610s**, parallel **560.865s** through partition accounting. Local CI Test-budget margin **−96.258s** against unchanged **600s**. Calendar **77.579s**, deadline headroom **42.421s**. Diagnostic tracing and the failed run limit timing interpretation; matching hosted timing/input compatibility is unverified. Eight distinct retained Settings/maintenance captures were inspected with no blocking visual defect. Human interaction and native journal restart remain unverified.
+
+Evidence: `TestResults/m2211b-verified/gate-exit.json`, `summary.json`, `failure-diagnostics.json`, coverage/dispatch/input audits; raw gate `TestResults/m2211b-verified/release-20261021-182044-ce17b3244c764a0eb74938f431860184/summary.json`. [Results, exact commands, failure mapping, visuals and inventory](docs/notebook.md#m2211b--complete-release-verification). Smallest next action: bounded diagnosis of the two native validation-focus paths before correction or another acceptance run. **M22.12 remains pending**; no publication, workflow triggering, production/provider access or general reclamation.
+
 ## M22.11A3 — Native pressed-button provenance diagnosis
 
 **Input origin remains unproven; no behavior correction is justified yet.** Actual starting baseline was clean `develop` at **715649439d98c2439ca6d05f6ab87dd5ed9e6472** in `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; A2 was already committed and all 18 recorded source/binary hashes matched before diagnosis. Its accounting remains **201/203 passed, two failed, zero skipped**. Owned first changes from native high bits clear to set during `Ready`, before synthetic Space; Scoped False's first retained observation is already native-down before key-down. Neither proves input origin, foreground competition or a cleanup defect.
