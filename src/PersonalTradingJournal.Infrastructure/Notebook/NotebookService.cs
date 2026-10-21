@@ -64,7 +64,7 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
             if (command is CreateNotebookNote create)
             {
                 if (create.FolderId is { } folder && !await db.NotebookFolders.AnyAsync(x => x.Id == folder, ct)) return new(NotebookWriteStatus.NotFound);
-                note = new(Now, create.FolderId, create.Title);
+                note = new(Now, create.FolderId, create.Title, NotebookTemplates.Create(create.Template));
                 row = new(); encoded = codec.Encode(note.Document);
                 db.NotebookNotes.Add(row);
             }
@@ -75,6 +75,8 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
                 if (expected < 1) return new(NotebookWriteStatus.Invalid);
                 row = await db.NotebookNotes.SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw new MissingNoteException();
                 if (row.Version != expected) return new(NotebookWriteStatus.Conflict);
+                if (command is ArchiveNotebookNote or UnarchiveNotebookNote or TrashNotebookNote or RestoreNotebookNote)
+                    return await ChangeLifecycleAsync(db, row, command, ct);
                 var read = await Read(db, row, ct);
                 if (read.Note is null) return new(NotebookWriteStatus.UnsupportedContent,
                     Issues: [new("Content", "Original content is unavailable and has not been changed.")]);

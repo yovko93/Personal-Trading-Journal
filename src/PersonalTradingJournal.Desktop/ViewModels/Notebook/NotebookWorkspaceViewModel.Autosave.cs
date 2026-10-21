@@ -28,7 +28,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private void ScheduleAutosave()
     {
         StopDebounce();
-        if (_imageOperation) return;
+        if (_imageOperation || _noteOperation) return;
         if (_recovery is null || !_active || _disposed || (!IsDirty && _recoveryId is null) || _lifetime?.IsCancellationRequested != false) return;
         var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _debounce = owner;

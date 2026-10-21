@@ -6,7 +6,8 @@ namespace PersonalTradingJournal.Application.Notebook;
 public enum NotebookWriteStatus { Success, Invalid, Conflict, NotFound, UnavailableTarget, UnsupportedContent, TooLarge, Cancelled, StorageFailure, Deferred }
 public sealed record NotebookValidationIssue(string Field, string Message);
 public sealed record NotebookWriteResult(NotebookWriteStatus Status, NotebookNoteSnapshot? Note = null,
-    Guid? DeletedNoteId = null, ImmutableArray<NotebookValidationIssue> Issues = default, bool CleanupPending = false);
+    Guid? DeletedNoteId = null, ImmutableArray<NotebookValidationIssue> Issues = default, bool CleanupPending = false,
+    NotebookUnavailableMetadata? UnavailableMetadata = null);
 public sealed record NotebookCatalogResult(NotebookWriteStatus Status, NotebookNamedItem? Item = null,
     Guid? DeletedItemId = null, ImmutableArray<NotebookValidationIssue> Issues = default);
 public enum NotebookLoadStatus { Success, NotFound, UnsupportedContent, InvalidContent, TooLarge }

@@ -20,8 +20,8 @@ public sealed record NotebookRestorePoint
 /// require transactional application checks. No operation here modifies a linked record or a physical image.</summary>
 public sealed class NotebookNote : AuditableEntity
 {
-    public NotebookNote(DateTimeOffset now, Guid? folderId = null, string title = "Untitled")
-        : this(Guid.NewGuid(), title, NotebookDocument.Empty, folderId, NotebookNoteState.Active, false,
+    public NotebookNote(DateTimeOffset now, Guid? folderId = null, string title = "Untitled", NotebookDocument? document = null)
+        : this(Guid.NewGuid(), title, document ?? NotebookDocument.Empty, folderId, NotebookNoteState.Active, false,
             null, [], [], [], 1, now, now) { }
 
     private NotebookNote(Guid id, string title, NotebookDocument document, Guid? folderId,
@@ -120,27 +120,17 @@ public sealed class NotebookNote : AuditableEntity
         var links = ValidateLinks(Links.Where(x => x.Kind != kind || x.TargetId != targetId));
         Advance(now); Links = links;
     }
-    public void Archive(DateTimeOffset now)
-    {
-        RequireActive(); Advance(now); State = NotebookNoteState.Archived;
-    }
-    public void Unarchive(DateTimeOffset now)
-    {
-        if (State != NotebookNoteState.Archived) throw new InvalidOperationException("Only Archived notes can be unarchived.");
-        Advance(now); State = NotebookNoteState.Active;
-    }
-    public void Trash(DateTimeOffset now)
-    {
-        if (State == NotebookNoteState.Trashed) throw new InvalidOperationException("The note is already in Trash.");
-        var point = new NotebookRestorePoint(State, FolderId);
-        Advance(now); RestorePoint = point; State = NotebookNoteState.Trashed;
-    }
+    public void Archive(DateTimeOffset now) => Transition(x => x.Archive(now));
+    public void Unarchive(DateTimeOffset now) => Transition(x => x.Unarchive(now));
+    public void Trash(DateTimeOffset now) => Transition(x => x.Trash(now));
     /// <param name="previousFolderExists">Supplied by the application from the same transaction as restoration.</param>
-    public void Restore(bool previousFolderExists, DateTimeOffset now)
+    public void Restore(bool previousFolderExists, DateTimeOffset now) => Transition(x => x.Restore(previousFolderExists, now));
+    private void Transition(Action<NotebookLifecycle> change)
     {
-        if (State != NotebookNoteState.Trashed) throw new InvalidOperationException("Only Trashed notes can be restored.");
-        var point = RestorePoint!;
-        Advance(now); State = point.PreviousState; FolderId = previousFolderExists ? point.FolderId : null; RestorePoint = null;
+        var metadata = new NotebookLifecycle(Id, State, FolderId, RestorePoint, Version, CreatedAtUtc, UpdatedAtUtc);
+        change(metadata);
+        SetUpdatedAtUtc(metadata.UpdatedAtUtc); Version = metadata.Version;
+        State = metadata.State; FolderId = metadata.FolderId; RestorePoint = metadata.RestorePoint;
     }
 
     // Catalog maintenance is distinct from editing archived/trashed content; it must cover all lifecycle states.

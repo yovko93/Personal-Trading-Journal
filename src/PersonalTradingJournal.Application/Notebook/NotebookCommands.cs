@@ -11,7 +11,8 @@ public sealed record SaveNotebookImageDraft(Guid NoteId, long ExpectedVersion, s
 // Transport commands are validated by the future handler; bad input returns Invalid without writes.
 // ExpectedVersion is mandatory for mutations of an existing note, including metadata and deletion.
 public abstract record NotebookCommand;
-public sealed record CreateNotebookNote(Guid? FolderId = null, string Title = "Untitled") : NotebookCommand;
+public sealed record CreateNotebookNote(Guid? FolderId = null, string Title = "Untitled",
+    NotebookTemplate Template = NotebookTemplate.BlankNote) : NotebookCommand;
 public sealed record UpdateNotebookTitle(Guid NoteId, long ExpectedVersion, string Title) : NotebookCommand;
 /// <summary>One editor save: title, canonical document and its derived projection commit together.
 /// Existing image metadata must remain unchanged; this is not a file-management operation.</summary>

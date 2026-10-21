@@ -85,11 +85,24 @@ internal sealed class NotebookFake : INotebookService
         if (OnWrite is not null) return OnWrite(c, ct);
         if (NextWrite != NotebookWriteStatus.Success) return Task.FromResult(new NotebookWriteResult(NextWrite));
         NotebookNoteSnapshot n;
-        if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookDocument.Empty }; Notes.Add(n); }
+        if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookTemplates.Create(create.Template) }; Notes.Add(n); }
         else
         {
-            var id = c switch { AddNotebookLink l => l.NoteId, RemoveNotebookLink l => l.NoteId, SaveNotebookImageDraft d => d.NoteId, SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
+            var id = c switch { ArchiveNotebookNote l => l.NoteId, UnarchiveNotebookNote l => l.NoteId, TrashNotebookNote l => l.NoteId, RestoreNotebookNote l => l.NoteId, AddNotebookLink l => l.NoteId, RemoveNotebookLink l => l.NoteId, SaveNotebookImageDraft d => d.NoteId, SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
             int index = Notes.FindIndex(n => n.Id == id); n = Notes[index];
+            if (c is ArchiveNotebookNote or UnarchiveNotebookNote or TrashNotebookNote or RestoreNotebookNote)
+            {
+                var lifecycle = new NotebookLifecycle(n.Id, n.State, n.FolderId, n.RestorePoint, n.Version, n.CreatedAtUtc, n.UpdatedAtUtc);
+                switch (c)
+                {
+                    case ArchiveNotebookNote: lifecycle.Archive(DateTimeOffset.UtcNow); break;
+                    case UnarchiveNotebookNote: lifecycle.Unarchive(DateTimeOffset.UtcNow); break;
+                    case TrashNotebookNote: lifecycle.Trash(DateTimeOffset.UtcNow); break;
+                    case RestoreNotebookNote: lifecycle.Restore(Folders.Any(f => f.Id == n.RestorePoint?.FolderId), DateTimeOffset.UtcNow); break;
+                }
+                n = n with { State = lifecycle.State, FolderId = lifecycle.FolderId, RestorePoint = lifecycle.RestorePoint, Version = lifecycle.Version, UpdatedAtUtc = lifecycle.UpdatedAtUtc };
+                Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n));
+            }
             if (c is AddNotebookLink addLink)
             { n = n with { Links = n.Links.Add(addLink.Link), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
             if (c is RemoveNotebookLink removeLink)

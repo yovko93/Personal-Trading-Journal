@@ -65,7 +65,8 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         MoreNotesCommand = new(() => ReadAsync(ct => ReadPageAsync(true, null, ct)), () => CanMutate && ScopeMatchesList && _cursor is not null);
         MoreFoldersCommand = new(LoadMoreFoldersAsync, () => CanMutate && _folderCursor is not null);
         MoreTagsCommand = new(LoadMoreTagsAsync, () => CanMutate && _tagCursor is not null);
-        NewNoteCommand = new(() => GuardedAsync(CreateAsync), () => CanMutate);
+        NewNoteCommand = new(() => CreateFromTemplateAsync(NotebookTemplate.BlankNote), () => CanStartNoteOperation);
+        InitializeLifecycle();
         CreateFolderCommand = new(() => GuardedAsync(() => CatalogAsync(new CreateNotebookFolder(FolderName))), () => CanMutate);
         RenameFolderCommand = new(() => GuardedAsync(() => ManagedFolder?.Id is Guid id
             ? CatalogAsync(new RenameNotebookFolder(id, ManagedFolder.Version, FolderName)) : Task.CompletedTask),
@@ -156,12 +157,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public int Panel { get => _panel; set => SetProperty(ref _panel, value); }
     public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); NotifyCommands(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); OnPropertyChanged(nameof(CanInteract)); NotifyCommands(); } }
-    public bool CanInteract => !_disposed && !IsWriting;
+    public bool CanInteract => !_disposed && !IsWriting && !_noteOperation;
     public bool CanSelectNote => CanInteract && !IsBusy && ScopeMatchesList;
     private bool ScopeMatchesList => (Scope is null || (_query.Scope == Scope.Scope && _query.FolderId == Scope.FolderId)) &&
         _query.Search == SearchText && _query.TagIds.Order().SequenceEqual(_filterIds.Order()) && _query.Sort == Sort.Value;
-    private bool CanRead => _active && !_disposed && !IsWriting;
-    private bool CanMutate => CanRead && !IsBusy;
+    private bool CanRead => _active && !_disposed && !IsWriting && !_noteOperation;
+    private bool CanMutate => _active && !_disposed && !IsWriting && !IsBusy;
     private bool CanEditNote => CanMutate && Note?.State == NotebookNoteState.Active;
     public string PinText => Note?.IsPinned == true ? "Unpin" : "Pin note";
     public AsyncRelayCommand RefreshCommand { get; }
@@ -207,6 +208,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     public bool TryLeave()
     {
+        if (_noteOperation) { Message = "Wait for the note operation before leaving."; return false; }
         if (_linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
         if (!IsWriting && (!IsDirty || HasLeaveConsent)) return true;
         Message = IsWriting ? "A Notebook change is in progress. Wait or cancel before leaving." : "Save, discard or keep editing before leaving."; return false;
@@ -381,12 +383,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private async Task ReadDetailAsync(NotebookRow? row, CancellationToken ct)
     {
         if (!Current(ct)) return;
-        ResetLinkPresentation(); Note = null; InstallDraft();
+        ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
         ContentMessage = row is null ? "Choose a note to read its content." : "Loading note…";
         if (row is null) return;
         var result = await Task.Run(() => _service.LoadAsync(row.Id, ct), ct);
         if (!Current(ct) || SelectedNote?.Id != row.Id) return;
-        Note = result.Note;
+        _unavailable = result.UnavailableMetadata; Note = result.Note;
         InstallDraft();
         ContentMessage = result.Status switch
         {
@@ -400,19 +402,6 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         MoveFolder = Folders.FirstOrDefault(f => f.Id == Note.FolderId);
         await ResolveCurrentLinksAsync(ct);
     }
-    private Task CreateAsync() => MutateAsync(async ct =>
-    {
-        var folder = Scope?.Scope == NotebookScope.Folder ? Scope.FolderId : null;
-        var result = await Task.Run(() => _service.ExecuteAsync(new CreateNotebookNote(folder), ct), ct);
-        if (!Current(ct)) return;
-        if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message)))) return;
-        _publishing = true;
-        _filterIds.Clear(); PublishTags();
-        SearchText = ""; Sort = SortOptions[0]; Scope = Scopes.FirstOrDefault(s => folder is null ? s.Scope == NotebookScope.AllNotes : s.FolderId == folder);
-        _publishing = false;
-        await ReadPageAsync(false, result.Note!.Id, ct);
-        if (Current(ct)) { Panel = 2; Message = "Note created."; NoteCreated?.Invoke(this, EventArgs.Empty); }
-    });
     private Task WriteNoteAsync(NotebookCommand command) => MutateAsync(async ct =>
     {
         var result = await Task.Run(() => _service.ExecuteAsync(command, ct), ct);
@@ -474,6 +463,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private void NotifyCommands()
     {
+        NotifyLifecycleCommands();
         NotifyTagCommands();
         NotifyLinkCommands();
         RecoverCommand?.NotifyCanExecuteChanged(); DeleteRecoveryCommand?.NotifyCanExecuteChanged(); MoreRecoveryCommand?.NotifyCanExecuteChanged();

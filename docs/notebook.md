@@ -1,6 +1,130 @@
 # Notebook
 
-Current checkpoint: **M22.9E local automated Release acceptance complete: 5,267/5,267 passed, exit 0**. The verified source, input-desktop context, full-gate timing and historical findings are recorded below. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.10A implementation and focused Release verification complete; overall M22.10 acceptance pending**. Templates and reversible lifecycle actions are implemented. M22.10B duplication/permanent deletion and M22.10C complete Release acceptance remain pending. Historical M22.9E acceptance remains **5,267/5,267, exit 0**. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged; earlier sections preserve historical phase evidence.
+
+## M22.10A — Templates and reversible note lifecycle
+
+21 October 2026, Europe/Kiev. Actual clean starting baseline: **`5fbbd1ffb2e411c37aea2412f7aa4d9c58e7aa41`** on `develop`, existing worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. The reported `570dfdb` baseline had advanced to include M22.9E documentation. No applicable repository/ancestor AGENTS.md or duplicate test run was found. One agent, no subagents. Results apply to this HEAD **plus the uncommitted implementation below**, not HEAD alone. Existing implementation, documentation and diagnostic evidence are retained.
+
+Evidence root: **`TestResults/m2210a-verified/`**. `summary.json` indexes final results, `source-manifest.json` records the broad-run source/settings, and `final-source-manifest.json`, `final-binaries.json` and `inventory.json` retain final provenance. After the broad runs, the new view test received a render-surface correction and the existing exclusive-WPF classification; its scheduling regression was updated. All affected cases were rebuilt and rerun. Production source stayed unchanged after the broad verification.
+
+### Templates and atomic creation
+
+The immutable application definitions remain separate from user documents; there is no persisted/custom-template catalog. The agreed specification supplies **headings only**, using supported level-2 heading/run nodes and exact canonical paragraph newlines, with no invented trading evidence, images, links or statistics:
+
+| Template | Initial sections |
+| --- | --- |
+| Blank Note | Empty document; Untitled title |
+| Market Study | Context; Observation; Examples; Conclusion; Open questions |
+| Trading Idea | Idea; Conditions; Invalidation; Evidence to collect |
+| Lesson Learned | Situation; Observation; Lesson; Next action |
+| Psychology | Trigger; Thoughts; Behavior; Alternative response |
+
+Every creation generates a fresh note identity and fresh heading/run identities; editing one note cannot change a definition or another note. Existing title/content limits apply. The header has an accessible template selector and explicit **Create from template** action. **+ New note** and **Ctrl+N** still create Blank Note regardless of the selected template. Named templates use their names as initial titles. Creation uses the current folder only in Folder scope; all other scopes create Unfiled. After success, search/tag filters clear, sorting returns to recently updated, the destination folder or All Notes is selected, and the new editor/title receives focus.
+
+`CreateNotebookNote` accepts an optional template, preserving existing callers. SQLite validates the folder inside the immediate writer transaction, constructs/encodes the final initial body, inserts the note at **version 1**, verifies readback and commits once. There is no initial blank-note commit followed by a content update. Cancellation/failure before the final boundary rolls back the new row. Cancellation after the non-cancellable commit returns the confirmed result; a fresh reader sees the complete template. Invalid template/title/missing-folder requests leave no partial note. No canonical JSON format or schema change is required.
+
+### Reversible lifecycle and draft coordination
+
+Active notes offer **Archive** and **Move to Trash**; Archived notes offer **Return to Active** and **Move to Trash**; Trash offers **Restore**. Trash uses the existing destructive confirmation convention. Archived/Trash content is read-only. No duplication/permanent-delete control is exposed. The shared body-independent domain transition rules are used by both normal notes and persistence metadata operations:
+
+- Archive changes Active to Archived; Return to Active reverses it.
+- Trash records the previous Active/Archived state and folder. Restore returns to that state and an existing previous folder, otherwise Unfiled. Pinning survives, while Pinned scope continues to include Active notes only.
+- Each confirmed transition checks the expected version and advances it once, with UTC/non-backwards audit rules. Stale requests leave newer state/content intact.
+- The SQLite transaction changes only lifecycle/restoration/version/update-audit columns. It never re-encodes the body or alters tags, links, image metadata/ownership, recovery rows or original files. Invalid/future bodies retain their exact raw JSON and projections; success can return unavailable-body metadata rather than fabricate editable content.
+- Lists/counts refresh after confirmation. Existing search/tag filters remain; selection follows the existing page rule and clears when the transitioned note leaves that result. Archived and Trash remain searchable in their dedicated scopes; scope totals remain before text/tag filters and tag counts remain Active-note assignments.
+
+A note-operation guard prevents overlapping creation/lifecycle/navigation/image/link/tag actions. Existing Save / Discard / Cancel guards stop debounce and drain in-flight autosave, including newer edits made during that save. Only the canonical transition freezes editing. Versions are taken after saving; late/disposed results cannot publish into another editor. Explicit discard is applied to the accepted draft revision only after verified persistence; failure/conflict/cancellation retains the editor draft. Checkpoint removal remains limited to confirmed saves or explicit discard, and unresolved recovery entries are retained. Confirmed commits arriving after cancellation are acknowledged without treating cancellation as rollback or reviving an abandoned draft. No file reclamation is performed.
+
+Implementation review found that shell departure's `HasLeaveConsent` is false while the note mutation is writing. A separate acknowledgement consumes only the exact accepted discard revision after confirmed persistence; the cancellation-after-commit regression covers this boundary. Creation also clears stale linked-item presentation and the old “Choose a note” message.
+
+### Focused Release verification
+
+| Selection | Passed / total | Failed / skipped | Exit | Invocation wall time |
+| --- | ---: | ---: | ---: | ---: |
+| Domain Notebook | 35 / 35 | 0 / 0 | 0 | 6.164s |
+| Application Notebook | 23 / 23 | 0 / 0 | 0 | 6.473s |
+| Infrastructure Notebook/storage/recovery/archive/export | 542 / 542 | 0 / 0 | 0 | 243.984s |
+| Desktop Notebook/navigation/linked-target integration | 573 / 573 | 0 / 0 | 0 | 222.622s |
+| Final view/render cases, overlapping Desktop | 4 / 4 | 0 / 0 | 0 | 33.341s |
+| Final exclusive view cases + scheduling regression, four overlapping Desktop | 5 / 5 | 0 / 0 | 0 | 32.989s |
+
+The four non-overlapping broad selections contain **1,173 passed parent cases**; the additional scheduling regression brings the distinct focused set to **1,174**. Child results and repeated focused selections are not added to this total, and overlapping project durations are not summed. Domain/Application results were reused because their source stayed unchanged. Earlier passing `persistence-initial` **11/11** and `desktop-initial` **20/20** remain retained; expanded final suites include added cancellation/checkpoint regressions. This phase adds **6 Application + 12 Infrastructure + 22 Desktop** cases. Existing Domain lifecycle tests exercise the extracted shared rules.
+
+Real SQLite tests observe creation before commit (no row) and after commit (one complete version-1 note) through fresh contexts/services; inject preparation failure/cancellation; verify lifecycle cancellation rollback and stale expected versions; and round-trip prior Active/Archived states with existing/deleted folders. They retain exact body JSON, canonical newlines, tags, unavailable links, pins, image bytes/metadata/ownership and unresolved checkpoints. Desktop coverage includes all five templates, independent identities, blank shortcut behavior, failure/discard retention, in-flight save/newer revisions, confirmed commit after cancellation, pending-operation/disposal guards, recovery, future-body actions, filters/counts/selection and repeated activation. Broader selections retain existing image/atomic-placement, autosave/recovery, links/navigation and portability regressions.
+
+Full solution Release build passed with **zero warnings/errors**, `release-build.log` / `release-build-output.log` (MSBuild **17.53s**). After the render-only change, affected Desktop projects rebuilt with **zero warnings/errors**, `render-build.log` / `render-build-output.log` (**8.10s**). The final scheduling rebuild also passed with zero warnings/errors in `scheduling-build.log` / `scheduling-build-output.log` (**7.85s**). Earlier successful builds remain in `build-initial*` and `build-coordination*`. EF reports **no pending model changes**, exit **0**, in `ef-consistency.log`. Final tracked/new-file whitespace and **177 local documentation targets / zero missing** checks passed and are retained in `whitespace.json` and `documentation-links.json`; URL/fragment validation is outside that established link check.
+
+Commands from repository root; exact expanded argument arrays, start/end times and exit codes are in each selection's `summary.json`. The durable wrapper sets child results under the selection directory and retains output, TRX, vstest diagnostics and hang artifacts:
+
+```powershell
+$evidence = 'TestResults/m2210a-verified'
+pwsh -NoProfile -File "$evidence/context.ps1" -OutputName execution-context.json
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m2210a-verified/release-build.log
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name domain-focused -Project Domain -Filter 'FullyQualifiedName~Notebook'
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name application-focused -Project Application -Filter 'FullyQualifiedName~Notebook'
+$desktop = 'FullyQualifiedName~Notebook|FullyQualifiedName~Navigation.MainWindowViewModelTests|FullyQualifiedName~MainWindowHeaderTests|FullyQualifiedName~TradingSetupsViewModelTests|FullyQualifiedName~TradesViewModelTests'
+$storage = 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests|FullyQualifiedName~TradingRulePersistenceTests|FullyQualifiedName~TradingRulePortabilityTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~PlaybookImagePersistenceTests|FullyQualifiedName~DailyTradingPrincipleTests|FullyQualifiedName~SharedTradingPlanTests|FullyQualifiedName~TradingPlanPortabilityTests|FullyQualifiedName~LocalTradeScreenshotFileStorageTests'
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name desktop-final -Project Desktop -Filter $desktop
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name infrastructure-final -Project Infrastructure -Filter $storage
+# Each wrapper runs dotnet test <project> -c Release --no-build --no-restore --filter <filter>
+# with TRX, --diag, --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini.
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore -v minimal -flp:logfile=TestResults/m2210a-verified/render-build.log
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name desktop-renders-final -Project Desktop -Filter 'FullyQualifiedName~NotebookLifecycleViewTests'
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore -v minimal -flp:logfile=TestResults/m2210a-verified/scheduling-build.log
+pwsh -NoProfile -File "$evidence/run-tests.ps1" -Name desktop-scheduling-final -Project Desktop -Filter 'FullyQualifiedName~NotebookLifecycleViewTests|FullyQualifiedName~ReleaseSchedulingTests'
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File "$evidence/context.ps1" -OutputName final-context.json
+git diff --check
+pwsh -NoProfile -File "$evidence/check-whitespace.ps1"
+pwsh -NoProfile -File "$evidence/check-doc-links.ps1"
+pwsh -NoProfile -File "$evidence/audit.ps1"
+```
+
+These are recorded invocations, not instructions to overwrite evidence: `run-tests.ps1` refuses an existing selection directory. No complete gate was run; CI timeout, partition ordering, collection/project concurrency and existing test deadlines are unchanged.
+
+The initial local whitespace wrapper forced `core.autocrlf=false`, incorrectly treating retained CRLF endings as trailing whitespace. `whitespace-initial.log` and `check-whitespace.initial.ps1` preserve that audit failure. The corrected wrapper honors the repository's existing `core.autocrlf=true`; standard `git diff --check` and all nine new-file checks pass without source rewrites or relaxed whitespace rules.
+
+### Visual and input-desktop evidence
+
+Four visible parent cases retain **Light/1280/96, Dark/1280/96, Light/480/240, Dark/480/240**, each selecting exactly one matching child by full display name with independent TRX identity/cardinality validation. `dispatch.json` audits the broad, render and final scheduling selections: four distinct children, one completed passed result per parent, no extra/skipped/zero-match success, matching definitions/entries and exit **0**. Process supervision confirms cleanup. The new suite carries the existing `ExclusiveWpf` trait and nonparallel collection, preventing it from overlapping other Desktop collections and placing it in the established gate's first partition. `ReleaseSchedulingTests` verifies this membership and the unchanged two-thread collection limit; no gate/CI configuration changed. Each child owns its Application/STA and retains the **90-second process / 30-second watchdog** deadlines. Live keyboard activation uses the existing focus/capture/release helper, fresh command execution and retained `IsPressed == false` assertions for Create, Archive, Trash, Restore and Return to Active. Ctrl+N's command mapping is checked.
+
+Native checks used the explicitly authorized input-desktop executor: **session 1, WinSta0\Default, UserInteractive=true, cursor query successful**, administrator token observed. No UAC/token/desktop switch was requested; this records the actual environment without claiming administrator rights are intrinsically required. `execution-context.json` and `final-context.json` retain context/process checks. The restricted-executor limitation documented in D1 remains applicable. Routed input plus native focus/capture checks do not establish physical keyboard device-state behavior or human interaction.
+
+All **12 final captures** were inspected: `TestResults/m2210a-verified/renders/{Light,Dark}-{1280-96,480-240}-{template-active,archived,trash}.png`. `visuals.json` records original final-child paths and SHA-256 hashes. Templates/headings, lifecycle controls, state labels and read-only actions are readable; controls wrap at 480 DIP, the content remains scrollable, and no blocking visual defect was found. Initial review caught the stale creation message (corrected) and unused lower pixels from the live window's desktop-limited viewport. The final harness retains live native assertions but renders a separate WPF surface at the requested 900-DIP height, checking that rendering changes neither draft identity/revision nor dirty state. Initial captures and `visuals-live-window.json` remain preserved; the final images are not physical screen captures.
+
+### Exact phase inventory and remaining work
+
+**22 files = 13 modified + 9 added**, relative to `5fbbd1f`, all uncommitted. Ignored TestResults artifacts/scripts are local evidence outside this source inventory; there were no unrelated entry changes to discard.
+
+| Status | Path |
+| --- | --- |
+| Modified | `README.md` |
+| Modified | `docs/notebook.md` |
+| Modified | `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs` |
+| Modified | `src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs` |
+| Added | `src/PersonalTradingJournal.Application/Notebook/NotebookTemplates.cs` |
+| Modified | `src/PersonalTradingJournal.Domain/Notebook/NotebookNote.cs` |
+| Added | `src/PersonalTradingJournal.Domain/Notebook/NotebookLifecycle.cs` |
+| Modified | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs` |
+| Added | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Lifecycle.cs` |
+| Modified | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` |
+| Modified | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` |
+| Modified | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs` |
+| Modified | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Images.cs` |
+| Added | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs` |
+| Modified | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` |
+| Added | `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookTemplateTests.cs` |
+| Added | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookTemplateLifecycleTests.cs` |
+| Added | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLifecycleImageTests.cs` |
+| Modified | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs` |
+| Added | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleTests.cs` |
+| Added | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs` |
+| Modified | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs` |
+
+Document/archive **v1** and export **v17** remain compatible. Archive/Trash retain canonical records and original image files, including ownership/recovery references; prepared-file retention and physical reclamation remain unchanged/deferred. Fresh-context/service interruption tests are **not** a native journal restart. Human keyboard/mouse/Narrator interaction, native journal restart, matching hosted CI/input-desktop compatibility, real clipboard/picker/viewer and installed-codec WebP remain unverified. Historical Plan/Brief watchdog causes are not claimed resolved by these focused tests.
+
+**M22.10A is complete; overall M22.10 acceptance remains pending.** M22.10B owns duplication/permanent deletion; M22.10C owns the complete Release gate and acceptance. Full M22.11 acceptance/reclamation remains deferred. No complete gate, production/provider access, Git publication, workflow triggering or M22.10B implementation occurred.
 
 ## M22.9E — Release reverification
 
@@ -1752,7 +1876,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
 | M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | E local automated Release acceptance passed: 5,267/5,267; hosted/interactive/native-restart limits remain |
-| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
+| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | A templates/reversible lifecycle implemented and focused-verified; B duplicate/permanent delete and C complete acceptance pending |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |
 

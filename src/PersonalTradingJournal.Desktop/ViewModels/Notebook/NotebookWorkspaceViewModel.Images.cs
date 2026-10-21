@@ -41,7 +41,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public async Task<bool> ImportImageAsync(Guid noteId, byte[] bytes, Action<NotebookNode> insert,
         Func<NotebookNode, NotebookDocument>? placement = null)
     {
-        if (_preparingImage || _imageOperation || _images is null || Note?.Id != noteId || !CanEditBody || _recoveryConflict) return false;
+        if (_noteOperation || _preparingImage || _imageOperation || _images is null || Note?.Id != noteId || !CanEditBody || _recoveryConflict) return false;
         _preparingImage = true;
         var operation = RunAsync();
         try { await Track(operation); return await operation; }

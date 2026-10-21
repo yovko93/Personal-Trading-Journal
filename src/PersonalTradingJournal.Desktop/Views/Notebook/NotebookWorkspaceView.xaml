@@ -35,6 +35,8 @@
    </TextBox>
    <Button Content="Search" Command="{Binding SearchCommand}" Margin="0,0,8,8"/>
    <Button Content="+ New note" Command="{Binding NewNoteCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an Untitled note. Control N."/>
+   <ComboBox x:Name="TemplatePicker" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" DisplayMemberPath="Name" Width="165" IsEnabled="{Binding CanInteract}" Margin="0,0,8,8" AutomationProperties.Name="New note template"/>
+   <Button x:Name="CreateTemplateButton" Content="Create from template" Command="{Binding CreateTemplateCommand}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an independent note from the selected template. New note and Control N always create a blank note."/>
    <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8"/>
    <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,0,8"/>
   </WrapPanel>
@@ -162,6 +164,12 @@
       </Expander>
       <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
       <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,6,0,12"/>
+      <WrapPanel AutomationProperties.Name="Note lifecycle actions">
+       <Button x:Name="ArchiveNoteButton" Content="Archive" Command="{Binding ArchiveCommand}" Visibility="{Binding ShowArchive, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8"/>
+       <Button x:Name="UnarchiveNoteButton" Content="Return to Active" Command="{Binding UnarchiveCommand}" Visibility="{Binding ShowUnarchive, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8"/>
+       <Button x:Name="TrashNoteButton" Content="Move to Trash" Command="{Binding TrashCommand}" Visibility="{Binding ShowTrash, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8"/>
+       <Button x:Name="RestoreNoteButton" Content="Restore" Command="{Binding RestoreCommand}" Visibility="{Binding ShowRestore, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8" AutomationProperties.HelpText="Restore the prior Active or Archived state and available folder; otherwise Unfiled."/>
+      </WrapPanel>
       <WrapPanel>
        <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Save title and content. Control S."/>
        <Button Content="Discard" Command="{Binding DiscardCommand}" Margin="0,0,8,8"/>

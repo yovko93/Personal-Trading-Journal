@@ -31,10 +31,10 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool IsSaving { get; private set; }
     public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
     public bool HasDraft => Note is not null || _detachedRecovery;
-    public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
+    public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && !_committingNote && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
     public bool CanEditBody => CanEditDraft;
     public bool BodyReadOnly => !CanEditBody;
-    public bool NeedsClosePreparation => IsDirty || IsWriting || _linkOperation;
+    public bool NeedsClosePreparation => IsDirty || IsWriting || _linkOperation || _noteOperation;
     public bool HasLeaveConsent => !IsWriting && (!IsDirty || _acceptedRevision == _draftRevision);
     private static string Signature(string title, NotebookDocument doc) =>
         title + "\0" + JsonSerializer.Serialize(doc.Blocks.Select(Value));
@@ -46,7 +46,7 @@ public sealed partial class NotebookWorkspaceViewModel
         if (Note is not null) RememberImages(Note);
         StopDebounce(); _recoveryId = null; _checkpointRevision = 0;
         _autosavePaused = false; _recoveryConflict = false; _detachedRecovery = false;
-        _draftTitle = Note?.Title ?? "";
+        _draftTitle = Note?.Title ?? _unavailable?.Title ?? "";
         _draftDocument = Note?.Document ?? NotebookDocument.Empty;
         _savedSignature = Signature(_draftTitle, _draftDocument); _draftError = ""; _saveState = "";
         ++_draftRevision; ++_editorRevision; ClearLeaveConsent();
@@ -89,8 +89,9 @@ public sealed partial class NotebookWorkspaceViewModel
         if (_discardConsent && HasLeaveConsent) RestoreDraft();
         ClearLeaveConsent();
     }
-    public async Task<bool> PrepareLeaveAsync(bool linkOperation = false)
+    public async Task<bool> PrepareLeaveAsync(bool linkOperation = false, bool noteOperation = false)
     {
+        if (_noteOperation && !noteOperation) { Message = "Wait for the note operation before leaving."; return false; }
         if (_linkOperation && !linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
         if (_imageOperation || _preparingImage) { Message = "Wait for the image operation before leaving."; return false; }
         if (_recovery is not null)
@@ -111,6 +112,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private async Task GuardedAsync(Func<Task> action, bool linkOperation = false)
     {
+        if (_noteOperation) return;
         if (_guarding) return;
         _guarding = true;
         try
