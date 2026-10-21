@@ -1,6 +1,125 @@
 # Notebook
 
-Current checkpoint: **M22.9D1 focused keyboard/capture verification passed; overall M22.9 automated acceptance remains pending**. Actual verified source/state, focused results and historical complete-gate findings are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.9E local automated Release acceptance complete: 5,267/5,267 passed, exit 0**. The verified source, input-desktop context, full-gate timing and historical findings are recorded below. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+
+## M22.9E — Release reverification
+
+21 October 2026, Europe/Kiev. Actual starting and verified HEAD: **`570dfdb6dcd67da3ecd52a971ddbf8f732d54d91`**, clean `develop`, sole worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. The reported `0830e0d` baseline had advanced: D1's five files were committed in `570dfdb` before this phase. No applicable repository/ancestor `AGENTS.md` or active duplicate test run was found. One agent, no subagents. Verification applies to this exact HEAD with **no uncommitted runtime changes**; only README.md and this document were edited afterward. Existing implementation and B/C/D/D1 diagnostics remain preserved.
+
+Evidence root, abbreviated **E evidence** below: **`TestResults/m229e-20261021-111109-e8f617a6f17b45688027e122c84cbf83/`**. `start.json`, `gate-start.json`, `verified-source-settings.json` and `verified-binaries.json` retain entry state and SHA-256 provenance. Source/settings manifest SHA-256: **`36F5BAD55AF881F1BFC0AAD806036967DD489EA7293190C04849CF733E1EE081`**. Final summary verifies source/settings and binary hashes remain unchanged after documentation edits.
+
+### Execution context and preserved gate
+
+Native-input checks used the **explicitly authorized input-desktop executor used for D1**, not the restricted executor that denied its cursor query. Read-only preflight and gate-entry probes recorded Windows **10.0.19045**, interactive session **1**, window station **WinSta0**, thread desktop **Default**, `GetCursorPos=true` / error **0**, and an **administrator token** in that executor. No script requested UAC elevation, token switching or desktop switching. This does not establish that administrator rights are inherently required; it records the actual verified environment. `preflight-context.json`, `execution-context.json`, `final-context.json` and `dotnet-info.txt` retain details. Final process inspection found no test runner/host; seven reusable MSBuild workers were left untouched. No permission-related runtime failure occurred in E.
+
+The helpers retain routed WPF key-down/up handling, actual focus and managed/native capture checks; they do not emulate physical keyboard device state or establish human interaction. The Owned child retained `GotMouseCapture` followed by `LostMouseCapture`, `IsPressed=false`, managed capture null and native capture zero before the release assertions; see `owned-release-excerpt.log` and the child's complete `keyboard-readiness.log`. There was no direct-command substitution, forced state, skipped native assertion or cleanup-based success.
+
+One invocation of unchanged `scripts/Test-Release.ps1` ran **exclusive WPF first, then the parallel solution partition**, with exact complementary filters. Desktop/Infrastructure collection bounds remain **2/4**, and project concurrency, process-tree cleanup, duplicate-identity/completeness checks, host recursion guards and all assertions are unchanged. Relevant children retain **90-second process / 30-second case-watchdog** limits; Calendar retains **120 seconds**; the outer inactivity watchdog remains **3 minutes**. `.github/workflows/ci.yml` still gives only its Test step **10 minutes**. No new local 600-second cancellation wrapper was introduced.
+
+### Complete results and timing
+
+Full solution Release build passed, **exit 0, zero warnings/errors**, MSBuild **58.47s** (invocation **58.921s**), recorded in `release-build.log`, `release-build-output.log` and `build.json`. Current binaries contain all D/D1 corrections. The gate ran once, **11:13:02.2392972–11:22:02.1860475 UTC**, **exit 0**.
+
+| Project | Passed / total | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Domain | 602 / 602 | 0 | 0 |
+| Application | 1,038 / 1,038 | 0 | 0 |
+| Infrastructure | 1,567 / 1,567 | 0 | 0 |
+| Desktop | 2,060 / 2,060 | 0 | 0 |
+| **Complete gate** | **5,267 / 5,267** | **0** | **0** |
+
+Desktop comprises **88 exclusive + 1,972 parallel** results. Child cases and overlapping historical focused selections are not added to these totals. The gate includes nine additional harness regression rows relative to B's 5,258-case set. Raw logs, parent/child TRX, process supervision, phase logs and diagnostic artifacts are retained under **`TestResults/release-20261021-111302-1a25b9fed088430d934df15004ef3d8f/`**, with its **`summary.json`** as the complete-gate summary. E `summary.json`, `gate-exit.json`, `project-totals.json`, `coverage.json`, `ui-dispatch.json`, `dispatch.json` and `failures.json` provide the audited report. Deliberately failing child probes belong to passing harness regression assertions; no parent failed.
+
+| Measurement | Seconds |
+| --- | ---: |
+| Complete gate, including startup/accounting, excluding build/restore | **539.947** |
+| Exclusive partition through its result accounting | **69.615** |
+| Parallel partition through its final result accounting | **469.668** |
+| Between-partition accounting gap | 0.028 |
+| Remaining wrapper/startup/accounting | 0.636 |
+| Signed local margin against 600 seconds | **+60.053** |
+| Calendar supervised child | **54.227** |
+| Calendar headroom against 120 seconds | **65.773** |
+
+`timings.json` records exact intervals; no overlapping project durations are summed, and post-command `StageFinishedUtc` values are not treated as individual project completion times. `calendar.json` points to the actual supervisor start/exit records. This establishes one measured local margin, **not** matching hosted timing or repeatability. B's failed **953.408s** run remains diagnostic history, not a healthy-runtime comparison or a claimed controlled speedup.
+
+### Required families, visual reuse and supporting checks
+
+`ui-dispatch.json` audits names, IDs, definition/entry mappings, completion timestamps and outcomes against the actual parent TRX:
+
+| Family | Parents passed | Child launches | Distinct completed children |
+| --- | ---: | ---: | ---: |
+| Plan Sections | 4 / 4 | 1 shared suite | 4 |
+| Session Brief | 4 / 4 | 1 shared suite | 4 |
+| Breakdown accessibility | 3 / 3 | 3 exact selections | 3 |
+
+Each Breakdown child contains exactly one intended passed result, with no extra/skipped/zero-match result. Relevant helper/selection/scheduling regressions passed **51/51**. All **35 new linking/navigation cases** passed (**29 linking + 6 navigation**), including four distinct matching link-view children. Image-editor dispatch remains four matching distinct children. The required persistence, ownership, autosave/recovery, image and archive/export families executed, including **eight atomic placement/interruption/order cases**; `coverage.json` reports no missing or failed coverage. These are subsets of the complete total.
+
+All **eight** validated M22.9A/B captures were reused and visually reviewed again: Light/Dark × **1280 DIP / 96 DPI** or **480 DIP / 240 DPI** × linked-items/picker. Paths: **`TestResults/m229b-verified/renders/`**, names `{Light,Dark}-{1280-96,480-240}-{linked-items,picker}.png`. E `visuals.json` records each path, original A capture, SHA-256 and review. Every hash matches B's validated archive; `git diff d6f8911 HEAD -- src` is empty, so no production UI was affected. Labels wrap, actions remain reachable, Dark picker contrast is readable, and unavailable references retain a disabled Open details plus available Remove link. No blocking visual defect found; clipping at a scrolled viewport edge reflects the recorded scroll position. No additional visual run was needed.
+
+EF model consistency passed, **exit 0**, with no pending changes: `ef-consistency.log` / `ef-exit.json`. Final whitespace checks cover this phase and the complete M22.9 diff; **both exit 0**. Documentation target check: **176 local targets / zero missing**, exit **0**, excluding URL/fragment validation. Runtime tests were not repeated after documentation edits.
+
+The first three post-run evidence readers exited **1** because PowerShell interpreted the literal Desktop filename `net10.0[1].trx` as a wildcard. This was an **audit-reader error**, not a missing result or gate failure; the established gate already uses literal paths. The local E readers were corrected to `Get-Content -LiteralPath` and completed with **exit 0**, without changing tests or rerunning the gate. `audit-reader-correction.json`, the three `*.initial.ps1` copies and `audit-exits.json` retain the finding and correction.
+
+Commands from repository root (preflight, gate and final context inspection used the explicitly authorized input-desktop executor):
+
+```powershell
+$evidence = 'TestResults/m229e-20261021-111109-e8f617a6f17b45688027e122c84cbf83'
+pwsh -NoProfile -File "$evidence/context.ps1" -OutputName preflight-context.json
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m229e-20261021-111109-e8f617a6f17b45688027e122c84cbf83/release-build.log
+pwsh -NoProfile -File "$evidence/run-gate.ps1"
+# The once-only wrapper executes: pwsh -NoProfile -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+pwsh -NoProfile -File "$evidence/measure.ps1"
+pwsh -NoProfile -File "$evidence/audit-gate.ps1"
+pwsh -NoProfile -File "$evidence/audit-ui.ps1"
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File "$evidence/context.ps1" -OutputName final-context.json
+git diff --check
+git diff --check 9c4ed749256728a2c2067c5aa983722d56a302cc --
+pwsh -NoProfile -File "$evidence/check-doc-links.ps1"
+pwsh -NoProfile -File "$evidence/summarize.ps1"
+```
+
+### Exact overall inventory and phase boundaries
+
+Net M22.9 inventory versus **`9c4ed749256728a2c2067c5aa983722d56a302cc`**: **28 files = 16 modified + 12 added**. Status below is relative to that baseline; phase columns identify actual contributions. A's **22 files** were committed in `d6f8911`; B's **two documentation files** in `6f82eea`; C changed no files; D's **eight files (five modified, three added)** in `0830e0d`; D1's **five modified files** in `570dfdb`. E modifies **only README.md and docs/notebook.md**, uncommitted after verification. The six distinct harness files added/changed in D/D1 are listed separately by their phase labels below. Ignored TestResults scripts/artifacts are local evidence, outside this source inventory. `inventory.json` retains exact per-commit lists.
+
+| Status | File | Phases |
+| --- | --- | --- |
+| M | `README.md` | A, B, D, D1, E |
+| M | `docs/notebook.md` | A, B, D, D1, E |
+| M | `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs` | A |
+| A | `src/PersonalTradingJournal.Application/Notebook/NotebookLinkTargets.cs` | A |
+| M | `src/PersonalTradingJournal.Application/Notebook/NotebookQueries.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/MainWindow.xaml` | A |
+| A | `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.Notebook.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` | A |
+| A | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Links.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Setups/TradingSetupsViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Links.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Queries.cs` | A |
+| A | `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookLinkTargetContractTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs` | D, D1 |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookLinkedNavigationTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkViewTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiCaseTrace.cs` | D |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiHarnessDiagnosticsTests.cs` | D, D1 |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiKeyboardProbe.cs` | D, D1 |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs` | D |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionBriefCompositionTests.cs` | D |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLinkTests.cs` | A |
+
+### Acceptance and limits
+
+**M22.9 local automated Release acceptance is complete.** Trades and Trading Setups (including underlying Playbook identities) remain the only link targets; inactive records remain eligible, unavailable references remain removable without reassignment, and guarded details/return navigation retains Notebook context and drafts. Atomic image placement, associated metadata/ownership and one expected-version advance remain a single canonical commit. Document/archive **v1**, logical export **v17** and existing original ownership/retention remain compatible. Prepared files may survive abrupt precommit death; reclamation and full M22.11 acceptance remain deferred.
+
+Historical Plan/Brief watchdog causes and the foreground-competition hypothesis remain unresolved. This passing complete run verifies the current source in the recorded input-desktop environment; it does not prove those old causes fixed, guarantee CI headroom, or establish restricted/hosted input compatibility. Matching-source hosted CI, human keyboard/mouse/Narrator interaction, native journal restart, real clipboard/picker/viewer and installed-codec WebP success remain **unverified**. Fresh-context/service interruption coverage is not a native-process restart claim. Smallest next action: review a future matching hosted run's Test-step timing and native-input context when one is available; no trigger or publication was performed. **M22.10 onward remains pending.**
 
 ## M22.9D1 — Keyboard release and capture synchronization
 
@@ -1632,7 +1751,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
-| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | A focused verification passed; B full-gate findings retained, acceptance pending |
+| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | E local automated Release acceptance passed: 5,267/5,267; hosted/interactive/native-restart limits remain |
 | M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |
