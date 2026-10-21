@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.11A3 — Native pressed-button provenance diagnosis
+
+**Input origin remains unproven; no behavior correction is justified yet.** Actual starting baseline was clean `develop` at **715649439d98c2439ca6d05f6ab87dd5ed9e6472** in `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; A2 was already committed and all 18 recorded source/binary hashes matched before diagnosis. Its accounting remains **201/203 passed, two failed, zero skipped**. Owned first changes from native high bits clear to set during `Ready`, before synthetic Space; Scoped False's first retained observation is already native-down before key-down. Neither proves input origin, foreground competition or a cleanup defect.
+
+Added opt-in test-only transition tracing, preserving navigation, prerequisites, input operations, assertions and deadlines. Each originally failing exact child ran **once** through normal isolated parent dispatch: **Owned 1/1**, **Scoped False 1/1**, matching distinct children, zero failures/skips, exits **0**; command times **18.895s / 10.222s**. Both began with clear native high bits and completed real capture release; these diagnostic passes do not resolve the retained failures or establish flakiness. Release build: zero warnings/errors; whitespace and local documentation targets checked. Authorized session **1 / WinSta0 / Default**, cursor access available, existing executor token; no desktop/token switch or input reset.
+
+Evidence: `TestResults/m2211a3-diagnostic/summary.json`, `dispatch.json`, per-child `input-origin.log`, retained failure/overlap maps and provenance. [Exact identities, transition evidence, commands, four-file inventory and missing observations](docs/notebook.md#m2211a3--native-pressed-button-provenance-diagnosis). Only two test files and these two documentation files changed. **M22.11 acceptance and M22.11B remain pending**; no complete family/gate or other native family was run. CI timing, hosted compatibility, human interaction and native journal restart remain unresolved/unverified.
+
 ## M22.11A2 — Linked-navigation ownership and keyboard prerequisites
 
 Navigation now carries the original note, activation and accepted-selection generation through resolution, consent and the real shell commit. Accepted selection invalidates pending navigation before detail loading yields; A→B→A cannot revive it. Consent cleanup belongs to its request, and successful return context uses the captured origin. The keyboard helper checks the active mouse source and released-button prerequisites after capture and immediately before Space key-up, recording WPF, `GetKeyState` and `GetAsyncKeyState` observations separately without repairing input.

@@ -38,6 +38,7 @@ public sealed class BreakdownAccessibilityViewTests
         }
         await CalendarStaTest.RunAsync(() =>
         {
+            UiKeyboardProbe.Origin("Scoped STA action entry / before fixture and Application");
             Assert.Null(System.Windows.Application.Current); // Exactly one case owns this child/STA.
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             AssertLiveApplication(app);
@@ -60,7 +61,10 @@ public sealed class BreakdownAccessibilityViewTests
             var prior = SynchronizationContext.Current; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try
             {
-                reader.EnqueuePage([row], 1); Pump(vm.EnsureLoadedAsync()); window.Show(); Idle();
+                reader.EnqueuePage([row], 1); Pump(vm.EnsureLoadedAsync());
+                UiKeyboardProbe.Origin("Scoped before Window.Show", view);
+                window.Show(); Idle();
+                UiKeyboardProbe.Origin("Scoped after Window.Show / ContextIdle", view);
                 Assert.Same(view.FindName("BackToBreakdownButton"), FocusManager.GetFocusedElement(view));
                 Button RowAction() => Descendants<Button>(view).Single(b => ReferenceEquals(b.Command, vm.ShowTradeDetailCommand));
                 var action = RowAction(); Assert.Contains("TEST", AutomationProperties.GetName(action));
@@ -101,7 +105,14 @@ public sealed class BreakdownAccessibilityViewTests
                 FocusManager.SetFocusedElement(view, exit); Pump(UiKeyboardProbe.SpaceCommand(exit)); Idle();
                 Assert.False(vm.HasBreakdownScope); Assert.Same(view.FindName("TradesRefreshButton"), FocusManager.GetFocusedElement(view));
             }
-            finally { window.Close(); vm.DisposeBrowse(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown(); }
+            finally
+            {
+                UiKeyboardProbe.Origin("Scoped cleanup begins / before Window.Close", view);
+                window.Close();
+                UiKeyboardProbe.Origin("Scoped after Window.Close", view);
+                vm.DisposeBrowse(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown();
+                UiKeyboardProbe.Origin("Scoped cleanup completed / Application shutdown");
+            }
         });
     }
 
@@ -118,6 +129,7 @@ public sealed class BreakdownAccessibilityViewTests
         }
         await CalendarStaTest.RunAsync(() =>
         {
+            UiKeyboardProbe.Origin("Owned STA action entry / before fixture and Application");
             using var f = new BreakdownFixture();
             Assert.Null(System.Windows.Application.Current); // Themes below retain this live STA until final cleanup.
             var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
@@ -128,7 +140,10 @@ public sealed class BreakdownAccessibilityViewTests
             var prior = SynchronizationContext.Current; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try
             {
-                Pump(f.Vm.ActivateAsync()); window.Show(); Idle();
+                Pump(f.Vm.ActivateAsync());
+                UiKeyboardProbe.Origin("Owned before Window.Show", view);
+                window.Show(); Idle();
+                UiKeyboardProbe.Origin("Owned after Window.Show / ContextIdle", view);
                 var currency = (TextBox)view.FindName("CurrencyFilter");
                 var period = (ComboBox)view.FindName("PeriodFilter");
                 Assert.Same(period, FocusManager.GetFocusedElement(view));
@@ -305,7 +320,14 @@ public sealed class BreakdownAccessibilityViewTests
                 guard.Request(() => period); window.Content = null; Idle();
                 Assert.False(view.IsLoaded); // Unloaded views do not accept delayed focus.
             }
-            finally { window.Close(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown(); }
+            finally
+            {
+                UiKeyboardProbe.Origin("Owned cleanup begins / before Window.Close", view);
+                window.Close();
+                UiKeyboardProbe.Origin("Owned after Window.Close", view);
+                view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown();
+                UiKeyboardProbe.Origin("Owned cleanup completed / Application shutdown");
+            }
         });
     }
     private static void PressSpace(ButtonBase button) => UiKeyboardProbe.Space(button);

@@ -17,6 +17,7 @@ internal static class UiKeyboardProbe
     internal static void Ready(FrameworkElement target)
     {
         target.Dispatcher.VerifyAccess();
+        Origin("Ready entry / before input preparation", target);
         var window = Window.GetWindow(target);
         Require(window is not null && ReferenceEquals(window.Dispatcher, target.Dispatcher), target,
             "Target must belong to a window on the current dispatcher.");
@@ -56,8 +57,12 @@ internal static class UiKeyboardProbe
             {
                 check = null;
                 owner.UpdateLayout();
-                SetActiveWindow(new WindowInteropHelper(owner).Handle);
-                Keyboard.Focus(target);
+                Origin("before SetActiveWindow", target);
+                var previousActive = SetActiveWindow(new WindowInteropHelper(owner).Handle);
+                Origin($"after SetActiveWindow; returned previous HWND=0x{previousActive:X}; error not sampled (declaration has no SetLastError); readiness still validates active HWND", target);
+                Origin("before Keyboard.Focus", target);
+                var focused = Keyboard.Focus(target);
+                Origin($"after Keyboard.Focus; returned={Identify(focused)}", target);
                 Changed(null, EventArgs.Empty);
             }));
             Dispatcher.PushFrame(frame);
@@ -177,6 +182,31 @@ internal static class UiKeyboardProbe
 
     internal static void Observe(FrameworkElement target, string stage) => Write(target, stage);
 
+    // Opt-in A3 diagnosis only: no injection, state repair, synchronization or global hooks.
+    // A target-free entry sample avoids initializing WPF input before fixture creation.
+    internal static void Origin(string phase, FrameworkElement? target = null)
+    {
+        if (Environment.GetEnvironmentVariable("PTJ_INPUT_ORIGIN_TRACE") != "1") return;
+        target?.Dispatcher.VerifyAccess();
+        short keyLeft = GetKeyState(1), keyRight = GetKeyState(2);
+        short asyncLeft = GetAsyncKeyState(1), asyncRight = GetAsyncKeyState(2);
+        var foreground = GetForegroundWindow();
+        uint foregroundThread = GetWindowThreadProcessId(foreground, out uint foregroundProcess);
+        using var process = Process.GetCurrentProcess();
+        string sample = $"{DateTimeOffset.UtcNow:O} {phase}; PID={Environment.ProcessId}; session={process.SessionId}; " +
+            $"managedThread={Environment.CurrentManagedThreadId}; nativeThread={GetCurrentThreadId()}; " +
+            $"dispatcher={Identify(Dispatcher.FromThread(Thread.CurrentThread))}; " +
+            $"GetKeyState(L/R)=0x{(ushort)keyLeft:X4}/0x{(ushort)keyRight:X4}; " +
+            $"GetAsyncKeyState(physical L/R)=0x{(ushort)asyncLeft:X4}/0x{(ushort)asyncRight:X4}; " +
+            $"SM_SWAPBUTTON={GetSystemMetrics(23)}; sequential samples; " +
+            $"capture=0x{GetCapture():X}; active=0x{GetActiveWindow():X}; focus=0x{GetFocus():X}; " +
+            $"foreground=0x{foreground:X},PID={foregroundProcess},TID={foregroundThread}; " +
+            (target is null ? "WPF input not queried" : Describe(target));
+        Console.WriteLine(sample);
+        if (Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") is { Length: > 0 } directory)
+            File.AppendAllText(Path.Combine(directory, "input-origin.log"), sample + Environment.NewLine);
+    }
+
     private sealed class InputTrace : IDisposable
     {
         private readonly ButtonBase _target;
@@ -203,6 +233,7 @@ internal static class UiKeyboardProbe
         }
         internal void Record(string phase)
         {
+            Origin(phase, _target);
             string pending;
             lock (_pending) pending = string.Join(",", _pending.Values.GroupBy(p => p).Select(g => $"{g.Key}:{g.Count()}"));
             Write(_target, $"input {_elapsed.Elapsed.TotalMilliseconds:F3}ms {phase}; observed pending=[{pending}]");
@@ -290,4 +321,7 @@ internal static class UiKeyboardProbe
     [DllImport("user32.dll")] private static extern IntPtr GetCapture();
     [DllImport("user32.dll")] private static extern short GetKeyState(int key);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
 }
