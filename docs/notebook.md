@@ -1,6 +1,123 @@
 # Notebook
 
-Current checkpoint: **M22.9A linked Trades/Trading Setups implemented and focused Release verification passed; overall M22.9 acceptance and M22.9B complete gate pending**. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. Human interaction/native restart/matching CI remain unverified. M22.10 onward remains pending; earlier sections retain historical evidence.
+Current checkpoint: **M22.9 automated acceptance pending; complete-gate findings recorded below**. Actual verified source/state, full results and local CI-budget margin are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+
+## M22.9B — Release verification and acceptance
+
+21 October 2026, Europe/Kiev. **M22.9 local automated Release acceptance remains pending; retained failures/findings are recorded below.** Actual verified HEAD: **`d6f891126167921b4d7e145b615820c183da7605`**, `develop`, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A baseline `9c4ed74` had advanced: all **22 M22.9A files were committed in `d6f8911`** before B began. Starting/gate-entry worktree was clean; no applicable repository/ancestor `AGENTS.md` or duplicate test run was found. One agent, no subagents.
+
+Results belong to the rebuilt source represented by HEAD **plus the exact gate-entry working state and SHA-256 manifest** in `TestResults/m229b-verified/gate-start.json` and `verified-source-settings.json`. The runtime/settings manifest hash is **`AEF8F763187E2A741A846AD6BAA14B8A6F9C887316810B43C1F9BE1FDFBB40DC`**. All recorded A runtime hashes match. B changes only README and this document after runtime verification; no uncommitted implementation is falsely attributed to HEAD. Final source/binary comparisons and worktree inventory are in `summary.json`.
+
+### Complete Release results and timing
+
+Full solution build: **exit 0, zero warnings/errors, 74.50s**, `TestResults/m229b-verified/release-build.log`. The established complete runner executed **once**, with `Workload=ExclusiveWpf` first and its exact complementary parallel partition afterward. Result completeness, duplicate identities, Desktop **two** / Infrastructure **four** collection limits, assertions, child isolation/cleanup and existing deadlines are unchanged. Windows symlink and isolated synthetic DPAPI fixtures used their existing capabilities. No real provider/key access occurred. **No local 600-second cancellation wrapper was added; CI is unchanged.**
+
+| Project | Total | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| application | 1038 | 1038 | 0 | 0 |
+| desktop | 2051 | 2040 | 11 | 0 |
+| domain | 602 | 602 | 0 | 0 |
+| infrastructure | 1567 | 1567 | 0 | 0 |
+
+Overall: **5258 total / 5247 passed / 11 failed / 0 skipped**, final runner **exit 1**. Desktop totals combine **88 exclusive + 1963 parallel**. Child results are evidence within parents and are not added. Focused A selections (including its overlapping 9 SQLite cases) are reused, not summed with this gate.
+
+| Interval | Wall-clock duration |
+| --- | ---: |
+| Complete gate, startup and accounting; excludes build/restore | **953.408s** |
+| Exclusive WPF partition | **106.124s** |
+| Parallel partition, all projects together | **846.402s** |
+| Between-partition accounting gap | 0.031s |
+| Other wrapper startup/final overhead | 0.851s |
+| Signed local margin against CI's 600-second Test-step budget | **-353.408s** |
+
+UTC **2026-10-21T08:19:53.9857844+00:00 → 2026-10-21T08:35:47.3935140+00:00**. Scope matches M22.8F's recorded 589.693s: one outer invocation through both partitions and gate accounting, excluding build/restore, later EF/documentation checks and artifact handling. Partition intervals use the recorded stage start and last post-command accounting timestamp. `StageFinishedUtc` is **not an individual project completion timestamp**, and overlapping project durations are not added. Raw timing components and TRX host windows remain available in `timings.json` / `summary.json`.
+
+The measured gate is **353.408s above 600 seconds**. Its test failures and CI timing risk remain unresolved. A local measurement establishes only its actual local margin; matching hosted timing/acceptance and repeatability remain **unverified**. No workflow was triggered. Historical M22.8 acceptance remains preserved.
+
+Calendar native child: **70.412s**, **49.588s internal headroom** to its unchanged **120-second aggregate deadline**, child exit **0**. `calendar.json` points to the exact supervision start/exit timestamps; no overlapping case durations were summed.
+
+Exact non-passing cases (full diagnostics in `failures.json`):
+
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.PlanSectionsViewTests.GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation(theme: "Dark", width: 980, dpi: 96)`: **Failed** — System.InvalidOperationException : Isolated test suite 'plan-sections' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\plan-sections-20261021-082731-d3792b6e9895431e8b9fdd55860f0d52.
+- `PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests.OwnedFocusValidationAutomationAndRetainedStatesInBothThemes`: **Failed** — System.InvalidOperationException : Isolated test suite 'breakdown-accessibility' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\breakdown-accessibility-20261021-082914-3e37dc594eda4ac3803716ac3d1b6cf6.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.PlanSectionsViewTests.GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation(theme: "Dark", width: 460, dpi: 240)`: **Failed** — System.InvalidOperationException : Isolated test suite 'plan-sections' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\plan-sections-20261021-082731-d3792b6e9895431e8b9fdd55860f0d52.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.SessionBriefCompositionTests.ProductionShellDraftReadyAndInvalidComposition(width: 1000, height: 850, dpi: 240, theme: "Light")`: **Failed** — System.InvalidOperationException : Isolated test suite 'brief-composition' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\brief-composition-20261021-082827-12bdce0eefe040fd8064529a623200f5.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.PlanSectionsViewTests.GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation(theme: "Light", width: 980, dpi: 96)`: **Failed** — System.InvalidOperationException : Isolated test suite 'plan-sections' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\plan-sections-20261021-082731-d3792b6e9895431e8b9fdd55860f0d52.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.SessionBriefCompositionTests.ProductionShellDraftReadyAndInvalidComposition(width: 1000, height: 850, dpi: 240, theme: "Dark")`: **Failed** — System.InvalidOperationException : Isolated test suite 'brief-composition' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\brief-composition-20261021-082827-12bdce0eefe040fd8064529a623200f5.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.SessionBriefCompositionTests.ProductionShellDraftReadyAndInvalidComposition(width: 1586, height: 1000, dpi: 96, theme: "Light")`: **Failed** — System.InvalidOperationException : Isolated test suite 'brief-composition' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\brief-composition-20261021-082827-12bdce0eefe040fd8064529a623200f5.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.PlanSectionsViewTests.GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation(theme: "Light", width: 460, dpi: 240)`: **Failed** — System.InvalidOperationException : Isolated test suite 'plan-sections' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\plan-sections-20261021-082731-d3792b6e9895431e8b9fdd55860f0d52.
+- `PersonalTradingJournal.Desktop.Tests.TradingPlans.SessionBriefCompositionTests.ProductionShellDraftReadyAndInvalidComposition(width: 1586, height: 1000, dpi: 96, theme: "Dark")`: **Failed** — System.InvalidOperationException : Isolated test suite 'brief-composition' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\brief-composition-20261021-082827-12bdce0eefe040fd8064529a623200f5.
+- `PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests.ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(inputDuringDelete: True)`: **Failed** — System.InvalidOperationException : Isolated test suite 'breakdown-accessibility' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\breakdown-accessibility-20261021-082955-02d8d720c32a4ff2b062b70d5877c5fe.
+- `PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests.ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets(inputDuringDelete: False)`: **Failed** — System.InvalidOperationException : Isolated test suite 'breakdown-accessibility' failed with exit 1. Individual child cases and complete output: C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\release-20261021-081954-3f4d077f52d94b55a957251720289026\parallel\breakdown-accessibility-20261021-082935-ee99135bd18d454fb1984742368bed26.
+
+Retained diagnostic findings: the four `PlanSectionsViewTests.GlobalRemindersAndCollapsibleSectionsPreserveEditingAndExpandForValidation` parents share one existing Lazy child suite. That child hit its **30-second inactivity watchdog**; the sequence identifies **Dark / 980 / 96 DPI** as incomplete. The four `SessionBriefCompositionTests.ProductionShellDraftReadyAndInvalidComposition` parents also share one existing Lazy child; its **30-second inactivity watchdog** aborted with **Dark / 1000 × 850 / 240 DPI** incomplete. The three `BreakdownAccessibilityViewTests` parents report child failures involving keyboard focus assertions, null command execution tasks after synthetic key input (`Pump`, line 302; callers at lines 63/86), and a later **30-second watchdog** abort. Child failures are not additional top-level test totals. `child-failure-diagnostics.json` retains each child TRX/counter/error/stack, supervision and dump paths. Both suites' test files and the directly exercised Breakdown/Trade view files are unchanged by M22.9; this does **not** establish the failure's underlying cause or excuse it. Hang dumps/sequence files are retained; dump-level root-cause analysis and a corrective isolated rerun were not performed in B. No failing assertion/deadline was weakened, no unrelated suite was changed, and no replacement gate was launched.
+
+### Coverage, visuals and supporting checks
+
+`coverage.json` audits actual complete-gate identities for the M22.9 query contracts, SQLite links and Desktop coordination/view cases, plus guarded navigation/return/failure scenarios. Its new-link groups contain **29** cases and navigation contains **6** cases; these are subsets of project totals. The audit also covers existing persistence, images, retained ownership, recovery/autosave and archive/export regressions, including **8 atomic-placement interruption/order/recovery cases**. Audit findings: **none**. Exact-row child evidence confirms **4 distinct link-view children**; existing image-editor dispatch evidence is in `dispatch.json`. All child deadlines, including image **90s process / 30s case**, remain unchanged.
+
+All **eight** final A captures were re-reviewed and SHA-256-checked against both their original isolated-child files and A's archives. UI/runtime source is unchanged from A; no additional dedicated capture run was needed. Reused, hash-verified copies: **`TestResults/m229b-verified/renders/`**. `visuals.json` preserves original A child paths, prior archive paths, copied paths and hashes. Light/Dark × normal **1280/96 DPI** or narrow **480/240 DPI** × linked-items/picker are all represented. Long Trade/Setup labels wrap; inactive/already-linked indicators and separate open/remove controls are readable. Unavailable targets retain their label with disabled opening and reachable removal. The corrected Dark picker surface remains readable. **No blocking visual defect** was found; ordinary vertical scrolling is expected. Incidental captures produced by the required gate remain in its child artifacts.
+
+EF: **No changes have been made to the model since the last migration.**, exit **0**, `TestResults/m229b-verified/ef-consistency.txt`. Final tracked whitespace: **exit 0**. Documentation: **173 local targets / 0 missing**, target existence only (URL/fragment validation excluded). Exact inventory, source/settings/binary hashes and supporting-check findings are recorded in **`TestResults/m229b-verified/summary.json`**. No runtime gate was repeated solely for documentation edits.
+
+Original runner summary: **`TestResults/release-20261021-081954-3f4d077f52d94b55a957251720289026/summary.json`**. Its `exclusive-wpf/` and `parallel/` directories retain top-level TRX, VSTest diagnostics, output and supervised-child evidence. `TestResults/m229b-verified/gate-exit.json` records the final process exit, UTC boundaries and gate-entry source state; `complete-gate-output.log` retains combined output. `gate-start.json` guards against accidental replacement runs.
+
+Commands used:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m229b-verified/release-build.log
+pwsh -NoProfile -File TestResults/m229b-run-gate.ps1 # times one scripts/Test-Release.ps1 -ResultsDirectory TestResults invocation
+pwsh -NoProfile -File TestResults/m229b-measure.ps1
+pwsh -NoProfile -File TestResults/m229b-audit-gate.ps1
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+pwsh -NoProfile -File TestResults/m229b-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m229b-summarize.ps1
+```
+
+### Link behavior and remaining limitations
+
+Targets remain exactly **Trade** and **Trading Setup**; Playbooks use their Setup identity and separate Strategy support stays deferred. Trades remain eligible with inactive accounts/instruments; inactive Setups remain eligible and labelled. Add rechecks existence with the expected note version in its mutation transaction; remove never deletes or mutates the target/screenshots. Current labels resolve without dirtying/versioning a note. Deleted/missing targets retain their stored reference and unavailable state; they are never silently removed or substituted.
+
+Open uses existing shell save/navigation guards and existing details-by-ID operations without changing ordinary Trade filters. Successful return retains Notebook scope, text/tag filters, sort and selected note under the established list-membership rules. Failed/cancelled saves/navigation retain the editor; failed destinations return with useful feedback, and reactivation does not overwrite retained recovery drafts. Active-only lifecycle restrictions and unreadable/future document protection remain. Document **v1**, archive **v1** and export **v17** are unchanged, including retained image originals/ownership and recovery portability.
+
+Human keyboard/mouse/Narrator interaction, native journal restart and matching-source hosted CI remain explicitly **unverified**. Existing real clipboard/picker/viewer and installed-codec WebP success checks remain unverified. Prepared-file reclamation and full M22.11 integrated acceptance remain deferred. Smallest next action: diagnose the exact retained failing test/check artifacts before any additional runtime run; preserve the established checks and deadlines. No production/provider access, Git publication, workflow triggering, CI timeout/concurrency changes or unrelated-suite optimization occurred. **M22.10 onward remains pending; this phase stops after M22.9B.**
+
+### Exact overall M22.9 inventory
+
+Overall baseline: **`9c4ed749256728a2c2067c5aa983722d56a302cc`** (completed M22.8F). Net M22.9 inventory is **13 modified + 9 added = 22 files**. Phase A (`9c4ed74` → `d6f8911`) committed all 22 implementation/test/documentation paths. Phase B (`d6f8911` → current worktree) modifies **README.md and docs/notebook.md only**, uncommitted, overlapping A's documentation paths; there are no additional runtime/source files in B. Ignored TestResults logs/TRX/measurement scripts are local evidence outside source inventory.
+
+| Net status | File | Changed in phases |
+| --- | --- | --- |
+| M | `README.md` | A, B |
+| M | `docs/notebook.md` | A, B |
+| M | `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs` | A |
+| A | `src/PersonalTradingJournal.Application/Notebook/NotebookLinkTargets.cs` | A |
+| M | `src/PersonalTradingJournal.Application/Notebook/NotebookQueries.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/MainWindow.xaml` | A |
+| A | `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.Notebook.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` | A |
+| A | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Links.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/ViewModels/Setups/TradingSetupsViewModel.cs` | A |
+| M | `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` | A |
+| A | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Links.cs` | A |
+| M | `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Queries.cs` | A |
+| A | `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookLinkTargetContractTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookLinkedNavigationTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkViewTests.cs` | A |
+| M | `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs` | A |
+| A | `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLinkTests.cs` | A |
+
+Exact uncommitted B inventory:
+
+```text
+README.md
+docs/notebook.md
+```
 
 ## M22.9A — Linked Trades and Trading Setups
 
@@ -1327,7 +1444,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
-| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | A implemented/focused verified; B complete gate pending |
+| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | A focused verification passed; B full-gate findings retained, acceptance pending |
 | M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |
