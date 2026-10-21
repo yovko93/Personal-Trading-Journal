@@ -1,6 +1,122 @@
 # Notebook
 
-Current checkpoint: **M22.10B implementation and focused verification complete; overall M22.10 acceptance pending**. M22.10C owns complete Release acceptance. Historical M22.9E acceptance remains **5,267/5,267, exit 0**. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**; logical export is now **v18** for durable deletion cleanup state. General prepared-file reclamation and full M22.11 acceptance remain deferred; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.10 local automated Release acceptance complete — 5,339/5,339, exit 0**. The measured **769.349s** gate exceeds the unchanged 600-second CI Test budget by **169.349s**; CI timing risk remains unresolved and no matching hosted failure is established. Matching hosted input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**, logical export **v18**. General prepared-file reclamation and M22.11 implementation/full acceptance remain deferred; earlier sections preserve historical phase evidence.
+
+## M22.10C — Release verification and acceptance
+
+21 October 2026, Europe/Kiev. Actual verified baseline: clean **`develop` at `99004f29cfa54692c85c0aa29728226fdd6a8b2c`**, sole worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. Both A and B were committed before C; the reported B dirty state was historical. No repository/ancestor AGENTS.md or duplicate test process was found. One agent, no subagents. Runtime verification uses this exact HEAD with **no uncommitted source changes**; C changes only README.md and this notebook after/beside the run. `TestResults/m2210c-verified/verified-source-settings.json` records source, tests, gate and CI hashes.
+
+**Local automated acceptance is complete.** One rebuilt complete gate passed **5,339/5,339**, zero failures/skips, **exit 0**. No replacement invocation or focused-suite rerun was needed. Final process inspection found no remaining test process; reusable MSBuild nodes were left alone.
+
+| Project / partition | Passed / total | Failed / skipped |
+| --- | ---: | ---: |
+| Domain | 602 / 602 | 0 / 0 |
+| Application | 1,048 / 1,048 | 0 / 0 |
+| Infrastructure | 1,599 / 1,599 | 0 / 0 |
+| Desktop exclusive | 92 / 92 | 0 / 0 |
+| Desktop parallel | 1,998 / 1,998 | 0 / 0 |
+| Desktop combined | 2,090 / 2,090 | 0 / 0 |
+| All projects (Desktop counted once) | 5,339 / 5,339 | 0 / 0 |
+
+Gate **769.349s (12m49.349s)**, exclusive **91.843s**, parallel **676.766s**; measured margin against 600 seconds **−169.349s**. Calendar child **48.415s**, **71.585s** headroom within its unchanged 120-second deadline, exit 0. Timing is a measured local overrun, not a hosted timeout diagnosis or evidence that any particular implementation caused the difference. Local acceptance passes; CI-budget risk remains unresolved. The smallest next step is a read-only timing/phase review of these retained artifacts before proposing changes; no timeout or concurrency change is made here.
+
+Evidence index: **`TestResults/m2210c-verified/summary.json`**. Raw gate summary: **`TestResults/release-20261021-124953-09ac2d20d89c4eff930e4686f0ddf8e5/summary.json`**. `gate-start.json`, `gate-exit.json`, `timings.json`, `calendar.json`, `project-totals.json` and `complete-gate-output.log` retain invocation, accounting and exit evidence. Both partition directories retain top-level TRX, VSTest logs and isolated-child artifacts. In particular, the Desktop parallel TRX ends in **`net10.0[1].trx`** and was successfully read using `-LiteralPath`. All four reporting/coverage audits exited 0; `reporting-exits.json` is separate from the runtime exit. No reporting failure or test failure occurred in C.
+
+`m2210-coverage.json` verifies **36 phase-specific test methods / 70 parameterized cases**, plus **2** external-ownership/pending-cleanup archive cases, all passed. This includes template commit boundaries, reversible lifecycle, duplication identities/bytes, stale versions, failure/cancellation/compensation, checkpoint races, fresh-context deletion/cleanup recovery and the capture-lease regression. Four lifecycle parents each completed one distinct matching isolated child in the exclusive partition. Broader `coverage.json` confirms image/atomic-placement, autosave/recovery, ownership, archive/export and SQLite workspace regressions actually executed; **8** atomic placement cases and all **35** linking/navigation cases passed. Image-editor dispatch remained four parents/four matching distinct children. Plan Sections **4/4**, Session Brief **4/4**, Breakdown **3/3** and **51** helper/scheduling/selection regressions passed (`ui-dispatch.json`), with cleanup and exact identities checked. These overlapping coverage groups and children are not added to the complete-gate total.
+
+Release build: **zero warnings/errors**, **58.95s**, `release-build.log` / `build.json`. EF: **no pending model changes**, exit 0, `ef-consistency.log` / `ef-exit.json`. Final whitespace checks cover the overall A/B/C diff and C's worktree edits. Documentation checks validate local Markdown target existence (not remote URLs or anchors); their results are retained separately. Runtime source and gate/CI hashes remain unchanged after documentation edits, so the passing gate is not repeated.
+
+The established `scripts/Test-Release.ps1` runs the exclusive WPF partition before the complementary parallel solution partition. Assertions, collection/project concurrency, child-process/watchdog deadlines, the 120-second calendar deadline and `.github/workflows/ci.yml`'s ten-minute Test-step budget remain unchanged. There is no added local 600-second cancellation wrapper. Gate wall time includes both partitions, startup and gate accounting, excluding build/restore. Partition accounting uses the recorded stage bounds; parallel project durations are not added, and post-command `StageFinishedUtc` values are not individual project completion times. Raw TRX and diagnostics remain authoritative if reporting fails; literal-path readers support bracketed artifact names, and reporting failure does not trigger a replacement gate.
+
+Commands (repository root):
+
+```powershell
+dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
+& TestResults/m2210c-verified/run-gate.ps1
+# The wrapper invokes this established gate exactly once:
+pwsh -NoProfile -File scripts/Test-Release.ps1 -ResultsDirectory TestResults
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+& TestResults/m2210c-verified/measure.ps1
+& TestResults/m2210c-verified/audit-gate.ps1
+& TestResults/m2210c-verified/audit-ui.ps1
+& TestResults/m2210c-verified/audit-m2210.ps1
+& TestResults/m2210c-verified/check-whitespace.ps1
+& TestResults/m2210c-verified/check-doc-links.ps1
+```
+
+The authorized native-test executor reported Windows **session 1 / WinSta0\Default**, interactive desktop, successful cursor query and an administrator token. This is the existing supported context explicitly requested for the run; scripts did not switch tokens/desktops or bypass a denied operation. `preflight-context.json`, `execution-context.json` and `final-context.json` record access/process state. A pass here does not establish matching hosted timing or input-desktop compatibility, human keyboard/mouse/Narrator behavior or native journal restart. Real clipboard/picker/viewer and installed-codec WebP remain unverified. Earlier Plan/Brief watchdog causes remain historically unresolved; current results do not retroactively explain them.
+
+### Visual evidence and compatibility
+
+A's **12** and B's **16** final render hashes match their retained manifests. B's final source manifest matches the current source, including UI and harness. The B inspection is reused for its 16 action/dialog captures; four existing final B `template-active` captures were also inspected in C, covering Light/Dark at 1280 DIP / 96 DPI and 480 DIP / 240 DPI. All selected **20** captures have readable template/lifecycle controls, note content and destructive confirmation; no blocking visual defect. `TestResults/m2210c-verified/visuals.json` lists exact paths and hashes: B's `renders/` plus its `desktop-final/notebook-lifecycle-*/m2210b-renders/*-template-active.png`. Historical A captures remain evidence of A; the final B captures show the added actions. No separate capture run was needed. The complete gate's normal harness may also emit its standard captures.
+
+Five templates commit their complete initial document atomically. Archive/Return to Active/Trash/Restore preserve bodies and retained originals. Duplication uses a coherent expected-version source, fresh note/node/wrapper/managed-original identities and byte-preserving copies; failures never expose a partial copy. Confirmed permanent deletion is Trash-only, removes only that note's relationships/recovery, blocks delayed saves/checkpoints from recreating it, and detaches its editor/undo state. External targets and other notes remain independent.
+
+Committed deletion is distinct from physical cleanup. B's corrected thread-affine capture lease and writer ordering protect bounded ownership/reference checks. Unknown references retain originals; failures preserve durable ledger obligations and report pending cleanup without claiming that the note still exists. Proven optional cleanup intent survives the file/database interruption boundary. Explicit bounded resumption is available; no automatic retry scheduler or broad orphan scan is introduced. General prepared-file reclamation remains deferred, including possible unregistered bytes when a process dies before staging returns ownership identity.
+
+Logical export is **v18**, including `NotebookOwnedImageFiles.CleanupPending`; the additive migration defaults existing records to required retention. Canonical document JSON and complete archive stay **v1**. Archives retain database cleanup metadata and required originals, while proven optional cleanup bytes may be absent. Archive/preflight/offline-restore coverage exercises this state. This does not promise that older executables understand the new database schema or export v18. Full M22.11 acceptance and implementation remain deferred.
+
+### Overall M22.10 inventory
+
+A: **22 files** (`5fbbd1f..1d086c8`); B: **39 files** (`1d086c8..99004f2`); **8 shared**, yielding **53 unique files** overall. C edits only the two already-shared documentation files, adding no new unique implementation path. The phase manifest is checked against Git's cumulative diff from `5fbbd1ffb2e411c37aea2412f7aa4d9c58e7aa41`; ignored TestResults artifacts are evidence, not additional implementation files.
+
+| File | Phases |
+| --- | --- |
+| `docs/notebook.md` | A, B, C |
+| `README.md` | A, B, C |
+| `src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs` | B |
+| `src/PersonalTradingJournal.Application/Notebook/INotebookImages.cs` | B |
+| `src/PersonalTradingJournal.Application/Notebook/INotebookService.cs` | A, B |
+| `src/PersonalTradingJournal.Application/Notebook/NotebookCommands.cs` | A |
+| `src/PersonalTradingJournal.Application/Notebook/NotebookDuplication.cs` | B |
+| `src/PersonalTradingJournal.Application/Notebook/NotebookTemplates.cs` | A |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs` | A |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.CopyDelete.cs` | B |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` | A |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` | A |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Images.cs` | A |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs` | A, B |
+| `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` | A, B |
+| `src/PersonalTradingJournal.Domain/Notebook/NotebookLifecycle.cs` | A |
+| `src/PersonalTradingJournal.Domain/Notebook/NotebookNote.cs` | A |
+| `src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.Cleanup.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookRecoveryStore.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.CopyDelete.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs` | A, B |
+| `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Lifecycle.cs` | A |
+| `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261021121554_AddNotebookDeletionCleanup.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261021121554_AddNotebookDeletionCleanup.Designer.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs` | B |
+| `src/PersonalTradingJournal.Infrastructure/Persistence/Records/NotebookRecords.cs` | B |
+| `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookDuplicationTests.cs` | B |
+| `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookTemplateTests.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookCopyDeleteTests.cs` | B |
+| `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleTests.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs` | A, B |
+| `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs` | A, B |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs` | A |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookCopyDeleteTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLifecycleImageTests.cs` | A |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookPersistenceTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookTemplateLifecycleTests.cs` | A |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs` | B |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs` | B |
+
+No production/provider access, Git publication, workflow triggering or M22.11 implementation occurred. Earlier sections retain their historical phase results and limitations.
 
 ## M22.10B — Duplication and permanent deletion
 
@@ -2006,7 +2122,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
 | M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | E local automated Release acceptance passed: 5,267/5,267; hosted/interactive/native-restart limits remain |
-| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | A templates/reversible lifecycle complete; B duplication/permanent deletion implemented; C complete acceptance pending |
+| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | A/B implemented; C local automated Release acceptance complete, 5,339/5,339; CI-budget risk remains |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |
 
