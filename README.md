@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.11B2 — Foreground isolation and owner prerequisites
+
+**Focused harness verification passed; M22.11 acceptance remains pending.** Starting baseline was clean `develop` at `e6d488c7031b87ae18bf0a32cd167bad12f3793a`; B1 was already committed. Plan Workspace, Session Preparation and Plan Sections now use the existing exclusive-WPF trait and nonparallel collection because their native windows/focus operations share desktop state. One-time setup uses the unchanged bounded keyboard-readiness helper on the neutral owner window; validation still must select and focus the invalid field. Later readiness checks never reactivate or repair focus.
+
+Complete affected families: **9/9 parents and nine corresponding child cases across three nonoverlapping child launches**. Scheduling/dispatch/lifetime regressions: **46/46**. Existing Owned focus-guard regression: **1/1 parent and matching child**. All exits **0**, zero failures/skips; **56/56 top-level focused tests**, without adding child results to that total. Release build: zero warnings/errors. Discovery confirms all **2,106** Desktop cases remain represented: **101 exclusive / 2,005 parallel**, including all nine moved cases only in the exclusive partition. Whitespace and local documentation links passed.
+
+Evidence: `TestResults/m2211b2-verified/summary.json`, `discovery.json`, source/binary manifest, parent/child TRX, focus traces and supervision logs. [Source-based isolation mapping, commands, timings and exact nine-file inventory](docs/notebook.md#m2211b2--foreground-isolation-and-owner-prerequisites). The affected-family command took **59.220s** locally; moving work into the exclusive partition may increase the critical path, and no whole-gate saving is claimed. Original focus-taking events and request dispositions remain unknown. The CI-budget issue is open; no complete gate or production focus change occurred. Matching hosted CI, human interaction and native journal restart remain unverified; M22.12 remains pending.
+
 ## M22.11B1 — Bounded validation-focus diagnosis
 
 **M22.11 acceptance remains pending; neither retained failure is resolved.** Starting baseline was clean `develop` at `50f3ef29ad5f6c8a54dd93dcd371bfc89a9c59b3`; B's documentation was already committed. Plan's retained 980/96 failure observed an inactive window and null keyboard focus; a concurrent Plan Sections window-show interval is recorded, but the foreground taker and failed request's disposition are unknown. Session Preparation's original null-focus failure remains unclassified.

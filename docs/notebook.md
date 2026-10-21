@@ -1,8 +1,88 @@
 # Notebook
 
-Latest diagnostic checkpoint: **M22.11B1 completed two bounded single executions with opt-in observations; both passed, neither original focus failure is resolved.** No behavior correction or complete-gate rerun occurred. The retained acceptance result remains the M22.11B failure below.
+Latest checkpoint: **M22.11B2 corrected source-demonstrated foreground scheduling and owner-setup gaps; 56/56 focused top-level tests passed, zero failures/skips, all exits 0.** No complete gate or production focus change occurred. B1's two diagnostic passes and B2's focused passes do not establish the original focus-taking events or request dispositions. The retained acceptance result remains the M22.11B failure below.
 
 Current checkpoint: **M22.11B single complete gate finished 5,356/5,361 passed, five failed, zero skipped, exit 1; local automated acceptance remains pending**. The five parents map to two distinct native validation-focus child failures. A2 remains 201/203, two failed; A3's two diagnostic children passed once each and input origin remains unproven. Historical M22.10 acceptance remains passed. B's **696.258s** gate exceeds the unchanged 600-second CI Test budget by **96.258s**; this failed, traced run is not a healthy-runtime benchmark or matching hosted evidence. Hosted input compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v18**, schema **29 migrations** are unchanged. General reclamation and M22.12 remain deferred.
+
+## M22.11B2 — Foreground isolation and owner prerequisites
+
+21 October 2026. Actual baseline: **clean develop at `e6d488c7031b87ae18bf0a32cd167bad12f3793a`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. B1's five files were already committed. All **1,343 source/configuration hashes and four test-binary hashes** from B1 matched before changes (`TestResults/m2211b2-verified/baseline.json`). Repository/ancestor guidance search found no AGENTS.md. One agent, no subagents; retained B/B1 evidence and unrelated work are preserved.
+
+### Source-based scheduling review
+
+| Family | Independent desktop requirement | Previous protection / demonstrated gap | B2 correction |
+| --- | --- | --- | --- |
+| `TradingPlanWorkspaceViewTests` | The 980/96 row shows a native owner, asserts `Keyboard.FocusedElement` for risk/scenario/level/date validation, then exercises real MainWindow closing. | Default collection, no exclusive trait. Four parents await one shared child containing four rows; the per-process dispatcher gate cannot exclude other processes' windows. | Existing exclusive-WPF trait **and** collection for all four visible parents; shared four-row child retained. |
+| `SessionPreparationViewTests` | Native invalid-level validation must switch context and focus `Previous Day High`; assertion reads global keyboard focus. | Default collection, no exclusive trait. One isolated child protects Application lifetime but shares the input desktop. `Show()` was followed by mutation/Save without an explicit active-owner readiness boundary. | Existing exclusive trait/collection; one fact/child retained; active owner established before selection/mutation. |
+| `PlanSectionsViewTests` | Shows an activating native window, focuses the fold header before routed Enter, requests focus during validation and focuses removal controls before automation invocation. Logical-focus assertions do not make those native operations independent of other windows. | Default collection, no exclusive trait. Four parents await one shared four-row child. In B its window-show interval overlapped Workspace; the source requirement holds independently of that failure. | Existing exclusive trait/collection for all four parents; shared child retained; one-time neutral-owner setup before validation/input. |
+
+`scripts/Test-Release.ps1` still runs `Workload=ExclusiveWpf` first, then its exact complement `Workload!=ExclusiveWpf`. The existing `ExclusiveWpfCollection` has `DisableParallelization=true`; all three families join it, preventing their parent/child lifetimes from overlapping each other or other Desktop collections during that partition (and standard IDE collection execution). Trait membership also keeps these families out of the solution's parallel partition. Existing **two-collection** assembly limit, **four-project** remainder, assertions, process recursion guards, child **90-second deadline / 30-second watchdog**, parent blame limit, process-tree cleanup, completeness and duplicate-identity checks remain unchanged. The collection comment and strict scheduling regression's expected class set were updated. The entire Desktop suite is not serialized and no alternative scheduler is introduced.
+
+### Readiness and diagnostics
+
+Added test-only `ValidationFocusOwner`: `Ready` calls the existing, unchanged `UiKeyboardProbe.Ready` **once on the neutral Window**, using its bounded five-second event/dispatcher setup. It activates only the test thread's HWND through the existing helper, not a global foreground takeover. It verifies the live Application/owner dispatcher, loaded/visible/active owner and attached ready scope; initial keyboard focus must be the Window. It never focuses the expected invalid field. `AssertReady` is read-only: it checks active owner, correct live dispatcher, attachment/presentation source and visible/enabled control (plus focusability for TextBoxes). It contains no activation, pumping or focus repair.
+
+Workspace verifies each existing raw-error control before its corresponding validation. Preparation verifies the level-host readiness while preserving the nonselected invalid context: production validation must still select that context and update its bindings/focus. Plan Sections establishes readiness before its validation and input sequence. Original Save/task/idle boundaries and post-validation assertions are retained. No validation is retried; lost ownership fails or is exposed by the original assertion instead of being repaired. These changes address a missing **fixture prerequisite and scheduling contract**, not a demonstrated production PageFocus defect.
+
+B1 focus tracing remains available. `PTJ_VALIDATION_FOCUS_SHARED_SUITE=1` allows full-family Workspace verification to retain its normal shared child while `PTJ_VALIDATION_FOCUS_TRACE=1` records requests; the old opt-in exact-row diagnostic behavior remains available without the shared-suite switch. Preparation remains a single fact with exact-result validation under tracing. No diagnostic reimplementation of production focus was added. Scope-specific trace files record neutral Window focus at the new readiness boundary, then production-selected TextBox focus after the original idle assertions. Workspace observed four posted/completed requests; Preparation five, including four unloaded detached owners rejected without taking focus. There were **zero pending requests and no deactivation before window-close cleanup** in these observed sequences (`focus-observations.json`). This does not reconstruct either original failed sequence or intercept `Focus()`'s Boolean return.
+
+### Focused verification performed once
+
+All commands used current Release binaries, with the verified uncommitted harness source recorded in `verified-runtime-source.json` (**1,344 runtime files and four test binaries**, post-run hashes match). Input-dependent work used the explicitly authorized supported executor: **interactive session 1, WinSta0/Default, cursor available/error 0**, existing administrator token; no UAC/token/desktop switching, denied-permission bypass or alternative input path. `before-context.json`, `before-families-context.json` and `final-context.json` confirm context and no active test process at the boundaries.
+
+| Selection | Top-level result | Child accounting | Command wall time / exit |
+| --- | --- | --- | --- |
+| All three affected families in exclusive collection | **9/9 passed**, zero failed/skipped | Workspace **4/4**, Preparation **1/1**, Sections **4/4**; exactly three child launches, nine distinct child names matching the nine parent names | **59.2202732s / 0** |
+| Scheduling, isolation/selection and lifetime regressions | **46/46 passed**, zero failed/skipped | ReleaseScheduling **1**, CalendarSta **10**, IsolatedTestProcess **8**, IsolatedTestSelection **23**, JournalFixtureLifetime **4**. Intentional failure/timeout/zero-match probes are subordinate evidence, not failed parent tests. | **36.3887905s / 0** |
+| Existing `OwnedFocusValidationAutomationAndRetainedStatesInBothThemes` | **1/1 passed**, zero failed/skipped | One exact matching isolated child; case-owned Application, genuine keyboard/capture assertions, newer-focus/invalidation/replaced-DataContext PageFocus guards retained | **17.4257703s / 0** |
+
+Total is **56/56 disjoint top-level focused tests**; supervised child cases are not added to that total. No redundant exact-row pre-run, complete gate or retry occurred. Build command passed **exit 0, zero warnings/errors, MSBuild elapsed 54.22s** (`build.log`). Discovery, not execution, of the complete Desktop assembly confirms **101 exclusive + 2,005 parallel = 2,106 cases**. All nine affected names appear only in the exclusive partition; no cross-partition discovery-name overlap (`discovery.json`). This preserves the previous 2,106-case set while shifting nine cases from the remainder. Existing gate identity checks remain unchanged; the focused audit also rejects duplicate TRX result identities and mismatched family cardinality.
+
+Supervision proves the affected children did not overlap: Workspace **19:45:22.3914900–19:45:45.8636519 UTC**, Preparation **19:45:45.9032932–19:45:52.2568335**, Sections **19:45:52.2944959–19:46:16.8063378**. Each endpoint is confirmed process cleanup, not a post-command project accounting timestamp. Parent/child full identities, per-case TRX timestamps, raw logs and supervision paths are indexed in `summary.json`.
+
+Commands, run from the repository root (wrappers record expanded arguments):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+./TestResults/m2211b2-verified/context.ps1 -OutputName before-families-context.json
+$env:PTJ_VALIDATION_FOCUS_TRACE='1'
+$env:PTJ_VALIDATION_FOCUS_SHARED_SUITE='1'
+./TestResults/m2211b2-verified/run-tests.ps1 -Name affected-exclusive-families -Project Desktop -Filter 'Workload=ExclusiveWpf&(FullyQualifiedName~TradingPlanWorkspaceViewTests|FullyQualifiedName~SessionPreparationViewTests|FullyQualifiedName~PlanSectionsViewTests)'
+# The next two selections were separate fresh executor invocations, without the validation trace variables.
+./TestResults/m2211b2-verified/run-tests.ps1 -Name helper-regressions -Project Desktop -Filter 'FullyQualifiedName~ReleaseSchedulingTests|FullyQualifiedName~CalendarStaTestTests|FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~IsolatedTestSelectionTests|FullyQualifiedName~JournalFixtureLifetimeTests'
+$env:PTJ_INPUT_ORIGIN_TRACE='1'
+./TestResults/m2211b2-verified/run-tests.ps1 -Name focus-owner-regression -Project Desktop -Filter 'FullyQualifiedName=PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests.OwnedFocusValidationAutomationAndRetainedStatesInBothThemes'
+./TestResults/m2211b2-verified/discovery.ps1
+./TestResults/m2211b2-verified/context.ps1 -OutputName final-context.json
+./TestResults/m2211b2-verified/audit.ps1
+./TestResults/m2211b2-verified/check-whitespace.ps1
+./TestResults/m2211b2-verified/check-doc-links.ps1
+```
+
+Evidence root: **`TestResults/m2211b2-verified/`**. Each selection directory contains `parents.trx`, `output.log`, `vstest.log`, command `summary.json` and child directories. Affected child paths:
+
+- `affected-exclusive-families/plan-workspace-20261021-194522-f5bbcfb8ee084145b2871d1f394cc79c/`
+- `affected-exclusive-families/plan-preparation-20261021-194545-ab7c4534d4c04cda97277d1a34c8fa4c/`
+- `affected-exclusive-families/plan-sections-20261021-194552-9d3a6f7a207b4a5baaa5af0efa8d5d84/`
+
+These retain named child TRX, stdout/stderr, STA phase and supervision logs; Workspace/Preparation include `*-validation-focus.jsonl`. Existing Breakdown consistency renders were copied into `breakdown-renders-before/` before its regression. Visual production implementation is unchanged; this phase is not a new visual acceptance claim. Supporting checks: whitespace including the new helper and local Markdown targets passed; URL/fragment validation is outside that local-link check. No EF/schema/production change occurred; B's passing EF evidence is reused. Only documentation changed after verification, with no runtime rerun.
+
+### Exact B2 inventory and limits
+
+**Eight modified files plus one added file**, relative to the clean B1 commit:
+
+- `README.md` and `docs/notebook.md` — results, evidence, source-based review and limitations.
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ExclusiveWpfCollection.cs` — clarify the existing foreground-family collection contract.
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs` — require the three additional native families in the existing exclusive class set; concurrency assertions unchanged.
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ValidationFocusTrace.cs` — opt-in shared-suite tracing switch.
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs` — exclusive membership, normal shared-suite tracing and neutral-owner/read-only target prerequisites.
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationViewTests.cs` — exclusive membership and owner/level-host prerequisites without preselecting the invalid context.
+- `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs` — exclusive membership and one-time neutral-owner readiness before validation/input.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ValidationFocusOwner.cs` — bounded setup via the unchanged keyboard helper, followed by read-only structural/active-owner checks.
+
+Ignored evidence/scripts are under the B2 root; no production, CI, release-script, input-helper, Notebook backup/restore or navigation-ownership changes were made. The new collection membership fixes a demonstrated shared-desktop isolation deficiency; the readiness boundary makes setup assumptions explicit. Neither establishes who took focus in B, the original Workspace request disposition, or the original Preparation request disposition. Historical pressed-button and Plan/Brief uncertainties are not declared resolved.
+
+Scheduling cost: the exclusive partition grows **92 → 101 parents**, and the parallel Desktop remainder shrinks **2,014 → 2,005**. The three families now run serially in that partition; the selected local command took 59.220s. Removing overlap can increase the gate critical path, so **no whole-gate speedup, 600-second budget guarantee or hosted compatibility is claimed**. The CI-budget risk remains open. Smallest next action is a separately authorized complete Release acceptance run of this harness, retaining diagnostics and measuring the same gate scope. M22.11 acceptance remains pending until that gate passes; historical B remains **5,356/5,361, five failed, zero skipped, exit 1**. Human interaction, native journal restart and matching hosted CI remain unverified. No Git publication, workflow trigger, production/provider access, general reclamation or M22.12 work occurred.
 
 ## M22.11B1 — Bounded validation-focus diagnosis
 

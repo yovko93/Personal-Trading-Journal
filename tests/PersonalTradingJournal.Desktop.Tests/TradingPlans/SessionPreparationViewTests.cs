@@ -12,6 +12,8 @@ using PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class SessionPreparationViewTests
 {
     private const string Host = "PTJ_PLAN_PREPARATION_VIEW_HOST";
@@ -106,10 +108,14 @@ public sealed class SessionPreparationViewTests
             try
             {
                 diagnostic?.Record("shown");
+                ValidationFocusOwner.Ready(window, nativeSection);
+                diagnostic?.Record("owner-ready-before-validation");
                 vm.InstrumentToAdd = f.Catalog.Items[1]; vm.AddInstrumentCommand.Execute(null);
                 vm.Contexts[0].Levels[0].Text = "invalid in another context";
                 Assert.NotSame(vm.Contexts[0], vm.SelectedInstrument);
                 diagnostic?.Record("before-level-save");
+                // Selection/bindings must still be changed by validation, not by setup.
+                ValidationFocusOwner.AssertReady(window, (FrameworkElement)nativeSection.FindName("LevelFields"));
                 var save = vm.SaveAsync(); diagnostic?.Record("level-save-returned", new { save.IsCompleted, save.Status });
                 save.GetAwaiter().GetResult(); diagnostic?.Record("level-save-awaited");
                 window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);

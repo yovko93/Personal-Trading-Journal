@@ -19,6 +19,8 @@ namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 internal sealed class ValidationFocusTrace : IDisposable
 {
     internal static bool Enabled => Environment.GetEnvironmentVariable("PTJ_VALIDATION_FOCUS_TRACE") == "1";
+    // Full-family verification keeps the existing shared child while retaining observations.
+    internal static bool SharedSuite => Environment.GetEnvironmentVariable("PTJ_VALIDATION_FOCUS_SHARED_SUITE") == "1";
     private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
     private readonly Window _window;
     private readonly SessionPreparationViewModel _vm;

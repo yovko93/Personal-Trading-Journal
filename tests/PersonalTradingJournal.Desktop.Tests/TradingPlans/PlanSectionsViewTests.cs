@@ -16,6 +16,8 @@ using PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class PlanSectionsViewTests
 {
     private const string Host = "PTJ_PLAN_SECTIONS_HOST";
@@ -51,6 +53,8 @@ public sealed class PlanSectionsViewTests
                 {
                     void Layout([CallerLineNumber] int line = 0) { using var phase = trace.Phase("layout / ApplicationIdle", line); page.Measure(new(width, 950)); page.Arrange(new(0, 0, width, 950)); page.UpdateLayout(); Idle(); }
                     Layout(); Assert.Null(vm.Editor); Assert.True(vm.Principles.CanWrite); Render(page, theme, width, dpi, "empty");
+                    ValidationFocusOwner.Ready(window, page);
+                    trace.Write("owner readiness", "active owner established once before validation/input; no recovery activation");
                     var principles = (PlanSectionExpander)page.FindName("PrinciplesExpander");
                     var peer = new ExpanderAutomationPeer(principles); var pattern = (IExpandCollapseProvider)peer.GetPattern(PatternInterface.ExpandCollapse)!;
                     Assert.Equal(ExpandCollapseState.Expanded, pattern.ExpandCollapseState);

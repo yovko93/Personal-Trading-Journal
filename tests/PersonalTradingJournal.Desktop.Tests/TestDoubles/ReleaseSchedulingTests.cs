@@ -2,6 +2,7 @@ using System.Reflection;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.Journals;
 using PersonalTradingJournal.Desktop.Tests.Notebook;
+using PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
@@ -10,7 +11,8 @@ public sealed class ReleaseSchedulingTests
     [Fact]
     public void ExclusiveTraitAndCollectionCoverRequiredNativeClassesWithoutSerializingOtherTests()
     {
-        Type[] expected = [typeof(CalendarDayModalTests), typeof(CalendarDayPerformanceChartTests), typeof(JournalViewTests), typeof(NotebookLifecycleViewTests)];
+        Type[] expected = [typeof(CalendarDayModalTests), typeof(CalendarDayPerformanceChartTests), typeof(JournalViewTests), typeof(NotebookLifecycleViewTests),
+            typeof(TradingPlanWorkspaceViewTests), typeof(SessionPreparationViewTests), typeof(PlanSectionsViewTests)];
         Type[] exclusive = typeof(ReleaseSchedulingTests).Assembly.GetTypes()
             .Where(type => type.CustomAttributes.Any(trait => trait.AttributeType == typeof(TraitAttribute) &&
                 Equals(trait.ConstructorArguments[0].Value, ExclusiveWpfCollection.Trait) &&

@@ -16,6 +16,8 @@ using PersonalTradingJournal.Domain.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private const string Host = "PTJ_PLAN_WORKSPACE_VIEW_HOST";
@@ -27,7 +29,7 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
-            if (ValidationFocusTrace.Enabled)
+            if (ValidationFocusTrace.Enabled && !ValidationFocusTrace.SharedSuite)
             {
                 string expected = $"{typeof(TradingPlanWorkspaceViewTests).FullName}.{nameof(FullPageBindingsLifecycleGuardsFocusAndLightDarkResponsiveLayouts)}(width: {width}, dpi: {dpi})";
                 await IsolatedTestProcess.RunSuiteAsync(typeof(TradingPlanWorkspaceViewTests), "plan-workspace", Host,
@@ -127,8 +129,13 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
                 void FocusState(string phase) => output.WriteLine($"[Plan focus] {phase}: active={window.IsActive}; keyboard={Keyboard.FocusedElement?.GetType().Name ?? "null"}; within={realPage.IsKeyboardFocusWithin}");
                 FocusState("shown");
                 diagnostic?.Record("shown");
+                ValidationFocusOwner.Ready(window, realPage);
+                diagnostic?.Record("owner-ready-before-validation");
+                void TargetReady(PreparationField field) => ValidationFocusOwner.AssertReady(window,
+                    Descendants(realPage).OfType<TextBox>().Single(t => ReferenceEquals(t.DataContext, field)));
                 var editor = focus.Editor!; editor.RiskPerTrade.Text = "bad";
                 diagnostic?.Record("before-risk-save");
+                TargetReady(editor.RiskPerTrade);
                 var riskSave = focus.SaveAsync(); diagnostic?.Record("risk-save-returned", new { riskSave.IsCompleted, riskSave.Status });
                 Pump(riskSave); Idle(); diagnostic?.Record("risk-after-original-idle");
                 FocusState("risk validation completed");
@@ -136,11 +143,13 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
                 Assert.True(((ScrollViewer)realPage.FindName("PageScroll")).VerticalOffset > 0);
                 editor.Scenarios[0].Condition.Text = new string('x', 4001);
                 diagnostic?.Record("before-scenario-save");
+                TargetReady(editor.Scenarios[0].Condition);
                 var scenarioSave = focus.SaveAsync(); diagnostic?.Record("scenario-save-returned", new { scenarioSave.IsCompleted, scenarioSave.Status });
                 Pump(scenarioSave); Idle(); diagnostic?.Record("scenario-after-original-idle");
                 FocusState("scenario validation completed");
                 Assert.Same(editor.Scenarios[0].Condition, Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
-                editor.Contexts[0].Levels[0].Text = "bad"; Pump(focus.SaveAsync()); Idle();
+                editor.Contexts[0].Levels[0].Text = "bad";
+                TargetReady(editor.Contexts[0].Levels[0]); Pump(focus.SaveAsync()); Idle();
                 FocusState("level validation completed");
                 Assert.Same(editor.Contexts[0].Levels[0], Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 focus.DateText = "broken typed date"; Pump(focus.OpenDateCommand.ExecuteAsync(null)); Idle();
