@@ -18,7 +18,7 @@ using Fixture = PersonalTradingJournal.Infrastructure.Tests.Backups.BackupArchiv
 
 namespace PersonalTradingJournal.Infrastructure.Tests.Backups;
 
-public sealed class NotebookPortabilityTests
+public sealed partial class NotebookPortabilityTests
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private const string Unreadable = " \r\n{ malformed Notebook payload — запази 😀 ";

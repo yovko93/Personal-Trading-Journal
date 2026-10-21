@@ -1,6 +1,82 @@
 # Notebook
 
-Current checkpoint: **M22.10 local automated Release acceptance complete — 5,339/5,339, exit 0**. The measured **769.349s** gate exceeds the unchanged 600-second CI Test budget by **169.349s**; CI timing risk remains unresolved and no matching hosted failure is established. Matching hosted input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**, logical export **v18**. General prepared-file reclamation and M22.11 implementation/full acceptance remain deferred; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.11A integration additions complete; focused regression selection has two unresolved Desktop failures (727 passed / 729 total). M22.11B complete acceptance pending**. Historical M22.10 local automated acceptance remains passed — **5,339/5,339, exit 0**. Its **769.349s** gate exceeds the unchanged 600-second CI Test budget by **169.349s**; CI timing risk remains unresolved and no matching hosted failure is established. Matching hosted input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**, logical export **v18**, exact database schema **29 migrations**. General prepared-file reclamation remains deferred; earlier sections preserve historical phase evidence.
+
+## M22.11A — Integrated Notebook backup and restore
+
+21 October 2026, Europe/Kiev. Actual starting baseline: clean **`develop` at `ec6360b67be845b37e5c1bdf8c6e8eb2f3a511e3`**, existing worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. The reported M22.10C documentation changes had already been committed. No repository/ancestor AGENTS.md or active test process was found. One agent, no subagents. Results apply to this HEAD plus this phase's uncommitted source/test changes, recorded in `TestResults/m2211a-verified/verified-source.json`; no Git publication. Complete Release acceptance is reserved for M22.11B.
+
+### Reused contract and demonstrated additions
+
+The existing whole-database SQLite snapshot already captures every Notebook table/column: rich content and derived searchable text, folders/tags/assignments/pinning, Active/Archived/Trashed restoration metadata, typed links, current image ownership, durable recovery and retained cleanup ledger rows. Unreadable/future bodies remain exact strings. Required originals already include Notebook current/retained owned files and Trade references alongside existing Playbook/Plan images. No storage engine, application contract, migration, cleanup scheduler or archive/export format needed changing. The demonstrated product gap was the Settings disclosure still saying only Trade screenshots; it now includes required originals, Notebook recovery and the saved/checkpointed durability boundary. Backup documentation's historical M22.3A limitation is explicitly superseded.
+
+SQLite snapshot and original-byte staging share the existing capture lease. A save/import/checkpoint committed before capture is included; one committed afterward is absent from that archive. Import publishes immutable original bytes before one canonical document/metadata/ledger/version commit. Permanent deletion can remove its canonical rows during capture, but physical cleanup waits until staged snapshot originals are safe; compression runs after lease release. There is no new compression-long UI lock. Only persisted/checkpointed drafts are durable. Opening Settings from a dirty Notebook uses the existing Save/Discard/Cancel guard.
+
+`CleanupPending=false` means retained originals remain required, including unknown-reference retention after note deletion. `CleanupPending=true` is proven-safe deletion intent: the durable obligation survives even if those optional bytes have already gone; other required owners still win. Restoring a recent post-deletion backup does not recreate the note, while an explicitly chosen older backup restores its own earlier state. Copies retain independent IDs/keys/ownership and byte-identical originals. Untracked prepared files have no backup guarantee; general reclamation and automatic retries remain deferred.
+
+Offline restore revalidates schema/manifest/integrity/required originals, requires closed normal sessions/file handles, captures verified installed-journal recovery, then uses its durable marker/directory-switch/rollback engine. Cancellation before replacement leaves the old journal intact; after the switch starts, verification or recovery completes. Fresh maintenance instances resolve simulated interruptions before normal startup. A disposed session prevents retained factories/services from writing even if an incoming note's ID/version would otherwise match. Fresh services and a fresh Notebook view model reload restored data/originals and expose recovery conflicts without overwriting canonical notes. These are fresh-context tests, **not native-process restart evidence**.
+
+Compatibility is unchanged: **29 migrations**, latest `20261021121554_AddNotebookDeletionCleanup`; logical export **v18**; Notebook document **v1**; complete archive **v1**. These are separate version axes. JSON/four CSVs/inventory exports are not restore inputs. Older/future schema archives and unsupported archive versions fail before replacement. Installed-database migration does not extend archive support. [Full backup policy](backup-restore.md#integrated-notebook-backup-and-restore--m2211a).
+
+### Focused evidence and commands
+
+Durable root: `TestResults/m2211a-verified/`; final summary `summary.json`. All parent results are present and distinct; zero skipped cases. Counts exclude supervised children, which are retained separately in `children.json`.
+
+| Release selection | Passed/total | Failed | Exit | Command wall time |
+| --- | --- | --- | --- | --- |
+| Infrastructure Notebook/Backups/Screenshot | **464/464** | 0 | 0 | 206.013s |
+| Application Notebook/Backups | **64/64** | 0 | 0 | 5.239s |
+| Desktop Notebook/DataBackups | **199/201** | 2 | 1 | 292.979s |
+| Distinct selected parents | **727/729** | **2** | **not green** | Not a complete-gate benchmark |
+
+The six new Infrastructure cases cover both chosen archive ages, both snapshot mutation boundaries, post-restore stale writes and capture/deletion ordering; all passed. Existing tests add exact all-table round trips, unreadable/future payloads, unavailable links, retained removed-image recovery, pending cleanup with missing optional bytes, missing/corrupt required originals, unsupported schemas/archives, cancellation, rollback and fresh-service interruption recovery. All three new Save/Discard/Cancel navigation cases and the strengthened real Settings/maintenance round trip passed. `coverage.json` records these identities. Focused selections overlap historical phase coverage and are not added to historical gate totals.
+
+Final builds passed with **zero warnings/errors** (`build-final.log`, final Desktop `build-desktop-verified.log`); EF reports no pending model changes (`ef-consistency.log`). Tracked/untracked whitespace checks and **195** local documentation target existence checks passed. A reporting-only render grouping error was corrected from dictionary grouping to property-bearing records (`reporting-correction.log`); raw test evidence was unaffected and no runtime run was repeated.
+
+The updated disclosure was rendered by the existing `DataBackupsLayoutTests` harness. `renders/` contains `settings-{Light,Dark}-{760,400}-{top,restore}.png` and `maintenance-{Light,Dark}-{760,400}.png`: **12 files, eight distinct images** (each Settings top/restore pair is byte-identical). All eight distinct images were inspected. The 760-DIP captures use 96 DPI; 400-DIP captures use 240 DPI. Wrapping, contrast, scroll access and visible controls have no blocking defect in the captured states. `visuals.json` lists exact paths/hashes. No unchanged Notebook UI was recaptured separately.
+
+### Retained failures and next diagnostic boundary
+
+The focused Desktop command ran once. Two existing cases failed; neither their assertions nor the affected runtime/helper code was modified. `failure-diagnostics.json` preserves raw parent/child errors, stacks, timestamps and TRX paths. No rerun-to-green, timeout increase, forced capture release or unrelated navigation fix was made.
+
+| Failure | Earliest evidenced divergence | Evidence and remaining question |
+| --- | --- | --- |
+| `NotebookLinkTests.LateNavigationResolutionCannotOpenAnotherSelectedNoteOrDisposedWorkspace` | At 17:13:13 +03:00, `NotebookLinkTests.cs:134` expected zero navigation callbacks after selecting Other; actual count **1**. | `desktop-focused/parents.trx`, `output.log`. Source inspection: `SelectedNote` starts an asynchronous detail read while `Note` can still hold the previous snapshot; `OpenLinkedItemAsync` checks `Note.Id` and lifetime but not pending selection/read ownership. This is a concrete race candidate consistent with the assertion; exact interleaving still needs deterministic instrumentation. The same case passed in M22.10C (`historical-navigation-result.json`); that does not dismiss this failure. |
+| `NotebookLifecycleViewTests.TemplateAndReversibleLifecycleControls("Dark", 1280, 96)` | Child 17:15:39–17:15:48 +03:00: `ArchiveNoteButton`, Space KeyUp cleared `IsPressed`, but native/managed mouse capture remained held through the existing five-second release deadline. | `desktop-focused/notebook-lifecycle-20261021-141534-e238ea37ba6743979c9aa40779807bf1/`: child TRX, `keyboard-readiness.log`, `calendar-sta-phases.log`, `process-supervision.log`, stdout/stderr. At KeyUp, left mouse state was **Pressed**; at failure it was Released while capture remained. The foreground handle differed from the test window; the initiating cause/process is not established. No permission denial was reported, and this was an assertion failure, not a watchdog timeout. |
+
+The lifecycle parent propagated its one failed exact child; it is not a third distinct failure. The existing nonparallel `ExclusiveWpfCollection` remained enabled. The focused command selected both workload traits together; it did not execute the complete gate's two-stage partition ordering, so its elapsed time is not comparable to the gate. The other three lifecycle parents passed. Smallest next action: deterministic diagnosis of the late-navigation ownership boundary and native release/device-state trace before broader acceptance; keep these failures open rather than labeling them flaky or claiming backup tests prove their resolution. A required correction should receive its own narrow regression evidence before M22.11B.
+
+The Desktop Settings flow uses the real database/snapshot/preflight/offline maintenance services with synthetic local data and fake UI choices/parent wait/reopen. It now includes a decoder-admitted original, a template note and conflicting durable recovery, then loads a fresh Notebook view model. Three new navigation cases verify Save/Discard/Cancel on entry to Settings. An initial Desktop test compilation caught two incorrect new test API names (`TradeReview`, `Activate`); they were corrected to existing `MarketStudy`/`ActivateAsync`. The failed build log is retained as `build-desktop-final.log`; this was a test-authoring compile error, not a runtime engine failure. Subsequent builds retain exact assertions and pass.
+
+Commands (run from repository root; `run-tests.ps1` retains output, diagnostics, TRX, duration and exit code and refuses existing evidence directories):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2211a-verified/run-tests.ps1 -Name infrastructure-focused -Project Infrastructure -Filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~Screenshot'
+pwsh -NoProfile -File TestResults/m2211a-verified/run-tests.ps1 -Name application-focused -Project Application -Filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Backups'
+$env:PTJ_BACKUP_RENDER_DIRECTORY = Join-Path (Get-Location) 'TestResults/m2211a-verified/renders'
+pwsh -NoProfile -File TestResults/m2211a-verified/run-tests.ps1 -Name desktop-focused -Project Desktop -Filter 'FullyQualifiedName~Notebook|FullyQualifiedName~DataBackups'
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File TestResults/m2211a-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2211a-verified/check-doc-links.ps1
+```
+
+The wrapper expands to `dotnet test <project> -c Release --no-build --no-restore --filter <selection> --logger 'trx;LogFileName=parents.trx' --results-directory <run> --diag <run>/vstest.log --blame-hang --blame-hang-timeout 3m --blame-hang-dump-type mini`; existing isolated child/watchdog and collection settings are unchanged. Native assertions use the existing explicitly authorized Windows executor: session **1**, **WinSta0/Default**, interactive, cursor available, existing administrator token; no UAC/token/desktop switch. `execution-context.json` records the probe and absence of active tests. Native input is an environment requirement; it is not evidence of matching hosted compatibility or human interaction.
+
+### Exact M22.11A changed-file inventory
+
+**Nine unique files: eight modified, one added.** No pre-existing dirty files were present. All other implementation and historical evidence is preserved.
+
+| Area | Exact repository-relative paths |
+| --- | --- |
+| Product disclosure (modified) | `src/PersonalTradingJournal.Desktop/ViewModels/Settings/DataBackupsViewModel.cs` |
+| Integrated SQLite/filesystem coverage (added) | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookIntegratedBackupTests.cs` |
+| Existing rich fixture reuse (modified) | `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs` (partial class only) |
+| Desktop integration (modified) | `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookNavigationTests.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsFlowTests.cs`; `tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsTests.cs` |
+| Documentation (modified) | `README.md`; `docs/notebook.md`; `docs/backup-restore.md` |
+
+Ignored `TestResults/m2211a-verified/` evidence is separate from this source inventory. M22.10's passing gate remains historical evidence; no complete gate or timing benchmark is run in A. The unresolved local CI-budget deficit is **169.349s** against the unchanged **600s** Test-step limit. Matching hosted timing/input compatibility, human interaction, native journal restart, real clipboard/picker/viewer and installed-codec WebP remain unverified. M22.11B and later work remain pending. No production/provider access, workflow triggering or Git publication occurred.
 
 ## M22.10C — Release verification and acceptance
 
