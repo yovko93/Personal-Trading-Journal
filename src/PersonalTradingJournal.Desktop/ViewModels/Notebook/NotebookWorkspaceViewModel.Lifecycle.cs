@@ -16,11 +16,15 @@ public sealed partial class NotebookWorkspaceViewModel
     public AsyncRelayCommand UnarchiveCommand { get; private set; } = null!;
     public AsyncRelayCommand TrashCommand { get; private set; } = null!;
     public AsyncRelayCommand RestoreCommand { get; private set; } = null!;
+    public AsyncRelayCommand DuplicateCommand { get; private set; } = null!;
+    public AsyncRelayCommand DeletePermanentlyCommand { get; private set; } = null!;
     private NotebookNoteState? LifecycleState => Note?.State ?? _unavailable?.State;
     public bool ShowArchive => LifecycleState == NotebookNoteState.Active;
     public bool ShowUnarchive => LifecycleState == NotebookNoteState.Archived;
     public bool ShowTrash => LifecycleState is NotebookNoteState.Active or NotebookNoteState.Archived;
     public bool ShowRestore => LifecycleState == NotebookNoteState.Trashed;
+    public bool ShowDuplicate => LifecycleState is NotebookNoteState.Active or NotebookNoteState.Archived;
+    public bool ShowDeletePermanently => LifecycleState == NotebookNoteState.Trashed;
     private bool CanStartNoteOperation => _active && !_disposed && !_noteOperation && !_guarding &&
         !_linkOperation && !_imageOperation && !_preparingImage && !_tagOperation && (!IsBusy || IsSaving) && (!IsWriting || IsSaving);
     private void InitializeLifecycle()
@@ -30,11 +34,13 @@ public sealed partial class NotebookWorkspaceViewModel
         UnarchiveCommand = new(() => ChangeLifecycleAsync(NotebookNoteState.Active), () => CanStartNoteOperation && ShowUnarchive);
         TrashCommand = new(() => ChangeLifecycleAsync(NotebookNoteState.Trashed), () => CanStartNoteOperation && ShowTrash);
         RestoreCommand = new(() => ChangeLifecycleAsync(null), () => CanStartNoteOperation && ShowRestore);
+        DuplicateCommand = new(DuplicateNoteAsync, () => CanStartNoteOperation && ShowDuplicate && Note is not null);
+        DeletePermanentlyCommand = new(DeleteNoteAsync, () => CanStartNoteOperation && ShowDeletePermanently);
     }
     private void NotifyLifecycleCommands()
     {
-        foreach (var name in new[] { nameof(ShowArchive), nameof(ShowUnarchive), nameof(ShowTrash), nameof(ShowRestore), nameof(CanInteract), nameof(CanSelectNote) }) OnPropertyChanged(name);
-        foreach (var command in new[] { CreateTemplateCommand, ArchiveCommand, UnarchiveCommand, TrashCommand, RestoreCommand }) command?.NotifyCanExecuteChanged();
+        foreach (var name in new[] { nameof(ShowArchive), nameof(ShowUnarchive), nameof(ShowTrash), nameof(ShowRestore), nameof(ShowDuplicate), nameof(ShowDeletePermanently), nameof(CanInteract), nameof(CanSelectNote) }) OnPropertyChanged(name);
+        foreach (var command in new[] { CreateTemplateCommand, ArchiveCommand, UnarchiveCommand, TrashCommand, RestoreCommand, DuplicateCommand, DeletePermanentlyCommand }) command?.NotifyCanExecuteChanged();
     }
     private Task CreateFromTemplateAsync(NotebookTemplate template)
     {

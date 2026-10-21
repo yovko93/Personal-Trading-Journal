@@ -16,6 +16,46 @@ namespace PersonalTradingJournal.Infrastructure.Tests.Backups;
 
 public sealed class NotebookImagePortabilityTests
 {
+    [Fact]
+    public async Task DuplicateAndDeletePreserveExternalTradeOwnership()
+    {
+        await using var f=await Fixture.Create();await f.Add("external.png");var s=Operations(f);
+        var note=NotebookFixture.Success(await s.Notes.ExecuteAsync(new CreateNotebookNote()));Guid trade,screenshot;
+        await using(var db=f.Context())
+        {
+            var external=await db.TradeScreenshots.SingleAsync();trade=external.TradeId;screenshot=external.Id;
+            var id=Guid.NewGuid();var image=NotebookImage.TradeReference(id,0,trade,screenshot,"External","Reference");
+            var document=new NotebookDocument([NotebookNode.Image(Guid.NewGuid(),id,"External","Reference")]);
+            var domain=NotebookNote.Rehydrate(note.Id,note.Title,document,null,NotebookNoteState.Active,false,null,[],[],[image],1,note.CreatedAtUtc,note.UpdatedAtUtc);
+            NotebookMapper.Apply(await db.NotebookNotes.SingleAsync(),domain,new NotebookJsonCodec().Encode(document));
+            db.NotebookImages.Add(NotebookMapper.Image(note.Id,image));db.NotebookLinks.Add(new(){NoteId=note.Id,Kind=1,TargetId=trade,LastKnownLabel="Trade"});await db.SaveChangesAsync();
+        }
+        var copy=NotebookFixture.Success(await s.Notes.ExecuteAsync(new DuplicateNotebookNote(note.Id,note.Version)));
+        Assert.Equal(trade,copy.Images[0].TradeId);Assert.Equal(screenshot,copy.Images[0].TradeScreenshotId);Assert.Equal(trade,Assert.Single(copy.Links).TargetId);
+        foreach(var n in new[]{note,copy}){var trash=NotebookFixture.Success(await s.Notes.ExecuteAsync(new TrashNotebookNote(n.Id,n.Version)));Assert.Equal(NotebookWriteStatus.Success,(await s.Notes.ExecuteAsync(new DeleteNotebookNote(trash.Id,trash.Version,true))).Status);}
+        await using var fresh=f.Context();Assert.Single(await fresh.Trades.ToArrayAsync());Assert.Single(await fresh.TradeScreenshots.ToArrayAsync());Assert.Empty(await fresh.NotebookImages.ToArrayAsync());Assert.Empty(await fresh.NotebookOwnedImageFiles.ToArrayAsync());
+        Assert.Equal(new byte[]{1,2,3},await File.ReadAllBytesAsync(Path.Combine(f.Paths.ScreenshotsDirectory,"external.png")));
+    }
+    [Fact]
+    public async Task PendingDeletionWithoutBytesArchivesAndRestoresItsDurableCleanupState()
+    {
+        await using var f=await Fixture.Create();var s=Operations(f);var note=await Import(f);var image=note.Images[0];var path=Path.Combine(f.Paths.ScreenshotsDirectory,image.StorageKey!);
+        await File.WriteAllBytesAsync(path,new byte[NotebookImageTests.Png.Length]);
+        note=NotebookFixture.Success(await s.Notes.ExecuteAsync(new TrashNotebookNote(note.Id,note.Version)));
+        var result=await s.Notes.ExecuteAsync(new DeleteNotebookNote(note.Id,note.Version,true));Assert.Equal(NotebookWriteStatus.Success,result.Status);Assert.True(result.CleanupPending);
+        await using(var db=f.Context())Assert.True((await db.NotebookOwnedImageFiles.SingleAsync()).CleanupPending);
+        File.Delete(path); // Simulate interruption after physical deletion and before ledger acknowledgement.
+        var archive = await f.Service().CreateAsync(f.Output);
+        Assert.True(archive.Succeeded, archive.ToString());
+        using(var zip=ZipFile.OpenRead(f.Output))Assert.Null(zip.GetEntry(BackupArchiveContract.ScreenshotsPrefix+image.StorageKey));
+        var preflight=await new RestorePreflightService().InspectAsync(f.Output,f.Root);Assert.True(preflight.Validated);
+        await using var target=await Fixture.Create();await target.Services.DisposeAsync();JournalDataSession.ClearOwnedPools(target.Paths);
+        Assert.Equal(JournalRestoreStatus.Restored,(await new JournalRestoreService(target.Paths).RestoreAsync(new(f.Output,preflight.Summary!.ArchiveSha256))).Status);
+        await using var fresh=new ServiceCollection().AddPersistence(target.Paths).BuildServiceProvider();
+        var factory=fresh.GetRequiredService<IDbContextFactory<JournalDbContext>>();await using(var db=await factory.CreateDbContextAsync()){Assert.Empty(await db.NotebookNotes.ToArrayAsync());Assert.True((await db.NotebookOwnedImageFiles.SingleAsync()).CleanupPending);}
+        var files=new NotebookImageFiles(target.Paths,factory,new NotebookImageTests.Probe());Assert.True(await files.CleanupDeletedNoteAsync(note.Id,default));
+        await using(var db=await factory.CreateDbContextAsync())Assert.Empty(await db.NotebookOwnedImageFiles.ToArrayAsync());
+    }
     private static (NotebookImageService Images, NotebookService Notes) Operations(Fixture f)
     {
         var factory = f.Services.GetRequiredService<IDbContextFactory<JournalDbContext>>();
@@ -44,7 +84,7 @@ public sealed class NotebookImagePortabilityTests
         Assert.True((await source.Services.GetRequiredService<IPortableExportService>().CreateAsync(exportPath)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(exportPath, PortableExportContract.DataFile))))
         {
-            Assert.Equal(17, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
             var row = Assert.Single(json.RootElement.GetProperty("tables").GetProperty("notebookOwnedImageFiles").EnumerateArray());
             Assert.Equal(image.Id, row.GetProperty("id").GetGuid()); Assert.Equal(note.Id, row.GetProperty("noteId").GetGuid());
             Assert.Equal(image.StorageKey, row.GetProperty("storageKey").GetString()); Assert.Equal(image.SizeBytes, row.GetProperty("sizeBytes").GetInt64());

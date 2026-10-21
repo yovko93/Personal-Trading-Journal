@@ -538,6 +538,9 @@ namespace PersonalTradingJournal.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("CleanupPending")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid>("NoteId")
                         .HasColumnType("TEXT");
 

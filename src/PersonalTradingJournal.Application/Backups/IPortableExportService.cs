@@ -9,7 +9,7 @@ public interface IPortableExportService
 public static class PortableExportContract
 {
     public const string Format = "personal-trading-journal-logical-export";
-    public const int Version = 17; // Includes the retained Notebook-owned file ledger, separate from current references.
+    public const int Version = 18; // Includes durable Notebook deletion cleanup state.
     public const string DataFile = "journal.json";
     public const string InventoryFile = "export-manifest.json";
     public const long MaximumOutputBytes = 32L * 1024 * 1024 * 1024;

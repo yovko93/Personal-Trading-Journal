@@ -53,8 +53,8 @@ public sealed partial class NotebookService(IDbContextFactory<JournalDbContext> 
         {
             cancellationToken.ThrowIfCancellationRequested();
             ArgumentNullException.ThrowIfNull(command);
-            if (command is DuplicateNotebookNote or DeleteNotebookNote)
-                return new(NotebookWriteStatus.Deferred, Issues: [new("Operation", "Duplication and permanent note deletion are not available in M22.8A.")]);
+            if (command is DuplicateNotebookNote duplicate) return await DuplicateAsync(duplicate, cancellationToken);
+            if (command is DeleteNotebookNote delete) return await DeleteAsync(delete, cancellationToken);
             await using var db = await factory.CreateDbContextAsync(cancellationToken);
             await db.Database.OpenConnectionAsync(cancellationToken);
             await using var tx = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: false);

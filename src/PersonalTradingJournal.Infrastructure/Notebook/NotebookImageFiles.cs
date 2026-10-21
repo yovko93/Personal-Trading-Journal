@@ -13,7 +13,7 @@ namespace PersonalTradingJournal.Infrastructure.Notebook;
 
 /// <summary>Dedicated notebook-* namespace in the established managed screenshots root; originals are immutable.
 /// This preserves archive v1's existing attachment paths and capture lease, without exposing source paths.</summary>
-public sealed class NotebookImageFiles : INotebookImageFiles
+public sealed partial class NotebookImageFiles : INotebookImageFiles
 {
     private readonly IApplicationPaths paths;
     private readonly IDbContextFactory<JournalDbContext> factory;

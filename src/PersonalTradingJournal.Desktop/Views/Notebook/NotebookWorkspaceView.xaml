@@ -169,6 +169,8 @@
        <Button x:Name="UnarchiveNoteButton" Content="Return to Active" Command="{Binding UnarchiveCommand}" Visibility="{Binding ShowUnarchive, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8"/>
        <Button x:Name="TrashNoteButton" Content="Move to Trash" Command="{Binding TrashCommand}" Visibility="{Binding ShowTrash, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8"/>
        <Button x:Name="RestoreNoteButton" Content="Restore" Command="{Binding RestoreCommand}" Visibility="{Binding ShowRestore, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8" AutomationProperties.HelpText="Restore the prior Active or Archived state and available folder; otherwise Unfiled."/>
+       <Button x:Name="DuplicateNoteButton" Content="Duplicate" Command="{Binding DuplicateCommand}" Visibility="{Binding ShowDuplicate, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an independent Active copy with its own image originals. Restore Trash before duplicating."/>
+       <Button x:Name="DeleteNoteButton" Content="Delete permanently" Command="{Binding DeletePermanentlyCommand}" Visibility="{Binding ShowDeletePermanently, Converter={StaticResource VisibleWhenTrue}}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Confirm irreversible deletion of this note and its recovery drafts."/>
       </WrapPanel>
       <WrapPanel>
        <Button Content="Save" Command="{Binding SaveCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Save title and content. Control S."/>

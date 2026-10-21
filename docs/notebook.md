@@ -1,6 +1,136 @@
 # Notebook
 
-Current checkpoint: **M22.10A implementation and focused Release verification complete; overall M22.10 acceptance pending**. Templates and reversible lifecycle actions are implemented. M22.10B duplication/permanent deletion and M22.10C complete Release acceptance remain pending. Historical M22.9E acceptance remains **5,267/5,267, exit 0**. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.10B implementation and focused verification complete; overall M22.10 acceptance pending**. M22.10C owns complete Release acceptance. Historical M22.9E acceptance remains **5,267/5,267, exit 0**. Matching hosted timing/input-desktop compatibility, human interaction and native journal restart remain unverified. Document/archive remain **v1**; logical export is now **v18** for durable deletion cleanup state. General prepared-file reclamation and full M22.11 acceptance remain deferred; earlier sections preserve historical phase evidence.
+
+## M22.10B — Duplication and permanent deletion
+
+21 October 2026, Europe/Kiev. Actual clean starting baseline: **`1d086c8da0eb1cef6bf59e5c5df15cc7d513784d`**, `develop`, sole worktree **`C:/Users/Yovko/source/repos/Personal-Trading-Journal`**. M22.10A's 22 files had already been committed; the reported `5fbbd1f` baseline and uncommitted A state were historical. No applicable repository/ancestor AGENTS.md was found. One agent, no subagents. Results apply to HEAD plus this phase's uncommitted changes. Evidence root: **`TestResults/m2210b-verified/`**; existing A and earlier diagnostics remain untouched.
+
+### Duplication policy and transaction boundaries
+
+Active and Archived notes can be duplicated; Trash must be restored first. A duplicate is Active, unpinned, version **1**, in the source folder, with fresh creation/update UTC audit values and a fresh note identity. The chosen naming policy is **`Copy of <source title>`**, truncated to the existing 200-character title limit without splitting a surrogate pair. Titles need not be unique. Missing/unreadable/future source bodies return UnsupportedContent; unavailable owned originals fail the operation, never substitute an empty body. Existing unavailable Trade/Setup links and Trade screenshot references remain references with their original target identities.
+
+The application clones all supported document nodes with fresh identities, preserving text/marks, heading levels, lists/check state, hyperlink URLs, captions, alternative text and exact canonical newlines. Every image wrapper gets a fresh identity. Owned originals are read with size/hash verification, staged through the existing admission/storage port under fresh note/image/storage identities, and copied without re-encoding their bytes. Trade screenshots retain external ownership and are neither copied nor deleted. Existing catalog tags are assigned to the copy; linked target records are unchanged.
+
+The source is loaded as a coherent read snapshot. After staging all required files, one immediate SQLite writer transaction rechecks the source expected version/state, inserts the final note/document/projections, assignments, links, wrappers and ownership records, verifies readback and commits. Source changes during copying produce Conflict and no partial duplicate. Folder/tag catalog maintenance already advances affected source versions, so the same recheck protects copied references. There is no visible blank/partially populated note.
+
+On failure/cancellation, a fresh non-cancelled read resolves whether the new note committed before any destructive compensation. A verified committed copy returns Success even when acknowledgement was lost. Otherwise the existing capture-lease/writer-locked compensation checks ownership and recovery for **only this operation's staged files**. Failed compensation records immutable prepared ownership where the database is available, reports CleanupPending, and retains bytes. Unresolvable database outcomes retain bytes without claiming durable acknowledgement. Process death before a published file's identity reaches the caller can still leave unregistered prepared bytes, as in the existing staging contract; no orphan scan or general collector is introduced.
+
+### Permanent deletion, recovery and cleanup
+
+Only a confirmed Trash note is eligible. The Desktop confirmation identifies the note by title and warns that its recovery drafts are also removed and the action cannot be undone. The operation guard captures identity/version and prevents competing selection/navigation/submissions while confirmation and persistence run. The service independently validates confirmation, Trash state and expected version under its immediate writer lock. Invalid/stale requests preserve the note, body, recovery and files. Malformed/future bodies may be explicitly deleted without decoding/conversion.
+
+One canonical transaction adopts any legacy owned originals into the retention ledger, explicitly removes **only this note's** tag assignments, links and image wrappers, removes its recovery rows, then removes the note. Existing restrictive foreign keys remain; there is no cascade into catalog tags, Trades, Trading Setups, screenshots, folders or other notes. Recovery Put now checks source-note existence under the same writer lock: a checkpoint either commits first and is removed by deletion, or observes NotFound afterward. New sessions and delayed updates cannot recreate deleted recovery. Existing orphan recovery from older/raw source deletion remains readable; the new Put rule does not silently erase it. Stale canonical saves likewise return NotFound.
+
+Database deletion and physical cleanup have distinct outcomes. A confirmed database commit returns **Success with DeletedNoteId**, even when cleanup fails; the UI says the note was deleted and files remain pending safe cleanup. An ambiguous commit is resolved through a fresh read before cleanup. After acknowledgement, the editor installs an empty draft, resets its revision/undo presentation, clears selection, removes that note's in-memory recovery rows, and refreshes counts. Unrelated notes/recovery/filter state remain intact.
+
+`CleanupDeletedNoteAsync` is bounded to one deleted note and at most **128 ledger entries**. Under the established **capture lease → immediate writer** lock order it checks that the note is absent, the managed key matches its note/image identity, no other image/ledger/Trade/Playbook/Plan owner claims the key, and no retained canonical document or recovery body references the image. It inspects at most **128 notes and 128 recovery records**, checking version/length before reading bodies. Unknown, oversized, malformed or over-capacity content is conservative retention, never proof of absence. Other-note live undo remains protected by that note's retained ledger; the deleted note cannot persist its stale undo state back into a missing note.
+
+For a proven unreferenced original, cleanup first commits **`CleanupPending=true`** in the ownership ledger. It then rechecks retention under a new writer transaction while retaining the capture lease, verifies the managed file's identity/hash and deletes only that original. Finally it removes the ledger row. An interruption after file deletion but before ledger acknowledgement leaves durable optional cleanup metadata, so a fresh service can safely finish that exact note's cleanup. Permission, alias, tampering or deletion failures retain the record; absence is distinguished from access failure. Unknown retention leaves `CleanupPending=false`, keeping those bytes required by complete archives. A later failed retention recheck restores the required-retention state. No arbitrary directories, source files or existing archives are deleted.
+
+The ledger is the durable record of outstanding work: remaining rows whose source note is absent retain cleanup/retention obligations. This phase attempts bounded cleanup after deletion and exposes the same bounded service operation for explicit verified resumption; **there is no automatic retry scheduler or orphan collector**. General prepared-file reclamation remains deferred.
+
+The capture mutex is thread-affine. Cleanup acquires it on a worker thread, synchronously joins the asynchronous database/file work there, and releases it on that same owner thread, including failure paths. The database work may resume on other threads; mutex ownership does not. A deterministic interceptor failure resumed from a dedicated thread verifies release by acquiring the same lease from another dedicated thread afterward.
+
+### Desktop integration and compatibility
+
+Duplicate uses A's Save / Discard / Cancel guard, drains in-flight saving, and snapshots the persisted version afterward. Failed duplication preserves an explicitly discarded draft until a verified commit; cancellation/conflicts do not replace it. The copy's editor opens after success while search/tag/sort choices are preserved. Archived/Pinned scope moves to All Notes so the Active/unpinned copy can be selected; if the current filter/page excludes it, its editor remains open with an explanatory message. New/Blank/Ctrl+N and A lifecycle behavior remain intact. Both actions prevent overlapping submissions and ignore disposed/foreign-note acknowledgements.
+
+Additive migration **`20261021121554_AddNotebookDeletionCleanup`** adds non-null Boolean `NotebookOwnedImageFiles.CleanupPending`, default false for existing retention records. Exact migration-history/table/column assertions are extended, not weakened. Logical export advances **17 → 18** and explicitly includes the Boolean field. Document JSON stays **v1**. Complete archive stays **v1**: the database snapshot retains cleanup metadata, while only proven optional cleanup files are omitted from the required managed-file inventory. Current references and non-pending ledger originals still participate in size/hash completeness checks. Archive/preflight/offline-restore coverage includes a pending row whose bytes were already deleted, followed by fresh-service cleanup resumption. This is format compatibility with the new schema, not a claim that older executables understand it.
+
+### Focused verification and evidence
+
+**Implementation and focused Release verification complete.** Final results apply to HEAD plus the 39-file uncommitted B state. `summary.json` indexes commands and evidence; each selection retains `summary.json`, `parents.trx`, `output.log` and `vstest.log`.
+
+| Selection | Passed / total | Failed / skipped | Exit | Invocation wall time |
+| --- | ---: | ---: | ---: | ---: |
+| domain-focused | 35 / 35 | 0 / 0 | 0 | 7.773s |
+| application-focused | 27 / 27 | 0 / 0 | 0 | 7.668s |
+| infrastructure-lease-final | 562 / 562 | 0 / 0 | 0 | 178.986s |
+| desktop-final | 582 / 582 | 0 / 0 | 0 | 240.326s |
+| lease-regressions | 2 / 2 | 0 / 0 | 0 | 13.252s |
+
+The four broad selections contain **1,206 distinct passed parent cases**. The two lease regressions overlap Infrastructure; child results and earlier overlapping runs are not added. Invocation times include startup and are not summed across concurrent selections. Domain/Application and Desktop results remain valid after the final storage-only correction; `verified-source.json`, `final-source-manifest.json` and `final-binaries.json` record provenance and the three subsequent storage-only source/test changes. The affected storage/archive selection was rebuilt and rerun.
+
+Final solution build: **zero warnings/errors**, `lease-build.log` (**21.02s**). EF: **no pending model changes**, exit 0, `ef-final.log`. Whitespace and local documentation-target checks are recorded in `whitespace.json` and `documentation-links.json`. No complete Release gate or CI timing measurement belongs to B.
+
+Commands from the repository root (full argument arrays and invocation times are retained in each selection's summary):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+& TestResults/m2210b-verified/run-tests.ps1 -Name domain-focused -Project Domain -Filter 'FullyQualifiedName~Notebook'
+& TestResults/m2210b-verified/run-tests.ps1 -Name application-focused -Project Application -Filter 'FullyQualifiedName~Notebook'
+& TestResults/m2210b-verified/run-tests.ps1 -Name desktop-final -Project Desktop -Filter 'FullyQualifiedName~Notebook|FullyQualifiedName~Navigation.MainWindowViewModelTests|FullyQualifiedName~MainWindowHeaderTests|FullyQualifiedName~TradingSetupsViewModelTests|FullyQualifiedName~TradesViewModelTests|FullyQualifiedName~ReleaseSchedulingTests'
+$selection = Get-Content TestResults/m2210b-verified/infrastructure-final/summary.json -Raw | ConvertFrom-Json
+& TestResults/m2210b-verified/run-tests.ps1 -Name infrastructure-lease-final -Project Infrastructure -Filter $selection.Arguments[7]
+& TestResults/m2210b-verified/run-tests.ps1 -Name lease-regressions -Project Infrastructure -Filter 'FullyQualifiedName~CleanupReleasesCaptureLeaseOnOwnerThreadAfterAsynchronousFailure|FullyQualifiedName~PendingDeletionWithoutBytesArchivesAndRestoresItsDurableCleanupState'
+& TestResults/m2210b-verified/check-whitespace.ps1
+& TestResults/m2210b-verified/check-doc-links.ps1
+& TestResults/m2210b-verified/finalize-evidence.ps1
+```
+
+The storage filter is the established A selection: `FullyQualifiedName~Notebook|FullyQualifiedName~Backups|FullyQualifiedName~SqlitePersistenceIntegrityTests|FullyQualifiedName~InitialMigrationTests|FullyQualifiedName~JournalDatabaseInitializerTests|FullyQualifiedName~ProductionPersistenceIntegrationTests|FullyQualifiedName~TradingRulePersistenceTests|FullyQualifiedName~TradingRulePortabilityTests|FullyQualifiedName~PlaybookPersistenceTests|FullyQualifiedName~PlaybookImagePersistenceTests|FullyQualifiedName~DailyTradingPrincipleTests|FullyQualifiedName~SharedTradingPlanTests|FullyQualifiedName~TradingPlanPortabilityTests|FullyQualifiedName~LocalTradeScreenshotFileStorageTests`. The wrapper uses Release `--no-build --no-restore`, durable TRX/diagnostics and the established 3-minute outer hang collector; it refuses to overwrite a run directory. These are recorded invocations, not instructions to replace retained runs. CI, exclusive partition classification, collection limits and internal deadlines are unchanged.
+
+The initial storage selection is retained as **541/561 passed, 20 failed, zero skipped, exit 1** (`infrastructure-focused/`, `initial-failures.json`). Findings: owned-image deletion had tracked rows left after SQL relationship removal; the ownership-adoption read now uses AsNoTracking. Two new ImmutableArray assertions now compare exact element arrays. Existing Deferred/export-v17/migration-history/column/count expectations were updated to the implemented contract and export v18/schema. The next targeted selection passed the five corrected deletion/copy/archive cases and exposed one remaining migration-count expectation (**5/6, exit 1**, `storage-corrections/`); both explicit history counts now include migration 29. An initial build-only missing namespace import is retained in `build-initial.log`; subsequent builds passed. No assertion, timeout or concurrency limit was removed.
+
+The subsequent broad storage run (`infrastructure-final/`) passed **560/561**, with the pending-cleanup archive creation assertion failing (exit 1, zero skipped). That assertion originally omitted the detailed archive result; it now reports the result record on failure. Inspection found the new cleanup awaited while holding the existing thread-affine capture mutex, allowing disposal on a different thread and leaving capture blocked. The corrected owner-thread join and deterministic asynchronous-failure regression passed together with the archive/preflight/restore/resume case: **2/2**, exit 0 (`lease-regressions/`). The final broader storage selection includes that added regression. All failed artifacts remain retained; they are not included in final passing totals.
+
+Domain/Application tests preserve templates and all node kinds, independent identities, title bounds and canonical content. SQLite coverage exercises staged multi-file failure, cancellation, changing source versions, compensation failure, fresh-context commit/acknowledgement boundaries, delete eligibility, stale writes/checkpoint races, unknown-body policy, copy independence, cleanup retention/failure, and no cross-note/external-owner deletion. Storage/archive/export selections include A/image/recovery/ownership/portability regressions and exact schema/export completeness.
+
+The existing four lifecycle WPF parents retain exact one-child selection, independent Application/STA lifetime, exclusive WPF classification, native focus/capture/release checks and **90-second process / 30-second watchdog** limits. They now also keyboard-activate Duplicate/Delete, verify confirmation cancellation and editor/undo detachment, and render the actual themed confirmation card. Confirmation choice uses a controlled dialog port; physical modal interaction is not claimed. The initial render margin clipped the card's lower edge; final card capture excludes only the outer window margin. All raw captures are retained.
+
+All **16 final captures** were inspected: Light/Dark at **1280 DIP / 96 DPI** and **480 DIP / 240 DPI**, each showing Archived/Duplicate, selected duplicate, Trash/Delete and permanent-delete confirmation. Action labels, state, content and confirmation text remain readable, the narrow layout wraps its controls, and Cancel/destructive actions are distinguishable. No blocking visual defect remains. Files are `renders/{Light|Dark}-{1280-96|480-240}-{archived|duplicated|delete-ready|delete-confirmation}.png`; `visuals.json` records exact source child paths and SHA-256 values. `dispatch.json` verifies all four parents and four distinct matching single-result children, zero failures/skips and successful process exits/cleanup. The last storage-only lease correction does not change the UI, view models or render harness; valid Desktop/render evidence is reused.
+
+Native tests used the already-authorized **Windows session 1 / WinSta0\Default**, successful cursor query, interactive environment and observed administrator token. The default executor denied process-enumeration access; no permission was bypassed or token/desktop silently changed. `execution-context.json` / `final-context.json` record the supported executor used for tests. This does not establish human keyboard/mouse/Narrator behavior, native journal restart, hosted CI/input-desktop compatibility, real clipboard/picker/viewer or installed-codec WebP success.
+
+### Exact B inventory and remaining work
+
+**39 files: 30 modified + 9 added**, all belonging to this B phase; M22.10A was already committed. Ignored TestResults artifacts are listed separately in the evidence index.
+
+```text
+ M README.md
+ M docs/notebook.md
+ M src/PersonalTradingJournal.Application/Backups/IPortableExportService.cs
+ M src/PersonalTradingJournal.Application/Notebook/INotebookImages.cs
+ M src/PersonalTradingJournal.Application/Notebook/INotebookService.cs
+ M src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs
+ M src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml
+ M src/PersonalTradingJournal.Infrastructure/Backups/PlaybookImageInventory.cs
+ M src/PersonalTradingJournal.Infrastructure/Backups/PortableExportSchema.cs
+ M src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.cs
+ M src/PersonalTradingJournal.Infrastructure/Notebook/NotebookRecoveryStore.cs
+ M src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.cs
+ M src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/JournalDbContextModelSnapshot.cs
+ M src/PersonalTradingJournal.Infrastructure/Persistence/Records/NotebookRecords.cs
+ M tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs
+ M tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookImagePortabilityTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Backups/PortableExportTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Backups/SavedPeriodPortabilityTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookPersistenceTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Initialization/JournalDatabaseInitializerTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Integration/ProductionPersistenceIntegrationTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Migrations/InitialMigrationTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePersistenceTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Rules/TradingRulePortabilityTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/Setups/PlaybookPersistenceTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/DailyTradingPrincipleTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/SharedTradingPlanTests.cs
+ M tests/PersonalTradingJournal.Infrastructure.Tests/Persistence/TradingPlans/TradingPlanPortabilityTests.cs
+?? src/PersonalTradingJournal.Application/Notebook/NotebookDuplication.cs
+?? src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.CopyDelete.cs
+?? src/PersonalTradingJournal.Infrastructure/Notebook/NotebookImageFiles.Cleanup.cs
+?? src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.CopyDelete.cs
+?? src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261021121554_AddNotebookDeletionCleanup.Designer.cs
+?? src/PersonalTradingJournal.Infrastructure/Persistence/Migrations/20261021121554_AddNotebookDeletionCleanup.cs
+?? tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookDuplicationTests.cs
+?? tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookCopyDeleteTests.cs
+?? tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookCopyDeleteTests.cs
+```
+
+Overall M22.10 acceptance remains pending. M22.10C owns the full Release gate and acceptance; this phase stops before C. General prepared-file reclamation and full M22.11 acceptance remain deferred. No production/provider access, Git publication, workflow triggering or subagent use occurred.
 
 ## M22.10A — Templates and reversible note lifecycle
 
@@ -1876,7 +2006,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
 | M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | E local automated Release acceptance passed: 5,267/5,267; hosted/interactive/native-restart limits remain |
-| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | A templates/reversible lifecycle implemented and focused-verified; B duplicate/permanent delete and C complete acceptance pending |
+| M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | A templates/reversible lifecycle complete; B duplication/permanent deletion implemented; C complete acceptance pending |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |
 

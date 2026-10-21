@@ -97,8 +97,8 @@ public sealed class NotebookPortabilityTests
         Assert.True(result.Succeeded, result.ToString()); Assert.False(result.CleanupFailed);
         using var json = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.DataFile)));
         using var inventory = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(output, PortableExportContract.InventoryFile)));
-        Assert.Equal(17, json.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(17, inventory.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(18, inventory.RootElement.GetProperty("version").GetInt32());
         Assert.False(json.RootElement.GetProperty("restorableBackup").GetBoolean());
         Assert.Equal("metadata-only", json.RootElement.GetProperty("screenshotContent").GetString());
         var tables = json.RootElement.GetProperty("tables");
@@ -181,7 +181,7 @@ public sealed class NotebookPortabilityTests
         Assert.Equal(NotebookLoadStatus.InvalidContent, invalid.Status); Assert.Equal(Unreadable, invalid.OriginalContent);
         var future = await service.LoadAsync(selected.Future);
         Assert.Equal(NotebookLoadStatus.UnsupportedContent, future.Status); Assert.Equal(Future, future.OriginalContent);
-        Assert.Equal(NotebookWriteStatus.Deferred, (await service.ExecuteAsync(new DeleteNotebookNote(selected.Active, 1, true))).Status);
+        Assert.Equal(NotebookWriteStatus.Conflict, (await service.ExecuteAsync(new DeleteNotebookNote(selected.Active, 1, true))).Status);
     }
 
     [Theory]

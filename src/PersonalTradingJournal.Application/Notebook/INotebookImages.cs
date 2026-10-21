@@ -34,6 +34,8 @@ public interface INotebookImageFiles
     Task<NotebookStoredImage> StageAsync(Guid noteId, Guid imageId, Stream content, CancellationToken token);
     Task<byte[]> ReadAsync(NotebookStoredImage image, CancellationToken token, bool requireAdmission = false);
     Task<bool> DiscardUncommittedAsync(NotebookStoredImage image, CancellationToken token);
+    /// <summary>Bounded cleanup for one committed deletion. False retains durable ledger work.</summary>
+    Task<bool> CleanupDeletedNoteAsync(Guid noteId, CancellationToken token) => Task.FromResult(false);
 }
 public sealed class NotebookImageFileException(NotebookImageStatus status, bool cleanupPending = false) : IOException("Notebook image content is unavailable or invalid.")
 {

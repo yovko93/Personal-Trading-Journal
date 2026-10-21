@@ -19,7 +19,7 @@ public sealed record NotebookLoadResult(NotebookLoadStatus Status, NotebookNoteS
     NotebookUnavailableMetadata? UnavailableMetadata = null);
 
 /// <summary>
-/// Database-backed implementation; managed image admission uses INotebookImages. Duplication/permanent deletion remain Deferred.
+/// Database-backed implementation; managed image admission uses INotebookImages. Duplication stages independent originals; confirmed Trash deletion retains safe cleanup state.
 /// Reads throw cancellation/storage errors. Mutations validate commands, versions, catalog existence and target
 /// identity transactionally, return sanitized outcomes, and publish only verified committed snapshots.
 /// A post-commit cancellation must not report an uncommitted Cancelled result.

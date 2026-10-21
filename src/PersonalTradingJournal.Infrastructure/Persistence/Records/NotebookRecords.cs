@@ -8,6 +8,8 @@ public sealed class NotebookOwnedImageRecord
     public string StorageKey { get; set; } = "";
     public long SizeBytes { get; set; }
     public string Sha256 { get; set; } = "";
+    // Persisted only after a deleted note's retention union has been proven empty.
+    public bool CleanupPending { get; set; }
 }
 
 public sealed class NotebookNoteRecord

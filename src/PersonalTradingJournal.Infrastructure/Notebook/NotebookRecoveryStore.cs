@@ -49,6 +49,8 @@ public sealed class NotebookRecoveryStore(IDbContextFactory<JournalDbContext> fa
             if (expectedRevision < 0 || draft.Revision <= expectedRevision || draft.ExpectedVersion <= 0 ||
                 draft.CheckpointedAtUtc.Offset != TimeSpan.Zero) return NotebookWriteStatus.Invalid;
             var encoded = codec.Encode(draft.Document);
+            // Same immediate writer lock as deletion: a delayed checkpoint cannot recreate deleted recovery.
+            if (!await db.NotebookNotes.AnyAsync(x => x.Id == draft.NoteId, ct)) return NotebookWriteStatus.NotFound;
             var row = await db.NotebookRecoveryDrafts.SingleOrDefaultAsync(x => x.Id == draft.Id, ct);
             if (row is null)
             {

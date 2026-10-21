@@ -85,6 +85,23 @@ internal sealed class NotebookFake : INotebookService
         if (OnWrite is not null) return OnWrite(c, ct);
         if (NextWrite != NotebookWriteStatus.Success) return Task.FromResult(new NotebookWriteResult(NextWrite));
         NotebookNoteSnapshot n;
+        if (c is DuplicateNotebookNote duplicate)
+        {
+            var source = Notes.Single(x => x.Id == duplicate.NoteId);
+            var ids = source.Images.ToDictionary(x => x.Id, _ => Guid.NewGuid());
+            n = source with { Id = Guid.NewGuid(), Title = NotebookDuplication.Title(source.Title), State = NotebookNoteState.Active, IsPinned = false, RestorePoint = null, Version = 1,
+                Document = NotebookDuplication.Document(source.Document, ids), Images = [.. source.Images.Select(i => i.Ownership == NotebookImageOwnership.NoteOwned
+                    ? NotebookImage.Owned(ids[i.Id], i.Position, $"copy-{ids[i.Id]:N}.png", i.SizeBytes!.Value, i.Sha256!, i.Caption, i.AlternativeText)
+                    : NotebookImage.TradeReference(ids[i.Id], i.Position, i.TradeId!.Value, i.TradeScreenshotId!.Value, i.Caption, i.AlternativeText))] };
+            Notes.Add(n); return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n));
+        }
+        if (c is DeleteNotebookNote delete)
+        {
+            var source = Notes.Single(x => x.Id == delete.NoteId);
+            if (!delete.Confirmed || source.State != NotebookNoteState.Trashed) return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Invalid));
+            if (source.Version != delete.ExpectedVersion) return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Conflict));
+            Notes.Remove(source); return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, DeletedNoteId: source.Id));
+        }
         if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookTemplates.Create(create.Template) }; Notes.Add(n); }
         else
         {

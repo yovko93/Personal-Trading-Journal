@@ -122,11 +122,9 @@ public sealed class NotebookPersistenceTests
         edited = Success(await f.Service().ExecuteAsync(new SaveNotebookDraft(note.Id, edited.Version, "Protected editor save", doc, loaded.Images)));
         Assert.Equal(loaded.Images.ToArray(), edited.Images.ToArray());
         Assert.Equal(f.Codec.Encode(doc), f.Codec.Encode(edited.Document));
-        NotebookCommand[] deferred = [
-            new DuplicateNotebookNote(note.Id, edited.Version), new DeleteNotebookNote(note.Id, edited.Version, true),
-            new UpdateNotebookContent(note.Id, edited.Version, NotebookDocument.Empty, [])
-        ];
-        foreach (var command in deferred) Assert.Equal(NotebookWriteStatus.Deferred, (await f.Service().ExecuteAsync(command)).Status);
+        Assert.Equal(NotebookWriteStatus.StorageFailure, (await f.Service().ExecuteAsync(new DuplicateNotebookNote(note.Id, edited.Version))).Status); // No image file port.
+        Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new DeleteNotebookNote(note.Id, edited.Version, true))).Status); // Active is not deletable.
+        Assert.Equal(NotebookWriteStatus.Deferred, (await f.Service().ExecuteAsync(new UpdateNotebookContent(note.Id, edited.Version, NotebookDocument.Empty, []))).Status);
         Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new AddNotebookImage(note.Id, edited.Version, Guid.NewGuid(), doc, loaded.Images))).Status);
         Assert.Equal(NotebookWriteStatus.Invalid, (await f.Service().ExecuteAsync(new RemoveNotebookImage(note.Id, edited.Version, owned.Id, NotebookDocument.Empty, []))).Status);
         Assert.Equal(edited.Version, (await f.Service().LoadAsync(note.Id)).Note!.Version);

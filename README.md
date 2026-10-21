@@ -1,5 +1,15 @@
 # Personal Trading Journal
 
+## M22.10B — Duplication and permanent deletion
+
+Notebook can duplicate Active/Archived notes into independent Active, unpinned copies, including fresh node/image identities and byte-preserving managed originals. Confirmed permanent deletion is available only in Trash; it removes that note and its recovery drafts, preserves external targets, and reports committed deletion separately from pending file cleanup. Unknown retention keeps originals. A durable cleanup ledger field closes the database/file interruption boundary; document/archive remain **v1**, logical export advances to **v18**.
+
+**Implementation and focused Release verification complete:** Domain **35/35**, Application **27/27**, Infrastructure/storage/archive **562/562**, Desktop/navigation **582/582**; **1,206 distinct parent cases**, zero failures/skips, all final exits **0**. The two additional lease checks overlap Infrastructure. Four lifecycle parents each completed one matching distinct child. Builds passed with **zero warnings/errors**, EF is consistent, and whitespace/documentation targets were checked. All **16** final Light/Dark normal/narrow-high-DPI action/dialog renders were inspected; no blocking visual defect. Storage verification corrected both tracked relationship deletion and thread-affine capture-lease release; earlier failed artifacts remain preserved. **30 modified + 9 added files** remain uncommitted.
+
+Native assertions used authorized **session 1 / WinSta0\Default** input-desktop access. Human interaction, native journal restart, matching hosted CI, real clipboard/picker/viewer and installed-codec WebP remain unverified. Pending cleanup has durable retention/intent metadata and bounded explicit resumption; no automatic retry scheduler or broad prepared-file collector is introduced.
+
+Actual baseline: clean `develop`, **1d086c8da0eb1cef6bf59e5c5df15cc7d513784d**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; M22.10A is already committed. [Policies, transaction/cleanup boundaries, focused results, commands and exact phase inventory](docs/notebook.md#m2210b--duplication-and-permanent-deletion). Evidence: `TestResults/m2210b-verified/summary.json` and `renders/`. **Overall M22.10 acceptance and the M22.10C complete gate remain pending.** No complete gate, production/provider access, Git publication or workflow triggering occurred. Historical A evidence remains below.
+
 ## M22.10A — Templates and reversible note lifecycle
 
 **Implementation and focused Release verification complete; overall M22.10 acceptance remains pending.** Starting baseline: clean `develop`, **5fbbd1ffb2e411c37aea2412f7aa4d9c58e7aa41**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. Five built-in templates create independent notes with their final initial document in one transaction. Blank New note / Ctrl+N remain unchanged. Archive, Return to Active, Move to Trash and Restore coordinate dirty drafts/autosave, preserve retained originals and unreadable bodies, and restore the previous state/folder with an Unfiled fallback.

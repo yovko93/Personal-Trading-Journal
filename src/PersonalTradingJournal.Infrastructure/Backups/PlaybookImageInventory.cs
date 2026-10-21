@@ -5,13 +5,13 @@ namespace PersonalTradingJournal.Infrastructure.Backups;
 
 internal static class PlaybookImageInventory
 {
-    internal const string KeysSql = "SELECT StorageKey COLLATE BINARY AS StorageKey FROM TradeScreenshots UNION SELECT ImageStorageKey COLLATE BINARY FROM PlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT ImageStorageKey COLLATE BINARY FROM CurrentPlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT StorageKey COLLATE BINARY FROM TradingPlanAssets UNION SELECT StorageKey COLLATE BINARY FROM NotebookImages WHERE Ownership = 1 UNION SELECT StorageKey COLLATE BINARY FROM NotebookOwnedImageFiles ORDER BY StorageKey COLLATE BINARY LIMIT 100001;";
+    internal const string KeysSql = "SELECT StorageKey COLLATE BINARY AS StorageKey FROM TradeScreenshots UNION SELECT ImageStorageKey COLLATE BINARY FROM PlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT ImageStorageKey COLLATE BINARY FROM CurrentPlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION SELECT StorageKey COLLATE BINARY FROM TradingPlanAssets UNION SELECT StorageKey COLLATE BINARY FROM NotebookImages WHERE Ownership = 1 UNION SELECT StorageKey COLLATE BINARY FROM NotebookOwnedImageFiles WHERE CleanupPending = 0 ORDER BY StorageKey COLLATE BINARY LIMIT 100001;";
 
     internal static bool Matches(SqliteConnection database, IEnumerable<BackupFileEntry> files, CancellationToken token)
     {
         var entries = files.ToDictionary(f => f.Path, StringComparer.Ordinal);
         using var command = database.CreateCommand();
-        command.CommandText = "SELECT ImageStorageKey, ImageSizeBytes, ImageSha256 FROM PlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION ALL SELECT ImageStorageKey, ImageSizeBytes, ImageSha256 FROM CurrentPlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM TradingPlanAssets UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM NotebookImages WHERE Ownership = 1 UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM NotebookOwnedImageFiles;";
+        command.CommandText = "SELECT ImageStorageKey, ImageSizeBytes, ImageSha256 FROM PlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION ALL SELECT ImageStorageKey, ImageSizeBytes, ImageSha256 FROM CurrentPlaybookExamples WHERE ImageStorageKey IS NOT NULL UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM TradingPlanAssets UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM NotebookImages WHERE Ownership = 1 UNION ALL SELECT StorageKey, SizeBytes, Sha256 FROM NotebookOwnedImageFiles WHERE CleanupPending = 0;";
         using var rows = command.ExecuteReader();
         while (rows.Read())
         {
