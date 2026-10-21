@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.11B1 — Bounded validation-focus diagnosis
+
+**M22.11 acceptance remains pending; neither retained failure is resolved.** Starting baseline was clean `develop` at `50f3ef29ad5f6c8a54dd93dcd371bfc89a9c59b3`; B's documentation was already committed. Plan's retained 980/96 failure observed an inactive window and null keyboard focus; a concurrent Plan Sections window-show interval is recorded, but the foreground taker and failed request's disposition are unknown. Session Preparation's original null-focus failure remains unclassified.
+
+Opt-in test-only tracing was added without changing production focus guards, input, assertions, waits or deadlines. Each necessary unit ran **once**: Plan 980/96 **one parent + one matching child passed**, **22.013s** command wall time; complete Session Preparation fact **one parent + one matching child passed**, **10.159s**; zero failures/skips, both exits **0**. Both traced native requests completed with ready targets and correct keyboard/logical focus before the original idle assertions. Preparation's four detached-owner requests were rejected as unloaded. These isolated passes do not reproduce B's parallel foreground activity or establish flakiness. Release build passed with zero warnings/errors; whitespace and local documentation links passed.
+
+Evidence: `TestResults/m2211b1-diagnostic/summary.json`, per-unit parent/child TRX, `*-validation-focus.jsonl`, supervision logs and source/binary manifest. [Failure matrix, commands, limitations and five-file diagnostic inventory](docs/notebook.md#m2211b1--bounded-validation-focus-diagnosis). Supported native context: session 1 / WinSta0 / Default with cursor access; the restricted process query was denied, then the already-authorized executor was used explicitly. Next action is a narrowly scoped foreground-ownership/isolation review, not a production focus workaround or immediate acceptance rerun. The retained complete-gate result below is unchanged; M22.12 remains pending.
+
 ## M22.11B — Complete Release verification
 
 **M22.11 local automated acceptance remains pending.** The single authorized complete gate finished **5,356 passed / 5,361 total, five failed, zero skipped; exit 1**. Domain **602/602**, Application **1,048/1,048**, Infrastructure **1,605/1,605**, Desktop **2,101/2,106** (exclusive **92/92**, parallel **2,009/2,014**). Four failed Plan Workspace parents share one failed 980/96 child; Session Preparation contributes the other failed child. Both are null keyboard-focus assertions, with no demonstrated common cause. No retries, speculative fixes or assertion/scheduling changes were made.

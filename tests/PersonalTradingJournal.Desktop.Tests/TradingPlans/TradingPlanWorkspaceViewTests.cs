@@ -27,6 +27,14 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            if (ValidationFocusTrace.Enabled)
+            {
+                string expected = $"{typeof(TradingPlanWorkspaceViewTests).FullName}.{nameof(FullPageBindingsLifecycleGuardsFocusAndLightDarkResponsiveLayouts)}(width: {width}, dpi: {dpi})";
+                await IsolatedTestProcess.RunSuiteAsync(typeof(TradingPlanWorkspaceViewTests), "plan-workspace", Host,
+                    TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                    testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
+                return;
+            }
             await NativeSuite.Value; return;
         }
         await using var fixture = await TradingPlanWorkspaceTests.Fixture.CreateAsync(seed: true);
@@ -111,16 +119,25 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
             using var focus = fixture.NewWorkspace(); Pump(focus.ActivateAsync());
             Pump(focus.SelectContextAsync(fixture.Source.Store.Plan.Key.NewYorkDate, focus.Accounts.First(a => a.Id.HasValue)));
             var realPage = new TradingPlanWorkspaceView { DataContext = focus };
-            var window = new Window { Content = realPage, Width = 670, Height = 800 }; window.Show();
+            var window = new Window { Content = realPage, Width = 670, Height = 800 };
+            var diagnostic = ValidationFocusTrace.Attach("plan-workspace", window, focus.Editor!);
+            window.Show();
             try
             {
                 void FocusState(string phase) => output.WriteLine($"[Plan focus] {phase}: active={window.IsActive}; keyboard={Keyboard.FocusedElement?.GetType().Name ?? "null"}; within={realPage.IsKeyboardFocusWithin}");
                 FocusState("shown");
-                var editor = focus.Editor!; editor.RiskPerTrade.Text = "bad"; Pump(focus.SaveAsync()); Idle();
+                diagnostic?.Record("shown");
+                var editor = focus.Editor!; editor.RiskPerTrade.Text = "bad";
+                diagnostic?.Record("before-risk-save");
+                var riskSave = focus.SaveAsync(); diagnostic?.Record("risk-save-returned", new { riskSave.IsCompleted, riskSave.Status });
+                Pump(riskSave); Idle(); diagnostic?.Record("risk-after-original-idle");
                 FocusState("risk validation completed");
                 Assert.Same(editor.RiskPerTrade, Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 Assert.True(((ScrollViewer)realPage.FindName("PageScroll")).VerticalOffset > 0);
-                editor.Scenarios[0].Condition.Text = new string('x', 4001); Pump(focus.SaveAsync()); Idle();
+                editor.Scenarios[0].Condition.Text = new string('x', 4001);
+                diagnostic?.Record("before-scenario-save");
+                var scenarioSave = focus.SaveAsync(); diagnostic?.Record("scenario-save-returned", new { scenarioSave.IsCompleted, scenarioSave.Status });
+                Pump(scenarioSave); Idle(); diagnostic?.Record("scenario-after-original-idle");
                 FocusState("scenario validation completed");
                 Assert.Same(editor.Scenarios[0].Condition, Assert.IsType<TextBox>(Keyboard.FocusedElement).DataContext);
                 editor.Contexts[0].Levels[0].Text = "bad"; Pump(focus.SaveAsync()); Idle();
@@ -130,7 +147,7 @@ public sealed class TradingPlanWorkspaceViewTests(Xunit.Abstractions.ITestOutput
                 Assert.Equal("broken typed date", Assert.IsType<TextBox>(Keyboard.FocusedElement).Text);
                 window.Focus(); Idle(); Assert.Equal("broken typed date", focus.DateText);
             }
-            finally { window.Close(); }
+            finally { diagnostic?.Record("before-window-close"); window.Close(); diagnostic?.Dispose(); }
 
             // Actual MainWindow Closing, including a later subscriber veto. Discard consent must not
             // destroy the retained session until the owner close's final result is accepted.
