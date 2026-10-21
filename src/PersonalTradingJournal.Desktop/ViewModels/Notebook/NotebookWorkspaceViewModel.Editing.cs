@@ -34,7 +34,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
     public bool CanEditBody => CanEditDraft;
     public bool BodyReadOnly => !CanEditBody;
-    public bool NeedsClosePreparation => IsDirty || IsWriting;
+    public bool NeedsClosePreparation => IsDirty || IsWriting || _linkOperation;
     public bool HasLeaveConsent => !IsWriting && (!IsDirty || _acceptedRevision == _draftRevision);
     private static string Signature(string title, NotebookDocument doc) =>
         title + "\0" + JsonSerializer.Serialize(doc.Blocks.Select(Value));
@@ -89,8 +89,9 @@ public sealed partial class NotebookWorkspaceViewModel
         if (_discardConsent && HasLeaveConsent) RestoreDraft();
         ClearLeaveConsent();
     }
-    public async Task<bool> PrepareLeaveAsync()
+    public async Task<bool> PrepareLeaveAsync(bool linkOperation = false)
     {
+        if (_linkOperation && !linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
         if (_imageOperation || _preparingImage) { Message = "Wait for the image operation before leaving."; return false; }
         if (_recovery is not null)
         {
@@ -108,13 +109,13 @@ public sealed partial class NotebookWorkspaceViewModel
         _acceptedRevision = _draftRevision; _discardConsent = choice == NotebookLeaveChoice.Discard;
         return !_disposed;
     }
-    private async Task GuardedAsync(Func<Task> action)
+    private async Task GuardedAsync(Func<Task> action, bool linkOperation = false)
     {
         if (_guarding) return;
         _guarding = true;
         try
         {
-            if (!await PrepareLeaveAsync()) return;
+            if (!await PrepareLeaveAsync(linkOperation)) return;
             CompleteLeave();
         }
         finally { _guarding = false; ClearLeaveConsent(); }

@@ -169,7 +169,7 @@ public sealed partial class NotebookWorkspaceViewModel
             { RecoveryMessage = "This recovery draft is unavailable, unreadable, too large or from a newer application. Its stored original has not been changed."; return; }
             var loaded = await Task.Run(() => _service.LoadAsync(draft.NoteId, ct), ct);
             if (!Current(ct)) return;
-            Note = loaded.Note; InstallDraft();
+            ResetLinkPresentation(); Note = loaded.Note; InstallDraft();
             _recoveryId = draft.Id; _checkpointRevision = draft.Revision; _recoveredVersion = draft.ExpectedVersion;
             _publishing = true;
             try { SelectedNote = Notes.FirstOrDefault(x => x.Id == draft.NoteId); } finally { _publishing = false; }
@@ -190,6 +190,7 @@ public sealed partial class NotebookWorkspaceViewModel
             LinkText = ""; OnPropertyChanged(nameof(LinkText));
             Panel = 2; ++_editorRevision;
             OnPropertyChanged(nameof(HasDraft)); OnPropertyChanged(nameof(DraftTitle)); OnPropertyChanged(nameof(EditorRevision)); DraftChanged();
+            await ResolveCurrentLinksAsync(ct);
         });
     }
     private async Task DeleteRecoveryAsync(NotebookRecoveryItem? item)

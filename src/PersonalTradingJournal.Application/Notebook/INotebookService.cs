@@ -32,6 +32,8 @@ public interface INotebookService
     Task<NotebookPage> ListAsync(NotebookQuery query, CancellationToken cancellationToken = default);
     /// <summary>Bounded continuation of the summary's initial folder/tag pages; no unbounded catalog read.</summary>
     Task<NotebookCatalogPage> ListCatalogAsync(NotebookCatalogQuery query, CancellationToken cancellationToken = default);
+    /// <summary>Bounded, searchable target projection with a query-bound continuation; no target creation.</summary>
+    Task<NotebookTargetPage> ListLinkTargetsAsync(NotebookTargetQuery query, CancellationToken cancellationToken = default);
     Task<NotebookWriteResult> ExecuteAsync(NotebookCommand command, CancellationToken cancellationToken = default);
     Task<NotebookCatalogResult> ExecuteCatalogAsync(NotebookCatalogCommand command, CancellationToken cancellationToken = default);
     /// <summary>At most 100 distinct links; batched lookup. No same-name substitution or unbounded per-row queries.</summary>

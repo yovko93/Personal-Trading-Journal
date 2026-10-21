@@ -20,7 +20,7 @@ using PersonalTradingJournal.Desktop.ViewModels.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject, IDisposable
+public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
@@ -105,6 +105,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _rulesViewModel = rulesViewModel;
         _tradingPlan = tradingPlan;
         _notebook = notebook;
+        if (_notebook is not null) _notebook.OpenLinkedTarget = OpenNotebookTargetAsync;
+        ReturnToNotebookCommand = new RelayCommand(() => Navigate(NavigationDestination.Notebook), () => CanReturnToNotebook);
         if (tradingPlan is not null)
         {
             tradingPlan.OpenPlaybook = OpenPlanPlaybookAsync;
@@ -307,6 +309,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_notebook is not null) _notebook.OpenLinkedTarget = null;
         _notebook?.Dispose();
         if (_tradingPlan is not null) { _tradingPlan.OpenDailyReview = null; _tradingPlan.ReturnToReview = null; }
         _tradingPlan?.Dispose();
@@ -595,6 +598,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.Rules) _rulesViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Notebook) _notebook?.Deactivate();
         CurrentDestination = destination;
+        NotifyNotebookReturn();
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {

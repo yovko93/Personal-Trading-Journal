@@ -56,6 +56,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         _recovery = recovery; _time = time ?? TimeProvider.System;
         _images = images; ImagePresentation = imagePresentation;
         InitializeTags();
+        InitializeLinks();
         RecoverCommand = new(item => GuardedAsync(() => RecoverAsync(item)), _ => CanMutate);
         DeleteRecoveryCommand = new(DeleteRecoveryAsync, _ => CanMutate);
         MoreRecoveryCommand = new(() => ReadAsync(ct => DiscoverRecoveryAsync(true, ct)), () => CanMutate && _recoveryCursor is not null);
@@ -191,25 +192,36 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         async Task ActivateCoreAsync()
         {
             await drain;
-            if (ReferenceEquals(_lifetime, owner) && Current(owner.Token)) await ReloadAsync();
+            if (!ReferenceEquals(_lifetime, owner) || !Current(owner.Token)) return;
+            if (IsDirty)
+            {
+                // A retained recovery draft is never reinstalled from canonical content on return.
+                await ReadAsync(async ct =>
+                {
+                    await ReadPageAsync(false, Note?.Id ?? SelectedNote?.Id, ct, keepEditor: true);
+                    if (Current(ct)) await ResolveCurrentLinksAsync(ct);
+                });
+            }
+            else await ReloadAsync();
         }
     }
     public bool TryLeave()
     {
+        if (_linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
         if (!IsWriting && (!IsDirty || HasLeaveConsent)) return true;
         Message = IsWriting ? "A Notebook change is in progress. Wait or cancel before leaving." : "Save, discard or keep editing before leaving."; return false;
     }
     public void Deactivate()
     {
         _active = false; ++_generation;
-        _lifetime?.Cancel(); StopDebounce(); StopSearch(); _read?.Cancel(); _write?.Cancel();
+        _lifetime?.Cancel(); StopDebounce(); StopSearch(); StopLinkTargetRead(); _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
         IsBusy = false; NotifyCommands();
         // Departure consent is coordinated by the shell; late operations cannot publish here.
     }
     public async Task CancelAsync()
     {
-        ++_generation; _lifetime?.Cancel(); StopDebounce(); StopSearch(); _read?.Cancel(); _write?.Cancel();
+        ++_generation; _lifetime?.Cancel(); StopDebounce(); StopSearch(); StopLinkTargetRead(); _read?.Cancel(); _write?.Cancel();
         await CompletionTask;
         if (!_disposed)
         {
@@ -369,7 +381,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private async Task ReadDetailAsync(NotebookRow? row, CancellationToken ct)
     {
         if (!Current(ct)) return;
-        Note = null; InstallDraft(); LinkText = ""; OnPropertyChanged(nameof(LinkText));
+        ResetLinkPresentation(); Note = null; InstallDraft();
         ContentMessage = row is null ? "Choose a note to read its content." : "Loading note…";
         if (row is null) return;
         var result = await Task.Run(() => _service.LoadAsync(row.Id, ct), ct);
@@ -386,11 +398,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         };
         if (Note is null) return;
         MoveFolder = Folders.FirstOrDefault(f => f.Id == Note.FolderId);
-        var references = Note.Links;
-        var links = await Task.Run(() => _service.ResolveLinksAsync(references, ct), ct);
-        if (!Current(ct) || SelectedNote?.Id != row.Id) return;
-        LinkText = string.Join("\n", links.Select(l => $"{(l.Link.Kind == NotebookTargetKind.Trade ? "Trade" : "Trading Setup")} · {l.DisplayLabel}{(l.Availability == NotebookTargetAvailability.Unavailable ? " · Unavailable" : "")}"));
-        OnPropertyChanged(nameof(LinkText));
+        await ResolveCurrentLinksAsync(ct);
     }
     private Task CreateAsync() => MutateAsync(async ct =>
     {
@@ -467,6 +475,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private void NotifyCommands()
     {
         NotifyTagCommands();
+        NotifyLinkCommands();
         RecoverCommand?.NotifyCanExecuteChanged(); DeleteRecoveryCommand?.NotifyCanExecuteChanged(); MoreRecoveryCommand?.NotifyCanExecuteChanged();
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditDraft)); OnPropertyChanged(nameof(CanEditBody)); OnPropertyChanged(nameof(BodyReadOnly));

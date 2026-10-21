@@ -199,9 +199,41 @@
       <TextBlock x:Name="EditorFeedback" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>
      </StackPanel>
      <RichTextBox x:Name="Preview" Grid.Row="1" MaxHeight="500" IsReadOnly="{Binding BodyReadOnly}" IsDocumentEnabled="True" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PtjTextPrimaryBrush}" CaretBrush="{DynamicResource PtjTextPrimaryBrush}" Padding="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" TextChanged="BodyChanged" SelectionChanged="SelectionChanged" PreviewKeyDown="EditorKeyDown" AllowDrop="False" AutomationProperties.Name="Note content" AutomationProperties.HelpText="Edit text. Control B, I, U formats the selection; Control Enter toggles a checklist item. Control S saves."/>
-     <ScrollViewer Grid.Row="2" MaxHeight="120" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,12,0,0" AutomationProperties.Name="Linked records">
-      <TextBlock Text="{Binding LinkText}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextSecondaryBrush}"/>
-     </ScrollViewer>
+     <StackPanel Grid.Row="2" Margin="0,12,0,0" AutomationProperties.Name="Linked items">
+      <TextBlock Text="LINKED ITEMS" Style="{StaticResource QuietText}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+      <ItemsControl x:Name="LinkedItemList" ItemsSource="{Binding LinkedItems}">
+       <ItemsControl.ItemTemplate><DataTemplate>
+        <Border Background="{DynamicResource PtjSurfaceElevatedBrush}" CornerRadius="4" Padding="8" Margin="0,0,0,6">
+         <StackPanel>
+          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+          <TextBlock Text="{Binding Context}" Style="{StaticResource QuietText}" FontSize="11"/>
+          <WrapPanel Margin="0,4,0,0">
+           <Button Content="Open details" Command="{Binding DataContext.OpenLinkedItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,0,6,0" AutomationProperties.Name="{Binding Label, StringFormat='Open details for {0}'}"/>
+           <Button Content="Remove link" Command="{Binding DataContext.RemoveLinkedItemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" AutomationProperties.Name="{Binding Label, StringFormat='Remove link to {0}'}" AutomationProperties.HelpText="Remove only this reference. Keep the target and its screenshots."/>
+          </WrapPanel>
+         </StackPanel>
+        </Border>
+       </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Content="Refresh linked items" Command="{Binding RefreshLinkedItemsCommand}" HorizontalAlignment="Left" Margin="0,0,0,4" AutomationProperties.HelpText="Resolve current labels without saving or changing the note."/>
+      <Expander x:Name="LinkedTargetPicker" Header="Link item" IsExpanded="{Binding LinkPickerOpen, Mode=TwoWay}" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Link an existing Trade or Trading Setup">
+       <StackPanel Margin="0,6,0,0">
+        <ComboBox SelectedValue="{Binding LinkTargetKind}" SelectedValuePath="Tag" AutomationProperties.Name="Linked target type" Margin="0,0,0,4">
+         <ComboBoxItem Content="Trades" Tag="{x:Static vm:NotebookWorkspaceViewModel.TradeLinkKind}"/>
+         <ComboBoxItem Content="Trading Setups (including Playbooks)" Tag="{x:Static vm:NotebookWorkspaceViewModel.SetupLinkKind}"/>
+        </ComboBox>
+        <TextBox Text="{Binding LinkSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Search existing targets by name, instrument, account or identity" MaxLength="256" Margin="0,0,0,4"/>
+        <Button Content="Search targets" Command="{Binding SearchLinkTargetsCommand}" HorizontalAlignment="Left" Margin="0,0,0,4"/>
+        <ListBox x:Name="LinkTargetResults" ItemsSource="{Binding LinkTargets}" SelectedItem="{Binding SelectedLinkTarget}" MaxHeight="200" Background="{DynamicResource PtjSurfaceElevatedBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" ScrollViewer.HorizontalScrollBarVisibility="Disabled" AutomationProperties.Name="Existing link targets">
+         <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}"/></ListBox.ItemContainerStyle>
+         <ListBox.ItemTemplate><DataTemplate><StackPanel><TextBlock Text="{Binding Label}" TextWrapping="Wrap"/><TextBlock Text="{Binding Context}" Style="{StaticResource QuietText}" FontSize="11"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock Text="{Binding TargetMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,4"/>
+        <WrapPanel><Button Content="Add selected link" Command="{Binding AddLinkCommand}" Margin="0,0,6,4"/><Button Content="More targets" Command="{Binding MoreLinkTargetsCommand}" Visibility="{Binding HasMoreLinkTargets, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,4"/></WrapPanel>
+       </StackPanel>
+      </Expander>
+      <TextBlock Text="{Binding LinkMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,0"/>
+     </StackPanel>
     </Grid>
     </ScrollViewer>
    </Border>

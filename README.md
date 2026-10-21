@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.9A — Linked Trades and Trading Setups
+
+Notebook now searches/pages existing Trades and Trading Setups, prevents typed duplicates, adds/removes references through expected-version transactions, and opens current details through existing guarded navigation. Playbooks retain their underlying Setup identity. Inactive records remain eligible; renamed labels resolve without dirtying the note, while unavailable references remain removable. Dirty drafts, in-flight autosave, images/undo/redo and return context are preserved. [Behavior, eligibility, coordination, commands, renders and exact inventory](docs/notebook.md#m229a--linked-trades-and-trading-setups).
+
+Starting baseline: clean `develop`, **9c4ed749256728a2c2067c5aa983722d56a302cc**, existing worktree C:/Users/Yovko/source/repos/Personal-Trading-Journal. Focused Release results: **551/551 Desktop**, **530/530 persistence/storage/archive**, **17/17 Application**, all zero failures/skips and exits **0**; strengthened SQLite link cases also passed **9/9** (included in the broader total). Build **zero warnings/errors**; EF consistent; tracked/new-file whitespace and **172 local documentation targets / zero missing** pass. **Eight** final Light/Dark normal/narrow-240-DPI renders inspected; initial Dark picker contrast corrected, no blocking final defect. Evidence: TestResults/m229a-verified/summary.json and renders/. Exact **13 modified + 9 added** files remain uncommitted; HEAD unchanged.
+
+**M22.9A implementation/focused verification complete; overall M22.9 acceptance and M22.9B complete gate remain pending.** Document/archive **v1**, export **v17**, original ownership and prepared-file retention remain unchanged; reclamation/full M22.11 acceptance are deferred. Human interaction, native restart, real clipboard/picker/viewer, installed-codec WebP and matching-source CI remain unverified. Historical M22.8 acceptance/timing is retained below. No production/provider access, Git publication, workflow triggering, complete gate or M22.10 work occurred.
+
 ## M22.8F — Complete Release measurement after deduplication
 
 **The changed M22.8E harness passed the complete local Release gate.** Verified baseline: develop at **7cb4c7af6b4c325c1134f049a6403668ac82bf3f**, existing worktree C:/Users/Yovko/source/repos/Personal-Trading-Journal. One complete runner invocation: **5223/5223 passed**, **0 failures / 0 skipped**, **exit 0**. Project results, exact commands and phase inventory are in the [Notebook measurement report](docs/notebook.md#m228f--complete-gate-measurement-after-deduplication).

@@ -137,13 +137,14 @@ public sealed partial class NotebookService
         await db.Database.UseTransactionAsync(tx, ct);
         var tradeIds = links.Where(x => x.Kind == NotebookTargetKind.Trade).Select(x => x.TargetId).ToArray();
         var setupIds = links.Where(x => x.Kind == NotebookTargetKind.TradingSetup).Select(x => x.TargetId).ToArray();
-        var trades = await (from t in db.Trades.AsNoTracking() join i in db.Instruments.AsNoTracking() on t.InstrumentId equals i.Id
-            where tradeIds.Contains(t.Id) select new { t.Id, i.Symbol }).ToDictionaryAsync(x => x.Id, x => "Trade · " + x.Symbol, ct);
-        var setups = await db.TradingSetups.AsNoTracking().Where(x => setupIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, ct);
+        var tradeRows = await TradeTargets(db).Where(x => tradeIds.Contains(x.Id)).ToArrayAsync(ct);
+        var trades = tradeRows.ToDictionary(x => x.Id, TradeLabel);
+        var setups = await db.TradingSetups.AsNoTracking().Where(x => setupIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);
         return links.Select(link =>
         {
-            bool found = (link.Kind == NotebookTargetKind.Trade ? trades : setups).TryGetValue(link.TargetId, out string? label);
-            return new NotebookResolvedLink(link, found ? NotebookTargetAvailability.Available : NotebookTargetAvailability.Unavailable, label ?? link.LastKnownLabel);
+            string? label = link.Kind == NotebookTargetKind.Trade ? trades.GetValueOrDefault(link.TargetId) : setups.GetValueOrDefault(link.TargetId)?.Name;
+            return new NotebookResolvedLink(link, label is not null ? NotebookTargetAvailability.Available : NotebookTargetAvailability.Unavailable,
+                label ?? link.LastKnownLabel, link.Kind == NotebookTargetKind.TradingSetup && setups.GetValueOrDefault(link.TargetId)?.IsActive == false);
         }).ToImmutableArray();
     }
 }

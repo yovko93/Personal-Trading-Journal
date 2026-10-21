@@ -81,4 +81,4 @@ public sealed record NotebookWorkspaceSummary(ImmutableArray<NotebookScopeCount>
 public sealed record NotebookPage(ImmutableArray<NotebookListItem> Items, long FilteredCount,
     string? NextCursor, NotebookWorkspaceSummary Summary);
 public enum NotebookTargetAvailability { Available, Unavailable }
-public sealed record NotebookResolvedLink(NotebookLink Link, NotebookTargetAvailability Availability, string DisplayLabel);
+public sealed record NotebookResolvedLink(NotebookLink Link, NotebookTargetAvailability Availability, string DisplayLabel, bool IsInactive = false);

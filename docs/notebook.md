@@ -1,6 +1,98 @@
 # Notebook
 
-Current checkpoint: **M22.8F changed-harness complete local Release gate passed**. Local CI-budget margin is recorded below; matching hosted timing remains unverified. Historical C/E acceptance evidence is preserved. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 acceptance remain unchanged. M22.9 onward remains pending; earlier sections record historical phase checkpoints.
+Current checkpoint: **M22.9A linked Trades/Trading Setups implemented and focused Release verification passed; overall M22.9 acceptance and M22.9B complete gate pending**. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. Human interaction/native restart/matching CI remain unverified. M22.10 onward remains pending; earlier sections retain historical evidence.
+
+## M22.9A — Linked Trades and Trading Setups
+
+21 October 2026, Europe/Kiev. Starting baseline: **clean `develop`, `9c4ed749256728a2c2067c5aa983722d56a302cc`**, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. Existing M22.8F documentation was already committed. Repository/ancestor guidance, this contract, persisted references, readers, shell navigation, save/recovery and image history were inspected first; no applicable `AGENTS.md` or duplicate test host was found. One agent, no subagents. HEAD remains unchanged; the inventory below is uncommitted. **M22.9A functional implementation/focused verification is complete; overall M22.9 acceptance and M22.9B's complete Release gate remain pending.** Historical M22.8 acceptance/timing remains preserved below.
+
+### Selection, identities and target eligibility
+
+The existing `(Trade | TradingSetup, targetId, lastKnownLabel)` metadata, `AddNotebookLink` / `RemoveNotebookLink` commands and immediate SQLite transaction remain authoritative. No separate Playbook/Strategy identity, target creation, schema migration or export-format change was introduced. A Setup's existing details destination is used, including for a Setup with Playbook guidance.
+
+`NotebookTargetQuery` adds only the missing bounded target lookup to `INotebookService`: **25 rows by default, 1–100 permitted**, 256-character search, one lookahead row and a query/type-bound opaque continuation. Stable identity ordering makes every additional match reachable. SQL applies the count/filter/order/page; no whole-catalog or per-row detail loading. Trade projections reuse the existing Trade/account/instrument/browse data and New York time presentation. Labels include instrument, current account, opening time and identity; absent browse time is explicitly unavailable rather than invented. Setup choices use current names and contextual identity/activation. A connection-local deterministic ordinal-ignore-case function supplies Unicode substring search, including account/name/identity search, without schema changes. Queries are parameterized.
+
+Trades remain eligible regardless of account/instrument activation, matching `ITradeListReader`. Existing inactive Setups also remain eligible under the existing target-existence mutation contract and are visibly marked **Inactive**. Existing links are retained through deactivation/deletion. Picker rows visibly report **Already linked**; duplicates use kind **and** ID, so equal GUIDs of different kinds remain distinct. Search/type changes cancel the previous owner; generation, note identity, lifetime and disposal checks suppress stale completions. More results, retry, loading and useful empty/error states remain reachable.
+
+### Writes, resolution and navigation
+
+Link actions capture the intended note and typed target before awaiting. The existing note-operation guard drains in-flight autosave and saves dirty content (or honors explicit Save/Discard/Keep editing consent) before using the current acknowledged expected version. Newer typing during a save is retained and flushed before metadata mutation. Failure/conflict/cancellation does not replace the editor or adopt an unrelated version. Metadata acknowledgements verify identity, one version advance, unchanged title/document/images and exact expected links. They never call `InstallDraft`; WPF document, caret, image references and semantic undo/redo survive. Departure is blocked while a link change owns preparation/mutation.
+
+Add validates target existence inside the same immediate SQLite transaction as link insertion and note-version advancement. A deleted selection returns `UnavailableTarget`; a stale version returns `Conflict`. Remove affects only the reference and can remove a missing target's link. Neither operation changes Trade economics/executions/classification, Setup definitions, Trade screenshots/ownership, original files or the image ownership ledger. Metadata writes do not re-encode document JSON. Active-only lifecycle rules remain; unreadable/future documents return `UnsupportedContent` untouched and offer no editable substitute.
+
+Linked items now show current labels/context with separate **Open details** and **Remove link** actions. Bounded batch resolution refreshes labels without dirtying/versioning the note. Missing targets retain their stored label and explicit **Unavailable** state; open is disabled while removal remains available on an editable note. Failed resolution retains the reference and a retry message. No same-name substitution or silent link removal occurs.
+
+Open re-resolves the captured reference, then uses existing shell save/navigation guards and the existing Trade-by-ID or Setup details use case. Trade filters are not changed and no synthetic browse row is created. A missing/failed destination returns to Notebook with the retained draft/reference and useful feedback; discard consent is applied only after destination success. **Back to Notebook** uses the existing destination navigation, retaining scope, text/tag filters, sort and selected note under existing list membership rules. Re-activation refreshes current data/labels; retained dirty recovery content is not overwritten by canonical content. No parallel history framework was added. Late resolution/mutation acknowledgements and disposed activations cannot publish into another note.
+
+### Focused Release evidence
+
+Final solution Release build: **exit 0, zero warnings/errors**, `TestResults/m229a-verified/release-build-verified.log` (10.84s). Full-set ordering, collection limits, deadlines and helper contracts are unchanged. The complete gate was **not** launched.
+
+| Focused selection | Passed / total | Failed / skipped | Exit | Evidence under TestResults/m229a-verified/ |
+| --- | ---: | ---: | ---: | --- |
+| Notebook, shell/header/navigation, Trade and Setup Desktop regressions | 551 / 551 | 0 / 0 | 0 | `desktop-verified/desktop-verified.trx` |
+| Notebook, storage, archive/export, migration/integrity and related ownership persistence | 530 / 530 | 0 / 0 | 0 | `infrastructure-focused.trx` |
+| Latest SQLite link tests after strengthening existing-screenshot assertions | 9 / 9 | 0 / 0 | 0 | `infrastructure-links-verified.trx` |
+| Notebook application contracts | 17 / 17 | 0 / 0 | 0 | `application.trx` |
+
+The 9 SQLite link cases are included in the broader persistence selection; these reruns are **not added** to its total. Only three test files changed after the broader persistence/runtime source was built: late-test list setup, explicit redo verification and stronger existing-screenshot assertions. Production source hashes remain identical; final binaries/source hashes and separate exit records are retained in `summary.json`. Final Desktop execution uses all corrected tests. Real SQLite tests use independent contexts/services for fresh reads, cancellation, duplicate typed identities, deletion races, conflict winners, renamed/inactive/unavailable targets, exact JSON/original bytes and retained recovery. Desktop tests cover latest picker ownership, paging, autosave/newer edits, failure preservation, disposal/activation, image undo/redo, successful detail opening/return context and failed/cancelled navigation.
+
+Four new theory parents each run one exact isolated child, preserving **90-second process / 30-second case** deadlines and cleanup. All four completed once with matching identities. **Eight final captures** were inspected: Light/Dark × 1280/96 DPI or 480/240 DPI × linked-items/picker. Archived copies: `TestResults/m229a-verified/renders/`; `visuals.json` records original child paths and SHA-256 provenance. Long Trade/Setup labels wrap; inactive/already-linked/unavailable states and separate open/remove actions remain readable and horizontally contained. The first Dark picker capture exposed a white default ListBox surface with light text; explicit themed surface/text/border resources corrected it. Final renders show no blocking visual defect. Normal scrolling is required for the editor and long linked-item collections.
+
+Retained intermediate diagnostics: the first build reported two unassigned fake-hook errors before new tests used the hooks. `infrastructure-initial.trx` recorded **111 passed / 2 failed**, both an EF projection translation failure in Setup search; explicit projection members and parameterized Unicode search corrected it. `desktop-initial/desktop-initial.trx` passed **20/20**. `desktop-focused/desktop-focused.trx` recorded **548 passed / 3 failed**: one new test added its second note after list loading (fixture timing corrected, assertion preserved), and both existing `DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification` rows could not read their synthetic DPAPI key inside the sandbox. The same final Desktop selection passed using the existing isolated synthetic DPAPI capability, with no real key/provider access. Initial logs/TRX/renders remain; assertions/deadlines were not weakened.
+
+EF: **no pending model changes, exit 0**, `ef-consistency.txt`. Whitespace checks cover tracked **and new** source files. Final local Markdown target check: **172 checked / zero missing** (target existence; URL/fragment validation excluded). Exact commands, TRX counts/times, source/binary/inventory checks and visual provenance: **`TestResults/m229a-verified/summary.json`**.
+
+Commands used (the long persistence filter is preserved verbatim in `infrastructure-exit.json`; Desktop filter in `desktop-verified-exit.json`):
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore -v minimal -flp:logfile=TestResults/m229a-verified/release-build-verified.log
+$desktopFilter = 'FullyQualifiedName~Notebook|FullyQualifiedName~Navigation.MainWindowViewModelTests|FullyQualifiedName~MainWindowHeaderTests|FullyQualifiedName~TradingSetupsViewModelTests|FullyQualifiedName~TradesViewModelTests'
+$env:PTJ_TEST_RESULTS_DIRECTORY = "$PWD/TestResults/m229a-verified/desktop-verified"
+dotnet test tests/PersonalTradingJournal.Desktop.Tests -c Release --no-build --no-restore --filter $desktopFilter --logger 'trx;LogFileName=desktop-verified.trx' --results-directory TestResults/m229a-verified/desktop-verified --blame-hang --blame-hang-timeout 3m
+$persistenceFilter = (Get-Content TestResults/m229a-verified/infrastructure-exit.json -Raw | ConvertFrom-Json).Filter
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter $persistenceFilter --logger 'trx;LogFileName=infrastructure-focused.trx' --results-directory TestResults/m229a-verified --blame-hang --blame-hang-timeout 3m
+dotnet test tests/PersonalTradingJournal.Infrastructure.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookLinkTests' --logger 'trx;LogFileName=infrastructure-links-verified.trx' --results-directory TestResults/m229a-verified --blame-hang --blame-hang-timeout 3m
+dotnet test tests/PersonalTradingJournal.Application.Tests -c Release --no-build --no-restore --filter 'FullyQualifiedName~Notebook' --logger 'trx;LogFileName=application.trx' --results-directory TestResults/m229a-verified --blame-hang --blame-hang-timeout 3m
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+git diff --check
+# New files: git diff --no-index --check -- NUL <each new source file>
+pwsh -NoProfile -File TestResults/m229a-check-doc-links.ps1
+pwsh -NoProfile -File TestResults/m229a-summarize.ps1
+```
+
+### Exact M22.9A inventory and remaining acceptance
+
+**13 modified + 9 added files** relative to `9c4ed749256728a2c2067c5aa983722d56a302cc`. No unrelated files changed. Ignored TestResults scripts/artifacts are local verification evidence outside source inventory.
+
+```text
+M docs/notebook.md
+M README.md
+M src/PersonalTradingJournal.Application/Notebook/INotebookService.cs
+A src/PersonalTradingJournal.Application/Notebook/NotebookLinkTargets.cs
+M src/PersonalTradingJournal.Application/Notebook/NotebookQueries.cs
+M src/PersonalTradingJournal.Desktop/MainWindow.xaml
+M src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs
+A src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.Notebook.cs
+M src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs
+M src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs
+M src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs
+A src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Links.cs
+M src/PersonalTradingJournal.Desktop/ViewModels/Setups/TradingSetupsViewModel.cs
+M src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml
+A src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Links.cs
+M src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Queries.cs
+A tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookLinkTargetContractTests.cs
+A tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookLinkedNavigationTests.cs
+A tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkTests.cs
+A tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkViewTests.cs
+M tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs
+A tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLinkTests.cs
+```
+
+Canonical document **v1**, complete archive **v1** and logical export **v17** remain unchanged, including unavailable links, current/retained image metadata and recovery preservation. Prepared-file retention/reclamation and full M22.11 acceptance remain deferred. No schema migration, file reclamation, target/economics mutation, CI timeout/concurrency change, production/provider access, workflow triggering or Git publication occurred.
+
+**Remaining:** M22.9B complete Release acceptance (including whole-gate timing/Calendar headroom); human keyboard/mouse/Narrator interaction, native journal restart and matching-source CI are unverified. Earlier real clipboard/picker/viewer and installed-codec WebP limitations remain unverified. Separate Strategy support is deferred. This phase stops before M22.9B; M22.10 onward remains pending.
 
 ## M22.8F — Complete gate measurement after deduplication
 
@@ -1235,7 +1327,7 @@ Portability hooks must accompany the owning storage changes; M22.11 is their int
 | M22.6 | Deterministic autosave, failure, stale completion, cancellation and restart tests | Pending |
 | M22.7 | Tags, AND filters, stable paging, counts and stale-search tests | Implemented; complete local Release gate 5,131/5,131; human/native restart and matching CI unverified above |
 | M22.8 | Image admission, ownership, compensation, missing files and retention | Pending |
-| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | Pending |
+| M22.9 | **Linked Trades & Trading Setups**, current labels/unavailable targets and guarded opening | A implemented/focused verified; B complete gate pending |
 | M22.10 | Blank Note, Market Study, Trading Idea, Lesson Learned, Psychology templates; duplicate/archive/trash/restore/delete | Pending |
 | M22.11 | Consistent complete backup/preflight/restore round trips and failure recovery | Pending |
 | M22.12 | Integrated synthetic workflows, full Release gate, automated renders and separate live acceptance | Pending |

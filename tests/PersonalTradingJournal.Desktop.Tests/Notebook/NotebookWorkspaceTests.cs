@@ -17,6 +17,10 @@ internal sealed class NotebookFake : INotebookService
     internal Func<NotebookQuery, CancellationToken, Task<NotebookPage>>? OnList;
     internal Func<Guid, CancellationToken, Task<NotebookLoadResult>>? OnLoad;
     internal Func<NotebookCommand, CancellationToken, Task<NotebookWriteResult>>? OnWrite;
+    internal Func<NotebookTargetQuery, CancellationToken, Task<NotebookTargetPage>>? OnTargets;
+    internal Func<ImmutableArray<NotebookLink>, CancellationToken, Task<ImmutableArray<NotebookResolvedLink>>>? OnResolve;
+    public Task<NotebookTargetPage> ListLinkTargetsAsync(NotebookTargetQuery query, CancellationToken ct = default) =>
+        OnTargets?.Invoke(query, ct) ?? Task.FromResult(new NotebookTargetPage([], 0, null));
     internal static NotebookNoteSnapshot Note(string title = "Liquidity sweep", Guid? folder = null, NotebookNoteState state = NotebookNoteState.Active)
     {
         var doc = new NotebookDocument([
@@ -84,8 +88,12 @@ internal sealed class NotebookFake : INotebookService
         if (c is CreateNotebookNote create) { n = Note(create.Title, create.FolderId) with { Document = NotebookDocument.Empty }; Notes.Add(n); }
         else
         {
-            var id = c switch { SaveNotebookImageDraft d => d.NoteId, SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
+            var id = c switch { AddNotebookLink l => l.NoteId, RemoveNotebookLink l => l.NoteId, SaveNotebookImageDraft d => d.NoteId, SaveNotebookDraft d => d.NoteId, MoveNotebookNote m => m.NoteId, AssignNotebookTag a => a.NoteId, RemoveNotebookTag r => r.NoteId, SetNotebookPin p => p.NoteId, _ => throw new InvalidOperationException() };
             int index = Notes.FindIndex(n => n.Id == id); n = Notes[index];
+            if (c is AddNotebookLink addLink)
+            { n = n with { Links = n.Links.Add(addLink.Link), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
+            if (c is RemoveNotebookLink removeLink)
+            { n = n with { Links = [.. n.Links.Where(l => l.Kind != removeLink.Kind || l.TargetId != removeLink.TargetId)], Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
             if (c is AssignNotebookTag assign)
             { n = n with { TagIds = n.TagIds.Add(assign.TagId), Version = n.Version + 1 }; Notes[index] = n; return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success, n)); }
             if (c is RemoveNotebookTag remove)
@@ -121,7 +129,7 @@ internal sealed class NotebookFake : INotebookService
         return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, DeletedItemId: delete.FolderId));
     }
     public Task<ImmutableArray<NotebookResolvedLink>> ResolveLinksAsync(ImmutableArray<NotebookLink> links, CancellationToken ct = default) =>
-        Task.FromResult<ImmutableArray<NotebookResolvedLink>>([.. links.Select(l => new NotebookResolvedLink(l, NotebookTargetAvailability.Unavailable, l.LastKnownLabel))]);
+        OnResolve?.Invoke(links, ct) ?? Task.FromResult<ImmutableArray<NotebookResolvedLink>>([.. links.Select(l => new NotebookResolvedLink(l, NotebookTargetAvailability.Unavailable, l.LastKnownLabel))]);
 }
 
 public sealed class NotebookWorkspaceTests
