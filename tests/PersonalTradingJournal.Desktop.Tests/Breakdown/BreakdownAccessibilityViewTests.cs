@@ -171,12 +171,14 @@ public sealed class BreakdownAccessibilityViewTests
                     var normal = CaptureAction("normal");
                     FocusManager.SetFocusedElement(view, moreAction); Idle();
                     Assert.Same(moreAction, FocusManager.GetFocusedElement(view));
+                    UiKeyboardProbe.Observe(moreAction, $"{stateTheme}: before Space");
                     UiKeyboardProbe.Space(moreAction, () =>
                     {
                         Idle(); Assert.True(moreAction.IsPressed);
                         Assert.False(normal.SequenceEqual(CaptureAction("pressed")));
                     });
-                    Idle(); Assert.False(moreAction.IsPressed);
+                    Idle(); UiKeyboardProbe.Observe(moreAction, $"{stateTheme}: existing ContextIdle completed / release assertion");
+                    Assert.False(moreAction.IsPressed);
                     Assert.True(((Expander)view.FindName("MoreFilters")).IsExpanded);
                     ((Expander)view.FindName("MoreFilters")).IsExpanded = false; Idle();
                     moreAction.IsEnabled = false; Idle();

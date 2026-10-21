@@ -1,6 +1,96 @@
 # Notebook
 
-Current checkpoint: **M22.9 automated acceptance pending; M22.9D focused harness results include one retained Breakdown failure**. Actual verified source/state, focused results and historical complete-gate findings are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+Current checkpoint: **M22.9D1 focused keyboard/capture verification passed; overall M22.9 automated acceptance remains pending**. Actual verified source/state, focused results and historical complete-gate findings are recorded below; matching hosted timing, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v17**, retention and deferred reclamation/M22.11 guarantees remain unchanged. M22.10 onward remains pending; earlier sections preserve historical phase evidence.
+
+## M22.9D1 — Keyboard release and capture synchronization
+
+21 October 2026, Europe/Kiev. Actual starting and verified HEAD: **`0830e0dc1fc262b8d09fe5c5ee2801b59390e62b`**, clean `develop`, sole worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported `6f82eea` baseline had advanced: all eight D files were committed in `0830e0d` before this phase. No applicable repository/ancestor `AGENTS.md` or duplicate test run was found. One agent, no subagents. Existing D implementation/evidence is preserved. New evidence root: **`TestResults/m229d1-20261021-100829-cd02d9a16afc4737bb8a1d03f8a6143a/`**, abbreviated **D1 evidence** below. Results belong to HEAD plus the three uncommitted test files listed below; two documentation files were edited after runtime verification.
+
+### Confirmed sequence and environment requirement
+
+One **diagnostic-only exact Owned parent/child** ran before behavior changes and reproduced the retained failure. It changed only observation: identity/state snapshots, actual key/click/capture/focus events, `IsPressed` transitions and counts of observed dispatcher operations not yet completed. No hot layout loop was logged. Diagnostic source copies, build, parent/child TRX, stdout/stderr, phase and supervision logs are retained. The child was `diagnostic-owned/breakdown-accessibility-20261021-101120-3ad5d232e5ef4ac29e020bee8d06a677/`.
+
+The first **Light** iteration used the same `MoreFiltersButton#20E8A21`, attached to `Window#25F8C1E`, STA 18, HWND **0x2D04F4**, `ClickMode.Release`, actual keyboard focus and a loaded/visible/active window. Its sequence:
+
+| UTC on 21 October | Observed event/state |
+| --- | --- |
+| 10:11:28.644314 | Before key-down: unpressed, no managed/native capture |
+| 10:11:28.668827 | Key-down set `IsPressed=true` |
+| 10:11:28.672407 | Handled Space key-down returned; HWND had native capture, but `Mouse.Captured=null`, `IsMouseCaptured=false`; no GotMouseCapture event |
+| 10:11:28.678525 | After the original pressed-state/Idle/render observation: managed capture still absent |
+| 10:11:28.680528 | Key-up raised exactly one Click; button still pressed |
+| 10:11:28.681174 | Handled Space key-up returned; no LostMouseCapture transition |
+| 10:11:28.704166 | Existing ContextIdle returned; `IsPressed=true`, native capture still held, retained release assertion failed (diagnostic source line 181) |
+
+Observed outstanding operations around key-up included Input, Render and Send. Those counters cover operations posted while the observer was attached, not a global dispatcher census. A later ContextIdle boundary still found no managed capture; this was not evidence of a delayed successful acquisition waiting for another arbitrary sleep.
+
+The actual installed **WPF 10.0.12** binaries were inspected read-only through an isolated assembly-load context. `matching-wpf-buttonbase-il.txt` and `matching-wpf-capture-provider-il.txt` retain IL and SHA-256 identities, product version **`10.0.12-servicing.26422.108+95017c711e6afc1085133d440e42b4bd78155701`**. ButtonBase sets its pressed flag before attempting capture; key-up only calls release when managed capture is present, and LostMouseCapture clears the pressed flag. The capture provider can acquire the HWND yet return failure while initializing an inactive mouse source through cursor lookup. Public [.NET WPF ButtonBase source](https://github.com/dotnet/wpf/blob/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/ButtonBase.cs) and [mouse-provider source](https://github.com/dotnet/wpf/blob/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationCore/System/Windows/InterOp/HwndMouseInputProvider.cs) corroborate this flow; the local IL establishes the matching installed behavior.
+
+The **confirmed immediate cause** is incomplete managed capture, followed by key-up consuming an invalid input sequence. A separate read-only cursor query in the restricted executor returned **false / Win32 error 5 (access denied)**, recorded in `cursor-availability.json`; that call was not retroactively attributed to the exited child. This establishes an environment limitation consistent with WPF's capture-provider initialization path. Verification therefore used approved **input-desktop access**, explicitly differing from the restricted diagnostic run. There is no claim that waiting alone makes unavailable desktop input work, or that a specific native API return inside the original child was instrumented.
+
+The helper still raises genuine routed Space key-down/up events through WPF's control handlers; it does **not** emulate physical keyboard device state. The diagnostic `KeyEventArgs.IsDown`/`Keyboard.IsKeyDown(Space)` remained false even for the synthetic key-down. Actual keyboard focus, modifiers, mouse-button state and managed/native capture are independently checked. This remains an automated routed-input test, not proof of human keyboard interaction.
+
+### Narrow correction and release evidence
+
+`UiKeyboardProbe.Space` now rejects pre-existing capture, requires the intended control to own both managed and native capture after key-down, and requires that ownership to persist until key-up. It then waits on the actual capture/pressed-state condition, scheduling checks at ContextIdle after capture/property events, with a **five-second bound inside the unchanged case deadline**. Success requires `IsPressed=false`, no target managed capture and no remaining capture by its HWND. It does not set/clear control state, manufacture capture events, reacquire/release capture on behalf of the button, move post-action focus, call the command directly or perform cleanup to make release succeed. Exactly-one-Click and fresh execution-task validation remain intact; original focus and release assertions and production `PageFocus` remain unchanged. Failure produces phase, target/window/dispatcher, mouse/keyboard source, capture, activation and pending-operation diagnostics.
+
+The corrected exact Owned child shows, for Light: **10:16:33.702076 GotMouseCapture**, **10:16:33.721081 LostMouseCapture with `pressed=false`, managed capture null and native capture zero**, then exactly one Click and release completion; the original release assertion observed false at **10:16:33.809979**. Dark repeats the sequence at **10:16:34.053138 / 10:16:34.073020**, with the assertion at **10:16:34.129858**. Both use control **#3C0D6B1** on HWND **0xD0720**. All later Owned validation, cancellation, date-picker, retained-state/theme/render assertions completed. Cleanup occurs afterward and is separately identified. The normal full family reproduced passing capture/release evidence for all three children.
+
+Two new isolated regression rows verify consecutive successful Space invocations return only after release, and that deliberately losing capture during the pressed observation fails before key-up with **zero Clicks**. That negative fixture does not pretend cleanup completed a successful activation. Existing missing/stale-task, failure propagation, exact-selection/completeness, dispatcher lifetime, cancellation/process-tree cleanup and scheduling regressions are retained.
+
+### Focused results and commands
+
+Both affected-project Release builds passed with **zero warnings/errors**: diagnostic build **53.89s**, final build **9.91s**, exits **0**, `diagnostic-build.log` / `release-build.log`. Tests ran in order below, once per requested selection; there were no repeated attempts until green.
+
+| Selection | Passed / total | Failed / skipped | Exit | Invocation wall time |
+| --- | ---: | ---: | ---: | ---: |
+| Diagnostic-only Owned, restricted executor | 0/1 | 1 / 0 | 1 | 14.002s |
+| Corrected exact Owned, input-desktop access | 1/1 | 0 / 0 | 0 | 16.287s |
+| Complete Breakdown family, input-desktop access | 3/3 | 0 / 0 | 0 | 25.964s |
+| Relevant regressions, input-desktop access | 51/51 | 0 / 0 | 0 | 33.501s |
+
+The final family plus disjoint regressions cover **54 unique passing parent cases**. The exact Owned pass overlaps the full family and is not added. Diagnostic failure remains historical evidence, not suppressed. Child results are not added to parent totals. Wall times include test-command/child startup and return, excluding build/restore; they do not establish complete-gate savings or CI margin.
+
+`dispatch.json` audits complete result counts, exact parent/child names, distinct identities, definition/entry mappings and timestamps. Normal full-family children each contain exactly one completed matching Passed result, zero skipped/extra/zero-match cases:
+
+- Owned: `breakdown/breakdown-accessibility-20261021-101723-a084c1d538cc4d14b5afa0bac033e68e/`, supervised **12.987s**, exit **0**.
+- Scoped `inputDuringDelete: False`: `breakdown/breakdown-accessibility-20261021-101736-adc40fc76d9049319914b0722f34a5b6/`, **4.891s**, exit **0**.
+- Scoped `inputDuringDelete: True`: `breakdown/breakdown-accessibility-20261021-101741-7326d39a9f6846c1b31d05fab228d253/`, **4.749s**, exit **0**.
+
+The separate corrected Owned child is `corrected-owned/breakdown-accessibility-20261021-101629-54ef0ef8b232495ab1fe56734fc93d1a/`, **12.919s**, exit **0**. Names retain the full `PersonalTradingJournal.Desktop.Tests.Breakdown.BreakdownAccessibilityViewTests` prefix and existing method identities. Exact dispatch and built-in single-result validation remain active. Process **90s**, case-watchdog **30s**, supervisor-cleanup limits, host recursion protection, case-owned Application lifetime, CI timeout, partition ordering and concurrency/collection settings are unchanged.
+
+Commands from repository root (the last three test invocations used input-desktop access; diagnostic-only used the restricted executor):
+
+```powershell
+$evidence = 'TestResults/m229d1-20261021-100829-cd02d9a16afc4737bb8a1d03f8a6143a'
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore -v minimal -flp:logfile=TestResults/m229d1-20261021-100829-cd02d9a16afc4737bb8a1d03f8a6143a/diagnostic-build.log
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family diagnostic-owned
+pwsh -NoProfile -File "$evidence/inspect-wpf.ps1"
+pwsh -NoProfile -File "$evidence/inspect-provider.ps1"
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore -v minimal -flp:logfile=TestResults/m229d1-20261021-100829-cd02d9a16afc4737bb8a1d03f8a6143a/release-build.log
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family corrected-owned
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family breakdown
+pwsh -NoProfile -File "$evidence/run-focused.ps1" -Family regressions
+pwsh -NoProfile -File "$evidence/audit.ps1"
+git diff --check
+pwsh -NoProfile -File "$evidence/check-doc-links.ps1"
+```
+
+The wrapper runs `dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter <selection> --logger 'trx;LogFileName=parents.trx' --results-directory <unique selection path> --diag <selection>/vstest.log`, records exact arguments/exit/UTC/wall time in each `summary.json`, and refuses to overwrite an existing selection. Owned selects its exact fully qualified fact name; full family uses `FullyQualifiedName~BreakdownAccessibilityViewTests`. Regression filter: `FullyQualifiedName~IsolatedTestProcessTests|FullyQualifiedName~CalendarStaTestTests|FullyQualifiedName~ReleaseSchedulingTests|FullyQualifiedName~UiHarnessDiagnosticsTests|FullyQualifiedName~IsolatedTestSelectionTests`. No complete gate or unrelated Plan/Brief rerun occurred. Runtime tests were not repeated for documentation changes. Final whitespace **exit 0**; documentation **175 local targets / zero missing, exit 0** (URL/fragment validation excluded). No test host/runner remains; five reusable MSBuild workers were left untouched. Checks, final process status, source/binary hashes and inventory are recorded in D1 `summary.json` and supporting files.
+
+### Exact D1 inventory and remaining limitations
+
+**Five modified files, no additions**, uncommitted over `0830e0d`; ignored TestResults diagnostics/scripts are local evidence outside this source inventory. Earlier D files and retained artifacts remain intact.
+
+| File | D1 change |
+| --- | --- |
+| `README.md` | Current focused outcome and environment limitation |
+| `docs/notebook.md` | Cause, sequence, commands, evidence and inventory |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiKeyboardProbe.cs` | Acquisition/release requirements and compact event/dispatcher diagnostics |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiHarnessDiagnosticsTests.cs` | Two isolated capture/release regression rows |
+| `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs` | Theme/instance observations bracketing existing input and release assertion |
+
+**D1 focused verification is complete; overall M22.9 acceptance remains pending.** Native capture requires a suitable input desktop; success is not claimed in an executor denying that access. No production defect was demonstrated, and production code was not changed. D's Plan/Brief focused passes are reused; their historical watchdog/slowdown causes and foreground-competition hypothesis remain unresolved. No whole-gate timing conclusion follows from these focused results. Human keyboard/mouse/Narrator interaction, native journal restart and matching hosted CI remain unverified; prior real clipboard/picker/viewer, codec, retention/reclamation and M22.11 limitations remain. No production/provider access, Git publication, workflow triggering or M22.10 work occurred. **M22.10 onward remains pending.**
 
 ## M22.9D — UI test isolation, keyboard readiness and diagnostics
 

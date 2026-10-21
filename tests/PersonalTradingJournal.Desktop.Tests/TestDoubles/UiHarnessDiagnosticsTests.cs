@@ -1,10 +1,62 @@
 using System.Text.Json;
 using System.Windows.Controls;
+using System.Windows;
+using System.Windows.Input;
 
 namespace PersonalTradingJournal.Desktop.Tests.TestDoubles;
 
 public sealed class UiHarnessDiagnosticsTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SpaceRequiresCaptureAndCompletesReleaseBeforeReturning(bool loseCapture)
+    {
+        const string host = "PTJ_KEYBOARD_RELEASE_PROBE_HOST";
+        if (Environment.GetEnvironmentVariable(host) != "1")
+        {
+            string expected = $"{typeof(UiHarnessDiagnosticsTests).FullName}.{nameof(SpaceRequiresCaptureAndCompletesReleaseBeforeReturning)}(loseCapture: {loseCapture})";
+            await IsolatedTestProcess.RunSuiteAsync(typeof(UiHarnessDiagnosticsTests), "keyboard-release-probe", host,
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
+            return;
+        }
+        await CalendarStaTest.RunAsync(() =>
+        {
+            var button = new Button { Content = "Synthetic release", Width = 180, Height = 50 };
+            var window = new Window { Content = button, Width = 300, Height = 200, ShowInTaskbar = false };
+            int clicks = 0; button.Click += (_, _) => clicks++;
+            window.Show();
+            try
+            {
+                if (loseCapture)
+                {
+                    var error = Assert.Throws<InvalidOperationException>(() => UiKeyboardProbe.Space(button, () =>
+                    {
+                        Assert.Same(button, Mouse.Captured); Assert.True(button.IsPressed);
+                        button.ReleaseMouseCapture(); // Deliberate broken input sequence, not successful cleanup.
+                    }));
+                    Assert.Contains("capture was lost before key-up", error.Message);
+                    Assert.Equal(0, clicks);
+                }
+                else
+                {
+                    for (int invocation = 1; invocation <= 2; invocation++)
+                    {
+                        UiKeyboardProbe.Space(button, () =>
+                        {
+                            Assert.Same(button, Mouse.Captured); Assert.True(button.IsPressed);
+                        });
+                        Assert.False(button.IsPressed); Assert.False(button.IsMouseCaptured);
+                        Assert.NotSame(button, Mouse.Captured); Assert.Equal(invocation, clicks);
+                        Assert.Same(button, Keyboard.FocusedElement);
+                    }
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
