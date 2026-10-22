@@ -30,7 +30,7 @@ jobs:
         run: dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
 
       - name: Test
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: ./scripts/Test-Release.ps1 -ResultsDirectory TestResults
 
       - name: Upload test results and native WPF diagnostics

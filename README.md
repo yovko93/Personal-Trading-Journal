@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.11D — CI Test-step budget
+
+The existing CI Test step now allows **15 minutes (900 seconds)**. M22.11B3 passed **5,361/5,361 tests, exit 0**, in **737.375s**, excluding restore/build; the new budget provides **162.625s** of measured local headroom. Retained passing M22.10C took **769.349s**, leaving **130.651s**. These runs differ in source, coverage and scheduling and are not controlled performance comparisons. This configuration accommodates observed passing work; it does not make tests execute faster. Commands, scheduling, isolation and per-case watchdogs/process deadlines are unchanged.
+
+**M22.11 local automated acceptance remains passed.** The new CI configuration has no matching hosted validation yet; hosted timing and input compatibility remain unverified. [Scope and static validation](docs/notebook.md#m2211d--ci-test-step-budget). Earlier sections preserve the historical 600-second budget and acceptance evidence. Human interaction, native journal restart, historical input/focus causes and M22.12 remain outstanding.
+
 ## M22.11B3 — Complete Release acceptance after harness corrections
 
 **M22.11 local automated Release acceptance is complete: 5,361/5,361 passed, zero failures/skips, exit 0.** One complete gate ran after rebuilding clean `develop` at **`197f9e6a120b55e1ae73d0657083561bde22a882`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The expected B2 changes had already been committed. Domain **602/602**, Application **1,048/1,048**, Infrastructure **1,605/1,605**, Desktop **2,106/2,106** (**101 exclusive + 2,005 parallel**). Discovery/result identities, required Notebook coverage and shared/exact child dispatch reconcile; no focused selection or complete gate was retried.
