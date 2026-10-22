@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A — Notebook visual review and picker polish
+
+Compared the supplied Notebook reference with actual Light/Dark normal and narrow/high-DPI renders. Folder management, move-folder, tag management and assignment pickers now wrap names and expose the complete selection through tooltips/accessibility help. Existing automation names and commands are preserved. The long-name tag regression checks the rendered wrapping and full tooltip/help text.
+
+Focused Release verification passed **16/16 parents**, with **28 child cases** across seven four-row theme/size matrices, zero failures/skips and exits 0; build passed with zero warnings/errors. Evidence: `TestResults/m2212a-verified/`, including copied renders and provenance. [Review findings, inspected paths, commands and exact inventory](docs/notebook.md#m2212a--notebook-visual-review-and-picker-polish). The established shell, extra durability/lifecycle controls and vertical scrolling are deliberately retained. Combined all-features visual coverage and human keyboard/Narrator, real clipboard/picker/viewer, native restart and final M22.12 Release acceptance remain pending. Historical M22.11 acceptance remains passed; the 15-minute CI budget still lacks matching hosted validation.
+
 ## M22.11D — CI Test-step budget
 
 The existing CI Test step now allows **15 minutes (900 seconds)**. M22.11B3 passed **5,361/5,361 tests, exit 0**, in **737.375s**, excluding restore/build; the new budget provides **162.625s** of measured local headroom. Retained passing M22.10C took **769.349s**, leaving **130.651s**. These runs differ in source, coverage and scheduling and are not controlled performance comparisons. This configuration accommodates observed passing work; it does not make tests execute faster. Commands, scheduling, isolation and per-case watchdogs/process deadlines are unchanged.

@@ -45,6 +45,10 @@ public sealed class NotebookTagViewTests
                 Assert.Single(vm.Notes); Assert.Equal(2, vm.SelectedTagFilters.Count);
                 vm.Panel = 0; ((Expander)view.FindName("TagManagement")).IsExpanded = true;
                 Layout(); Render("filters");
+                var managedPicker = Descendants<ComboBox>(view).Single(x => AutomationProperties.GetName(x) == "Tag to rename or delete");
+                Assert.Equal(vm.ManagedTag!.Name, managedPicker.ToolTip);
+                Assert.Equal(vm.ManagedTag.Name, AutomationProperties.GetHelpText(managedPicker));
+                Assert.Contains(Descendants<TextBlock>(managedPicker), x => x.Text == vm.ManagedTag.Name && x.TextWrapping == TextWrapping.Wrap);
                 var filters = Descendants<CheckBox>((ItemsControl)view.FindName("TagFilters")).ToArray();
                 Assert.Equal(2, filters.Length); Assert.All(filters, c => Assert.True(c.IsChecked));
                 Assert.All(filters, c => Assert.Contains("Filter", AutomationProperties.GetHelpText(c)));
