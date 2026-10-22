@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A1 — Workspace navigation and icons
+
+Notebook now shows only **All Notes** and **Pinned** under WORKSPACE, with document/pin icons. A separate FOLDERS list has folder icons, wrapping names and right-aligned counts. **Unfiled, Archived and Trash** remain available from the Notebook ellipsis menu; count/filter explanations are collapsed into contextual help. All icons and menu styling use the existing application resources. Refresh and cancelled dirty-draft navigation preserve the accepted selection.
+
+Focused Release verification: **44/44 top-level tests**, including one parent dispatching **four distinct Light/Dark normal/narrow-high-DPI children**, all passed with zero failures/skips, exit 0. Build: zero warnings/errors. Twelve current captures were inspected; no blocking A1 visual defect found. [Commands, retained development failures, evidence and exact seven-file inventory](docs/notebook.md#m2212a1--workspace-navigation-and-icons). Evidence: `TestResults/m2212a1-verified/summary.json`. Only A1 is implemented; A2–A7, M22.12B, human keyboard/Narrator and full Release acceptance remain pending. Existing folder-management, header and editor controls are retained for their later phases.
+
 ## M22.12A — Notebook visual review and picker polish
 
 Compared the supplied Notebook reference with actual Light/Dark normal and narrow/high-DPI renders. Folder management, move-folder, tag management and assignment pickers now wrap names and expose the complete selection through tooltips/accessibility help. Existing automation names and commands are preserved. The long-name tag regression checks the rendered wrapping and full tooltip/help text.

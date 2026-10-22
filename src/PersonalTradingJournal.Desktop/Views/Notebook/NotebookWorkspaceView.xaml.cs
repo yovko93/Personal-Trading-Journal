@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Documents;
 using System.Windows.Automation;
+using System.Windows.Data;
+using PersonalTradingJournal.Application.Notebook;
 using PersonalTradingJournal.Domain.Notebook;
 using PersonalTradingJournal.Desktop.ViewModels.Notebook;
 
@@ -13,7 +15,7 @@ namespace PersonalTradingJournal.Desktop.Views.Notebook;
 public partial class NotebookWorkspaceView : UserControl
 {
     private NotebookWorkspaceViewModel? _model;
-    private bool _updating, _selectionUpdating;
+    private bool _updating, _selectionUpdating, _scopeSelectionUpdating;
     public NotebookWorkspaceView()
     {
         InitializeComponent();
@@ -42,6 +44,40 @@ public partial class NotebookWorkspaceView : UserControl
         };
     }
     internal Action<string> WriteClipboardText { get; set; } = text => Clipboard.SetText(text, TextDataFormat.UnicodeText);
+    private void FilterWorkspaceScopes(object sender, FilterEventArgs e) =>
+        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.AllNotes or NotebookScope.Pinned };
+    private void FilterFolderScopes(object sender, FilterEventArgs e) =>
+        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Folder };
+    private void FilterOtherScopes(object sender, FilterEventArgs e) =>
+        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Unfiled or NotebookScope.Archived or NotebookScope.Trash };
+    private async void SelectPrimaryScope(object sender, SelectionChangedEventArgs e)
+    {
+        if (_scopeSelectionUpdating || e.AddedItems.Count == 0 || e.AddedItems[0] is not NotebookScopeOption scope ||
+            DataContext is not NotebookWorkspaceViewModel model || ReferenceEquals(model.Scope, scope)) return;
+        // Removed selections during catalog publication must never clear the canonical scope.
+        model.Scope = scope;
+        await model.LoadTask;
+        // Restore the accepted selection if the existing unsaved-draft guard declined navigation.
+        SynchronizeScopeSelection();
+    }
+    private void SynchronizeScopeSelection()
+    {
+        var scope = (DataContext as NotebookWorkspaceViewModel)?.Scope;
+        _scopeSelectionUpdating = true;
+        try
+        {
+            // A scope outside a ListBox's Items is not a valid SelectedItem. Explicitly clear
+            // the other list, including when a dirty-draft guard rejects its proposed choice.
+            ScopeList.SelectedItem = scope?.Scope is NotebookScope.AllNotes or NotebookScope.Pinned ? scope : null;
+            FolderScopeList.SelectedItem = scope?.Scope == NotebookScope.Folder ? scope : null;
+        }
+        finally { _scopeSelectionUpdating = false; }
+    }
+    private void SelectOverflowScope(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: NotebookScopeOption scope } && DataContext is NotebookWorkspaceViewModel model)
+            model.Scope = scope;
+    }
     internal Func<IDataObject?> ReadClipboardData { get; set; } = Clipboard.GetDataObject;
     private void CutText(ExecutedRoutedEventArgs e)
     {
@@ -66,10 +102,11 @@ public partial class NotebookWorkspaceView : UserControl
         Detach();
         _model = DataContext as NotebookWorkspaceViewModel;
         if (_model is not null) { _model.PropertyChanged += Changed; _model.NoteCreated += Created; }
-        UpdatePreview(); LayoutPanels();
+        SynchronizeScopeSelection(); UpdatePreview(); LayoutPanels();
     }
     private void Changed(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Scope)) SynchronizeScopeSelection();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.EditorRevision)) UpdatePreview();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Panel)) LayoutPanels();
     }

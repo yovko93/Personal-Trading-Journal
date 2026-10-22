@@ -104,7 +104,9 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         get => _scope;
         set
         {
-            if (_publishing) { SetProperty(ref _scope, value); return; }
+            // Catalog refresh replaces equal-valued records. Select the new item instance so
+            // filtered navigation views restore selection after their collections are rebuilt.
+            if (_publishing) { SetProperty(ref _scope, value, ReferenceEqualityComparer.Instance); return; }
             if (!CanRead || value is null || (_scope?.Scope == value.Scope && _scope.FolderId == value.FolderId)) return;
             LoadTask = GuardedAsync(async () =>
             {

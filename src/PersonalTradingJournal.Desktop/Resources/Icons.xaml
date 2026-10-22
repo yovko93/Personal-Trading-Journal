@@ -2,6 +2,9 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Geometry x:Key="PtjIconDashboard">M3,3 L10,3 10,10 3,10 Z M14,3 L21,3 21,10 14,10 Z M3,14 L10,14 10,21 3,21 Z M14,14 L21,14 21,21 14,21 Z</Geometry>
     <Geometry x:Key="PtjIconNotebook">M5,3 L19,3 19,21 5,21 Z M8,3 L8,21 M11,7 L16,7 M11,11 L16,11 M11,15 L16,15</Geometry>
+    <Geometry x:Key="PtjIconDocument">M5,3 L14,3 19,8 19,21 5,21 Z M14,3 L14,8 19,8 M8,12 L16,12 M8,16 L14,16</Geometry>
+    <Geometry x:Key="PtjIconPin">M14,3 L21,10 18,11 14,15 14,18 6,10 9,10 13,6 Z M10,14 L3,21</Geometry>
+    <Geometry x:Key="PtjIconFolder">M3,6 L10,6 12,8 21,8 21,21 3,21 Z</Geometry>
     <Geometry x:Key="PtjIconTrades">M6,3 L6,21 M3,7 L9,7 9,14 3,14 Z M18,3 L18,21 M15,10 L21,10 21,17 15,17 Z</Geometry>
     <Geometry x:Key="PtjIconJournal">M4,4 L10,4 C11,4 12,5 12,6 L12,20 C11,19 10,18 8,18 L4,18 Z M20,4 L14,4 C13,4 12,5 12,6 L12,20 C13,19 14,18 16,18 L20,18 Z</Geometry>
     <Geometry x:Key="PtjIconCalendar">M4,5 L20,5 20,21 4,21 Z M4,9 L20,9 M8,3 L8,7 M16,3 L16,7 M8,13 L10,13 M14,13 L16,13 M8,17 L10,17 M14,17 L16,17</Geometry>

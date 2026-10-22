@@ -1,5 +1,39 @@
 # Notebook
 
+## M22.12A1 — Workspace navigation and icons
+
+22 October 2026. Baseline: clean **develop / `040272b07a925bdbc72716d69bc12e9e48616da4`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; prior A and CI-budget work were already committed. Repository/ancestor guidance search found no AGENTS.md. One agent; only A1 from the supplied roadmap was implemented. The current-implementation and target-reference screenshots supplied in this turn guided the navigation hierarchy; later header/editor changes were excluded.
+
+WORKSPACE contains only All Notes and Pinned. FOLDERS uses its own filtered catalog view, document/pin/folder geometries live in the existing `Icons.xaml` resource system, and names wrap with full-name tooltips and accessible count labels. The compact ellipsis beside WORKSPACE uses the existing `EntityActionMenu` behavior and themed menu styles for Unfiled, Archived and Trash. Counts and all-selected-tags explanations are in collapsed, keyboard-expandable **Counts & filters** help, with row accessibility help retained. Existing scope commands, filtering, paging, folder management and navigation guards remain authoritative; persistence, export v18 and document/archive v1 are unchanged.
+
+Two selection issues exposed by the new assertions were corrected: catalog publication must notify when an equal-valued record is replaced, and the view must explicitly clear the other list when the accepted scope is not in it. The canonical Scope setter still performs navigation/dirty-draft coordination. Refresh restores the selected catalog instance; rejected navigation restores the accepted highlight and preserves the exact dirty title. No save/discard bypass was introduced.
+
+**Final focused verification passed:** **44/44 top-level tests**, comprising 43 workspace/tag/editing regressions and one representative view parent. That parent invokes the existing whole four-row child suite once: Light/Dark × 1280/96 DPI and 480/240 DPI, **4/4 distinct children**. Both parent and child TRX have zero failed, skipped, aborted or missing cases and no duplicate names. Children are not added to the parent total. Final command exit **0**, wall time **14.013s**; Release build passed with zero warnings/errors (final MSBuild **13.32s**). Existing process isolation, 90-second process limit, 30-second watchdog and dispatch implementation are unchanged. No complete gate was run.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = (Resolve-Path TestResults/m2212a1-verified/selection-verified).Path
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookEditingTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)' --logger trx --results-directory $env:PTJ_TEST_RESULTS_DIRECTORY
+```
+
+Evidence root: **`TestResults/m2212a1-verified/`**. `summary.json`, `verified-source.json` (five tested source files and binary SHA-256 hashes), `trx-audit.json`, `selection-verified/build.log`, `selection-verified/focused.log`, `selection-verified/result.json` and its original parent/child TRX, supervision and phase logs retain final results. `before-context.json` and `final-context.json` record the already-authorized session 1 / interactive WinSta0 / Default with cursor access and the executor's existing token, without desktop/token switching or active tests before/after. Fixtures use detached renders and programmatic routed events; native human keyboard/focus interaction is not established.
+
+Development failures are retained separately, not represented as successful runs: the initial root run and `view-completion/` stopped at a newly added detached-view `IsVisible` assertion; `view-final/` queried an unrealized collapsed content presenter; `view-layout/` incorrectly required an unowned popup to retain focus through dispatcher idle. The fixture now checks expansion through the actual rendered content parent/layout, checks menu opening immediately, then renders the menu detached. `view-menu/` demonstrated the catalog-refresh selection loss; `verified/` demonstrated the cancelled-navigation stale highlight. These led to the two production selection corrections above. All original content, safe-rendering, error/loading/empty-state assertions remain. The final `selection-verified/` run passed after those concrete changes; earlier artifacts remain intact.
+
+`renders.json` records original paths, timestamps and SHA-256 hashes for copied current captures in `renders/`. Twelve were inspected: `Light-1280-96-navigation.png`, `Dark-1280-96-navigation.png`, `Light-480-240-navigation.png`, `Dark-480-240-navigation.png`; the corresponding four `*-overflow.png` files; `Light-1280-96-count-help.png`, `Dark-480-240-count-help.png`, `Light-1280-96-content.png`, and `Dark-480-240-organization.png`. Icons, right-aligned counts, long folder wrapping, mutually exclusive selected styling and menu/help contrast showed no blocking A1 defect. Detached fixtures omit the application shell. Existing wide/narrow panel behavior, tall header, Manage folders and editor actions are deliberate retained differences for A2–A7, not completed redesign work.
+
+Exact phase inventory, **seven modified files, no added source files**:
+
+- `src/PersonalTradingJournal.Desktop/Resources/Icons.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Whitespace and local documentation-target checks passed after documentation updates. There is no EF/model/schema change. No CI, concurrency, timeout or harness optimization occurred. Historical M22.11 acceptance remains passed; overall M22.12 acceptance, A2–A7 and M22.12B remain pending. Human keyboard/Narrator, native journal restart, real clipboard/picker/viewer, installed-codec WebP and matching hosted timing/input compatibility remain unverified. No production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A — Notebook visual review and picker polish
 
 22 October 2026. Actual baseline: clean `develop` at **`9b6208448f7213c231f1c1181bbfc26f1475849c`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The three reported M22.11D changes had been committed. Repository/ancestor guidance search found no AGENTS.md. One agent; CI remains unchanged in A. The supplied `C:/Users/Yovko/Downloads/Trading journal notebook workspace.png` was opened before editing, together with retained `TestResults/m229a-verified/renders/Light-1280-96-linked-items.png`, `TestResults/m2210b-verified/renders/Dark-480-240-duplicated.png` and `TestResults/release-20261020-174016-954f7bd34d35413a860b961ced6ad1e9/m227-visuals/Dark-480-240-management.png`.

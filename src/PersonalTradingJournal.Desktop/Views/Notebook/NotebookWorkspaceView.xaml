@@ -2,10 +2,28 @@
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:vm="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Notebook"
+ xmlns:notebook="clr-namespace:PersonalTradingJournal.Application.Notebook;assembly=PersonalTradingJournal.Application"
+ xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
  Background="{DynamicResource PtjBackgroundBrush}" Foreground="{DynamicResource PtjTextPrimaryBrush}" FontSize="14"
  Loaded="OnLoaded" Unloaded="OnUnloaded" SizeChanged="OnSizeChanged" DataContextChanged="OnContextChanged">
  <UserControl.InputBindings><KeyBinding Key="N" Modifiers="Control" Command="{Binding NewNoteCommand}" /><KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}"/></UserControl.InputBindings>
  <UserControl.Resources>
+  <CollectionViewSource x:Key="WorkspaceScopes" Source="{Binding Scopes}" Filter="FilterWorkspaceScopes"/>
+  <CollectionViewSource x:Key="FolderScopes" Source="{Binding Scopes}" Filter="FilterFolderScopes"/>
+  <CollectionViewSource x:Key="OtherScopes" Source="{Binding Scopes}" Filter="FilterOtherScopes"/>
+  <DataTemplate x:Key="ScopeItem">
+   <Grid ToolTip="{Binding Label}">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Path Width="16" Height="18" Stretch="Uniform" Stroke="{DynamicResource PtjTextSecondaryBrush}" StrokeThickness="1.8" StrokeLineJoin="Round" VerticalAlignment="Center">
+     <Path.Style><Style TargetType="Path"><Setter Property="Data" Value="{StaticResource PtjIconFolder}"/><Style.Triggers>
+      <DataTrigger Binding="{Binding Scope}" Value="{x:Static notebook:NotebookScope.AllNotes}"><Setter Property="Data" Value="{StaticResource PtjIconDocument}"/></DataTrigger>
+      <DataTrigger Binding="{Binding Scope}" Value="{x:Static notebook:NotebookScope.Pinned}"><Setter Property="Data" Value="{StaticResource PtjIconPin}"/></DataTrigger>
+     </Style.Triggers></Style></Path.Style>
+    </Path>
+    <TextBlock Grid.Column="1" Text="{Binding Name}" TextWrapping="Wrap" Margin="8,0,6,0" VerticalAlignment="Center"/>
+    <TextBlock Grid.Column="2" Text="{Binding Count}" Foreground="{DynamicResource PtjTextSecondaryBrush}" VerticalAlignment="Center"/>
+   </Grid>
+  </DataTemplate>
   <DataTemplate x:Key="NamedPickerItem"><TextBlock Text="{Binding Name}" TextWrapping="Wrap" MaxWidth="240" ToolTip="{Binding Name}"/></DataTemplate>
   <DataTemplate x:Key="TagPickerItem"><TextBlock Text="{Binding PickerLabel}" TextWrapping="Wrap" MaxWidth="220" ToolTip="{Binding PickerLabel}"/></DataTemplate>
   <BooleanToVisibilityConverter x:Key="VisibleWhenTrue"/>
@@ -26,6 +44,10 @@
      <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="2"/></Trigger>
      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}"/></Trigger>
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="ScopeRow" TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+   <Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
+   <Setter Property="AutomationProperties.HelpText" Value="Note count before text and tag filters."/>
   </Style>
  </UserControl.Resources>
  <Grid x:Name="Root">
@@ -70,10 +92,23 @@
         <Button Content="More recovery drafts" Command="{Binding MoreRecoveryCommand}" Visibility="{Binding HasMoreRecovery, Converter={StaticResource VisibleWhenTrue}}"/>
        </StackPanel>
       </Expander>
-      <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" Margin="0,0,0,12"/>
-      <ListBox x:Name="ScopeList" ItemsSource="{Binding Scopes}" SelectedItem="{Binding Scope}" DisplayMemberPath="Label" ItemContainerStyle="{StaticResource Row}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook organization" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-       <ListBox.Resources><Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style></ListBox.Resources>
-      </ListBox>
+      <DockPanel Margin="0,0,0,8">
+       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource PtjIconButtonStyle}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="More Notebook views" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash.">
+        <Button.ContextMenu>
+         <ContextMenu ItemsSource="{Binding Source={StaticResource OtherScopes}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+          <ContextMenu.ItemContainerStyle><Style TargetType="MenuItem" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}">
+           <Setter Property="Header" Value="{Binding Label}"/><Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
+           <EventSetter Event="Click" Handler="SelectOverflowScope"/>
+          </Style></ContextMenu.ItemContainerStyle>
+         </ContextMenu>
+        </Button.ContextMenu>
+        <Path Width="18" Height="18" Stretch="Uniform" Data="{StaticResource PtjIconMore}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+       </Button>
+       <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" VerticalAlignment="Center"/>
+      </DockPanel>
+      <ListBox x:Name="ScopeList" ItemsSource="{Binding Source={StaticResource WorkspaceScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook workspace" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+      <TextBlock Text="FOLDERS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
+      <ListBox x:Name="FolderScopeList" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
       <Expander Header="Manage folders" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Manage Notebook folders">
        <StackPanel Margin="0,10,0,0">
@@ -84,9 +119,10 @@
         <WrapPanel Margin="0,8,0,0"><Button Content="Create" Command="{Binding CreateFolderCommand}" Margin="0,0,4,4"/><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
        </StackPanel>
       </Expander>
-      <TextBlock Text="Scope counts are before text/tag filters. Tag counts are active-note assignments." Style="{StaticResource QuietText}" Margin="0,20,0,0"/>
+      <Expander x:Name="ScopeHelp" Header="Counts &amp; filters" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="12" Margin="0,12,0,0" AutomationProperties.Name="About Notebook counts and filters">
+       <TextBlock Text="Scope counts are before text/tag filters. Tag counts are active-note assignments. All selected tags are required." Style="{StaticResource QuietText}" Margin="0,8,0,0"/>
+      </Expander>
       <TextBlock Text="TAGS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
-      <TextBlock Text="Filter notes · all selected tags required" Style="{StaticResource QuietText}" Margin="0,0,0,6"/>
       <ItemsControl x:Name="TagFilters" ItemsSource="{Binding Tags}">
        <ItemsControl.ItemTemplate><DataTemplate>
         <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}" Command="{Binding DataContext.ToggleTagFilterCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" Margin="0,3,0,3"
