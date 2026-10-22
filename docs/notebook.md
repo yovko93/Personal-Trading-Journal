@@ -1,8 +1,115 @@
 # Notebook
 
-Latest checkpoint: **M22.11B2 corrected source-demonstrated foreground scheduling and owner-setup gaps; 56/56 focused top-level tests passed, zero failures/skips, all exits 0.** No complete gate or production focus change occurred. B1's two diagnostic passes and B2's focused passes do not establish the original focus-taking events or request dispositions. The retained acceptance result remains the M22.11B failure below.
+Latest checkpoint: **M22.11B3 local automated Release acceptance is complete: 5,361/5,361 passed, zero failures/skips, exit 0.** One complete gate verified committed B2 corrections at `197f9e6a120b55e1ae73d0657083561bde22a882`. The 737.375-second local gate exceeds CI's unchanged 600-second Test budget by 137.375 seconds. Matching hosted timing/input compatibility, human interaction and native journal restart remain unverified. Historical input/focus causes remain unexplained. Document/archive v1, export v18 and 29 migrations are unchanged; general reclamation and M22.12 remain deferred.
 
-Current checkpoint: **M22.11B single complete gate finished 5,356/5,361 passed, five failed, zero skipped, exit 1; local automated acceptance remains pending**. The five parents map to two distinct native validation-focus child failures. A2 remains 201/203, two failed; A3's two diagnostic children passed once each and input origin remains unproven. Historical M22.10 acceptance remains passed. B's **696.258s** gate exceeds the unchanged 600-second CI Test budget by **96.258s**; this failed, traced run is not a healthy-runtime benchmark or matching hosted evidence. Hosted input compatibility, human interaction and native journal restart remain unverified. Document/archive **v1**, export **v18**, schema **29 migrations** are unchanged. General reclamation and M22.12 remain deferred.
+Historical checkpoint: **M22.11B finished 5,356/5,361 passed, five failed, zero skipped, exit 1**. Its five parents map to two distinct native validation-focus child failures. A2 remains 201/203, two failed; A3's two diagnostic children passed once each and input origin remains unproven. B's 696.258-second failed, traced run is not a healthy-runtime benchmark. B1/B2/B3 do not retroactively explain those original observations. Earlier phase sections below retain their status at the time of execution.
+
+## M22.11B3 — Complete Release acceptance after harness corrections
+
+22 October 2026. Actual build/test baseline: **clean develop at `197f9e6a120b55e1ae73d0657083561bde22a882`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The expected `e6d488c7031b87ae18bf0a32cd167bad12f3793a` plus eight modified files/one helper was superseded by the user's intervening B2 commit, `197f9e6 Isolate foreground validation tests and verify owner readiness`. No tracked changes were present before preparation. All **1,344 runtime source/configuration hashes and four test DLL hashes** matched B2 before preparation; B3's rebuilt binary/source manifest is `TestResults/m2211b3-verified/verified-runtime-source.json`. Runtime hashes were rechecked after the gate; only these two documentation files changed afterward. No subagents, behavioral corrections, focused reruns or gate retries were used.
+
+### Preparation, commands and execution context
+
+Repository/ancestor guidance inspection found no AGENTS.md. README, this notebook, B2 evidence, release script and CI workflow were inspected. Before launch, the supported executor confirmed no independent test processes and **Windows 10.0.19045, session 1, interactive WinSta0 / Default, cursor available/error 0**. The explicit already-authorized `require_escalated` executor used its existing administrator token; scripts requested no UAC elevation, token switch, desktop switch or alternate input path. Restricted execution is not assumed to provide native cursor/focus access. `before-context.json`, `pre-gate-context.json` and `final-context.json` retain the actual context; final inspection found no active test processes.
+
+Commands from repository root (durable wrappers retain exact arguments and UTC timestamps):
+
+```powershell
+dotnet restore PersonalTradingJournal.sln
+dotnet build PersonalTradingJournal.sln --configuration Release --no-restore
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+# discovery.ps1 lists the four built projects, with both established Desktop filters;
+# --configuration Release --no-build --no-restore --list-tests executes no cases.
+$env:PTJ_INPUT_ORIGIN_TRACE = '1'
+$env:PTJ_VALIDATION_FOCUS_TRACE = '1'
+$env:PTJ_VALIDATION_FOCUS_SHARED_SUITE = '1'
+pwsh -NoProfile -File scripts/Test-Release.ps1 -ResultsDirectory TestResults/m2211b3-verified
+```
+
+`prepare.ps1`: restore **5.7558451s**, build **65.6377492s** command wall time (MSBuild 64.06s), EF **5.1984042s**; all exits **0**, build **zero warnings/errors**, no pending model changes. `run-gate.ps1` refused replacement of an existing invocation and preserved original output/exit. The gate retains exclusive-first ordering, max project concurrency four, collection limit two, native child deadlines/watchdogs, Calendar's 120-second deadline and 45-second case watchdog, and its own `PTJ_CALENDAR_TIMINGS=1`. B2's trait/collection membership and one-time neutral-owner prerequisites are included. No new 600-second cancellation wrapper or CI setting change was made.
+
+### Complete results and coverage audit
+
+One gate, **exit 0**, **5,361 passed / 5,361 total**, **zero failed/skipped**:
+
+| Project / partition | Passed / discovered | Failed / skipped |
+| --- | --- | --- |
+| Domain | 602 / 602 | 0 / 0 |
+| Application | 1,048 / 1,048 | 0 / 0 |
+| Infrastructure | 1,605 / 1,605 | 0 / 0 |
+| Desktop exclusive WPF | 101 / 101 | 0 / 0 |
+| Desktop parallel remainder | 2,005 / 2,005 | 0 / 0 |
+| Desktop combined | 2,106 / 2,106 | 0 / 0 |
+
+Actual discovery matches the expected counts. `completed-identities.json`, `partitions.json`, `project-totals.json`, `audit.json` and `completion-audit.json` verify all five result groups, result/definition/entry identity, timestamps, no duplicate project/test-ID/display-name identities and complete execution. Desktop partitions are disjoint and complete. Readers use `-LiteralPath`, including bracketed TRX names. The initial display-name comparison identified ten cases where TRX escaped non-BMP characters as UTF-16 surrogate pairs while discovery printed the characters. `completion-audit-raw-display.json` preserves that discrepancy; the reader decodes only valid paired surrogate escapes for display comparison, preserving all other characters and counts. The resulting multisets match exactly. An earlier reporting-script syntax error was also corrected before audit execution; neither reporting issue was a test failure or caused a rerun.
+
+Required source-derived method checks in `coverage.json` include all **six integrated backup cases**, three Settings-navigation consent cases, the real Settings/offline restore/fresh-read workflow, linked return navigation and A2 abandoned-context protections. The broader audited groups include recovery **9**, autosave **20**, image persistence **57**, image portability **6**, Notebook portability **14**, archive **45**, export **39**, templates **6**, lifecycle **18**, duplication **4**, and copy/delete **8**, all passed. Groups overlap; these counts are coverage evidence, not additions to 5,361. The manifest also records image admission/coordination/drafts, autosave UI, SQLite workspace, backup UI and harness regressions.
+
+| Family | Passed parents | Child launches | Distinct matching children |
+| --- | --- | --- | --- |
+| Plan Workspace | 4 | 1 shared | 4 |
+| Session Preparation | 1 | 1 | 1 |
+| Plan Sections | 4 | 1 shared | 4 |
+| Session Brief | 4 | 1 shared | 4 |
+| Breakdown accessibility | 3 | 3 exact | 3 |
+| Notebook lifecycle | 4 | 4 exact | 4 |
+| Notebook image editor | 4 | 4 exact | 4 |
+| Notebook links UI | 4 | 4 exact | 4 |
+
+`dispatch.json` matches full parameterized names and test IDs against parent definitions/results, validates expected cardinality and cleanup, and rejects zero, extra, duplicate or skipped child cases. Child counts are not added to parent totals. Workspace, Preparation and Sections executed only in the exclusive partition; supervisor intervals including cleanup do not overlap: **06:33:53.5226956–06:34:16.6695520**, **06:34:16.6903367–06:34:22.2535440**, **06:34:22.2868635–06:34:50.9659663 UTC**.
+
+`supervision-audit.json` covers **87 supervision logs and 82 raw child TRX files**. It explicitly distinguishes intentional negative probes: exit 7, blocked-STA timeout/tree cleanup, injected first-log/output-pump failures, and the synthetic native unhandled-dispatcher crash. The zero-result crash TRX and zero-match selection TRX are required negative-harness evidence, each linked to its passing asserting parent; they are not missing feature results. The deliberately empty first-log-failure log is backed by its passing process-exit assertion and final process inspection. All other supervised processes have confirmed cleanup. No feature-parent failures, failed child case results or hang dumps were found; raw crash/negative evidence remains retained rather than hidden by aggregate counts.
+
+### Timing and diagnostics
+
+`gate-exit.json`: **06:31:52.4940900–06:44:09.8692766 UTC**, **737.3751866s (12m17.375s)**. Restore/build are excluded; both partitions, startup and gate accounting are included. `timings.json` reports exclusive **178.5977986s**, parallel **558.2064532s**, each through its final accounting boundary. Post-command `StageFinishedUtc` is not treated as an individual project completion time, and overlapping project durations are never summed. Calendar supervisor start-to-exit **68.6080233s**, existing 120-second deadline headroom **51.3919767s**, exit 0 and confirmed cleanup.
+
+`.github/workflows/ci.yml` still gives the **Test step** `timeout-minutes: 10`; restore, build and artifact upload are separate steps. This passing local run's margin is **−137.3751866s** against 600 seconds. It is a passing test run with an unresolved CI-budget risk. Input/focus and Calendar diagnostic tracing was enabled, and machine load/environment are local; no whole-gate speedup, hosted timeout, hosted timing or hosted input compatibility is established.
+
+`input-traces.json`: **13 files / 1,259 samples**, none with a recorded native-down high bit. This does not identify the original pressed-button source. `focus-traces.json`: Workspace **38 rows, four posted/completed requests**, Preparation **33 rows, five posted/completed requests**, active neutral owners before validation, expected TextBox focus at original idle assertions, no observed deactivation before cleanup and no pending requests at disposal. The nine requests include detached-owner observations; completion does not imply every request should focus a target. Original B focus-taking events and request dispositions, and historical Plan/Brief slowdown causes, remain unexplained.
+
+### Evidence, compatibility and exact inventory
+
+Root: **`TestResults/m2211b3-verified/`**; final **`summary.json`** combines source, counts, commands, timing, audits and supporting checks. Raw gate: **`release-20261022-063152-ea9831ca85b947a3b393855344c30486/summary.json`** under that root, with original `complete-gate-output.log`, all TRX/stdout/stderr, supervision, phase and input/focus diagnostics. `failure-diagnostics.json` preserves the empty feature-failure mapping; negative-harness details are in `supervision-audit.json`. Historical A/A2/A3/B/B1/B2 artifacts remain unchanged.
+
+Visuals reuse the prior A/B review: **eight distinct Settings/maintenance images in 12 PNG files**, Light/Dark at 400/760 widths, under **`TestResults/m2211a-verified/renders/`** (`maintenance-{Light,Dark}-{400,760}.png` and Settings top/restore captures). `visuals.json` enumerates exact filenames/hashes and the view, resource, theme and fixture comparison paths. All hashes match and those inputs are unchanged since A's committed `2d2317b5bc7461e87eaef0e98c2c2c2d77e3cb00`; the retained no-blocking-defect review remains valid. No new capture or human-interaction acceptance is claimed.
+
+B3's exact tracked inventory is **README.md and docs/notebook.md only**, edited after the runtime gate. Generated verification scripts/reports are ignored durable artifacts under its results root. Overall M22.11 has **26 distinct changed paths**, counting shared files once. `inventory-phases.json` records exact commit boundaries: A `ec6360b→2d2317b`, A2 `2d2317b→7156494`, A3 `7156494→36f507a`, B `36f507a→50f3ef2`, B1 `50f3ef2→e6d488c`, B2 `e6d488c→197f9e6`; B3 is documentation after that tested HEAD. A1 was read-only diagnosis.
+
+| Exact repository path | Phases |
+| --- | --- |
+| `docs/backup-restore.md` | A |
+| `docs/notebook.md` | A, A2, A3, B, B1, B2, B3 |
+| `README.md` | A, A2, A3, B, B1, B2, B3 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.cs` | A2 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/MainWindowViewModel.Notebook.cs` | A2 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` | A2 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` | A2 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Links.cs` | A2 |
+| `src/PersonalTradingJournal.Desktop/ViewModels/Settings/DataBackupsViewModel.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/Breakdown/BreakdownAccessibilityViewTests.cs` | A3 |
+| `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookLinkedNavigationTests.cs` | A2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/Navigation/NotebookNavigationTests.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLinkTests.cs` | A2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsFlowTests.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/Settings/DataBackupsTests.cs` | A |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ExclusiveWpfCollection.cs` | B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs` | B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiHarnessDiagnosticsTests.cs` | A2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/UiKeyboardProbe.cs` | A2, A3 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ValidationFocusOwner.cs` | B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ValidationFocusTrace.cs` | B1, B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/PlanSectionsViewTests.cs` | B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/SessionPreparationViewTests.cs` | B1, B2 |
+| `tests/PersonalTradingJournal.Desktop.Tests/TradingPlans/TradingPlanWorkspaceViewTests.cs` | B1, B2 |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookIntegratedBackupTests.cs` | A |
+| `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookPortabilityTests.cs` | A |
+
+After documentation edits, EF was checked again with the same Release/no-build command; `check-whitespace.ps1` checks tracked/new-file whitespace, and `check-doc-links.ps1` checks local Markdown target existence in README, this notebook and backup-restore guidance. These supporting checks passed; the link checker excludes remote URLs and fragment validation. No runtime gate was repeated for documentation. Final source/binary hashes and process inspection remain clean of runtime drift/leftover tests.
+
+Document/archive **v1**, logical export **v18**, schema **29 migrations** remain unchanged. Integrated restore reuses the existing whole-database snapshot, managed-original inventory, capture lease and offline recovery engine. Atomic final image placement, original-byte retention, independent duplication, confirmed Trash-only deletion and ownership-safe bounded cleanup remain covered. Prepared originals with uncertain retention are kept; general reclamation and automatic cleanup retries remain deferred. JSON/CSV are not restorable backups.
+
+**Local automated M22.11 acceptance is complete.** The CI-budget deficit remains open; matching hosted CI/input compatibility, human interaction, native journal restart and previously deferred real clipboard/picker/viewer/installed-codec checks are not established by this run. Original input/focus causes remain documented rather than inferred from a later pass. Smallest next action: read-only review of this passing gate's retained timing evidence before proposing a CI-budget change. No production/provider access, Git publication, workflow trigger, timeout change, general reclamation or M22.12 work occurred.
 
 ## M22.11B2 — Foreground isolation and owner prerequisites
 
