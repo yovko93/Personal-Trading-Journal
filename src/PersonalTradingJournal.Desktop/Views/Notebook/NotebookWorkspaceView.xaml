@@ -76,6 +76,7 @@
    <Grid.ColumnDefinitions><ColumnDefinition x:Name="OrganizationColumn" Width="210"/><ColumnDefinition x:Name="NotesColumn" Width="290"/><ColumnDefinition x:Name="ContentColumn" Width="*"/></Grid.ColumnDefinitions>
    <Border x:Name="OrganizationPanel" Style="{StaticResource PanelBorder}">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+     <StackPanel>
      <StackPanel IsEnabled="{Binding CanInteract}">
       <TextBlock Text="{Binding RecoveryMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
       <Expander Header="Recovery drafts" Foreground="{DynamicResource PtjTextPrimaryBrush}" Visibility="{Binding HasRecovery, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12" AutomationProperties.Name="Local unsaved recovery drafts">
@@ -110,13 +111,20 @@
       <TextBlock Text="FOLDERS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
       <ListBox x:Name="FolderScopeList" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
+     </StackPanel>
+      <Button x:Name="NewFolderButton" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
+      <StackPanel x:Name="FolderCreation" Visibility="{Binding IsFolderCreationOpen, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12">
+       <TextBox x:Name="NewFolderName" Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsFolderCreationPending}" MaxLength="128" PreviewKeyDown="FolderCreationKeyDown" AutomationProperties.Name="New folder name" AutomationProperties.HelpText="Enter creates the folder. Escape closes this field; a submitted creation may already be saved."/>
+       <TextBlock Text="{Binding FolderCreationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel>
+     <StackPanel IsEnabled="{Binding CanInteract}">
       <Expander Header="Manage folders" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Manage Notebook folders">
        <StackPanel Margin="0,10,0,0">
         <TextBlock Text="Folder" Style="{StaticResource QuietText}"/>
         <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding ManagedFolder}" ItemTemplate="{StaticResource NamedPickerItem}" ToolTip="{Binding ManagedFolder.Name}" AutomationProperties.HelpText="{Binding ManagedFolder.Name}" AutomationProperties.Name="Folder to rename or delete"/>
-        <TextBlock Text="New or replacement name" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
+        <TextBlock Text="Replacement name" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
         <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" AutomationProperties.Name="Folder name"/>
-        <WrapPanel Margin="0,8,0,0"><Button Content="Create" Command="{Binding CreateFolderCommand}" Margin="0,0,4,4"/><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
+        <WrapPanel Margin="0,8,0,0"><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
        </StackPanel>
       </Expander>
       <Expander x:Name="ScopeHelp" Header="Counts &amp; filters" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="12" Margin="0,12,0,0" AutomationProperties.Name="About Notebook counts and filters">
@@ -146,6 +154,7 @@
        </StackPanel>
       </Expander>
       <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite" Margin="0,8,0,0"/>
+     </StackPanel>
      </StackPanel>
     </ScrollViewer>
    </Border>

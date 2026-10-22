@@ -1,5 +1,48 @@
 # Notebook
 
+## M22.12A2 — Inline folder creation
+
+23 October 2026 (implementation began 22 October). Actual baseline: clean **develop / `92dce641d1c4c492d43b167313bfe6dd6880cfd3`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A1's seven files had already been committed in intervening commit `92dce64`; they were not uncommitted baseline changes. No applicable repository/ancestor AGENTS.md was found. One agent; only A2 implemented.
+
+The **+ New folder** button below FOLDERS reveals one compact input. The existing PageFocus owner mechanism focuses it; Enter submits and Escape dismisses, returning focus to the button only while the request still owns the appropriate visible context. Blur does not submit. Existing name validation and catalog commands remain authoritative; inline validation/storage/cancellation feedback retains the entered name. Pending creation disables editing/submission while keeping Escape usable. The old Manage folders Create button is removed; its rename/delete controls remain reachable until A3. Search/tag semantics, A1 icons/counts/overflow and refresh/cancelled-navigation highlighting are preserved.
+
+Creation uses existing Save/Discard/Cancel consent and catalog persistence. Request, activation, accepted-selection/read and panel ownership prevent stale completion from selecting a folder or requesting focus. Ownership is rechecked around awaited navigation consent; closing the input before persistence prevents the folder command. A write already committed is not reversed by dismissal: when still active, the returned folder is made available in FOLDERS with truthful feedback, without taking selection or clearing the retained input. Deactivation suppresses publication; a later refresh reads committed state. Successful owned creation refreshes counts/list through the normal guarded scope transition, selects the new folder, updates the middle heading, and clears/collapses the field. A new folder is reachable even beyond the first catalog page. No persistence/schema/service-contract change was made.
+
+**Focused verification: 89/89 top-level tests passed**, zero failures/skips, all command exits **0**. Owned Light/1280/96 and Dark/480/240: **2/2 parents**, each with exactly one matching distinct child, command **27.573s**. Logic/A1 selection: **86/86**, **23.296s**, including 15 new creation cases and one representative A1 parent that dispatches the existing four Light/Dark normal/narrow children once. Scheduling regression: **1/1**, **6.520s**. The **six children are counted separately**, not added to the top-level total. Literal-path-safe TRX audit verifies complete executed counts, passing outcomes, unique names per run and exact owned-child identity correspondence. No tests failed or were retried; no complete gate ran.
+
+Coverage includes open/dismiss, blank/invalid names, persistence failure/cancellation, pending duplicate submission, success beyond the first catalog page, retained search, dirty-draft Save/Discard/Cancel, stale consent, dismissed/panel-changed/deactivated late completion, and A1 refresh/cancelled-navigation selection. Live owned-window assertions verify field focus, Escape focus return, blur without persistence, Enter validation/success and selected-folder highlighting. The new native-focus family uses the existing exclusive WPF trait/collection; the scheduling expectation was extended additively. Concurrency, collection limits, 90-second process deadlines, 30-second watchdogs, exact child selection/completeness and production focus guards are unchanged.
+
+Commands from repository root:
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+# Each selection uses its own owned/, logic/ or scheduling/ evidence directory:
+$env:PTJ_TEST_RESULTS_DIRECTORY = (Resolve-Path TestResults/m2212a2-verified/<selection>).Path
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter '<filter below>' --logger trx --results-directory $env:PTJ_TEST_RESULTS_DIRECTORY
+```
+
+Exact filters, respectively:
+
+```text
+FullyQualifiedName~NotebookFolderCreationViewTests
+FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)
+FullyQualifiedName~ReleaseSchedulingTests
+```
+
+Both Release builds passed with **zero warnings/errors**: initial functional build MSBuild **50.37s**; final scheduling-expectation rebuild **40.23s** (command **40.851s**). Only the scheduling test's expected exclusive-class list changed between builds; production and functional-test sources were unchanged, so passing functional selections were reused. Evidence root **`TestResults/m2212a2-verified/`** contains `summary.json`, `verified-source.json`, `trx-audit.json`, both build logs, per-selection `output.log`/`result.json`, original parent/child TRX, supervision and phase artifacts. Tests apply to the baseline plus the A2 source inventory below, not HEAD alone.
+
+`before-context.json`, `resumed-context.json` and `final-context.json` record authorized session **1 / interactive WinSta0 / Default**, cursor access/error 0 and the executor's existing token; no token/desktop switch. No independent tests were active before execution or after cleanup. The initial launch request could not be reviewed because the approval service reported a usage limit; it launched no tests. After the user requested continuation, the supported executor was checked again and the first actual focused runs proceeded. Enter/Escape tests raise routed key events on the verified focused field; button activation uses the existing bounded UiKeyboardProbe. This is automated input/focus evidence, not human keyboard/Narrator acceptance.
+
+Six current captures were inspected under **`TestResults/m2212a2-verified/renders/`**: `Light-1280-96-collapsed.png`, `Light-1280-96-expanded.png`, `Light-1280-96-validation.png`, `Dark-480-240-collapsed.png`, `Dark-480-240-expanded.png`, `Dark-480-240-validation.png`. `renders.json` retains original child paths and copy hashes. The button sits below FOLDERS; the single field and wrapping validation remain readable in both representative layouts/themes, with no blocking A2 defect. These are detached snapshots; live focus assertions come from the owned window. Existing global operation feedback can also display the validation message. The tall header, rename/delete management interface and editor controls deliberately remain for later phases.
+
+Exact A2 inventory: **eight modified files and three added files (11 unique)**. Five modified files overlap A1's committed inventory; A1's `Icons.xaml` and `NotebookViewTests.cs` are unchanged in A2.
+
+- Modified, shared with A1: `README.md`, `docs/notebook.md`, `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`, `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`, `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`.
+- Other modified files: `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs`.
+- Added: `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Folders.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationViewTests.cs`.
+
+Whitespace (`git -c core.safecrlf=false diff --check`) and local documentation-target checks passed after edits; no EF/model change requires migration work. Historical M22.11 acceptance remains passed. **A3–A7, M22.12B and overall M22.12 acceptance remain pending**. Human keyboard/Narrator, native journal restart, real clipboard/picker/viewer, installed-codec WebP and matching hosted timing/input compatibility remain unverified. No CI change, production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A1 — Workspace navigation and icons
 
 22 October 2026. Baseline: clean **develop / `040272b07a925bdbc72716d69bc12e9e48616da4`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`; prior A and CI-budget work were already committed. Repository/ancestor guidance search found no AGENTS.md. One agent; only A1 from the supplied roadmap was implemented. The current-implementation and target-reference screenshots supplied in this turn guided the navigation hierarchy; later header/editor changes were excluded.

@@ -7,6 +7,7 @@ using System.Windows.Documents;
 using System.Windows.Automation;
 using System.Windows.Data;
 using PersonalTradingJournal.Application.Notebook;
+using PersonalTradingJournal.Desktop.Interactions;
 using PersonalTradingJournal.Domain.Notebook;
 using PersonalTradingJournal.Desktop.ViewModels.Notebook;
 
@@ -15,10 +16,12 @@ namespace PersonalTradingJournal.Desktop.Views.Notebook;
 public partial class NotebookWorkspaceView : UserControl
 {
     private NotebookWorkspaceViewModel? _model;
-    private bool _updating, _selectionUpdating, _scopeSelectionUpdating;
+    private readonly PageFocus _folderFocus;
+    private bool _updating, _selectionUpdating, _scopeSelectionUpdating, _ownsFolderCreation;
     public NotebookWorkspaceView()
     {
         InitializeComponent();
+        _folderFocus = new(this);
         InputBindings.Add(new KeyBinding(new CommunityToolkit.Mvvm.Input.RelayCommand(() => SearchBox.Focus()), Key.F, ModifierKeys.Control));
         DataObject.AddPastingHandler(Preview, OnPaste);
         DataObject.AddPastingHandler(TitleEditor, OnTitlePaste);
@@ -44,6 +47,29 @@ public partial class NotebookWorkspaceView : UserControl
         };
     }
     internal Action<string> WriteClipboardText { get; set; } = text => Clipboard.SetText(text, TextDataFormat.UnicodeText);
+    private void OpenFolderCreation(object sender, RoutedEventArgs e)
+    {
+        if (_model?.BeginFolderCreation() == true) { _ownsFolderCreation = true; _folderFocus.Request(() => NewFolderName); }
+    }
+    private async void FolderCreationKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_model is not { } model) return;
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            bool restoreFocus = NewFolderName.IsKeyboardFocusWithin;
+            model.DismissFolderCreation();
+            _ownsFolderCreation = false;
+            _folderFocus.Invalidate();
+            if (restoreFocus) _folderFocus.Request(() => model.Panel == 0 || ActualWidth >= 1000 ? NewFolderButton : null);
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            if (model.CreateFolderCommand.CanExecute(null)) await model.CreateFolderCommand.ExecuteAsync(null);
+            // Completion never requests focus: newer user input retains ownership.
+        }
+    }
     private void FilterWorkspaceScopes(object sender, FilterEventArgs e) =>
         e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.AllNotes or NotebookScope.Pinned };
     private void FilterFolderScopes(object sender, FilterEventArgs e) =>
@@ -93,10 +119,10 @@ public partial class NotebookWorkspaceView : UserControl
         { EditorFeedback.Text = "Cut could not finish. The selected content is retained."; }
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
-    private void OnUnloaded(object sender, RoutedEventArgs e) { _imageLoads?.Cancel(); Detach(); _model = null; }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { _folderFocus.Invalidate(); if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
     private void Detach() { if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e) { LayoutPanels(); TitleEditor.Focus(); TitleEditor.SelectAll(); }
-    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { if (IsLoaded) Attach(); }
+    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { _folderFocus?.Invalidate(); if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
     private void Attach()
     {
         Detach();

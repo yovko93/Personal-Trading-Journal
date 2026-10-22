@@ -17,6 +17,7 @@ internal sealed class NotebookFake : INotebookService
     internal Func<NotebookQuery, CancellationToken, Task<NotebookPage>>? OnList;
     internal Func<Guid, CancellationToken, Task<NotebookLoadResult>>? OnLoad;
     internal Func<NotebookCommand, CancellationToken, Task<NotebookWriteResult>>? OnWrite;
+    internal Func<NotebookCatalogCommand, CancellationToken, Task<NotebookCatalogResult>>? OnCatalog;
     internal Func<NotebookTargetQuery, CancellationToken, Task<NotebookTargetPage>>? OnTargets;
     internal Func<ImmutableArray<NotebookLink>, CancellationToken, Task<ImmutableArray<NotebookResolvedLink>>>? OnResolve;
     public Task<NotebookTargetPage> ListLinkTargetsAsync(NotebookTargetQuery query, CancellationToken ct = default) =>
@@ -138,6 +139,7 @@ internal sealed class NotebookFake : INotebookService
     public Task<NotebookCatalogResult> ExecuteCatalogAsync(NotebookCatalogCommand c, CancellationToken ct = default)
     {
         Writes++;
+        if (OnCatalog is not null) return OnCatalog(c, ct);
         if (NextWrite != NotebookWriteStatus.Success) return Task.FromResult(new NotebookCatalogResult(NextWrite));
         if (c is CreateNotebookTag tag)
         { var t = new NotebookNamedItem(Guid.NewGuid(), tag.Name.Trim(), 1); Tags.Add(t); return Task.FromResult(new NotebookCatalogResult(NotebookWriteStatus.Success, t)); }

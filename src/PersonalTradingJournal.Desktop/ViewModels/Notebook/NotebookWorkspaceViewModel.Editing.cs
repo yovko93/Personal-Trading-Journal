@@ -125,18 +125,18 @@ public sealed partial class NotebookWorkspaceViewModel
         _acceptedRevision = _draftRevision; _discardConsent = choice == NotebookLeaveChoice.Discard; _linkedLeaveConsent = request;
         return !_disposed;
     }
-    private async Task GuardedAsync(Func<Task> action, bool linkOperation = false)
+    private async Task GuardedAsync(Func<Task> action, bool linkOperation = false, Func<bool>? owns = null)
     {
         if (_noteOperation) return;
         if (_guarding) return;
         _guarding = true;
         try
         {
-            if (!await PrepareLeaveAsync(linkOperation)) return;
+            if (owns?.Invoke() == false || !await PrepareLeaveAsync(linkOperation) || owns?.Invoke() == false) return;
             CompleteLeave();
         }
         finally { _guarding = false; ClearLeaveConsent(); }
-        if (_active && !_disposed) await action();
+        if (_active && !_disposed && owns?.Invoke() != false) await action();
     }
     private async Task<bool> SaveCoreAsync(bool checkpointOnly, CancellationToken owner)
     {

@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A2 — Inline folder creation
+
+**+ New folder** below FOLDERS opens one owned-focus name field. Enter creates; Escape dismisses without implying rollback; blur never submits. Inline validation/persistence errors retain the name, pending creation rejects duplicate submissions, and successful creation selects the new folder through existing draft/navigation guards. Late completion cannot take selection or focus from a newer context. Manage folders retains rename/delete; its redundant Create button is removed. A1 navigation and selection fixes remain intact.
+
+Focused Release verification passed **89/89 top-level tests**, zero failures/skips, exits **0**, with **six child cases audited separately**. Release builds passed with zero warnings/errors; scheduling, whitespace and local documentation-target checks passed. Six Light-normal/Dark-narrow-high-DPI captures were inspected with no blocking A2 defect. Evidence: `TestResults/m2212a2-verified/summary.json`. [Behavior, commands, render paths and exact A2 inventory](docs/notebook.md#m2212a2--inline-folder-creation). **A3–A7 and M22.12B remain pending**; no complete gate ran. Human keyboard/Narrator, native journal restart and matching hosted input/timing remain unverified.
+
 ## M22.12A1 — Workspace navigation and icons
 
 Notebook now shows only **All Notes** and **Pinned** under WORKSPACE, with document/pin icons. A separate FOLDERS list has folder icons, wrapping names and right-aligned counts. **Unfiled, Archived and Trash** remain available from the Notebook ellipsis menu; count/filter explanations are collapsed into contextual help. All icons and menu styling use the existing application resources. Refresh and cancelled dirty-draft navigation preserve the accepted selection.

@@ -67,7 +67,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         MoreTagsCommand = new(LoadMoreTagsAsync, () => CanMutate && _tagCursor is not null);
         NewNoteCommand = new(() => CreateFromTemplateAsync(NotebookTemplate.BlankNote), () => CanStartNoteOperation);
         InitializeLifecycle();
-        CreateFolderCommand = new(() => GuardedAsync(() => CatalogAsync(new CreateNotebookFolder(FolderName))), () => CanMutate);
+        CreateFolderCommand = new(CreateFolderAsync, () => CanMutate && !IsFolderCreationPending);
         RenameFolderCommand = new(() => GuardedAsync(() => ManagedFolder?.Id is Guid id
             ? CatalogAsync(new RenameNotebookFolder(id, ManagedFolder.Version, FolderName)) : Task.CompletedTask),
             () => CanMutate && ManagedFolder?.Id is not null);
@@ -108,12 +108,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             // filtered navigation views restore selection after their collections are rebuilt.
             if (_publishing) { SetProperty(ref _scope, value, ReferenceEqualityComparer.Instance); return; }
             if (!CanRead || value is null || (_scope?.Scope == value.Scope && _scope.FolderId == value.FolderId)) return;
-            LoadTask = GuardedAsync(async () =>
-            {
-                SetProperty(ref _scope, value, nameof(Scope)); OnPropertyChanged(nameof(ScopeName));
-                if (value.FolderId is Guid id) ManagedFolder = Folders.FirstOrDefault(f => f.Id == id);
-                await ReloadAsync(preserveSelection: false); Panel = 1;
-            });
+            LoadTask = SelectScopeAsync(value);
             OnPropertyChanged(nameof(Scope));
         }
     }
@@ -163,7 +158,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public string FolderName { get => _folderName; set => SetProperty(ref _folderName, value); }
     public NotebookFolderOption? ManagedFolder { get => _managedFolder; set { SetProperty(ref _managedFolder, value); NotifyCommands(); } }
     public NotebookFolderOption? MoveFolder { get => _moveFolder; set { SetProperty(ref _moveFolder, value); NotifyCommands(); } }
-    public int Panel { get => _panel; set => SetProperty(ref _panel, value); }
+    public int Panel { get => _panel; set { if (SetProperty(ref _panel, value)) { ++_panelGeneration; if (IsFolderCreationPending) DismissFolderCreation(); } } }
     public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); NotifyCommands(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); OnPropertyChanged(nameof(CanInteract)); NotifyCommands(); } }
     public bool CanInteract => !_disposed && !IsWriting && !_noteOperation;
