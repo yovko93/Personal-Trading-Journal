@@ -1,5 +1,59 @@
 # Notebook
 
+## M22.12A5 — Compact note header and owned note actions
+
+23 October 2026. Actual baseline: **clean develop / `40ec9ef0f3c9d079cb26d676d80764a3e7618679`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A4 changes were already committed in that successor to `9cb925c86dd7ec4150668ce847b29c4c17375204`. No pending baseline changes were overwritten. Repository/ancestor guidance search found no AGENTS.md. One agent; A5 only.
+
+The permanent management and lifecycle button rows are replaced with compact folder/save context, a 28-point editable title and top-right pin/ellipsis controls. Titles wrap independently of those controls and scroll within a bounded 180-DIP field for long input. Existing title validation/read-only bindings remain. The pin uses the existing application geometry, outlined when unpinned and filled/accented when pinned, with authoritative persisted state, dynamic tooltip/accessibility name and existing keyboard focus styling. Failed pin operations leave the persisted state displayed.
+
+A single **note-specific** themed overflow, separate from the Notebook overflow, offers Move to folder, Duplicate, Archive/Return to Active, Move to Trash/Restore and Trash-only permanent deletion according to existing command capabilities. Popup commands explicitly connect to the current view model and capture note identity, accepted-selection generation and activation. Opening/Escape dismissal is read-only. A retained command cannot act after selection changes, even after returning to the original note. Move opens a compact contextual picker using the existing folder catalog, destination capture and guarded Move command; Cancel/Escape dismisses it. Failure feedback remains beside the picker. A verified destination change collapses it without taking focus; a same-folder no-op can be dismissed with Cancel.
+
+Existing Save/Discard/Cancel consent, destructive confirmations and atomic lifecycle/duplication paths remain authoritative. Pin/Move now revalidate captured ownership after draft preparation. Trash revalidates after its modal confirmation and before its canonical operation. Review also identified that explicit Discard previously resumed after confirmation without checking whether the draft had changed. It now captures the context and draft revision and checks both before checkpoint cleanup and before restoring the draft. The checkpoint helper accepts an optional ownership predicate around its existing drain/CAS cleanup; other callers retain their existing behavior. Deterministic tests cover newer input and changed selection during confirmation. No autosave interval, expected-version write, image ownership, undo/redo, schema, document/archive v1 or export v18 behavior was changed.
+
+Compact save feedback is derived from existing saving, dirty, paused/conflict, detached-recovery and loaded-note state. Detailed SaveState, recovery messages and errors remain adjacent to contextual Save/Discard while dirty; Save/retry and Discard also remain in the menu, and Control S is unchanged. A checkpointed draft is explicitly described as **not yet saved as a note**, and a failed canonical write never displays Saved locally. Recovered/conflicting drafts retain explanatory messages and their actions. With no note/recovery context, the editor and management controls collapse to a selection prompt. Unavailable content retains its explanatory/read-only presentation and rejected commands stay disabled. Formatting, tags and linked-item controls are unchanged for A6.
+
+**Final focused Release result: 186/186 distinct top-level Desktop tests**, zero failures/skips, exits **0**, with **26 child cases counted separately**:
+
+| Selection | Passed/total | Command wall time |
+| --- | --- | --- |
+| `logic-final/`: note actions, editing/autosave, lifecycle/copy/delete, image coordination/admission, links/tags, SQLite, A1–A4 and scheduling | 169/169 | 13.579s |
+| `views-final/`: lifecycle, header/folders, editor/images, workspace and recovery | 17/17 parents; 26 children | 129.625s |
+
+The four lifecycle parents now exercise actual menu keyboard selection for every existing lifecycle action, duplication and confirmed deletion, retaining exact content/read-only/confirmation assertions. They additionally verify title binding, pin success/failure, menu dismissal without writes, move through the picker, stale popup commands and stale picker closure. All four Light/Dark × 1280/96-DPI and 480/240-DPI rows remain. Header/folder creation/folder actions each have two exact children; image editing has four exact children. Workspace, editor and autosave each use one selected parent with their established four-case child suite. The 17 isolated launches therefore contain 26 distinct children. Literal-path-safe `trx-audit.json` verifies counters, unique identities, exact dispatch correspondence and class-suite cardinality. No deadlines, assertions, collection limits, scheduling or isolation settings changed.
+
+Commands from repository root (exact complete filters are retained in each `result.json` and `summary.json`):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = (Resolve-Path TestResults/m2212a5-verified/<selection>).Path
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter '<recorded filter>' --logger trx --results-directory $env:PTJ_TEST_RESULTS_DIRECTORY
+& ./TestResults/m2212a5-verified/audit.ps1
+git -c core.safecrlf=false diff --check
+& ./TestResults/m2212a5-verified/check-doc-links.ps1
+```
+
+Final Release build: **zero warnings/errors, 15.46s**, `logic-final/build.log`. Both final selections used the unchanged runtime/test source from that build, recorded by hashes in `verified-source.json`; results belong to HEAD **plus A5's uncommitted changes**. Evidence root **`TestResults/m2212a5-verified/`** includes summary, source provenance, raw TRX, stdout/stderr, process-supervision and keyboard diagnostics. Earlier passing selections remain retained but are excluded from final totals. Initial `build.log` preserves MC3072 from using an incorrect attached-property name; it was corrected to the existing `EntityActionMenu.OpensContextMenu`. No tests launched against that failed build. No test run failed, and no complete gate ran.
+
+Fourteen current captures under **`TestResults/m2212a5-verified/renders/`** were inspected: `Light-1280-96-` and `Dark-480-240-` variants of **template-active, empty, long-title, save-error, note-menu, recovered and conflict** (all PNG). `renders.json` records original paths, timestamps and hashes. The first five states come from final lifecycle fixtures; recovery/conflict come from the final autosave fixtures' existing bin-directory render output, copied into durable evidence. Menus are captured from live fixtures, while lifecycle workspace captures use detached render surfaces to avoid desktop clipping. No blocking contrast, overlap or accessibility-action visibility defect was observed. Long titles intentionally scroll within their bounded field, and narrow layouts retain the existing Content pane/vertical scrolling. The title keeps the application's input styling; the supplied reference guides hierarchy, while toolbar/tag/link styling remains for A6.
+
+`before-context.json` and `final-context.json` confirm the authorized **session 1 / interactive WinSta0 / Default**, cursor available/error 0, existing executor token, and no independent active tests before/after. There was no desktop/token switching. Native keyboard probes and focused MenuItem key events are automated evidence; human keyboard/Narrator interaction, real clipboard/picker/viewer, native journal restart and matching hosted timing/input compatibility remain unverified.
+
+Exact A5 inventory: **nine modified + two added files (11 unique)**. A1–A4 were committed at baseline; there were no pre-existing uncommitted files to include. Modified:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Autosave.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Added: `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.NoteActions.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookNoteActionsTests.cs`.
+
+Whitespace and local documentation-target checks passed after documentation edits; no EF model/schema change requires a migration check. Historical acceptance evidence is preserved. **A6–A7, M22.12B and overall M22.12 acceptance remain pending.** No CI changes, production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A4 — Compact Notebook header
 
 23 October 2026. Actual baseline: **clean develop / `9cb925c86dd7ec4150668ce847b29c4c17375204`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A3's reported pending changes had already been committed; no pre-existing modifications were overwritten. Repository/ancestor guidance search found no AGENTS.md. One agent; A4 only.

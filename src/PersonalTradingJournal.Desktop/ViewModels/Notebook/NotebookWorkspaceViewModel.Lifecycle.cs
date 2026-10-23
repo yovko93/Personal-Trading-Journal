@@ -80,11 +80,14 @@ public sealed partial class NotebookWorkspaceViewModel
     {
         var id = Note?.Id ?? _unavailable?.Id;
         if (id is null) return Task.CompletedTask;
+        var owns = CaptureNoteActionOwnership();
         if (target == NotebookNoteState.Trashed && !_dialogs.Confirm(new("Move note to Trash?",
             "The note becomes read-only. Its content and images are retained; Restore returns it to its previous state and available folder.",
             "Move to Trash", isDestructive: true))) return Task.CompletedTask;
+        if (!owns()) return Task.CompletedTask;
         return RunNoteOperationAsync(async ct =>
         {
+            if (!owns()) return;
             var before = Note; var metadata = _unavailable;
             long version = before?.Version ?? metadata!.Version;
             NotebookCommand command = target switch

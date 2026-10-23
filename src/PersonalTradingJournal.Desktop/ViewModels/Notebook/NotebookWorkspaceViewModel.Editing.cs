@@ -32,6 +32,19 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool IsSaving { get; private set; }
     public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
     public bool HasDraft => Note is not null || _detachedRecovery;
+    public bool HasEditorContext => HasDraft || _unavailable is not null || SelectedNote is not null;
+    public string CompactSaveState => IsSaving ? "Saving…" : _recoveryConflict ? "Conflict" :
+        _detachedRecovery ? "Recovered draft" : _autosavePaused ? "Save paused" :
+        IsDirty ? "Unsaved changes" : Note is null ? "Content unavailable" : "Saved locally";
+    // Includes leave-and-return to the same note; saving that note may advance its version.
+    public Func<bool> CaptureNoteActionOwnership()
+    {
+        var activation = _lifetime; var id = Note?.Id ?? _unavailable?.Id;
+        long selection = _selectionGeneration;
+        return () => _active && !_disposed && ReferenceEquals(activation, _lifetime) &&
+            activation?.IsCancellationRequested == false && selection == _selectionGeneration &&
+            (Note?.Id ?? _unavailable?.Id) == id && HasEditorContext;
+    }
     public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && !_committingNote && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
     public bool CanEditBody => CanEditDraft;
     public bool BodyReadOnly => !CanEditBody;
@@ -74,7 +87,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private void DraftChanged()
     {
-        foreach (var name in new[] { nameof(IsDirty), nameof(SaveState), nameof(DraftError), nameof(DraftRevision), nameof(CanEditDraft), nameof(CanEditBody), nameof(BodyReadOnly) })
+        foreach (var name in new[] { nameof(HasEditorContext), nameof(CompactSaveState), nameof(IsDirty), nameof(SaveState), nameof(DraftError), nameof(DraftRevision), nameof(CanEditDraft), nameof(CanEditBody), nameof(BodyReadOnly) })
             OnPropertyChanged(name);
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();
     }

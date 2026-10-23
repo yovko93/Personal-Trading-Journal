@@ -13,6 +13,7 @@ using PersonalTradingJournal.Desktop.ViewModels.Notebook;
 using PersonalTradingJournal.Desktop.Views.Notebook;
 using PersonalTradingJournal.Infrastructure.Notebook;
 using PersonalTradingJournal.Desktop.Dialogs;
+using PersonalTradingJournal.Domain.Notebook;
 
 namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
@@ -37,13 +38,15 @@ public sealed class NotebookLifecycleViewTests
             var app=new System.Windows.Application{ShutdownMode=ShutdownMode.OnExplicitShutdown};app.Resources=CalendarViewLayoutTests.SharedThemeResources(theme);
             var previous=SynchronizationContext.Current;SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
             var dialogs=new FakeDialogService{ConfirmationResult=true};
-            using var vm=new NotebookWorkspaceViewModel(new NotebookFake(),dialogs,new NotebookChoices{Choice=NotebookLeaveChoice.Save},new NotebookJsonCodec());
+            var data=new NotebookFake(); var folder=new NotebookNamedItem(Guid.NewGuid(),"Research folder",1);data.Folders.Add(folder);
+            using var vm=new NotebookWorkspaceViewModel(data,dialogs,new NotebookChoices{Choice=NotebookLeaveChoice.Save},new NotebookJsonCodec());
             var view=new NotebookWorkspaceView{DataContext=vm,Width=width,Height=900};
             var window=new Window{Content=view,SizeToContent=SizeToContent.WidthAndHeight,ShowInTaskbar=false,ShowActivated=false};
             VisualTreeHelper.SetRootDpi(view,new(dpi/96d,dpi/96d));
             try
             {
-                window.Show();Pump(vm.ActivateAsync());Layout();
+                window.Show();Pump(vm.ActivateAsync());vm.Panel=2;Layout();
+                Assert.False(((Grid)view.FindName("NoteEditorContent")).IsVisible);Assert.True(((TextBlock)view.FindName("NoteSelectionPrompt")).IsVisible);Render("empty");
                 var templates=(Button)view.FindName("NewNoteMenuButton");Assert.Equal("New note templates",AutomationProperties.GetName(templates));
                 Assert.Same(vm.NewNoteCommand,view.InputBindings.OfType<KeyBinding>().Single(x=>x.Key==Key.N&&x.Modifiers==ModifierKeys.Control).Command);
                 UiKeyboardProbe.Space(templates);Layout();Assert.True(templates.ContextMenu!.IsOpen);Assert.Equal(5,templates.ContextMenu.Items.Count);
@@ -54,6 +57,30 @@ public sealed class NotebookLifecycleViewTests
                 Layout();Pump(vm.CreateTemplateCommand.ExecutionTask!);Layout();Assert.False(templates.ContextMenu.IsOpen);
                 Assert.Equal("Market Study",vm.Note!.Title);Assert.Equal("Context\nObservation\nExamples\nConclusion\nOpen questions\n",vm.DraftDocument.PlainText);
                 Assert.False(((TextBox)view.FindName("TitleEditor")).IsReadOnly);Render("template-active");
+                var pin=(Button)view.FindName("PinNoteButton");Assert.Equal("Pin note",AutomationProperties.GetName(pin));
+                Pump(UiKeyboardProbe.SpaceCommand(pin));Layout();Assert.True(vm.Note.IsPinned);Assert.Equal("Unpin",AutomationProperties.GetName(pin));
+                data.NextWrite=NotebookWriteStatus.StorageFailure;Pump(UiKeyboardProbe.SpaceCommand(pin));Layout();Assert.True(vm.Note.IsPinned);Assert.Equal("Unpin",AutomationProperties.GetName(pin));
+                data.NextWrite=NotebookWriteStatus.Success;Pump(UiKeyboardProbe.SpaceCommand(pin));Layout();Assert.False(vm.Note.IsPinned);
+                var title=(TextBox)view.FindName("TitleEditor");title.Text="A long research title with detailed observations and several scenarios to review before the next trading session";Layout();
+                Assert.True(vm.IsDirty);Assert.Equal(title.Text,vm.DraftTitle);Assert.Equal("Unsaved changes",vm.CompactSaveState);Render("long-title");
+                data.NextWrite=NotebookWriteStatus.StorageFailure;Click("SaveNoteMenuItem");Assert.True(vm.IsDirty);Assert.NotEmpty(vm.SaveState);Render("save-error");
+                Assert.True(((StackPanel)view.FindName("DraftActions")).IsVisible);data.NextWrite=NotebookWriteStatus.Success;
+                Click("DiscardNoteMenuItem");Assert.False(vm.IsDirty);Assert.Equal("Market Study",vm.DraftTitle);
+                var overflow=(Button)view.FindName("NoteOverflow");UiKeyboardProbe.Space(overflow);Layout();var menu=overflow.ContextMenu!;
+                Assert.True(menu.IsOpen);Assert.Equal(0,menu.Items.OfType<MenuItem>().Count(i=>i.Visibility==Visibility.Visible&&i.Name=="DeleteNoteButton"));
+                Save(menu,"note-menu",menu.ActualWidth,menu.ActualHeight);int beforeDismiss=data.Writes;
+                PressKey(menu,Key.Escape);Layout();Assert.False(menu.IsOpen);Assert.Equal(beforeDismiss,data.Writes);
+                Click("MoveNoteMenuItem");Assert.True(((Border)view.FindName("MoveNotePicker")).IsVisible);
+                vm.MoveFolder=vm.Folders.Single(f=>f.Id==folder.Id);UiKeyboardProbe.Space((Button)view.FindName("ConfirmMoveNote"));Pump(vm.MoveCommand.ExecutionTask!);Layout();
+                Assert.Equal(folder.Id,vm.Note!.FolderId);Assert.Equal(Visibility.Collapsed,((Border)view.FindName("MoveNotePicker")).Visibility);
+                // A retained popup command cannot act on a new selection (or a later return).
+                UiKeyboardProbe.Space(overflow);Layout();var stale=((MenuItem)view.FindName("ArchiveNoteButton")).Command!;
+                var first=vm.Note.Id;data.Notes.Add(NotebookFake.Note("Other"));Pump(vm.RefreshCommand.ExecuteAsync(null));
+                vm.SelectedNote=vm.Notes.Single(n=>n.Id!=first);Pump(vm.LoadTask);Layout();int writes=data.Writes;
+                Assert.False(stale.CanExecute(null));stale.Execute(null);Assert.Equal(writes,data.Writes);Assert.False(menu.IsOpen);
+                vm.SelectedNote=vm.Notes.Single(n=>n.Id==first);Pump(vm.LoadTask);Layout();Assert.False(stale.CanExecute(null));
+                Click("MoveNoteMenuItem");vm.SelectedNote=vm.Notes.Single(n=>n.Id!=first);Pump(vm.LoadTask);Layout();Assert.Equal(Visibility.Collapsed,((Border)view.FindName("MoveNotePicker")).Visibility);
+                vm.SelectedNote=vm.Notes.Single(n=>n.Id==first);Pump(vm.LoadTask);data.Notes.RemoveAll(n=>n.Id!=first);Pump(vm.RefreshCommand.ExecuteAsync(null));Layout();
                 Click("ArchiveNoteButton");Select(NotebookScope.Archived);Assert.True(vm.ShowUnarchive);Assert.True(((RichTextBox)view.FindName("Preview")).IsReadOnly);Render("archived");
                 Click("TrashNoteButton");Select(NotebookScope.Trash);Assert.True(vm.ShowRestore);Assert.True(((TextBox)view.FindName("TitleEditor")).IsReadOnly);Render("trash");
                 Click("RestoreNoteButton");Select(NotebookScope.Archived);Assert.True(vm.ShowUnarchive);
@@ -71,7 +98,13 @@ public sealed class NotebookLifecycleViewTests
             }
             finally { window.Close();vm.Deactivate();Pump(vm.DeactivationTask);app.Shutdown();SynchronizationContext.SetSynchronizationContext(previous); }
             void Layout(){view.UpdateLayout();Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ContextIdle);}
-            void Click(string name){var button=(Button)view.FindName(name);Assert.True(button.IsVisible);Pump(UiKeyboardProbe.SpaceCommand(button));Layout();Assert.False(button.IsPressed);}
+            void PressKey(UIElement target,Key key){target.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(target),Environment.TickCount,key){RoutedEvent=Keyboard.KeyDownEvent});}
+            void Click(string name)
+            {
+                var overflow=(Button)view.FindName("NoteOverflow");UiKeyboardProbe.Space(overflow);Layout();
+                var item=(MenuItem)view.FindName(name);Assert.True(item.IsVisible);Assert.True(item.IsEnabled);Assert.True(item.Focus());Assert.Same(item,Keyboard.FocusedElement);
+                PressKey(item,Key.Enter);Layout();Pump(vm.CompletionTask);Layout();Assert.False(overflow.ContextMenu!.IsOpen);
+            }
             void Select(NotebookScope scope){vm.Scope=vm.Scopes.Single(x=>x.Scope==scope);Pump(vm.LoadTask);vm.SelectedNote=Assert.Single(vm.Notes);Pump(vm.LoadTask);vm.Panel=2;Layout();}
             void Render(string state)
             {

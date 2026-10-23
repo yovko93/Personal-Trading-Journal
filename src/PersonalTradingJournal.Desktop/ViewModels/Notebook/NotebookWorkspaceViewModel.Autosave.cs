@@ -126,18 +126,19 @@ public sealed partial class NotebookWorkspaceViewModel
         }
         return true;
     }
-    private async Task<bool> DiscardCheckpointAsync()
+    private async Task<bool> DiscardCheckpointAsync(Func<bool>? owns = null)
     {
+        if (owns?.Invoke() == false) return false;
         StopDebounce();
         await _flushTask;
-        if (_disposed || !_active) return false;
+        if (_disposed || !_active || owns?.Invoke() == false) return false;
         // Drain first, then CAS delete. No old callback can resurrect the explicitly
         // discarded checkpoint. A later ancestor veto retains the in-memory editor.
         try
         {
             bool removed = false;
-            await MutateAsync(async ct => removed = await CleanupCheckpointAsync(ct));
-            return removed && _active && !_disposed;
+            await MutateAsync(async ct => { if (owns?.Invoke() != false) removed = await CleanupCheckpointAsync(ct); });
+            return removed && _active && !_disposed && owns?.Invoke() != false;
         }
         catch (Exception) { RecoveryMessage = "Could not discard the recovery checkpoint. Your draft is retained."; return false; }
     }

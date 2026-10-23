@@ -72,18 +72,25 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         DeleteFolderCommand = new(DeleteFolderAsync, () => CanChangeFolder);
         MoveCommand = new(() =>
         {
+            var owns = CaptureNoteActionOwnership();
             var target = MoveFolder; // Save may refresh the bounded folder catalog; retain the user's exact destination.
             return GuardedAsync(() => Note is { } n && target is { } f
-                ? WriteNoteAsync(new MoveNotebookNote(n.Id, n.Version, f.Id)) : Task.CompletedTask);
+                ? WriteNoteAsync(new MoveNotebookNote(n.Id, n.Version, f.Id)) : Task.CompletedTask, owns: owns);
         }, () => CanEditNote && MoveFolder is not null);
-        PinCommand = new(() => GuardedAsync(() => Note is { } n ? WriteNoteAsync(new SetNotebookPin(n.Id, n.Version, !n.IsPinned)) : Task.CompletedTask), () => CanEditNote);
+        PinCommand = new(() =>
+        {
+            var owns = CaptureNoteActionOwnership();
+            return GuardedAsync(() => Note is { } n ? WriteNoteAsync(new SetNotebookPin(n.Id, n.Version, !n.IsPinned)) : Task.CompletedTask, owns: owns);
+        }, () => CanEditNote);
         CancelCommand = new(CancelAsync, () => IsBusy);
         ClearFolderCommand = new(() => FolderName = "");
         SaveCommand = new(async () => { await SaveDraftAsync(); }, () => CanMutate && CanEditDraft && IsDirty);
         DiscardCommand = new(async () =>
         {
+            var ownsContext = CaptureNoteActionOwnership(); var revision = _draftRevision;
+            bool Owns() => ownsContext() && revision == _draftRevision;
             if (_dialogs.Confirm(new("Discard changes?", "Discard pending changes and their recovery checkpoint? Already saved changes are not undone.", "Discard")) &&
-                await DiscardCheckpointAsync()) RestoreDraft();
+                Owns() && await DiscardCheckpointAsync(Owns) && Owns()) RestoreDraft();
         }, () => CanMutate && IsDirty);
     }
     public ObservableCollection<NotebookScopeOption> Scopes { get; } = [];

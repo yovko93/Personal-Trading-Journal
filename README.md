@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A5 — Compact note header and owned note actions
+
+The editor now has a prominent wrapping title, compact folder/save context and authoritative pin/unpin and note-menu icons. Move, Duplicate and applicable lifecycle actions live in one note menu; Move opens a contextual picker. Save/Discard and recovery/conflict explanations remain visible for unsaved drafts. Empty selection shows a clean prompt. Captured menu, confirmation and draft ownership prevents actions from consuming a newer note or draft; A1–A4 remain intact.
+
+Focused Release verification passed **186/186 Desktop tests**, zero failures/skips, exits **0**, plus **26 child cases audited separately**. Build, scheduling, whitespace and local documentation-target checks passed. Fourteen Light-normal/Dark-narrow-high-DPI captures were inspected without blocking A5 defects. Evidence: `TestResults/m2212a5-verified/summary.json`. [Commands, captures, behavior and exact A5 inventory](docs/notebook.md#m2212a5--compact-note-header-and-owned-note-actions). No complete gate ran. **A6–A7 and M22.12B remain pending**; human interaction, native journal restart and matching hosted execution remain unverified.
+
 ## M22.12A4 — Compact Notebook header
 
 Search and a split **+ New note** control are the primary header actions. The main action always creates a blank note; its arrow offers all five existing templates through the atomic creation command. Refresh now lives in the existing Notebook overflow menu. **Cancel operation** appears only with active busy feedback. Search behavior, draft consent, recovery and A1–A3 controls are preserved; late creation does not replace a newer pane choice or keyboard focus.

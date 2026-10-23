@@ -163,7 +163,7 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
     private void OnUnloaded(object sender, RoutedEventArgs e) { ++_headerInputVersion; _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
-    private void Detach() { if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
+    private void Detach() { NoteOverflow.ContextMenu.IsOpen = false; CloseNoteMove(false); if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e)
     {
         LayoutPanels();
@@ -182,6 +182,7 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void Changed(object? sender, PropertyChangedEventArgs e)
     {
+        RefreshNoteActionOwnership();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Scope)) SynchronizeScopeSelection();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.EditorRevision)) UpdatePreview();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Panel)) LayoutPanels();
