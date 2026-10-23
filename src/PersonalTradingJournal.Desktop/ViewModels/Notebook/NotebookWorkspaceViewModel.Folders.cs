@@ -27,6 +27,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private Task SelectScopeAsync(NotebookScopeOption value, Func<bool>? owns = null) => GuardedAsync(async () =>
     {
         long panel = _panelGeneration;
+        DismissFolderRename(); FolderActionMessage = "";
         SetProperty(ref _scope, value, nameof(Scope)); OnPropertyChanged(nameof(ScopeName));
         if (value.FolderId is Guid id) ManagedFolder = Folders.FirstOrDefault(f => f.Id == id);
         await ReloadAsync(preserveSelection: false);

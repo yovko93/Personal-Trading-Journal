@@ -118,15 +118,6 @@
        <TextBlock Text="{Binding FolderCreationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
       </StackPanel>
      <StackPanel IsEnabled="{Binding CanInteract}">
-      <Expander Header="Manage folders" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Manage Notebook folders">
-       <StackPanel Margin="0,10,0,0">
-        <TextBlock Text="Folder" Style="{StaticResource QuietText}"/>
-        <ComboBox ItemsSource="{Binding Folders}" SelectedItem="{Binding ManagedFolder}" ItemTemplate="{StaticResource NamedPickerItem}" ToolTip="{Binding ManagedFolder.Name}" AutomationProperties.HelpText="{Binding ManagedFolder.Name}" AutomationProperties.Name="Folder to rename or delete"/>
-        <TextBlock Text="Replacement name" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
-        <TextBox Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" AutomationProperties.Name="Folder name"/>
-        <WrapPanel Margin="0,8,0,0"><Button Content="Rename" Command="{Binding RenameFolderCommand}" Margin="0,0,4,4"/><Button Content="Delete" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjDangerButtonStyle}" Margin="0,0,4,4"/><Button Content="Clear" Command="{Binding ClearFolderCommand}"/></WrapPanel>
-       </StackPanel>
-      </Expander>
       <Expander x:Name="ScopeHelp" Header="Counts &amp; filters" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="12" Margin="0,12,0,0" AutomationProperties.Name="About Notebook counts and filters">
        <TextBlock Text="Scope counts are before text/tag filters. Tag counts are active-note assignments. All selected tags are required." Style="{StaticResource QuietText}" Margin="0,8,0,0"/>
       </Expander>
@@ -161,7 +152,25 @@
    <Border x:Name="NotesPanel" Grid.Column="1" Style="{StaticResource PanelBorder}">
     <Grid>
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-     <StackPanel><TextBlock Text="{Binding ScopeName}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/><TextBlock Text="{Binding ListSummary}" Style="{StaticResource QuietText}" Margin="0,5,0,10"/>
+     <StackPanel>
+      <DockPanel LastChildFill="True">
+       <StackPanel x:Name="FolderActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Visibility="{Binding HasFolderActions, Converter={StaticResource VisibleWhenTrue}}">
+        <Button x:Name="RenameFolderButton" Click="OpenFolderRename" IsEnabled="{Binding CanChangeFolder}" Style="{StaticResource PtjIconButtonStyle}" ToolTip="Rename folder" AutomationProperties.Name="Rename folder">
+         <Path Width="16" Height="16" Stretch="Uniform" Data="{StaticResource PtjIconEdit}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.7"/>
+        </Button>
+        <Button x:Name="DeleteFolderButton" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjIconButtonStyle}" ToolTip="Delete folder; keep its notes" AutomationProperties.Name="Delete folder" AutomationProperties.HelpText="Confirm deletion of this folder. Notes and their content are retained in Unfiled.">
+         <Path Width="16" Height="16" Stretch="Uniform" Data="{StaticResource PtjIconDelete}" Stroke="{DynamicResource PtjDangerBrush}" StrokeThickness="1.7"/>
+        </Button>
+       </StackPanel>
+       <Grid Margin="0,0,6,0">
+        <TextBlock x:Name="FolderHeading" Text="{Binding ScopeName}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" ToolTip="{Binding ScopeName}">
+         <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding IsFolderRenameOpen}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
+        <TextBox x:Name="RenameFolderName" Text="{Binding FolderRenameName, UpdateSourceTrigger=PropertyChanged}" Visibility="{Binding IsFolderRenameOpen, Converter={StaticResource VisibleWhenTrue}}" IsReadOnly="{Binding IsFolderActionPending}" MaxLength="128" PreviewKeyDown="FolderRenameKeyDown" AutomationProperties.Name="Rename folder name" AutomationProperties.HelpText="Enter saves the name. Escape dismisses; a submitted change may already be saved."/>
+       </Grid>
+      </DockPanel>
+      <TextBlock x:Name="FolderActionError" Text="{Binding FolderActionMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock Text="{Binding ListSummary}" Style="{StaticResource QuietText}" Margin="0,5,0,10"/>
       <ComboBox ItemsSource="{x:Static vm:NotebookWorkspaceViewModel.SortOptions}" DisplayMemberPath="Name" SelectedItem="{Binding Sort}" IsEnabled="{Binding CanInteract}" AutomationProperties.Name="Sort notes"/>
       <TextBlock Text="{Binding FilterSummary}" Style="{StaticResource QuietText}" Margin="0,6,0,4"/>
       <ItemsControl ItemsSource="{Binding SelectedTagFilters}">

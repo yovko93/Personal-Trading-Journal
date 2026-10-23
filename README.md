@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A3 — Folder actions in the note-list header
+
+Actual folders now show pencil/trash actions beside their wrapping middle-pane heading; virtual scopes show neither action. Rename uses an owned-focus inline field with Enter/Escape, retained errors and duplicate-submit protection. Confirmed deletion keeps notes/content and uses the existing Unfiled fallback. Captured folder identity/version and navigation guards prevent retargeting during asynchronous work. The obsolete Manage folders section is removed; A1 navigation and A2 creation remain intact.
+
+Focused Release verification passed **106/106 Desktop and 12/12 Infrastructure tests**, zero failures/skips, exits **0**, plus **eight child cases audited separately**. Release builds, scheduling, whitespace and local documentation-target checks passed. Six Light-normal/Dark-narrow-high-DPI renders were inspected with no blocking A3 defect. Evidence: `TestResults/m2212a3-verified/summary.json`. [Behavior, commands, captures and exact A3 inventory](docs/notebook.md#m2212a3--folder-actions-in-the-note-list-header). No complete gate ran. **A4–A7 and M22.12B remain pending**; human interaction, native journal restart and matching hosted timing/input compatibility remain unverified.
+
 ## M22.12A2 — Inline folder creation
 
 **+ New folder** below FOLDERS opens one owned-focus name field. Enter creates; Escape dismisses without implying rollback; blur never submits. Inline validation/persistence errors retain the name, pending creation rejects duplicate submissions, and successful creation selects the new folder through existing draft/navigation guards. Late completion cannot take selection or focus from a newer context. Manage folders retains rename/delete; its redundant Create button is removed. A1 navigation and selection fixes remain intact.

@@ -68,10 +68,8 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         NewNoteCommand = new(() => CreateFromTemplateAsync(NotebookTemplate.BlankNote), () => CanStartNoteOperation);
         InitializeLifecycle();
         CreateFolderCommand = new(CreateFolderAsync, () => CanMutate && !IsFolderCreationPending);
-        RenameFolderCommand = new(() => GuardedAsync(() => ManagedFolder?.Id is Guid id
-            ? CatalogAsync(new RenameNotebookFolder(id, ManagedFolder.Version, FolderName)) : Task.CompletedTask),
-            () => CanMutate && ManagedFolder?.Id is not null);
-        DeleteFolderCommand = new(() => GuardedAsync(DeleteFolderAsync), () => CanMutate && ManagedFolder?.Id is not null);
+        RenameFolderCommand = new(RenameFolderAsync, () => CanChangeFolder && IsFolderRenameOpen);
+        DeleteFolderCommand = new(DeleteFolderAsync, () => CanChangeFolder);
         MoveCommand = new(() =>
         {
             var target = MoveFolder; // Save may refresh the bounded folder catalog; retain the user's exact destination.
@@ -414,29 +412,6 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         await ReadPageAsync(false, result.Note!.Id, ct);
         if (Current(ct)) Message = "Note updated.";
     });
-    private Task CatalogAsync(NotebookCatalogCommand command) => MutateAsync(async ct =>
-    {
-        var result = await Task.Run(() => _service.ExecuteCatalogAsync(command, ct), ct);
-        if (!Current(ct)) return;
-        if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message)))) return;
-        if (result.Item is { } item && Scope?.FolderId == item.Id)
-        {
-            _publishing = true;
-            var revised = Scope with { Name = item.Name };
-            AddFolder(new(item, Scope.Count)); Scope = revised;
-            _publishing = false;
-        }
-        if (command is DeleteNotebookFolder && Scope?.FolderId == result.DeletedItemId)
-        { _publishing = true; Scope = Scopes.First(s => s.Scope == NotebookScope.Unfiled); _publishing = false; }
-        await ReadPageAsync(false, SelectedNote?.Id, ct);
-        if (Current(ct)) { FolderName = ""; Message = "Folder updated."; }
-    });
-    private Task DeleteFolderAsync()
-    {
-        var folder = ManagedFolder;
-        if (folder?.Id is not Guid id || !_dialogs.Confirm(new("Delete folder?", $"Delete “{folder.Name}”? Its notes will move to Unfiled. No notes will be deleted.", "Delete folder", isDestructive: true))) return Task.CompletedTask;
-        return CatalogAsync(new DeleteNotebookFolder(id, folder.Version, true));
-    }
     private bool PublishWrite(NotebookWriteStatus status, string validation)
     {
         if (!_active || _disposed) return false;
@@ -467,6 +442,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private void NotifyCommands()
     {
+        OnPropertyChanged(nameof(HasFolderActions)); OnPropertyChanged(nameof(CanChangeFolder));
         NotifyLifecycleCommands();
         NotifyTagCommands();
         NotifyLinkCommands();

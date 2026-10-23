@@ -1,5 +1,73 @@
 # Notebook
 
+## M22.12A3 — Folder actions in the note-list header
+
+23 October 2026. Actual baseline: **clean develop / `41bbf0eae9593688bcf667b8156fefb47bd6f01a`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A2 changes had already been committed; there were no pending baseline modifications to overwrite. Repository/ancestor guidance search found no AGENTS.md. One agent; A3 only.
+
+Actual folder scopes show their name and existing `PtjIconEdit`/`PtjIconDelete` icon buttons in the middle-pane header. Names wrap independently of the right-hand actions. Tooltips, accessible names and standard keyboard button behavior are supplied; All Notes, Pinned, Unfiled, Archived and Trash have no folder actions. Rename replaces the heading with a compact field, prefilled from the selected folder and independent of A2's creation draft. Enter submits; Escape dismisses without mutation and uses PageFocus to return to the appropriate visible pencil button. Validation/persistence errors retain the draft beside the field. Duplicate submissions are rejected while pending. Completion never requests keyboard focus, so a newer interaction cannot be displaced. The old Manage folders container and its picker/rename/delete/clear controls are removed; A2's New folder interaction is unchanged.
+
+Rename/delete capture the intended ID and expected version before any confirmation or awaited work. Request, activation, accepted-note selection, read generation, scope and panel ownership are checked before mutation and publication. Accepted scope navigation dismisses rename mode rather than applying its draft to the next folder. Existing Save/Discard/Cancel and autosave guards remain authoritative. Successful rename refreshes the catalog/heading while retaining folder identity, selected note and filters. A failed mutation retains actionable feedback; stale rename after external deletion returns NotFound and never creates a replacement folder. Dismissal/cancellation during an already submitted operation is not a rollback claim; cancelled or abandoned results require Refresh to inspect persisted state.
+
+Deletion uses the existing destructive confirmation pattern, identifying the captured folder and explaining **Unfiled, no notes/content deleted**. Confirmation now precedes draft consent: declining deletion cannot save/discard a dirty note. Selection changed by a modal confirmation invalidates the request. While persistence owns the view, scope changes are blocked by the existing write guard; cancellation drains the operation before later selection. On confirmed success, the existing Unfiled fallback retains the selected note when it still matches the unchanged filters. Sidebar counts, list heading and editor reload from storage.
+
+The unchanged storage contract removes the folder in its transaction, clears affected current/previous folder references and advances affected note versions/timestamps. It does not decode/re-encode document content or delete notes; archived/trash note states remain intact. Expected-version conflicts and rollback behavior are preserved. Schema, document/archive v1, export v18, CI, application header, templates and note-action toolbar are unchanged.
+
+**Focused Release results: 118/118 distinct top-level tests — Desktop 106/106, Infrastructure 12/12**, zero failures/skips, all exits **0**. The eight isolated child cases are separate evidence, not added to these totals:
+
+| Selection | Passed/total | Command wall time |
+| --- | --- | --- |
+| Desktop coordination, SQLite, A1/A2 and scheduling (`logic/`) | 98/98 | 12.854s |
+| A3/A2 owned views and representative A1 parent (`views/`) | 5/5 | 40.212s |
+| Existing storage contract (`storage/`) | 12/12 | 10.475s |
+| Additional deletion-failure/stale-deleted-folder boundaries (`failure-boundaries/`) | 3/3 | 7.461s |
+
+The A3 and A2 view families each retain two visible parents, Light/1280/96 and Dark/480/240, with exactly one matching child per parent. The representative A1 parent runs its existing four-row Light/Dark normal/narrow suite once. Literal-path-safe TRX audit confirms complete executed/pass counts, no duplicate top-level identities and exact A3/A2 child correspondence. New logic checks cover rename success/cancel/validation/storage/conflict/NotFound, selected-note/filter retention, delete cancellation before draft consent, exact content retention and Unfiled counts, pending duplicates, blocked selection during writes, cancellation/late completion, modal selection changes and dirty-draft veto. Existing SQLite conflict/fresh-service and storage tests preserve their original assertions; the additional SQLite stale-rename case verifies the deleted folder remains absent.
+
+Commands from repository root (`run.ps1` retains exact filters, logs, exits and measured test-command times):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-restore
+# For each selection below, set its own results directory and project:
+$env:PTJ_TEST_RESULTS_DIRECTORY = (Resolve-Path TestResults/m2212a3-verified/<selection>).Path
+dotnet test <project.csproj> -c Release --no-build --no-restore --filter '<filter>' --logger trx --results-directory $env:PTJ_TEST_RESULTS_DIRECTORY
+```
+
+Exact filters, in table order (only `storage/` uses the Infrastructure test project):
+
+```text
+FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~ReleaseSchedulingTests
+FullyQualifiedName~NotebookFolderActionsViewTests|FullyQualifiedName~NotebookFolderCreationViewTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)
+FullyQualifiedName~NotebookPersistenceTests|FullyQualifiedName~NotebookLifecycleImageTests
+FullyQualifiedName~FailedDeletionRetainsFolderNoteAndActionableFeedback|FullyQualifiedName~StaleInlineRenameNeverRecreatesExternallyDeletedFolder
+```
+
+All affected Release builds passed with **zero warnings/errors**. Initial Desktop build: MSBuild **33.76s**; final pre-selection test additions: **8.77s**; Infrastructure: **5.66s**; final three additive boundary tests: **7.60s**. Production source remained unchanged throughout executed tests. Passing functional/view selections were reused after the last three tests were added and compiled; those three ran separately. No failed tests or test retries occurred; no full Release gate ran. New native view coverage uses the existing exclusive WPF trait/collection and its additive scheduling assertion. Concurrency, collection limits, exact child dispatch/completeness, 90-second process limit, 30-second watchdog and cleanup remain intact.
+
+Evidence root **`TestResults/m2212a3-verified/`** contains `summary.json`, `verified-source.json`, `trx-audit.json`, `run.ps1`, per-selection logs/results and original TRX, child phase/supervision artifacts, build logs and `renders.json`. Results apply to the baseline **plus the A3 source inventory below**, not HEAD alone. `before-context.json` and `final-context.json` retain the supported, authorized **session 1 / interactive WinSta0 / Default**, cursor access/error 0 and existing executor token, without desktop/token switching or active tests before/after. Live focus is asserted in case-owned windows using existing bounded UiKeyboardProbe and focused-field routed Enter/Escape events. Human/native keyboard interaction and real modal-dialog interaction are not claimed.
+
+Six current A3 captures were inspected under **`TestResults/m2212a3-verified/renders/`**: `Light-1280-96-long-heading.png`, `Light-1280-96-rename.png`, `Light-1280-96-validation.png`, `Dark-480-240-long-heading.png`, `Dark-480-240-rename.png`, `Dark-480-240-validation.png`. Original child paths and copied SHA-256 hashes are in `renders.json`. Long headings wrap without displacing either action; icons, inline field and error contrast are readable. The compact single-line edit field scrolls long text; the normal heading exposes the full name. No blocking A3 visual defect was found. Captures are detached view renders, while focus assertions use live owned windows. The established shell and tall header/editor controls remain deliberate differences for later phases.
+
+Exact A3 inventory: **nine modified files and three added files (12 unique)**. A2 was committed at baseline; its creation tests and implementation behavior are preserved. Modified files:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Folders.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Added files:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.FolderActions.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderActionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderActionsViewTests.cs`
+
+Whitespace (`git -c core.safecrlf=false diff --check`) and local documentation-target checks passed after edits. No model/schema change requires EF migration work. Historical M22.11 acceptance remains passed. **A4–A7, M22.12B and overall M22.12 acceptance remain pending**. Human keyboard/Narrator, native journal restart, real clipboard/picker/viewer, installed-codec WebP and matching hosted timing/input compatibility remain unverified. No production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A2 — Inline folder creation
 
 23 October 2026 (implementation began 22 October). Actual baseline: clean **develop / `92dce641d1c4c492d43b167313bfe6dd6880cfd3`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A1's seven files had already been committed in intervening commit `92dce64`; they were not uncommitted baseline changes. No applicable repository/ancestor AGENTS.md was found. One agent; only A2 implemented.

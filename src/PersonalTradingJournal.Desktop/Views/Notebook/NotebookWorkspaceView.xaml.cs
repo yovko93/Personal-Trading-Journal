@@ -47,6 +47,28 @@ public partial class NotebookWorkspaceView : UserControl
         };
     }
     internal Action<string> WriteClipboardText { get; set; } = text => Clipboard.SetText(text, TextDataFormat.UnicodeText);
+    private bool _ownsFolderRename;
+    private void OpenFolderRename(object sender, RoutedEventArgs e)
+    {
+        if (_model?.BeginFolderRename() == true) { _ownsFolderRename = true; _folderFocus.Request(() => RenameFolderName); }
+    }
+    private async void FolderRenameKeyDown(object sender, KeyEventArgs e)
+    {
+        if (_model is not { } model) return;
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            bool restore = RenameFolderName.IsKeyboardFocusWithin;
+            model.DismissFolderRename(); _ownsFolderRename = false; _folderFocus.Invalidate();
+            if (restore) _folderFocus.Request(() => model.HasFolderActions && (model.Panel == 1 || ActualWidth >= 1000) ? RenameFolderButton : null);
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            if (model.RenameFolderCommand.CanExecute(null)) await model.RenameFolderCommand.ExecuteAsync(null);
+            // Never request focus after asynchronous completion.
+        }
+    }
     private void OpenFolderCreation(object sender, RoutedEventArgs e)
     {
         if (_model?.BeginFolderCreation() == true) { _ownsFolderCreation = true; _folderFocus.Request(() => NewFolderName); }
@@ -119,10 +141,10 @@ public partial class NotebookWorkspaceView : UserControl
         { EditorFeedback.Text = "Cut could not finish. The selected content is retained."; }
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
-    private void OnUnloaded(object sender, RoutedEventArgs e) { _folderFocus.Invalidate(); if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
     private void Detach() { if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e) { LayoutPanels(); TitleEditor.Focus(); TitleEditor.SelectAll(); }
-    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { _folderFocus?.Invalidate(); if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
+    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { _folderFocus?.Invalidate(); if (_ownsFolderRename && e.OldValue is NotebookWorkspaceViewModel previous) previous.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
     private void Attach()
     {
         Detach();

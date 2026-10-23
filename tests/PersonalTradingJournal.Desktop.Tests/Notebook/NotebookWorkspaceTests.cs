@@ -192,7 +192,7 @@ public sealed class NotebookWorkspaceTests
         var id = data.Folders[^1].Id; vm.Scope = vm.Scopes.Single(s => s.FolderId == id); await vm.LoadTask;
         Assert.Equal(id, vm.Scope!.FolderId); vm.ManagedFolder = vm.Folders.Single(f => f.Id == id);
         Assert.Equal(3, vm.ManagedFolder.Version);
-        vm.FolderName = "Renamed later folder"; await vm.RenameFolderCommand.ExecuteAsync(null);
+        Assert.True(vm.BeginFolderRename()); vm.FolderRenameName = "Renamed later folder"; await vm.RenameFolderCommand.ExecuteAsync(null);
         Assert.Equal("Renamed later folder", vm.ScopeName); Assert.Equal(4, vm.Folders.Single(f => f.Id == id).Version);
     }
     [Fact]
@@ -255,7 +255,7 @@ public sealed class NotebookWorkspaceTests
         vm.Scope = vm.Scopes.Single(s => s.FolderId.HasValue); await vm.LoadTask;
         await vm.NewNoteCommand.ExecuteAsync(null); Assert.Equal("Untitled", vm.Note!.Title); Assert.Equal(vm.Scope.FolderId, vm.Note.FolderId);
         await vm.PinCommand.ExecuteAsync(null); Assert.True(vm.Note!.IsPinned);
-        vm.ManagedFolder = vm.Folders.Single(f => f.Id.HasValue); vm.FolderName = "Lessons";
+        vm.ManagedFolder = vm.Folders.Single(f => f.Id.HasValue); Assert.True(vm.BeginFolderRename()); vm.FolderRenameName = "Lessons";
         await vm.RenameFolderCommand.ExecuteAsync(null); Assert.Equal("Lessons", vm.ScopeName);
         dialogs.ConfirmationResult = false; int writes = data.Writes; await vm.DeleteFolderCommand.ExecuteAsync(null); Assert.Equal(writes, data.Writes);
         dialogs.ConfirmationResult = true; await vm.DeleteFolderCommand.ExecuteAsync(null);

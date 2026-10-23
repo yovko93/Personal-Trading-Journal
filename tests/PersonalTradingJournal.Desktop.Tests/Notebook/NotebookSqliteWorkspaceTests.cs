@@ -11,6 +11,24 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
 public sealed class NotebookSqliteWorkspaceTests
 {
+    [Fact]
+    public async Task StaleInlineRenameNeverRecreatesExternallyDeletedFolder()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService());
+        await vm.ActivateAsync(); vm.FolderName = "Original folder"; await vm.CreateFolderCommand.ExecuteAsync(null);
+        await vm.NewNoteCommand.ExecuteAsync(null); var note = vm.Note!;
+        Assert.True(vm.BeginFolderRename()); vm.FolderRenameName = "Stale rename";
+        var folder = vm.Folders.Single(f => f.Id.HasValue);
+        Assert.Equal(NotebookWriteStatus.Success, (await service.ExecuteCatalogAsync(new DeleteNotebookFolder(folder.Id!.Value, folder.Version, true))).Status);
+        await vm.RenameFolderCommand.ExecuteAsync(null);
+        Assert.Contains("no longer available", vm.FolderActionMessage); Assert.Equal("Stale rename", vm.FolderRenameName);
+        Assert.Empty((await service.ListCatalogAsync(new(NotebookCatalogKind.Folders))).Items);
+        var stored = (await service.LoadAsync(note.Id)).Note!;
+        Assert.Null(stored.FolderId); Assert.Equal(note.Title, stored.Title); Assert.Equal(note.Document.PlainText, stored.Document.PlainText);
+        Assert.Equal(note.Version + 1, stored.Version);
+    }
     [Theory]
     [InlineData(0)]
     [InlineData(51)]
@@ -179,8 +197,8 @@ public sealed class NotebookSqliteWorkspaceTests
         await vm.PinCommand.ExecuteAsync(null);
         vm.ManagedFolder = vm.Folders.Single(f => f.Id.HasValue); var folder = vm.ManagedFolder;
         Assert.Equal(NotebookWriteStatus.Success, (await service.ExecuteCatalogAsync(new RenameNotebookFolder(folder.Id!.Value, folder.Version, "External rename"))).Status);
-        vm.FolderName = "Keep my rename"; await vm.RenameFolderCommand.ExecuteAsync(null);
-        Assert.Contains("changed elsewhere", vm.Message); Assert.Equal("Keep my rename", vm.FolderName);
+        Assert.True(vm.BeginFolderRename()); vm.FolderRenameName = "Keep my rename"; await vm.RenameFolderCommand.ExecuteAsync(null);
+        Assert.Contains("changed elsewhere", vm.Message); Assert.Equal("Keep my rename", vm.FolderRenameName);
         await vm.RefreshCommand.ExecuteAsync(null); vm.ManagedFolder = vm.Folders.Single(f => f.Id.HasValue);
         await vm.DeleteFolderCommand.ExecuteAsync(null); Assert.Null(vm.Note!.FolderId);
         await using var context = await db.ContextFactory.CreateDbContextAsync();
