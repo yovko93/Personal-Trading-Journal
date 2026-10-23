@@ -17,11 +17,16 @@ public partial class NotebookWorkspaceView : UserControl
 {
     private NotebookWorkspaceViewModel? _model;
     private readonly PageFocus _folderFocus;
+    private long _headerInputVersion, _creationFocusVersion = -1;
+    private IInputElement? _creationFocusOrigin, _creationFocusOwner;
     private bool _updating, _selectionUpdating, _scopeSelectionUpdating, _ownsFolderCreation;
     public NotebookWorkspaceView()
     {
         InitializeComponent();
         _folderFocus = new(this);
+        PreviewKeyDown += (_, e) => { ++_headerInputVersion; if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control) CaptureCreationFocus(Keyboard.FocusedElement); };
+        PreviewMouseDown += (_, _) => ++_headerInputVersion;
+        PreviewMouseWheel += (_, _) => ++_headerInputVersion;
         InputBindings.Add(new KeyBinding(new CommunityToolkit.Mvvm.Input.RelayCommand(() => SearchBox.Focus()), Key.F, ModifierKeys.Control));
         DataObject.AddPastingHandler(Preview, OnPaste);
         DataObject.AddPastingHandler(TitleEditor, OnTitlePaste);
@@ -47,6 +52,17 @@ public partial class NotebookWorkspaceView : UserControl
         };
     }
     internal Action<string> WriteClipboardText { get; set; } = text => Clipboard.SetText(text, TextDataFormat.UnicodeText);
+    private void CaptureCreationFocus(IInputElement? owner)
+    { _creationFocusVersion = _headerInputVersion; _creationFocusOrigin = Keyboard.FocusedElement; _creationFocusOwner = owner; }
+    private void RememberNoteCreationFocus(object sender, RoutedEventArgs e) => CaptureCreationFocus(NewNoteButton);
+    private async void CreateTemplateFromMenu(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model || sender is not MenuItem { DataContext: NotebookTemplateDefinition template } || !model.CreateTemplateCommand.CanExecute(null)) return;
+        e.Handled = true;
+        // Capture the clicked definition synchronously; the existing command captures its ID before awaiting.
+        model.SelectedTemplate = template; CaptureCreationFocus(NewNoteMenuButton);
+        await model.CreateTemplateCommand.ExecuteAsync(null);
+    }
     private bool _ownsFolderRename;
     private void OpenFolderRename(object sender, RoutedEventArgs e)
     {
@@ -126,6 +142,11 @@ public partial class NotebookWorkspaceView : UserControl
         if (sender is MenuItem { DataContext: NotebookScopeOption scope } && DataContext is NotebookWorkspaceViewModel model)
             model.Scope = scope;
     }
+    private void NotebookOverflowOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is ContextMenu menu)
+            menu.Items.OfType<MenuItem>().Single().Command = (menu.PlacementTarget as FrameworkElement)?.DataContext is NotebookWorkspaceViewModel model ? model.RefreshCommand : null;
+    }
     internal Func<IDataObject?> ReadClipboardData { get; set; } = Clipboard.GetDataObject;
     private void CutText(ExecutedRoutedEventArgs e)
     {
@@ -141,10 +162,17 @@ public partial class NotebookWorkspaceView : UserControl
         { EditorFeedback.Text = "Cut could not finish. The selected content is retained."; }
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
-    private void OnUnloaded(object sender, RoutedEventArgs e) { _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { ++_headerInputVersion; _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
     private void Detach() { if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
-    private void Created(object? sender, EventArgs e) { LayoutPanels(); TitleEditor.Focus(); TitleEditor.SelectAll(); }
-    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { _folderFocus?.Invalidate(); if (_ownsFolderRename && e.OldValue is NotebookWorkspaceViewModel previous) previous.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
+    private void Created(object? sender, EventArgs e)
+    {
+        LayoutPanels();
+        if (_creationFocusVersion != _headerInputVersion || Keyboard.FocusedElement is { } focused &&
+            !ReferenceEquals(focused, _creationFocusOrigin) && !ReferenceEquals(focused, _creationFocusOwner)) return;
+        _creationFocusVersion = -1;
+        _folderFocus.Request(() => { TitleEditor.SelectAll(); return TitleEditor; });
+    }
+    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { ++_headerInputVersion; _folderFocus?.Invalidate(); if (_ownsFolderRename && e.OldValue is NotebookWorkspaceViewModel previous) previous.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
     private void Attach()
     {
         Detach();

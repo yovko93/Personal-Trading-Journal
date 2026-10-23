@@ -44,10 +44,15 @@ public sealed class NotebookLifecycleViewTests
             try
             {
                 window.Show();Pump(vm.ActivateAsync());Layout();
-                var picker=(ComboBox)view.FindName("TemplatePicker");Assert.Equal(5,picker.Items.Count);Assert.Equal("New note template",AutomationProperties.GetName(picker));
+                var templates=(Button)view.FindName("NewNoteMenuButton");Assert.Equal("New note templates",AutomationProperties.GetName(templates));
                 Assert.Same(vm.NewNoteCommand,view.InputBindings.OfType<KeyBinding>().Single(x=>x.Key==Key.N&&x.Modifiers==ModifierKeys.Control).Command);
-                picker.SelectedItem=vm.Templates.Single(x=>x.Id==NotebookTemplate.MarketStudy);Layout();
-                Click("CreateTemplateButton");Assert.Equal("Market Study",vm.Note!.Title);Assert.Equal("Context\nObservation\nExamples\nConclusion\nOpen questions\n",vm.DraftDocument.PlainText);
+                UiKeyboardProbe.Space(templates);Layout();Assert.True(templates.ContextMenu!.IsOpen);Assert.Equal(5,templates.ContextMenu.Items.Count);
+                var definition=vm.Templates.Single(x=>x.Id==NotebookTemplate.MarketStudy);
+                var item=(MenuItem)templates.ContextMenu.ItemContainerGenerator.ContainerFromItem(definition);
+                Assert.True(item.Focus());Assert.Same(item,Keyboard.FocusedElement);
+                item.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,PresentationSource.FromVisual(item),Environment.TickCount,Key.Enter){RoutedEvent=Keyboard.KeyDownEvent});
+                Layout();Pump(vm.CreateTemplateCommand.ExecutionTask!);Layout();Assert.False(templates.ContextMenu.IsOpen);
+                Assert.Equal("Market Study",vm.Note!.Title);Assert.Equal("Context\nObservation\nExamples\nConclusion\nOpen questions\n",vm.DraftDocument.PlainText);
                 Assert.False(((TextBox)view.FindName("TitleEditor")).IsReadOnly);Render("template-active");
                 Click("ArchiveNoteButton");Select(NotebookScope.Archived);Assert.True(vm.ShowUnarchive);Assert.True(((RichTextBox)view.FindName("Preview")).IsReadOnly);Render("archived");
                 Click("TrashNoteButton");Select(NotebookScope.Trash);Assert.True(vm.ShowRestore);Assert.True(((TextBox)view.FindName("TitleEditor")).IsReadOnly);Render("trash");

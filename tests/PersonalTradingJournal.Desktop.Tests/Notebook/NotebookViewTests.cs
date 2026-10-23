@@ -96,9 +96,11 @@ public sealed class NotebookViewTests
                         menu.IsOpen = false;
                         menu.Measure(new Size(300, double.PositiveInfinity));
                         menu.Arrange(new Rect(menu.DesiredSize)); menu.UpdateLayout();
-                        Assert.Equal(new[] { NotebookScope.Unfiled, NotebookScope.Archived, NotebookScope.Trash }, menu.Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
+                        Assert.Equal(new[] { NotebookScope.Unfiled, NotebookScope.Archived, NotebookScope.Trash }, menu.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
+                        Assert.Equal(5, menu.Items.Count);
+                        Assert.Equal("Refresh", Assert.Single(menu.Items.OfType<MenuItem>()).Header);
                         if (scope == NotebookScope.Unfiled) Render("overflow", menu);
-                        var option = menu.Items.Cast<NotebookScopeOption>().Single(s => s.Scope == scope);
+                        var option = menu.Items.OfType<NotebookScopeOption>().Single(s => s.Scope == scope);
                         var item = (MenuItem)menu.ItemContainerGenerator.ContainerFromItem(option);
                         Assert.Equal(option.Label, item.Header); Assert.True(item.Focusable); Assert.True(item.IsEnabled);
                         item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Pump(vm.LoadTask); Layout();

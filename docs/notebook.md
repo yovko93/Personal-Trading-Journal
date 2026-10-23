@@ -1,5 +1,71 @@
 # Notebook
 
+## M22.12A4 — Compact Notebook header
+
+23 October 2026. Actual baseline: **clean develop / `9cb925c86dd7ec4150668ce847b29c4c17375204`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A3's reported pending changes had already been committed; no pre-existing modifications were overwritten. Repository/ancestor guidance search found no AGENTS.md. One agent; A4 only.
+
+The header retains search and a compact split **+ New note** control. Its main action and Control N still invoke `NewNoteCommand`, always creating an Untitled blank note regardless of prior template selection. The arrow uses the existing EntityActionMenu and themed menu resources, with the existing chevron icon rotated downward. All five definitions remain available: Blank Note, Market Study, Trading Idea, Lesson Learned and Psychology. Opening/Escape dismissal writes nothing; selecting a definition captures it synchronously before the existing `CreateTemplateCommand` captures its ID. Both entry points share the existing note-operation guard, preventing overlapping submissions. Creation still sends one `CreateNotebookNote` with final template content; there is no blank-write/content-update sequence.
+
+Standalone template selection, Create from template, Refresh and permanent Cancel controls are removed. Refresh is appended after a separator in the **same** Notebook overflow as Unfiled, Archived and Trash; on opening, it connects to the current placement owner's existing Refresh command. A1 scope identities/counts and A2/A3 folder controls remain unchanged. Search text binding, Search/Enter submission, filters and stale-result protection are unchanged. Source inspection found an existing **300 ms search debounce**; A4 neither adds live search nor changes that established behavior.
+
+Cancellation was traced before removing the binding: `CancelAsync` invalidates the read generation, cancels lifetime/search/read/write work, drains completion tasks, restores applied filters and renews the active lifetime, with feedback that a completed change may already be saved. Its implementation and navigation/disposal cancellation remain unchanged. A contextual **Cancel operation** button, bound to the same command, is visible only while `IsBusy`; loading and failure feedback remain visible. Save/Discard/Cancel dialogs remain authoritative. Confirmed commits after cancellation retain their existing acknowledgement semantics rather than implying rollback.
+
+Creation publication now checks the captured activation before/after refresh. It switches to Content and raises the creation-focus event only while the original pane generation remains current and cancellation has not occurred. View-owned PageFocus replaces unconditional title focus: input generation and original/menu-owner focus are checked before requesting focus, and queued focus still respects newer input, context and visibility. The native view regression moves focus to a separate shell control during creation and verifies it remains there afterward. Original autosave/recovery, newer-edit and failure-retention assertions are retained.
+
+**Final focused verification: 141/141 distinct top-level tests — Desktop 133/133, Infrastructure 8/8**, zero failures/skips, all final exits **0**. Child results are separate:
+
+| Selection | Passed/total | Test-command wall time |
+| --- | --- | --- |
+| A4 header (`header-connected/`) | 2/2 parents, two exact children | 21.708s |
+| Creation/lifecycle/search/cancellation and A1–A3 logic (`logic/`) | 122/122 | 13.720s |
+| Lifecycle and A1–A3 views (`views/`) | 9/9 parents, 12 children | 77.521s |
+| Atomic template storage (`storage/`) | 8/8 | 9.820s |
+
+Four lifecycle parents retain their complete Light/Dark × normal/narrow matrix and all lifecycle assertions, now entering template creation through the menu. Header, A2 and A3 each have two exact owned-window children; the representative A1 parent invokes its existing four-row suite once. Thus **11 view parents / 14 children across 11 isolated launches**, without adding child counts to the top-level total. Literal-path-safe TRX auditing verifies complete/pass counts, unique final parent identities and exact child correspondence. Existing exclusive-first membership, collection/concurrency limits, process isolation, 90-second process deadlines and 30-second watchdogs remain unchanged; the new header family is added to the existing exclusive scheduling expectation.
+
+The header tests exercise keyboard Space opening, focused MenuItem Enter selection and Escape dismissal, all five exact initial template projections, one write/version 1 per creation, blank main action after prior template selection, current Refresh-command identity and activation, contextual cancellation/draining, accessible names and external-focus preservation. Logic checks additionally cover template capture before awaited saving, competing main/menu submissions, newer pane selection, cancellation/commit acknowledgement, failed creation, dirty-draft consent, autosave/recovery and stale reads. Existing Infrastructure tests verify final document visibility at one commit, failure/cancellation rollback and post-commit cancellation acknowledgement through fresh contexts.
+
+Commands from repository root; `run.ps1` retains the exact project/filter, original output, TRX, exit and command time for each selection:
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = (Resolve-Path TestResults/m2212a4-verified/<selection>).Path
+dotnet test <project.csproj> -c Release --no-build --no-restore --filter '<filter>' --logger trx --results-directory $env:PTJ_TEST_RESULTS_DIRECTORY
+```
+
+Exact final filters in table order; only `storage/` uses the Infrastructure project:
+
+```text
+FullyQualifiedName~NotebookHeaderViewTests
+FullyQualifiedName~NotebookHeaderTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~ReleaseSchedulingTests
+FullyQualifiedName~NotebookLifecycleViewTests|FullyQualifiedName~NotebookFolderActionsViewTests|FullyQualifiedName~NotebookFolderCreationViewTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)
+FullyQualifiedName~NotebookTemplateLifecycleTests
+```
+
+Final Release builds passed with **zero warnings/errors**: Desktop MSBuild **14.25s**, Infrastructure **5.40s**. All final selections used unchanged source after the successful Desktop build. Evidence root **`TestResults/m2212a4-verified/`** contains `summary.json`, `verified-source.json`, `trx-audit.json`, `development-failures.json`, per-selection build/output/result files, original parent/child TRX and supervision/phase artifacts. Results describe the baseline **plus A4's source changes**, not HEAD alone. No complete gate ran.
+
+Development evidence remains distinct from final passes: `header/build.log` contains four CS0119 errors caused by the new test helper shadowing WPF's Key enum (no tests launched). `header-verified/` records **0/2 parents passed, two failed, no skips**, with two matching child failures at the retained Refresh-command identity assertion: the popup's declarative command binding was null. Refresh now explicitly receives the current owner's command on opening. `header-final/build.log` retains the initial correction's UIElement/DataContext cast compile error (no tests launched). After correcting the cast, `header-connected/` passed both complete cases, including that exact assertion and keyboard Refresh. No deadlines or assertions were weakened.
+
+Eight current captures under **`TestResults/m2212a4-verified/renders/`** were inspected: `Light-1280-96-header.png`, `Light-1280-96-templates.png`, `Light-1280-96-overflow.png`, `Light-1280-96-busy.png`, and the corresponding four `Dark-480-240-*.png` files. `renders.json` retains original child paths and SHA-256 hashes. The reduced header, split control, full template names, existing overflow scopes/Refresh and contextual cancel/status remain readable without blocking overlap or contrast defects. Workspace captures use detached render surfaces; open menus come from the live fixtures. Existing editor action rows, formatting toolbar and application shell are intentionally retained for A5/A6.
+
+`before-context.json` and `final-context.json` record the authorized **session 1 / interactive WinSta0 / Default**, cursor available/error 0 and existing executor token, without desktop/token switching or independent active tests before/after. Tests use existing UiKeyboardProbe readiness/capture/release and routed keyboard events on focused menu items; human interaction, real clipboard/picker/viewer, native journal restart, installed-codec WebP and matching hosted timing/input compatibility remain unverified.
+
+Exact A4 inventory: **eight modified files and two added files (10 unique)**. A3 was committed at baseline; its folder implementations/tests are unchanged. Modified:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Added: `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderTests.cs`, `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.cs`.
+
+Whitespace (`git -c core.safecrlf=false diff --check`) and local documentation-target checks passed after edits. There is no schema/model/format change requiring EF work; document/archive v1 and export v18 remain unchanged. Historical M22.11 acceptance remains passed. **A5–A7, M22.12B and overall M22.12 acceptance remain pending**. No CI changes, production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A3 — Folder actions in the note-list header
 
 23 October 2026. Actual baseline: **clean develop / `41bbf0eae9593688bcf667b8156fefb47bd6f01a`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A2 changes had already been committed; there were no pending baseline modifications to overwrite. Repository/ancestor guidance search found no AGENTS.md. One agent; A3 only.

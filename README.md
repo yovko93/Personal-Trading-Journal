@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A4 — Compact Notebook header
+
+Search and a split **+ New note** control are the primary header actions. The main action always creates a blank note; its arrow offers all five existing templates through the atomic creation command. Refresh now lives in the existing Notebook overflow menu. **Cancel operation** appears only with active busy feedback. Search behavior, draft consent, recovery and A1–A3 controls are preserved; late creation does not replace a newer pane choice or keyboard focus.
+
+Final focused Release verification: **133/133 Desktop + 8/8 Infrastructure**, zero failures/skips, exits **0**, with **14 child cases audited separately**. Builds, scheduling, whitespace and local documentation-target checks passed. Eight current Light-normal/Dark-narrow-high-DPI captures were inspected without blocking A4 defects. Evidence: `TestResults/m2212a4-verified/summary.json`. [Commands, retained development failures, captures and exact inventory](docs/notebook.md#m2212a4--compact-notebook-header). No complete gate ran. **A5–A7 and M22.12B remain pending**; human interaction, native journal restart and matching hosted execution remain unverified.
+
 ## M22.12A3 — Folder actions in the note-list header
 
 Actual folders now show pencil/trash actions beside their wrapping middle-pane heading; virtual scopes show neither action. Rename uses an owned-focus inline field with Enter/Escape, retained errors and duplicate-submit protection. Confirmed deletion keeps notes/content and uses the existing Unfiled fallback. Captured folder identity/version and navigation guards prevent retargeting during asynchronous work. The obsolete Manage folders section is removed; A1 navigation and A2 creation remain intact.

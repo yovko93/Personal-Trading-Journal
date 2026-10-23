@@ -52,21 +52,37 @@
  </UserControl.Resources>
  <Grid x:Name="Root">
   <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-  <WrapPanel Margin="0,0,0,10">
+  <WrapPanel x:Name="NotebookHeader" Margin="0,0,0,10">
    <TextBlock Text="Ideas, research and lessons in one place." VerticalAlignment="Center" Margin="0,0,20,8" Style="{StaticResource QuietText}"/>
    <TextBox x:Name="SearchBox" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanInteract}" MaxLength="256" Width="210" Margin="0,0,8,8" AutomationProperties.Name="Search notes">
     <TextBox.InputBindings><KeyBinding Key="Enter" Command="{Binding SearchCommand}"/></TextBox.InputBindings>
    </TextBox>
    <Button Content="Search" Command="{Binding SearchCommand}" Margin="0,0,8,8"/>
-   <Button Content="+ New note" Command="{Binding NewNoteCommand}" Style="{StaticResource PtjPrimaryButtonStyle}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an Untitled note. Control N."/>
-   <ComboBox x:Name="TemplatePicker" ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate}" DisplayMemberPath="Name" Width="165" IsEnabled="{Binding CanInteract}" Margin="0,0,8,8" AutomationProperties.Name="New note template"/>
-   <Button x:Name="CreateTemplateButton" Content="Create from template" Command="{Binding CreateTemplateCommand}" Margin="0,0,8,8" AutomationProperties.HelpText="Create an independent note from the selected template. New note and Control N always create a blank note."/>
-   <Button Content="Refresh" Command="{Binding RefreshCommand}" Margin="0,0,8,8"/>
-   <Button Content="Cancel" Command="{Binding CancelCommand}" Margin="0,0,0,8"/>
+   <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+    <Button x:Name="NewNoteButton" Content="+ New note" Command="{Binding NewNoteCommand}" Click="RememberNoteCreationFocus" Style="{StaticResource PtjPrimaryButtonStyle}" AutomationProperties.Name="New blank note" AutomationProperties.HelpText="Create an Untitled blank note. Control N."/>
+    <Button x:Name="NewNoteMenuButton" Style="{StaticResource PtjPrimaryButtonStyle}" Padding="8,6" Margin="2,0,0,0" IsEnabled="{Binding CanCreateNote}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="New note from template" AutomationProperties.Name="New note templates">
+     <Button.ContextMenu>
+      <ContextMenu ItemsSource="{Binding Templates}" Style="{StaticResource PtjEntityActionMenuStyle}">
+       <ContextMenu.ItemContainerStyle><Style TargetType="MenuItem" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}">
+        <Setter Property="Header" Value="{Binding Name}"/><Setter Property="AutomationProperties.Name" Value="{Binding Name}"/>
+        <Setter Property="IsEnabled" Value="{Binding PlacementTarget.DataContext.CanCreateNote, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+        <EventSetter Event="Click" Handler="CreateTemplateFromMenu"/>
+       </Style></ContextMenu.ItemContainerStyle>
+      </ContextMenu>
+     </Button.ContextMenu>
+     <Path Width="12" Height="12" Stretch="Uniform" Data="{StaticResource PtjIconChevron}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.7" RenderTransformOrigin="0.5,0.5"><Path.RenderTransform><RotateTransform Angle="90"/></Path.RenderTransform></Path>
+    </Button>
+   </StackPanel>
   </WrapPanel>
-  <TextBlock Grid.Row="1" Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{DynamicResource PtjInformationBrush}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Message}">
+  <StackPanel Grid.Row="1">
+   <DockPanel x:Name="ActiveNotebookOperation" Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,8">
+    <Button x:Name="CancelNotebookOperation" DockPanel.Dock="Right" Content="Cancel operation" Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel active Notebook operation" ToolTip="Stop active work; a completed change may already be saved."/>
+    <TextBlock Text="Notebook operation in progress…" Style="{StaticResource QuietText}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
+   </DockPanel>
+  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{DynamicResource PtjInformationBrush}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Message}">
    <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Message}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
   </TextBlock>
+  </StackPanel>
   <WrapPanel x:Name="NarrowNavigation" Grid.Row="2" Visibility="Collapsed" Margin="0,0,0,8">
    <Button Content="Organization" Click="ShowOrganization" Margin="0,0,8,0"/>
    <Button Content="Notes" Click="ShowNotes" Margin="0,0,8,0"/>
@@ -94,9 +110,14 @@
        </StackPanel>
       </Expander>
       <DockPanel Margin="0,0,0,8">
-       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource PtjIconButtonStyle}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="More Notebook views" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash.">
+       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource PtjIconButtonStyle}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash, or refresh the current view.">
         <Button.ContextMenu>
-         <ContextMenu ItemsSource="{Binding Source={StaticResource OtherScopes}}" Style="{StaticResource PtjEntityActionMenuStyle}">
+         <ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NotebookOverflowOpened">
+          <ContextMenu.ItemsSource><CompositeCollection>
+           <CollectionContainer Collection="{Binding Source={StaticResource OtherScopes}}"/>
+           <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}"/>
+           <MenuItem Header="Refresh" AutomationProperties.Name="Refresh Notebook" Style="{StaticResource PtjLifecycleMenuItemStyle}"/>
+          </CompositeCollection></ContextMenu.ItemsSource>
           <ContextMenu.ItemContainerStyle><Style TargetType="MenuItem" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}">
            <Setter Property="Header" Value="{Binding Label}"/><Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
            <EventSetter Event="Click" Handler="SelectOverflowScope"/>

@@ -27,6 +27,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool ShowDeletePermanently => LifecycleState == NotebookNoteState.Trashed;
     private bool CanStartNoteOperation => _active && !_disposed && !_noteOperation && !_guarding &&
         !_linkOperation && !_imageOperation && !_preparingImage && !_tagOperation && (!IsBusy || IsSaving) && (!IsWriting || IsSaving);
+    public bool CanCreateNote => CanStartNoteOperation;
     private void InitializeLifecycle()
     {
         CreateTemplateCommand = new(() => CreateFromTemplateAsync(SelectedTemplate.Id), () => CanStartNoteOperation);
@@ -39,18 +40,20 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private void NotifyLifecycleCommands()
     {
+        OnPropertyChanged(nameof(CanCreateNote));
         foreach (var name in new[] { nameof(ShowArchive), nameof(ShowUnarchive), nameof(ShowTrash), nameof(ShowRestore), nameof(ShowDuplicate), nameof(ShowDeletePermanently), nameof(CanInteract), nameof(CanSelectNote) }) OnPropertyChanged(name);
         foreach (var command in new[] { CreateTemplateCommand, ArchiveCommand, UnarchiveCommand, TrashCommand, RestoreCommand, DuplicateCommand, DeletePermanentlyCommand }) command?.NotifyCanExecuteChanged();
     }
     private Task CreateFromTemplateAsync(NotebookTemplate template)
     {
+        var activation = _lifetime; long panel = _panelGeneration;
         var definition = NotebookTemplates.All.Single(x => x.Id == template);
         var folder = Scope?.Scope == NotebookScope.Folder ? Scope.FolderId : null;
         return RunNoteOperationAsync(async ct =>
         {
             var title = template == NotebookTemplate.BlankNote ? "Untitled" : definition.Name;
             var result = await Task.Run(() => _service.ExecuteAsync(new CreateNotebookNote(folder, title, template), ct), ct);
-            if (!_active || _disposed || !PublishWrite(result.Status, "")) return;
+            if (!_active || _disposed || !ReferenceEquals(activation, _lifetime) || !PublishWrite(result.Status, "")) return;
             if (result.Note is not { } saved || saved.State != NotebookNoteState.Active || saved.Version != 1 || saved.Title != title ||
                 saved.FolderId != folder || saved.IsPinned || saved.Document.PlainText != NotebookTemplates.Create(template).PlainText ||
                 saved.Images.Length != 0 || saved.Links.Length != 0 || saved.TagIds.Length != 0)
@@ -64,9 +67,13 @@ public sealed partial class NotebookWorkspaceViewModel
                 Scope = Scopes.FirstOrDefault(s => folder is null ? s.Scope == NotebookScope.AllNotes : s.FolderId == folder);
             }
             finally { _publishing = false; }
-            Panel = 2;
+            bool ownsPanel = panel == _panelGeneration && !ct.IsCancellationRequested;
+            if (ownsPanel) Panel = 2;
+            long completionPanel = _panelGeneration;
             if (!ct.IsCancellationRequested) await ReadPageAsync(false, saved.Id, ct, keepEditor: true);
-            Message = "Note created."; NoteCreated?.Invoke(this, EventArgs.Empty);
+            if (!_active || _disposed || !ReferenceEquals(activation, _lifetime)) return;
+            Message = "Note created.";
+            if (ownsPanel && completionPanel == _panelGeneration && !ct.IsCancellationRequested) NoteCreated?.Invoke(this, EventArgs.Empty);
         });
     }
     private Task ChangeLifecycleAsync(NotebookNoteState? target)
