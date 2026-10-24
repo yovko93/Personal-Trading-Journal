@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A6 — Compact editor and note rows
+
+Notebook formatting uses compact, wrapping icon groups; assigned tags appear as removable chips beside Add tag. Note rows show bounded title/preview text, dates, tag badges and a pin with teal selection styling. Hyperlink actions retain their opening selection and URL draft. A1–A5 navigation, autosave/recovery and image-aware undo remain intact.
+
+Focused Release verification passed **191/191 Desktop tests** (169 logic + 22 UI parents), zero failures/skips, exits **0**, with **34 child cases audited separately**. Build, scheduling, whitespace and local documentation-target checks passed. Twelve populated Light/Dark normal/narrow-high-DPI renders were inspected without blocking A6 defects. Evidence: `TestResults/m2212a6-verified/summary.json` and `renders/`. [Commands, findings and exact A6 inventory](docs/notebook.md#m2212a6--compact-toolbar-assigned-chips-and-note-rows). No complete gate ran. **A7 and M22.12B remain pending**; human interaction, native journal restart and matching hosted execution remain unverified.
+
 ## M22.12A5 — Compact note header and owned note actions
 
 The editor now has a prominent wrapping title, compact folder/save context and authoritative pin/unpin and note-menu icons. Move, Duplicate and applicable lifecycle actions live in one note menu; Move opens a contextual picker. Save/Discard and recovery/conflict explanations remain visible for unsaved drafts. Empty selection shows a clean prompt. Captured menu, confirmation and draft ownership prevents actions from consuming a newer note or draft; A1–A4 remain intact.

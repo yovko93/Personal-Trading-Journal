@@ -189,6 +189,7 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void UpdatePreview()
     {
+        ResetInlineActions();
         _updating = true;
         try
         {
@@ -237,11 +238,11 @@ public partial class NotebookWorkspaceView : UserControl
                 bool on = state is TextDecorationCollection decorations
                     ? decorations.Any(d => d.Location == TextDecorationLocation.Underline) : Equals(state, enabled);
                 string label = state == DependencyProperty.UnsetValue ? "Mixed" : on ? "On" : "Off";
-                button.ToolTip = label; AutomationProperties.SetItemStatus(button, label);
+                button.ToolTip = $"{AutomationProperties.GetName(button)} · {label}"; AutomationProperties.SetItemStatus(button, label);
                 button.SetResourceReference(Control.BackgroundProperty, label == "On" ? "PtjSurfaceElevatedBrush" : "PtjSurfaceBrush");
             }
             var link = NotebookEditorAdapter.SelectedLink(Preview.Selection);
-            if (!LinkUrl.IsKeyboardFocusWithin) LinkUrl.Text = link?.NavigateUri?.AbsoluteUri ?? "";
+            if (!LinkActions.IsExpanded && !LinkUrl.IsKeyboardFocusWithin) LinkUrl.Text = link?.NavigateUri?.AbsoluteUri ?? "";
         }
         finally { _selectionUpdating = false; }
     }
@@ -258,10 +259,15 @@ public partial class NotebookWorkspaceView : UserControl
     private void Undo(object sender, RoutedEventArgs e) => UndoEditor(false);
     private void Redo(object sender, RoutedEventArgs e) => UndoEditor(true);
     private void ToggleCheck(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.ToggleCheck(Preview));
-    private void ApplyLink(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.SetLink(Preview, LinkUrl.Text.Trim()));
-    private void RemoveLink(object sender, RoutedEventArgs e) => Edit(() => NotebookEditorAdapter.SetLink(Preview, null));
+    private void ApplyLink(object sender, RoutedEventArgs e)
+    {
+        string url = LinkUrl.Text.Trim();
+        if (RestoreLinkSelection()) Edit(() => NotebookEditorAdapter.SetLink(Preview, url));
+    }
+    private void RemoveLink(object sender, RoutedEventArgs e) { if (RestoreLinkSelection()) Edit(() => NotebookEditorAdapter.SetLink(Preview, null)); }
     private void OpenLink(object sender, RoutedEventArgs e)
     {
+        if (!RestoreLinkSelection()) return;
         var link = NotebookEditorAdapter.SelectedLink(Preview.Selection);
         if (link?.NavigateUri is not { } uri) { EditorFeedback.Text = "Place the caret inside a link."; return; }
         try
@@ -275,7 +281,7 @@ public partial class NotebookWorkspaceView : UserControl
     private void EditorKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.K && Keyboard.Modifiers == ModifierKeys.Control)
-        { e.Handled = true; LinkActions.IsExpanded = true; LinkUrl.Focus(); }
+        { e.Handled = true; OpenLinkActions(); }
         else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
         { e.Handled = true; ToggleCheck(sender, e); }
         else if (_model?.CanEditBody == true && e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)

@@ -246,7 +246,7 @@ public sealed class NotebookImageEditorTests
         public Task<NotebookImageContent> ReadOriginalAsync(Guid noteId, Guid imageId, CancellationToken token = default)
         { OwnedReads++; return Task.FromResult(new NotebookImageContent(NotebookImageStatus.Missing)); }
     }
-    private sealed class Presentation(Guid visible) : INotebookImagePresentation
+    internal sealed class Presentation(Guid visible) : INotebookImagePresentation
     {
         internal Task<ImageSource>? Controlled;
         public Task<ImageSource> PreviewAsync(Guid noteId, NotebookImage image, CancellationToken ct)

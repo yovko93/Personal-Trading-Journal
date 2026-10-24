@@ -11,7 +11,7 @@ public sealed class ReleaseSchedulingTests
     [Fact]
     public void ExclusiveTraitAndCollectionCoverRequiredNativeClassesWithoutSerializingOtherTests()
     {
-        Type[] expected = [typeof(CalendarDayModalTests), typeof(CalendarDayPerformanceChartTests), typeof(JournalViewTests), typeof(NotebookLifecycleViewTests), typeof(NotebookFolderCreationViewTests), typeof(NotebookFolderActionsViewTests), typeof(NotebookHeaderViewTests),
+        Type[] expected = [typeof(CalendarDayModalTests), typeof(CalendarDayPerformanceChartTests), typeof(JournalViewTests), typeof(NotebookLifecycleViewTests), typeof(NotebookFolderCreationViewTests), typeof(NotebookFolderActionsViewTests), typeof(NotebookHeaderViewTests), typeof(NotebookPresentationViewTests),
             typeof(TradingPlanWorkspaceViewTests), typeof(SessionPreparationViewTests), typeof(PlanSectionsViewTests)];
         Type[] exclusive = typeof(ReleaseSchedulingTests).Assembly.GetTypes()
             .Where(type => type.CustomAttributes.Any(trait => trait.AttributeType == typeof(TraitAttribute) &&

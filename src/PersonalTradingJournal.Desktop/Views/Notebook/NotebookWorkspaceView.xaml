@@ -33,6 +33,14 @@
   <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style x:Key="QuietText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <Style x:Key="NotebookToolButton" TargetType="Button" BasedOn="{StaticResource PtjIconButtonStyle}">
+   <Setter Property="Width" Value="32"/><Setter Property="Height" Value="32"/><Setter Property="MinHeight" Value="32"/><Setter Property="Padding" Value="6"/><Setter Property="Margin" Value="1,0"/><Setter Property="FontSize" Value="15"/>
+   <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(AutomationProperties.Name)}"/>
+  </Style>
+  <Style x:Key="NotebookToolIcon" TargetType="Path"><Setter Property="Width" Value="18"/><Setter Property="Height" Value="18"/><Setter Property="Stretch" Value="Uniform"/><Setter Property="StrokeThickness" Value="1.7"/><Setter Property="StrokeLineJoin" Value="Round"/><Setter Property="Stroke" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/></Style>
+  <Style x:Key="NotebookInlineExpander" TargetType="Expander">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><Border x:Name="Body" Visibility="Collapsed" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,4,0,8"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Body" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="PanelBorder" TargetType="Border"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="16"/></Style>
   <Style x:Key="Row" TargetType="ListBoxItem">
    <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10"/><Setter Property="Margin" Value="0,0,0,4"/>
@@ -44,6 +52,17 @@
      <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Surface" Property="BorderThickness" Value="2"/></Trigger>
      <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}"/></Trigger>
     </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="NoteRow" TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
+   <Setter Property="Padding" Value="12,10"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><Grid>
+    <Border x:Name="Tint" Background="{DynamicResource PtjAccentBrush}" Opacity="0" CornerRadius="5"/>
+    <Border x:Name="Outline" BorderBrush="{DynamicResource PtjAccentBrush}" BorderThickness="0" CornerRadius="5" Padding="{TemplateBinding Padding}"><ContentPresenter/></Border>
+   </Grid><ControlTemplate.Triggers>
+    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Tint" Property="Opacity" Value="0.06"/></Trigger>
+    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Tint" Property="Opacity" Value="0.12"/><Setter TargetName="Outline" Property="BorderThickness" Value="3,0,0,0"/></Trigger>
+    <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="Outline" Property="BorderThickness" Value="2"/></Trigger>
+   </ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="ScopeRow" TargetType="ListBoxItem" BasedOn="{StaticResource Row}">
    <Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
@@ -202,12 +221,18 @@
      </StackPanel>
      <TextBlock Grid.Row="1" Text="{Binding EmptyMessage}" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
      <ListBox x:Name="NoteList" Grid.Row="2" ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" IsEnabled="{Binding CanSelectNote}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Notes">
-      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource Row}"><Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}"/></Style></ListBox.ItemContainerStyle>
+      <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource NoteRow}"><Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}"/></Style></ListBox.ItemContainerStyle>
       <ListBox.ItemTemplate><DataTemplate><StackPanel>
-       <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"/>
-       <TextBlock Text="{Binding Preview}" Style="{StaticResource QuietText}" MaxHeight="48" TextTrimming="CharacterEllipsis" Margin="0,6,0,6"/>
-       <TextBlock Text="{Binding Tags}" Foreground="{DynamicResource PtjAccentBrush}" TextWrapping="Wrap"/>
-       <WrapPanel><TextBlock Text="{Binding Updated}" Style="{StaticResource QuietText}" FontSize="12" Margin="0,5,8,0"/><TextBlock Text="{Binding Pin}" Foreground="{DynamicResource PtjAccentBrush}" FontSize="12" Margin="0,5,0,0"/></WrapPanel>
+       <DockPanel><Path DockPanel.Dock="Right" Data="{StaticResource PtjIconPin}" Width="14" Height="16" Stretch="Uniform" Fill="{DynamicResource PtjAccentBrush}" Stroke="{DynamicResource PtjAccentBrush}" StrokeThickness="1" Margin="6,0,0,0" VerticalAlignment="Top" Visibility="{Binding Item.IsPinned, Converter={StaticResource VisibleWhenTrue}}" ToolTip="Pinned note"/>
+        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="42" ToolTip="{Binding Title}"/>
+       </DockPanel>
+       <TextBlock Text="{Binding Preview}" Style="{StaticResource QuietText}" FontSize="13" LineHeight="19" MaxHeight="38" TextTrimming="CharacterEllipsis" Margin="0,5,0,5"/>
+       <TextBlock Text="{Binding Updated}" Style="{StaticResource QuietText}" FontSize="11" Margin="0,2,0,4"/>
+       <WrapPanel ToolTip="{Binding Tags}">
+        <ItemsControl ItemsSource="{Binding TagChips}"><ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+         <ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource PtjSurfaceElevatedBrush}" CornerRadius="10" Padding="7,2" Margin="0,0,4,2"><TextBlock Text="{Binding Name}" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="11" MaxWidth="85" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"/></Border></DataTemplate></ItemsControl.ItemTemplate>
+        </ItemsControl><TextBlock Text="{Binding RemainingTags}" Style="{StaticResource QuietText}" FontSize="11" Margin="2"/>
+       </WrapPanel>
       </StackPanel></DataTemplate></ListBox.ItemTemplate>
      </ListBox>
      <Button Grid.Row="3" Content="Load more notes" Command="{Binding MoreNotesCommand}" Visibility="{Binding HasMoreNotes, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0"/>
@@ -220,7 +245,7 @@
       <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource QuietText}"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding HasEditorContext}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
      </TextBlock>
     <Grid x:Name="NoteEditorContent" Visibility="{Binding HasEditorContext, Converter={StaticResource VisibleWhenTrue}}">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*" MinHeight="240"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto" MinHeight="160"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
      <StackPanel>
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -255,16 +280,19 @@
       <TextBox x:Name="TitleEditor" Text="{Binding DraftTitle, UpdateSourceTrigger=PropertyChanged}" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" MaxHeight="180" VerticalScrollBarVisibility="Auto" Margin="0,10,0,6" AutomationProperties.Name="Note title">
        <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="IsReadOnly" Value="True"/><Style.Triggers><DataTrigger Binding="{Binding CanEditDraft}" Value="True"><Setter Property="IsReadOnly" Value="False"/></DataTrigger></Style.Triggers></Style></TextBox.Style>
       </TextBox>
-      <ItemsControl x:Name="AssignedTagList" ItemsSource="{Binding AssignedTags}">
+      <WrapPanel Margin="0,0,0,4">
+      <ItemsControl x:Name="AssignedTagList" ItemsSource="{Binding AssignedTags}" MaxWidth="{Binding ActualWidth, ElementName=NoteEditorContent}">
        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-       <ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource PtjSurfaceElevatedBrush}" CornerRadius="4" Padding="6,2" Margin="0,2,4,2" MaxWidth="280">
-        <DockPanel><Button DockPanel.Dock="Right" Content="×" Command="{Binding DataContext.RemoveTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
+       <ItemsControl.ItemTemplate><DataTemplate><Border Background="{DynamicResource PtjSurfaceElevatedBrush}" CornerRadius="12" Padding="8,2" Margin="0,2,5,2" MaxWidth="280" ToolTip="{Binding Name}">
+        <DockPanel><Button DockPanel.Dock="Right" Content="×" Width="22" Height="22" MinHeight="22" Padding="1" Command="{Binding DataContext.RemoveTagCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}"
             AutomationProperties.Name="{Binding Name, StringFormat='Remove tag {0} from this note'}" AutomationProperties.HelpText="Remove this assignment only; keep the global tag." Margin="6,0,0,0"/>
-         <TextBlock Text="{Binding Name}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource PtjAccentBrush}"/>
+         <TextBlock Text="{Binding Name}" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource PtjAccentBrush}"/>
         </DockPanel>
        </Border></DataTemplate></ItemsControl.ItemTemplate>
       </ItemsControl>
-      <Expander Header="Add tag" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Assign an existing tag to this note" Margin="0,6,0,4">
+       <Button x:Name="AddTagButton" Content="+ Add tag" Click="ToggleTagAssignment" Padding="6,2" MinHeight="26" FontSize="12" Margin="0,2" ToolTip="Assign an existing tag to this note" AutomationProperties.Name="Add tag to this note" IsEnabled="{Binding CanEditDraft}"/>
+      </WrapPanel>
+      <Expander x:Name="TagAssignment" PreviewKeyDown="InlineActionsKeyDown" Style="{StaticResource NotebookInlineExpander}" Header="Add tag" Foreground="{DynamicResource PtjTextPrimaryBrush}" AutomationProperties.Name="Assign an existing tag to this note" Margin="0,6,0,4">
        <StackPanel>
         <WrapPanel><ComboBox x:Name="TagPicker" ItemsSource="{Binding Tags}" SelectedItem="{Binding AssignmentTag}" ItemTemplate="{StaticResource TagPickerItem}" ToolTip="{Binding AssignmentTag.PickerLabel}" AutomationProperties.HelpText="{Binding AssignmentTag.PickerLabel}" Width="240" MaxWidth="280" Margin="0,4,6,4" AutomationProperties.Name="Tag to assign"/>
          <Button Content="Assign tag" Command="{Binding AssignTagCommand}" Margin="0,4,0,4"/></WrapPanel>
@@ -273,7 +301,7 @@
        </StackPanel>
       </Expander>
       <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
-      <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,6,0,12"/>
+      <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,2,0,6"/>
       <Border x:Name="MoveNotePicker" Visibility="Collapsed" Background="{DynamicResource PtjSurfaceElevatedBrush}" Padding="8" Margin="0,6" PreviewKeyDown="MoveNoteKeyDown">
        <StackPanel>
         <TextBlock Text="Move this note to folder" Style="{StaticResource QuietText}"/>
@@ -289,27 +317,22 @@
       </StackPanel>
       <TextBlock Text="{Binding RecoveryMessage}" Style="{StaticResource QuietText}" Margin="0,4,0,4"/>
       <TextBlock Text="{Binding DraftError}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
-      <WrapPanel x:Name="FormattingToolbar" IsEnabled="{Binding CanEditBody}" Margin="0,6,0,6" AutomationProperties.Name="Note formatting">
-       <ComboBox x:Name="ParagraphStyle" Width="122" SelectionChanged="StyleChanged" AutomationProperties.Name="Paragraph style" Margin="0,0,4,4">
+      <Border Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,6,0,12">
+      <WrapPanel x:Name="FormattingToolbar" IsEnabled="{Binding CanEditBody}" AutomationProperties.Name="Note formatting" KeyboardNavigation.TabNavigation="Continue">
+       <ComboBox x:Name="ParagraphStyle" Width="118" MinHeight="32" Height="32" Padding="6,3" SelectionChanged="StyleChanged" ToolTip="Paragraph or heading" AutomationProperties.Name="Paragraph style" Margin="0,2">
         <ComboBoxItem Content="Paragraph"/><ComboBoxItem Content="Heading 1"/><ComboBoxItem Content="Heading 2"/><ComboBoxItem Content="Heading 3"/>
        </ComboBox>
-       <Button x:Name="BoldButton" Content="B" FontWeight="Bold" Click="ToggleBold" AutomationProperties.Name="Bold" Margin="0,0,4,4"/>
-       <Button x:Name="ItalicButton" Content="I" FontStyle="Italic" Click="ToggleItalic" AutomationProperties.Name="Italic" Margin="0,0,4,4"/>
-       <Button x:Name="UnderlineButton" Content="U" Click="ToggleUnderline" AutomationProperties.Name="Underline" Margin="0,0,4,4"/>
-       <Button Content="• List" Click="ToggleBullets" AutomationProperties.Name="Bulleted list" Margin="0,0,4,4"/>
-       <Button Content="1. List" Click="ToggleNumbering" AutomationProperties.Name="Numbered list" Margin="0,0,4,4"/>
-       <Button Content="☐ List" Click="AddChecklist" AutomationProperties.Name="Create checklist" Margin="0,0,4,4"/>
-       <Button Content="Toggle check" Click="ToggleCheck" AutomationProperties.HelpText="Toggle current checklist item. Control Enter." Margin="0,0,4,4"/>
-       <Button x:Name="UndoButton" Content="Undo" Click="Undo" Margin="0,0,4,4"/>
-       <Button x:Name="RedoButton" Content="Redo" Click="Redo" Margin="0,0,4,4"/>
-       <Button x:Name="InsertImageButton" Content="Insert image" Click="InsertImage" Margin="0,0,4,4" ToolTip="Local PNG/JPEG or WebP with an installed decoder. Maximum 8 MiB."/>
-      </WrapPanel>
-      <Expander x:Name="LinkActions" Header="Hyperlink" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,0,0,6" AutomationProperties.Name="Hyperlink actions">
+       <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1,0,0,0" Padding="5,0,0,0" Margin="4,2,0,2"><StackPanel Orientation="Horizontal"><Button x:Name="BoldButton" Style="{StaticResource NotebookToolButton}" Content="B" FontWeight="Bold" Click="ToggleBold" AutomationProperties.Name="Bold" ToolTip="Bold (Control B)"/><Button x:Name="ItalicButton" Style="{StaticResource NotebookToolButton}" Content="I" FontStyle="Italic" Click="ToggleItalic" AutomationProperties.Name="Italic" ToolTip="Italic (Control I)"/><Button x:Name="UnderlineButton" Style="{StaticResource NotebookToolButton}" Click="ToggleUnderline" AutomationProperties.Name="Underline" ToolTip="Underline (Control U)"><TextBlock Text="U" TextDecorations="Underline"/></Button></StackPanel></Border>
+       <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1,0,0,0" Padding="5,0,0,0" Margin="4,2,0,2"><StackPanel Orientation="Horizontal"><Button x:Name="BulletsButton" Style="{StaticResource NotebookToolButton}" Click="ToggleBullets" AutomationProperties.Name="Bulleted list"><Path Data="{StaticResource PtjIconBulletedList}" Style="{StaticResource NotebookToolIcon}"/></Button><Button x:Name="NumberingButton" Style="{StaticResource NotebookToolButton}" Click="ToggleNumbering" AutomationProperties.Name="Numbered list"><Path Data="{StaticResource PtjIconNumberedList}" Style="{StaticResource NotebookToolIcon}"/></Button><Button x:Name="ChecklistButton" Style="{StaticResource NotebookToolButton}" Click="AddChecklist" AutomationProperties.Name="Create checklist"><Path Data="{StaticResource PtjIconChecklist}" Style="{StaticResource NotebookToolIcon}"/></Button><Button x:Name="ToggleCheckButton" Style="{StaticResource NotebookToolButton}" Click="ToggleCheck" AutomationProperties.Name="Toggle checklist checked state (Control Enter)"><Path Data="{StaticResource PtjIconActivate}" Style="{StaticResource NotebookToolIcon}"/></Button></StackPanel></Border>
+       <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1,0,0,0" Padding="5,0,0,0" Margin="4,2,0,2"><StackPanel Orientation="Horizontal"><Button x:Name="HyperlinkButton" Style="{StaticResource NotebookToolButton}" Click="ToggleLinkActions" AutomationProperties.Name="Hyperlink actions (Control K)"><Path Data="{StaticResource PtjIconHyperlink}" Style="{StaticResource NotebookToolIcon}"/></Button><Button x:Name="InsertImageButton" Style="{StaticResource NotebookToolButton}" Click="InsertImage" AutomationProperties.Name="Insert image"><Path Data="{StaticResource PtjIconImage}" Style="{StaticResource NotebookToolIcon}"/></Button></StackPanel></Border>
+       <Border BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1,0,0,0" Padding="5,0,0,0" Margin="4,2,0,2"><StackPanel Orientation="Horizontal"><Button x:Name="UndoButton" Style="{StaticResource NotebookToolButton}" Click="Undo" AutomationProperties.Name="Undo"><Path Data="{StaticResource PtjIconUndo}" Style="{StaticResource NotebookToolIcon}"/></Button><Button x:Name="RedoButton" Style="{StaticResource NotebookToolButton}" Click="Redo" AutomationProperties.Name="Redo"><Path Data="{StaticResource PtjIconRedo}" Style="{StaticResource NotebookToolIcon}"/></Button></StackPanel></Border>
+      </WrapPanel></Border>
+      <Expander x:Name="LinkActions" PreviewKeyDown="InlineActionsKeyDown" Style="{StaticResource NotebookInlineExpander}" Header="Hyperlink" Foreground="{DynamicResource PtjTextPrimaryBrush}" Margin="0,0,0,6" AutomationProperties.Name="Hyperlink actions">
        <WrapPanel>
         <TextBox x:Name="LinkUrl" Width="200" AutomationProperties.Name="HTTP or HTTPS link URL" Margin="0,4,4,4"/>
         <Button Content="Apply link" Click="ApplyLink" IsEnabled="{Binding CanEditBody}" Margin="0,4,4,4"/>
         <Button Content="Remove link" Click="RemoveLink" IsEnabled="{Binding CanEditBody}" Margin="0,4,4,4"/>
-        <Button Content="Open link" Click="OpenLink" Margin="0,4,4,4"/>
+        <Button Content="Open link" Click="OpenLink" Margin="0,4,4,4"/><Button Content="Cancel" Click="CloseLinkActions" Margin="0,4,4,4" AutomationProperties.Name="Dismiss hyperlink actions"/>
        </WrapPanel>
       </Expander>
       <TextBlock x:Name="EditorFeedback" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>

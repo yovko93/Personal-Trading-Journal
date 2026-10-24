@@ -20,6 +20,8 @@ public sealed record NotebookRow(NotebookListItem Item)
     public string Title => Item.Title;
     public string Preview => Item.Preview;
     public string Tags => string.Join(" · ", Item.Tags.Select(t => t.Name));
+    public IEnumerable<NotebookNamedItem> TagChips => Item.Tags.Take(2);
+    public string RemainingTags => Item.Tags.Length > 2 ? $"+{Item.Tags.Length - 2}" : "";
     public string Pin => Item.IsPinned ? "Pinned" : "";
     public string Updated => $"{TradingTimePolicy.ConvertUtcToTradingTime(Item.UpdatedAtUtc):g} NY";
     public string AccessibleName => $"{Title}. {Pin}. Updated {Updated}. {Tags}";
