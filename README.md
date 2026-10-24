@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A7 — Integrated Notebook UI acceptance
+
+**A1–A7 integrated automated UI acceptance is complete and ready for M22.12B; overall M22.12 acceptance remains pending.** Reviewed the current workspace against the supplied reference, including populated Light/Dark normal/narrow-high-DPI views, menus, long names, empty selection and contextual recovery. No blocking visual defect or production correction was identified.
+
+Reused current-source A6 evidence: **191/191 Desktop tests**, zero failures/skips. Added the missing scrolled linked-record viewport to the existing presentation fixture: **4/4 parents and four distinct matching children passed**, exit **0**, 46.410s; these overlap A6 and are not added to its total. Release build: zero warnings/errors. **29 captures inspected** (25 reused, four added). Whitespace and local documentation-target checks passed. [Requirement/evidence matrix, capture paths, commands and exact three-file A7 inventory](docs/notebook.md#m2212a7--integrated-notebook-ui-acceptance). Evidence: `TestResults/m2212a7-verified/summary.json`.
+
+No complete gate ran. Human keyboard/Narrator assessment, real clipboard/picker/viewer, installed-codec behavior, native journal restart and matching hosted execution remain unverified. Earlier sections below are historical phase records.
+
 ## M22.12A6 — Compact editor and note rows
 
 Notebook formatting uses compact, wrapping icon groups; assigned tags appear as removable chips beside Add tag. Note rows show bounded title/preview text, dates, tag badges and a pin with teal selection styling. Hyperlink actions retain their opening selection and URL draft. A1–A5 navigation, autosave/recovery and image-aware undo remain intact.

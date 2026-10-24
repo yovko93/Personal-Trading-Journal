@@ -1,5 +1,73 @@
 # Notebook
 
+## M22.12A7 — Integrated Notebook UI acceptance
+
+24 October 2026. **A1–A7 integrated automated UI acceptance is complete; ready for M22.12B. Overall M22.12 acceptance remains pending.** One agent, no complete Release gate. Actual baseline was clean **develop / `6df156e869e7d802a021414de4fc47815cd6a3eb`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A6 changes after `213c2d744d17fb61784627e215e0f5c043ad4428` had already been committed. No pending changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md.
+
+Evidence provenance: all ten A6 final file hashes and both recorded Desktop/test binary hashes matched at entry (`TestResults/m2212a7-verified/baseline-provenance.json`). Therefore the A6 final 191/191 parent results, 34 separately counted child results and current A1–A6 renders remain applicable. A1–A5 UI families were rendered again during that A6 run; older phase screenshots were not substituted for the final UI. Each reused image is copied with its original path, SHA-256, passing child identity and TRX interval in `reused-renders.json`; every capture timestamp falls inside that child's passing interval. Autosave captures from the test output directory were checked the same way. The legacy directory name `m2210b-renders` does not indicate old evidence: these copies originate in the A6 final lifecycle child runs.
+
+The concrete visual coverage gap was the lower linked-record area of the coherent populated note. The existing presentation fixture now also scrolls its rendered ContentScroll to the bottom and asserts that both complete linked rows are within the viewport. Its top and bottom captures show the same fixture: rich text, checklist, three assigned tags including a long name, folder context, captioned chart, Trade and Trading Setup links, pin and save state. No composite or reduced-scale substitute was made. Existing interaction assertions, exact child selection, case-owned lifetime, exclusive scheduling, 90-second process deadline and 30-second watchdog remain unchanged. No production correction was demonstrated or made.
+
+### Requirement-to-evidence matrix
+
+All paths below are under `TestResults/m2212a7-verified/` unless explicitly identified as A6. Automated coverage means the retained passing assertions plus source/real-render review, not a human usability assessment.
+
+| Requirement | Current evidence | Status | Remaining issue or limit |
+| --- | --- | --- | --- |
+| A1 Workspace contains only All Notes/Pinned with icons; separate counted folders; virtual scopes in one overflow | A6 NotebookViewTests and Workspace logic; reused populated and header/overflow captures | Passed | Existing shell retained |
+| A2 inline folder creation, validation, owned focus, duplicate/late submission and guarded selection | A6 FolderCreation logic/view cases; reused folder-creation expanded/validation captures | Passed | Validation also appears in global feedback; readable, nonblocking duplication |
+| A3 real-folder-only rename/delete, long heading, confirmation, note retention and fallback | A6 FolderAction logic/view cases, including changed selection during confirmation/persistence; reused folder-action long-heading/rename/validation | Passed | Narrow layout uses existing pane navigation |
+| A4 search, split blank/template creation, all five templates, Refresh/virtual scopes, contextual Cancel | A6 Header logic/view cases and Workspace regressions; reused header templates/overflow/busy | Passed | Search semantics unchanged; no live search |
+| A5 title, authoritative pin, note menu, lifecycle availability and stale-note/draft safety | A6 NoteActions/Lifecycle/CopyDelete and lifecycle view cases; reused long-title/note-menu/archived | Passed | Save/Discard remain contextual when needed |
+| Truthful save/recovery/error states, empty selection and read-only capabilities | A6 Autosave logic/view and lifecycle view; reused autosave recovered/conflict/saving/failed, lifecycle empty/save-error/archived | Passed | Recovery checkpoint explicitly differs from canonical save |
+| Compact toolbar, selection-preserving link/image insertion, checklist versus checked-state, undo/redo and safe paste | A6 Editing/EditorView/ImageEditor/ImageCoordination plus four A7 presentation cases | Passed | Native picker/clipboard/viewer usage is not established by test doubles |
+| Assigned chips versus global tags; bounded list title/preview/date/tags/pin; filters and selection | A6 Tag logic/view, Workspace and presentation cases; reused populated/rows/tag-picker | Passed | No new queries, serialization or features |
+| Integrated rich note in Light/Dark at 1280 DIP/96 DPI and 480 DIP/240 DPI, including bottom actions | Four A6 populated views plus four A7 linked-items views and viewport assertions | Passed | Content scrolls; all content is not forced into one image |
+| Keyboard access, visible focus styling and popup ownership | A6 native keyboard view assertions; A7 presentation keyboard assertions; existing button/menu/row focus styles inspected | Passed (automated) | Human keyboard and Narrator assessment unverified |
+| Human/native/hosted acceptance | No new evidence supplied or performed | Unverified; deferred | Real clipboard/picker/viewer, installed codec, native journal restart and matching hosted timing/input remain outstanding |
+
+The interaction audit includes name/persistence failures, repeated pending submissions, Save/Discard/Cancel consent, late completion after selection/deactivation, deleted folders, captured template identity, main blank creation after prior template use, menu dismissal, stale popup commands, pin failure, newer drafts during Discard confirmation, retained originals across image undo/redo and assignment removal without global tag deletion. A6 `test-audit.json` retains exact identities; `interaction-identities.txt` provides an extracted navigation/draft/creation index. The A6 scheduling regressions remain valid because no trait, collection, helper or dispatch changed. No union of earlier focused selections was rerun or summed.
+
+### Commands and results
+
+Only the existing four-case presentation family was rebuilt/run to close the viewport gap:
+
+```powershell
+& ./TestResults/m2212a7-verified/context.ps1 -OutputName before-context.json
+& ./TestResults/m2212a7-verified/run.ps1 -Name viewport -Build -Filter 'FullyQualifiedName~NotebookPresentationViewTests'
+& ./TestResults/m2212a7-verified/context.ps1 -OutputName after-context.json
+& ./TestResults/m2212a7-verified/check-whitespace.ps1
+& ./TestResults/m2212a7-verified/check-doc-links.ps1
+```
+
+The runner executes `dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore`, then `dotnet test` on that project with `-c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookPresentationViewTests' --logger trx --results-directory TestResults/m2212a7-verified/viewport`. Release build passed with **zero warnings/errors**, reported **54.92s**. Focused parent wall time, including child startup: **46.4102448s**; **4/4 parents passed**, zero failures/skips, exit **0**. Literal-path-safe TRX auditing confirms **four distinct matching children**, one completed result per parent and no duplicate/missing/skipped cases. The four parent identities overlap A6's 191; they do not establish 195 unique cases. `viewport/result.json`, `test-audit.json`, raw parent/child TRX, output and supervision artifacts retain the evidence. No failed A7 run was replaced.
+
+The supported authorized input-desktop executor used interactive Windows session **1 / WinSta0 / Default**, successful cursor access and its existing administrator token, with no UAC/token/desktop switching. Before/after context records found no active tests. Test-created windows and native keyboard/capture automation do not establish human interaction or restart acceptance. Build/test results apply to baseline HEAD plus the presentation-test change; documentation was updated afterward. No runtime repeat was needed for documentation. Whitespace and local Markdown-target existence checks passed; remote URLs/fragment anchors are outside that link check. No schema/model/format changed, so no new EF consistency run was needed.
+
+### Inspected visual evidence
+
+Compared with `C:/Users/Yovko/Downloads/the target design reference.png`. **29 real WPF images were inspected**, with original-source/hash manifests `reused-renders.json` (25) and `added-renders.json` (four). Exact copied paths, using brace notation for alternatives:
+
+- `reused/presentation-renders/{Light,Dark}-{1280-96,480-240}-populated.png` (four); `Dark-480-240-rows.png`; `Light-1280-96-tag-picker.png`.
+- `reused/folder-action-renders/Light-1280-96-long-heading.png`; `Dark-480-240-{rename,validation}.png`.
+- `reused/folder-creation-renders/Light-1280-96-expanded.png`; `Dark-480-240-validation.png`.
+- `reused/header-renders/{Light-1280-96,Dark-480-240}-templates.png`; `Dark-480-240-overflow.png`; `Light-1280-96-busy.png`.
+- `reused/m2210b-renders/Light-1280-96-empty.png`; `Dark-480-240-{long-title,save-error,archived}.png`; `{Light-1280-96,Dark-480-240}-note-menu.png`.
+- `reused/notebook-autosave-renders/Light-1280-96-{recovered,saving}.png`; `Dark-480-240-{conflict,failed}.png`.
+- `added-renders/{Light,Dark}-{1280-96,480-240}-linked-items.png` (four additional bottom viewport states).
+
+No blocking integrated visual defect was found. Long headings/titles/tags remain bounded or wrap without covering actions; toolbar groups wrap; selection uses teal; disabled controls and contextual errors remain legible across themes. Existing focus styles provide keyboard borders and highlighted menu items. Both linked records and their controls, Refresh linked items and Link item are visible in the scrolled views. Menus, empty state, archived read-only state and recovery messages were checked in current renders.
+
+Deliberate differences from the reference remain: established application shell/palette; pane switching at narrow widths; editable title surface; explicit checklist checked-state text; original/image-action controls; more detailed linked-record cards/identities and recovery messages; contextual Save/Discard. The reference's illustrative callout is not a newly supported block. Duplicated inline/global creation validation is nonblocking. Native workflows/restart and the final complete gate follow separately in M22.12B; no hosted execution, CI change, provider access, publication, schema/format change or unrelated redesign occurred. Historical A1–A6 records below retain their then-pending phase statuses.
+
+Exact A7 inventory: **three modified files, no added source files and no pre-existing pending changes**:
+
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookPresentationViewTests.cs` — one additional scrolled viewport and both linked-row visibility assertions; existing fixture, input assertions and dispatch preserved.
+- `README.md` — current integrated acceptance/status summary.
+- `docs/notebook.md` — requirement matrix, provenance, commands, captures, limitations and inventory.
+
+Ignored `TestResults/m2212a7-verified/` scripts/manifests/logs/TRX/captures are retained evidence, not additional tracked implementation. A1–A6 production changes are already committed in the baseline and were not rewritten.
+
 ## M22.12A6 — Compact toolbar, assigned chips and note rows
 
 23 October 2026 verification; documentation finalized 24 October 2026. Actual baseline: **clean develop / `213c2d744d17fb61784627e215e0f5c043ad4428`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A5 was already committed after the reported `40ec9ef0f3c9d079cb26d676d80764a3e7618679`; there were no pre-existing uncommitted changes. One agent; no repository/ancestor AGENTS.md found. Results below apply to this HEAD plus the A6 source inventory, not HEAD alone.

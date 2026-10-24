@@ -69,7 +69,7 @@ public sealed class NotebookPresentationViewTests
                 window.Show(); Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(view.ImageLoadsTask); vm.Panel = 2; Layout();
                 var editor = (RichTextBox)view.FindName("Preview");
                 Assert.Equal(2, vm.Notes[0].TagChips.Count()); Assert.Equal("+1", vm.Notes[0].RemainingTags);
-                Render("populated"); vm.Panel = 1; Layout(); Render("rows"); vm.Panel = 2; Layout();
+                Render("populated"); Render("linked-items"); vm.Panel = 1; Layout(); Render("rows"); vm.Panel = 2; Layout();
                 foreach (var name in new[] { "BoldButton", "ItalicButton", "UnderlineButton", "BulletsButton", "NumberingButton", "ChecklistButton", "ToggleCheckButton", "HyperlinkButton", "InsertImageButton", "UndoButton", "RedoButton" })
                 {
                     var button = Button(name); Assert.Equal(name is not ("UndoButton" or "RedoButton"), button.IsEnabled); Assert.True(button.Focusable);
@@ -138,6 +138,19 @@ public sealed class NotebookPresentationViewTests
                 {
                     Pump(snapshot.ImageLoadsTask); snapshot.Measure(new Size(width, 1100)); snapshot.Arrange(new Rect(0, 0, width, 1100)); snapshot.UpdateLayout();
                     if (state == "tag-picker") { ((Expander)snapshot.FindName("TagAssignment")).IsExpanded = true; snapshot.UpdateLayout(); }
+                    if (state == "linked-items")
+                    {
+                        var scroll = (ScrollViewer)snapshot.FindName("ContentScroll");
+                        scroll.ScrollToBottom(); snapshot.UpdateLayout();
+                        var items = (ItemsControl)snapshot.FindName("LinkedItemList");
+                        Assert.Equal(2, items.Items.Count);
+                        foreach (var item in items.Items)
+                        {
+                            var row = (FrameworkElement)items.ItemContainerGenerator.ContainerFromItem(item);
+                            var at = row.TranslatePoint(new Point(0, 0), snapshot);
+                            Assert.InRange(at.Y, 0, 1100); Assert.InRange(at.Y + row.ActualHeight, 0, 1100);
+                        }
+                    }
                     string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "presentation-renders"); Directory.CreateDirectory(directory);
                     var bitmap = new RenderTargetBitmap(width * dpi / 96, 1100 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(snapshot);
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(file);
