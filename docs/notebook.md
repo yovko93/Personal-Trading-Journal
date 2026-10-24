@@ -1,5 +1,76 @@
 # Notebook
 
+## M22.12A8 — Notebook action colors and menu toggling
+
+24 October 2026. One agent; A8 only. Verified baseline: clean **develop / `afb369a415376563f0feea1b68b9f88ea105032a`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A7 had already been committed after the reported `6df156e869e7d802a021414de4fc47815cd6a3eb`; no pending changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md. Results apply to this HEAD plus the seven-file inventory below.
+
+**Confirmed cause and correction.** Both ellipsis buttons used the shared EntityActionMenu handler, which unconditionally set IsOpen=true. The retained native-input baseline reproduces the second-click failure: outside-down at timestamp 121302156 releases menu capture, then the underlying trigger receives mouse-down/up and opens the menu again at 121302171. Waiting for the eventual Closed event or simply inverting IsOpen in Click cannot reliably distinguish this sequence. WPF's [MenuBase outside-click handling](https://raw.githubusercontent.com/dotnet/wpf/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/MenuBase.cs) corroborates the observed ordering.
+
+The Notebook-local handler records the trigger and outside-down timestamp for that pointer gesture. The corresponding Click consumes the dismissal instead of reopening; a fresh mouse-down or keyboard input clears an obsolete gesture. Other activation toggles normally and explicitly closes the other ellipsis menu. Escape, outside clicks, menu-item dismissal and synchronous return to the originating trigger retain WPF's own menu behavior; no delayed focus restoration was added. Detaching closes both menus. Existing captured-note commands, selection-generation checks, confirmations and Save/Discard/Cancel guards are unchanged. Opening/closing either menu performs no write. The shared EntityActionMenu implementation, template dropdown and unrelated controls were not modified.
+
+Only New folder, NotebookOverflow and NoteOverflow opt into the local styles. They reuse existing `PtjPlanReadyBrush`, hover/pressed variants and `PtjPlanOnActionBrush`; disabled controls use existing surface/secondary-text/border resources. The ellipsis buttons remain 36 DIP square; New folder remains compact. Opaque state colors preserve contrast; a dashed foreground focus indicator is separate from the pressed/open color. Existing tooltips and accessible names remain. Automated checks verify open/hover/pressed/disabled brush selection, visible focus and at least **4.5:1** foreground/background contrast for the exercised states in both themes.
+
+### Focused verification
+
+Final Release build: `TestResults/m2212a8-verified/menu-readiness/build.log`, **0 warnings/errors**, reported **7.50s**. The final source was then exercised once by the combined focused selection below: **36/36 top-level Desktop tests**, zero failures/skips, exit **0**, **99.229327s** including isolated child startup. Ten one-case children match ten distinct parent identities; the two new mouse/menu theory rows are Light/1280/96 DPI and Dark/480/240 DPI. Child results and earlier representative runs are not added to the 36-parent total.
+
+| Selection | Passed/total |
+| --- | --- |
+| NotebookHeaderViewTests (two existing + two new) | 4/4 |
+| NotebookLifecycleViewTests | 4/4 |
+| NotebookFolderCreationViewTests | 2/2 |
+| NotebookHeaderTests | 3/3 |
+| NotebookNoteActionsTests | 7/7 |
+| NotebookFolderCreationTests | 15/15 |
+| ReleaseSchedulingTests | 1/1 |
+
+The new test uses native mouse movement/down/up against verified fixture-owned HWNDs. It covers open/close/reopen on both triggers, outside dismissal without focus theft, Escape and return focus, Space activation, switching menus in the full-width layout, exactly one Refresh query and one Duplicate write, stale-note command rejection, New folder focus and action colors. Existing view tests exercise keyboard selection of menu actions, all templates, lifecycle availability/confirmations, pin/move and stale popup ownership. Logic regressions retain duplicate-submit, cancelled navigation, newer-draft and late-result checks. The existing exclusive trait/collection, case-owned Application, exact display-name selection/single-result validation, 90-second process and 30-second watchdog limits remain unchanged.
+
+Commands (the existing runner preserves output, exit JSON, TRX and supervision artifacts):
+
+```powershell
+& ./TestResults/m2212a8-verified/context.ps1 -OutputName before-context.json
+& ./TestResults/m2212a8-verified/run.ps1 -Name menu-readiness -Build -Filter 'FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard&DisplayName~Dark'
+& ./TestResults/m2212a8-verified/run.ps1 -Name final -Filter 'FullyQualifiedName~NotebookHeaderViewTests|FullyQualifiedName~NotebookLifecycleViewTests|FullyQualifiedName~NotebookFolderCreationViewTests|FullyQualifiedName~NotebookHeaderTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~ReleaseSchedulingTests'
+& ./TestResults/m2212a8-verified/audit.ps1
+& ./TestResults/m2212a8-verified/context.ps1 -OutputName after-context.json
+& ./TestResults/m2212a8-verified/check-whitespace.ps1
+& ./TestResults/m2212a8-verified/check-doc-links.ps1
+```
+
+The runner builds `tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore`, then tests that project with `-c Release --no-build --no-restore`, the recorded filter, `--logger trx` and its unique results directory. The final test run did not rebuild again. `final/result.json`, `test-audit.json`, raw TRX and each child’s `menu-evidence/input-sequence.log` retain results and event order. Literal-path-safe auditing rejects missing, duplicate, failed or skipped results. `before-context.json` / `after-context.json` confirm supported authorized interactive Windows session 1, WinSta0/Default, cursor access and no active tests before/after. The executor used its existing token; no UAC/token/desktop switching occurred.
+
+Development evidence is retained and excluded from final totals:
+
+- `before-fix`: one failed Light case confirms the production reopen defect (second-click IsOpen remained true).
+- `toggle-fixed`: two failures in the new fixture's immediate HWND readiness assertion before clicking Refresh; repeated toggles and dismissal had passed.
+- `popup-ready`: Light passed; Dark's Refresh command never started because a moving popup item was clicked outside its final position. A hit-testable HWND alone was insufficient.
+- `input-ready`: two readiness failures because the new mouse-over condition incorrectly required outside triggers to report mouse-over while the menu held capture.
+- `menu-readiness`: corrected Dark case passed 1/1 with one matching child before the final combined run.
+
+Fixture readiness now waits, within three seconds and the unchanged watchdog, for the intended HWND and completed popup translation/fade; menu items additionally require actual mouse-over. Outside triggers intentionally do not require mouse-over during menu capture. No arbitrary sleep, input retry, forced capture release, substituted command task or direct-command replacement was introduced. The [WPF PopupRoot animation implementation](https://raw.githubusercontent.com/dotnet/wpf/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/PopupRoot.cs) informed these checks. Production behavior was not altered to compensate for fixture animation timing.
+
+### Visual evidence and scope
+
+**Sixteen final real WPF captures inspected**, all copied from the passing final children into `TestResults/m2212a8-verified/renders/`; `renders.json` records original paths and SHA-256 hashes:
+
+- `{Light-1280-96,Dark-480-240}-{NotebookOverflow,NoteOverflow}-{closed,open-trigger,open-menu}.png` (12).
+- `{Light-1280-96,Dark-480-240}-NewFolder-pressed-focus.png` (two).
+- `{Light-1280-96,Dark-480-240}-disabled.png` (two).
+
+Controls remain compact and readable; teal state differences and dashed focus borders are visible in both themes. Open popup content is captured separately from its trigger rather than composited. Narrow evidence uses the existing pane switcher and 240-DPI render target; it does not establish physical monitor scaling. The transparent top strip comes from the fixture’s external focus target offset; it is not Notebook content. Disabled captures explicitly exercise the local style without changing production command availability. No blocking A8 visual defect was found. A7's broader rich-content evidence remains historical/current for unchanged content; it is not substituted for A8 action-state captures.
+
+Exact inventory: **five modified and two added files**, no pre-existing pending files:
+
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — local three-control action styles and two toggle bindings.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs` — initialize local menu handling and close both menus on detach.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Menus.cs` (added) — gesture-aware toggle and menu exclusivity.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.cs` — partial declaration for the new focused cases; existing assertions retained.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs` (added) — native-input cases, bounded fixture readiness, diagnostic trace and renders.
+- `README.md` and `docs/notebook.md` — phase record. Ignored TestResults evidence is not additional source inventory.
+
+Whitespace and local documentation-target checks passed; URL/fragment validation is outside that check. No persistence/schema/document/export change requires a new EF check. No complete gate, CI change, provider access, publication or workflow triggering occurred. **A8 is complete; A9–A13 and M22.12B remain pending. Overall M22.12 acceptance remains pending.** Automated native input here does not establish human keyboard/Narrator assessment, real clipboard/picker/viewer operation, installed-codec behavior, native journal restart or matching hosted timing/input compatibility.
+
 ## M22.12A7 — Integrated Notebook UI acceptance
 
 24 October 2026. **A1–A7 integrated automated UI acceptance is complete; ready for M22.12B. Overall M22.12 acceptance remains pending.** One agent, no complete Release gate. Actual baseline was clean **develop / `6df156e869e7d802a021414de4fc47815cd6a3eb`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A6 changes after `213c2d744d17fb61784627e215e0f5c043ad4428` had already been committed. No pending changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md.

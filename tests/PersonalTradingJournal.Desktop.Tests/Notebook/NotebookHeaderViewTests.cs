@@ -17,7 +17,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
 [Collection(ExclusiveWpfCollection.Name)]
 [Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
-public sealed class NotebookHeaderViewTests
+public sealed partial class NotebookHeaderViewTests
 {
     private const string Host = "PTJ_NOTEBOOK_HEADER_HOST";
     [Theory]

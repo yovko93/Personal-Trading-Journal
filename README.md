@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A8 — Notebook action colors and menu toggling
+
+New folder and both Notebook ellipsis controls now share compact teal styling with distinct hover, pressed/open, disabled and keyboard-focus states. Both ellipsis menus toggle closed on a second click, reopen on the next, dismiss with Escape/outside input and remain mutually exclusive. Existing action ownership and draft guards remain intact.
+
+Focused Release verification passed **36/36 Desktop tests**, zero failures/skips, exit **0**, with **10 distinct matching child cases audited separately**. Build: zero warnings/errors. Sixteen current Light-normal/Dark-narrow-high-DPI captures were inspected without a blocking A8 defect. Whitespace and local documentation-target checks passed. Evidence: `TestResults/m2212a8-verified/summary.json`. [Cause, commands, retained development evidence, captures and exact inventory](docs/notebook.md#m2212a8--notebook-action-colors-and-menu-toggling).
+
+A8 is complete; **A9–A13, M22.12B and overall M22.12 acceptance remain pending**. No complete gate ran. Automated native input in a test fixture does not establish human/Narrator, real clipboard/picker/viewer, native journal restart or matching hosted acceptance. Earlier phase records remain historical.
+
 ## M22.12A7 — Integrated Notebook UI acceptance
 
 **A1–A7 integrated automated UI acceptance is complete and ready for M22.12B; overall M22.12 acceptance remains pending.** Reviewed the current workspace against the supplied reference, including populated Light/Dark normal/narrow-high-DPI views, menus, long names, empty selection and contextual recovery. No blocking visual defect or production correction was identified.

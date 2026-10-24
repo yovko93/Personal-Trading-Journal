@@ -33,6 +33,27 @@
   <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style x:Key="QuietText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  <!-- Only the three Notebook actions opt into these opaque teal state colors. -->
+  <Style x:Key="NotebookActionButton" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
+   <Setter Property="Background" Value="{DynamicResource PtjPlanReadyBrush}"/>
+   <Setter Property="Foreground" Value="{DynamicResource PtjPlanOnActionBrush}"/>
+   <Setter Property="BorderBrush" Value="{DynamicResource PtjPlanReadyBrush}"/>
+   <Setter Property="Padding" Value="10,6"/><Setter Property="MinHeight" Value="34"/>
+   <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Grid>
+    <Border x:Name="ActionChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource PtjCornerRadiusSm}">
+     <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True"/>
+    </Border>
+    <Rectangle x:Name="ActionFocus" Margin="3" Stroke="{TemplateBinding Foreground}" StrokeThickness="1" StrokeDashArray="2,2" Visibility="Collapsed" IsHitTestVisible="False"/>
+   </Grid><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ActionFocus" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanReadyHoverBrush}"/></Trigger>
+    <DataTrigger Binding="{Binding ContextMenu.IsOpen, RelativeSource={RelativeSource Self}}" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanReadyPressedBrush}"/></DataTrigger>
+    <Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="{DynamicResource PtjPlanReadyPressedBrush}"/></Trigger>
+    <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/></Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style x:Key="NotebookOverflowButton" TargetType="Button" BasedOn="{StaticResource NotebookActionButton}"><Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/><Setter Property="Padding" Value="8"/></Style>
   <Style x:Key="NotebookToolButton" TargetType="Button" BasedOn="{StaticResource PtjIconButtonStyle}">
    <Setter Property="Width" Value="32"/><Setter Property="Height" Value="32"/><Setter Property="MinHeight" Value="32"/><Setter Property="Padding" Value="6"/><Setter Property="Margin" Value="1,0"/><Setter Property="FontSize" Value="15"/>
    <Setter Property="ToolTip" Value="{Binding RelativeSource={RelativeSource Self}, Path=(AutomationProperties.Name)}"/>
@@ -129,7 +150,7 @@
        </StackPanel>
       </Expander>
       <DockPanel Margin="0,0,0,8">
-       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource PtjIconButtonStyle}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash, or refresh the current view.">
+       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource NotebookOverflowButton}" Click="ToggleOverflowMenu" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash, or refresh the current view.">
         <Button.ContextMenu>
          <ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NotebookOverflowOpened">
           <ContextMenu.ItemsSource><CompositeCollection>
@@ -152,7 +173,7 @@
       <ListBox x:Name="FolderScopeList" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
      </StackPanel>
-      <Button x:Name="NewFolderButton" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
+      <Button x:Name="NewFolderButton" Style="{StaticResource NotebookActionButton}" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
       <StackPanel x:Name="FolderCreation" Visibility="{Binding IsFolderCreationOpen, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12">
        <TextBox x:Name="NewFolderName" Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsFolderCreationPending}" MaxLength="128" PreviewKeyDown="FolderCreationKeyDown" AutomationProperties.Name="New folder name" AutomationProperties.HelpText="Enter creates the folder. Escape closes this field; a submitted creation may already be saved."/>
        <TextBlock Text="{Binding FolderCreationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
@@ -260,7 +281,7 @@
           <Path.Style><Style TargetType="Path"><Setter Property="Fill" Value="Transparent"/><Style.Triggers><DataTrigger Binding="{Binding Note.IsPinned}" Value="True"><Setter Property="Fill" Value="{DynamicResource PtjAccentBrush}"/></DataTrigger></Style.Triggers></Style></Path.Style>
          </Path>
         </Button>
-        <Button x:Name="NoteOverflow" Style="{StaticResource PtjIconButtonStyle}" interactions:EntityActionMenu.OpensContextMenu="True" ToolTip="Note actions" AutomationProperties.Name="Note actions">
+        <Button x:Name="NoteOverflow" Style="{StaticResource NotebookOverflowButton}" Click="ToggleOverflowMenu" ToolTip="Note actions" AutomationProperties.Name="Note actions">
          <Path Data="{StaticResource PtjIconMore}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" Stretch="Uniform"/>
          <Button.ContextMenu><ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NoteOverflowOpened">
           <MenuItem x:Name="MoveNoteMenuItem" Header="Move to folder…" AutomationProperties.Name="Move note to folder"/>

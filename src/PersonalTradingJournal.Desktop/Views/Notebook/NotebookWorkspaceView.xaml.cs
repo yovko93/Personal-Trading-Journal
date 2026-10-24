@@ -24,6 +24,7 @@ public partial class NotebookWorkspaceView : UserControl
     {
         InitializeComponent();
         _folderFocus = new(this);
+        InitializeOverflowMenus();
         PreviewKeyDown += (_, e) => { ++_headerInputVersion; if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control) CaptureCreationFocus(Keyboard.FocusedElement); };
         PreviewMouseDown += (_, _) => ++_headerInputVersion;
         PreviewMouseWheel += (_, _) => ++_headerInputVersion;
@@ -163,7 +164,7 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
     private void OnUnloaded(object sender, RoutedEventArgs e) { ++_headerInputVersion; _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
-    private void Detach() { NoteOverflow.ContextMenu.IsOpen = false; CloseNoteMove(false); if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
+    private void Detach() { CloseOverflowMenus(); CloseNoteMove(false); if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e)
     {
         LayoutPanels();
