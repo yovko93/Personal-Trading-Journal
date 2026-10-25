@@ -1,5 +1,96 @@
 # Notebook
 
+## M22.12A11 — Inline tag creation and per-tag management
+
+26 October 2026 (Europe/Kiev). One agent; A11 only. Actual baseline: **clean develop / `614c42e768b1712e786552dbfda410ad940f5d2f`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A10's nine reported pending changes after `438883acb8fb7ca668c1761161eba934c0e7dbd8` had been committed. Repository/ancestor guidance inspection found no AGENTS.md. The interrupted A11 turn had only its two model-file edits; they were preserved on resumption, HEAD was unchanged and no tests were active. Tested code is this HEAD plus the source/test inventory below; documentation was updated afterward. `TestResults/m2212a11-verified/source-provenance.json` and `binaries.json` record final hashes.
+
+### Behavior and safety
+
+- The Manage tags expander and its combined create/rename/delete controls are removed. **+ New tag** uses New folder's teal style and owned-focus mechanism. It opens one compact name field; Cancel is visible and teal Add appears only for non-whitespace text. Enter and Add share the existing validated creation command; Escape/Cancel reset the form without a pre-submission write. Blur does not submit. Input/errors survive invalid names, normalized duplicates, conflicts and persistence failures.
+- Creation only adds a global catalog tag. It neither assigns the tag to the current note nor enables a filter. Successful completion refreshes the bounded catalog/list, clears the name/error and collapses the form without requesting focus. The existing assignment picker/chips and AND-tag filtering retain their meanings.
+- Pending work makes the field read-only, disables duplicate creation/management submissions and leaves Cancel available. Dismissal invalidates form ownership and says a submitted change may already be saved; it is not a rollback. Captured form, activation and note-selection ownership prevent abandoned consent from persisting and late completion from clearing newer input or retargeting an unrelated note. Existing save/discard/cancel consent, autosave timing and expected-version writes remain intact. Assignment operations do not falsely announce that an unopened catalog form was dismissed.
+- Every tag has a separate compact ellipsis management button with the full tag name in its tooltip and accessible name. Mouse/Space activation or the context-menu keyboard key/Shift+F10 opens Rename and Delete globally. The button is separate from the filter checkbox; opening/closing a menu or rename field does not toggle filtering or write data. Rename opens a prefilled inline name with Rename/Cancel and Enter/Escape, retaining validation and persistence feedback. The intended tag ID/version is captured before asynchronous work, rather than following mutable `ManagedTag` selection. Stale versions/deleted identities remain subject to the existing persistence checks.
+- Delete retains the destructive confirmation identifying the tag and explaining removal from every note, including Archived and Trash, without deleting notes/content. Assignment removal remains a distinct note-level action that preserves the global catalog. The existing global-delete baseline verification, note-version advancement, conflict/recovery handling and stale-autosave rejection remain in place; no persistence/schema/archive/export change was made.
+- A8 menu toggling and note-action ownership, A9 archived/folderless visibility and All Notes deletion fallback, and A10 explicit folder creation remain intact. No note-date, CI, deadline, collection, partition or concurrency changes were made. New native interaction cases use the existing exclusive folder-creation fixture via a partial class, retaining exact child selection, 90-second process and 30-second case watchdogs; no scheduling helper was changed.
+
+### Commands and focused evidence
+
+Paths below are under `TestResults/m2212a11-verified/`. `run.ps1` uses `dotnet test <project> -c Release --no-build --no-restore --filter <filter> --logger trx --results-directory <run>` and `PTJ_TEST_RESULTS_DIRECTORY`. `-Build` first runs `dotnet build <project> -c Release --no-restore` and stops on failure. The default project is `tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj`.
+
+```powershell
+& ./TestResults/m2212a11-verified/context.ps1 -OutputName resumed-context.json
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+& ./TestResults/m2212a11-verified/run.ps1 -Name focused -Filter 'FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookFolderCreationViewTests|FullyQualifiedName~NotebookLegacyNavigationTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard|FullyQualifiedName~ReleaseSchedulingTests|(FullyQualifiedName~NotebookTagViewTests&DisplayName~Light&DisplayName~1280)'
+& ./TestResults/m2212a11-verified/run.ps1 -Name tag-corrected -Build -Filter 'FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~InlineTagCreationAndCapturedManagementUseRealControls|(FullyQualifiedName~NotebookTagViewTests&DisplayName~Light&DisplayName~1280)'
+& ./TestResults/m2212a11-verified/run.ps1 -Name infrastructure -Build -Project tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -Filter 'FullyQualifiedName~NotebookTagWorkflowTests'
+& ./TestResults/m2212a11-verified/run.ps1 -Name final-form-logic -Build -Filter 'FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests'
+& ./TestResults/m2212a11-verified/audit.ps1
+& ./TestResults/m2212a11-verified/context.ps1 -OutputName after-context.json
+& ./TestResults/m2212a11-verified/check-whitespace.ps1
+& ./TestResults/m2212a11-verified/check-doc-links.ps1
+```
+
+| Run | Parent passed / total | Failed / skipped | Exit | Command wall time |
+| --- | --- | --- | --- | --- |
+| Initial focused Desktop selection, retained | 95 / 98 | 3 / 0 | 1 | 60.275s |
+| Corrected tag logic, SQLite and UI selection | 33 / 33 | 0 / 0 | 0 | 33.346s |
+| Infrastructure tag workflows | 8 / 8 | 0 / 0 | 0 | 11.242s |
+| Final form-feedback and tag logic | 21 / 21 | 0 / 0 | 0 | 4.154s |
+
+Current evidence is **99 distinct passing Desktop parents**, not the sum of overlapping runs: 65 unaffected initial cases, 13 applicable corrected-selection cases and 21 final logic cases (including one new feedback regression). Infrastructure's eight cases are a separate project. `test-audit.json`/`audit-summary.json` reconcile raw literal-path-safe TRX identities and counters, including files containing brackets.
+
+**Ten distinct child cases** are counted separately: six exact one-child parents (Light 1280/96 and Dark 480/240 for A8 menus, A10 folder creation and A11 tag creation/management), plus the existing four-case Light/Dark normal/narrow tag-render suite dispatched once by its selected Light-normal parent. Its other three visible parents were not separately rerun, avoiding repeated class-wide dispatch without changing that harness. Latest applicable child results have no failures/skips, missing cases or duplicate identities. Initial child failures remain in `failure-diagnostics.json` and their original directories.
+
+Passing builds reported **zero warnings/errors**: `build-ready.log` 10.82s, `tag-corrected/build.log` 34.90s, `infrastructure/build.log` 5.66s and `final-form-logic/build.log` 14.40s. Two preparatory compilation failures are retained: `build.log` (25.75s), duplicate `AddTagButton` field, corrected by naming the new global creation control `AddNewTagButton` while retaining the note-assignment control; `build-controls.log` (31.14s), a local test helper named `Key` shadowing the enum, corrected to `PressTagKey`. No tests were launched against those failed builds.
+
+The initial three failed parents represented six child failures with two causes:
+
+1. Both new native form rows reached successful Add persistence but failed the retained closed-form assertion. The new selection-generation check treated WPF's transient clear/reselect during the command-owned `Notes` refresh as external navigation. Completion now checks the still-owned form/activation after this refresh; external selection is disabled while `IsWriting`, while dismissal/newer-input generation checks remain. Before persistence and before adopting a returned note baseline, the stronger context checks still apply. Model and actual bound-control tests passed after correction.
+2. The selected retained-render parent reported all four child rows failing the newly added `IsVisible` assertion. This fixture measures a detached visual, whose screen visibility is false. It now asserts configured `Visibility.Visible`; the separate hosted interaction rows still assert actual visibility, enabled state, keyboard focus, command counts and input retention. Existing filter, assignment-removal, editor-retention and wrapping assertions remain.
+
+The final small correction limits the pending-dismissal warning to a form that was actually open; a new delayed assignment-removal case demonstrates that changing panels with no catalog form does not show misleading form-cancellation feedback. Only the affected 21 logic cases ran again. No assertion, scheduling or deadline was weakened and no run was repeated merely to obtain green results. Original stdout, raw TRX and child supervision/input diagnostics remain under `focused/`; corrected evidence is under `tag-corrected/`, `infrastructure/` and `final-form-logic/`.
+
+Coverage includes blank/whitespace/nonblank Add visibility, Add/Enter exactly-once persistence, Cancel/Escape no-write behavior, retained errors, pending repeated Enter, cancellation and newer-input/deactivation protection, captured rename/delete targets, confirmation cancellation, no automatic assignment/filter, real SQLite duplicate/stale-deleted-tag behavior, selected externally deleted filter repair, autosave/recovery, A10 guards and A8 native menu interaction. Infrastructure covers concurrent deletion/save, stale autosave after assignment/global deletion, counts/search/paging, unsupported content and global versus single-assignment deletion.
+
+Supported UI execution used **session 1 / WinSta0 / Default**, interactive cursor access, the existing administrator token and the supported authorized executor; no UAC/token/desktop switching. `before-context.json`, `resumed-context.json` and `after-context.json` record no active tests before launch/resumption or after final cleanup. UI automation invokes the actual Button/MenuItem command paths; keyboard activation uses the existing input helper. This is not human interaction, native journal restart or proof of hosted input compatibility.
+
+### Inspected captures and limits
+
+Ten real WPF captures under `renders/` were inspected:
+
+- `Light-1280-96-{empty,populated,validation,rename,management-menu}.png`.
+- `Dark-480-240-{empty,populated,validation,rename,management-menu}.png`.
+
+`renders.json` records each exact path, original child path, SHA-256 and passing child interval. Menus are separately captured popup viewports, not composited application screenshots. Empty/whitespace input shows Cancel only; populated input shows Add/Cancel; error text wraps readably; long rename text remains editable by horizontal caret scrolling; management actions are readable in both themes. No blocking A11 visual defect was identified. These corrected-run captures remain current: the final logic-only warning condition does not alter their view/resources/fixture inputs or any displayed state. No exhaustive matrix or unrelated recapture was performed.
+
+The pre-existing **Light/high-DPI note-overflow-dot issue remains tracked for correction before A13 acceptance**, with A9's original evidence retained. Shared tag feedback still appears in both the organization pane and note-assignment feedback, as before. Native mouse activation of the new tag buttons was not separately exercised; their standard Button path was invoked through UI Automation and keyboard, while the retained A8 suite exercised native mouse menus. Human keyboard/Narrator, real clipboard/picker/viewer, native journal restart and matching hosted timing/input remain unverified. No new EF check is claimed for this presentation-only phase; backend/schema files are unchanged.
+
+Whitespace and local Markdown target-existence checks passed after documentation edits; remote URLs and fragment resolution are excluded. **A11 focused acceptance is complete. A12–A13, M22.12B and overall M22.12 acceptance remain pending.** No full gate, production/provider access, publication, workflow triggering or unrelated redesign occurred.
+
+### Exact A11 inventory
+
+**Nine modified and four added files (13 distinct files)**; no pre-existing pending changes. Ignored TestResults evidence is separate. A1–A10 source and historical artifacts were preserved.
+
+Modified:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Tags.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationViewTests.cs` (partial declaration only; original A10 case retained)
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagViewTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Added:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.TagForm.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Tags.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationViewTests.Tags.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagFormTests.cs`
+
+
 ## M22.12A10 — Explicit folder Add and Cancel
 
 25 October 2026. One agent; A10 only. Actual baseline: **clean develop / `438883acb8fb7ca668c1761161eba934c0e7dbd8`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A9's reported pending changes after `70d65eaa9991b972398503c00cf111d18fc080b5` were already committed. No existing changes or artifacts were discarded. Repository/ancestor inspection found no AGENTS.md. Tested code is this HEAD plus the seven source/test files below; README and this record were edited afterward. `final-source.json` and `final-binaries.json` record the final hashes; the original `tested-source.json` and `binaries.json` remain historical.

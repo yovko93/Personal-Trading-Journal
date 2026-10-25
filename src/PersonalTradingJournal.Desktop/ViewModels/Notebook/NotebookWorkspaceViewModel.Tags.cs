@@ -21,7 +21,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public ObservableCollection<NotebookTagOption> Tags { get; } = [];
     public ObservableCollection<NotebookTagOption> SelectedTagFilters { get; } = [];
     public ObservableCollection<NotebookNamedItem> AssignedTags { get; } = [];
-    public string TagName { get => _tagName; set => SetProperty(ref _tagName, value); }
+    public string TagName { get => _tagName; set { if (SetProperty(ref _tagName, value)) { if (_tagOperation) ++_tagFormGeneration; OnPropertyChanged(nameof(HasTagName)); } } }
     public string TagMessage { get => _tagMessage; private set => SetProperty(ref _tagMessage, value); }
     public NotebookTagOption? ManagedTag { get => _managedTag; set { SetProperty(ref _managedTag, value); NotifyTagCommands(); } }
     public NotebookTagOption? AssignmentTag { get => _assignmentTag; set { SetProperty(ref _assignmentTag, value); NotifyTagCommands(); } }
@@ -42,7 +42,7 @@ public sealed partial class NotebookWorkspaceViewModel
         ToggleTagFilterCommand = new(ToggleTagFilterAsync, t => t is not null && CanRead);
         ClearFiltersCommand = new(ClearFiltersAsync, () => CanRead);
         CreateTagCommand = new(() => CatalogTagAsync(new CreateNotebookTag(TagName)), () => CanChangeTags);
-        RenameTagCommand = new(() => ManagedTag is { } t ? CatalogTagAsync(new RenameNotebookTag(t.Id, t.Version, TagName)) : Task.CompletedTask,
+        RenameTagCommand = new(() => (_tagFormTarget ?? ManagedTag) is { } t ? CatalogTagAsync(new RenameNotebookTag(t.Id, t.Version, TagName)) : Task.CompletedTask,
             () => CanChangeTags && ManagedTag is not null);
         DeleteTagCommand = new(DeleteTagAsync, () => CanChangeTags && ManagedTag is not null);
         AssignTagCommand = new(() => AssignmentTag is { } t ? ChangeAssignmentAsync(t.Id, remove: false) : Task.CompletedTask,
@@ -52,6 +52,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private void NotifyTagCommands()
     {
+        OnPropertyChanged(nameof(IsTagOperationPending)); OnPropertyChanged(nameof(CanManageTags));
         ToggleTagFilterCommand?.NotifyCanExecuteChanged(); ClearFiltersCommand?.NotifyCanExecuteChanged();
         CreateTagCommand?.NotifyCanExecuteChanged(); RenameTagCommand?.NotifyCanExecuteChanged(); DeleteTagCommand?.NotifyCanExecuteChanged();
         AssignTagCommand?.NotifyCanExecuteChanged(); RemoveTagCommand?.NotifyCanExecuteChanged();
@@ -140,14 +141,25 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private Task DeleteTagAsync()
     {
-        var tag = ManagedTag;
-        return tag is null || !_dialogs.Confirm(new("Delete tag globally?",
+        return DeleteGlobalTagAsync(ManagedTag);
+    }
+    public Task DeleteGlobalTagAsync(NotebookTagOption? tag)
+    {
+        if (!CanManageTags || tag is null || !Tags.Any(t => t.Id == tag.Id && t.Version == tag.Version)) return Task.CompletedTask;
+        return !_dialogs.Confirm(new("Delete tag globally?",
             $"Delete “{tag.Name}” from every note, including Archived and Trash? Notes and their content remain. This is not just removing one assignment.",
             "Delete tag", isDestructive: true)) ? Task.CompletedTask : CatalogTagAsync(new DeleteNotebookTag(tag.Id, tag.Version, true));
     }
     private async Task CatalogTagAsync(NotebookCatalogCommand command)
     {
         if (!CanChangeTags) return;
+        long form = _tagFormGeneration, selection = _selectionGeneration;
+        var activation = _lifetime;
+        bool OwnsContext() => _active && !_disposed && ReferenceEquals(activation, _lifetime) &&
+            activation?.IsCancellationRequested == false && selection == _selectionGeneration;
+        bool OwnsForm() => _active && !_disposed && ReferenceEquals(activation, _lifetime) &&
+            activation?.IsCancellationRequested == false && form == _tagFormGeneration;
+        bool OwnsInput() => OwnsContext() && OwnsForm();
         var name = command is CreateNotebookTag c ? c.Name : command is RenameNotebookTag r ? r.Name : null;
         if (name is not null)
         {
@@ -155,28 +167,32 @@ public sealed partial class NotebookWorkspaceViewModel
             catch (ArgumentException) { TagMessage = "Enter a tag name of 1–64 characters (after trimming)."; return; }
         }
         _tagOperation = true; NotifyTagCommands(); StopSearch();
+        bool completed = false;
         try
         {
             await GuardedAsync(() => MutateAsync(async ct =>
             {
+                if (!OwnsInput()) return;
                 var before = Note;
                 bool sourceConflict = false;
                 var result = await Task.Run(() => _service.ExecuteCatalogAsync(command, ct), ct);
                 if (!Current(ct)) return;
                 if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message))))
-                { TagMessage = Message; return; }
+                { if (OwnsInput()) TagMessage = Message; return; }
                 if (result.DeletedItemId is Guid deleted) { _filterIds.Remove(deleted); _tags.RemoveAll(t => t.Item.Id == deleted); }
                 if (result.Item is { } item)
                 {
                     _tags.RemoveAll(t => t.Item.Id == item.Id); _tags.Add(new(item, 0));
-                    ManagedTag = new(item.Id, item.Name, item.Version, 0, _filterIds.Contains(item.Id), before?.TagIds.Contains(item.Id) == true);
+                    if (OwnsInput()) ManagedTag = new(item.Id, item.Name, item.Version, 0, _filterIds.Contains(item.Id), before?.TagIds.Contains(item.Id) == true);
                 }
+                // Catalog commits remain authoritative after dismissal, but must not replace a newer note context.
+                if (!OwnsContext()) { PublishTags(); Message = "Tag catalog updated. Refresh to reload stored counts."; return; }
                 // Only our confirmed deletion may advance the open note's baseline. Never adopt
                 // an unrelated concurrent version just to make a later autosave succeed.
                 if (before is not null && result.DeletedItemId is Guid removed && before.TagIds.Contains(removed))
                 {
                     var current = await Task.Run(() => _service.LoadAsync(before.Id, ct), ct);
-                    if (!Current(ct)) return;
+                    if (!Current(ct) || !OwnsContext()) return;
                     if (current.Note is { } n && n.Version == before.Version + 1 &&
                         Signature(n.Title, n.Document) == _savedSignature &&
                         n.TagIds.Order().SequenceEqual(before.TagIds.Where(id => id != removed).Order()))
@@ -184,8 +200,21 @@ public sealed partial class NotebookWorkspaceViewModel
                     else { sourceConflict = true; _autosavePaused = true; _recoveryConflict = true; TagMessage = "Tag deleted. The open note changed elsewhere; preserve your input and Refresh before editing its stored version."; }
                 }
                 await ReadPageAsync(false, before?.Id ?? SelectedNote?.Id, ct, keepEditor: true);
-                if (Current(ct)) { TagName = ""; Message = "Tag catalog updated."; if (!sourceConflict) TagMessage = ""; }
-            }));
+                if (Current(ct))
+                {
+                    completed = true; Message = "Tag catalog updated.";
+                    // This write owns the list refresh: WPF can transiently clear/reselect the
+                    // same item while Notes is republished. External selection is disabled during
+                    // IsWriting; the input generation still protects dismissal and newer input.
+                    if (OwnsForm())
+                    {
+                        TagName = ""; CloseTagForm();
+                        if (!sourceConflict) TagMessage = "";
+                    }
+                }
+            }), owns: OwnsInput);
+            if (!completed && OwnsInput() && TagMessage.Length == 0)
+                TagMessage = Message.Length == 0 ? "Tag change cancelled. Your input is retained." : Message;
         }
         finally { _tagOperation = false; NotifyTagCommands(); }
     }

@@ -18,7 +18,7 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
 [Collection(ExclusiveWpfCollection.Name)]
 [Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
-public sealed class NotebookFolderCreationViewTests
+public sealed partial class NotebookFolderCreationViewTests
 {
     private const string Host = "PTJ_NOTEBOOK_FOLDER_CREATION_HOST";
     [Theory]

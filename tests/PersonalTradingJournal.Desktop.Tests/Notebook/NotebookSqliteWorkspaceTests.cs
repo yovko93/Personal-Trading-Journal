@@ -12,6 +12,24 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 public sealed class NotebookSqliteWorkspaceTests
 {
     [Fact]
+    public async Task DuplicateGlobalTagAndStaleRenameRetainInputWithoutRecreatingDeletedTag()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        var existing = (await service.ExecuteCatalogAsync(new CreateNotebookTag("Research"))).Item!;
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService());
+        await vm.ActivateAsync(); vm.BeginTagCreation(); vm.TagName = "  RESEARCH  ";
+        await vm.CreateTagCommand.ExecuteAsync(null);
+        Assert.Equal("  RESEARCH  ", vm.TagName); Assert.True(vm.IsTagCreationOpen); Assert.NotEmpty(vm.TagMessage);
+        Assert.Equal(existing.Id, Assert.Single((await service.ListCatalogAsync(new(NotebookCatalogKind.Tags))).Items).Item.Id);
+        vm.CancelTagForm(); Assert.True(vm.BeginTagRename(vm.Tags.Single())); vm.TagName = "Retained stale name";
+        await service.ExecuteCatalogAsync(new DeleteNotebookTag(existing.Id, existing.Version, true));
+        await vm.RenameTagCommand.ExecuteAsync(null);
+        Assert.Equal("Retained stale name", vm.TagName); Assert.True(vm.IsTagRenameOpen); Assert.NotEmpty(vm.TagMessage);
+        Assert.Empty((await service.ListCatalogAsync(new(NotebookCatalogKind.Tags))).Items);
+    }
+
+    [Fact]
     public async Task DuplicateFolderCreationRetainsNameAndDoesNotSelectOrCreateAnotherFolder()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();

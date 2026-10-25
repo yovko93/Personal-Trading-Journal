@@ -1,5 +1,14 @@
 # Personal Trading Journal
 
+## M22.12A11 — Inline tag creation and per-tag management
+
+The TAGS section now offers **+ New tag**, with a focused inline name field, conditional teal Add and visible Cancel. Enter/Add create one global catalog tag without assigning it or enabling a filter. Escape/Cancel reset the form; validation/persistence failures retain input. Per-tag management buttons expose **Rename** and **Delete globally…**, with captured identities, keyboard access and the existing global-deletion confirmation. Assigned chips, filters, autosave/recovery and A10 folder controls remain intact.
+
+Focused evidence covers **99 distinct passing Desktop parent cases and 8/8 Infrastructure cases**, with **ten distinct isolated children counted separately**. Overlapping correction runs are not added to those totals. Release builds passed with zero warnings/errors; ten Light-normal/Dark-narrow-high-DPI captures were inspected. Initial build/test failures and their corrections remain recorded. Whitespace and local documentation-target checks passed. [Behavior, commands, results, captures and exact A11 inventory](docs/notebook.md#m2212a11--inline-tag-creation-and-per-tag-management). Evidence: `TestResults/m2212a11-verified/summary.json`.
+
+A11 is complete; **A12–A13, M22.12B and overall M22.12 acceptance remain pending**. The existing Light/high-DPI overflow-dot issue remains tracked for correction before A13 acceptance. No full gate ran; human/Narrator, native journal restart and matching hosted acceptance remain unverified. Earlier phase records are historical.
+
+
 ## M22.12A10 — Explicit folder Add and Cancel
 
 **+ New folder** now opens a compact name field with Cancel. Teal Add appears only for non-whitespace input; Add and Enter share the existing validated command. Cancel/Escape clear and close the form without creating a folder before submission. During creation, the name is read-only and Add is disabled; Cancel closes the form with a warning that an already committed creation is not rolled back. Existing guarded selection, autosave and owned-focus protections remain intact.

@@ -166,7 +166,7 @@ public partial class NotebookWorkspaceView : UserControl
         { EditorFeedback.Text = "Cut could not finish. The selected content is retained."; }
     }
     private void OnLoaded(object sender, RoutedEventArgs e) => Attach();
-    private void OnUnloaded(object sender, RoutedEventArgs e) { ++_headerInputVersion; _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
+    private void OnUnloaded(object sender, RoutedEventArgs e) { ReleaseTagControls(_model); ++_headerInputVersion; _folderFocus.Invalidate(); if (_ownsFolderRename) _model?.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation) _model?.DismissFolderCreation(); _ownsFolderCreation = false; _imageLoads?.Cancel(); Detach(); _model = null; }
     private void Detach() { CloseOverflowMenus(); CloseNoteMove(false); if (_model is not null) { _model.PropertyChanged -= Changed; _model.NoteCreated -= Created; } }
     private void Created(object? sender, EventArgs e)
     {
@@ -176,7 +176,7 @@ public partial class NotebookWorkspaceView : UserControl
         _creationFocusVersion = -1;
         _folderFocus.Request(() => { TitleEditor.SelectAll(); return TitleEditor; });
     }
-    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { ++_headerInputVersion; _folderFocus?.Invalidate(); if (_ownsFolderRename && e.OldValue is NotebookWorkspaceViewModel previous) previous.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
+    private void OnContextChanged(object sender, DependencyPropertyChangedEventArgs e) { ReleaseTagControls(e.OldValue as NotebookWorkspaceViewModel); ++_headerInputVersion; _folderFocus?.Invalidate(); if (_ownsFolderRename && e.OldValue is NotebookWorkspaceViewModel previous) previous.DismissFolderRename(); _ownsFolderRename = false; if (_ownsFolderCreation && e.OldValue is NotebookWorkspaceViewModel old) old.DismissFolderCreation(); _ownsFolderCreation = false; if (IsLoaded) Attach(); }
     private void Attach()
     {
         Detach();

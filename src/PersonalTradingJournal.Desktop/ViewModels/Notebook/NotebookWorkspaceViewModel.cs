@@ -170,7 +170,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public string FolderName { get => _folderName; set { if (SetProperty(ref _folderName, value)) OnPropertyChanged(nameof(HasFolderCreationName)); } }
     public NotebookFolderOption? ManagedFolder { get => _managedFolder; set { SetProperty(ref _managedFolder, value); NotifyCommands(); } }
     public NotebookFolderOption? MoveFolder { get => _moveFolder; set { SetProperty(ref _moveFolder, value); NotifyCommands(); } }
-    public int Panel { get => _panel; set { if (SetProperty(ref _panel, value)) { ++_panelGeneration; if (IsFolderCreationPending) DismissFolderCreation(); } } }
+    public int Panel { get => _panel; set { if (SetProperty(ref _panel, value)) { ++_panelGeneration; if (IsFolderCreationPending) DismissFolderCreation(); if (IsTagOperationPending) DismissTagForm(); } } }
     public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); NotifyCommands(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); OnPropertyChanged(nameof(CanInteract)); NotifyCommands(); } }
     public bool CanInteract => !_disposed && !IsWriting && !_noteOperation;
