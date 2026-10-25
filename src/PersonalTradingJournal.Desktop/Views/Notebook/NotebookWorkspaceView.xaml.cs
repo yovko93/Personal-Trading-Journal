@@ -90,19 +90,22 @@ public partial class NotebookWorkspaceView : UserControl
     {
         if (_model?.BeginFolderCreation() == true) { _ownsFolderCreation = true; _folderFocus.Request(() => NewFolderName); }
     }
+    private void CancelFolderCreation(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model) return;
+        bool restoreFocus = FolderCreation.IsKeyboardFocusWithin;
+        model.CancelFolderCreation(); _ownsFolderCreation = false; _folderFocus.Invalidate();
+        if (restoreFocus) _folderFocus.Request(() => model.Panel == 0 || ActualWidth >= 1000 ? NewFolderButton : null);
+    }
     private async void FolderCreationKeyDown(object sender, KeyEventArgs e)
     {
         if (_model is not { } model) return;
         if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            bool restoreFocus = NewFolderName.IsKeyboardFocusWithin;
-            model.DismissFolderCreation();
-            _ownsFolderCreation = false;
-            _folderFocus.Invalidate();
-            if (restoreFocus) _folderFocus.Request(() => model.Panel == 0 || ActualWidth >= 1000 ? NewFolderButton : null);
+            CancelFolderCreation(sender, e);
         }
-        else if (e.Key == Key.Enter)
+        else if (e.Key == Key.Enter && NewFolderName.IsKeyboardFocusWithin)
         {
             e.Handled = true;
             if (model.CreateFolderCommand.CanExecute(null)) await model.CreateFolderCommand.ExecuteAsync(null);

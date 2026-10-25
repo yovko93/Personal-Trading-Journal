@@ -1,5 +1,76 @@
 # Notebook
 
+## M22.12A10 — Explicit folder Add and Cancel
+
+25 October 2026. One agent; A10 only. Actual baseline: **clean develop / `438883acb8fb7ca668c1761161eba934c0e7dbd8`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A9's reported pending changes after `70d65eaa9991b972398503c00cf111d18fc080b5` were already committed. No existing changes or artifacts were discarded. Repository/ancestor inspection found no AGENTS.md. Tested code is this HEAD plus the seven source/test files below; README and this record were edited afterward. `final-source.json` and `final-binaries.json` record the final hashes; the original `tested-source.json` and `binaries.json` remain historical.
+
+### Behavior and ownership
+
+- **+ New folder** retains owned focus into the name field. Cancel is always visible while the form is open; Add is visible only for non-whitespace input and uses the existing teal action style. Cancel uses the secondary style. Wrapping buttons, accessible names, tooltips, focus indicators and inline error text remain usable at narrow width/high DPI.
+- Add and Enter use the same validated `CreateFolderCommand`. Enter is intercepted only while the name field owns focus, avoiding a second submission from button keyboard activation. Blur never submits. Invalid names, normalized SQLite duplicates and persistence errors retain the exact draft and error for correction.
+- Explicit Cancel/Escape clears the name, inline error and matching global validation error without clearing unrelated feedback. Before submission it creates nothing. Implicit dismissal retains its previous draft behavior. Success refreshes counts/catalog and selects the created folder through existing guarded navigation, then resets/collapses the form. Search/tag filters and newer note edits remain protected.
+- While creation is pending, Add is disabled, the name is read-only and Cancel remains available. The form explains that Cancel closes input and creation may already be saved; the existing pending-dismissal message persists after closing. It does not promise rollback. Existing generation checks prevent persistence after abandoned consent and prevent an already committed late result from taking unrelated selection or keyboard focus. No persistence, autosave timing, navigation consent or expected-version contract changed.
+- A8 menu toggling/ownership/colors and A9 non-Trash legacy visibility, nullable assignments and All Notes deletion fallback remain intact. Tag creation, schema, formats, CI settings, watchdogs and scheduling are unchanged.
+
+### Commands, results and retained failure evidence
+
+All evidence paths below are under `TestResults/m2212a10-verified/`. The runner uses `dotnet test <Desktop.Tests.csproj> -c Release --no-build --no-restore --filter <filter> --logger trx --results-directory <run>` with `PTJ_TEST_RESULTS_DIRECTORY`. Builds use `dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore`.
+
+```powershell
+& ./TestResults/m2212a10-verified/context.ps1 -OutputName before-context.json
+& ./TestResults/m2212a10-verified/run.ps1 -Name focused -Filter 'FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookFolderCreationViewTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookLegacyNavigationTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard|FullyQualifiedName~ReleaseSchedulingTests'
+& ./TestResults/m2212a10-verified/run.ps1 -Name folder-ui-corrected -Filter 'FullyQualifiedName~NotebookFolderCreationViewTests'
+& ./TestResults/m2212a10-verified/run.ps1 -Name cancel-reset-final -Build -Filter 'FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookFolderCreationViewTests'
+& ./TestResults/m2212a10-verified/final-audit.ps1
+& ./TestResults/m2212a10-verified/context.ps1 -OutputName final-after-context.json
+& ./TestResults/m2212a10-verified/check-whitespace.ps1
+& ./TestResults/m2212a10-verified/check-doc-links.ps1
+```
+
+| Run | Parent passed / total | Failed / skipped | Exit | Command wall time |
+| --- | --- | --- | --- | --- |
+| Initial focused selection, retained | 94 / 96 | 2 / 0 | 1 | 54.976s |
+| Corrected UI fixture only | 2 / 2 | 0 / 0 | 0 | 16.583s |
+| Final explicit-error-reset logic and UI | 19 / 19 | 0 / 0 | 0 | 19.335s |
+
+All three Release builds passed with **zero warnings/errors**: `build.log` 51.88s; `build-fixture-corrected.log` 10.79s; `cancel-reset-final/build.log` 36.74s (build-reported elapsed times). The latter includes the final Cancel/global-message reset. Current evidence comprises **96 distinct passing parents**: 77 unaffected cases reused from the first selection and 19 final affected cases, not the sum of overlapping runs. These cover real SQLite duplicates, creation consent/selection, pending cancellation, failures, autosave/newer drafts, folder deletion and legacy navigation, note-action ownership and release scheduling.
+
+`final-test-audit.json` preserves literal-path-safe raw TRX identities/counters across all runs. **Four distinct matching children** are counted separately: Light 1280/96 and Dark 480/240 folder creation (final run), plus the same two parameter rows for native overflow interaction (initial run). Each exact parent dispatched one matching child; final applicable evidence has no missing, skipped, duplicate or failed results. Historical repeated executions are not added to coverage totals.
+
+The two initial failures were the new folder-creation UI rows, at `Ready(SearchBox)` during the pending-creation check. Input logs recorded Search as **enabled=False**: existing `CanInteract` intentionally disables it during persistence. This was an invalid fixture focus target, not evidence of failed creation or denied desktop access. The correction asserts that disabled state and focuses an enabled fixture-owned button outside Notebook to model moving elsewhere; retained assertions verify that late completion leaves that focus and the prior scope intact. Original parent/child TRX, phase/input/supervision logs and errors remain under `focused/`, indexed by `failure-diagnostics.json`. The first corrected run passed both children. Final review then found matching global validation feedback remained after explicit Cancel; the small reset correction and its assertion justified the final 19-case run. No retries merely to obtain green results, relaxed assertion, arbitrary wait, forced focus guard, changed deadline or complete gate was used.
+
+UI Add checks invoke the actual Button automation peer/OnClick command path and require a fresh command task; Enter, Escape and Space checks use the existing keyboard helper. Existing A8 overflow checks use native mouse/keyboard input. Supported execution was **session 1 / WinSta0 / Default**, interactive cursor access, existing administrator token; no UAC/token/desktop switching. Restricted process inspection initially denied CIM access; supported executor context was recorded before testing. `before-context.json`, `before-corrected-context.json` and `final-after-context.json` establish context and no independently active tests before launch or remaining test processes after final cleanup. This does not establish restricted-executor or hosted input compatibility.
+
+### Visual evidence and limitations
+
+Six real WPF snapshots were inspected for readable fields, inline errors, teal Add, secondary Cancel and wrapping without clipping:
+
+- `renders-final/Light-1280-96-empty.png`
+- `renders-final/Light-1280-96-populated.png`
+- `renders-final/Light-1280-96-validation.png`
+- `renders-final/Dark-480-240-empty.png`
+- `renders-final/Dark-480-240-populated.png`
+- `renders-final/Dark-480-240-validation.png`
+
+`final-renders.json` records their original child-artifact paths, SHA-256 hashes and matching passing child intervals. All six final-build images are byte-identical to the inspected corrected-fixture images in `renders/`; the final message-reset correction did not change these visible states. Empty/whitespace input shows Cancel only; populated input shows Add and Cancel; validation retains the field/error. The existing Light/high-DPI note-overflow-dot limitation remains tracked in A9; no unrelated visual repair was attempted.
+
+Whitespace and local documentation-target existence checks passed after documentation edits (remote URLs and fragment targets are outside that check). Backend/model files are unchanged; no new EF/schema verification or backend acceptance is claimed. Human keyboard/Narrator assessment, real clipboard/picker/viewer, native journal restart and matching hosted timing/input compatibility remain unverified. **A10 focused acceptance is complete; A11–A13, M22.12B and overall M22.12 acceptance remain pending.** No full Release gate, production/provider access, publication or workflow triggering occurred.
+
+### Exact A10 inventory
+
+**Nine modified files; zero added source files; no pre-existing uncommitted A9 changes.** Ignored TestResults artifacts are separate.
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Folders.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderCreationViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookSqliteWorkspaceTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+
 ## M22.12A9 — Supported scopes and legacy-note visibility
 
 25 October 2026. One agent; A9 only. Actual baseline: **clean develop / `70d65eaa9991b972398503c00cf111d18fc080b5`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A8's reported pending changes after `afb369a415376563f0feea1b68b9f88ea105032a` had already been committed. No pre-existing changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md. Results apply to this HEAD **plus the A9 inventory below**, with source and binary SHA-256 manifests in `TestResults/m2212a9-verified/source-provenance.json` and `binaries.json`.

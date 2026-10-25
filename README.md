@@ -1,5 +1,14 @@
 # Personal Trading Journal
 
+## M22.12A10 — Explicit folder Add and Cancel
+
+**+ New folder** now opens a compact name field with Cancel. Teal Add appears only for non-whitespace input; Add and Enter share the existing validated command. Cancel/Escape clear and close the form without creating a folder before submission. During creation, the name is read-only and Add is disabled; Cancel closes the form with a warning that an already committed creation is not rolled back. Existing guarded selection, autosave and owned-focus protections remain intact.
+
+Focused evidence covers **96 distinct passing Desktop parent cases**, with **four distinct matching isolated children counted separately**. The final affected selection passed **19/19**, zero failures/skips, exit **0**. Two initial UI fixture failures were retained and corrected after evidence showed their focus target was intentionally disabled during persistence. Release builds passed with zero warnings/errors. Six Light-normal/Dark-narrow-high-DPI form captures were inspected; whitespace and local documentation-target checks passed. [Commands, failure evidence, captures and exact nine-file inventory](docs/notebook.md#m2212a10--explicit-folder-add-and-cancel). Evidence: `TestResults/m2212a10-verified/summary.json`.
+
+A10 is complete; **A11–A13, M22.12B and overall M22.12 acceptance remain pending**. No complete gate ran. The existing Light/high-DPI overflow-dot issue remains tracked. Human/Narrator, native journal restart and matching hosted acceptance remain unverified. Earlier phase records below are historical.
+
+
 ## M22.12A9 — Supported scopes and legacy-note visibility
 
 Notebook navigation now exposes All Notes, Pinned, real folders and Trash. Archived/Unfiled entries, Archive/Return to Active actions and the Count & filters help block are removed. All non-Trash notes—including existing archived and folderless notes—remain discoverable through consistent SQL queries, counts, search, tags and paging. Folder deletion preserves notes and selects All Notes; absent folder assignments display **No folder**.

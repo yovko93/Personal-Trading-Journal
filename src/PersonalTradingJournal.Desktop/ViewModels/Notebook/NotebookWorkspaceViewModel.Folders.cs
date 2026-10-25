@@ -12,6 +12,14 @@ public sealed partial class NotebookWorkspaceViewModel
     public bool IsFolderCreationPending { get => _folderCreationPending; private set { SetProperty(ref _folderCreationPending, value); CreateFolderCommand.NotifyCanExecuteChanged(); } }
     public string FolderCreationMessage { get => _folderCreationMessage; private set => SetProperty(ref _folderCreationMessage, value); }
 
+    public bool HasFolderCreationName => !string.IsNullOrWhiteSpace(FolderName);
+    public void CancelFolderCreation()
+    {
+        string error = FolderCreationMessage;
+        DismissFolderCreation(); FolderName = ""; FolderCreationMessage = "";
+        if (!IsFolderCreationPending && error.Length != 0 && Message == error) Message = "";
+    }
+
     public bool BeginFolderCreation()
     {
         if (!CanMutate || IsFolderCreationPending) return false;

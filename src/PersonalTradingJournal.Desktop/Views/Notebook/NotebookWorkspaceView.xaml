@@ -33,7 +33,7 @@
   <Style TargetType="TextBox" BasedOn="{StaticResource PtjTextBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style TargetType="ComboBox" BasedOn="{StaticResource PtjComboBoxStyle}"><Setter Property="Padding" Value="8,6"/><Setter Property="MinHeight" Value="34"/></Style>
   <Style x:Key="QuietText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}"><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
-  <!-- Only the three Notebook actions opt into these opaque teal state colors. -->
+  <!-- Notebook actions opt into these opaque teal state colors. -->
   <Style x:Key="NotebookActionButton" TargetType="Button" BasedOn="{StaticResource PtjButtonStyle}">
    <Setter Property="Background" Value="{DynamicResource PtjPlanReadyBrush}"/>
    <Setter Property="Foreground" Value="{DynamicResource PtjPlanOnActionBrush}"/>
@@ -174,8 +174,13 @@
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
      </StackPanel>
       <Button x:Name="NewFolderButton" Style="{StaticResource NotebookActionButton}" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
-      <StackPanel x:Name="FolderCreation" Visibility="{Binding IsFolderCreationOpen, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12">
-       <TextBox x:Name="NewFolderName" Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsFolderCreationPending}" MaxLength="128" PreviewKeyDown="FolderCreationKeyDown" AutomationProperties.Name="New folder name" AutomationProperties.HelpText="Enter creates the folder. Escape closes this field; a submitted creation may already be saved."/>
+      <StackPanel x:Name="FolderCreation" PreviewKeyDown="FolderCreationKeyDown" Visibility="{Binding IsFolderCreationOpen, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12">
+       <TextBox x:Name="NewFolderName" Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsFolderCreationPending}" MaxLength="128" AutomationProperties.Name="New folder name" AutomationProperties.HelpText="Enter creates the folder. Escape or Cancel clears and closes this form; a submitted creation may already be saved."/>
+       <WrapPanel Margin="0,6,0,0">
+        <Button x:Name="AddFolderButton" Content="Add" Style="{StaticResource NotebookActionButton}" Command="{Binding CreateFolderCommand}" Visibility="{Binding HasFolderCreationName, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,6,4" ToolTip="Create folder" AutomationProperties.Name="Add folder"/>
+        <Button x:Name="CancelFolderCreationButton" Content="Cancel" Click="CancelFolderCreation" Margin="0,0,0,4" ToolTip="Clear and close folder creation; a submitted creation may already be saved" AutomationProperties.Name="Cancel folder creation"/>
+       </WrapPanel>
+       <TextBlock Text="Creating folder… Cancel closes this form; creation may already be saved." Visibility="{Binding IsFolderCreationPending, Converter={StaticResource VisibleWhenTrue}}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>
        <TextBlock Text="{Binding FolderCreationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
       </StackPanel>
      <StackPanel IsEnabled="{Binding CanInteract}">

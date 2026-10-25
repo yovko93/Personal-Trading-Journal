@@ -24,6 +24,19 @@ public sealed class NotebookFolderCreationTests
         await vm.RefreshCommand.ExecuteAsync(null); Assert.Equal(data.Folders.Last().Id, vm.Scope.FolderId);
     }
 
+    [Fact]
+    public async Task ExplicitCancelResetsFormAndBlankVisibilityWithoutWriting()
+    {
+        var data = new NotebookFake(); using var vm = new NotebookWorkspaceViewModel(data, new FakeDialogService());
+        await vm.ActivateAsync(); vm.BeginFolderCreation(); Assert.False(vm.HasFolderCreationName);
+        vm.FolderName = " 	 "; Assert.False(vm.HasFolderCreationName);
+        vm.FolderName = "invalid\0name"; Assert.True(vm.HasFolderCreationName);
+        await vm.CreateFolderCommand.ExecuteAsync(null); Assert.NotEmpty(vm.FolderCreationMessage);
+        vm.CancelFolderCreation(); Assert.False(vm.IsFolderCreationOpen); Assert.False(vm.HasFolderCreationName);
+        Assert.Equal("", vm.FolderName); Assert.Equal("", vm.FolderCreationMessage); Assert.Equal("", vm.Message); Assert.Equal(0, data.Writes);
+        Assert.True(vm.BeginFolderCreation()); Assert.Equal("", vm.FolderName);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -81,6 +94,7 @@ public sealed class NotebookFolderCreationTests
     [InlineData("dismiss")]
     [InlineData("panel")]
     [InlineData("deactivate")]
+    [InlineData("cancel")]
     public async Task PendingCreationIsSingleSubmissionAndLateCommitCannotStealContext(string action)
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -96,14 +110,15 @@ public sealed class NotebookFolderCreationTests
             Assert.True(vm.IsFolderCreationPending); Assert.False(vm.CreateFolderCommand.CanExecute(null));
             await vm.CreateFolderCommand.ExecuteAsync(null); Assert.Equal(1, data.Writes);
             if (action == "dismiss") vm.DismissFolderCreation();
+            if (action == "cancel") vm.CancelFolderCreation();
             if (action == "panel") { vm.Panel = 2; vm.Panel = 0; }
             if (action == "deactivate") vm.Deactivate();
         }
         finally { release.SetResult(); await pending; }
         Assert.Single(data.Folders); Assert.False(vm.IsFolderCreationPending);
         if (action == "stay") { Assert.Equal(item.Id, vm.Scope!.FolderId); Assert.False(vm.IsFolderCreationOpen); }
-        else { Assert.Same(origin, vm.Scope); Assert.Equal(item.Name, vm.FolderName); }
-        if (action is "dismiss" or "panel") Assert.Contains("Folder created", vm.Message);
+        else { Assert.Same(origin, vm.Scope); Assert.Equal(action == "cancel" ? "" : item.Name, vm.FolderName); }
+        if (action is "dismiss" or "panel" or "cancel") Assert.Contains("Folder created", vm.Message);
     }
 
     [Fact]
@@ -117,9 +132,9 @@ public sealed class NotebookFolderCreationTests
         await vm.ActivateAsync(); vm.SelectedNote = vm.Notes[0]; await vm.LoadTask;
         vm.DraftTitle = "Saved draft"; vm.BeginFolderCreation(); vm.FolderName = "Must not create";
         var pending = vm.CreateFolderCommand.ExecuteAsync(null); await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        vm.DismissFolderCreation(); release.SetResult(new(NotebookWriteStatus.Success, note with { Title = "Saved draft", Version = 2 }));
+        vm.CancelFolderCreation(); release.SetResult(new(NotebookWriteStatus.Success, note with { Title = "Saved draft", Version = 2 }));
         await pending;
         Assert.Empty(data.Folders); Assert.Equal(1, data.Writes); Assert.Equal(note.Id, vm.Note!.Id);
-        Assert.False(vm.IsFolderCreationOpen); Assert.Equal("Must not create", vm.FolderName);
+        Assert.False(vm.IsFolderCreationOpen); Assert.Equal("", vm.FolderName);
     }
 }

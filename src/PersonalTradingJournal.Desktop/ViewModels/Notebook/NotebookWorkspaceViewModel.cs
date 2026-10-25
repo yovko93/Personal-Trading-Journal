@@ -167,7 +167,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         "No notes in this view. Create a note or choose another scope.";
     public string Message { get => _message; private set => SetProperty(ref _message, value); }
     public string SearchText { get => _search; set { if (SetProperty(ref _search, value) && !_publishing) ScheduleSearch(); } }
-    public string FolderName { get => _folderName; set => SetProperty(ref _folderName, value); }
+    public string FolderName { get => _folderName; set { if (SetProperty(ref _folderName, value)) OnPropertyChanged(nameof(HasFolderCreationName)); } }
     public NotebookFolderOption? ManagedFolder { get => _managedFolder; set { SetProperty(ref _managedFolder, value); NotifyCommands(); } }
     public NotebookFolderOption? MoveFolder { get => _moveFolder; set { SetProperty(ref _moveFolder, value); NotifyCommands(); } }
     public int Panel { get => _panel; set { if (SetProperty(ref _panel, value)) { ++_panelGeneration; if (IsFolderCreationPending) DismissFolderCreation(); } } }

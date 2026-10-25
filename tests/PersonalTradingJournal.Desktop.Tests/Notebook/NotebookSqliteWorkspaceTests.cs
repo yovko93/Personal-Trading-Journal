@@ -12,6 +12,20 @@ namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 public sealed class NotebookSqliteWorkspaceTests
 {
     [Fact]
+    public async Task DuplicateFolderCreationRetainsNameAndDoesNotSelectOrCreateAnotherFolder()
+    {
+        await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
+        var service = db.Provider.GetRequiredService<INotebookService>();
+        var existing = (await service.ExecuteCatalogAsync(new CreateNotebookFolder("Research"))).Item!;
+        using var vm = new NotebookWorkspaceViewModel(service, new FakeDialogService());
+        await vm.ActivateAsync(); var scope = vm.Scope; vm.BeginFolderCreation(); vm.FolderName = "  RESEARCH  ";
+        await vm.CreateFolderCommand.ExecuteAsync(null);
+        Assert.Equal("  RESEARCH  ", vm.FolderName); Assert.True(vm.IsFolderCreationOpen); Assert.True(vm.HasFolderCreationName);
+        Assert.NotEmpty(vm.FolderCreationMessage); Assert.Same(scope, vm.Scope);
+        Assert.Equal(existing.Id, Assert.Single((await service.ListCatalogAsync(new(NotebookCatalogKind.Folders))).Items).Item.Id);
+    }
+
+    [Fact]
     public async Task StaleInlineRenameNeverRecreatesExternallyDeletedFolder()
     {
         await using var db = await JournalSqliteTests.JournalTestDatabase.CreateAsync();
