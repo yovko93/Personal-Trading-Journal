@@ -21,7 +21,7 @@ public sealed class NotebookCatalogQuery
     public string? Cursor { get; }
 }
 
-/// <summary>All selected tags are required. Normal scopes contain only Active notes.
+/// <summary>All selected tags are required. Normal scopes contain all non-Trash notes, including legacy Archived notes.
 /// RecentlyUpdated is descending; Title is normalized ordinal-ignore-case ascending; both tie-break by ID ascending.</summary>
 public sealed class NotebookQuery
 {
@@ -38,7 +38,8 @@ public sealed class NotebookQuery
         if (tags.Length > NotebookLimits.Tags || tags.Contains(Guid.Empty) || tags.Distinct().Count() != tags.Length)
             throw new ArgumentException("Tag filters must be bounded, nonempty and unique.", nameof(tagIds));
         if (cursor is not null) NotebookLimits.Text(cursor, 2048, nameof(cursor), true);
-        Scope = scope; TagIds = tags; Sort = sort; Limit = limit; Cursor = cursor;
+        // Retain enum values for old navigation callers, but removed destinations have no separate query.
+        Scope = scope is NotebookScope.Unfiled or NotebookScope.Archived ? NotebookScope.AllNotes : scope; TagIds = tags; Sort = sort; Limit = limit; Cursor = cursor;
     }
     public NotebookScope Scope { get; }
     public Guid? FolderId { get; }
@@ -67,6 +68,7 @@ public sealed record NotebookListItem(Guid Id, string Title, string Preview, Not
     bool IsPinned, Guid? FolderId, long Version, DateTimeOffset UpdatedAtUtc, ImmutableArray<NotebookNamedItem> Tags);
 public sealed record NotebookNamedItem(Guid Id, string Name, long Version);
 public sealed record NotebookScopeCount(NotebookScope Scope, Guid? FolderId, long Count);
+/// <summary>ActiveNoteCount is the legacy member name; counts all non-Trash assignments.</summary>
 public sealed record NotebookCatalogItem(NotebookNamedItem Item, long ActiveNoteCount);
 /// <summary>Names ordered using the catalog comparer, then stable ID. Every omitted entry remains reachable.</summary>
 public sealed record NotebookCatalogPage(ImmutableArray<NotebookCatalogItem> Items, long TotalCount, string? NextCursor);

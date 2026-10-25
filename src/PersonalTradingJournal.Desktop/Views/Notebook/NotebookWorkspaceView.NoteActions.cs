@@ -16,8 +16,7 @@ public partial class NotebookWorkspaceView
         bool Owns() => ReferenceEquals(_model, model) && IsLoaded && ownsModel();
         _noteMenuOwns = Owns;
         foreach (var (item, command) in new (MenuItem, ICommand)[] {
-            (DuplicateNoteButton, model.DuplicateCommand), (ArchiveNoteButton, model.ArchiveCommand),
-            (UnarchiveNoteButton, model.UnarchiveCommand), (TrashNoteButton, model.TrashCommand),
+            (DuplicateNoteButton, model.DuplicateCommand), (TrashNoteButton, model.TrashCommand),
             (RestoreNoteButton, model.RestoreCommand), (DeleteNoteButton, model.DeletePermanentlyCommand),
             (SaveNoteMenuItem, model.SaveCommand), (DiscardNoteMenuItem, model.DiscardCommand) })
             item.Command = new OwnedNoteCommand(command, Owns);

@@ -1,5 +1,93 @@
 # Notebook
 
+## M22.12A9 — Supported scopes and legacy-note visibility
+
+25 October 2026. One agent; A9 only. Actual baseline: **clean develop / `70d65eaa9991b972398503c00cf111d18fc080b5`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A8's reported pending changes after `afb369a415376563f0feea1b68b9f88ea105032a` had already been committed. No pre-existing changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md. Results apply to this HEAD **plus the A9 inventory below**, with source and binary SHA-256 manifests in `TestResults/m2212a9-verified/source-provenance.json` and `binaries.json`.
+
+### Behavior and compatibility
+
+- WORKSPACE retains All Notes/Pinned and FOLDERS retains real folders/counts. The Notebook overflow now contains Trash and Refresh. Archived/Unfiled entries, Archive/Return to Active note actions and the Count & filters help block are absent. A8's teal states, owned focus, second-click toggling, Escape/outside dismissal, mutual exclusion and captured-note command ownership are unchanged.
+- All Notes includes every non-Trash note; Pinned includes pinned non-Trash notes. Folder/search/AND-tag queries, summaries and folder/tag catalog counts use the same population. SQL filtering, bounded projections, stable ordering, continuation limits, batched tags and snapshot-consistent counts remain intact. No document decoding, unbounded in-memory filtering or per-row database query was introduced. The legacy `ActiveNoteCount` member name is retained but documented as counting non-Trash assignments. Cursor fingerprints distinguish the new population; an old cursor must restart at the first page rather than silently mix semantics.
+- Stored Archived notes remain read-only: title/content, folder movement, pin and assignment changes are still rejected by their existing domain rules. Readable notes expose Duplicate (an independent Active copy) and Move to Trash. The editor explains this restriction; unsupported content explains preservation without promising an unavailable Duplicate action. There is deliberately no in-place Return to Active UI. Existing backend lifecycle commands remain compatible; no bulk conversion or migration was added.
+- Trash still restores the prior lifecycle state, including Archived, and the surviving previous folder. Restored archived notes immediately appear in All Notes and applicable pinned/folder/filter results. Nullable assignments remain nullable, displayed as **No folder**; Active notes can still remove their folder assignment through Move. Folder deletion preserves notes/content, clears current/restore-point folder references through the existing contract, and uses guarded All Notes fallback with consistent heading/highlighting/editor state. Existing search/tag filters remain applied.
+- Retained Archived/Unfiled scope values normalize to All Notes in both the query contract and guarded workspace selection. No note data changes during normalization. Draft cancellation retains the original scope/note/draft; successful consent preserves edits and selection remains supported after deactivation/reactivation.
+- Document JSON/archive v1 and existing export compatibility remain unchanged. Fresh-provider restore checks exercise both the retained older chosen backup and the newer backup, confirm archived discoverability in search/pinned/folder/tag results, and preserve exact exports, version, canonical content, image originals, links and recovery data. These are synthetic service/context restart checks, not a native journal-process restart.
+
+### Focused commands and evidence
+
+All paths below are under `TestResults/m2212a9-verified/` unless shown otherwise. No test/build was already active before this phase. Native UI checks used the supported authorized executor in **session 1 / WinSta0 / Default**, interactive cursor access, existing administrator token; no UAC, token or desktop switching was requested. `execution-context.json`, `before-ui-context.json` and `after-ui-context.json` record the context; the final check found no active test processes. Restricted-executor compatibility is not established by these runs.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+dotnet build tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -c Release --no-restore
+dotnet build tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -c Release --no-restore
+& ./TestResults/m2212a9-verified/run.ps1 -Name application -Project tests/PersonalTradingJournal.Application.Tests/PersonalTradingJournal.Application.Tests.csproj -Filter 'FullyQualifiedName~Notebook'
+& ./TestResults/m2212a9-verified/run.ps1 -Name infrastructure -Project tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -Filter 'FullyQualifiedName~NotebookQueryTests|FullyQualifiedName~NotebookLegacyVisibilityTests|FullyQualifiedName~NotebookTagWorkflowTests|FullyQualifiedName~NotebookPersistenceTests|FullyQualifiedName~NotebookTemplateLifecycleTests|FullyQualifiedName~NotebookPortabilityTests'
+& ./TestResults/m2212a9-verified/run.ps1 -Name desktop-logic -Filter 'FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookLegacyNavigationTests|FullyQualifiedName~NotebookSqliteWorkspaceTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookHeaderTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookCopyDeleteTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookLinkTests|FullyQualifiedName~ReleaseSchedulingTests'
+& ./TestResults/m2212a9-verified/context.ps1 -OutputName before-ui-context.json
+& ./TestResults/m2212a9-verified/run.ps1 -Name desktop-ui -Filter 'FullyQualifiedName~NotebookHeaderViewTests|FullyQualifiedName~NotebookLifecycleViewTests|FullyQualifiedName~NotebookFolderActionsViewTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)'
+& ./TestResults/m2212a9-verified/context.ps1 -OutputName after-ui-context.json
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+& ./TestResults/m2212a9-verified/audit.ps1
+& ./TestResults/m2212a9-verified/check-whitespace.ps1
+& ./TestResults/m2212a9-verified/check-doc-links.ps1
+```
+
+The runner uses `dotnet test <project> -c Release --no-build --no-restore --filter <filter> --logger trx --results-directory <phase/run>` and sets `PTJ_TEST_RESULTS_DIRECTORY`. Builds passed with **zero warnings/errors**: Desktop **62.73s**, Infrastructure **8.51s**, Application **4.11s** (reported build elapsed time). EF: **no pending model changes**, design-time factory; no production database access.
+
+| Selection | Passed / total | Failed / skipped | Exit | Measured command wall time |
+| --- | --- | --- | --- | --- |
+| Application Notebook contracts | 29 / 29 | 0 / 0 | 0 | 4.975s |
+| Infrastructure query, mixed-state visibility, tags, persistence, lifecycle and portability | 50 / 50 | 0 / 0 | 0 | 63.417s |
+| Desktop workspace, legacy navigation, SQLite, folders, header/actions, lifecycle/copy, tags, autosave/editing, links and scheduling | 155 / 155 | 0 / 0 | 0 | 14.172s |
+| Desktop UI parents | 11 / 11 | 0 / 0 | 0 | 104.860s |
+
+**166 distinct top-level Desktop cases**; child counts are separate. Literal-path-safe `test-audit.json` reconciles all TRX counters and result identities. Ten exact-dispatch parents each completed their one matching child: four lifecycle, two header, two native menu and two folder-action cases. One selected legacy workspace parent dispatched its existing four-case Light/Dark normal/narrow matrix once. **14 distinct child cases**, no missing, skipped, duplicate or failed results. The native menu cases retain actual mouse/keyboard dispatch and verify single execution, closure/reopening and stale-command rejection using the remaining Trash action. Original assertions, collection/trait scheduling, 90-second process limits and 30-second child watchdogs remain intact. No failed run was replaced and no full gate ran.
+
+Raw parent/child TRX, output, supervision, phase and keyboard/input logs remain beneath their four run directories. Successful focused logic includes folder deletion consent/retention/All Notes fallback, changed selection during operations, A1 refresh/cancel highlighting, A2 creation, A3 stale rename/deletion, A4 creation/cancellation, A5 newer drafts, autosave/recovery, retained image editing, tags and linked navigation. Old expectations were changed only where the requested scope population/UI contract changed; exact content assertions remain.
+
+### Inspected visuals and limitations
+
+Fourteen current real WPF captures were inspected and copied into `renders/`; `renders.json` records original paths, hashes, passing child identities and capture times within their child intervals:
+
+- `renders/{Light,Dark}-1280-96-legacy-{folderless,note-menu}.png` (four).
+- `renders/{Light,Dark}-480-240-legacy-{folderless,note-menu}.png` (four).
+- `renders/Light-1280-96-{NotebookOverflow,NoteOverflow}-open-menu.png` and corresponding `Dark-480-240` captures (four).
+- `renders/{Light-1280-96,Dark-480-240}-NotebookOverflow-closed.png` (two).
+
+The removed options/help are absent, remaining menus are readable, No folder and the archived read-only explanation wrap without overlap, and the existing teal/focus styles remain visible. No blocking A9 visual defect was found. One pre-existing visual limitation remains: the Light 480/240 lifecycle render shows a single visible dot in the note overflow trigger. The same appearance is present in retained A8 `final/notebook-lifecycle-20261024-185449-ca6dc119ad2443af8e02c20203d875fb/m2210b-renders/Light-480-240-archived.png`; no claim is made about its underlying rendering/input cause, and it was not broadened into a styling rewrite. The accessible name and keyboard/menu behavior pass. The native menu fixture's black outer strip and unavailable synthetic image are fixture presentation, not an application screenshot or evidence of a newly lost original.
+
+Whitespace (tracked and added files) and local Markdown target-existence checks passed; link checks exclude remote URLs and fragment validation. Human keyboard/Narrator assessment, real clipboard/picker/viewer operations, native journal restart and matching hosted timing/input compatibility remain unverified. Legacy archived notes cannot be edited or moved in place; Duplicate is the supported editable path. **A9 focused acceptance is complete. A10–A13, M22.12B and overall M22.12 acceptance remain pending.** No schema/format/CI/harness change, publication, workflow trigger or production/provider access occurred.
+
+### Exact A9 inventory
+
+**22 modified and two added files**, all A9; no pre-existing pending A8 files. The two added files are `NotebookLegacyNavigationTests.cs` and `NotebookLegacyVisibilityTests.cs`. Ignored TestResults evidence is separate from source inventory.
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Application/Notebook/NotebookQueries.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.FolderActions.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Lifecycle.cs`
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.NoteActions.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `src/PersonalTradingJournal.Infrastructure/Notebook/NotebookService.Queries.cs`
+- `tests/PersonalTradingJournal.Application.Tests/Notebook/NotebookContractTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookFolderActionTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLegacyNavigationTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookLifecycleViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookWorkspaceTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Backups/NotebookIntegratedBackupTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookLegacyVisibilityTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookQueryTests.cs`
+- `tests/PersonalTradingJournal.Infrastructure.Tests/Notebook/NotebookTagWorkflowTests.cs`
+
 ## M22.12A8 — Notebook action colors and menu toggling
 
 24 October 2026. One agent; A8 only. Verified baseline: clean **develop / `afb369a415376563f0feea1b68b9f88ea105032a`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A7 had already been committed after the reported `6df156e869e7d802a021414de4fc47815cd6a3eb`; no pending changes were overwritten. Repository/ancestor guidance inspection found no AGENTS.md. Results apply to this HEAD plus the seven-file inventory below.

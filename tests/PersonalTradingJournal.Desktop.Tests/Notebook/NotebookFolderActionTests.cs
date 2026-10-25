@@ -46,16 +46,16 @@ public sealed class NotebookFolderActionTests
         Assert.Equal("Research", data.Folders[0].Name); Assert.Equal(2, data.Folders.Count);
     }
     [Fact]
-    public async Task DeleteConfirmsBeforeDraftConsentAndRetainsExactContentWithUnfiledFallback()
+    public async Task DeleteConfirmsBeforeDraftConsentAndRetainsExactContentWithAllNotesFallback()
     {
         var data = new NotebookFake(); var dialogs = new FakeDialogService(); var choices = new NotebookChoices { Choice = NotebookLeaveChoice.Save };
         using var vm = await Open(data, dialogs, choices); var note = vm.Note!; var folder = vm.Scope!.FolderId;
         vm.DraftTitle = "Unsaved title";
         await vm.DeleteFolderCommand.ExecuteAsync(null);
         Assert.Equal(0, data.Writes); Assert.Equal(0, choices.Prompts); Assert.True(vm.IsDirty); Assert.Equal(folder, vm.Scope.FolderId);
-        Assert.Contains("Research", dialogs.ConfirmationRequest!.Message); Assert.Contains("Unfiled", dialogs.ConfirmationRequest.Message);
+        Assert.Contains("Research", dialogs.ConfirmationRequest!.Message); Assert.Contains("no folder", dialogs.ConfirmationRequest.Message);
         dialogs.ConfirmationResult = true; await vm.DeleteFolderCommand.ExecuteAsync(null);
-        Assert.Equal(1, choices.Prompts); Assert.Equal(NotebookScope.Unfiled, vm.Scope.Scope); Assert.Equal("Unfiled", vm.ScopeName);
+        Assert.Equal(1, choices.Prompts); Assert.Equal(NotebookScope.AllNotes, vm.Scope.Scope); Assert.Equal("All Notes", vm.ScopeName);
         Assert.Equal(note.Id, vm.Note!.Id); Assert.Equal("Unsaved title", vm.Note.Title); Assert.Equal("Exact retained content\n", vm.Note.Document.PlainText);
         Assert.Null(vm.Note.FolderId); Assert.DoesNotContain(vm.Folders, f => f.Id == folder); Assert.False(vm.HasFolderActions);
         Assert.Equal(1, vm.Scope.Count);

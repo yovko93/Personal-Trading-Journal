@@ -41,12 +41,12 @@ public sealed class NotebookTagTests
         await vm.DeleteTagCommand.ExecuteAsync(null);
         Assert.DoesNotContain(vm.SelectedTagFilters, t => t.Id == id);
         Assert.Single(f.Data.Queries.Last().TagIds); Assert.Equal(55, f.Data.Notes.Count);
-        vm.Scope = vm.Scopes.Single(s => s.Scope == NotebookScope.Unfiled); await vm.LoadTask;
+        vm.Scope = vm.Scopes.Single(s => s.Scope == NotebookScope.AllNotes); await vm.LoadTask;
         vm.Sort = NotebookWorkspaceViewModel.SortOptions[1]; await vm.LoadTask;
         vm.SearchText = "Note"; await vm.SearchCommand.ExecuteAsync(null);
         await vm.ClearFiltersCommand.ExecuteAsync(null);
         Assert.Empty(f.Data.Queries.Last().TagIds); Assert.Equal("", vm.SearchText);
-        Assert.Equal(NotebookScope.Unfiled, vm.Scope!.Scope); Assert.Equal(NotebookSort.Title, vm.Sort.Value);
+        Assert.Equal(NotebookScope.AllNotes, vm.Scope!.Scope); Assert.Equal(NotebookSort.Title, vm.Sort.Value);
     }
     [Fact]
     public async Task DirtyAssignmentFlushesAndPreservesEditorThenGlobalDeleteAdvancesBaseline()

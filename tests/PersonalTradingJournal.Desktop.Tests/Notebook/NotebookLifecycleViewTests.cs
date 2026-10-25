@@ -74,18 +74,26 @@ public sealed class NotebookLifecycleViewTests
                 vm.MoveFolder=vm.Folders.Single(f=>f.Id==folder.Id);UiKeyboardProbe.Space((Button)view.FindName("ConfirmMoveNote"));Pump(vm.MoveCommand.ExecutionTask!);Layout();
                 Assert.Equal(folder.Id,vm.Note!.FolderId);Assert.Equal(Visibility.Collapsed,((Border)view.FindName("MoveNotePicker")).Visibility);
                 // A retained popup command cannot act on a new selection (or a later return).
-                UiKeyboardProbe.Space(overflow);Layout();var stale=((MenuItem)view.FindName("ArchiveNoteButton")).Command!;
+                UiKeyboardProbe.Space(overflow);Layout();var stale=((MenuItem)view.FindName("TrashNoteButton")).Command!;
                 var first=vm.Note.Id;data.Notes.Add(NotebookFake.Note("Other"));Pump(vm.RefreshCommand.ExecuteAsync(null));
                 vm.SelectedNote=vm.Notes.Single(n=>n.Id!=first);Pump(vm.LoadTask);Layout();int writes=data.Writes;
                 Assert.False(stale.CanExecute(null));stale.Execute(null);Assert.Equal(writes,data.Writes);Assert.False(menu.IsOpen);
                 vm.SelectedNote=vm.Notes.Single(n=>n.Id==first);Pump(vm.LoadTask);Layout();Assert.False(stale.CanExecute(null));
                 Click("MoveNoteMenuItem");vm.SelectedNote=vm.Notes.Single(n=>n.Id!=first);Pump(vm.LoadTask);Layout();Assert.Equal(Visibility.Collapsed,((Border)view.FindName("MoveNotePicker")).Visibility);
                 vm.SelectedNote=vm.Notes.Single(n=>n.Id==first);Pump(vm.LoadTask);data.Notes.RemoveAll(n=>n.Id!=first);Pump(vm.RefreshCommand.ExecuteAsync(null));Layout();
-                Click("ArchiveNoteButton");Select(NotebookScope.Archived);Assert.True(vm.ShowUnarchive);Assert.True(((RichTextBox)view.FindName("Preview")).IsReadOnly);Render("archived");
+                // Seed an existing archived record; the retired Archive UI must not be needed to read it.
+                var legacy=data.Notes.Single() with{State=NotebookNoteState.Archived,FolderId=null,Version=vm.Note!.Version+1};data.Notes[0]=legacy;
+                Pump(vm.RefreshCommand.ExecuteAsync(null));Select(NotebookScope.AllNotes);
+                Assert.Null(view.FindName("ArchiveNoteButton"));Assert.Null(view.FindName("UnarchiveNoteButton"));
+                Assert.True(((RichTextBox)view.FindName("Preview")).IsReadOnly);Assert.False(pin.IsEnabled);
+                Assert.Equal("No folder",vm.Breadcrumb);Assert.Contains("Duplicate",((TextBlock)view.FindName("LegacyReadOnlyNotice")).Text);Render("legacy-folderless");
+                UiKeyboardProbe.Space(overflow);Layout();Assert.True(menu.IsOpen);
+                Assert.False(((MenuItem)view.FindName("MoveNoteMenuItem")).IsEnabled);Assert.True(((MenuItem)view.FindName("DuplicateNoteButton")).IsEnabled);
+                Save(menu,"legacy-note-menu",menu.ActualWidth,menu.ActualHeight);PressKey(menu,Key.Escape);Layout();
                 Click("TrashNoteButton");Select(NotebookScope.Trash);Assert.True(vm.ShowRestore);Assert.True(((TextBox)view.FindName("TitleEditor")).IsReadOnly);Render("trash");
-                Click("RestoreNoteButton");Select(NotebookScope.Archived);Assert.True(vm.ShowUnarchive);
-                Click("UnarchiveNoteButton");Select(NotebookScope.AllNotes);Assert.True(vm.CanEditBody);Assert.False(((RichTextBox)view.FindName("Preview")).IsReadOnly);
-                var original=vm.Note!.Id;Click("DuplicateNoteButton");Assert.NotEqual(original,vm.Note!.Id);Assert.Equal("Copy of Market Study",vm.Note.Title);Render("duplicated");
+                Click("RestoreNoteButton");Select(NotebookScope.AllNotes);Assert.Equal(NotebookNoteState.Archived,vm.Note!.State);Assert.False(vm.CanEditBody);
+                Assert.Equal(legacy.Document.PlainText,vm.Note.Document.PlainText);Assert.Equal(legacy.TagIds,vm.Note.TagIds);Assert.Equal(legacy.Links,vm.Note.Links);Assert.Equal(legacy.Images,vm.Note.Images);
+                var original=vm.Note!.Id;Click("DuplicateNoteButton");Assert.NotEqual(original,vm.Note!.Id);Assert.Equal("Copy of Market Study",vm.Note.Title);Assert.True(vm.CanEditBody);Assert.False(((RichTextBox)view.FindName("Preview")).IsReadOnly);Render("duplicated");
                 Click("TrashNoteButton");Select(NotebookScope.Trash);Render("delete-ready");
                 dialogs.ConfirmationResult=false;Click("DeleteNoteButton");Assert.NotNull(vm.Note);Assert.Contains(vm.Note.Title,dialogs.ConfirmationRequest!.Message);
                 var dialog=new PtjDialogWindow(dialogs.ConfirmationRequest);

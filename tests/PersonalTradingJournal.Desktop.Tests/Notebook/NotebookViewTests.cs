@@ -41,7 +41,7 @@ public sealed class NotebookViewTests
             data.Notes.Add(NotebookFake.Note("NQ — Liquidity sweep study", folder.Id) with { IsPinned = true });
             data.Notes.Add(NotebookFake.Note("London range observations", folder.Id));
             data.Notes.Add(NotebookFake.Note("Weekly market themes", folder.Id));
-            data.Notes.Add(NotebookFake.Note("Unfiled observation"));
+            data.Notes.Add(NotebookFake.Note("No folder observation"));
             data.Notes.Add(NotebookFake.Note("Archived observation", state: Domain.Notebook.NotebookNoteState.Archived));
             data.Notes.Add(NotebookFake.Note("Trashed observation", state: Domain.Notebook.NotebookNoteState.Trashed));
             using var vm = new NotebookWorkspaceViewModel(data, new FakeDialogService());
@@ -55,15 +55,13 @@ public sealed class NotebookViewTests
                 var workspace = (ListBox)view.FindName("ScopeList");
                 var folders = (ListBox)view.FindName("FolderScopeList");
                 var overflow = (Button)view.FindName("NotebookOverflow");
-                var help = (Expander)view.FindName("ScopeHelp");
+                Assert.Null(view.FindName("ScopeHelp"));
                 Assert.Equal(new[] { NotebookScope.AllNotes, NotebookScope.Pinned }, workspace.Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
                 Assert.Equal(new[] { folder.Id, longFolder.Id }, folders.Items.Cast<NotebookScopeOption>().Select(s => s.FolderId!.Value));
                 Assert.Same(vm.Scope, workspace.SelectedItem); Assert.Null(folders.SelectedItem);
-                Assert.Equal(4, ((NotebookScopeOption)workspace.Items[0]).Count);
+                Assert.Equal(5, ((NotebookScopeOption)workspace.Items[0]).Count);
                 Assert.Equal(1, ((NotebookScopeOption)workspace.Items[1]).Count);
                 Assert.Equal(3, ((NotebookScopeOption)folders.Items[0]).Count);
-                Assert.False(help.IsExpanded);
-                Assert.Contains("All selected tags are required.", ((TextBlock)help.Content).Text);
                 Assert.Equal("More Notebook views", AutomationProperties.GetName(overflow));
                 Assert.True(overflow.Focusable); Assert.NotNull(overflow.ToolTip);
                 vm.Panel = 0; Layout(); Render("navigation");
@@ -75,14 +73,7 @@ public sealed class NotebookViewTests
                 }
                 var longRow = (ListBoxItem)folders.ItemContainerGenerator.ContainerFromIndex(1);
                 Assert.Equal(TextWrapping.Wrap, Descendants<TextBlock>(longRow).Single(t => t.Text == longFolder.Name).TextWrapping);
-                help.IsExpanded = true; Layout(); Render("count-help");
-                // This fixture renders a detached visual: IsVisible requires a presentation source.
-                Assert.Contains((TextBlock)help.Content, Descendants<TextBlock>(help));
-                Assert.Equal(Visibility.Visible, ((UIElement)VisualTreeHelper.GetParent((TextBlock)help.Content)).Visibility);
-                Assert.True(((TextBlock)help.Content).ActualHeight > 0); help.IsExpanded = false;
-                workspace.SetCurrentValue(ListBox.SelectedItemProperty, workspace.Items[1]); Pump(vm.LoadTask); Layout();
-                Assert.Equal(NotebookScope.Pinned, vm.Scope!.Scope); Assert.Single(vm.Notes); Assert.Equal("Pinned", vm.ScopeName);
-                foreach (var scope in new[] { NotebookScope.Unfiled, NotebookScope.Archived, NotebookScope.Trash })
+                foreach (var scope in new[] { NotebookScope.Trash })
                 {
                     vm.Panel = 0; Layout();
                     overflow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -96,10 +87,10 @@ public sealed class NotebookViewTests
                         menu.IsOpen = false;
                         menu.Measure(new Size(300, double.PositiveInfinity));
                         menu.Arrange(new Rect(menu.DesiredSize)); menu.UpdateLayout();
-                        Assert.Equal(new[] { NotebookScope.Unfiled, NotebookScope.Archived, NotebookScope.Trash }, menu.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
-                        Assert.Equal(5, menu.Items.Count);
+                        Assert.Equal(new[] { NotebookScope.Trash }, menu.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
+                        Assert.Equal(3, menu.Items.Count);
                         Assert.Equal("Refresh", Assert.Single(menu.Items.OfType<MenuItem>()).Header);
-                        if (scope == NotebookScope.Unfiled) Render("overflow", menu);
+                        if (scope == NotebookScope.Trash) Render("overflow", menu);
                         var option = menu.Items.OfType<NotebookScopeOption>().Single(s => s.Scope == scope);
                         var item = (MenuItem)menu.ItemContainerGenerator.ContainerFromItem(option);
                         Assert.Equal(option.Label, item.Header); Assert.True(item.Focusable); Assert.True(item.IsEnabled);

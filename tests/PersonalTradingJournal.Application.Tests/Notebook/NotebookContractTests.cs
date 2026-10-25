@@ -17,6 +17,18 @@ public sealed class NotebookContractTests
         Assert.Null(new NotebookQuery(scope).FolderId);
     }
 
+    [Theory]
+    [InlineData(NotebookScope.Archived)]
+    [InlineData(NotebookScope.Unfiled)]
+    public void LegacyScopesNormalizeWithoutChangingFilters(NotebookScope legacy)
+    {
+        var tag = Guid.NewGuid();
+        var query = new NotebookQuery(legacy, search: "Research", tagIds: [tag], sort: NotebookSort.Title, limit: 2);
+        Assert.Equal(NotebookScope.AllNotes, query.Scope); Assert.Null(query.FolderId);
+        Assert.Equal("Research", query.Search); Assert.Equal(tag, Assert.Single(query.TagIds));
+        Assert.Equal(NotebookSort.Title, query.Sort); Assert.Equal(2, query.Limit);
+    }
+
     [Fact]
     public void FolderFilterAndBoundedTagSetAreValidatedAndCopied()
     {

@@ -39,13 +39,11 @@ internal sealed class NotebookFake : INotebookService
     }
     internal NotebookPage Page(NotebookQuery q)
     {
-        var active = Notes.Where(n => n.State == NotebookNoteState.Active);
+        var active = Notes.Where(n => n.State != NotebookNoteState.Trashed);
         var filtered = q.Scope switch
         {
             NotebookScope.Pinned => active.Where(n => n.IsPinned),
             NotebookScope.Folder => active.Where(n => n.FolderId == q.FolderId),
-            NotebookScope.Unfiled => active.Where(n => n.FolderId is null),
-            NotebookScope.Archived => Notes.Where(n => n.State == NotebookNoteState.Archived),
             NotebookScope.Trash => Notes.Where(n => n.State == NotebookNoteState.Trashed),
             _ => active
         };
@@ -54,7 +52,7 @@ internal sealed class NotebookFake : INotebookService
         var all = filtered.ToArray(); int start = q.Cursor is null ? 0 : int.Parse(q.Cursor);
         return new([.. all.Skip(start).Take(q.Limit).Select(n => Row(n) with { Tags = [.. Tags.Where(t => n.TagIds.Contains(t.Id))] })], all.Length, start + q.Limit < all.Length ? (start + q.Limit).ToString() : null,
             new([new(NotebookScope.AllNotes, null, active.Count()), new(NotebookScope.Pinned, null, active.Count(n => n.IsPinned)),
-                new(NotebookScope.Unfiled, null, active.Count(n => n.FolderId is null)), new(NotebookScope.Archived, null, Notes.Count(n => n.State == NotebookNoteState.Archived)), new(NotebookScope.Trash, null, Notes.Count(n => n.State == NotebookNoteState.Trashed))],
+                new(NotebookScope.Trash, null, Notes.Count(n => n.State == NotebookNoteState.Trashed))],
                 Catalog(new(NotebookCatalogKind.Folders)), Catalog(new(NotebookCatalogKind.Tags))));
     }
     internal static NotebookListItem Row(NotebookNoteSnapshot n) => new(n.Id, n.Title, n.Document.PlainText[..Math.Min(100, n.Document.PlainText.Length)], n.State, n.IsPinned, n.FolderId, n.Version, n.UpdatedAtUtc, []);
@@ -62,7 +60,7 @@ internal sealed class NotebookFake : INotebookService
     {
         int start = q.Cursor is null ? 0 : int.Parse(q.Cursor);
         var source = q.Kind == NotebookCatalogKind.Folders ? Folders : Tags;
-        return new([.. source.Skip(start).Take(q.Limit).Select(f => new NotebookCatalogItem(f, Notes.Count(n => n.FolderId == f.Id)))],
+        return new([.. source.Skip(start).Take(q.Limit).Select(f => new NotebookCatalogItem(f, Notes.Count(n => n.State != NotebookNoteState.Trashed && (q.Kind == NotebookCatalogKind.Folders ? n.FolderId == f.Id : n.TagIds.Contains(f.Id)))))],
             source.Count, start + q.Limit < source.Count ? (start + q.Limit).ToString() : null);
     }
     public Task<NotebookCatalogPage> ListCatalogAsync(NotebookCatalogQuery q, CancellationToken ct = default) => Task.FromResult(Catalog(q));
@@ -218,7 +216,7 @@ public sealed class NotebookWorkspaceTests
         finally { pending.TrySetResult(data.Page(new())); await old.WaitAsync(TimeSpan.FromSeconds(10)); await vm.CancelAsync(); }
     }
     [Fact]
-    public async Task MoveRemovesNoteFromFolderViewAndKeepsItReadableInUnfiled()
+    public async Task MoveRemovesNoteFromFolderViewAndKeepsItReadableInAllNotes()
     {
         var data = new NotebookFake(); var folder = new NotebookNamedItem(Guid.NewGuid(), "Research", 1);
         data.Folders.Add(folder); var note = NotebookFake.Note(folder: folder.Id); data.Notes.Add(note);
@@ -227,7 +225,7 @@ public sealed class NotebookWorkspaceTests
         vm.SelectedNote = vm.Notes[0]; await vm.LoadTask;
         vm.MoveFolder = vm.Folders.Single(f => f.Id is null); await vm.MoveCommand.ExecuteAsync(null);
         Assert.Empty(vm.Notes); Assert.Null(vm.SelectedNote); Assert.Null(vm.Note);
-        vm.Scope = vm.Scopes.Single(s => s.Scope == NotebookScope.Unfiled); await vm.LoadTask;
+        vm.Scope = vm.Scopes.Single(s => s.Scope == NotebookScope.AllNotes); await vm.LoadTask;
         vm.SelectedNote = vm.Notes[0]; await vm.LoadTask; Assert.Equal(note.Id, vm.Note!.Id);
     }
     [Fact]
@@ -259,17 +257,18 @@ public sealed class NotebookWorkspaceTests
         await vm.RenameFolderCommand.ExecuteAsync(null); Assert.Equal("Lessons", vm.ScopeName);
         dialogs.ConfirmationResult = false; int writes = data.Writes; await vm.DeleteFolderCommand.ExecuteAsync(null); Assert.Equal(writes, data.Writes);
         dialogs.ConfirmationResult = true; await vm.DeleteFolderCommand.ExecuteAsync(null);
-        Assert.Single(data.Notes); Assert.Null(data.Notes[0].FolderId); Assert.Equal(NotebookScope.Unfiled, vm.Scope!.Scope);
+        Assert.Single(data.Notes); Assert.Null(data.Notes[0].FolderId); Assert.Equal(NotebookScope.AllNotes, vm.Scope!.Scope);
         Assert.True(vm.Note!.IsPinned); Assert.Equal("", vm.FolderName);
     }
     [Theory]
     [InlineData(NotebookScope.Archived)]
+    [InlineData(NotebookScope.Unfiled)]
     [InlineData(NotebookScope.Trash)]
     [InlineData(NotebookScope.Pinned)]
     public async Task CreateFromNonFolderScopeSelectsActiveUntitledAndClearsSearch(NotebookScope scope)
     {
         var data = new NotebookFake(); using var vm = new NotebookWorkspaceViewModel(data, new FakeDialogService());
-        await vm.ActivateAsync(); vm.Scope = vm.Scopes.Single(s => s.Scope == scope); await vm.LoadTask;
+        await vm.ActivateAsync(); vm.Scope = new NotebookScopeOption(scope, null, scope.ToString(), 0); await vm.LoadTask;
         vm.SearchText = "absent"; await vm.NewNoteCommand.ExecuteAsync(null);
         Assert.Equal(NotebookScope.AllNotes, vm.Scope!.Scope); Assert.Equal("", vm.SearchText);
         Assert.Equal(NotebookNoteState.Active, vm.Note!.State); Assert.Null(vm.Note.FolderId); Assert.Single(vm.Notes);

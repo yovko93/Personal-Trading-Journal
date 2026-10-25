@@ -33,14 +33,14 @@ public sealed class NotebookLifecycleTests
     {
         var store=new NotebookFake();using var vm=await Open(store);var id=vm.Note!.Id;
         vm.SearchText="Liquidity";await vm.SearchCommand.ExecuteAsync(null); vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
-        await vm.ArchiveCommand.ExecuteAsync(null);Assert.Empty(vm.Notes);Assert.Null(vm.Note);Assert.Equal("Liquidity",vm.SearchText);
-        Assert.Equal(1,vm.Scopes.Single(x=>x.Scope==NotebookScope.Archived).Count);
-        vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.Archived);await vm.LoadTask;vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
+        await vm.ArchiveCommand.ExecuteAsync(null);Assert.Single(vm.Notes);Assert.Equal(id,vm.Note!.Id);Assert.Equal("Liquidity",vm.SearchText);
+        Assert.Equal(1,vm.Scopes.Single(x=>x.Scope==NotebookScope.AllNotes).Count);
+        vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.AllNotes);await vm.LoadTask;vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
         Assert.True(vm.ShowUnarchive);Assert.False(vm.CanEditDraft);Assert.False(vm.PinCommand.CanExecute(null));
         await vm.TrashCommand.ExecuteAsync(null);Assert.Empty(vm.Notes);
         vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.Trash);await vm.LoadTask;vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
         Assert.True(vm.ShowRestore);await vm.RestoreCommand.ExecuteAsync(null);Assert.Empty(vm.Notes);
-        vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.Archived);await vm.LoadTask;vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
+        vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.AllNotes);await vm.LoadTask;vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
         Assert.Equal(id,vm.Note!.Id);Assert.True(vm.Note.IsPinned);Assert.False(vm.CanEditBody);
         await vm.UnarchiveCommand.ExecuteAsync(null);vm.Scope=vm.Scopes.Single(x=>x.Scope==NotebookScope.Pinned);await vm.LoadTask;
         vm.SelectedNote=vm.Notes[0];await vm.LoadTask;Assert.Equal(id,vm.Note!.Id);Assert.True(vm.CanEditDraft);
@@ -114,6 +114,7 @@ public sealed class NotebookLifecycleTests
         using var vm=new NotebookWorkspaceViewModel(store,new FakeDialogService{ConfirmationResult=true});await vm.ActivateAsync();vm.SelectedNote=vm.Notes[0];await vm.LoadTask;
         Assert.Null(vm.Note);Assert.Equal("Future",vm.DraftTitle);Assert.False(vm.CanEditDraft);Assert.True(vm.ArchiveCommand.CanExecute(null));
         store.OnWrite=(command,_)=>{Assert.Equal(new ArchiveNotebookNote(id,1),command);store.Notes[0]=store.Notes[0] with{State=NotebookNoteState.Archived,Version=2};return Task.FromResult(new NotebookWriteResult(NotebookWriteStatus.Success,UnavailableMetadata:new(id,"Future",2,NotebookNoteState.Archived)));};
-        await vm.ArchiveCommand.ExecuteAsync(null);Assert.Empty(vm.Notes);Assert.Null(vm.Note);
+        await vm.ArchiveCommand.ExecuteAsync(null);Assert.Single(vm.Notes);Assert.Null(vm.Note);
+        Assert.DoesNotContain("Duplicate",vm.LegacyReadOnlyMessage);
     }
 }

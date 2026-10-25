@@ -1,5 +1,15 @@
 # Personal Trading Journal
 
+## M22.12A9 — Supported scopes and legacy-note visibility
+
+Notebook navigation now exposes All Notes, Pinned, real folders and Trash. Archived/Unfiled entries, Archive/Return to Active actions and the Count & filters help block are removed. All non-Trash notes—including existing archived and folderless notes—remain discoverable through consistent SQL queries, counts, search, tags and paging. Folder deletion preserves notes and selects All Notes; absent folder assignments display **No folder**.
+
+Legacy archived notes retain their read-only contract, with an explanation and Duplicate for an editable copy. Trash/Restore preserves their original lifecycle state. No stored notes, schema or document/archive/export formats were converted.
+
+Focused Release verification passed **166/166 Desktop, 50/50 Infrastructure and 29/29 Application tests**, zero failures/skips, exits **0**; **14 distinct UI children audited separately**. Builds, EF consistency, whitespace and local documentation-target checks passed. Fourteen current captures were inspected. [Compatibility limits, commands, visual findings and exact A9 inventory](docs/notebook.md#m2212a9--supported-scopes-and-legacy-note-visibility). Evidence: `TestResults/m2212a9-verified/summary.json`.
+
+A9 is complete; **A10–A13, M22.12B and overall M22.12 acceptance remain pending**. No complete gate ran. Human/Narrator, real clipboard/picker/viewer, native journal restart and matching hosted acceptance remain unverified. Earlier phase records below are historical.
+
 ## M22.12A8 — Notebook action colors and menu toggling
 
 New folder and both Notebook ellipsis controls now share compact teal styling with distinct hover, pressed/open, disabled and keyboard-focus states. Both ellipsis menus toggle closed on a second click, reopen on the next, dismiss with Escape/outside input and remain mutually exclusive. Existing action ownership and draft guards remain intact.

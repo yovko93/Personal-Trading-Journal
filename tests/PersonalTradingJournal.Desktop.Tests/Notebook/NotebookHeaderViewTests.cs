@@ -74,7 +74,7 @@ public sealed partial class NotebookHeaderViewTests
                 Pump(UiKeyboardProbe.SpaceCommand(main)); Layout(); Assert.Equal("Untitled", vm.Note!.Title); Assert.Empty(vm.Note.Document.Blocks);
                 vm.Panel = 0; Layout(); var overflow = (Button)view.FindName("NotebookOverflow");
                 UiKeyboardProbe.Space(overflow); Layout(); var other = overflow.ContextMenu!; Assert.True(other.IsOpen);
-                Assert.Equal(new[] { NotebookScope.Unfiled, NotebookScope.Archived, NotebookScope.Trash }, other.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
+                Assert.Equal(new[] { NotebookScope.Trash }, other.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
                 var refresh = Assert.Single(other.Items.OfType<MenuItem>()); Assert.Equal("Refresh Notebook", AutomationProperties.GetName(refresh));
                 Assert.Same(vm.RefreshCommand, refresh.Command); RenderMenu(other, "overflow");
                 Assert.True(refresh.Focus()); PressMenuKey(refresh, Key.Enter); Layout(); Pump(vm.RefreshCommand.ExecutionTask!); Layout(); Assert.False(other.IsOpen);

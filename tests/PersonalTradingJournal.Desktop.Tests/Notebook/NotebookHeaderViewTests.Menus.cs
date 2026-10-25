@@ -101,7 +101,7 @@ public sealed partial class NotebookHeaderViewTests
                 var duplicate = (MenuItem)view.FindName("DuplicateNoteButton");
                 int count = data.Notes.Count; MouseClick(duplicate); Pump(vm.DuplicateCommand.ExecutionTask!); Layout();
                 Assert.Equal(count + 1, data.Notes.Count); Assert.Equal(writes + 1, data.Writes); Assert.False(note.ContextMenu.IsOpen);
-                MouseClick(note); var stale = ((MenuItem)view.FindName("ArchiveNoteButton")).Command!;
+                MouseClick(note); var stale = ((MenuItem)view.FindName("TrashNoteButton")).Command!;
                 vm.SelectedNote = vm.Notes.First(n => n.Id != vm.Note!.Id); Pump(vm.LoadTask); Layout();
                 Assert.False(note.ContextMenu.IsOpen); Assert.False(stale.CanExecute(null));
                 writes = data.Writes; stale.Execute(null); Assert.Equal(writes, data.Writes);

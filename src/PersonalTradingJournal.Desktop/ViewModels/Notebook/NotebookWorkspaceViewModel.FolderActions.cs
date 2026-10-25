@@ -55,7 +55,7 @@ public sealed partial class NotebookWorkspaceViewModel
         {
             // Confirm before draft consent: declining deletion must not save/discard the note.
             if (command is DeleteNotebookFolder && (!_dialogs.Confirm(new("Delete folder?",
-                $"Delete “{folder.Name}”? Its notes will move to Unfiled. No notes or their content will be deleted.", "Delete folder", isDestructive: true)) || !Owns())) return;
+                $"Delete “{folder.Name}”? Its notes will have no folder and remain accessible in All Notes (or Trash). No notes or their content will be deleted.", "Delete folder", isDestructive: true)) || !Owns())) return;
             await GuardedAsync(() => MutateAsync(async ct =>
             {
                 if (!Owns()) return;
@@ -69,14 +69,14 @@ public sealed partial class NotebookWorkspaceViewModel
                     if (command is RenameNotebookFolder && result.Item is { } item)
                     { AddFolder(new(item, Scope!.Count)); Scope = Scopes.Single(s => s.FolderId == item.Id); }
                     else if (command is DeleteNotebookFolder && result.DeletedItemId == folder.Id)
-                    { Scope = Scopes.First(s => s.Scope == NotebookScope.Unfiled); }
+                    { Scope = Scopes.First(s => s.Scope == NotebookScope.AllNotes); }
                     else { FolderActionMessage = "Folder change could not be confirmed. Refresh before trying again."; return; }
                 }
                 finally { _publishing = false; }
                 await ReadPageAsync(false, SelectedNote?.Id, ct);
                 if (!Current(ct) || !ReferenceEquals(activation, _lifetime)) return;
                 completed = true; IsFolderRenameOpen = false; _renameFolder = null; FolderRenameName = "";
-                Message = command is DeleteNotebookFolder ? "Folder deleted. Notes retained in Unfiled." : "Folder renamed.";
+                Message = command is DeleteNotebookFolder ? "Folder deleted. Notes retained without a folder; showing All Notes." : "Folder renamed.";
             }), owns: Owns);
             if (!completed && Owns() && string.IsNullOrEmpty(FolderActionMessage))
                 FolderActionMessage = string.IsNullOrEmpty(Message) ? "Folder change cancelled. Your input is retained." : Message;

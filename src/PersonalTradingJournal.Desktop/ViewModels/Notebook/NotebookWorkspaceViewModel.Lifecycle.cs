@@ -41,7 +41,7 @@ public sealed partial class NotebookWorkspaceViewModel
     private void NotifyLifecycleCommands()
     {
         OnPropertyChanged(nameof(CanCreateNote));
-        foreach (var name in new[] { nameof(ShowArchive), nameof(ShowUnarchive), nameof(ShowTrash), nameof(ShowRestore), nameof(ShowDuplicate), nameof(ShowDeletePermanently), nameof(CanInteract), nameof(CanSelectNote) }) OnPropertyChanged(name);
+        foreach (var name in new[] { nameof(LegacyReadOnlyMessage), nameof(ShowArchive), nameof(ShowUnarchive), nameof(ShowTrash), nameof(ShowRestore), nameof(ShowDuplicate), nameof(ShowDeletePermanently), nameof(CanInteract), nameof(CanSelectNote) }) OnPropertyChanged(name);
         foreach (var command in new[] { CreateTemplateCommand, ArchiveCommand, UnarchiveCommand, TrashCommand, RestoreCommand, DuplicateCommand, DeletePermanentlyCommand }) command?.NotifyCanExecuteChanged();
     }
     private Task CreateFromTemplateAsync(NotebookTemplate template)
@@ -111,7 +111,7 @@ public sealed partial class NotebookWorkspaceViewModel
             // No newer edit is accepted during the canonical transition; explicit discard completes only now.
             DraftChanged();
             if (!ct.IsCancellationRequested) await ReadPageAsync(false, id, ct);
-            Message = "Note state updated. Use its dedicated scope to find it if it left this list.";
+            Message = "Note state updated. Find retained notes in All Notes, or deleted notes in Trash.";
         });
     }
     private Task RunNoteOperationAsync(Func<CancellationToken, Task> action)

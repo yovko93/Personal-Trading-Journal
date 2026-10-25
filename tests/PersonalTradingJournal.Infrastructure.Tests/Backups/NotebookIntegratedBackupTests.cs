@@ -52,6 +52,7 @@ public sealed partial class NotebookPortabilityTests
             // Links retain stable identity after the target disappears; the Trade remains available.
             db.TradingSetups.RemoveRange(db.TradingSetups); await db.SaveChangesAsync();
         }
+        var archivedBefore = (await s.Notes.LoadAsync(Assert.Single((await s.Notes.ListAsync(new(search: "Archived"))).Items).Id)).Note!;
         var before = await Export(source);
         string oldArchive = Path.Combine(source.Root, "before-delete.ptjbackup");
         Assert.True((await source.Service().CreateAsync(oldArchive)).Succeeded);
@@ -76,6 +77,14 @@ public sealed partial class NotebookPortabilityTests
         Assert.Equal((older ? before : after).GetRawText(), (await Export(target)).GetRawText());
         await using var fresh = new ServiceCollection().AddPersistence(target.Paths).BuildServiceProvider();
         var notes = fresh.GetRequiredService<INotebookService>();
+        var legacy = Assert.Single((await notes.ListAsync(new(search: "Archived"))).Items);
+        Assert.Equal(archivedBefore.Id, legacy.Id); Assert.Equal(NotebookNoteState.Archived, legacy.State);
+        var archivedAfter = (await notes.LoadAsync(legacy.Id)).Note!;
+        Assert.Equal(archivedBefore.Version, archivedAfter.Version);
+        Assert.Equal(new NotebookJsonCodec().Encode(archivedBefore.Document), new NotebookJsonCodec().Encode(archivedAfter.Document));
+        foreach (var scope in new[] { NotebookScope.Pinned, NotebookScope.Folder })
+            Assert.Equal(legacy.Id, Assert.Single((await notes.ListAsync(new(scope,
+                scope == NotebookScope.Folder ? archivedAfter.FolderId : null, "Archived", archivedAfter.TagIds))).Items).Id);
         Assert.Equal(older ? NotebookLoadStatus.Success : NotebookLoadStatus.NotFound, (await notes.LoadAsync(deleted.Id)).Status);
         foreach (var n in new[] { note, copy })
         {

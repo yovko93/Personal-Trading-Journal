@@ -114,7 +114,7 @@ public partial class NotebookWorkspaceView : UserControl
     private void FilterFolderScopes(object sender, FilterEventArgs e) =>
         e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Folder };
     private void FilterOtherScopes(object sender, FilterEventArgs e) =>
-        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Unfiled or NotebookScope.Archived or NotebookScope.Trash };
+        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Trash };
     private async void SelectPrimaryScope(object sender, SelectionChangedEventArgs e)
     {
         if (_scopeSelectionUpdating || e.AddedItems.Count == 0 || e.AddedItems[0] is not NotebookScopeOption scope ||

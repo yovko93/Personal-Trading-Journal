@@ -96,7 +96,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         }, () => CanMutate && IsDirty);
     }
     public ObservableCollection<NotebookScopeOption> Scopes { get; } = [];
-    public ObservableCollection<NotebookFolderOption> Folders { get; } = [new(null, "Unfiled")];
+    public ObservableCollection<NotebookFolderOption> Folders { get; } = [new(null, "No folder")];
     public ObservableCollection<NotebookRow> Notes { get; } = [];
     public static NotebookSortOption[] SortOptions { get; } = [new(NotebookSort.RecentlyUpdated, "Recently updated"), new(NotebookSort.Title, "Title")];
     public NotebookSortOption Sort { get => _sort; set
@@ -111,6 +111,8 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         get => _scope;
         set
         {
+            if (value?.Scope is NotebookScope.Unfiled or NotebookScope.Archived)
+                value = Scopes.FirstOrDefault(s => s.Scope == NotebookScope.AllNotes) ?? new(NotebookScope.AllNotes, null, "All Notes", 0);
             // Catalog refresh replaces equal-valued records. Select the new item instance so
             // filtered navigation views restore selection after their collections are rebuilt.
             if (_publishing) { SetProperty(ref _scope, value, ReferenceEqualityComparer.Instance); return; }
@@ -144,9 +146,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); PublishTags(); NotifyCommands(); } }
     public string NoteTitle => Note?.Title ?? SelectedNote?.Title ?? "Select a note";
+    public string LegacyReadOnlyMessage => LifecycleState == NotebookNoteState.Archived
+        ? Note is not null ? "Archived note — read-only. Use Duplicate in Note actions to create an editable copy. The original is preserved."
+            : "Archived note — read-only. Content is unavailable; its stored data is preserved." : "";
     public string Metadata => Note is { } n ? $"{n.State} · Updated {TradingTimePolicy.ConvertUtcToTradingTime(n.UpdatedAtUtc):g} NY"
         : SelectedNote is { } row ? $"{row.Item.State} · Updated {row.Updated}" : "";
-    public string Breadcrumb => (Note is not null ? Note.FolderId : SelectedNote?.Item.FolderId) is Guid id ? Folders.FirstOrDefault(f => f.Id == id)?.Name ?? "Folder unavailable" : "Unfiled";
+    public string Breadcrumb => (Note is not null ? Note.FolderId : SelectedNote?.Item.FolderId) is Guid id ? Folders.FirstOrDefault(f => f.Id == id)?.Name ?? "Folder unavailable" : "No folder";
     public string TagText => string.Join(" · ", AssignedTags.Select(t => t.Name));
     public string LinkText { get; private set; } = "";
     private void SelectionLabels() { OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(Breadcrumb)); }
@@ -336,14 +341,14 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         var managedId = ManagedFolder?.Id;
         var moveId = MoveFolder is { } move ? move.Id : Note?.FolderId;
         Scopes.Clear();
-        foreach (var (scope, label) in new[] { (NotebookScope.AllNotes, "All Notes"), (NotebookScope.Pinned, "Pinned"), (NotebookScope.Unfiled, "Unfiled") })
+        foreach (var (scope, label) in new[] { (NotebookScope.AllNotes, "All Notes"), (NotebookScope.Pinned, "Pinned") })
             Scopes.Add(new(scope, null, label, summary.ScopeCounts.FirstOrDefault(c => c.Scope == scope)?.Count ?? 0));
-        Folders.Clear(); Folders.Add(new(null, "Unfiled"));
+        Folders.Clear(); Folders.Add(new(null, "No folder"));
         foreach (var folder in summary.Folders.Items) AddFolder(folder);
         // A selected folder from a later catalog page remains reachable after a refresh.
         if (old?.FolderId is Guid id && Folders.All(f => f.Id != id))
         { Scopes.Add(old); Folders.Add(oldFolder ?? new(id, old.Name)); }
-        foreach (var (scope, label) in new[] { (NotebookScope.Archived, "Archived"), (NotebookScope.Trash, "Trash") })
+        foreach (var (scope, label) in new[] { (NotebookScope.Trash, "Trash") })
             Scopes.Add(new(scope, null, label, summary.ScopeCounts.FirstOrDefault(c => c.Scope == scope)?.Count ?? 0));
         Scope = Scopes.FirstOrDefault(s => s.Scope == old?.Scope && s.FolderId == old.FolderId) ?? Scopes[0];
         _folderCursor = summary.Folders.NextCursor;

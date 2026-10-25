@@ -150,7 +150,7 @@
        </StackPanel>
       </Expander>
       <DockPanel Margin="0,0,0,8">
-       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource NotebookOverflowButton}" Click="ToggleOverflowMenu" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Unfiled, Archived or Trash, or refresh the current view.">
+       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource NotebookOverflowButton}" Click="ToggleOverflowMenu" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Trash or refresh the current view.">
         <Button.ContextMenu>
          <ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NotebookOverflowOpened">
           <ContextMenu.ItemsSource><CompositeCollection>
@@ -179,9 +179,6 @@
        <TextBlock Text="{Binding FolderCreationMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" Margin="0,4,0,0" AutomationProperties.LiveSetting="Polite"/>
       </StackPanel>
      <StackPanel IsEnabled="{Binding CanInteract}">
-      <Expander x:Name="ScopeHelp" Header="Counts &amp; filters" Foreground="{DynamicResource PtjTextSecondaryBrush}" FontSize="12" Margin="0,12,0,0" AutomationProperties.Name="About Notebook counts and filters">
-       <TextBlock Text="Scope counts are before text/tag filters. Tag counts are active-note assignments. All selected tags are required." Style="{StaticResource QuietText}" Margin="0,8,0,0"/>
-      </Expander>
       <TextBlock Text="TAGS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
       <ItemsControl x:Name="TagFilters" ItemsSource="{Binding Tags}">
        <ItemsControl.ItemTemplate><DataTemplate>
@@ -219,7 +216,7 @@
         <Button x:Name="RenameFolderButton" Click="OpenFolderRename" IsEnabled="{Binding CanChangeFolder}" Style="{StaticResource PtjIconButtonStyle}" ToolTip="Rename folder" AutomationProperties.Name="Rename folder">
          <Path Width="16" Height="16" Stretch="Uniform" Data="{StaticResource PtjIconEdit}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.7"/>
         </Button>
-        <Button x:Name="DeleteFolderButton" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjIconButtonStyle}" ToolTip="Delete folder; keep its notes" AutomationProperties.Name="Delete folder" AutomationProperties.HelpText="Confirm deletion of this folder. Notes and their content are retained in Unfiled.">
+        <Button x:Name="DeleteFolderButton" Command="{Binding DeleteFolderCommand}" Style="{StaticResource PtjIconButtonStyle}" ToolTip="Delete folder; keep its notes" AutomationProperties.Name="Delete folder" AutomationProperties.HelpText="Confirm deletion of this folder. Notes and content are retained without a folder and remain accessible in All Notes or Trash.">
          <Path Width="16" Height="16" Stretch="Uniform" Data="{StaticResource PtjIconDelete}" Stroke="{DynamicResource PtjDangerBrush}" StrokeThickness="1.7"/>
         </Button>
        </StackPanel>
@@ -286,8 +283,6 @@
          <Button.ContextMenu><ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NoteOverflowOpened">
           <MenuItem x:Name="MoveNoteMenuItem" Header="Move to folder…" AutomationProperties.Name="Move note to folder"/>
           <MenuItem x:Name="DuplicateNoteButton" Header="Duplicate" Visibility="{Binding ShowDuplicate, Converter={StaticResource VisibleWhenTrue}}"/>
-          <MenuItem x:Name="ArchiveNoteButton" Header="Archive" Visibility="{Binding ShowArchive, Converter={StaticResource VisibleWhenTrue}}"/>
-          <MenuItem x:Name="UnarchiveNoteButton" Header="Return to Active" Visibility="{Binding ShowUnarchive, Converter={StaticResource VisibleWhenTrue}}"/>
           <MenuItem x:Name="TrashNoteButton" Header="Move to Trash" Visibility="{Binding ShowTrash, Converter={StaticResource VisibleWhenTrue}}"/>
           <MenuItem x:Name="RestoreNoteButton" Header="Restore" Visibility="{Binding ShowRestore, Converter={StaticResource VisibleWhenTrue}}"/>
           <MenuItem x:Name="DeleteNoteButton" Header="Delete permanently" Visibility="{Binding ShowDeletePermanently, Converter={StaticResource VisibleWhenTrue}}"/>
@@ -322,6 +317,7 @@
        </StackPanel>
       </Expander>
       <TextBlock Text="{Binding TagMessage}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock x:Name="LegacyReadOnlyNotice" Text="{Binding LegacyReadOnlyMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,4,0,4"/>
       <TextBlock Text="{Binding Metadata}" Style="{StaticResource QuietText}" Margin="0,2,0,6"/>
       <Border x:Name="MoveNotePicker" Visibility="Collapsed" Background="{DynamicResource PtjSurfaceElevatedBrush}" Padding="8" Margin="0,6" PreviewKeyDown="MoveNoteKeyDown">
        <StackPanel>

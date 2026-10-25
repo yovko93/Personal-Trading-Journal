@@ -110,16 +110,16 @@ public sealed class NotebookTagWorkflowTests
             if (i != 5) n = NotebookFixture.Success(await service.ExecuteAsync(new AssignNotebookTag(n.Id, n.Version, b.Id)));
             if (i == 3) n = NotebookFixture.Success(await service.ExecuteAsync(new ArchiveNotebookNote(n.Id, n.Version)));
             else if (i == 4) n = NotebookFixture.Success(await service.ExecuteAsync(new TrashNotebookNote(n.Id, n.Version)));
-            else if (i < 3) wanted.Add(n.Id);
+            if (i < 4) wanted.Add(n.Id);
         }
         var q = new NotebookQuery(NotebookScope.Folder, folder.Id, "THESIS", [a.Id, b.Id], NotebookSort.Title, 2);
         var first = await service.ListAsync(q);
-        Assert.Equal(3, first.FilteredCount); Assert.Equal(4, first.Summary.ScopeCounts.Single(x => x.Scope == NotebookScope.Folder).Count);
+        Assert.Equal(4, first.FilteredCount); Assert.Equal(5, first.Summary.ScopeCounts.Single(x => x.Scope == NotebookScope.Folder).Count);
         Assert.Equal(wanted.Take(2), first.Items.Select(x => x.Id)); Assert.NotNull(first.NextCursor);
         var last = await f.Service().ListAsync(new(NotebookScope.Folder, folder.Id, "THESIS", [b.Id, a.Id], NotebookSort.Title, 2, first.NextCursor));
-        Assert.Equal(wanted[2], Assert.Single(last.Items).Id); Assert.Null(last.NextCursor); Assert.Equal(3, last.FilteredCount);
-        foreach (var scope in new[] { NotebookScope.Archived, NotebookScope.Trash })
-            Assert.Single((await service.ListAsync(new(scope, search: "thesis", tagIds: [a.Id, b.Id]))).Items);
+        Assert.Equal(wanted.Skip(2), last.Items.Select(x => x.Id)); Assert.Null(last.NextCursor); Assert.Equal(4, last.FilteredCount);
+        Assert.Equal(4, (await service.ListAsync(new(NotebookScope.Archived, search: "thesis", tagIds: [a.Id, b.Id]))).Items.Length);
+        Assert.Single((await service.ListAsync(new(NotebookScope.Trash, search: "thesis", tagIds: [a.Id, b.Id]))).Items);
         Assert.Empty((await service.ListAsync(new(search: "ptj.notebook.document"))).Items);
         Assert.Empty((await service.ListAsync(new(search: "thesis", tagIds: [Guid.NewGuid()]))).Items);
         await Assert.ThrowsAsync<ArgumentException>(() => service.ListAsync(new(NotebookScope.Folder, folder.Id, "different", [a.Id], NotebookSort.Title, 2, first.NextCursor)));

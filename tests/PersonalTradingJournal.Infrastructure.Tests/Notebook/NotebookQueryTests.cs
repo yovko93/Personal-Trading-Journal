@@ -46,7 +46,7 @@ public sealed class NotebookQueryTests
         }
     }
     [Fact]
-    public async Task ScopesSearchAndTagsIntersectWithoutLeakingArchivedOrTrashedNotes()
+    public async Task ScopesSearchAndTagsIncludeArchivedButExcludeTrashedNotes()
     {
         await using var f = await NotebookFixture.Create();
         var folder = await f.Folder(); var tag = await f.Tag(); var second = await f.Tag("ICT");
@@ -65,14 +65,14 @@ public sealed class NotebookQueryTests
         {
             var page = await f.Service().ListAsync(new(scope, scope == NotebookScope.Folder ? folder.Id : null, "СИНТЕТИЧЕН", [tag.Id, second.Id]));
             Assert.Equal(note.Id, Assert.Single(page.Items).Id); Assert.Equal(1, page.FilteredCount);
-            Assert.Equal(2, page.Summary.ScopeCounts.Single(x => x.Scope == NotebookScope.AllNotes).Count);
-            Assert.Equal(1, Assert.Single(page.Summary.Folders.Items).ActiveNoteCount);
+            Assert.Equal(3, page.Summary.ScopeCounts.Single(x => x.Scope == NotebookScope.AllNotes).Count);
+            Assert.Equal(2, Assert.Single(page.Summary.Folders.Items).ActiveNoteCount);
             Assert.All(page.Summary.Tags.Items, x => Assert.Equal(1, x.ActiveNoteCount));
         }
         Assert.Equal(note.Id, Assert.Single((await f.Service().ListAsync(new(search: "CAFE\u0301"))).Items).Id);
         Assert.Empty((await f.Service().ListAsync(new(tagIds: [Guid.NewGuid()]))).Items);
-        Assert.Equal(unfiled.Id, Assert.Single((await f.Service().ListAsync(new(NotebookScope.Unfiled))).Items).Id);
-        Assert.Equal(archived.Id, Assert.Single((await f.Service().ListAsync(new(NotebookScope.Archived))).Items).Id);
+        foreach (var legacy in new[] { NotebookScope.Unfiled, NotebookScope.Archived })
+            Assert.Equal(new[] { note.Id, unfiled.Id, archived.Id }.Order(), (await f.Service().ListAsync(new(legacy))).Items.Select(x => x.Id).Order());
         Assert.Equal(trash.Id, Assert.Single((await f.Service().ListAsync(new(NotebookScope.Trash))).Items).Id);
     }
 
@@ -84,6 +84,8 @@ public sealed class NotebookQueryTests
         await using var f = await NotebookFixture.Create();
         var notes = new List<NotebookNoteSnapshot>();
         foreach (string title in new[] { "Zulu", "alpha", "ALPHA", "Álpha", "Beta", "beta" }) notes.Add(await f.CreateNote(title));
+        for (int i = 1; i < notes.Count; i += 2)
+            notes[i] = Success(await f.Service().ExecuteAsync(new ArchiveNotebookNote(notes[i].Id, notes[i].Version)));
         var ids = new List<Guid>(); string? cursor = null;
         do
         {
