@@ -19,6 +19,8 @@ public sealed partial class NotebookHeaderViewTests
 {
     [Theory]
     [InlineData("Light", 1280, 96)]
+    [InlineData("Light", 480, 240)]
+    [InlineData("Dark", 1280, 96)]
     [InlineData("Dark", 480, 240)]
     public async Task OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard(string theme, int width, int dpi)
     {
@@ -72,11 +74,14 @@ public sealed partial class NotebookHeaderViewTests
                     vm.Panel = button == notebook ? 0 : 2; Layout(); UiKeyboardProbe.Ready(button);
                     Assert.Equal(Visibility.Visible, ((FrameworkElement)button.Template.FindName("ActionFocus", button)).Visibility);
                     Save(view, button.Name + "-closed", width, 900);
+                    NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-focus");
                     MouseClick(button); Assert.True(button.ContextMenu.IsOpen);
                     Color(button, "PtjPlanReadyPressedBrush");
                     Save(button.ContextMenu, button.Name + "-open-menu", button.ContextMenu.ActualWidth, button.ContextMenu.ActualHeight);
                     Save(view, button.Name + "-open-trigger", width, 900);
+                    NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-open");
                     MouseClick(button); Assert.False(button.ContextMenu.IsOpen); Color(button, "PtjPlanReadyHoverBrush");
+                    NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-hover");
                     MouseClick(button); Assert.True(button.ContextMenu.IsOpen);
                     MouseClick(outside); Assert.False(button.ContextMenu.IsOpen); Assert.Same(outside, Keyboard.FocusedElement);
                     MouseClick(button); Assert.True(button.ContextMenu.IsOpen);
@@ -113,6 +118,11 @@ public sealed partial class NotebookHeaderViewTests
                     // Exercise the local style's disabled state, without changing command capabilities.
                     button.SetCurrentValue(UIElement.IsEnabledProperty, false); Layout(); Color(button, "PtjSurfaceBrush");
                     Assert.Same(view.FindResource("PtjTextSecondaryBrush"), button.Foreground);
+                    if (button != create)
+                    {
+                        vm.Panel = button == notebook ? 0 : 2; Layout();
+                        NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-disabled");
+                    }
                 }
                 Save(view, "disabled", width, 900);
                 Assert.False(app.Dispatcher.HasShutdownStarted);

@@ -73,6 +73,11 @@ public sealed class NotebookPresentationViewTests
                 Assert.Equal("Active · Updated Oct 04, 2024", vm.Metadata);
                 Assert.Equal(2, vm.Notes[0].TagChips.Count()); Assert.Equal("+1", vm.Notes[0].RemainingTags);
                 Render("populated"); Render("linked-items"); vm.Panel = 1; Layout(); Render("rows"); vm.Panel = 2; Layout();
+                // The same note supplies the organization and content viewports; no composite.
+                vm.Panel = 0; Layout(); Render("organization");
+                Assert.True(vm.BeginFolderCreation()); Assert.True(vm.BeginTagCreation()); Layout(); Render("creation-empty");
+                vm.FolderName = "Session research"; vm.TagName = "Patience"; Layout(); Render("creation-populated");
+                vm.CancelFolderCreation(); vm.CancelTagForm(); vm.Panel = 2; Layout();
                 foreach (var name in new[] { "BoldButton", "ItalicButton", "UnderlineButton", "BulletsButton", "NumberingButton", "ChecklistButton", "ToggleCheckButton", "HyperlinkButton", "InsertImageButton", "UndoButton", "RedoButton" })
                 {
                     var button = Button(name); Assert.Equal(name is not ("UndoButton" or "RedoButton"), button.IsEnabled); Assert.True(button.Focusable);
@@ -163,6 +168,16 @@ public sealed class NotebookPresentationViewTests
                         }
                     }
                     string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "presentation-renders"); Directory.CreateDirectory(directory);
+                    if (state == "populated")
+                        NotebookOverflowEvidence.Verify((Button)snapshot.FindName("NoteOverflow"), snapshot, dpi, $"{theme}-{width}-{dpi}-note");
+                    if (state == "organization")
+                    {
+                        NotebookOverflowEvidence.Verify((Button)snapshot.FindName("NotebookOverflow"), snapshot, dpi, $"{theme}-{width}-{dpi}-notebook");
+                        var tags = Descendants<Button>(snapshot).Where(b => AutomationProperties.GetName(b).StartsWith("Manage global tag:")).ToArray();
+                        Assert.Equal(3, tags.Length);
+                        for (int i = 0; i < tags.Length; i++)
+                            NotebookOverflowEvidence.Verify(tags[i], snapshot, dpi, $"{theme}-{width}-{dpi}-tag-{i}");
+                    }
                     var bitmap = new RenderTargetBitmap(width * dpi / 96, 1100 * dpi / 96, dpi, dpi, PixelFormats.Pbgra32); bitmap.Render(snapshot);
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); using var file = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(file);
                 }

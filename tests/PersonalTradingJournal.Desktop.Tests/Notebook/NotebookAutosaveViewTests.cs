@@ -73,6 +73,18 @@ public sealed class NotebookAutosaveViewTests
                 };
                 save = vm.SaveDraftAsync(); Pump(entered.Task.WaitAsync(TimeSpan.FromSeconds(10)));
                 Layout(); Render("saving");
+                int previousPanel = vm.Panel;
+                foreach (var name in new[] { "ScopeList", "FolderScopeList", "NoteList" })
+                {
+                    vm.Panel = name == "NoteList" ? 1 : 0; Layout();
+                    var list = (ListBox)view.FindName(name);
+                    Assert.False(list.IsEnabled);
+                    var chrome = Descendants<Border>(list).First();
+                    Assert.Equal(((SolidColorBrush)view.FindResource("PtjSurfaceBrush")).Color,
+                        Assert.IsType<SolidColorBrush>(chrome.Background).Color);
+                    if (width < 1000 && name != "FolderScopeList") Render("saving-" + name);
+                }
+                vm.Panel = previousPanel; Layout();
                 Assert.Equal("Saving…", vm.SaveState);
                 release.TrySetResult(); Pump(save);
                 Assert.Equal("Saved", vm.SaveState); Assert.False(vm.IsDirty);

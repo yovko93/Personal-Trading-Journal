@@ -1,5 +1,108 @@
 # Notebook
 
+## M22.12A13 — Final Notebook UI correction and integrated review
+
+26 October 2026 (Europe/Kiev). One agent. Actual baseline and final HEAD: **develop / `613dbac7a01af305fd6caacaadea4d1d62151df3`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The baseline was clean: A12 had been committed after the reported `7e2a188` baseline. No unrelated work or historical artifacts were discarded. Repository/ancestor inspection found no AGENTS.md. Tested binaries include this HEAD plus the five source/test files listed below; documentation was edited afterward. Evidence root throughout this section: **`TestResults/m2212a13-verified/`**. `source-provenance.json`, `binaries.json`, `results.json` and `summary.json` record exact hashes, identities and outcomes.
+
+### Findings and smallest correction
+
+The retained overflow-dot diagnosis was inaccurate, not an established WPF rendering defect. Original A8 `Light-480-240-archived.png` and A9 `Light-480-240-legacy-folderless.png` both visibly contain **three dots**. `retained-dot-audit.json` records their original paths/hashes and separated bright pixel runs starting at x=1091, 1108 and 1126 on row 416 of each original 1200×2250 image. The shared `PtjIconMore` is vector geometry with three figures, not a font glyph. The note Path's arranged size is 18×3.857 DIPs, with bounds x=9, y=16.071, width=18, height=3.857 inside its 36×36 button; the absence of explicit Width/Height did not clip it. No evidence supported changing geometry, sizing, alignment or foreground. This supersedes the earlier outstanding “single dot” warning; it does not claim to have repaired a nonexistent clipping cause.
+
+The new evidence helper checks actual arranged bounds and crops each button from its rendered root, requiring three separated contrasting pixel runs. **52 passing checks** cover both ellipses in focus/open/hover/disabled states and the three synthetic tag affordances across Light/Dark, 1280/96 DPI and 480/240 DPI. Existing accessible names, teal states, focus, hit targets, action ownership and menu behavior remain unchanged.
+
+A separate blocking visual defect was demonstrated in the saving/recovery captures: disabling the Notebook's lists produced white backgrounds in Dark mode. WPF's Aero2 ListBox template uses a static white `ListBox.Disabled.Background`, so overriding `SystemColors.ControlBrushKey` did not affect it. The [WPF ListBox template source](https://raw.githubusercontent.com/dotnet/wpf/main/src/Microsoft.DotNet.Wpf/src/Themes/XAML/ListBox.xaml) corroborates the observed runtime behavior. A local `NotebookList` template now uses `PtjSurfaceBrush`/`PtjBorderBrush` when disabled, preserving the standard Border/ScrollViewer/ItemsPresenter structure and grouping condition. It applies only to ScopeList, FolderScopeList and NoteList. Item styles, recycling settings, selection commands, persistence and all menu resources are unchanged. Exact theme-color assertions and final saving captures verify the correction in both themes and layouts.
+
+### Commands, retained failures and focused results
+
+The retained runner executes the following commands, setting `PTJ_TEST_RESULTS_DIRECTORY` to the named run directory. Each run's `result.json` records its exact filter; `run.ps1` retains the original invocation mechanism.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $Filter --logger trx --results-directory $RunDirectory
+```
+
+| Run directory | Parents passed/total | Children passed/total | Test exit | Test elapsed | Finding |
+| --- | --- | --- | --- | --- | --- |
+| `baseline-dot` | 0/1 | 0/1 | 1 | 12.673s | Initial diagnostic rendered an attached child with an ancestor offset into a small target: transparent crop, zero detected runs |
+| `integrated` | 5/9 | 4/8 | 1 | 72.883s | Presentation and scheduling passed; four menu crops still used the nested view instead of the top-level host |
+| `menus-final` | 4/4 | 4/4 | 0 | 38.310s | Correct top-level capture; native menu matrix and all retained assertions passed |
+| `visual-gaps` | 3/3 | 6/6 | 0 | 29.947s | Lifecycle, folder and shared autosave cases passed; image inspection exposed disabled Dark white surfaces |
+| `disabled-lists-final` (historical name) | 0/1 | 1/4 | 1 | 11.385s | First resource override ineffective; Dark expected #FF2C2236, actual #FFFFFFFF. Narrow Light assertion also inspected an unrealized collapsed pane |
+| `corrected-lists` | 7/7 | 13/13 | 0 | 69.991s | Local template correction; assertions reveal the relevant pane before inspection; final affected UI and workspace checks passed |
+
+All runs had zero skipped cases. Original failed TRX, output, supervision and images are retained, not replaced. Changes between runs addressed the demonstrated crop coordinate, disabled-color and unrealized-pane causes; no assertion, input path or deadline was weakened. A manifest-generation check initially lost subsecond timestamps through PowerShell's automatic JSON date conversion; preserving timestamp strings fixed that reporting check without rerunning tests.
+
+All five Release builds passed with zero warnings/errors. The final `corrected-lists/build.log` reports **22.80s**, separate from tests. Its exact selection was:
+
+```text
+FullyQualifiedName~NotebookPresentationViewTests|(FullyQualifiedName~NotebookAutosaveViewTests&DisplayName~Light&DisplayName~1280)|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)|(FullyQualifiedName~NotebookFolderActionsViewTests&DisplayName~Dark)
+```
+
+The native menu selection was `FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard`. It retains mouse first/second/subsequent click toggling, outside/Escape dismissal, keyboard activation/focus return, menu switching, exactly one Refresh/Duplicate and stale Trash-command rejection. Its four rows are Light/Dark × 1280/96 and 480/240. The later list-chrome change does not affect the tested menu handlers, resources or standalone icon/menu captures, so this passing selection was not repeated.
+
+`audit.ps1` reads TRX with literal paths, reconciles counters and unique identities, and verifies exact children match parent names. The two existing shared workspace/autosave launches each contain their complete four-row matrix; they are not four additional parent tests. Across the retained correction runs there were **25 parent executions and 36 child executions**. After removing overlaps and using each identity's final applicable result, evidence is **13 distinct passing parents and 18 distinct passing children**, zero unresolved failures/skips. This comprises 12 UI parents plus one scheduling regression; ten exact children plus two four-case shared suites. These counts do not add historical A1–A12 suites. The final affected run contains seven parents: four presentation, one folder, one workspace and one autosave; its thirteen children are counted separately.
+
+No test process was active before launch or after supervised cleanup. `before-context.json`, `resumed-context.json` and `after-context.json` record session 1 / WinSta0 / Default, interactive cursor access and the already authorized executor's existing administrator token, without UAC/token/desktop switching. A temporary automatic-review usage-limit denial did not execute the attempted command; after the user's continuation, prerequisites were checked before resuming. Isolation, exclusive membership, exact dispatch, 90-second process limits and 30-second watchdogs remain intact. No complete Release gate ran.
+
+### Integrated requirement-to-evidence matrix
+
+“Passed” below means automated scope only. Current evidence includes the final presentation/workspace/autosave/folder captures and tests above. Reused logic evidence is identified explicitly; it is not treated as a newly executed suite.
+
+| Requirement | Current evidence | Status / remaining issue |
+| --- | --- | --- |
+| WORKSPACE only All Notes/Pinned with icons | Final populated/organization captures; workspace child matrix | Passed |
+| Separate folders, counts, real-folder-only rename/delete | Final organization and Dark long-heading/validation captures; folder child; unchanged A9 folder-action logic | Passed |
+| New folder, conditional Add, explicit Cancel | Final empty/populated creation captures; retained A10/A11 actual-control and guarded-creation results | Passed |
+| New tag, conditional Add, explicit Cancel | Same final combined forms; retained A11 tag-form results | Passed |
+| Rename/global deletion versus assignment removal | Current tag affordance checks; two unchanged A11 popup captures; A11 captured-target/confirmation/SQLite recovery tests; current presentation assignment removal | Passed |
+| Archived/Unfiled navigation, archive actions and help absent | Current organization and Notebook/note menu captures; lifecycle child | Passed |
+| Archived/folderless discovery, consistent counts/filter/paging | Unchanged A9 SQL/query/backup tests and source hashes; current legacy-folderless lifecycle capture | Passed |
+| Archived read-only with editable duplication | Lifecycle child asserts capabilities and duplication; legacy-folderless explanation | Passed |
+| Folder deletion retains notes and selects All Notes | Unchanged A9 folder-action/legacy-navigation and persistence contract evidence; current workspace selection matrix | Passed |
+| Split blank New note and atomic templates; contextual Cancel | Current lifecycle creation assertions and header captures; unchanged A4/A9 command/duplicate/guard tests | Passed |
+| Compact title, pin, truthful status, owned note menu/contextual actions | Current lifecycle, menu and autosave children; long-title error and recovered draft captures | Passed |
+| Compact formatting, selection, chips, bounded readable rows | Final presentation matrix: formatting/checklist/link, cancellation/undo and assignment assertions; populated/rows captures | Passed |
+| English MMM dd, yyyy, Updated timestamp, New York first | Unchanged A12 18 date cases and two SQL cases; current presentation exact date assertions | Passed |
+| Image/caption and Trade/Trading Setup links reachable | Final combined populated and scrolled linked-items viewports; existing presentation assertions | Passed |
+| Autosave/recovery and stale-action protection | Final autosave matrix; menu stale command assertion; unchanged A5/A9/A11 ownership/recovery logic evidence | Passed |
+| Three visible overflow dots and consistent disabled contrast | Original pixel audit; 52 current dot checks; final disabled-list assertions and saving captures | Passed; historical dot finding superseded |
+
+Reuse boundaries are recorded in `reuse-provenance.json`, `a12-production-diff.txt` and `a9-persistence-diff.txt`. A11 tag/form/owned-action code is unchanged; the A11-to-A12 production changes were the date helper and date bindings. A9 Application/Infrastructure/Domain code has no subsequent diff. A12 date helper, workspace date bindings and date tests match recorded hashes. Changed XAML/presentation test hashes are not represented as identical: final renders and affected view cases were regenerated. Prior A9 (50 Infrastructure/29 Application), A11 (99 distinct Desktop/eight Infrastructure) and A12 focused results are reused only for those unchanged contracts, not added to A13 totals.
+
+### Inspected captures and reference comparison
+
+The supplied `C:/Users/Yovko/Downloads/the target design reference.png` was opened and compared directly. **Thirty accepted captures** were inspected; `renders.json` lists every exact path, original location, SHA-256, passing child identity/interval and reuse boundary. Each new capture's original timestamp falls within its passing child interval. No composite or artificial replacement UI was generated.
+
+| Evidence under this phase root | Inspected files/states |
+| --- | --- |
+| `renders/presentation-final/` | Light/Dark 1280-96 populated; Light-480-240 populated, rows and creation-populated; Dark-480-240 linked-items, organization and creation-empty (eight) |
+| `renders/folders-final/` | Dark-480-240 long-heading and validation (two) |
+| `renders/recovery-corrected/` | Dark-1280-96 saving; Dark-480-240 saving-ScopeList; Light-480-240 saving-NoteList; Light-1280-96 recovered (four) |
+| `renders/lifecycle/` | Light-480-240 empty, save-error and legacy-folderless (three; unchanged Content pane) |
+| `renders/menus/` | Light-480-240 NotebookOverflow-open-menu; Dark-1280-96 NoteOverflow-open-menu (two; unchanged popup resources) |
+| `renders/dots/` | Light-480-240 both ellipses in focus/open/hover/disabled; Dark-480-240 NoteOverflow-open (nine actual rendered-control crops) |
+| `renders/reused-tag-menus/` | Light-1280-96 and Dark-480-240 management-menu (two unchanged A11 standalone popups) |
+
+The coherent synthetic populated fixture includes rich text/checklist, a pinned note in Market research, assigned tags including a long name, an illustrative chart/caption and Trade/Trading Setup links. The Updated fixture timestamp is 2024-10-05 03:30 UTC, displayed as Oct 04, 2024 in New York. Separate scrolled viewports retain readability; narrow layouts expose Organization/Notes/Content rather than shrinking all panes into one image. Long folder names leave actions reachable; inline errors, explicit Add/Cancel, empty selection, recovered unsaved draft and paused-save explanations remain visible. Final Dark pending lists retain theme surfaces. No blocking visual defect remains in the inspected scope.
+
+Deliberate differences remain: the existing application shell/themes, responsive pane switching, checkbox sidebar filters, supported checklist representation and explicit image/linked-record/recovery controls. The illustrative reference's unsupported callout/AI features are not fabricated. This is visual/automated interaction acceptance, not a pixel-identical redesign.
+
+### Exact inventory and acceptance boundary
+
+The clean baseline means there are no pre-existing uncommitted A12 files to subtract. Final A13 inventory: **six modified files and one added helper**:
+
+- `README.md` — current acceptance summary; earlier records preserved.
+- `docs/notebook.md` — this diagnosis, integrated matrix, commands and limitations.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — theme-safe disabled chrome for the three Notebook lists only.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookAutosaveViewTests.cs` — disabled-surface assertions and narrow saving viewports.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs` — four-row native menu matrix and actual dot-state checks.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookPresentationViewTests.cs` — combined forms/organization captures and tag/ellipsis evidence.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookOverflowEvidence.cs` — bounded geometry and actual rendered-pixel validation.
+
+Ignored diagnostic scripts, raw logs/TRX, original failures, copies and manifests stay under the phase evidence root. `pwsh -NoProfile -File TestResults/m2212a13-verified/audit.ps1` and `finalize-evidence.ps1` validate identities and provenance. Post-documentation `check-whitespace.ps1` and `check-doc-links.ps1` passed; the latter checks local target existence in README, this notebook and backup/restore documentation, excluding web URLs and fragment validation. No schema/format, persistence, EF model, CI, timeout, scheduling or general reclamation changes were made, so no new EF migration check or complete gate was needed for this view-only correction.
+
+**A13 and integrated A1–A13 automated UI acceptance are complete. M22.12B and overall M22.12 acceptance remain pending.** Automated fixture native input is not human keyboard/Narrator assessment, real clipboard/picker/viewer or installed-codec acceptance, native journal workflow/restart, or matching hosted timing/input compatibility. Those remain unverified, and historical input/focus causes are not claimed resolved. No publication, provider access or workflow triggering occurred.
+
 ## M22.12A12 — Consistent Notebook dates
 
 26 October 2026 (Europe/Kiev). One agent; A12 only. Actual baseline: **clean develop / `7e2a1884545e8e58b5242731c7f76be8d87c56b3`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A11's reported nine modified/four added files after `614c42e768b1712e786552dbfda410ad940f5d2f` had been committed. No pending work or historical artifacts were discarded. Repository/ancestor guidance inspection found no AGENTS.md. Tested code is this HEAD plus the four source/test files below; README and this record were edited afterward. Final source/binary hashes are in `TestResults/m2212a12-verified/source-provenance.json` and `binaries.json`.

@@ -63,6 +63,19 @@
    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Expander"><Border x:Name="Body" Visibility="Collapsed" Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,4,0,8"><ContentPresenter/></Border><ControlTemplate.Triggers><Trigger Property="IsExpanded" Value="True"><Setter TargetName="Body" Property="Visibility" Value="Visible"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
   </Style>
   <Style x:Key="PanelBorder" TargetType="Border"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Padding" Value="16"/></Style>
+  <!-- Aero2 hardcodes a white disabled ListBox surface. Retain the standard
+       scrolling/items structure, but use Notebook theme colors for its chrome. -->
+  <Style x:Key="NotebookList" TargetType="ListBox">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBox">
+    <Border x:Name="ListSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="1" SnapsToDevicePixels="True">
+     <ScrollViewer Padding="{TemplateBinding Padding}" Focusable="False"><ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}"/></ScrollViewer>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ListSurface" Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter TargetName="ListSurface" Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/></Trigger>
+     <MultiTrigger><MultiTrigger.Conditions><Condition Property="IsGrouping" Value="True"/><Condition Property="VirtualizingPanel.IsVirtualizingWhenGrouping" Value="False"/></MultiTrigger.Conditions><Setter Property="ScrollViewer.CanContentScroll" Value="False"/></MultiTrigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
   <Style x:Key="Row" TargetType="ListBoxItem">
    <Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Padding" Value="10"/><Setter Property="Margin" Value="0,0,0,4"/>
    <Setter Property="Foreground" Value="{DynamicResource PtjTextPrimaryBrush}"/>
@@ -168,9 +181,9 @@
        </Button>
        <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" VerticalAlignment="Center"/>
       </DockPanel>
-      <ListBox x:Name="ScopeList" ItemsSource="{Binding Source={StaticResource WorkspaceScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook workspace" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+      <ListBox x:Name="ScopeList" Style="{StaticResource NotebookList}" ItemsSource="{Binding Source={StaticResource WorkspaceScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook workspace" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <TextBlock Text="FOLDERS" Style="{StaticResource QuietText}" Margin="0,20,0,8"/>
-      <ListBox x:Name="FolderScopeList" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
+      <ListBox x:Name="FolderScopeList" Style="{StaticResource NotebookList}" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
      </StackPanel>
       <Button x:Name="NewFolderButton" Style="{StaticResource NotebookActionButton}" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
@@ -255,7 +268,7 @@
       <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}" HorizontalAlignment="Left" Margin="0,4,0,4" AutomationProperties.HelpText="Clear text and tags. Keep scope and sort."/>
      </StackPanel>
      <TextBlock Grid.Row="1" Text="{Binding EmptyMessage}" Style="{StaticResource QuietText}" Margin="0,8,0,4"/>
-     <ListBox x:Name="NoteList" Grid.Row="2" ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" IsEnabled="{Binding CanSelectNote}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Notes">
+     <ListBox x:Name="NoteList" Style="{StaticResource NotebookList}" Grid.Row="2" ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" IsEnabled="{Binding CanSelectNote}" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" AutomationProperties.Name="Notes">
       <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem" BasedOn="{StaticResource NoteRow}"><Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}"/></Style></ListBox.ItemContainerStyle>
       <ListBox.ItemTemplate><DataTemplate><StackPanel>
        <DockPanel><Path DockPanel.Dock="Right" Data="{StaticResource PtjIconPin}" Width="14" Height="16" Stretch="Uniform" Fill="{DynamicResource PtjAccentBrush}" Stroke="{DynamicResource PtjAccentBrush}" StrokeThickness="1" Margin="6,0,0,0" VerticalAlignment="Top" Visibility="{Binding Item.IsPinned, Converter={StaticResource VisibleWhenTrue}}" ToolTip="Pinned note"/>

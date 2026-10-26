@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A13 — Final Notebook UI correction and integrated review
+
+**A1–A13 automated UI acceptance is complete; M22.12B and overall M22.12 acceptance remain pending.** The retained Light/high-DPI “single dot” finding was disproved: both original captures already contain three separated dots. Current real-control raster checks verify all three dots in **52 states**, without an unjustified icon change. The integrated review did reveal white disabled Notebook lists in Dark mode; a Notebook-only template now preserves theme contrast while saving.
+
+Focused Release evidence contains **13 distinct passing parent cases and 18 distinct isolated child cases**, counted separately with overlaps excluded. The final affected run passed **7/7 parents and 13/13 children**, exit **0**; the native menu matrix passed **4/4 parents and matching children**, exit **0**. Builds passed with zero warnings/errors. Thirty captures were inspected, including two valid reused tag-menu captures; failures and corrective runs remain retained. Whitespace and local documentation-target checks passed. [Requirement matrix, diagnosis, commands, capture provenance and exact seven-file inventory](docs/notebook.md#m2212a13--final-notebook-ui-correction-and-integrated-review). Evidence: `TestResults/m2212a13-verified/summary.json`.
+
+This record supersedes earlier outstanding overflow-dot warnings without rewriting historical evidence. No complete gate or M22.12B native workflow ran. Human/Narrator assessment, native journal restart, real clipboard/picker/viewer/codec acceptance and matching hosted timing/input compatibility remain unverified. Earlier phase records below are historical.
+
 ## M22.12A12 — Consistent Notebook dates
 
 Note-list dates and existing note-header Updated metadata now use English **`MMM dd, yyyy`**, for example **Oct 04, 2024**, without a time. Both still represent the same Updated timestamp converted to New York time first. Stored timestamps, sorting/paging, unavailable-content fallback and autosave/recovery messages are unchanged.
