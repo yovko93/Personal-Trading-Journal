@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PersonalTradingJournal.Application.Notebook;
-using PersonalTradingJournal.Application.Common.Time;
 using PersonalTradingJournal.Desktop.Dialogs;
 using PersonalTradingJournal.Domain.Notebook;
 
@@ -23,7 +22,7 @@ public sealed record NotebookRow(NotebookListItem Item)
     public IEnumerable<NotebookNamedItem> TagChips => Item.Tags.Take(2);
     public string RemainingTags => Item.Tags.Length > 2 ? $"+{Item.Tags.Length - 2}" : "";
     public string Pin => Item.IsPinned ? "Pinned" : "";
-    public string Updated => $"{TradingTimePolicy.ConvertUtcToTradingTime(Item.UpdatedAtUtc):g} NY";
+    public string Updated => NotebookDatePresentation.Format(Item.UpdatedAtUtc);
     public string AccessibleName => $"{Title}. {Pin}. Updated {Updated}. {Tags}";
 }
 
@@ -149,7 +148,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public string LegacyReadOnlyMessage => LifecycleState == NotebookNoteState.Archived
         ? Note is not null ? "Archived note — read-only. Use Duplicate in Note actions to create an editable copy. The original is preserved."
             : "Archived note — read-only. Content is unavailable; its stored data is preserved." : "";
-    public string Metadata => Note is { } n ? $"{n.State} · Updated {TradingTimePolicy.ConvertUtcToTradingTime(n.UpdatedAtUtc):g} NY"
+    public string Metadata => Note is { } n ? $"{n.State} · Updated {NotebookDatePresentation.Format(n.UpdatedAtUtc)}"
         : SelectedNote is { } row ? $"{row.Item.State} · Updated {row.Updated}" : "";
     public string Breadcrumb => (Note is not null ? Note.FolderId : SelectedNote?.Item.FolderId) is Guid id ? Folders.FirstOrDefault(f => f.Id == id)?.Name ?? "Folder unavailable" : "No folder";
     public string TagText => string.Join(" · ", AssignedTags.Select(t => t.Name));

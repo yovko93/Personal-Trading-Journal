@@ -1,5 +1,77 @@
 # Notebook
 
+## M22.12A12 — Consistent Notebook dates
+
+26 October 2026 (Europe/Kiev). One agent; A12 only. Actual baseline: **clean develop / `7e2a1884545e8e58b5242731c7f76be8d87c56b3`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A11's reported nine modified/four added files after `614c42e768b1712e786552dbfda410ad940f5d2f` had been committed. No pending work or historical artifacts were discarded. Repository/ancestor guidance inspection found no AGENTS.md. Tested code is this HEAD plus the four source/test files below; README and this record were edited afterward. Final source/binary hashes are in `TestResults/m2212a12-verified/source-provenance.json` and `binaries.json`.
+
+### Formatting and timestamp contract
+
+`NotebookDatePresentation.Format` is the small shared Notebook-only presentation helper. It calls the existing `TradingTimePolicy.ConvertUtcToTradingTime` first, then `.ToString("MMM dd, yyyy", CultureInfo.GetCultureInfo("en-US"))`. English month abbreviations and Gregorian year/day output therefore remain stable under other current cultures. Days have two digits: **Oct 04, 2024**. No time or NY suffix is appended to these date labels; their date boundary remains **America/New_York**, including the existing winter/summer offsets. Machine-local timezone is not substituted.
+
+| Existing label | Timestamp retained | Display/fallback |
+| --- | --- | --- |
+| Note-list date, `NotebookRow.Updated` | `NotebookListItem.UpdatedAtUtc` | English date after existing New York conversion |
+| Loaded note-header `Metadata` | `Note.UpdatedAtUtc` | Existing lifecycle label and `Updated` prefix, e.g. `Active · Updated Oct 04, 2024` |
+| Header when content is unavailable but a row remains selected | Selected row's `UpdatedAtUtc` | Same row-date fallback and lifecycle/Updated labels |
+| No loaded note and no selected row | None | Existing empty metadata string |
+
+No Created label was present in these bindings, so none was added; `CreatedAtUtc` is not substituted for Updated. Canonical timestamps are non-null `DateTimeOffset` values, and the existing zero-UTC-offset validation/conversion is retained. Formatting does not parse display strings, mutate timestamps or feed sorting/filtering/paging. SQL still orders Recently updated by `UpdatedAtUtc` descending with the existing ID tie-breaker; Title order and cursor behavior are unchanged. Relative autosave/recovery status, linked-record labels and dates elsewhere in the application are untouched. A1–A11 controls, guards and persistence contracts remain intact.
+
+### Focused commands and results
+
+All paths below are under `TestResults/m2212a12-verified/`. The existing runner builds the selected project using `dotnet build <project> -c Release --no-restore`, then runs `dotnet test <project> -c Release --no-build --no-restore --filter <filter> --logger trx --results-directory <run>` with `PTJ_TEST_RESULTS_DIRECTORY`. It stops on build failure.
+
+```powershell
+& ./TestResults/m2212a12-verified/context.ps1 -OutputName before-context.json
+& ./TestResults/m2212a12-verified/run.ps1 -Name desktop -Build -Filter 'FullyQualifiedName~NotebookDatePresentationTests|FullyQualifiedName~NotebookWorkspaceTests|(FullyQualifiedName~NotebookPresentationViewTests&((DisplayName~Light&DisplayName~1280)|(DisplayName~Dark&DisplayName~480)))'
+& ./TestResults/m2212a12-verified/run.ps1 -Name infrastructure -Build -Project tests/PersonalTradingJournal.Infrastructure.Tests/PersonalTradingJournal.Infrastructure.Tests.csproj -Filter 'FullyQualifiedName~ExactFinalPagesStableTiesAndRestartDoNotOmitOrRepeatRows'
+& ./TestResults/m2212a12-verified/audit.ps1
+& ./TestResults/m2212a12-verified/context.ps1 -OutputName after-context.json
+& ./TestResults/m2212a12-verified/check-whitespace.ps1
+& ./TestResults/m2212a12-verified/check-doc-links.ps1
+```
+
+| Selection | Passed / total parents | Failed / skipped | Exit | Test-command wall time |
+| --- | --- | --- | --- | --- |
+| Desktop: date semantics, workspace and two populated presentation rows | 42 / 42 | 0 / 0 | 0 | 35.691s |
+| Infrastructure: existing SQL title/recently-updated paging and stable ties | 2 / 2 | 0 / 0 | 0 | 12.156s |
+
+Release builds passed with **zero warnings/errors**: `desktop/build.log` **70.62s**, `infrastructure/build.log` **22.80s** (build-reported elapsed time, separate from tests). No preparation or test failures occurred. Desktop comprises 18 new date cases, 22 existing workspace cases and two existing presentation parents strengthened with exact date/bounds assertions. The latter each dispatched exactly one matching child: **Light / 1280 / 96 DPI** and **Dark / 480 / 240 DPI**. **Two children are counted separately**, not added to parent totals. The two project selections do not overlap; repeated coverage from older milestone records is not added. `test-audit.json` reconciles literal-path-safe raw TRX counters, names and child identities with no missing, aborted, skipped or duplicate results.
+
+Exact date cases cover English output under en-US/fr-FR/bg-BG/ar-SA cultures; single-digit days; New York midnight under summer and winter offsets; year and leap-day boundaries; dates immediately following DST transitions; loaded Updated versus Created/list timestamps; all four existing unavailable-content statuses and empty selection. A 55-note case confirms same-day labels do not collapse minute-level timestamp ordering or paging, and Title sorting still uses the original data. Existing SQL coverage verifies stable ties, complete pages and cursor-query compatibility. Existing populated UI assertions continue to exercise editing, tag chips/assignment preservation, retained selection, image cancellation and undo/redo; assertions, exact dispatch, collection placement, 90-second process and 30-second watchdog limits are unchanged.
+
+No test process was already active. UI cases used the supported authorized executor in **session 1 / WinSta0 / Default**, interactive cursor access and the existing administrator token, without UAC/token/desktop switching. `before-context.json` and `after-context.json` record prerequisites and no remaining test processes after cleanup. Original TRX, output, supervision/input logs and all generated snapshots remain in their run directories.
+
+### Inspected evidence and limitations
+
+Four current real WPF captures were inspected:
+
+- `renders/Light-1280-96-populated.png`
+- `renders/Light-1280-96-rows.png`
+- `renders/Dark-480-240-populated.png`
+- `renders/Dark-480-240-rows.png`
+
+`renders.json` records original paths, SHA-256 hashes and passing child intervals. The fixture uses UTC **2024-10-05 03:30**, which is **Oct 04** in New York; the distinct Created timestamp is in 2023. Both list/header labels are readable without clipping and retain their existing hierarchy. At normal width the populated/rows states show the same three-pane layout; at narrow width separate Content and Notes viewports show the corresponding labels. No composite or reduced-readability layout was used. Additional unchanged fixture snapshots remain retained but are not claimed as separately inspected A12 evidence.
+
+The pre-existing **Light/high-DPI note-overflow-dot issue remains outstanding for correction before A13 acceptance**; this phase did not repair or reclassify it. Human keyboard/Narrator assessment, real clipboard/picker/viewer operation, native journal restart and matching hosted timing/input compatibility remain unverified. Whitespace and local Markdown target-existence checks passed after documentation edits (remote URLs and fragment resolution excluded). No schema/backend/format/CI changes or new EF validation are claimed. **A12 focused acceptance is complete; A13, M22.12B and overall M22.12 acceptance remain pending.** No complete gate, production/provider access, Git publication or workflow triggering occurred.
+
+### Exact A12 inventory
+
+**Four modified and two added files (six distinct files)**; no pre-existing uncommitted A11 changes. Ignored TestResults evidence is separate.
+
+Modified:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookPresentationViewTests.cs`
+- `README.md`
+- `docs/notebook.md`
+
+Added:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookDatePresentation.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookDatePresentationTests.cs`
+
+
 ## M22.12A11 — Inline tag creation and per-tag management
 
 26 October 2026 (Europe/Kiev). One agent; A11 only. Actual baseline: **clean develop / `614c42e768b1712e786552dbfda410ad940f5d2f`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A10's nine reported pending changes after `438883acb8fb7ca668c1761161eba934c0e7dbd8` had been committed. Repository/ancestor guidance inspection found no AGENTS.md. The interrupted A11 turn had only its two model-file edits; they were preserved on resumption, HEAD was unchanged and no tests were active. Tested code is this HEAD plus the source/test inventory below; documentation was updated afterward. `TestResults/m2212a11-verified/source-provenance.json` and `binaries.json` record final hashes.

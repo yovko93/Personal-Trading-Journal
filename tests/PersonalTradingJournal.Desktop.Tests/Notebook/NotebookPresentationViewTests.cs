@@ -56,6 +56,7 @@ public sealed class NotebookPresentationViewTests
                 NotebookNode.Heading(Guid.NewGuid(), 2, [NotebookNode.Run(Guid.NewGuid(), "What I want to review")]),
                 NotebookNode.List(Guid.NewGuid(), NotebookNodeKind.Checklist, [NotebookNode.Item(Guid.NewGuid(), [NotebookNode.Paragraph(Guid.NewGuid(), [NotebookNode.Run(Guid.NewGuid(), "Mark the liquidity level before the session")])], false)]), image]);
             var note = NotebookFake.Note("NQ — Liquidity sweep study", folder.Id) with { Document = doc, IsPinned = true,
+                CreatedAtUtc = new(2023, 1, 1, 12, 0, 0, TimeSpan.Zero), UpdatedAtUtc = new(2024, 10, 5, 3, 30, 0, TimeSpan.Zero),
                 TagIds = [.. data.Tags.Select(t => t.Id)], Images = [NotebookImage.Owned(image.ImageId!.Value, 0, "chart.png", 1, new string('A', 64), image.Caption, image.AlternativeText)],
                 Links = [new(NotebookTargetKind.Trade, Guid.NewGuid(), "Trade #057"), new(NotebookTargetKind.TradingSetup, Guid.NewGuid(), "Setup · Liquidity sweep")] };
             data.Notes.Add(note);
@@ -68,6 +69,8 @@ public sealed class NotebookPresentationViewTests
             {
                 window.Show(); Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(view.ImageLoadsTask); vm.Panel = 2; Layout();
                 var editor = (RichTextBox)view.FindName("Preview");
+                Assert.Equal("Oct 04, 2024", vm.Notes[0].Updated);
+                Assert.Equal("Active · Updated Oct 04, 2024", vm.Metadata);
                 Assert.Equal(2, vm.Notes[0].TagChips.Count()); Assert.Equal("+1", vm.Notes[0].RemainingTags);
                 Render("populated"); Render("linked-items"); vm.Panel = 1; Layout(); Render("rows"); vm.Panel = 2; Layout();
                 foreach (var name in new[] { "BoldButton", "ItalicButton", "UnderlineButton", "BulletsButton", "NumberingButton", "ChecklistButton", "ToggleCheckButton", "HyperlinkButton", "InsertImageButton", "UndoButton", "RedoButton" })
@@ -137,6 +140,14 @@ public sealed class NotebookPresentationViewTests
                 try
                 {
                     Pump(snapshot.ImageLoadsTask); snapshot.Measure(new Size(width, 1100)); snapshot.Arrange(new Rect(0, 0, width, 1100)); snapshot.UpdateLayout();
+                    if (state is "populated" or "rows")
+                    {
+                        string expectedDate = state == "rows" ? "Oct 04, 2024" : "Active · Updated Oct 04, 2024";
+                        var label = Descendants<TextBlock>(snapshot).Single(t => t.Text == expectedDate);
+                        var position = label.TranslatePoint(new Point(0, 0), snapshot);
+                        Assert.InRange(position.X, 0, width); Assert.InRange(position.X + label.ActualWidth, 0, width + 1);
+                        Assert.InRange(position.Y, 0, 1100); Assert.InRange(position.Y + label.ActualHeight, 0, 1100);
+                    }
                     if (state == "tag-picker") { ((Expander)snapshot.FindName("TagAssignment")).IsExpanded = true; snapshot.UpdateLayout(); }
                     if (state == "linked-items")
                     {

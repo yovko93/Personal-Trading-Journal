@@ -1,5 +1,14 @@
 # Personal Trading Journal
 
+## M22.12A12 — Consistent Notebook dates
+
+Note-list dates and existing note-header Updated metadata now use English **`MMM dd, yyyy`**, for example **Oct 04, 2024**, without a time. Both still represent the same Updated timestamp converted to New York time first. Stored timestamps, sorting/paging, unavailable-content fallback and autosave/recovery messages are unchanged.
+
+Focused Release verification passed **42/42 Desktop parents and 2/2 Infrastructure cases**, zero failures/skips, exits **0**, with **two matching isolated children counted separately**. Builds passed with zero warnings/errors. Four Light-normal/Dark-narrow-high-DPI captures were inspected without clipping; whitespace and local documentation-target checks passed. [Formatting contract, commands, evidence and exact six-file inventory](docs/notebook.md#m2212a12--consistent-notebook-dates). Evidence: `TestResults/m2212a12-verified/summary.json`.
+
+A12 is complete; **A13, M22.12B and overall M22.12 acceptance remain pending**. The existing Light/high-DPI overflow-dot issue remains outstanding before A13 acceptance. No complete gate ran; human/Narrator, native journal restart and matching hosted acceptance remain unverified. Earlier phase records below are historical.
+
+
 ## M22.12A11 — Inline tag creation and per-tag management
 
 The TAGS section now offers **+ New tag**, with a focused inline name field, conditional teal Add and visible Cancel. Enter/Add create one global catalog tag without assigning it or enabling a filter. Escape/Cancel reset the form; validation/persistence failures retain input. Per-tag management buttons expose **Rename** and **Delete globally…**, with captured identities, keyboard access and the existing global-deletion confirmation. Assigned chips, filters, autosave/recovery and A10 folder controls remain intact.
