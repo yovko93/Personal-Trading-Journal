@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A14 — Workspace Refresh and Trash placement
+
+WORKSPACE now lists **All Notes, Pinned, Trash**. A compact teal **Refresh** icon replaces its ellipsis and popup, retaining the existing command, draft consent and busy/cancellation behavior. Trash uses the standard scope row, icon, count and guarded selection highlighting. Note and global-tag menus, Restore, confirmed permanent deletion and the All Notes fallback after folder deletion remain available.
+
+Focused Release verification passed **81/81 parent cases and 16/16 distinct isolated children**, counted separately, zero failures/skips, exit **0**. Build: zero warnings/errors. Twelve current Light/Dark normal/narrow-high-DPI captures were inspected; whitespace and local documentation-target checks passed. [Behavior, exact inventory, commands and evidence](docs/notebook.md#m2212a14--workspace-refresh-and-trash-placement). Evidence: `TestResults/m2212a14-verified/summary.json`.
+
+A14 is complete. **A15–A17, postponed M22.12B and overall M22.12 acceptance remain pending.** No complete gate ran. Notification timing, Saved locally placement and tag alignment were not changed. Earlier phase records below are historical.
+
 ## M22.12A13 — Final Notebook UI correction and integrated review
 
 **A1–A13 automated UI acceptance is complete; M22.12B and overall M22.12 acceptance remain pending.** The retained Light/high-DPI “single dot” finding was disproved: both original captures already contain three separated dots. Current real-control raster checks verify all three dots in **52 states**, without an unjustified icon change. The integrated review did reveal white disabled Notebook lists in Dark mode; a Notebook-only template now preserves theme contrast while saving.

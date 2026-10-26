@@ -1,5 +1,81 @@
 # Notebook
 
+## M22.12A14 — Workspace Refresh and Trash placement
+
+26 October 2026 (Europe/Kiev). One agent. Actual baseline: **clean develop / `cd26864fef756ca037fab32921b3c7d29d39e43b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A13's six modified files and added helper had been committed after the reported `613dbac7` HEAD. HEAD remains unchanged; no existing work or evidence was discarded. Repository/ancestor inspection found no AGENTS.md. Tested source is this HEAD plus the eight source/test changes below; documentation was edited afterward. Evidence root: **`TestResults/m2212a14-verified/`**.
+
+### Interaction and compatibility
+
+- The removed Workspace popup contained exactly **Trash and Refresh**. Both remain directly accessible: WORKSPACE is now **All Notes, Pinned, Trash**, and its top-right control is a 36-DIP teal Refresh icon. The application geometry dictionary gains `PtjIconRefresh`; Trash uses the existing `PtjIconDelete`. Refresh retains a tooltip, accessible name, keyboard focus outline and the established hover/pressed/disabled theme styling.
+- Refresh binds directly to the existing `RefreshCommand`. No command/model logic changed: dirty drafts use Save/Discard/Cancel consent, an in-flight refresh disables repeated execution, writes disable Refresh, and the contextual Cancel operation control still stops a pending request without claiming rollback. Existing generation/ownership protection prevents stale results from replacing newer state.
+- Trash enters through the same `SelectPrimaryScope` path as other rows. The accepted scope is synchronized back into the correct list after refresh or rejected draft navigation. Its label, count and query are the existing Trash scope. Folder deletion still preserves notes and falls back to All Notes. Archived and Unfiled navigation remain absent; non-Trash legacy archived/folderless notes retain A9 discovery/read-only semantics.
+- The note menu preserves same-trigger toggling, Escape/outside dismissal, captured commands, lifecycle availability and stale-selection rejection. Removing the Workspace menu also removes its obsolete filter/open/selection handlers. Note-menu opening explicitly closes a tag popup; tag opening already closes the note menu. Global tag management, assignment chips, Restore and confirmed Trash-only permanent deletion remain intact.
+
+### Focused verification
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a14-verified/run.ps1 -Name focused -Filter 'FullyQualifiedName~NotebookHeaderViewTests|(FullyQualifiedName~NotebookViewTests&DisplayName~Light&DisplayName~1280)|FullyQualifiedName~InlineTagCreationAndCapturedManagementUseRealControls|((FullyQualifiedName~NotebookPresentationViewTests|FullyQualifiedName~NotebookLifecycleViewTests)&((DisplayName~Light&DisplayName~1280)|(DisplayName~Dark&DisplayName~480)))|FullyQualifiedName~SelectionAndRefreshUseSaveDiscardCancel|FullyQualifiedName~NotebookLegacyNavigationTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookCopyDeleteTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~ReleaseSchedulingTests'
+```
+
+The runner sets `PTJ_TEST_RESULTS_DIRECTORY`, then invokes `dotnet test` on the same Desktop test project with `-c Release --no-build --no-restore --filter $Filter --logger trx --results-directory $RunDirectory`. `build/output.log` records **zero warnings/errors**, exit **0**, **58.99s** build-reported duration. The single focused run passed **81/81 parent cases**, zero failures/skips, exit **0**, **134.693s** command wall time excluding build. No test failed or was retried.
+
+| Selection | Parent cases | Isolated children |
+| --- | ---: | ---: |
+| Header creation/Refresh/cancellation + native note-menu/Refresh matrix | 6 | 6 |
+| Workspace row selection, refresh, count/icon and rejected dirty-navigation matrix | 1 | 4 |
+| Actual tag creation/captured global management | 2 | 2 |
+| Populated presentation and retained editor/tag behavior | 2 | 2 |
+| Actual note lifecycle/menu controls, Restore and permanent deletion | 2 | 2 |
+| Refresh Save/Discard/Cancel consent | 3 | 0 |
+| Legacy navigation normalization | 2 | 0 |
+| Folder actions, retention/fallback and asynchronous ownership | 14 | 0 |
+| Lifecycle coordination and templates | 18 | 0 |
+| Copy/delete coordination | 8 | 0 |
+| Workspace query, paging, cancellation and stale-result protection | 22 | 0 |
+| Release scheduling membership | 1 | 0 |
+| **Total** | **81** | **16** |
+
+The 13 UI parents comprise twelve exact one-child selections plus one existing shared four-row workspace suite. Parent and child counts are separate, not 97 independent top-level tests. `audit.ps1`, `test-audit.json` and `results.json` reconcile literal-path-safe TRX counters, exact child identities, the shared Light/Dark × 1280/96 and 480/240 matrix, and absence of skipped, missing or duplicate results. There is one focused run; the OR selection reports each parent once. Coverage overlapping historical A1–A13 evidence is not added to these totals.
+
+New/updated actual-control checks assert removal of the Workspace ellipsis/popup; Refresh command binding, native click/Space execution exactly once, visible focus and disabled style; dirty Cancel retaining input and Save committing once; active Refresh cancellation/re-enablement and disabled Refresh during creation; exact scope order/count/icon; Trash selection and refresh highlighting; rejected dirty Trash navigation restoring folder selection. Existing note-menu open/close/reopen/Escape/outside, single Duplicate and stale Trash-command checks remain. All existing assertions unrelated to the removed popup, process isolation, collection/trait scheduling, 90-second child process deadlines and 30-second watchdogs remain intact.
+
+The initial restricted process-inspection call denied CIM access; the authorized supported executor then recorded the actual context and no active tests before launch. Native fixtures ran in **session 1 / WinSta0 / Default**, with cursor access and the executor's existing administrator token; no UAC/token/desktop switching was requested. `before-context.json` and `after-context.json` record prerequisites and no active test processes after cleanup. These automated native-input fixtures are not M22.12B journal acceptance. No complete gate ran.
+
+### Inspected current captures
+
+All twelve images below were inspected. `renders.json` records copied and original paths, SHA-256 hashes, passing child names and intervals; every original capture timestamp falls inside its owning child interval. Raw captures, TRX and supervision/input logs remain retained. Paths below are relative to the phase root.
+
+- `renders/workspace/Light-1280-96-navigation.png` and `Dark-1280-96-navigation.png` — ordered scopes, counts, icons, Refresh and long folders in both themes.
+- `renders/workspace/Dark-480-240-navigation.png` — narrow/high-DPI Organization pane with active Refresh and all three scopes.
+- `renders/workspace/Light-480-240-trash-navigation.png` and `Dark-480-240-trash-navigation.png` — Trash heading, retained note/date and query count in the Notes pane.
+- `renders/header/Light-1280-96-refresh.png` — saved draft after guarded Refresh, retained note menu and scope controls.
+- `renders/header/Dark-480-240-busy.png` — disabled Refresh, truthful operation feedback and contextual cancellation.
+- `renders/menu/Light-480-240-workspace-refresh-focus.png` — visible Refresh keyboard outline; the transparent top band is the fixture host's external-button offset in this attached-view diagnostic, not application chrome.
+- `renders/menu/Dark-480-240-NoteOverflow-open-menu.png` — retained note actions and correct disabled entries.
+- `renders/tags/Light-1280-96-management-menu.png` and `Dark-480-240-management-menu.png` — readable Rename/Delete globally actions.
+- `renders/presentation/Light-1280-96-organization.png` — populated combined workspace with rich content, image, tags and linked records.
+
+No blocking A14 visual defect was found. Narrow layouts retain the established Organization/Notes/Content switching. Tests verify accepted Trash selection even when narrow navigation switches to Notes; no composite was made to show both panes simultaneously. The application shell, notification timing, Saved locally placement and tag alignment are unchanged.
+
+### Exact task inventory and handoff
+
+Final A14 inventory is **ten modified files, no added tracked files**. The baseline was clean, so none are pre-existing uncommitted A13 changes:
+
+- `README.md` and `docs/notebook.md` — current behavior, evidence and phase boundary.
+- `src/PersonalTradingJournal.Desktop/Resources/Icons.xaml` — additive Refresh geometry, used only by the new Notebook control.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — direct Refresh, Trash row icon, removal of Workspace popup resources.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs` — primary Trash filtering/highlighting; obsolete popup handlers removed.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Menus.cs` — remaining note-menu coordination without the removed trigger.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.cs` — real Refresh binding, draft consent, busy/cancellation assertions.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs` — retained note-menu native matrix and direct Refresh/focus checks.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs` — scope order, Trash icon/count/selection and refresh/guard regressions.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookPresentationViewTests.cs` — current Workspace control expectations; note/tag ellipsis checks retained.
+
+`source-provenance.json`, `binaries.json` and `summary.json` bind the results to HEAD plus these uncommitted source changes. Ignored scripts/manifests and durable artifacts remain under the phase root. Post-documentation `check-whitespace.ps1` and `check-doc-links.ps1` passed; the latter checks local Markdown target existence in README, notebook and backup/restore documentation, excluding URLs and anchors. No schema, persistence, export/archive format, EF model, CI or timeout changed.
+
+**A14 is complete; A15–A17, postponed M22.12B and overall M22.12 acceptance remain pending.** Human keyboard/Narrator assessment, native journal workflow/restart, real clipboard/picker/viewer/codec and matching hosted timing/input compatibility remain unverified. No provider/production access, publication or workflow triggering occurred.
+
 ## M22.12A13 — Final Notebook UI correction and integrated review
 
 26 October 2026 (Europe/Kiev). One agent. Actual baseline and final HEAD: **develop / `613dbac7a01af305fd6caacaadea4d1d62151df3`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The baseline was clean: A12 had been committed after the reported `7e2a188` baseline. No unrelated work or historical artifacts were discarded. Repository/ancestor inspection found no AGENTS.md. Tested binaries include this HEAD plus the five source/test files listed below; documentation was edited afterward. Evidence root throughout this section: **`TestResults/m2212a13-verified/`**. `source-provenance.json`, `binaries.json`, `results.json` and `summary.json` record exact hashes, identities and outcomes.

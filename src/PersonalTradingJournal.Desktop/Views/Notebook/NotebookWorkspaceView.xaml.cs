@@ -113,11 +113,9 @@ public partial class NotebookWorkspaceView : UserControl
         }
     }
     private void FilterWorkspaceScopes(object sender, FilterEventArgs e) =>
-        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.AllNotes or NotebookScope.Pinned };
+        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.AllNotes or NotebookScope.Pinned or NotebookScope.Trash };
     private void FilterFolderScopes(object sender, FilterEventArgs e) =>
         e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Folder };
-    private void FilterOtherScopes(object sender, FilterEventArgs e) =>
-        e.Accepted = e.Item is NotebookScopeOption { Scope: NotebookScope.Trash };
     private async void SelectPrimaryScope(object sender, SelectionChangedEventArgs e)
     {
         if (_scopeSelectionUpdating || e.AddedItems.Count == 0 || e.AddedItems[0] is not NotebookScopeOption scope ||
@@ -136,20 +134,10 @@ public partial class NotebookWorkspaceView : UserControl
         {
             // A scope outside a ListBox's Items is not a valid SelectedItem. Explicitly clear
             // the other list, including when a dirty-draft guard rejects its proposed choice.
-            ScopeList.SelectedItem = scope?.Scope is NotebookScope.AllNotes or NotebookScope.Pinned ? scope : null;
+            ScopeList.SelectedItem = scope?.Scope is NotebookScope.AllNotes or NotebookScope.Pinned or NotebookScope.Trash ? scope : null;
             FolderScopeList.SelectedItem = scope?.Scope == NotebookScope.Folder ? scope : null;
         }
         finally { _scopeSelectionUpdating = false; }
-    }
-    private void SelectOverflowScope(object sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem { DataContext: NotebookScopeOption scope } && DataContext is NotebookWorkspaceViewModel model)
-            model.Scope = scope;
-    }
-    private void NotebookOverflowOpened(object sender, RoutedEventArgs e)
-    {
-        if (sender is ContextMenu menu)
-            menu.Items.OfType<MenuItem>().Single().Command = (menu.PlacementTarget as FrameworkElement)?.DataContext is NotebookWorkspaceViewModel model ? model.RefreshCommand : null;
     }
     internal Func<IDataObject?> ReadClipboardData { get; set; } = Clipboard.GetDataObject;
     private void CutText(ExecutedRoutedEventArgs e)

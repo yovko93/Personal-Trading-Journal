@@ -172,7 +172,7 @@ public sealed class NotebookPresentationViewTests
                         NotebookOverflowEvidence.Verify((Button)snapshot.FindName("NoteOverflow"), snapshot, dpi, $"{theme}-{width}-{dpi}-note");
                     if (state == "organization")
                     {
-                        NotebookOverflowEvidence.Verify((Button)snapshot.FindName("NotebookOverflow"), snapshot, dpi, $"{theme}-{width}-{dpi}-notebook");
+                        Assert.Null(snapshot.FindName("NotebookOverflow")); Assert.NotNull(snapshot.FindName("NotebookRefresh"));
                         var tags = Descendants<Button>(snapshot).Where(b => AutomationProperties.GetName(b).StartsWith("Manage global tag:")).ToArray();
                         Assert.Equal(3, tags.Length);
                         for (int i = 0; i < tags.Length; i++)

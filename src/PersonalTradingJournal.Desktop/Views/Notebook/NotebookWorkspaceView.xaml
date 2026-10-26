@@ -10,7 +10,6 @@
  <UserControl.Resources>
   <CollectionViewSource x:Key="WorkspaceScopes" Source="{Binding Scopes}" Filter="FilterWorkspaceScopes"/>
   <CollectionViewSource x:Key="FolderScopes" Source="{Binding Scopes}" Filter="FilterFolderScopes"/>
-  <CollectionViewSource x:Key="OtherScopes" Source="{Binding Scopes}" Filter="FilterOtherScopes"/>
   <DataTemplate x:Key="ScopeItem">
    <Grid ToolTip="{Binding Label}">
     <Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
@@ -18,6 +17,7 @@
      <Path.Style><Style TargetType="Path"><Setter Property="Data" Value="{StaticResource PtjIconFolder}"/><Style.Triggers>
       <DataTrigger Binding="{Binding Scope}" Value="{x:Static notebook:NotebookScope.AllNotes}"><Setter Property="Data" Value="{StaticResource PtjIconDocument}"/></DataTrigger>
       <DataTrigger Binding="{Binding Scope}" Value="{x:Static notebook:NotebookScope.Pinned}"><Setter Property="Data" Value="{StaticResource PtjIconPin}"/></DataTrigger>
+      <DataTrigger Binding="{Binding Scope}" Value="{x:Static notebook:NotebookScope.Trash}"><Setter Property="Data" Value="{StaticResource PtjIconDelete}"/></DataTrigger>
      </Style.Triggers></Style></Path.Style>
     </Path>
     <TextBlock Grid.Column="1" Text="{Binding Name}" TextWrapping="Wrap" Margin="8,0,6,0" VerticalAlignment="Center"/>
@@ -163,21 +163,8 @@
        </StackPanel>
       </Expander>
       <DockPanel Margin="0,0,0,8">
-       <Button x:Name="NotebookOverflow" DockPanel.Dock="Right" Style="{StaticResource NotebookOverflowButton}" Click="ToggleOverflowMenu" ToolTip="More Notebook views and Refresh" AutomationProperties.Name="More Notebook views" AutomationProperties.HelpText="Open Trash or refresh the current view.">
-        <Button.ContextMenu>
-         <ContextMenu Style="{StaticResource PtjEntityActionMenuStyle}" Opened="NotebookOverflowOpened">
-          <ContextMenu.ItemsSource><CompositeCollection>
-           <CollectionContainer Collection="{Binding Source={StaticResource OtherScopes}}"/>
-           <Separator Style="{StaticResource PtjEntityActionMenuSeparatorStyle}"/>
-           <MenuItem Header="Refresh" AutomationProperties.Name="Refresh Notebook" Style="{StaticResource PtjLifecycleMenuItemStyle}"/>
-          </CompositeCollection></ContextMenu.ItemsSource>
-          <ContextMenu.ItemContainerStyle><Style TargetType="MenuItem" BasedOn="{StaticResource PtjLifecycleMenuItemStyle}">
-           <Setter Property="Header" Value="{Binding Label}"/><Setter Property="AutomationProperties.Name" Value="{Binding Label}"/>
-           <EventSetter Event="Click" Handler="SelectOverflowScope"/>
-          </Style></ContextMenu.ItemContainerStyle>
-         </ContextMenu>
-        </Button.ContextMenu>
-        <Path Width="18" Height="18" Stretch="Uniform" Data="{StaticResource PtjIconMore}" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+       <Button x:Name="NotebookRefresh" DockPanel.Dock="Right" Style="{StaticResource NotebookOverflowButton}" Command="{Binding RefreshCommand}" ToolTip="Refresh Notebook" AutomationProperties.Name="Refresh Notebook">
+        <Path Width="18" Height="18" Stretch="Uniform" Data="{StaticResource PtjIconRefresh}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" StrokeLineJoin="Round" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
        </Button>
        <TextBlock Text="WORKSPACE" Style="{StaticResource QuietText}" VerticalAlignment="Center"/>
       </DockPanel>

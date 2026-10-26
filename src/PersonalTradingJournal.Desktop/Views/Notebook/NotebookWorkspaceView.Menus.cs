@@ -12,7 +12,7 @@ public partial class NotebookWorkspaceView
 
     private void InitializeOverflowMenus()
     {
-        foreach (var trigger in new[] { NotebookOverflow, NoteOverflow })
+        foreach (var trigger in new[] { NoteOverflow })
         {
             // MenuBase dismisses on outside-down before the underlying Button.Click.
             // Remember only that pointer gesture, not a persistent "ignore next click".
@@ -44,7 +44,7 @@ public partial class NotebookWorkspaceView
         if (dismissedByThisPress || menu.IsOpen) { menu.IsOpen = false; return; }
         // Explicit exclusivity also covers keyboard/automation activation; native mouse
         // activation will normally have already dismissed the other captured menu.
-        (trigger == NotebookOverflow ? NoteOverflow : NotebookOverflow).ContextMenu.IsOpen = false;
+        if (_tagMenu is not null) _tagMenu.IsOpen = false;
         menu.PlacementTarget = trigger;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
@@ -55,7 +55,6 @@ public partial class NotebookWorkspaceView
     private void CloseOverflowMenus()
     {
         _dismissedOverflowTrigger = null;
-        NotebookOverflow.ContextMenu.IsOpen = false;
         NoteOverflow.ContextMenu.IsOpen = false;
     }
 }

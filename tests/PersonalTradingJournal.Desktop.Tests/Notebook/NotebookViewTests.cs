@@ -54,18 +54,19 @@ public sealed class NotebookViewTests
                 Pump(vm.ActivateAsync()); Layout();
                 var workspace = (ListBox)view.FindName("ScopeList");
                 var folders = (ListBox)view.FindName("FolderScopeList");
-                var overflow = (Button)view.FindName("NotebookOverflow");
+                var refresh = (Button)view.FindName("NotebookRefresh");
+                Assert.Null(view.FindName("NotebookOverflow")); Assert.Null(refresh.ContextMenu); Assert.Same(vm.RefreshCommand, refresh.Command);
                 Assert.Null(view.FindName("ScopeHelp"));
-                Assert.Equal(new[] { NotebookScope.AllNotes, NotebookScope.Pinned }, workspace.Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
+                Assert.Equal(new[] { NotebookScope.AllNotes, NotebookScope.Pinned, NotebookScope.Trash }, workspace.Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
                 Assert.Equal(new[] { folder.Id, longFolder.Id }, folders.Items.Cast<NotebookScopeOption>().Select(s => s.FolderId!.Value));
                 Assert.Same(vm.Scope, workspace.SelectedItem); Assert.Null(folders.SelectedItem);
                 Assert.Equal(5, ((NotebookScopeOption)workspace.Items[0]).Count);
                 Assert.Equal(1, ((NotebookScopeOption)workspace.Items[1]).Count);
                 Assert.Equal(3, ((NotebookScopeOption)folders.Items[0]).Count);
-                Assert.Equal("More Notebook views", AutomationProperties.GetName(overflow));
-                Assert.True(overflow.Focusable); Assert.NotNull(overflow.ToolTip);
+                Assert.Equal("Refresh Notebook", AutomationProperties.GetName(refresh));
+                Assert.True(refresh.Focusable); Assert.NotNull(refresh.ToolTip); Assert.Equal(1, ((NotebookScopeOption)workspace.Items[2]).Count);
                 vm.Panel = 0; Layout(); Render("navigation");
-                foreach (var (list, index, icon) in new[] { (workspace, 0, "PtjIconDocument"), (workspace, 1, "PtjIconPin"), (folders, 0, "PtjIconFolder") })
+                foreach (var (list, index, icon) in new[] { (workspace, 0, "PtjIconDocument"), (workspace, 1, "PtjIconPin"), (workspace, 2, "PtjIconDelete"), (folders, 0, "PtjIconFolder") })
                 {
                     var row = (ListBoxItem)list.ItemContainerGenerator.ContainerFromIndex(index);
                     Assert.Equal(((NotebookScopeOption)list.Items[index]).Label, AutomationProperties.GetName(row));
@@ -73,34 +74,12 @@ public sealed class NotebookViewTests
                 }
                 var longRow = (ListBoxItem)folders.ItemContainerGenerator.ContainerFromIndex(1);
                 Assert.Equal(TextWrapping.Wrap, Descendants<TextBlock>(longRow).Single(t => t.Text == longFolder.Name).TextWrapping);
-                foreach (var scope in new[] { NotebookScope.Trash })
-                {
-                    vm.Panel = 0; Layout();
-                    overflow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    var menu = overflow.ContextMenu!;
-                    try
-                    {
-                        Assert.True(menu.IsOpen);
-                        Assert.Same(overflow, menu.PlacementTarget);
-                        // Verify the opener, then render the menu detached like the workspace.
-                        // There is no native owner window to retain popup focus in this fixture.
-                        menu.IsOpen = false;
-                        menu.Measure(new Size(300, double.PositiveInfinity));
-                        menu.Arrange(new Rect(menu.DesiredSize)); menu.UpdateLayout();
-                        Assert.Equal(new[] { NotebookScope.Trash }, menu.Items.OfType<NotebookScopeOption>().Select(s => s.Scope));
-                        Assert.Equal(3, menu.Items.Count);
-                        Assert.Equal("Refresh", Assert.Single(menu.Items.OfType<MenuItem>()).Header);
-                        if (scope == NotebookScope.Trash) Render("overflow", menu);
-                        var option = menu.Items.OfType<NotebookScopeOption>().Single(s => s.Scope == scope);
-                        var item = (MenuItem)menu.ItemContainerGenerator.ContainerFromItem(option);
-                        Assert.Equal(option.Label, item.Header); Assert.True(item.Focusable); Assert.True(item.IsEnabled);
-                        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); Pump(vm.LoadTask); Layout();
-                        Assert.Equal(scope, vm.Scope!.Scope); Assert.Equal(scope, data.Queries.Last().Scope);
-                        Assert.Equal(option.Name, vm.ScopeName); Assert.Single(vm.Notes);
-                        Assert.Null(workspace.SelectedItem); Assert.Null(folders.SelectedItem);
-                    }
-                    finally { menu.IsOpen = false; }
-                }
+                workspace.SetCurrentValue(ListBox.SelectedItemProperty, workspace.Items[2]); Pump(vm.LoadTask); Layout();
+                Assert.Equal(NotebookScope.Trash, vm.Scope!.Scope); Assert.Equal(NotebookScope.Trash, data.Queries.Last().Scope);
+                Assert.Equal("Trash", vm.ScopeName); Assert.Single(vm.Notes);
+                Assert.Same(vm.Scope, workspace.SelectedItem); Assert.Null(folders.SelectedItem); Render("trash-navigation");
+                Pump(vm.RefreshCommand.ExecuteAsync(null)); Layout();
+                Assert.Same(vm.Scope, workspace.SelectedItem); Assert.Equal(NotebookScope.Trash, vm.Scope!.Scope);
                 folders.SetCurrentValue(ListBox.SelectedItemProperty, folders.Items[0]); Pump(vm.LoadTask); Layout();
                 Assert.Equal(folder.Id, vm.Scope!.FolderId); Assert.Equal(folder.Name, vm.ScopeName);
                 Assert.Same(vm.Scope, folders.SelectedItem); Assert.Null(workspace.SelectedItem);
@@ -108,7 +87,7 @@ public sealed class NotebookViewTests
                 Assert.Same(vm.Scope, folders.SelectedItem); Assert.Equal(folder.Id, vm.Scope!.FolderId);
                 vm.SelectedNote = vm.Notes.Single(n => n.Title.StartsWith("NQ")); Pump(vm.LoadTask); Layout();
                 var savedTitle = vm.DraftTitle; vm.DraftTitle = "Retained dirty draft";
-                workspace.SetCurrentValue(ListBox.SelectedItemProperty, workspace.Items[0]); Pump(vm.LoadTask); Layout();
+                workspace.SetCurrentValue(ListBox.SelectedItemProperty, workspace.Items[2]); Pump(vm.LoadTask); Layout();
                 Assert.Equal(folder.Id, vm.Scope!.FolderId); Assert.Same(vm.Scope, folders.SelectedItem); Assert.Null(workspace.SelectedItem);
                 Assert.Equal("Retained dirty draft", vm.DraftTitle); Assert.True(vm.IsDirty);
                 vm.DraftTitle = savedTitle;

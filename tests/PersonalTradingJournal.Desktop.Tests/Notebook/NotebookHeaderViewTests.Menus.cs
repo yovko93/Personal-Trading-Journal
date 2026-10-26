@@ -61,17 +61,17 @@ public sealed partial class NotebookHeaderViewTests
             try
             {
                 window.Show(); Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Layout();
-                var notebook = (Button)view.FindName("NotebookOverflow"); var note = (Button)view.FindName("NoteOverflow");
-                foreach (var button in new[] { notebook, note })
+                var refresh = (Button)view.FindName("NotebookRefresh"); Assert.Null(view.FindName("NotebookOverflow")); Assert.Null(refresh.ContextMenu); var note = (Button)view.FindName("NoteOverflow");
+                foreach (var button in new[] { note })
                 {
                     button.ContextMenu.Opened += (_, _) => log.Add($"{Environment.TickCount} {button.Name} Opened");
                     button.ContextMenu.Closed += (_, _) => log.Add($"{Environment.TickCount} {button.Name} Closed");
                     button.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler((_, _) => log.Add($"{Environment.TickCount} {button.Name} Click IsOpen={button.ContextMenu.IsOpen}")), true);
                 }
                 int writes = data.Writes;
-                foreach (var button in new[] { notebook, note })
+                foreach (var button in new[] { note })
                 {
-                    vm.Panel = button == notebook ? 0 : 2; Layout(); UiKeyboardProbe.Ready(button);
+                    vm.Panel = 2; Layout(); UiKeyboardProbe.Ready(button);
                     Assert.Equal(Visibility.Visible, ((FrameworkElement)button.Template.FindName("ActionFocus", button)).Visibility);
                     Save(view, button.Name + "-closed", width, 900);
                     NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-focus");
@@ -90,18 +90,18 @@ public sealed partial class NotebookHeaderViewTests
                     Escape(button.ContextMenu); Assert.False(button.ContextMenu.IsOpen); Assert.Same(button, Keyboard.FocusedElement);
                 }
                 Assert.Equal(writes, data.Writes);
-                // Both triggers are simultaneously visible only in the full-width layout.
-                if (width >= 1000)
-                {
-                    MouseClick(notebook); MouseClick(note); Assert.False(notebook.ContextMenu.IsOpen); Assert.True(note.ContextMenu.IsOpen);
-                    MouseClick(notebook); Assert.False(note.ContextMenu.IsOpen); Assert.True(notebook.ContextMenu.IsOpen);
-                    Escape(notebook.ContextMenu);
-                }
-                vm.Panel = 0; Layout(); MouseClick(notebook);
-                var refresh = Assert.Single(notebook.ContextMenu.Items.OfType<MenuItem>());
-                int queries = data.Queries.Count; var previousRefresh = vm.RefreshCommand.ExecutionTask; MouseClick(refresh);
+                vm.Panel = 0; Layout(); UiKeyboardProbe.Ready(refresh);
+                Assert.Equal(Visibility.Visible, ((FrameworkElement)refresh.Template.FindName("ActionFocus", refresh)).Visibility);
+                Save(view, "workspace-refresh-focus", width, 900);
+                int queries = data.Queries.Count; var previousRefresh = vm.RefreshCommand.ExecutionTask;
+                // A native Refresh click also dismisses the note popup when both are visible.
+                if (width >= 1000) { MouseClick(note); Assert.True(note.ContextMenu.IsOpen); }
+                MouseClick(refresh);
                 Assert.NotNull(vm.RefreshCommand.ExecutionTask); Assert.NotSame(previousRefresh, vm.RefreshCommand.ExecutionTask); Pump(vm.RefreshCommand.ExecutionTask); Layout();
-                Assert.Equal(queries + 1, data.Queries.Count); Assert.False(notebook.ContextMenu.IsOpen);
+                Assert.Equal(queries + 1, data.Queries.Count); Assert.False(note.ContextMenu.IsOpen);
+                Color(refresh, "PtjPlanReadyHoverBrush");
+                queries = data.Queries.Count;
+                Pump(UiKeyboardProbe.SpaceCommand(refresh)); Layout(); Assert.Equal(queries + 1, data.Queries.Count);
                 vm.Panel = 2; Layout(); MouseClick(note);
                 var duplicate = (MenuItem)view.FindName("DuplicateNoteButton");
                 int count = data.Notes.Count; MouseClick(duplicate); Pump(vm.DuplicateCommand.ExecutionTask!); Layout();
@@ -113,14 +113,14 @@ public sealed partial class NotebookHeaderViewTests
                 vm.Panel = 0; Layout(); var create = (Button)view.FindName("NewFolderButton");
                 UiKeyboardProbe.Space(create, () => { Color(create, "PtjPlanReadyPressedBrush"); Save(view, "NewFolder-pressed-focus", width, 900); }); Layout(); Assert.True(vm.IsFolderCreationOpen);
                 Assert.Same(view.FindName("NewFolderName"), Keyboard.FocusedElement);
-                foreach (var button in new[] { create, notebook, note })
+                foreach (var button in new[] { create, refresh, note })
                 {
                     // Exercise the local style's disabled state, without changing command capabilities.
                     button.SetCurrentValue(UIElement.IsEnabledProperty, false); Layout(); Color(button, "PtjSurfaceBrush");
                     Assert.Same(view.FindResource("PtjTextSecondaryBrush"), button.Foreground);
-                    if (button != create)
+                    if (button == note)
                     {
-                        vm.Panel = button == notebook ? 0 : 2; Layout();
+                        vm.Panel = 2; Layout();
                         NotebookOverflowEvidence.Verify(button, host, dpi, $"{theme}-{width}-{dpi}-{button.Name}-disabled");
                     }
                 }
