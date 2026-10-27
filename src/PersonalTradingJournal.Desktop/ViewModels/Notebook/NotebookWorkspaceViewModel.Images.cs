@@ -51,7 +51,7 @@ public sealed partial class NotebookWorkspaceViewModel
             var activation = _lifetime;
             StopDebounce(); await _flushTask;
             if (!Current(activation?.Token ?? CancellationToken.None) || Note?.Id != noteId) return false;
-            if (IsDirty && !await SaveDraftAsync()) { Message = "Save pending content before inserting the image. Your selection is unchanged."; return false; }
+            if (IsDirty && !await SaveDraftAsync()) { ReportMessage("Save pending content before inserting the image. Your selection is unchanged.", NotebookNotificationKind.Warning); return false; }
             if (!CanMutate || Note?.Id != noteId || !ReferenceEquals(activation, _lifetime)) return false;
             var captured = Note; var node = NotebookNode.Image(Guid.NewGuid(), Guid.NewGuid());
             var proposed = placement?.Invoke(node) ?? new NotebookDocument(captured.Document.Blocks.Append(node));
@@ -69,12 +69,13 @@ public sealed partial class NotebookWorkspaceViewModel
                         saved.Version != captured.Version + 1 || Signature(saved.Title, saved.Document) != Signature(captured.Title, proposed))
                     {
                         _autosavePaused = result.Status is NotebookWriteStatus.Conflict or NotebookWriteStatus.StorageFailure or NotebookWriteStatus.NotFound;
-                        PublishWrite(result.Status, "");
+                        PublishWrite(result.Status == NotebookWriteStatus.Success ? NotebookWriteStatus.StorageFailure : result.Status, "");
                         Message = result.Status == NotebookWriteStatus.UnsupportedContent
                             ? "Unsupported image or unavailable codec. Use a single-frame PNG or JPEG; WebP requires an installed decoder."
                             : result.Status == NotebookWriteStatus.TooLarge ? "Image exceeds the byte or dimension limits. Your selection is unchanged."
                             : result.Status == NotebookWriteStatus.Invalid ? "This image could not be decoded safely. Your selection is unchanged." : Message;
                         if (result.CleanupPending) Message += " Original retention requires later verification.";
+                        ShowNotification(Message, Notification?.Kind ?? NotebookNotificationKind.Error);
                         return;
                     }
                     RememberImages(saved); Note = saved; _savedSignature = Signature(saved.Title, saved.Document);

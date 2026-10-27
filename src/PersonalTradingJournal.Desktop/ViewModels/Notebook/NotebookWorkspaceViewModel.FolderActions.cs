@@ -28,7 +28,7 @@ public sealed partial class NotebookWorkspaceViewModel
     public void DismissFolderRename()
     {
         ++_folderActionGeneration; IsFolderRenameOpen = false; _renameFolder = null;
-        if (IsFolderActionPending) Message = "Folder input closed. A submitted change may already be saved; Refresh to check.";
+        if (IsFolderActionPending) ReportMessage("Folder input closed. A submitted change may already be saved; Refresh to check.", NotebookNotificationKind.Warning);
     }
     private Task RenameFolderAsync()
     {
@@ -76,7 +76,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 await ReadPageAsync(false, SelectedNote?.Id, ct);
                 if (!Current(ct) || !ReferenceEquals(activation, _lifetime)) return;
                 completed = true; IsFolderRenameOpen = false; _renameFolder = null; FolderRenameName = "";
-                Message = command is DeleteNotebookFolder ? "Folder deleted. Notes retained without a folder; showing All Notes." : "Folder renamed.";
+                ReportMessage(command is DeleteNotebookFolder ? "Folder deleted. Notes retained without a folder; showing All Notes." : "Folder renamed.", NotebookNotificationKind.Success);
             }), owns: Owns);
             if (!completed && Owns() && string.IsNullOrEmpty(FolderActionMessage))
                 FolderActionMessage = string.IsNullOrEmpty(Message) ? "Folder change cancelled. Your input is retained." : Message;

@@ -132,9 +132,22 @@
     <Button x:Name="CancelNotebookOperation" DockPanel.Dock="Right" Content="Cancel operation" Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel active Notebook operation" ToolTip="Stop active work; a completed change may already be saved."/>
     <TextBlock Text="Notebook operation in progress…" Style="{StaticResource QuietText}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
    </DockPanel>
-  <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{DynamicResource PtjInformationBrush}" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Message}">
-   <TextBlock.Style><Style TargetType="TextBlock"><Style.Triggers><DataTrigger Binding="{Binding Message}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
-  </TextBlock>
+   <Border x:Name="NotebookNotification" Padding="10" Margin="0,0,0,8" BorderThickness="1" CornerRadius="6" AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding Notification.AccessibleText}">
+    <Border.Style><Style TargetType="Border">
+     <Setter Property="Background" Value="{DynamicResource PtjInformationSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjInformationBrush}"/>
+     <Style.Triggers>
+      <DataTrigger Binding="{Binding Notification}" Value="{x:Null}"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger>
+      <DataTrigger Binding="{Binding Notification.Kind}" Value="{x:Static vm:NotebookNotificationKind.Success}"><Setter Property="Background" Value="{DynamicResource PtjSuccessSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjSuccessBrush}"/></DataTrigger>
+      <DataTrigger Binding="{Binding Notification.Kind}" Value="{x:Static vm:NotebookNotificationKind.Warning}"><Setter Property="Background" Value="{DynamicResource PtjJournalReviewBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjWarningBrush}"/></DataTrigger>
+      <DataTrigger Binding="{Binding Notification.Kind}" Value="{x:Static vm:NotebookNotificationKind.Error}"><Setter Property="Background" Value="{DynamicResource PtjDangerSurfaceBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjDangerBrush}"/></DataTrigger>
+     </Style.Triggers>
+    </Style></Border.Style>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <TextBlock Text="{Binding Notification.Icon}" FontSize="20" FontWeight="SemiBold" Margin="0,2,10,0" Foreground="{Binding BorderBrush, ElementName=NotebookNotification}"/>
+     <TextBlock x:Name="NotebookNotificationText" Grid.Column="1" Text="{Binding Notification.AccessibleText}" TextWrapping="Wrap" VerticalAlignment="Center" Foreground="{DynamicResource PtjTextPrimaryBrush}"/>
+     <Button x:Name="DismissNotebookNotification" Grid.Column="2" Content="×" Command="{Binding DismissNotificationCommand}" Style="{StaticResource NotebookToolButton}" Margin="8,0,0,0" VerticalAlignment="Top" AutomationProperties.Name="Dismiss Notebook notification"/>
+    </Grid>
+   </Border>
   </StackPanel>
   <WrapPanel x:Name="NarrowNavigation" Grid.Row="2" Visibility="Collapsed" Margin="0,0,0,8">
    <Button Content="Organization" Click="ShowOrganization" Margin="0,0,8,0"/>
@@ -341,7 +354,6 @@
         <TextBlock Text="Move this note to folder" Style="{StaticResource QuietText}"/>
         <ComboBox x:Name="MoveNoteFolder" ItemsSource="{Binding Folders}" SelectedItem="{Binding MoveFolder}" ItemTemplate="{StaticResource NamedPickerItem}" ToolTip="{Binding MoveFolder.Name}" AutomationProperties.HelpText="{Binding MoveFolder.Name}" AutomationProperties.Name="Move note to folder" Margin="0,4"/>
         <WrapPanel><Button x:Name="ConfirmMoveNote" Content="Move"  Margin="0,0,6,0"/><Button Content="Cancel" Click="DismissNoteMove"/></WrapPanel>
-        <TextBlock Text="{Binding Message}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
       </Border>
       <TextBlock Text="{Binding ContentMessage}" Style="{StaticResource QuietText}" AutomationProperties.LiveSetting="Polite" Margin="0,0,0,8"/>
@@ -351,6 +363,7 @@
       </StackPanel>
       <TextBlock Text="{Binding RecoveryMessage}" Style="{StaticResource QuietText}" Margin="0,4,0,4"/>
       <TextBlock Text="{Binding DraftError}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
+      <TextBlock x:Name="SaveFeedback" Text="{Binding SaveFeedback}" TextWrapping="Wrap" Foreground="{DynamicResource PtjDangerBrush}" AutomationProperties.LiveSetting="Polite"/>
       <Border Background="{DynamicResource PtjSurfaceElevatedBrush}" BorderBrush="{DynamicResource PtjBorderBrush}" BorderThickness="1" CornerRadius="6" Padding="4" Margin="0,6,0,12">
       <WrapPanel x:Name="FormattingToolbar" IsEnabled="{Binding CanEditBody}" AutomationProperties.Name="Note formatting" KeyboardNavigation.TabNavigation="Continue">
        <ComboBox x:Name="ParagraphStyle" Width="118" MinHeight="32" Height="32" Padding="6,3" SelectionChanged="StyleChanged" ToolTip="Paragraph or heading" AutomationProperties.Name="Paragraph style" Margin="0,2">

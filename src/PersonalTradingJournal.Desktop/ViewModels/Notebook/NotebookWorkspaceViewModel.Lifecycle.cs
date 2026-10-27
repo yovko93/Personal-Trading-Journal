@@ -57,7 +57,7 @@ public sealed partial class NotebookWorkspaceViewModel
             if (result.Note is not { } saved || saved.State != NotebookNoteState.Active || saved.Version != 1 || saved.Title != title ||
                 saved.FolderId != folder || saved.IsPinned || saved.Document.PlainText != NotebookTemplates.Create(template).PlainText ||
                 saved.Images.Length != 0 || saved.Links.Length != 0 || saved.TagIds.Length != 0)
-            { Message = "Creation could not be verified. Keep your draft and refresh before retrying."; return; }
+            { ReportMessage("Creation could not be verified. Keep your draft and refresh before retrying.", NotebookNotificationKind.Error); return; }
             AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = saved; InstallDraft();
             ContentMessage = saved.Document.Blocks.Count == 0 ? "This note has no content." : "";
             _publishing = true;
@@ -71,8 +71,8 @@ public sealed partial class NotebookWorkspaceViewModel
             if (ownsPanel) Panel = 2;
             long completionPanel = _panelGeneration;
             if (!ct.IsCancellationRequested) await ReadPageAsync(false, saved.Id, ct, keepEditor: true);
-            if (!_active || _disposed || !ReferenceEquals(activation, _lifetime)) return;
-            Message = "Note created.";
+            if (!_active || _disposed || !ReferenceEquals(activation, _lifetime) || Note?.Id != saved.Id) return;
+            ReportMessage("Note created.", NotebookNotificationKind.Success);
             if (ownsPanel && completionPanel == _panelGeneration && !ct.IsCancellationRequested) NoteCreated?.Invoke(this, EventArgs.Empty);
         });
     }
@@ -106,12 +106,12 @@ public sealed partial class NotebookWorkspaceViewModel
                 expectedState is { } expected && (saved?.State ?? unavailable?.State) != expected ||
                 before is not null && (saved is null || Signature(saved.Title, saved.Document) != _savedSignature ||
                     !saved.Images.SequenceEqual(before.Images) || !saved.Links.SequenceEqual(before.Links) || !saved.TagIds.SequenceEqual(before.TagIds)))
-            { _autosavePaused = true; Message = "The stored lifecycle change could not be verified. Keep your draft and refresh."; return; }
+            { _autosavePaused = true; ReportMessage("The stored lifecycle change could not be verified. Keep your draft and refresh.", NotebookNotificationKind.Error); return; }
             AcceptNoteDeparture(); _unavailable = unavailable; Note = saved;
             // No newer edit is accepted during the canonical transition; explicit discard completes only now.
             DraftChanged();
             if (!ct.IsCancellationRequested) await ReadPageAsync(false, id, ct);
-            Message = "Note state updated. Find retained notes in All Notes, or deleted notes in Trash.";
+            if (Current(ct)) ReportMessage("Note state updated. Find retained notes in All Notes, or deleted notes in Trash.", NotebookNotificationKind.Success);
         });
     }
     private Task RunNoteOperationAsync(Func<CancellationToken, Task> action)

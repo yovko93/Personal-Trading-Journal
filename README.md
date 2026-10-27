@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A15 — Top Notebook notifications
+
+Notebook operation feedback now uses one themed top notification with an icon, severity label and accessible dismissal. Each new event receives ten seconds; replacement, manual dismissal, selection departure and disposal invalidate the old timer. Field validation, save failures and recovery/retry controls remain persistent. Routine autosave does not show a success banner.
+
+Release builds passed with zero warnings/errors. **12 notification timing/state cases and four matching isolated WPF cases passed**; Light/Dark normal and narrow/high-DPI captures were inspected. The broader focused run passed **183/186 parents**, with **7/10 isolated children** passing, zero skips, exit **1**. Three existing menu mouse-readiness checks failed before their first click. One bounded diagnostic rerun passed but does not explain the original failures; **full A15 regression acceptance remains pending**. Counts overlap subsequent diagnostic/render runs and are not summed. [Classification, commands, exact inventory, captures and retained failures](docs/notebook.md#m2212a15--top-notebook-notifications). Evidence: `TestResults/m2212a15-verified/summary.json`.
+
+**A16–A17, M22.12B and overall M22.12 acceptance remain pending.** No complete gate ran. Human/Narrator, native journal restart and matching hosted input compatibility remain unverified. Earlier records below are historical.
+
 ## M22.12A14 — Workspace Refresh and Trash placement
 
 WORKSPACE now lists **All Notes, Pinned, Trash**. A compact teal **Refresh** icon replaces its ellipsis and popup, retaining the existing command, draft consent and busy/cancellation behavior. Trash uses the standard scope row, icon, count and guarded selection highlighting. Note and global-tag menus, Restore, confirmed permanent deletion and the All Notes fallback after folder deletion remain available.

@@ -164,7 +164,13 @@ public sealed partial class NotebookHeaderViewTests
                         if (ancestor is UIElement element && (element.Opacity < 1 ||
                             element.RenderTransform is TranslateTransform { HasAnimatedProperties: true } translation && (translation.X != 0 || translation.Y != 0))) settled = false;
                     hit = settled && (target is not MenuItem || target.IsMouseOver) && WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)) == ((HwndSource)PresentationSource.FromVisual(target)).Handle;
-                    if (hit || readyWatch.Elapsed >= TimeSpan.FromSeconds(3)) readyFrame.Continue = false;
+                    if (hit || readyWatch.Elapsed >= TimeSpan.FromSeconds(3))
+                    {
+                        var actualWindow = WindowFromPoint(new NativePoint((int)point.X, (int)point.Y));
+                        var title = new System.Text.StringBuilder(256); GetWindowText(actualWindow, title, title.Capacity);
+                        log.Add($"Hit-test: target={target.Name}; point={point}; expectedHwnd={((HwndSource)PresentationSource.FromVisual(target)).Handle}; actualHwnd={actualWindow}; actualTitle={title}; settled={settled}; mouseOver={target.IsMouseOver}; active={window.IsActive}; window={window.Left},{window.Top},{window.ActualWidth},{window.ActualHeight}; desktop={SystemParameters.VirtualScreenLeft},{SystemParameters.VirtualScreenTop},{SystemParameters.VirtualScreenWidth},{SystemParameters.VirtualScreenHeight}; dpi={VisualTreeHelper.GetDpi(target)}; hit={hit}");
+                        readyFrame.Continue = false;
+                    }
                 }
                 readyTimer.Tick += HitTest; readyTimer.Start();
                 try { Dispatcher.PushFrame(readyFrame); Assert.True(hit, "The intended control did not become hit-testable with settled popup animation and mouse-over."); }
@@ -194,6 +200,7 @@ public sealed partial class NotebookHeaderViewTests
     [StructLayout(LayoutKind.Sequential)] private struct NativeInput { public uint Type; public MouseInput Mouse; }
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr handle, System.Text.StringBuilder text, int maximum);
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, NativeInput[] inputs, int size);
     private static void SendMouse(uint flags) => Assert.Equal(1u, SendInput(1, [new NativeInput { Mouse = new MouseInput { Flags = flags } }], Marshal.SizeOf<NativeInput>()));
 }

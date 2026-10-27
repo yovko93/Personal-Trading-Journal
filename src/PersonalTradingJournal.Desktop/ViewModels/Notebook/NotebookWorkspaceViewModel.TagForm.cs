@@ -34,7 +34,7 @@ public sealed partial class NotebookWorkspaceViewModel
     {
         bool wasOpen = IsTagCreationOpen || IsTagRenameOpen;
         CloseTagForm();
-        if (wasOpen && _tagOperation) Message = "Tag input closed. A submitted change may already be saved; check TAGS or Refresh.";
+        if (wasOpen && _tagOperation) ReportMessage("Tag input closed. A submitted change may already be saved; check TAGS or Refresh.", NotebookNotificationKind.Warning);
     }
     public void CancelTagForm()
     {

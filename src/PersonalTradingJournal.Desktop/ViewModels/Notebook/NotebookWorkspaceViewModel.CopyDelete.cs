@@ -11,11 +11,11 @@ public sealed partial class NotebookWorkspaceViewModel
         var result = await Task.Run(() => _service.ExecuteAsync(new DuplicateNotebookNote(source.Id, source.Version), ct), ct);
         if (!_active || _disposed || Note?.Id != source.Id) return;
         if (!PublishWrite(result.Status, ""))
-        { if (result.CleanupPending) Message += " Prepared originals were retained pending safe cleanup."; return; }
+        { if (result.CleanupPending) ReportMessage(Message + " Prepared originals were retained pending safe cleanup.", Notification?.Kind ?? NotebookNotificationKind.Error); return; }
         if (result.Note is not { } copy || copy.Id == source.Id || copy.Version != 1 || copy.IsPinned || copy.State != NotebookNoteState.Active ||
             copy.Title != NotebookDuplication.Title(source.Title) || copy.Document.PlainText != source.Document.PlainText ||
             !copy.TagIds.SequenceEqual(source.TagIds) || !copy.Links.SequenceEqual(source.Links))
-        { Message = "Duplication could not be verified. Keep your draft and refresh before retrying."; return; }
+        { ReportMessage("Duplication could not be verified. Keep your draft and refresh before retrying.", NotebookNotificationKind.Error); return; }
         AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = copy; InstallDraft();
         ContentMessage = copy.Document.Blocks.Count == 0 ? "This note has no content." : "";
         _publishing = true;
@@ -23,7 +23,7 @@ public sealed partial class NotebookWorkspaceViewModel
         finally { _publishing = false; }
         Panel = 2;
         if (!ct.IsCancellationRequested) await ReadPageAsync(false, copy.Id, ct, keepEditor: true);
-        Message = SelectedNote is null ? "Note duplicated. Its editor is open outside the current filter/page." : "Note duplicated.";
+        if (Current(ct) && Note?.Id == copy.Id) ReportMessage(SelectedNote is null ? "Note duplicated. Its editor is open outside the current filter/page." : "Note duplicated.", NotebookNotificationKind.Success);
         NoteCreated?.Invoke(this, EventArgs.Empty);
     });
     private Task DeleteNoteAsync() => RunNoteOperationAsync(async ct =>
@@ -38,7 +38,7 @@ public sealed partial class NotebookWorkspaceViewModel
         var result = await Task.Run(() => _service.ExecuteAsync(new DeleteNotebookNote(id.Value, version.Value, true), ct), ct);
         if (!_active || _disposed || (Note?.Id ?? _unavailable?.Id) != id) return;
         if (!PublishWrite(result.Status, "")) return;
-        if (result.DeletedNoteId != id) { Message = "Deletion could not be verified. Refresh before retrying."; return; }
+        if (result.DeletedNoteId != id) { ReportMessage("Deletion could not be verified. Refresh before retrying.", NotebookNotificationKind.Error); return; }
         AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
         _publishing = true;
         try { SelectedNote = null; foreach (var row in Notes.Where(x => x.Id == id).ToArray()) Notes.Remove(row); }
@@ -46,6 +46,6 @@ public sealed partial class NotebookWorkspaceViewModel
         foreach (var draft in RecoveryDrafts.Where(x => x.NoteId == id).ToArray()) RecoveryDrafts.Remove(draft);
         OnPropertyChanged(nameof(HasRecovery)); ContentMessage = "Choose a note to read its content.";
         if (!ct.IsCancellationRequested) await ReadPageAsync(false, null, ct);
-        Message = result.CleanupPending ? "Note permanently deleted. Some original files are retained pending safe cleanup." : "Note permanently deleted.";
+        if (Current(ct) && Note is null) ReportMessage(result.CleanupPending ? "Note permanently deleted. Some original files are retained pending safe cleanup." : "Note permanently deleted.", result.CleanupPending ? NotebookNotificationKind.Warning : NotebookNotificationKind.Success);
     });
 }

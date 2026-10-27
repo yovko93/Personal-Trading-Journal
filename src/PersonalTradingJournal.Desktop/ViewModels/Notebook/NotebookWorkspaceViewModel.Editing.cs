@@ -28,6 +28,8 @@ public sealed partial class NotebookWorkspaceViewModel
     public long DraftRevision => _draftRevision;
     public long EditorRevision => _editorRevision;
     public string DraftError => _draftError;
+    private string _saveFeedback = "";
+    public string SaveFeedback { get => _saveFeedback; private set => SetProperty(ref _saveFeedback, value); }
     public string SaveState => IsSaving ? "Saving…" : _saveState;
     public bool IsSaving { get; private set; }
     public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
@@ -56,6 +58,7 @@ public sealed partial class NotebookWorkspaceViewModel
     { n.Kind, n.Text, n.Marks, n.HeadingLevel, n.IsChecked, n.Url, n.ImageId, n.Caption, n.AlternativeText, Children = n.Children.Select(Value).ToArray() };
     private void InstallDraft()
     {
+        SaveFeedback = "";
         _knownImages.Clear();
         if (Note is not null) RememberImages(Note);
         StopDebounce(); _recoveryId = null; _checkpointRevision = 0;
@@ -114,9 +117,9 @@ public sealed partial class NotebookWorkspaceViewModel
     {
         bool Owns() => request is null || request.IsCurrent;
         if (!Owns()) return false;
-        if (_noteOperation && !noteOperation) { Message = "Wait for the note operation before leaving."; return false; }
-        if (_linkOperation && !linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
-        if (_imageOperation || _preparingImage) { Message = "Wait for the image operation before leaving."; return false; }
+        if (_noteOperation && !noteOperation) { ReportMessage("Wait for the note operation before leaving.", NotebookNotificationKind.Information); return false; }
+        if (_linkOperation && !linkOperation) { ReportMessage("Wait for the linked-record operation before leaving.", NotebookNotificationKind.Information); return false; }
+        if (_imageOperation || _preparingImage) { ReportMessage("Wait for the image operation before leaving.", NotebookNotificationKind.Information); return false; }
         if (_recovery is not null)
         {
             StopDebounce();
@@ -125,7 +128,7 @@ public sealed partial class NotebookWorkspaceViewModel
             if (_active && !_disposed && IsDirty && !_autosavePaused && !_recoveryConflict && await SaveDraftAsync()) return Owns();
             if (!Owns()) return false;
         }
-        if (_disposed || IsWriting) { Message = "Wait for the Notebook change, or cancel it before leaving."; return false; }
+        if (_disposed || IsWriting) { ReportMessage("Wait for the Notebook change, or cancel it before leaving.", NotebookNotificationKind.Information); return false; }
         ClearLeaveConsent();
         if (!IsDirty) return true;
         var choice = _interaction?.ConfirmLeave() ?? NotebookLeaveChoice.Cancel;
@@ -164,14 +167,14 @@ public sealed partial class NotebookWorkspaceViewModel
         {
             await MutateAsync(async ct =>
             {
-                if (_draftError.Length != 0) { Message = "Correct or undo the invalid editor content before saving."; return; }
+                if (_draftError.Length != 0) { SaveFeedback = Message = "Correct or undo the invalid editor content before saving."; return; }
                 if (_recovery is not null && !await CheckpointAsync(captured, revision, title, document, ct)) return;
                 if (checkpointOnly || _recoveryConflict) return;
                 try { NotebookLimits.NoteTitle(title); ValidateDocument(document); }
-                catch (ArgumentException) { Message = "Use a nonblank title of at most 200 characters and content within the document limits."; return; }
+                catch (ArgumentException) { SaveFeedback = Message = "Use a nonblank title of at most 200 characters and content within the document limits."; return; }
                 ct.ThrowIfCancellationRequested();
                 var references = await DraftImagesAsync(captured.Id, document, ct);
-                if (references is null) { Message = "An image reference could not be resolved. The draft is retained."; return; }
+                if (references is null) { SaveFeedback = Message = "An image reference could not be resolved. The draft is retained."; return; }
                 NotebookCommand command = references.Value.SequenceEqual(captured.Images)
                     ? new SaveNotebookDraft(captured.Id, captured.Version, title, document, references.Value)
                     : new SaveNotebookImageDraft(captured.Id, captured.Version, title, document, references.Value);
@@ -183,6 +186,7 @@ public sealed partial class NotebookWorkspaceViewModel
                     Signature(persisted.Title, persisted.Document) != Signature(title.Trim(), document) || !persisted.Images.SequenceEqual(references.Value))
                 {
                     PublishWrite(result.Status == NotebookWriteStatus.Success ? NotebookWriteStatus.StorageFailure : result.Status, "");
+                    SaveFeedback = Message;
                     _saveState = _recovery is null ? "Could not save" : result.Status == NotebookWriteStatus.Conflict
                         ? "Conflict — keep or discard your draft before refreshing." : "Save failed — use Save to retry.";
                     _autosavePaused = true; return;
@@ -191,6 +195,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 if (_draftRevision == revision) { _draftTitle = persisted.Title; OnPropertyChanged(nameof(DraftTitle)); }
                 _saveState = IsDirty ? "Unsaved changes" : "Saved"; saved = !IsDirty;
                 Message = ""; // Do not reload/rebuild the document or clear undo/caret on save.
+                SaveFeedback = "";
                 await CleanupCheckpointAsync(ct);
                 if (!Current(owner) || Note?.Id != captured.Id) return;
                 int index = Notes.ToList().FindIndex(n => n.Id == persisted.Id);
@@ -217,10 +222,10 @@ public sealed partial class NotebookWorkspaceViewModel
                         }
                         finally { _publishing = false; }
                         OnPropertyChanged(nameof(ListSummary));
-                        if (SelectedNote is null) Message = "Saved note is outside this list page/filter. Its editor remains open.";
+                        if (SelectedNote is null) ReportMessage("Saved note is outside this list page/filter. Its editor remains open.", NotebookNotificationKind.Information);
                     }
                     catch (OperationCanceledException) { }
-                    catch (Exception) { Message = "Saved. The list could not refresh; select Refresh to retry."; }
+                    catch (Exception) { if (Current(ct) && ReferenceEquals(activation, _lifetime) && Note?.Id == captured.Id) ReportMessage("Saved. The list could not refresh; select Refresh to retry.", NotebookNotificationKind.Warning); }
                 }
             });
         }

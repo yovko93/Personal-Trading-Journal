@@ -1,5 +1,92 @@
 # Notebook
 
+## M22.12A15 — Top Notebook notifications
+
+27 October 2026 (Europe/Kiev). One agent. Actual initial baseline: **clean develop / `e42d8c9fc744f0d54dd35b3baafb9ad4d6986bda`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A14 pending changes had already been committed after `cd26864f`. On resumption, the in-progress A15 edits and original artifacts were preserved. HEAD is unchanged. Repository/ancestor inspection found no AGENTS.md. Tested production source is HEAD plus the A15 source changes below, not HEAD alone. Evidence root: **`TestResults/m2212a15-verified/`**.
+
+### Notification contract and message inventory
+
+One wrapping info box sits below the primary header and above Organization/Notes/Content switching. It participates in layout, does not overlay controls, and remains visible whichever narrow panel is selected. Existing theme brushes provide green Success, blue Information, amber Warning and red Error; an icon and written severity distinguish them without color. The close button has an accessible name, tooltip and existing keyboard-focus style. Publishing or automatically dismissing feedback does not request focus.
+
+| Source | A15 presentation and severity |
+| --- | --- |
+| Verified note creation, move/pin, lifecycle, duplication/deletion, folder/tag catalog and assignment/link completion | Top Success event after the existing authoritative completion; deletion with retained cleanup work is Warning |
+| Wait-before-leaving guidance, saved note outside the filter/page, catalog changed outside the current context | Top Information |
+| Operation cancellation, form dismissal during a possible committed write, conflicts/missing targets, saved note whose list refresh failed | Top Warning; cancellation never claims rollback |
+| General read/write failure, unverified operation result, image admission/size/codec failure | Top Error; image-specific detail and retention caveats are retained |
+| Folder creation/rename and tag name validation/persistence messages | Retained beside their field; validation-only feedback does not need a transient event |
+| `DraftError`, new `SaveFeedback`, `SaveState`, `CompactSaveState`, `RecoveryMessage` and recovery actions | Persistent contextual state. Save errors retain their explanation and retry/Discard controls after banner expiry or dismissal. Checkpoint durability is not canonical-save success |
+| `ContentMessage`, unavailable/read-only explanation, target/link picker errors, editor/link/image inline feedback | Retained contextual loading, capability or field/selection diagnostics; no blanket subscription turns them into transient events |
+| Confirmations and active-operation cancellation | Remain interactive; not timed away |
+
+The previous general `Message` TextBlock and its duplicate inside the move picker are removed. `Message` remains available to existing command/error coordination; it is not the timer trigger. Explicit operation events choose severity. Routine successful manual/automatic saves keep compact status and do not produce a success toast. Save validation and canonical failure details clear only when the draft is replaced or a canonical save succeeds, not on notification dismissal.
+
+The existing injected `TimeProvider` drives one asynchronous ten-second delay. A new event, including the same text from a distinct operation, cancels and invalidates its predecessor and starts a full interval. Binding reads/refreshes do not start events. There is no queue. Identity checks prevent a queued old expiry from clearing a replacement; timers are cancelled on accepted note departure, deactivation and disposal, then disposed by their completion. The continuation retains the UI synchronization context; a busy dispatcher may process expiry when it next becomes available. No blocking wait, focus request, persistence mutation or recovery acknowledgement is performed by dismissal. Catch-path feedback now checks activation/selection ownership; late inactive completions cannot notify a newly opened workspace. Existing operation ownership, autosave timing and expected-version writes are retained.
+
+### Commands and focused results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a15-verified/run.ps1 -Name focused -Filter 'FullyQualifiedName~NotebookNotificationTests|FullyQualifiedName~NotebookHeaderViewTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookFolderCreationTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~NotebookImageCoordinationTests|FullyQualifiedName~NotebookCopyDeleteTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookLinkTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~ReleaseSchedulingTests'
+# After adding only hit-test diagnostics, rebuild the same Release project:
+pwsh -NoProfile -File TestResults/m2212a15-verified/run.ps1 -Name hit-test-diagnostic -Filter 'FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard&DisplayName~Light&DisplayName~1280'
+# Correct severity-example text in the synthetic palette fixture, then regenerate affected evidence:
+pwsh -NoProfile -File TestResults/m2212a15-verified/run.ps1 -Name final-notification-renders -Build -Filter 'FullyQualifiedName~TopNotificationsWrapAcrossPanelsAndDismissWithoutResolvingFailedSave'
+pwsh -NoProfile -File TestResults/m2212a15-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a15-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a15-verified/check-doc-links.ps1
+```
+
+The runner sets `PTJ_TEST_RESULTS_DIRECTORY` and uses `dotnet test ... -c Release --no-build --no-restore --filter $Filter --logger trx --results-directory $RunDirectory`. Build logs: `build/output.log` (**74.46s**), `diagnostic-build/output.log` (**10.38s**) and `final-notification-renders/build.log` (**22.64s**); all exit **0**, zero warnings/errors. The second build adds only test diagnostics; the third changes only synthetic capture text. Production binaries include the same A15 source throughout. No restore, EF-model change or complete gate was needed for this Desktop-only change.
+
+| Run | Parents passed/total | Separate children passed/total | Failures / skips | Exit | Command wall time excluding build |
+| --- | ---: | ---: | --- | ---: | ---: |
+| `focused` | 183/186 | 7/10 | 3 parents mapping to 3 children / 0 | 1 | 82.763s |
+| `hit-test-diagnostic` | 1/1 | 1/1 | 0 / 0 | 0 | 10.869s |
+| `final-notification-renders` | 4/4 | 4/4 | 0 / 0 | 0 | 32.542s |
+
+There are **186 distinct parents and ten distinct children**, across **191 parent and 15 child executions**. The diagnostic case and four regenerated visual cases overlap the initial selection; parent and child totals are never added together. Every child TRX contains exactly its one intended parent identity, with no missing, duplicate or skipped result. The audit deliberately remains nonzero because retained failures remain unresolved; its latest-result projection does not erase the original three failures.
+
+All **12 new timing/state cases** passed: four severities, 9,999/10,000ms boundary, replacement with identical text, queued expiry ownership, manual dismissal, failed/conflicting canonical save with retained recovery, field validation, silent routine autosave, operation success/failure/cancellation mapping, deactivation/disposal/late completion and accepted versus rejected note departure. The **four new UI parents and four matching children** passed in both runs, covering binding refresh without timer restart, all narrow panels, theme brushes, wrapped text, close-button geometry/accessibility, native Space dismissal, persistent failed-save controls and focus retained through timed dismissal. The tests reuse `NotebookClock`; no repeated real ten-second waits were added.
+
+Other original focused counts, all passing except the menu family described below: autosave **20**, editing **15**, folder creation **17**, folder actions **14**, tag form **14**, tags **7**, note action ownership **7**, image coordination **6**, copy/delete **8**, lifecycle/templates **18**, links **15**, workspace/query **22**, scheduling **1**, header creation/Refresh/cancellation **2**. Menu family **1/4**, notification logic **12/12**, notification UI **4/4** complete the 186-parent count. These selections exercise the changed feedback producers and retained draft protections; they are not a repeat of every historical Notebook suite.
+
+### Retained failure diagnosis and acceptance limit
+
+All three original failures are in `NotebookHeaderViewTests.OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard`, before the **first** `MouseClick(NoteOverflow)` injects mouse input. Each fails the unchanged three-second readiness assertion: **“The intended control did not become hit-testable with settled popup animation and mouse-over.”** Keyboard focus and the control's focus visual had already passed; no menu command had run. Closed-control renders show an arranged, visible control. The original log does not record the mismatching HWND or animation condition, so it cannot establish the cause or attribute it to a notification/layout change.
+
+Paths below are under `focused/`; each folder retains `notebook-menus.trx`, stdout/stderr, supervision evidence, `menu-evidence/input-sequence.log` and captures:
+
+| Parent and distinct child parameters | Evidence folder | Result |
+| --- | --- | --- |
+| Light / 1280 / 96 | `notebook-menus-20261027-074346-9fbe202c58bf48519bb58f24bc95bddb` | Failed readiness before first click |
+| Dark / 1280 / 96 | `notebook-menus-20261027-074355-e1fcb59635fe4ca39574af592b92e33d` | Same observed boundary |
+| Light / 480 / 240 | `notebook-menus-20261027-074403-a3708f5da274416db3854e748b51f5d8` | Same observed boundary |
+
+Dark / 480 / 240 passed the complete existing menu matrix. A narrowly scoped diagnostics-only change now records target/screen coordinates, expected/actual HWND, hit window title, settled animation, mouse-over, activation, window/desktop bounds and DPI at readiness completion. One Light / 1280 / 96 diagnostic reproduction passed. Its first click had point **3434,701**, matching HWND **4588706**, settled animation, mouse-over and an active fixture. This is evidence for that later execution only: it does **not** identify the original blocking window/event, prove the three original failures harmless, or justify increasing deadlines. No behavior fix, forced capture/focus, timeout change or retry-until-green loop was applied. **A15 implementation and its notification-specific verification are complete; full A15 focused regression acceptance remains pending diagnosis of the retained menu-input failures.**
+
+`test-audit.json`, `results.json` and `failure-diagnostics.json` retain exact identities and original error stacks. Original parent TRX is `focused/Yovko_DESKTOP-N2ONT35_2026-10-27_09_43_36_net10.0.trx`. Supported native fixtures used **session 1 / WinSta0 / Default**, cursor access and the executor's existing administrator token, as recorded in `test-context.json`; no UAC/token/desktop switching was requested. `after-context.json` confirms no active test processes. Native mouse readiness remains a narrower unverified prerequisite than cursor access alone.
+
+### Inspected captures and exact inventory
+
+Final captures use production resources, synthetic notes and the final passing four-row notification fixture. `renders.json` maps copied paths to original child artifacts and SHA-256 hashes. The severity palette samples intentionally publish explicit synthetic events; the failed-save captures invoke the actual save command with a synthetic storage failure. Original intermediate palette captures are retained and superseded by the final examples.
+
+Representative final images inspected under `renders/`: `Light-1280-96-success.png`, `Dark-1280-96-information.png`, `Light-480-240-warning.png`, `Dark-480-240-error.png`, `Light-480-240-error.png`, `Light-1280-96-failed-save.png`, `Dark-480-240-dismissed-save-error.png` and `Dark-1280-96-warning.png`. The banner wraps without clipping or covering the pane controls; persistent Save paused/error/Save/Discard remain after dismissal. No blocking notification visual defect was found. Application shell, Saved locally placement and tag alignment are deliberately unchanged.
+
+Exact A15 inventory: **14 modified files and three added files**, all relative to the clean baseline; there were no pre-existing uncommitted A14 edits:
+
+- `README.md`, `docs/notebook.md` — behavior, evidence, retained failure and boundaries.
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` — initialization, accepted-selection/deactivation expiry invalidation, general feedback and catch ownership.
+- Same directory: `NotebookWorkspaceViewModel.CopyDelete.cs`, `NotebookWorkspaceViewModel.FolderActions.cs`, `NotebookWorkspaceViewModel.Folders.cs`, `NotebookWorkspaceViewModel.Lifecycle.cs`, `NotebookWorkspaceViewModel.Links.cs`, `NotebookWorkspaceViewModel.TagForm.cs`, `NotebookWorkspaceViewModel.Tags.cs` — explicit existing operation-feedback events/severities and guarded completion.
+- Same directory: `NotebookWorkspaceViewModel.Editing.cs` — persistent save feedback, validation, silent save success and owned refresh failure.
+- Same directory: `NotebookWorkspaceViewModel.Images.cs` — specific image failure/retention feedback; a nominal success without verified returned content is not reported as success.
+- **Added** in the same directory: `NotebookWorkspaceViewModel.Notifications.cs` — notification record, explicit publication, replacement-safe delay and dismissal.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — top banner, accessible close and persistent save detail; duplicate general message binding removed.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs` — additive native readiness diagnostics only; existing conditions and deadlines unchanged.
+- **Added** in the test directory: `NotebookNotificationTests.cs`, `NotebookHeaderViewTests.Notifications.cs` — deterministic timing/state tests and four isolated WPF interaction/render cases.
+
+`source-provenance.json` and `binaries.json` record current source/binary hashes; ignored evidence remains in this phase directory. Tracked/new-file whitespace passed, and **218 local documentation targets** passed with zero missing paths (URL and anchor validation excluded); these checks are separate from runtime acceptance. No persistence/schema, archive/export format, CI, scheduling, assertion or timeout change was made. Human keyboard/Narrator assessment, native journal workflows/restart and matching hosted execution remain unverified. **A16–A17, M22.12B and overall M22.12 acceptance remain pending.** No production/provider access, publication or workflow triggering occurred.
+
 ## M22.12A14 — Workspace Refresh and Trash placement
 
 26 October 2026 (Europe/Kiev). One agent. Actual baseline: **clean develop / `cd26864fef756ca037fab32921b3c7d29d39e43b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A13's six modified files and added helper had been committed after the reported `613dbac7` HEAD. HEAD remains unchanged; no existing work or evidence was discarded. Repository/ancestor inspection found no AGENTS.md. Tested source is this HEAD plus the eight source/test changes below; documentation was edited afterward. Evidence root: **`TestResults/m2212a14-verified/`**.

@@ -30,7 +30,7 @@ public sealed partial class NotebookWorkspaceViewModel
     {
         ++_folderCreationGeneration; IsFolderCreationOpen = false;
         // Dismissal is not a database rollback. A service call already in flight may commit.
-        if (IsFolderCreationPending) Message = "Folder input closed. Creation may already be saved; check FOLDERS or Refresh.";
+        if (IsFolderCreationPending) ReportMessage("Folder input closed. Creation may already be saved; check FOLDERS or Refresh.", NotebookNotificationKind.Warning);
     }
     private Task SelectScopeAsync(NotebookScopeOption value, Func<bool>? owns = null) => GuardedAsync(async () =>
     {
@@ -73,9 +73,9 @@ public sealed partial class NotebookWorkspaceViewModel
                     if (!Current(ct) || !ReferenceEquals(activation, _lifetime)) return;
                     if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message)))) return;
                     created = result.Item;
-                    if (created is null) { Message = "Folder save could not be confirmed. Refresh before trying again."; return; }
+                    if (created is null) { ReportMessage("Folder save could not be confirmed. Refresh before trying again.", NotebookNotificationKind.Error); return; }
                     AddFolder(new(created, 0));
-                    Message = "Folder created. It is available under FOLDERS.";
+                    ReportMessage("Folder created. It is available under FOLDERS.", NotebookNotificationKind.Success);
                 });
                 if (created is null || !Owns()) return;
                 // Reuse the normal guarded scope transition, revalidating this request after consent.
@@ -84,7 +84,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 if (request == _folderCreationGeneration && ReferenceEquals(activation, _lifetime) && _active && !_disposed)
                 {
                     FolderName = ""; IsFolderCreationOpen = false;
-                    Message = Scope?.FolderId == created.Id ? "Folder created." : "Folder created. Current note retained.";
+                    ReportMessage(Scope?.FolderId == created.Id ? "Folder created." : "Folder created. Current note retained.", NotebookNotificationKind.Success);
                 }
             }, owns: Owns);
             if (created is null && Owns()) FolderCreationMessage = entered ? Message : "Creation cancelled. Your input is retained.";

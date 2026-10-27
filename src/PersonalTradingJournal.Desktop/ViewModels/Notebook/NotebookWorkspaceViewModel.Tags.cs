@@ -186,7 +186,7 @@ public sealed partial class NotebookWorkspaceViewModel
                     if (OwnsInput()) ManagedTag = new(item.Id, item.Name, item.Version, 0, _filterIds.Contains(item.Id), before?.TagIds.Contains(item.Id) == true);
                 }
                 // Catalog commits remain authoritative after dismissal, but must not replace a newer note context.
-                if (!OwnsContext()) { PublishTags(); Message = "Tag catalog updated. Refresh to reload stored counts."; return; }
+                if (!OwnsContext()) { PublishTags(); ReportMessage("Tag catalog updated. Refresh to reload stored counts.", NotebookNotificationKind.Information); return; }
                 // Only our confirmed deletion may advance the open note's baseline. Never adopt
                 // an unrelated concurrent version just to make a later autosave succeed.
                 if (before is not null && result.DeletedItemId is Guid removed && before.TagIds.Contains(removed))
@@ -202,7 +202,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 await ReadPageAsync(false, before?.Id ?? SelectedNote?.Id, ct, keepEditor: true);
                 if (Current(ct))
                 {
-                    completed = true; Message = "Tag catalog updated.";
+                    completed = true; ReportMessage("Tag catalog updated.", NotebookNotificationKind.Success);
                     // This write owns the list refresh: WPF can transiently clear/reselect the
                     // same item while Notes is republished. External selection is disabled during
                     // IsWriting; the input generation still protects dismissal and newer input.
@@ -241,7 +241,7 @@ public sealed partial class NotebookWorkspaceViewModel
                     { TagMessage = "The stored tag change could not be verified. Refresh before trying again."; _autosavePaused = true; return; }
                     Note = saved; // Content/caret/undo and editor generation stay untouched.
                     await ReadPageAsync(false, saved.Id, ct, keepEditor: true);
-                    if (Current(ct)) { TagMessage = ""; Message = remove ? "Tag removed from this note." : "Tag assigned to this note."; DraftChanged(); }
+                    if (Current(ct)) { TagMessage = ""; ReportMessage(remove ? "Tag removed from this note." : "Tag assigned to this note.", NotebookNotificationKind.Success); DraftChanged(); }
                 });
             });
         }

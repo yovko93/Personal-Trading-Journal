@@ -185,7 +185,7 @@ public sealed partial class NotebookWorkspaceViewModel
                     Note = saved; // No InstallDraft: preserve document, caret, history and recovery references.
                     await ResolveCurrentLinksAsync(ct);
                     await ReadPageAsync(false, saved.Id, ct, keepEditor: true);
-                    if (Current(ct)) { Message = remove ? "Link removed. The target is unchanged." : "Record linked."; DraftChanged(); }
+                    if (Current(ct)) { ReportMessage(remove ? "Link removed. The target is unchanged." : "Record linked.", NotebookNotificationKind.Success); DraftChanged(); }
                 });
             }, linkOperation: true);
         }

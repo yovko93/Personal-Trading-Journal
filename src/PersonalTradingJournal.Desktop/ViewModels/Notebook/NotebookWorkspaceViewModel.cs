@@ -55,6 +55,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     {
         _service = service; _dialogs = dialogs; _sort = SortOptions[0]; _interaction = interaction; _codec = codec;
         _recovery = recovery; _time = time ?? TimeProvider.System;
+        DismissNotificationCommand = new(DismissNotification);
         _images = images; ImagePresentation = imagePresentation;
         InitializeTags();
         InitializeLinks();
@@ -140,7 +141,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     {
         // Invalidate before notifications or the replacement detail read can yield.
         // A same-note save/list refresh is not a new accepted selection.
-        if (_selected?.Id != value?.Id) ++_selectionGeneration;
+        if (_selected?.Id != value?.Id) { ++_selectionGeneration; DismissNotification(); }
         SetProperty(ref _selected, value, nameof(SelectedNote)); SelectionLabels();
     }
     public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); PublishTags(); NotifyCommands(); } }
@@ -223,14 +224,15 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     public bool TryLeave()
     {
-        if (_noteOperation) { Message = "Wait for the note operation before leaving."; return false; }
-        if (_linkOperation) { Message = "Wait for the linked-record operation before leaving."; return false; }
+        if (_noteOperation) { ReportMessage("Wait for the note operation before leaving.", NotebookNotificationKind.Information); return false; }
+        if (_linkOperation) { ReportMessage("Wait for the linked-record operation before leaving.", NotebookNotificationKind.Information); return false; }
         if (!IsWriting && (!IsDirty || HasLeaveConsent)) return true;
-        Message = IsWriting ? "A Notebook change is in progress. Wait or cancel before leaving." : "Save, discard or keep editing before leaving."; return false;
+        ReportMessage(IsWriting ? "A Notebook change is in progress. Wait or cancel before leaving." : "Save, discard or keep editing before leaving.", NotebookNotificationKind.Information); return false;
     }
     public void Deactivate()
     {
         _active = false; ++_generation;
+        DismissNotification();
         _lifetime?.Cancel(); StopDebounce(); StopSearch(); StopLinkTargetRead(); _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
         IsBusy = false; NotifyCommands();
@@ -245,7 +247,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             _lifetime?.Dispose(); _lifetime = new();
             RestoreAppliedFilters();
             IsBusy = false;
-            Message = "Operation stopped. Refresh to reload stored data; a completed change may already be saved.";
+            ReportMessage("Operation stopped. Refresh to reload stored data; a completed change may already be saved.", NotebookNotificationKind.Warning);
             if (ContentMessage == "Loading note…") ContentMessage = "Note loading stopped. Select Refresh to try again.";
         }
     }
@@ -276,12 +278,12 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             await Task.Yield();
             try { owner.Token.ThrowIfCancellationRequested(); await work(owner.Token); }
             catch (OperationCanceledException) { }
-            catch (ArgumentException) { if (Current(owner.Token)) Message = "Check the search text (up to 256 characters) and selected folder, then try again."; }
+            catch (ArgumentException) { if (Current(owner.Token)) ReportMessage("Check the search text (up to 256 characters) and selected folder, then try again.", NotebookNotificationKind.Error); }
             catch (Exception)
             {
                 if (Current(owner.Token))
                 {
-                    Message = "Notebook could not be loaded. Previous results are retained. Select Refresh to try again.";
+                    ReportMessage("Notebook could not be loaded. Previous results are retained. Select Refresh to try again.", NotebookNotificationKind.Error);
                     if (ContentMessage == "Loading note…") ContentMessage = "Note content could not be loaded. Select Refresh to try again.";
                 }
             }
@@ -423,7 +425,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         if (!Current(ct)) return;
         if (!PublishWrite(result.Status, result.Issues.IsDefault ? "" : string.Join(" ", result.Issues.Select(i => i.Message)))) return;
         await ReadPageAsync(false, result.Note!.Id, ct);
-        if (Current(ct)) Message = "Note updated.";
+        if (Current(ct)) ReportMessage("Note updated.", NotebookNotificationKind.Success);
     });
     private bool PublishWrite(NotebookWriteStatus status, string validation)
     {
@@ -437,19 +439,27 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             NotebookWriteStatus.NotFound or NotebookWriteStatus.UnavailableTarget => "The selected record is no longer available. Refresh to continue.",
             _ => "The change could not be saved. Your input is retained; refresh or try again."
         };
+        // Success is announced only by the verified operation completion, not this
+        // intermediate status (and never for every routine autosave).
+        if (status != NotebookWriteStatus.Success)
+            ShowNotification(Message, status is NotebookWriteStatus.Conflict or NotebookWriteStatus.Cancelled or
+                NotebookWriteStatus.NotFound or NotebookWriteStatus.UnavailableTarget
+                ? NotebookNotificationKind.Warning : NotebookNotificationKind.Error);
         return status == NotebookWriteStatus.Success;
     }
     private Task MutateAsync(Func<CancellationToken, Task> work)
     {
         if (!CanMutate) return Task.CompletedTask;
+        var activation = _lifetime; long selection = _selectionGeneration;
+        bool OwnsFeedback() => !_disposed && _active && ReferenceEquals(activation, _lifetime) && selection == _selectionGeneration;
         var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime?.Token ?? CancellationToken.None); _write = owner; IsWriting = true; IsBusy = true;
         return Track(RunAsync());
         async Task RunAsync()
         {
             await Task.Yield();
             try { owner.Token.ThrowIfCancellationRequested(); await work(owner.Token); }
-            catch (OperationCanceledException) { if (!_disposed) Message = "Change cancelled. Refresh to check stored data."; }
-            catch (Exception) { if (!_disposed) Message = "The operation could not finish. Input is retained; Refresh to check stored data before trying again."; }
+            catch (OperationCanceledException) { if (OwnsFeedback()) ReportMessage("Change cancelled. Refresh to check stored data.", NotebookNotificationKind.Warning); }
+            catch (Exception) { if (OwnsFeedback()) { ReportMessage("The operation could not finish. Input is retained; Refresh to check stored data before trying again.", NotebookNotificationKind.Error); if (IsSaving) SaveFeedback = Message; } }
             finally { if (ReferenceEquals(_write, owner)) _write = null; owner.Dispose(); if (!_disposed) { IsWriting = false; IsBusy = false; } else { _writing = false; _busy = false; } }
         }
     }
