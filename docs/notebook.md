@@ -1,5 +1,82 @@
 # Notebook
 
+## M22.12A15.1 — Retained menu-readiness diagnosis
+
+27 October 2026 (Europe/Kiev), one agent. Actual initial state: **clean develop / `4ad570970654870c7e303a744f525dbaf521a6b9`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A15's 14 modified and three added files were committed in this intervening commit; nothing was discarded. Repository and ancestor guidance inspection found no AGENTS.md. HEAD remains unchanged. This phase adds diagnostics and documentation only; A15 production behavior is unchanged. Evidence root: **`TestResults/m2212a15-1-diagnosis/`**. Original A15 artifacts, failures and the earlier diagnostic pass are preserved under `TestResults/m2212a15-verified/`.
+
+### Source, binary and scheduling provenance
+
+Before instrumentation, all **17** retained A15 source/document hashes and both final Desktop/test DLL hashes matched the current checkout/binaries. The original failing run preceded A15's diagnostic-only menu tracing and synthetic severity-text correction, so its test DLL is not the retained final test DLL; an original byte-for-byte assembly was not retained. Its TRX stacks and build history establish that it used the same production changes and the pre-diagnostic menu helper. The new Release build uses current HEAD plus only the diagnostic changes below. Production source remains identical, but rebuilt assembly metadata now includes `1.0.0+4ad570970654870c7e303a744f525dbaf521a6b9`, so new DLL hashes are recorded separately rather than claimed identical to the pre-commit binaries.
+
+`NotebookHeaderViewTests` belongs to `ExclusiveWpfCollection` (`DisableParallelization=true`) and has `Workload=ExclusiveWpf`. The full gate would run it in the exclusive-first Desktop partition; A15 and this phase used filtered Desktop runs, not full gate partitions. Existing assembly concurrency remains two threads. Every parent computes its full parameterized display name, passes `ExactDisplayNameFilter` plus `expectedTestName`, and launches one isolated child with the recursion host variable. There is **no shared whole-class launch or multiplication of these failures**. Retained supervision intervals show sequential menu launches with cleanup before the next launch. There is no evidenced competing test child; xUnit exclusivity does not exclude other desktop applications.
+
+### Original failure matrix
+
+All identities have prefix `PersonalTradingJournal.Desktop.Tests.Notebook.NotebookHeaderViewTests.OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard`, followed by the exact arguments below. Each parent maps to a distinct, same-named child. Times are **UTC**; TRX duration is reported separately, not added to contained parent time.
+
+| Exact arguments | Child interval / TRX duration | Launcher / testhost PID | Keyboard-readiness active HWND / foreground HWND |
+| --- | --- | --- | --- |
+| `(theme: "Light", width: 1280, dpi: 96)` | 07:43:49.729–07:43:54.907 / 5.244s | 22324 / 520 | `0xA0528` / `0x600F4` |
+| `(theme: "Dark", width: 1280, dpi: 96)` | 07:43:58.398–07:44:03.238 / 4.894s | 12924 / 18396 | `0xE04A8` / `0x600F4` |
+| `(theme: "Light", width: 480, dpi: 240)` | 07:44:06.451–07:44:11.336 / 4.932s | 18000 / 21752 | `0xA0436` / `0x600F4` |
+
+Original child folders under `m2212a15-verified/focused/`, in table order:
+
+- `notebook-menus-20261027-074346-9fbe202c58bf48519bb58f24bc95bddb/`
+- `notebook-menus-20261027-074355-e1fcb59635fe4ca39574af592b92e33d/`
+- `notebook-menus-20261027-074403-a3708f5da274416db3854e748b51f5d8/`
+
+Each contains `notebook-menus.trx`, `keyboard-readiness.log`, `calendar-sta-phases.log`, `process-supervision.log`, stdout/stderr, and `menu-evidence/`. The original parent TRX is `focused/Yovko_DESKTOP-N2ONT35_2026-10-27_09_43_36_net10.0.trx`. Exact identities, stacks and paths are also indexed by the retained `failure-diagnostics.json` and this phase's `evidence.json`.
+
+All three stop at the **first `MouseClick(NoteOverflow)`**, original `NotebookHeaderViewTests.Menus.cs:78`, with its assertion at original line **170**: “The intended control did not become hit-testable with settled popup animation and mouse-over.” Current locations after additive diagnostics are lines **98 / 199**. No mouse-down/up injection, menu-open callback or note command has occurred. Visibility/enabled, keyboard readiness, focus outline and three rendered dots had already passed. The failed condition for this **Button** is actually `settled && WindowFromPoint(point) == expectedHwnd`; `IsMouseOver` is required only for MenuItems. The original logs cannot distinguish opacity/animation from native HWND mismatch.
+
+Original readiness logs show a loaded, visible, enabled target; local active window and native focus match the fixture; modifiers/buttons are released and fixture capture is null/native zero. The foreground HWND instead belongs to an unidentified window `0x600F4`. The null mouse source alone is not diagnostic: the original passing Dark/480 case also initially had a null mouse source. The original passing Dark/480 case and later passing Light/1280 diagnostic both had foreground equal to fixture HWND. This correlation does not identify the original foreground owner or focus-taking event. Original input-sequence logs are empty because input injection was never reached. Assertions, not 30-second watchdogs or 90-second process deadlines, ended these children; no hang dump was generated. All three STA cleanup traces reached dispatcher shutdown and supervisors confirmed process exit.
+
+### A15 path review
+
+- Initial activation/list/detail loading uses successful synthetic reads and does not publish a notification. The three retained closed-menu images were inspected: the banner is absent, the ellipsis is arranged and visibly focused, and no overlay covers it within the rendered WPF tree. These are WPF renders, not desktop screenshots; they cannot reveal another application's covering window.
+- The notification is in a separate auto-sized grid row above the pane grid. When non-null it can move pane controls vertically; it is not a popup overlay. The helper recomputes `PointToScreen` on every readiness tick and resets the cursor before injection, so it does not rely solely on coordinates computed before its initial layout flush. A hypothetical layout change after the final sample is not evidence of one in these failures.
+- `ShowNotification` alone starts the ten-second timer. No initial notification event means no pending timer. There is no notification-specific focus request; dismissal changes the notification property, not keyboard/capture state. Deactivation cancels the owned timer. Each test has its own Application/dispatcher/VM and teardown; no timer or WPF state is shared between these child processes.
+- The menu toggle/ownership handlers run on Click/Opened, after the failing boundary. The first menu is closed and no prior gesture exists. A15 did not change these handlers. Retained mouse readiness correctly prevents injection into another HWND. `UiKeyboardProbe.Ready` intentionally establishes thread-local activation/focus using `SetActiveWindow`, **without forcing global foreground activation**; this is weaker than proving the screen point is unobstructed.
+
+### Bounded instrumentation and reproduction
+
+Missing evidence was the actual HWND/process at the target point, current foreground, cursor coordinates, layout state and notification/timer state at failed readiness. Only the menu test file gains opt-in `PTJ_NOTEBOOK_MENU_DIAGNOSTICS=1` observations before mouse readiness, at readiness completion, and on activation/notification changes. It records native/WPF state and owning HWND PIDs/classes, numeric DPI, bounds and timestamps. Subscriptions are removed in the existing finally block. No extra dispatcher pump, capture release, state assignment, focus request, deadline or scheduling change was added.
+
+```powershell
+pwsh -NoProfile -File TestResults/m2212a15-1-diagnosis/context.ps1 -OutputName before-context.json
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_NOTEBOOK_MENU_DIAGNOSTICS='1'
+pwsh -NoProfile -File TestResults/m2212a15-1-diagnosis/run.ps1 -Name bounded -Filter 'FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard&((DisplayName~Dark&DisplayName~1280)|(DisplayName~Light&DisplayName~480))'
+pwsh -NoProfile -File TestResults/m2212a15-1-diagnosis/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a15-1-diagnosis/context.ps1 -OutputName after-context.json
+```
+
+Build: **exit 0, zero warnings/errors, 59.16s**, `build/output.log`. Run: **0/2 parents and 0/2 distinct matching children passed**, two failures, zero skips, **exit 1**, **22.454s** command wall time. Each affected child ran once. These two cases overlap the original A15 selection and are not new coverage totals. The already-passing Light/1280 diagnostic and passing Dark/480 case were not repeated. Literal-path-safe audit confirms one intended result per child and complete/distinct identities; its exit 1 reflects actual failures, not a parser failure. Parent TRX: `bounded/Yovko_DESKTOP-N2ONT35_2026-10-27_14_42_19_net10.0.trx`.
+
+| Reproduction | Target point; expected fixture HWND | Actual native hit / foreground | Evidence folder under `bounded/` |
+| --- | --- | --- | --- |
+| Dark / 1280 / 96 | `(3434,701)`; `0x1805B4`, testhost PID 15048 | hit `0x8044A`, foreground `0x10582`, PID 16988 | `notebook-menus-20261027-124210-bc8b2da49d11455ab53a9fc708cc49ec` |
+| Light / 480 / 240 | `(1556,995)`; `0xC0604`, testhost PID 18752 | same hit/foreground, PID 16988 | `notebook-menus-20261027-124219-e6f985535591427d9da9ed76302b01b3` |
+
+Both readiness completions report **settled=True**, cursor at the requested coordinates, valid measure/arrange, WPF hit on the button's Path, no fixture capture, released left button and local focus on the intended Button. The native hit class is **Chrome_RenderWidgetHostHWND**, foreground class **Chrome_WidgetWin_1**; read-only process lookup confirms PID 16988 is **chrome**. Native hit testing therefore sees another application's window covering the intended point. In both, **notification=null**, expiry task **RanToCompletion**, banner **Collapsed/0**, menu **closed**, dispatcher alive. Point coordinates remained the same from pre-readiness to failure; no notification event occurred. The readiness wait itself is about three seconds; the rest of each child's roughly five seconds covers setup, renders and teardown, not a measured menu execution cost.
+
+This **confirms foreign-window obstruction for the two new reproductions**, not a production menu or A15 timer/layout defect. It supports but cannot retrospectively prove the same obstruction for the original three: the historical HWND `0x600F4` was not identified at failure time. A current PID/window lookup must not be used to infer its historical owner or the event that took foreground.
+
+Prerequisites were recorded in session **1 / WinSta0 / Default**, with cursor access and the executor's existing token; no UAC/token/desktop switching occurred. Cursor access and local WPF focus did not establish unobstructed native input. New launcher PIDs 4828 and 5028 exited sequentially; `after-context.json` reports zero active tests. No cleanup workaround or further reproduction was attempted.
+
+### Responsibility, next correction and handoff
+
+| Failure | Established responsibility / uncertainty | Smallest justified next action and verification |
+| --- | --- | --- |
+| Original Light/1280 | Local focus versus foreign foreground is established; exact original hit HWND/settled condition remains unknown. Earlier diagnostic pass is not a correction. | Keep diagnostics; use an unobstructed supported interactive test desktop for its next required focused verification. Do not rerun now to hunt for a failure. |
+| Original Dark/1280 and Light/480 | Original mechanism remains incompletely recorded. New reproductions establish an external Chrome window at the intended point; the input prerequisite fails correctly. | Correct the execution prerequisite, not production or timeouts: arrange an unobstructed supported test desktop before a later authorized focused run of the affected matrix. Retain exact dispatch and hit-test checks; require the expected native HWND and full menu assertions. |
+| Harness observability | Original failure text could not distinguish animation from HWND obstruction; thread-local active/focus is not global foreground. | The additive opt-in trace closes this evidence gap. No automatic foreground stealing, disabled assertion, relaxed wait or helper rewrite is justified. |
+
+No production behavior correction is supported by this evidence. A new execution-context arrangement and an authorized focused pass would be required before acceptance; this diagnostic phase does not change desktop windows or claim that arrangement is complete. Exact phase inventory is **three modified files, no added tracked files**: `README.md`, `docs/notebook.md`, and `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs` (37 additive diagnostic lines). Ignored scripts/manifests and evidence live only in the phase directory. Post-edit whitespace passed; **219 local documentation targets** passed with no missing paths (URLs and anchors excluded), using the phase copies of `check-whitespace.ps1` and `check-doc-links.ps1`. Original A15 evidence remains historical and unchanged.
+
+**A15.1 diagnosis is complete within its bounds; A15 regression acceptance, A16–A17 and M22.12B remain pending.** No complete gate, production/provider access, publication, workflow triggering or speculative behavior fix occurred. Human interaction/Narrator, native journal workflow/restart and matching hosted input compatibility remain unverified.
+
 ## M22.12A15 — Top Notebook notifications
 
 27 October 2026 (Europe/Kiev). One agent. Actual initial baseline: **clean develop / `e42d8c9fc744f0d54dd35b3baafb9ad4d6986bda`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The reported A14 pending changes had already been committed after `cd26864f`. On resumption, the in-progress A15 edits and original artifacts were preserved. HEAD is unchanged. Repository/ancestor inspection found no AGENTS.md. Tested production source is HEAD plus the A15 source changes below, not HEAD alone. Evidence root: **`TestResults/m2212a15-verified/`**.

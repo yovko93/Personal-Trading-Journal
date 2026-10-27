@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A15.1 — Retained menu-readiness diagnosis
+
+Two bounded diagnostic reproductions confirmed that Chrome covered the intended menu trigger: native hit testing returned Chrome's HWND while WPF layout/focus were valid. The notification was null, its timer completed and its banner collapsed. The original three failures also had a foreign foreground HWND, but their logs cannot identify its owner or prove the same obstruction retrospectively. No production correction or forced-focus workaround was applied.
+
+Actual baseline: clean `develop` at `4ad570970654870c7e303a744f525dbaf521a6b9` (A15 was committed). Release diagnostic build passed with zero warnings/errors. **Two parents and two matching isolated children failed**, zero skips, exit **1**, each run once; both overlap the original A15 cases. The earlier passing Light/1280 diagnostic was not repeated. [Failure matrix, native observations, commands and exact three-file inventory](docs/notebook.md#m2212a151--retained-menu-readiness-diagnosis). Evidence: `TestResults/m2212a15-1-diagnosis/summary.json`.
+
+The smallest next action is an unobstructed, supported input desktop for subsequent focused menu verification, retaining the diagnostic prerequisite checks. **A15 regression acceptance, A16–A17 and M22.12B remain pending.** No full gate ran; original evidence is preserved.
+
 ## M22.12A15 — Top Notebook notifications
 
 Notebook operation feedback now uses one themed top notification with an icon, severity label and accessible dismissal. Each new event receives ten seconds; replacement, manual dismissal, selection departure and disposal invalidate the old timer. Field validation, save failures and recovery/retry controls remain persistent. Routine autosave does not show a success banner.

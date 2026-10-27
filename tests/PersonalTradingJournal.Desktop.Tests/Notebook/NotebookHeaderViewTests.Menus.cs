@@ -49,6 +49,26 @@ public sealed partial class NotebookHeaderViewTests
             string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "menu-evidence");
             Directory.CreateDirectory(directory);
             var log = new List<string>(); int mouseUps = 0;
+            bool diagnostics = Environment.GetEnvironmentVariable("PTJ_NOTEBOOK_MENU_DIAGNOSTICS") == "1";
+            void Observe(string phase, FrameworkElement? target = null)
+            {
+                if (!diagnostics) return;
+                target ??= (FrameworkElement)view.FindName("NoteOverflow");
+                if (PresentationSource.FromVisual(target) is not HwndSource source)
+                { log.Add($"{DateTimeOffset.UtcNow:O} observe={phase}; target={target.Name}; no presentation source"); return; }
+                var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
+                var expected = source.Handle;
+                var hitWindow = WindowFromPoint(new NativePoint((int)point.X, (int)point.Y));
+                bool cursorRead = GetCursorPos(out var cursor); bool rectRead = GetWindowRect(expected, out var rect);
+                var banner = (FrameworkElement)view.FindName("NotebookNotification");
+                var dpiScale = VisualTreeHelper.GetDpi(target);
+                log.Add($"{DateTimeOffset.UtcNow:O} observe={phase}; target={target.Name}; point={point}; cursorRead={cursorRead}; cursor={cursor}; expected={DescribeWindow(expected)}; hit={DescribeWindow(hitWindow)}; foreground={DescribeWindow(GetForegroundWindow())}; nativeCapture={GetCapture()}; nativeFocus={GetFocus()}; managedCapture={Mouse.Captured}; keyboard={Keyboard.FocusedElement}; left={Mouse.LeftButton}; active={window.IsActive}; rectRead={rectRead}; nativeRect={rect}; dpi={dpiScale.DpiScaleX},{dpiScale.DpiScaleY}; measureValid={target.IsMeasureValid}; arrangeValid={target.IsArrangeValid}; WpfHit={window.InputHitTest(target.TranslatePoint(new Point(target.ActualWidth/2,target.ActualHeight/2),window))}; notification={vm.Notification?.AccessibleText ?? "null"}; notificationTask={vm.NotificationExpiryTask.Status}; banner={banner.Visibility}/{banner.ActualHeight}; menuOpen={((Button)view.FindName("NoteOverflow")).ContextMenu.IsOpen}; dispatcherShutdown={window.Dispatcher.HasShutdownStarted}");
+            }
+            void ActivationChanged(object? sender, EventArgs args) => Observe("activation changed");
+            void NotificationChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+            { if (args.PropertyName == nameof(vm.Notification)) Observe("notification changed"); }
+            // Opt-in observations only: no activation/capture repair or extra dispatcher pump.
+            if (diagnostics) { window.Activated += ActivationChanged; window.Deactivated += ActivationChanged; vm.PropertyChanged += NotificationChanged; }
             void Input(object sender, ProcessInputEventArgs e)
             {
                 if (e.StagingItem.Input is MouseButtonEventArgs mouse)
@@ -129,6 +149,7 @@ public sealed partial class NotebookHeaderViewTests
             }
             finally
             {
+                if (diagnostics) { window.Activated -= ActivationChanged; window.Deactivated -= ActivationChanged; vm.PropertyChanged -= NotificationChanged; }
                 File.WriteAllLines(Path.Combine(directory, "input-sequence.log"), log);
                 InputManager.Current.PostProcessInput -= Input;
                 window.Close(); vm.Deactivate(); Pump(vm.DeactivationTask); app.Shutdown(); SynchronizationContext.SetSynchronizationContext(prior);
@@ -148,6 +169,7 @@ public sealed partial class NotebookHeaderViewTests
             void MouseClick(FrameworkElement target)
             {
                 Assert.True(target.IsVisible && target.IsEnabled);
+                Observe("before mouse readiness", target);
                 var point = target.PointToScreen(new Point(target.ActualWidth / 2, target.ActualHeight / 2));
                 Assert.True(SetCursorPos((int)point.X, (int)point.Y)); Layout();
                 // Popup animation may still expose the owner HWND even after IsOpen becomes true.
@@ -169,6 +191,7 @@ public sealed partial class NotebookHeaderViewTests
                         var actualWindow = WindowFromPoint(new NativePoint((int)point.X, (int)point.Y));
                         var title = new System.Text.StringBuilder(256); GetWindowText(actualWindow, title, title.Capacity);
                         log.Add($"Hit-test: target={target.Name}; point={point}; expectedHwnd={((HwndSource)PresentationSource.FromVisual(target)).Handle}; actualHwnd={actualWindow}; actualTitle={title}; settled={settled}; mouseOver={target.IsMouseOver}; active={window.IsActive}; window={window.Left},{window.Top},{window.ActualWidth},{window.ActualHeight}; desktop={SystemParameters.VirtualScreenLeft},{SystemParameters.VirtualScreenTop},{SystemParameters.VirtualScreenWidth},{SystemParameters.VirtualScreenHeight}; dpi={VisualTreeHelper.GetDpi(target)}; hit={hit}");
+                        Observe($"mouse readiness completion: hit={hit}, settled={settled}", target);
                         readyFrame.Continue = false;
                     }
                 }
@@ -201,6 +224,20 @@ public sealed partial class NotebookHeaderViewTests
     [DllImport("user32.dll", SetLastError = true)] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr handle, System.Text.StringBuilder text, int maximum);
+    [StructLayout(LayoutKind.Sequential)] private readonly record struct NativeRect(int Left, int Top, int Right, int Bottom);
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out NativePoint point);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr handle, out NativeRect rect);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern IntPtr GetCapture();
+    [DllImport("user32.dll")] private static extern IntPtr GetFocus();
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr handle, out uint process);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr handle, System.Text.StringBuilder text, int maximum);
+    private static string DescribeWindow(IntPtr handle)
+    {
+        uint thread = GetWindowThreadProcessId(handle, out uint process);
+        var name = new System.Text.StringBuilder(256); GetClassName(handle, name, name.Capacity);
+        return $"0x{handle:X}/PID={process}/TID={thread}/class={name}";
+    }
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, NativeInput[] inputs, int size);
     private static void SendMouse(uint flags) => Assert.Equal(1u, SendInput(1, [new NativeInput { Mouse = new MouseInput { Flags = flags } }], Marshal.SizeOf<NativeInput>()));
 }
