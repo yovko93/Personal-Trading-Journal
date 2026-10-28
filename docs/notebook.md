@@ -1,5 +1,79 @@
 # Notebook
 
+## M22.12A19 — Stable scope targets during asynchronous reads
+
+28 October 2026, one agent. Actual baseline: **clean develop / `32bc081c7b49ccb2e4e8f47fc79585debee1686b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporates A18's four files. Repository/ancestor inspection found no AGENTS.md. Existing work and historical evidence are preserved; HEAD remains unchanged. Evidence root: **`TestResults/m2212a19-verified/`**.
+
+### Trace, demonstrated defect and remaining native uncertainty
+
+Workspace row data contains explicit `NotebookScopeOption` identities in **All Notes, Pinned, Trash** order; there is no positional enum conversion. WPF item selection raises `SelectPrimaryScope` with the added scope object. That handler sets `model.Scope` and awaits `LoadTask`, then synchronizes the accepted highlighting. The setter starts `SelectScopeAsync` through the existing leave guard; accepted scope identity is installed before `ReloadAsync`. `ReadPageAsync` constructs a query from that identity, search, tags and sort. Cancellation tokens/activation checks reject superseded page results. On completion, catalog publication restores the matching scope object, heading and rows. While a new query is pending, the existing applied heading/rows remain visible with Loading notes and selection disabled; this truthful transitional behavior is unchanged.
+
+Two initial checks against **unchanged production code** passed: direct WPF automation selection of Trash, then expanded transitions/guard/out-of-order cases. These do not reproduce a native click. The more specific held-read layout regression **failed before the production correction**: after requesting Trash, the original Trash center **`(105,229.17)` DIP** lay inside **Pinned's arranged bounds**. The trace says `accepted=Trash, selected=Trash, heading=All Notes` while the request is pending, but the same press point resolves to Pinned. `geometry-before/` retains **one failed parent and its one failed child**, exit **1**, Expected Trash / Actual Pinned. This is a demonstrated moving-target defect, independent of service timing: the synthetic query is held by a TaskCompletionSource without sleeps.
+
+The cause of that movement is the existing **42-DIP busy/cancel row inserted above the panels when IsBusy becomes true**. It moves the entire scope list under a pointer whose press initiated loading. WPF's [ListBox implementation](https://github.com/dotnet/wpf/blob/v10.0.12/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/ListBox.cs) and [ListBoxItem implementation](https://github.com/dotnet/wpf/blob/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/ListBoxItem.cs) support the input-specific explanation: press selection, list capture and dragged-item navigation can retarget a held press when another row enters the pointer. This last connection to the user's complete physical click sequence is **an inference**, not an observed native reproduction in A19. The default test runtime requests WindowsDesktop 10.0.0 with installed 10.0.11/10.0.12 servicing runtimes; the linked source establishes the relevant implementation, not a traced native event sequence.
+
+### Small correction and coverage
+
+The only production change moves **ActiveNotebookOperation**, including its existing loading text, accessible Cancel button, command, busy binding and contextual visibility, to an auto-sized footer below the panels. It no longer inserts space above scope rows. Notification placement/timers, A18 folder/tag creation layout, scope identities/counts/filters, guard logic, list generations, query construction and lifecycle safeguards are unchanged. No artificial offset, delay, extra query, second selection or captured-input override is added. This shared workspace layout also appears during other reads; A19 does **not** change note-selection/detail-loading semantics or claim to complete A20's smooth-switching work.
+
+The new partial `NotebookHeaderViewTests.Scopes.cs` uses four distinguishable synthetic notes: active unpinned, active pinned, trashed, and a real-folder note. Through actual generated ListBox item automation providers and the bound SelectionChanged path, it checks All Notes→Trash once, Pinned→Trash, Folder→Trash, Trash→All Notes/Pinned, saved dirty navigation, cancelled/failed-save guards, delayed Trash completing after Pinned, and empty Trash. It verifies accepted object/highlight, bound `FolderHeading` text, completed query identity, exact row IDs and empty counts. It also verifies that the original Trash press point stays within Trash while the query is held and the real Cancel command remains available. Each narrow transition opens Organization first, as the actual UI requires. No direct Scope-property assignment is used to drive these view tests.
+
+The same file includes **NativeTrashPressRetainsTargetWhileReadIsPending**, a separately selectable native check. After the user replied Ready and minimized chat/browser windows, the supported executor confirmed **session 1 / WinSta0 / Default**, cursor access and no competing test processes (`native-context.json`, `native-corrected-context.json`). Five existing dotnet processes were identified as MSBuild node-reuse servers and left alone. The fixture uses the existing input primitives/readiness helpers, actual HWND ownership and mouse state, one down/up pair and a controlled pending read. Cleanup releases only its own outstanding press after assertions, releases the query and closes its own window. No unrelated window was automated, closed or made topmost.
+
+The initial native run stopped **before injecting mouse-down**: expected HWND, actual hit and foreground all belonged to the test window, but an immediate `target.IsMouseOver` assertion was false. The new fixture had omitted the existing native menu helper's causal readiness loop after SetCursorPos. It was corrected to the same **three-second bound / Input-priority dispatcher loop**, retaining both native point ownership and actual mouse-over requirements. The corrected case ran once and passed. Its initial mouse-over was again false, then became true after **9.4ms** of normal dispatcher processing. The real held-press trace records **ListBox capture**, `hitScope=Trash`, `accepted=Trash`, and query sequence **AllNotes,Trash**. Original press point `(645,1011)` physical pixels remains inside Trash; the row center becomes `(645,1016)` after the ordinary focus border adjustment, rather than moving an entire row. Mouse-up, completed Trash heading/highlight and exact trashed note ID all passed. This verifies the controlled real native path after the layout correction; it does not create a recording of the user's original event sequence. Original failure and successful traces remain under `native/` and `native-corrected/`.
+
+### Commands, retained failures and results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+# Initial automation only, then expanded guards/transition diagnostics on unchanged production:
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name before -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent&DisplayName~Light'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name expanded-before -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent&DisplayName~Light'
+# Retained fixture diagnostic and corrected arranged-geometry reproduction before production change:
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name hit-before -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent&DisplayName~Light'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name geometry-before -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent&DisplayName~Light'
+# After the production correction, then narrow-fixture setup correction and added bound-heading/capture evidence:
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name corrected -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name final-scopes -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name final-evidence -Filter 'FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name logic -Filter 'FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookLegacyNavigationTests|FullyQualifiedName~NotebookFolderActionTests|FullyQualifiedName~NotebookNotificationTests|FullyQualifiedName~ReleaseSchedulingTests'
+# Supported executor, user-confirmed idle desktop; first fixture and causal-readiness correction:
+$env:PTJ_INPUT_ORIGIN_TRACE = '1'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name native -Filter 'Workload=ExclusiveWpf&FullyQualifiedName~NativeTrashPressRetainsTargetWhileReadIsPending'
+pwsh -NoProfile -File TestResults/m2212a19-verified/run.ps1 -Name native-corrected -Filter 'Workload=ExclusiveWpf&FullyQualifiedName~NativeTrashPressRetainsTargetWhileReadIsPending'
+pwsh -NoProfile -File TestResults/m2212a19-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a19-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a19-verified/check-doc-links.ps1
+```
+
+Every listed runtime selection ran once for its recorded source revision. Builds occurred before each changed fixture/correction; no runtime retry was performed without a changed test/correction. `build/` retains all original logs. Initial `regression.log` failed with one CS7036 constructor error; `hit-geometry.log` later failed with one xUnit2031 analyzer error. Both were fixture-authoring errors corrected before runtime, with zero warnings. Successful builds: `regression-corrected.log` **8.61s**, `expanded.log` **8.24s**, `hit-regression.log` **7.83s**, `hit-geometry-corrected.log` **7.89s**, `final.log` **16.75s**, `narrow-fixture.log` **7.85s**, `final-evidence.log` **7.77s**, and final native-fixture-only `native-readiness.log` **6.82s**, all zero warnings/errors, exit **0**. Offscreen/logic bodies and production code were unchanged by the last readiness correction, so their passing runs were not repeated.
+
+| Run | Parents passed/total | Separate children passed/total | Exit | Interpretation |
+| --- | --- | --- | --- | --- |
+| `before` / `expanded-before` | 1/1 each | 1/1 each | 0 each | Same Light identity; automation did not reproduce physical-click symptom |
+| `hit-before` | 0/1 | 0/1 | 1 | Fixture error: unattached root InputHitTest returned null; corrected to arranged rectangles, without changing native input checks |
+| `geometry-before` | 0/1 | 0/1 | 1 | Relevant production layout regression: Expected Trash, Actual Pinned at original press point |
+| `corrected` | 1/2 | 1/2 | 1 | Light passed correction; Dark fixture had not opened narrow Organization, so no row container existed |
+| `final-scopes` | 2/2 | 2/2 | 0 | Corrected narrow setup; unchanged production correction |
+| `final-evidence` | **2/2** | **2/2** | **0** | Final bound-heading/capture assertions, **15.268s** command wall time |
+| `logic` | **51/51** | None | **0** | Existing workspace, legacy navigation, folder deletion, notification and scheduling cases, **3.265s** |
+| `native` | 0/1 | 0/1 | 1 | New fixture sampled mouse-over before dispatch; correct native owner, no mouse injection |
+| `native-corrected` | **1/1** | **1/1** | **0** | Real held press/release with existing bounded readiness, **7.409s** |
+
+Final distinct passing coverage is **54 parents and three child cases**, counted separately, with zero final failures/skips. There are **63 parent executions and twelve child executions** across development evidence; repeated identities are not counted as extra coverage. Four failed parents/children remain retained, including the real geometry failure and three fixture errors/readiness omissions. Final children match the exact Light/1280/96 and Dark/480/240 parents plus the native Fact, once each. Literal-path-safe TRX audit checks completeness, no skipped/duplicate identities per invocation and exact child cardinality. The existing exclusive collection, two-thread limit, 90-second child deadline and 30-second watchdog remain unchanged. The 51 logic cases overlap historical evidence and do not increase historical totals. Original SQL/archive/lifecycle coverage remains valid for its unchanged source; no migration or persistence changes require a new storage run. All supervised child processes completed cleanup; no unrelated process was terminated.
+
+### Visuals, inventory and acceptance limits
+
+Four current-source PNGs were opened and inspected, with paths/hashes in `renders.json`: **Light-1280-96-scope-busy.png**, **Light-1280-96-empty-trash.png**, **Dark-480-240-scope-busy.png**, **Dark-480-240-empty-trash.png**. Originals remain under `final-evidence/notebook-scopes-*/`; copies are under `renders/`. Busy views retain the original scope row positions and readable contextual footer cancellation; completed empty views show Trash with zero rows/count. Narrow busy Organization and completed Notes panels are separate viewport states. No blocking footer clipping or contrast issue was found. The busy view intentionally retains the previous applied list heading/rows while Loading notes until completion.
+
+Exact inventory: **three modified files and one added file**, no pre-existing pending changes:
+
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — relocate existing busy feedback/Cancel below panels.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Scopes.cs` — deterministic automation/bounds regression and separately selectable native verification case.
+- `README.md` and `docs/notebook.md` — confirmed layout finding, evidence boundaries, results and handoff.
+
+**A19's demonstrated layout defect is corrected; focused automation and the controlled native first-click check pass.** The real native test is distinct from offscreen geometry evidence and verifies a held press after the correction, rather than reconstructing the user's original click. A15 focused acceptance remains passed; A18 is preserved. **A20, postponed M22.12B and overall M22.12 acceptance remain pending.** Human/Narrator, native journal workflows/restart and matching hosted compatibility remain unverified. No complete gate, production/provider access, publication, workflow triggering, schema/export/archive, CI or timeout change occurred.
+
 ## M22.12A18 — Consistent folder and tag creation layout
 
 28 October 2026, one agent. Actual baseline: **clean develop / `5219ba238e771ddc07816e1e1d33d96ae140648f`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A15.3's two documentation files. Repository/ancestor inspection found no AGENTS.md. Existing changes and artifacts are preserved; HEAD remains unchanged. Evidence root: **`TestResults/m2212a18-verified/`**.

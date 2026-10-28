@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A19 — Stable scope targets while loading
+
+The scope mapping is correct. A deterministic regression instead found that the busy/cancel strip moved the navigation rows downward: the original Trash press point then lay inside **Pinned**. The existing active-operation feedback and Cancel command now appear below the panels, keeping scope targets stationary during a read. No query, draft guard, lifecycle or note-switch code changed.
+
+Final focused Release evidence passes **54 distinct parents and three distinct matching isolated children**, counted separately, zero final failures/skips, exits **0**. This includes a real native down/up pair that retains Trash during a held read and completes with exactly one Trash query and matching rows. Earlier diagnostic/build/fixture failures remain retained. Four Light-normal/Dark-narrow-high-DPI captures were inspected. [Cause, limits, commands, exact inventory and evidence](docs/notebook.md#m2212a19--stable-scope-targets-during-asynchronous-reads). Evidence: `TestResults/m2212a19-verified/summary.json`.
+
+**A19 focused verification passed, including the controlled native first-click path on the user-prepared idle desktop.** The original user event sequence was not recorded; no retrospective native trace is claimed. A15 acceptance remains passed; A18 layout is preserved. **A20 and M22.12B remain pending.** No complete gate ran.
+
 ## M22.12A18 — Consistent creation layout
 
 **New tag** now sits below the global catalog and paging control, left-aligned with New folder; its inline field opens immediately beneath it. Folder creation now uses the same right-anchored Add/Cancel row as tag creation. Both Cancel buttons align with the input's right edge and remain stationary when conditional Add appears. Existing tag filters, management actions, commands and editor assignment chips are preserved.
