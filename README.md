@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A15.2 — Input-desktop verification blocked
+
+Release build at clean `develop` / `a3dbab5e284893c20ee5002732e740e9548ddade` passed with zero warnings/errors. Interactive access and an ordinary WPF window's sampled hit points passed preflight, but the desktop did not remain unobstructed across isolated children. Three menu cases encountered a **ChatGPT** process at their target coordinates (`Chrome_*` window classes); notifications were absent and banners collapsed. No production or test behavior was changed.
+
+The one exclusive invocation was interrupted after the obstruction was observed; it had already advanced into later cases. **Ten parents were selected; no final parent TRX was produced. Nine completed distinct children retain six passes and three failures, with the tenth incomplete**, zero skips in completed results. No retry or second test invocation ran. [Exact identities, execution limits, commands and two-file inventory](docs/notebook.md#m2212a152--focused-input-desktop-verification). Evidence: `TestResults/m2212a15-2-verified/summary.json`. Original failures and the earlier diagnostic pass remain preserved; their unknown historical foreground owner is not identified by today's evidence.
+
+**A15 focused regression acceptance remains pending**, along with A16–A17 and M22.12B. A desktop that stays unobstructed through child-process transitions is required before another authorized native verification; matching hosted compatibility remains unverified.
+
 ## M22.12A15.1 — Retained menu-readiness diagnosis
 
 Two bounded diagnostic reproductions confirmed that Chrome covered the intended menu trigger: native hit testing returned Chrome's HWND while WPF layout/focus were valid. The notification was null, its timer completed and its banner collapsed. The original three failures also had a foreign foreground HWND, but their logs cannot identify its owner or prove the same obstruction retrospectively. No production correction or forced-focus workaround was applied.

@@ -1,5 +1,68 @@
 # Notebook
 
+## M22.12A15.2 — Focused input-desktop verification
+
+28 October 2026 (Europe/Kiev), one agent. Actual initial baseline was **clean develop / `a3dbab5e284893c20ee5002732e740e9548ddade`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporated A15.1's three files. Repository/ancestor guidance inspection found no AGENTS.md. HEAD is unchanged. **A15 focused regression acceptance remains pending: the input desktop did not remain unobstructed.** No production or test/harness source changes were made.
+
+Evidence root: **`TestResults/m2212a15-2-verified/`**. `provenance.json` verifies all A15 production-source hashes against its retained manifest; the only differences since A15 are documentation and the opt-in menu diagnostics committed in A15.1. The current Release rebuild passed, **exit 0, zero warnings/errors**, reported build time **63.46s**, command wall time **64.187s**. `build-identity.txt` records `1.0.0+a3dbab5e284893c20ee5002732e740e9548ddade`; `binaries.json` records Desktop/test DLL SHA-256 hashes. No stale binaries were tested.
+
+### Execution conditions and bounded selection
+
+`before-context.json` and `launch-context.json` record session **1 / WinSta0 / Default**, interactive mode, cursor access and the executor's existing administrator token, with **zero active test processes**. No UAC/token/desktop switch was performed. `preflight.ps1` creates one ordinary test-sized WPF window and uses the existing activation pattern: Show, thread-local SetActiveWindow, keyboard focus and layout completion. Four sampled points returned that window's HWND; it also owned foreground. The probe injects no input, does not use topmost/global-foreground overrides and closes only its own window. This is a point-in-time prerequisite check, **not proof of later child-window ownership**. Actual tests retain per-target native hit testing and all readiness assertions.
+
+The smallest planned non-overlapping selection was **30 parents**: the complete `NotebookHeaderViewTests` family (**10 exclusive parents / ten exact isolated children**: four menu, four notification-render and two split-header cases), plus `NotebookNotificationTests` (**12**), `NotebookNoteActionsTests` (**7**) and `ReleaseSchedulingTests` (**1**) in the existing parallel classification. The latter 20 were **not launched** after native verification stopped; their passing A15 evidence remains source-compatible. These are overlaps with A15's 186 parents, not additional coverage totals. The remaining unchanged A15 selections were not repeated.
+
+Executed commands, from the repository root:
+
+```powershell
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/context.ps1 -OutputName before-context.json
+pwsh -NoProfile -STA -File TestResults/m2212a15-2-verified/preflight.ps1
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/context.ps1 -OutputName launch-context.json
+$env:PTJ_NOTEBOOK_MENU_DIAGNOSTICS='1'
+$env:PTJ_INPUT_ORIGIN_TRACE='1'
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/run.ps1 -Name exclusive -Filter 'Workload=ExclusiveWpf&FullyQualifiedName~NotebookHeaderViewTests'
+# Native verification interrupted after external obstruction was observed; no retry.
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/context.ps1 -OutputName after-context.json
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/partial-audit.ps1
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/check-doc-links.ps1
+```
+
+The runner uses `dotnet test ... -c Release --no-build --no-restore --filter ... --logger trx --results-directory ...`. Exclusive collection membership, two-thread assembly limit, exact child selection, recursion guard, **90-second process / 30-second case deadlines**, input guards and cleanup code remain unchanged. No complete gate or new cancellation deadline was introduced.
+
+### Partial results and established blocker
+
+The first menu child, Dark/480/240, passed. Subsequent children failed **before the first mouse injection** at the unchanged `MouseClick` readiness assertion (`NotebookHeaderViewTests.Menus.cs:199`, called at line 98). All three show settled animation, valid WPF measure/arrange, correct cursor coordinates, local keyboard focus, released left button and no fixture capture. **Notification=null, expiry task=RanToCompletion, banner=Collapsed/0, menu closed**. The native HWND at each point belongs to a different process:
+
+| Menu identity | Failure UTC | Target point / expected fixture HWND | Retained child directory under `exclusive/` |
+| --- | --- | --- | --- |
+| Light / 1280 / 96 | 09:45:00.238 | `(3251,518)` / `0x200272` | `notebook-menus-20261028-094451-923b2faaff7545e19496fcffe334d70c` |
+| Dark / 1280 / 96 | 09:45:08.678 | `(3373,640)` / `0x905A4` | `notebook-menus-20261028-094500-a7fa98b222a246a1b4ff2a15423fe6d9` |
+| Light / 480 / 240 | 09:45:16.902 | `(1495,934)` / `0xF0580` | `notebook-menus-20261028-094509-f7312f4492214798b2b14310090d3ab5` |
+
+All three hit **`0x2027C`, class `Chrome_RenderWidgetHostHWND`, PID 13552**; foreground was **`0x2027A`, class `Chrome_WidgetWin_1`, same PID**. Read-only process lookup in `hit-process.json` identifies **ChatGPT**, not the Chrome browser. Window class names alone do not establish the application name. These observations confirm an external obstruction for this run, not an A15 notification/layout defect. They do not identify what took foreground or the owner of the **original** failures' historical `0x600F4` HWND.
+
+When the retained logs exposed the obstruction, the single invocation had already advanced through other children. Ctrl+C stopped further native verification; no case was retried, no application was closed/moved and no user process was killed. The tool reported interruption exit **1**; **there is no finalized parent TRX, normal VSTest exit status or completed command wall-time record**. Do not present that interruption code as a completed test-run exit or invent parent pass totals.
+
+| Evidence level | Actual outcome |
+| --- | --- |
+| Parent selection | Ten intended identities; three explicit failed-parent reports in `exclusive/output.log`; no final parent summary, so final parent pass count is unverified |
+| Completed children | **Nine distinct one-result TRX files: six passed, three failed, zero skipped**, all within the exact intended case matrix; no duplicate child identity |
+| Passing child coverage | Dark/480 menu; all four Light/Dark normal/narrow notification cases; Light/1280 split-header case |
+| Incomplete child | Dark/480 split-header started, then interrupted; no child TRX or final supervision-cleanup record, so it is not counted as passed or skipped |
+| Unlaunched parallel selection | Twelve notification logic, seven note ownership and one scheduling regression; retained passing A15 results reused as historical compatible evidence, not a fresh run |
+
+`partial-audit.ps1` reads TRX with literal paths, checks one intended result per completed child and duplicate identities, explicitly reports the missing child/parent summary, and exits **1** for incomplete/failed verification. `test-audit.json` retains exact names, errors, stacks, timings and failed native observations. The nine completed launchers have supervision exit/cleanup records; `after-context.json` independently confirms **zero remaining test processes**, including the interrupted launcher and testhost. Existing build-server processes are not tests and were left alone. Cleanup does not imply the interrupted child's WPF finally block completed.
+
+### Visual evidence, inventory and handoff
+
+All four notification children passed their rendered placement, severity, dismissal, persistent failed-save, focus and controllable-clock assertions. Two new actual captures were inspected: `exclusive/notebook-notifications-20261028-094517-511c132244bc4d62973c28771e9ce7a8/notification-renders/Dark-480-240-error.png` and `exclusive/notebook-notifications-20261028-094524-8f81357c05df4eb182ebd187baa222e3/notification-renders/Light-1280-96-error.png`. Error text, icon and close control remain readable; the narrow banner wraps above the panels without overlapping controls. The palette publishes a synthetic operation error before changing the saved note, so the visible Saved locally label is not a failed-save claim. The existing A15 final capture inspection remains valid because its production view/resources and notification fixture are unchanged. These rendered bitmaps do not establish unobstructed native input.
+
+Exact tracked task inventory: **two modified files, no added tracked files** — `README.md` and `docs/notebook.md`. All probe scripts, partial results, hashes and diagnostics are ignored artifacts under the phase root. No production, test, configuration, scheduling, assertion, timeout or persistence behavior changed. Whitespace passed and **220 local documentation targets passed**, with no missing paths; URLs and fragment-anchor validation are outside that local-link check.
+
+**A15 focused regression acceptance remains pending.** The next prerequisite is an execution arrangement that keeps the native test windows unobstructed through child-process transitions, without closing unrelated applications or forcing foreground/state. No further run is justified on the currently demonstrated obstructed arrangement. Historical A15/A15.1 failures and the earlier passing diagnostic are preserved, not reclassified as harmless. A16–A17 and M22.12B remain pending. Human/Narrator, native journal workflow/restart and matching hosted timing/input compatibility remain unverified.
+
 ## M22.12A15.1 — Retained menu-readiness diagnosis
 
 27 October 2026 (Europe/Kiev), one agent. Actual initial state: **clean develop / `4ad570970654870c7e303a744f525dbaf521a6b9`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A15's 14 modified and three added files were committed in this intervening commit; nothing was discarded. Repository and ancestor guidance inspection found no AGENTS.md. HEAD remains unchanged. This phase adds diagnostics and documentation only; A15 production behavior is unchanged. Evidence root: **`TestResults/m2212a15-1-diagnosis/`**. Original A15 artifacts, failures and the earlier diagnostic pass are preserved under `TestResults/m2212a15-verified/`.
