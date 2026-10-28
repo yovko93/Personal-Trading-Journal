@@ -1,6 +1,16 @@
 # Personal Trading Journal
 
+## M22.12A17.1 — Refresh render finding corrected
+
+**The retained Refresh icon was already present.** Original-resolution review and pixel comparison show identical icon regions in all six early/later Light/high-DPI captures, with 573 white icon pixels each. File hashes match the original A17 artifacts and manifest. The earlier missing-icon report was an incorrect visual assessment; no production rendering correction was needed.
+
+The existing offscreen fixture now verifies enabled, legitimately busy/disabled and re-enabled Refresh states with geometry/state traces and foreground-pixel checks. **One parent and four distinct child cases passed**, zero failures/skips, exit **0**; ten new Light/Dark normal/high-DPI captures were inspected. Final Release build: zero warnings/errors. [Cause, superseded claims, commands, captures and exact three-file inventory](docs/notebook.md#m2212a171--refresh-render-discrepancy-resolved). Evidence: `TestResults/m2212a17-1-verified/summary.json`.
+
+The A17 Refresh-specific visual limitation is closed. **A15 native regression acceptance and its input-desktop blocker, M22.12B and overall M22.12 acceptance remain pending.** No native input tests or complete gate ran.
+
 ## M22.12A17 — Organization TAGS alignment and review
+
+Historical record: the Refresh warning below is superseded by A17.1 above; the original images and results are preserved.
 
 The left TAGS heading and compact New tag action now share a centered row. Tag labels and their right-hand management buttons are vertically centered, with wrapped long names and full-label tooltips. Creation keeps a full-width name field above aligned Add/Cancel controls; reserved Add space keeps Cancel stationary when Add appears. Existing commands, keyboard traversal and note-editor assignment chips are preserved.
 

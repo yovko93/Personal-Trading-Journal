@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -48,6 +49,22 @@ public sealed class NotebookTagViewTests
                 var newTag = (Button)view.FindName("NewTagButton");
                 var heading = Descendants<TextBlock>((Grid)newTag.Parent).Single(t => t.Text == "TAGS");
                 Centered(heading, newTag); Render("default");
+                var refresh = (Button)view.FindName("NotebookRefresh");
+                Assert.Same(vm.RefreshCommand, refresh.Command); Assert.True(refresh.IsEnabled);
+                var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                fixture.Data.OnList = async (query, ct) =>
+                {
+                    entered.TrySetResult(); await release.Task.WaitAsync(ct); return fixture.Data.Page(query);
+                };
+                var refreshing = vm.RefreshCommand.ExecuteAsync(null);
+                try
+                {
+                    Pump(entered.Task.WaitAsync(TimeSpan.FromSeconds(10))); Layout();
+                    Assert.True(vm.IsBusy); Assert.False(refresh.IsEnabled); Render("refresh-busy");
+                }
+                finally { release.TrySetResult(); Pump(refreshing.WaitAsync(TimeSpan.FromSeconds(10))); fixture.Data.OnList = null; }
+                Layout(); Assert.False(vm.IsBusy); Assert.True(refresh.IsEnabled); Render("refresh-ready");
                 vm.ShowNotification("An operation needs attention. Your existing notes, tag filters and recovery actions remain available while this wrapped message is displayed.", NotebookNotificationKind.Warning);
                 Layout(); Render("notification-visible"); vm.DismissNotificationCommand.Execute(null); Layout(); Render("notification-dismissed");
                 Assert.True(vm.BeginTagCreation()); Layout();
@@ -137,7 +154,42 @@ public sealed class NotebookTagViewTests
                 File.AppendAllText(Path.Combine(directory, "render-readiness.log"), $"{theme}/{width}/{dpi}/{state}: Refresh stroke before={before}, after={refreshIcon.Stroke}\n");
                 Assert.NotNull(refreshIcon.Stroke);
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, Height() * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
-                bitmap.Render(view); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                bitmap.Render(view);
+                var refresh = (Button)view.FindName("NotebookRefresh");
+                var buttonBounds = refresh.TransformToAncestor(view).TransformBounds(new Rect(refresh.RenderSize));
+                var iconBounds = refreshIcon.TransformToAncestor(view).TransformBounds(new Rect(refreshIcon.RenderSize));
+                var organization = (Border)view.FindName("OrganizationPanel"); var scroll = Assert.IsType<ScrollViewer>(organization.Child);
+                int foregroundPixels = 0;
+                if (state is "default" or "refresh-busy" or "refresh-ready")
+                {
+                    Assert.Equal(0, vm.Panel); Assert.Equal(Visibility.Visible, organization.Visibility);
+                    Assert.Equal(Visibility.Visible, refresh.Visibility); Assert.True(refresh.IsMeasureValid && refresh.IsArrangeValid);
+                    Assert.InRange(buttonBounds.Left, 0, width); Assert.InRange(buttonBounds.Right, 0, width);
+                    Assert.InRange(buttonBounds.Top, 0, Height()); Assert.InRange(buttonBounds.Bottom, 0, Height());
+                    Assert.True(refresh.ActualWidth >= 36 && refresh.ActualHeight >= 36);
+                    double scale = dpi / 96d; int stride = bitmap.PixelWidth * 4; var pixels = new byte[stride * bitmap.PixelHeight]; bitmap.CopyPixels(pixels, stride, 0);
+                    var color = Assert.IsType<SolidColorBrush>(refreshIcon.Stroke).Color;
+                    for (int y = (int)Math.Ceiling(iconBounds.Top * scale); y < Math.Floor(iconBounds.Bottom * scale); y++)
+                        for (int x = (int)Math.Ceiling(iconBounds.Left * scale); x < Math.Floor(iconBounds.Right * scale); x++)
+                        {
+                            int offset = y * stride + x * 4;
+                            if (Math.Abs(pixels[offset] - color.B) <= 8 && Math.Abs(pixels[offset + 1] - color.G) <= 8 && Math.Abs(pixels[offset + 2] - color.R) <= 8 && pixels[offset + 3] == 255) foregroundPixels++;
+                        }
+                    Assert.True(foregroundPixels >= 10, $"Refresh stroke must be present in the icon bounds: {theme}/{width}/{dpi}/{state}, pixels={foregroundPixels}.");
+                }
+                File.AppendAllText(Path.Combine(directory, "refresh-state.jsonl"), System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    theme, width, dpi, state, Panel = vm.Panel, vm.IsBusy, Enabled = refresh.IsEnabled,
+                    Visibility = refresh.Visibility.ToString(), EffectiveVisible = refresh.IsVisible, OffscreenRendering = PresentationSource.FromVisual(view) is null,
+                    ButtonBounds = buttonBounds.ToString(CultureInfo.InvariantCulture), IconBounds = iconBounds.ToString(CultureInfo.InvariantCulture),
+                    IconGeometry = refreshIcon.Data.ToString(CultureInfo.InvariantCulture), GeometryBounds = refreshIcon.Data.Bounds.ToString(CultureInfo.InvariantCulture),
+                    RenderedGeometryBounds = refreshIcon.RenderedGeometry.Bounds.ToString(CultureInfo.InvariantCulture),
+                    Foreground = refresh.Foreground.ToString(), Background = refresh.Background.ToString(), Stroke = refreshIcon.Stroke.ToString(),
+                    ForegroundPixels = foregroundPixels, scroll.VerticalOffset, scroll.HorizontalOffset, scroll.ViewportWidth, scroll.ViewportHeight,
+                    Clip = refreshIcon.Clip?.ToString(), LayoutClip = System.Windows.Controls.Primitives.LayoutInformation.GetLayoutClip(refreshIcon)?.ToString(),
+                    MeasureValid = refreshIcon.IsMeasureValid, ArrangeValid = refreshIcon.IsArrangeValid
+                }) + Environment.NewLine);
+                var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using var output = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(output);
             }
         });

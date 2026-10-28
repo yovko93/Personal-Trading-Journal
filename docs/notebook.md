@@ -1,6 +1,65 @@
 # Notebook
 
+## M22.12A17.1 — Refresh render discrepancy resolved
+
+28 October 2026 (Europe/Kiev), one agent. Actual initial state: **clean develop / `54a8f57cbb3a78d30757db6da3569fa176e20eb0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A17's four changed files were committed in the intervening commit. Repository/ancestor inspection found no AGENTS.md. HEAD remains unchanged and all historical artifacts are preserved. Evidence root: **`TestResults/m2212a17-1-verified/`**.
+
+### Evidenced cause and superseded conclusion
+
+**The earlier missing Refresh icon report was an incorrect visual assessment.** Opening the original-resolution retained PNGs shows the icon in both the early creation and later filter frames. All four A17 source/document hashes and both retained Desktop/test DLL hashes matched before this task changed anything (`baseline.json`). Each copied PNG also matches both its A17 manifest hash and referenced original file, eliminating stale/mismatched copies as the explanation.
+
+The exact disputed population is `TestResults/m2212a17-verified/renders/Light-480-240-` with these `.png` suffixes: **`default`, `notification-dismissed`, `creation-empty`, `creation-populated`, `creation-error`, `filters`**. Their originals remain under `final-renders/notebook-tags-20261028-161830-af9c5185a61143008b8a9ea4a8cf3ac7/notebook-tag-renders/`. Every image is **1200×1900 pixels**, representing a 480×760-DIP viewport at 240 DPI, with Organization selected.
+
+`compare-retained.ps1` reads the files without changing them. The same interior region `(1076,380,74,74)` in all six images has **573 pixels with each RGB component ≥240**, bounded by `(1090,394)`–`(1134,437)`, and the same RGBA SHA-256: **`9500E61AFA5E8C35D27E49F3FDCD0C089E25409983C8984F7266652D62C19A9C`**. The white arrow therefore exists in the alleged missing frames and is byte-identical to the later one. See `retained-pixels.json` for paths, bounds, counts and original/manifest hash checks.
+
+This supersedes the **A17 README unresolved-Refresh paragraph, Notebook “Retained visual limitation” paragraph, and A17 summary's pending Refresh-raster diagnosis**. They remain historical records with an explicit supersession note; their screenshots and failures are unchanged. There is no evidenced production icon/style defect, stale-capture defect or timing defect to repair. A17's earlier dispatcher flush was not demonstrated to fix anything, and this task does not claim that it did.
+
+“Offscreen” here describes an unattached WPF tree rendered into a bitmap, **not a control outside the viewport**. The enabled Refresh button is within the Organization viewport, at 36×36 DIP; the narrow coordinates are `(427,148.24)` and the icon has 18×18-DIP arranged bounds. Effective `IsVisible` is false for this unattached tree even though declared Visibility is Visible and its pixels are rendered. The foreground is white on teal. The icon uses the existing stroked `PtjIconRefresh` Geometry, not a font glyph. The new traces below verify actual state, bounds, geometry, clips, scroll offsets and foreground pixels rather than interpreting effective IsVisible as a raster result.
+
+### Narrow verification extension and commands
+
+The only code change is in the existing offscreen `NotebookTagViewTests` fixture. It holds its synthetic `OnList` result while invoking the **existing RefreshCommand**, captures a legitimately busy/disabled control, then releases the result and verifies re-enablement. It never sets Visibility, IsEnabled, colors or control state. Existing tag behavior and alignment assertions are retained. Snapshot diagnostics record the command identity, busy/enabled state, measured/rendered geometry, colors, root-relative button/icon bounds, viewport/scroll offsets, Path clip/layout clip and layout validity. Enabled, busy and ready images assert actual foreground pixels in the icon bounds and the unchanged 36-DIP hit-target layout. No production XAML, commands, resources, autosave, guards, accessibility names or focus behavior changed.
+
+```powershell
+pwsh -NoProfile -File TestResults/m2212a17-1-verified/compare-retained.ps1
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a17-1-verified/run.ps1 -Name focused -Filter 'FullyQualifiedName~BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor&DisplayName~Light&DisplayName~1280'
+pwsh -NoProfile -File TestResults/m2212a17-1-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a17-1-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a17-1-verified/check-doc-links.ps1
+```
+
+The initial diagnostic build (`build/output.log`) failed with **five CS0103 errors**, all from a missing `System.Globalization` import in the new diagnostic expressions; no tests ran against that failed build. After adding the import, `build/final-output.log` passed **exit 0, zero warnings/errors, 17.47s**. The retained build failure is separate from runtime results. `provenance.json` and `binaries.json` identify the final HEAD-plus-test-change build; production source remains identical to A17, with rebuilt metadata/hashes recorded separately.
+
+One focused invocation passed **1/1 parent and 4/4 distinct children**, zero failures/skips, **exit 0**, **25.324s** command wall time. The unchanged suite dispatcher launches all four Light/Dark × 1280/96 and 480/240 child rows from the single selected Light/1280 parent. The other three discoverable parents were not invoked, preventing redundant suite launches. These identities overlap A17 evidence and are not new cases added to its totals. The literal-path-safe audit verifies exactly those four identities, completeness and no skipped/duplicate child results (`test-audit.json`). The existing 90-second process/30-second case watchdogs, recursion protection, scheduling and assertions remain intact. No runtime retry, other focused suite, native-input test or complete gate ran.
+
+### State and image review
+
+`refresh-states.json` extracts the twelve enabled/busy/ready observations from the child's `refresh-state.jsonl`. All use **Panel=0**, declared Visible, valid measure/arrange, zero horizontal/vertical scroll offsets and no Path/layout clip. Busy state adds the existing 42-DIP active-operation row above the workspace, legitimately moving the button downward; it remains within the viewport. No control is outside the screenshot or hidden by scrolling.
+
+| Profile | Enabled → busy → ready | Measured foreground pixels, respectively | Button bounds: enabled / busy |
+| --- | --- | --- | --- |
+| Light 1280/96 | True → False → True | 56 / 58 / 56 | `(157,79.62,36,36)` / `(157,121.62,36,36)` |
+| Dark 1280/96 | True → False → True | 56 / 58 / 56 | Same normal-width bounds |
+| Light 480/240 | True → False → True | 557 / 567 / 557 | `(427,148.24,36,36)` / `(427,190.24,36,36)` |
+| Dark 480/240 | True → False → True | 557 / 567 / 557 | Same narrow bounds |
+
+These new pixel counts use the actual icon bounds and a stricter foreground-color tolerance; they must not be numerically compared with the larger retained-image region's 573-white-pixel count. Both methods establish the icon's presence. Disabled states use the existing secondary-text stroke and surface background, with readable arrows in both themes. Enabled states use the existing white-on-teal styling. Geometry is unchanged throughout; full values are recorded in the JSON traces.
+
+**Ten new captures were opened and inspected**, plus the two original A17 creation-empty/filters images at original resolution. New copied paths are beneath `TestResults/m2212a17-1-verified/renders/`: for each prefix **`Light-1280-96`, `Dark-1280-96`, `Light-480-240`, `Dark-480-240`**, the inspected suffixes are **`-default.png` and `-refresh-busy.png`**; both narrow profiles additionally have inspected **`-refresh-ready.png`**. `renders.json` maps hashes and original paths under the unique child directory. Icons, bounds and 36-DIP action layout are readable and unclipped in all inspected states; A17's centered tag rows and A16's saved/check/pin presentation remain intact. Twelve target-state images are retained, including the two uninspected normal-width ready frames; the complete existing fixture also retains its other synthetic states.
+
+### Inventory and acceptance limits
+
+Exact task inventory: **three modified files, no added tracked files**:
+
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagViewTests.cs` — controlled busy/ready captures and state/pixel observability in the existing fixture.
+- `README.md` and `docs/notebook.md` — correct the visual conclusion and record focused evidence.
+
+Artifact readers, manifests and pixel analysis are ignored files in the phase directory. Whitespace and local documentation-target checks are retained there. The Refresh discrepancy is resolved; **no production repair is warranted**. A17's specific Refresh-raster visual limitation is closed. **A15 native regression acceptance and its obstructed-desktop blocker, M22.12B and overall M22.12 acceptance remain pending.** Offscreen rendering verifies pixels and hit-target layout, not native hit testing, real pointer/focus interaction, human/Narrator or journal restart. Matching hosted compatibility remains unverified. No production/provider access, Git publication, workflow triggering, CI/timeout, schema or export changes occurred.
+
 ## M22.12A17 — Organization TAGS alignment and integrated review
+
+Historical record: its missing-Refresh visual conclusion is superseded by the A17.1 evidence above. The original artifacts are preserved.
 
 28 October 2026 (Europe/Kiev), one agent. Actual initial baseline: **clean develop / `64fef0e23c25b97afdc7e35e699c1915244d37fa`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporated A16's three modified files and added fixture; all previous work and artifacts are preserved. Repository/ancestor inspection found no AGENTS.md. HEAD remains unchanged. Evidence root: **`TestResults/m2212a17-verified/`**. The supplied current screenshot `C:/Users/Yovko/AppData/Local/Temp/codex-clipboard-161e2b7b-5af4-41c3-bdae-fac111ff7b64.png` was opened and compared: its red box identifies the left global TAGS list, whose labels sat above the management-button centers.
 
