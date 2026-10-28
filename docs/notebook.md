@@ -1,5 +1,63 @@
 # Notebook
 
+## M22.12A16 — Save status beside the pin
+
+28 October 2026 (Europe/Kiev), one agent. Actual initial baseline: **clean develop / `5529d01fea38caa0642fc494ef8d6280ef37ee7c`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A15.2's README/Notebook documentation; all previous work and evidence are preserved. Repository/ancestor guidance inspection found no AGENTS.md. HEAD remains unchanged; tested binaries represent that HEAD plus the XAML and new test file listed below. Evidence root: **`TestResults/m2212a16-verified/`**.
+
+### Header contract and unchanged ownership
+
+The existing `NoteSaveStatus` moves from beneath the folder breadcrumb into one horizontal status/icon group directly before the pin, vertically centered with the pin and note menu. The saved state is **green check → Saved locally → pin → note menu**. It reuses `PtjIconActivate` and `PtjSuccessBrush`; accessible live status text conveys meaning independently of color. The status/icon group stays together; the breadcrumb can wrap in the remaining column, and the long editable title retains its own full-width row. The original compact-status location is removed. The detailed `SaveState` explanation, Save/retry, Discard, recovery and failure text remain contextual, rather than being removed as a duplicate of the compact label.
+
+There is **no new save-state machine**: the XAML check visibility is triggered only by the existing `CompactSaveState == "Saved locally"`. Its existing precedence suppresses success during saving, recovery conflict, recovered/paused state, dirty content or unavailable content. Existing `SaveCoreAsync` checks activation and selected-note identity before publishing, and compares the current draft against the persisted signature so an older committed revision cannot acknowledge newer edits. A selection change while a write is pending is rejected by the existing guard; a subsequent accepted selection installs that note's authoritative draft. These mechanisms, expected versions, autosave debounce, persistence, recovery, images and undo/redo were not changed.
+
+Existing compact wording is retained: `Saving…`, `Unsaved changes`, `Save paused`, `Conflict` and unavailable/recovery states. In particular, a canonical conflict can retain compact **Save paused** with its explicit **Conflict** explanation in persistent `SaveState`; recovered content also retains its existing explanatory text. A checkpoint alone never shows the green check. Notification expiry/dismissal does not control this persistent presentation.
+
+### Focused commands and distinct results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a16-verified/run.ps1 -Name offscreen -Filter 'FullyQualifiedName~SaveStatusBesidePinReflectsCanonicalStateOffscreen'
+pwsh -NoProfile -File TestResults/m2212a16-verified/run.ps1 -Name logic -Filter 'FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookNotificationTests|FullyQualifiedName~CapturedSaveCannotAcknowledgeNewerEditsOrPublishAfterDisposal'
+pwsh -NoProfile -File TestResults/m2212a16-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a16-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a16-verified/check-doc-links.ps1
+```
+
+The runner uses Release `dotnet test --no-build --no-restore --filter ... --logger trx --results-directory ...`. Build: **exit 0, zero warnings/errors, 53.53s** (`build/output.log`). Current source and DLL hashes are retained in `provenance.json` and `binaries.json`.
+
+| Selection | Parent results | Separate child results | Failures/skips | Exit | Command wall time |
+| --- | --- | --- | --- | --- | --- |
+| New offscreen save-status matrix | **4/4** | **4/4**, one exact matching child per parent | 0/0 | 0 | 29.611s |
+| Autosave, notification logic, captured-save ownership | **34/34** | None | 0/0 | 0 | 3.000s |
+
+Total: **38 distinct parent cases and four distinct isolated children**, counted separately; no duplicate identities or overlap between the two current selections. The 34 logic cases overlap historical A15 coverage and are not added to historical totals. They comprise 20 autosave/recovery cases, 12 notification cases and two older-save/newer-edit/disposal cases. No test failed or was retried. The literal-path-safe audit checks complete counts, no duplicate results and exactly one matching child identity for each isolated parent.
+
+The new partial fixture retains its existing `NotebookHeaderViewTests` exclusive trait/collection and runs before the logic selection. It uses case-owned Application/dispatcher lifetimes, exact child filters/recursion guard, **90-second process / 30-second case deadlines**, and existing two-thread collection settings. It creates **no Window or HwndSource**, calls no pointer/keyboard/focus helper, and asserts `PresentationSource.FromVisual(view) == null` after layout. The restricted executor ran the build and both selections; native input-desktop access was neither requested nor used. A read-only CIM process query was denied; the fallback `Get-Process` inventory showed no testhost, vstest or dotnet process before the build. Final process inventory is retained separately. No A15 native menu selection ran.
+
+The offscreen matrix verifies exact accessible status/check visibility for saved, edited, saving, newer edits during a held save, storage failure, canonical conflict and explicit recovery. It checks guard rejection of switching during the held write, the later accepted note's clean status, notification dismissal and elapsed ten-second notification interval without clearing saved status, and persistent failure after dismissal. Geometry assertions verify status-before-pin-before-menu order, vertical alignment and action bounds at 1280 DIP/96 DPI and 480 DIP/240 DPI. Existing logic tests retain deterministic clock boundaries, recovery durability, cancellation/activation/disposal and stale-save assertions.
+
+### Inspected captures and exact inventory
+
+Eight offscreen PNGs were generated; **six were inspected**. `renders.json` maps every image to its original child directory, hash and inspection status. Paths below are beneath `offscreen/`, with files in each directory's `save-status-renders/`:
+
+| Child directory | Inspected files |
+| --- | --- |
+| `notebook-save-status-20261028-102624-5c684088ca634d8da2121f6eb3bc1af3` | `Light-1280-96-saved.png`, `Light-1280-96-paused.png` |
+| `notebook-save-status-20261028-102632-605c1a5828f94943aa5bd08a47ee3b4b` | `Dark-480-240-saved.png`, `Dark-480-240-paused.png` |
+| `notebook-save-status-20261028-102637-cd6b8df546b145a2a6294ff8b8bd6887` | `Dark-1280-96-saved.png` |
+| `notebook-save-status-20261028-102642-959de63df8cc45c387793fc04c08c720` | `Light-480-240-saved.png` |
+
+The check, status, pin and ellipsis are readable and aligned in both themes; long titles wrap below without overlapping the controls. Paused captures correctly remove the check and retain the failed-save/recovery explanation and retry controls after banner dismissal. No blocking A16 visual issue was found in these captures. These are real WPF offscreen renders, **not native mouse/focus or human accessibility acceptance**.
+
+Exact task inventory: **three modified files and one added file**, with no pre-existing uncommitted changes:
+
+- `README.md` — current outcome and limitations.
+- `docs/notebook.md` — contract, commands, results and evidence.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — relocate the existing status and conditionally show the existing themed check icon.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.SaveStatus.cs` — four exact-dispatch offscreen cases and retained captures.
+
+Whitespace and local documentation-target validation are recorded in the phase artifacts; no schema/model, export/archive format, CI, deadline or scheduling change requires additional checks. **A16 focused logic/presentation verification is complete; A15 regression acceptance, A17 and M22.12B remain pending.** A15.2 demonstrated ChatGPT's window obstructing native targets despite an initially passing preflight; that blocker and the original failures' unidentified historical foreground owner remain documented. Native pin/menu hit testing, keyboard/focus/Narrator assessment, journal restart and matching hosted input compatibility remain unverified. No complete gate, provider/production access, Git publication or workflow triggering occurred. A17's left TAGS creation section was not changed.
+
 ## M22.12A15.2 — Focused input-desktop verification
 
 28 October 2026 (Europe/Kiev), one agent. Actual initial baseline was **clean develop / `a3dbab5e284893c20ee5002732e740e9548ddade`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporated A15.1's three files. Repository/ancestor guidance inspection found no AGENTS.md. HEAD is unchanged. **A15 focused regression acceptance remains pending: the input desktop did not remain unobstructed.** No production or test/harness source changes were made.

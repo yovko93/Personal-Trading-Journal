@@ -299,9 +299,14 @@
        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
        <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
         <TextBlock Text="{Binding Breadcrumb}" Style="{StaticResource QuietText}"/>
-        <TextBlock x:Name="NoteSaveStatus" Text="{Binding CompactSaveState}" ToolTip="{Binding SaveState}" Style="{StaticResource QuietText}" FontSize="12" AutomationProperties.LiveSetting="Polite"/>
        </StackPanel>
-       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+       <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+        <StackPanel x:Name="NoteSaveStatusGroup" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0" ToolTip="{Binding SaveState}">
+         <Path x:Name="NoteSavedCheck" Data="{StaticResource PtjIconActivate}" Stroke="{DynamicResource PtjSuccessBrush}" StrokeThickness="2" Stretch="Uniform" Width="14" Height="14" Margin="0,0,5,0" VerticalAlignment="Center" IsHitTestVisible="False">
+          <Path.Style><Style TargetType="Path"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding CompactSaveState}" Value="Saved locally"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Path.Style>
+         </Path>
+         <TextBlock x:Name="NoteSaveStatus" Text="{Binding CompactSaveState}" Style="{StaticResource QuietText}" FontSize="12" VerticalAlignment="Center" AutomationProperties.Name="{Binding CompactSaveState}" AutomationProperties.LiveSetting="Polite"/>
+        </StackPanel>
         <Button x:Name="PinNoteButton" Command="{Binding PinCommand}" ToolTip="{Binding PinText}" AutomationProperties.Name="{Binding PinText}">
          <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PtjIconButtonStyle}"><Style.Triggers><DataTrigger Binding="{Binding Note.IsPinned}" Value="True"><Setter Property="Background" Value="{DynamicResource PtjSurfaceElevatedBrush}"/><Setter Property="Foreground" Value="{DynamicResource PtjAccentBrush}"/></DataTrigger></Style.Triggers></Style></Button.Style>
          <Path Data="{StaticResource PtjIconPin}" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.8" Stretch="Uniform">

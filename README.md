@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A16 — Save status beside the pin
+
+The persistent note status now sits immediately left of the pin: **green check → Saved locally → pin**, followed by the existing note menu. The old status beneath the folder context is removed. The check follows the existing authoritative `CompactSaveState`; newer edits, saving, failures and recovery never gain a separate success state. Detailed retry/recovery feedback remains contextual and notification dismissal does not clear it.
+
+Release build passed with zero warnings/errors. **38/38 distinct parents and four matching isolated children passed**, zero failures/skips, exits **0**. Six Light/Dark normal/narrow-high-DPI offscreen captures were inspected. [Commands, save-state coverage, render paths and exact four-file inventory](docs/notebook.md#m2212a16--save-status-beside-the-pin). Evidence: `TestResults/m2212a16-verified/summary.json`.
+
+**A16 focused logic/presentation verification is complete. A15 regression acceptance, A17 and M22.12B remain pending.** No native pointer/focus test or complete gate ran; A15.2's obstructed-desktop blocker remains unresolved. Offscreen rendering is not native interaction, Narrator, journal restart or hosted acceptance. A17's left TAGS creation section is unchanged.
+
 ## M22.12A15.2 — Input-desktop verification blocked
 
 Release build at clean `develop` / `a3dbab5e284893c20ee5002732e740e9548ddade` passed with zero warnings/errors. Interactive access and an ordinary WPF window's sampled hit points passed preflight, but the desktop did not remain unobstructed across isolated children. Three menu cases encountered a **ChatGPT** process at their target coordinates (`Chrome_*` window classes); notifications were absent and banners collapsed. No production or test behavior was changed.
