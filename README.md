@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A17 — Organization TAGS alignment and review
+
+The left TAGS heading and compact New tag action now share a centered row. Tag labels and their right-hand management buttons are vertically centered, with wrapped long names and full-label tooltips. Creation keeps a full-width name field above aligned Add/Cancel controls; reserved Add space keeps Cancel stationary when Add appears. Existing commands, keyboard traversal and note-editor assignment chips are preserved.
+
+Release builds passed with zero warnings/errors. Final focused evidence passes **22 distinct parents and four distinct child cases**, counted separately; exits **0**, zero final failures/skips. The initial offscreen fixture assertion failure is retained and its correction documented. Fifteen current-source Light/Dark normal/narrow-high-DPI captures were inspected. [Commands, exact four-file inventory and integrated findings](docs/notebook.md#m2212a17--organization-tags-alignment-and-integrated-review). Evidence: `TestResults/m2212a17-verified/summary.json`.
+
+The integrated review retains an **unresolved offscreen Refresh-icon discrepancy in early Light/high-DPI frames**, despite a non-null white stroke; later frames show the icon. A dispatcher flush did not change those pixels, so no production cause or fix is claimed. **A15 regression acceptance and its native-desktop blocker, M22.12B and overall acceptance remain pending.** No native input tests or complete gate ran.
+
 ## M22.12A16 — Save status beside the pin
 
 The persistent note status now sits immediately left of the pin: **green check → Saved locally → pin**, followed by the existing note menu. The old status beneath the folder context is removed. The check follows the existing authoritative `CompactSaveState`; newer edits, saving, failures and recovery never gain a separate success state. Detailed retry/recovery feedback remains contextual and notification dismissal does not clear it.

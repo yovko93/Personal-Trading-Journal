@@ -7,6 +7,8 @@ using System.Windows.Threading;
 using PersonalTradingJournal.Desktop.Tests.CalendarPage;
 using PersonalTradingJournal.Desktop.Tests.TestDoubles;
 using PersonalTradingJournal.Desktop.Views.Notebook;
+using PersonalTradingJournal.Desktop.ViewModels.Notebook;
+using PersonalTradingJournal.Application.Notebook;
 
 namespace PersonalTradingJournal.Desktop.Tests.Notebook;
 
@@ -38,6 +40,32 @@ public sealed class NotebookTagViewTests
             view.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             try
             {
+                // Review actual arranged geometry offscreen; no native input or focus prerequisites.
+                vm.Panel = 0; Layout();
+                Assert.Equal(new[] { NotebookScope.AllNotes, NotebookScope.Pinned, NotebookScope.Trash },
+                    ((ListBox)view.FindName("ScopeList")).Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
+                Assert.Equal("Refresh Notebook", AutomationProperties.GetName((Button)view.FindName("NotebookRefresh")));
+                var newTag = (Button)view.FindName("NewTagButton");
+                var heading = Descendants<TextBlock>((Grid)newTag.Parent).Single(t => t.Text == "TAGS");
+                Centered(heading, newTag); Render("default");
+                vm.ShowNotification("An operation needs attention. Your existing notes, tag filters and recovery actions remain available while this wrapped message is displayed.", NotebookNotificationKind.Warning);
+                Layout(); Render("notification-visible"); vm.DismissNotificationCommand.Execute(null); Layout(); Render("notification-dismissed");
+                Assert.True(vm.BeginTagCreation()); Layout();
+                var add = (Button)view.FindName("AddNewTagButton"); var cancel = (Button)view.FindName("CancelTagCreationButton");
+                Assert.Equal(Visibility.Collapsed, add.Visibility); Assert.Equal(Visibility.Visible, cancel.Visibility);
+                Assert.True(cancel.ActualWidth > 0 && cancel.ActualHeight > 0); // Offscreen trees have no native IsVisible surface.
+                var cancelOrigin = cancel.TranslatePoint(new(), view); double formHeight = ((FrameworkElement)view.FindName("TagCreation")).ActualHeight;
+                Render("creation-empty"); vm.TagName = " \t "; Layout(); Assert.Equal(Visibility.Collapsed, add.Visibility);
+                vm.TagName = "New global tag"; Layout(); Assert.Equal(Visibility.Visible, add.Visibility);
+                Assert.Equal(cancelOrigin, cancel.TranslatePoint(new(), view));
+                Assert.Equal(formHeight, ((FrameworkElement)view.FindName("TagCreation")).ActualHeight);
+                Centered(add, cancel); Bounds(add); Bounds(cancel); Bounds((TextBox)view.FindName("NewTagName")); Render("creation-populated");
+                vm.TagName = " "; Pump(vm.CreateTagCommand.ExecuteAsync(null)); Layout();
+                Assert.True(vm.IsTagCreationOpen); Assert.NotEmpty(vm.TagMessage); Assert.Equal(" ", vm.TagName);
+                Assert.Equal(0, fixture.Data.Writes); Render("creation-error"); vm.CancelTagForm();
+                vm.Panel = 2; Layout();
+                Assert.Equal("Saved locally", ((TextBlock)view.FindName("NoteSaveStatus")).Text);
+                Assert.Equal(Visibility.Visible, ((FrameworkElement)view.FindName("NoteSavedCheck")).Visibility); Render("saved-content");
                 vm.ManagedTag = vm.Tags[0]; vm.TagName = "Long research observations with multiple words and context";
                 Pump(vm.RenameTagCommand.ExecuteAsync(null));
                 Pump(vm.ToggleTagFilterCommand.ExecuteAsync(vm.Tags[0])); Pump(vm.ToggleTagFilterCommand.ExecuteAsync(vm.Tags[1]));
@@ -53,6 +81,12 @@ public sealed class NotebookTagViewTests
                 var filters = Descendants<CheckBox>((ItemsControl)view.FindName("TagFilters")).ToArray();
                 Assert.Equal(2, filters.Length); Assert.All(filters, c => Assert.True(c.IsChecked));
                 Assert.All(filters, c => Assert.Contains("Filter", AutomationProperties.GetHelpText(c)));
+                foreach (var filter in filters)
+                {
+                    var action = Descendants<Button>((Grid)filter.Parent).Single();
+                    Centered(filter, action); Bounds(filter); Bounds(action);
+                    Assert.True(filter.TranslatePoint(new(filter.ActualWidth, 0), view).X <= action.TranslatePoint(new(), view).X);
+                }
                 vm.TagName = " "; Pump(vm.CreateTagCommand.ExecuteAsync(null)); Layout(); Render("validation");
                 Assert.Contains(Descendants<TextBlock>(view), t => t.Text == vm.TagMessage && AutomationProperties.GetLiveSetting(t) == AutomationLiveSetting.Polite);
                 Assert.True(vm.BeginTagRename(vm.Tags[0])); Layout(); Render("management"); vm.CancelTagForm();
@@ -85,10 +119,23 @@ public sealed class NotebookTagViewTests
                 SynchronizationContext.SetSynchronizationContext(previous);
             }
             int Height() => width < 1000 ? 760 : 960;
-            void Layout() { view.Measure(new(width, Height())); view.Arrange(new Rect(0, 0, width, Height())); view.UpdateLayout(); }
+            void Layout() { view.Measure(new(width, Height())); view.Arrange(new Rect(0, 0, width, Height())); view.UpdateLayout(); Assert.Null(PresentationSource.FromVisual(view)); }
+            void Centered(FrameworkElement left, FrameworkElement right) => Assert.InRange(Math.Abs(
+                left.TranslatePoint(new(0, left.ActualHeight / 2), view).Y - right.TranslatePoint(new(0, right.ActualHeight / 2), view).Y), 0, 1);
+            void Bounds(FrameworkElement element)
+            {
+                var p = element.TranslatePoint(new(), view);
+                Assert.InRange(p.X, 0, width); Assert.InRange(p.X + element.ActualWidth, 0, width + 1);
+            }
             void Render(string state)
             {
-                var directory = Path.Combine(AppContext.BaseDirectory, "notebook-tag-renders"); Directory.CreateDirectory(directory);
+                var directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY") ?? AppContext.BaseDirectory, "notebook-tag-renders"); Directory.CreateDirectory(directory);
+                var refreshIcon = Assert.IsType<System.Windows.Shapes.Path>(((Button)view.FindName("NotebookRefresh")).Content);
+                string before = refreshIcon.Stroke?.ToString() ?? "null";
+                // Finish deferred bindings before the offscreen snapshot, as in the A16 fixture.
+                Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle); view.UpdateLayout();
+                File.AppendAllText(Path.Combine(directory, "render-readiness.log"), $"{theme}/{width}/{dpi}/{state}: Refresh stroke before={before}, after={refreshIcon.Stroke}\n");
+                Assert.NotNull(refreshIcon.Stroke);
                 var bitmap = new RenderTargetBitmap(width * dpi / 96, Height() * dpi / 96, dpi, dpi, PixelFormats.Pbgra32);
                 bitmap.Render(view); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 using var output = File.Create(Path.Combine(directory, $"{theme}-{width}-{dpi}-{state}.png")); encoder.Save(output);

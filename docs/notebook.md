@@ -1,5 +1,71 @@
 # Notebook
 
+## M22.12A17 — Organization TAGS alignment and integrated review
+
+28 October 2026 (Europe/Kiev), one agent. Actual initial baseline: **clean develop / `64fef0e23c25b97afdc7e35e699c1915244d37fa`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporated A16's three modified files and added fixture; all previous work and artifacts are preserved. Repository/ancestor inspection found no AGENTS.md. HEAD remains unchanged. Evidence root: **`TestResults/m2212a17-verified/`**. The supplied current screenshot `C:/Users/Yovko/AppData/Local/Temp/codex-clipboard-161e2b7b-5af4-41c3-bdae-fac111ff7b64.png` was opened and compared: its red box identifies the left global TAGS list, whose labels sat above the management-button centers.
+
+### Presentation and behavior
+
+- TAGS and New tag occupy one centered header row. The button retains its teal style, name, tooltip, focus indicators and command handler, with compact 12-point text/32-DIP minimum height. Its declaration remains after the filter/paging controls to preserve their keyboard traversal order despite the visual placement.
+- Each tag row has a 36-DIP minimum height and consistent two-DIP vertical margins. The checkbox/text and 36-DIP management button are centered vertically; an eight-DIP gap separates wrapped labels from the action. A full filter-label tooltip preserves long-name access. Taller wrapped rows keep the action centered without overlap.
+- The creation name field stays full width. Add and Cancel share an aligned row beneath it; a **54-DIP reserved Add column** includes its six-DIP gap. Add still uses its original conditional **Collapsed/Visible** binding, while Cancel retains its screen position and the form retains its height when Add appears. Empty/whitespace input, explicit Cancel, validation feedback and input retention are unchanged.
+- No view-model, persistence, focus helper, popup ownership or command code changed. Enter/Escape, pending/late completion guards, filtering/selection, captured Rename/Delete identities and global catalog versus note-assignment semantics retain their existing paths. Note-editor assigned-tag chips were not moved or redesigned.
+
+### Commands and retained results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a17-verified/run.ps1 -Name offscreen -Filter 'FullyQualifiedName~BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor&DisplayName~Light&DisplayName~1280'
+# Correct the new offscreen-only assertion after inspecting the retained failure, then rebuild:
+pwsh -NoProfile -File TestResults/m2212a17-verified/run.ps1 -Name corrected-offscreen -Filter 'FullyQualifiedName~BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor&DisplayName~Light&DisplayName~1280'
+pwsh -NoProfile -File TestResults/m2212a17-verified/run.ps1 -Name logic -Filter 'FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests'
+# Rebuild after adding capture-readiness diagnostics/dispatcher completion, then regenerate:
+pwsh -NoProfile -File TestResults/m2212a17-verified/run.ps1 -Name final-renders -Filter 'FullyQualifiedName~BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor&DisplayName~Light&DisplayName~1280'
+pwsh -NoProfile -File TestResults/m2212a17-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a17-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a17-verified/check-doc-links.ps1
+```
+
+Build logs under `build/`: `output.log` **50.74s**, `final-output.log` **18.48s** (preserve keyboard traversal before tests), `fixture-correction.log` **8.36s**, `render-readiness.log` **7.33s**. All exited **0**, zero warnings/errors. The final test binary includes both fixture corrections; the production XAML was unchanged across the three runtime selections. Hashes and tested source identity are recorded in `provenance.json` and `binaries.json`.
+
+| Run | Parents passed/total | Children passed/total | Skips | Exit | Command wall time |
+| --- | --- | --- | --- | --- | --- |
+| `offscreen` — retained initial failure | 0/1 | 0/4 | 0 | 1 | 12.509s |
+| `corrected-offscreen` | 1/1 | 4/4 | 0 | 0 | 14.317s |
+| `logic` | 21/21 | None | 0 | 0 | 3.187s |
+| `final-renders` | 1/1 | 4/4 | 0 | 0 | 20.320s |
+
+There are **22 distinct parent identities and four distinct child identities** with final passing evidence, across **24 parent executions and 12 child executions**. Rendering reruns overlap completely and are not summed as extra coverage. The unchanged `NotebookTagViewTests` dispatcher launches the existing **whole four-row child suite** from the selected Light/1280 parent; the four discoverable parent rows were not all invoked, avoiding sixteen child executions. This task does not change that dispatch or claim four executed parents. The literal-path-safe audit verifies four distinct intended Light/Dark × 1280/96 and 480/240 child identities, complete results and no skipped/duplicate cases per run. The initial parent and four child failures remain visible in `test-audit.json`; latest passing projections do not erase them.
+
+All original tag-view behavior assertions remain. The fixture now checks actual arranged centers, non-overlap and action bounds, stable Cancel position/form height, empty/populated/invalid creation, Workspace scopes/Refresh accessibility and the saved header. The 21 existing logic cases cover validation/persistence failure, duplicate submissions, cancellation and late completion, captured rename/delete identity, assignment/global deletion, filtering and autosave coordination. Their overlaps with earlier A11/A15 evidence are not added to historical totals. Existing scheduling, 90-second process and 30-second case deadlines are retained. No Window, native pointer or focus helper is used by these selections; the offscreen layout asserts no `PresentationSource`. Process-name inventories found no testhost/vstest before or after; no user process was changed.
+
+The initial failure was the **new** `Assert.True(cancel.IsVisible)` at `NotebookTagViewTests.cs:55`. WPF's effective IsVisible does not establish displayed controls for an unattached offscreen root. The correction checks declared Visible plus positive arranged dimensions; existing behavior assertions were preserved. Four identical child failures share that one fixture error, rather than four production failures. Raw TRX, stdout/stderr and supervision evidence remain under `offscreen/`.
+
+### Integrated visual findings and paths
+
+The final suite generated **56 offscreen PNGs**. Fifteen current-source images were inspected; `renders.json` records original paths, SHA-256 hashes and inspection provenance. Fourteen final images are byte-identical to the already inspected `corrected-offscreen` captures, so that inspection is reused; the final Light/narrow notification capture was opened separately. All copied paths below are beneath `TestResults/m2212a17-verified/renders/`; originals remain under `final-renders/notebook-tags-20261028-161830-af9c5185a61143008b8a9ea4a8cf3ac7/notebook-tag-renders/`.
+
+| Profile | Inspected filenames | Findings |
+| --- | --- | --- |
+| Light 1280/96 | `Light-1280-96-default.png`, `creation-empty`, `creation-populated`, `filters`, `notification-dismissed` with the same profile prefix and `.png` suffix | TAGS/header and label/action centers align; empty/populated controls retain position; long selected labels wrap without covering menus; A14 scopes and A16 saved/check/pin remain visible |
+| Dark 1280/96 | `Dark-1280-96-default.png`, `creation-error`, `notification-visible` | Theme contrast and wrapped validation remain readable; notification stays above the workspace and saved status stays beside pin |
+| Dark 480/240 | `Dark-480-240-creation-populated.png`, `filters`, `saved-content` | Organization and Content panels remain accessible separately; long names wrap; form actions fit; saved check/text precedes pin |
+| Light 480/240 | `Light-480-240-creation-empty.png`, `creation-error`, `filters`, `notification-visible` | Creation and errors fit; notification wraps above panel switching; **Refresh icon discrepancy below remains unresolved** |
+
+**Retained visual limitation:** the early Light/480/240 default/dismissed/creation frames show a teal Refresh button without its icon, while notification-visible and later `filters` frames show the icon. The Render helper was updated to drain ContextIdle before capture and log the Refresh Path stroke. The final images are pixel-identical to the previous captures; `render-readiness.log` reports a white (`#FFFFFFFF`) stroke before and after the flush. This **does not establish a foreground-binding cause or resolve the missing raster**. Refresh production code/resources were not changed by A17, and the observation does not establish an A17 production regression or native behavior. No further reproduction or unrelated icon repair was attempted. A clean integrated visual acceptance claim is therefore withheld; this discrepancy needs bounded diagnosis before overall UI acceptance.
+
+Tag alignment itself has no remaining blocking issue in the inspected captures. Field validation can still appear in its pre-existing editor TagMessage location in addition to Organization; this presentation was preserved. Automated renders and model commands do not verify real keyboard/focus return, menu mouse readiness, Narrator or native journal restart. A15.2's obstructed input desktop remains the reason native pointer/focus tests were not launched; its current and historical failure limitations remain intact.
+
+### Exact inventory and handoff
+
+Four modified files, no added tracked files, no pre-existing pending changes:
+
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — only the left global TAGS header, rows and creation layout.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagViewTests.cs` — extend existing behavior/render coverage with geometry and integrated states, durable render paths and capture readiness diagnostics.
+- `README.md` and `docs/notebook.md` — outcomes, retained failures, visual limitation and evidence.
+
+Whitespace and local documentation-target checks are retained in phase artifacts. **A17 alignment implementation and focused regression checks pass; integrated visual review retains the Refresh-raster limitation. A15 focused regression acceptance, M22.12B and overall M22.12 acceptance remain pending.** No complete gate, native pointer/focus tests, production/provider access, publication or workflow triggering ran. Schema, persistence, archive/export formats, CI, scheduling and timeouts are unchanged.
+
 ## M22.12A16 — Save status beside the pin
 
 28 October 2026 (Europe/Kiev), one agent. Actual initial baseline: **clean develop / `5529d01fea38caa0642fc494ef8d6280ef37ee7c`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A15.2's README/Notebook documentation; all previous work and evidence are preserved. Repository/ancestor guidance inspection found no AGENTS.md. HEAD remains unchanged; tested binaries represent that HEAD plus the XAML and new test file listed below. Evidence root: **`TestResults/m2212a16-verified/`**.
