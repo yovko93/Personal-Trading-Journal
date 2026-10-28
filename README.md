@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A18 — Consistent creation layout
+
+**New tag** now sits below the global catalog and paging control, left-aligned with New folder; its inline field opens immediately beneath it. Folder creation now uses the same right-anchored Add/Cancel row as tag creation. Both Cancel buttons align with the input's right edge and remain stationary when conditional Add appears. Existing tag filters, management actions, commands and editor assignment chips are preserved.
+
+Release build passed with zero warnings/errors. **32 distinct parents and four distinct isolated children passed**, counted separately, zero failures/skips, exits **0**. Thirteen Light/Dark normal/narrow-high-DPI captures were inspected, including empty catalogs, both creation forms and scrolled long catalogs. [Commands, capture paths, retained build diagnostic and exact four-file inventory](docs/notebook.md#m2212a18--consistent-folder-and-tag-creation-layout). Evidence: `TestResults/m2212a18-verified/summary.json`.
+
+A18 focused verification is complete; native interaction was not exercised in this phase. **A15 focused acceptance remains passed. A19 (Trash selection), A20 (note-switch refresh), postponed M22.12B and overall acceptance remain pending.** A19/A20 causes have not been established. No complete gate ran.
+
 ## M22.12A15.3 — Focused regression acceptance passed
 
 Actual baseline: `develop` / `4dd5d0af158edb5d18343a17a983c39be28a359e`; clean initially, then only the two A15.3 documentation files were modified before the user confirmed desktop readiness. Existing Release DLLs match A17.1, so no rebuild was needed. With chat/browser windows manually minimized and the desktop left idle, **30/30 distinct parents and 10/10 matching isolated children passed**, zero failures/skips/incomplete cases, all exits **0**. All **38 native target-readiness checks passed**; all ten child exits were confirmed.

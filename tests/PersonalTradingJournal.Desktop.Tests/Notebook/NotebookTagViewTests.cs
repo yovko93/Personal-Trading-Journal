@@ -47,8 +47,11 @@ public sealed class NotebookTagViewTests
                     ((ListBox)view.FindName("ScopeList")).Items.Cast<NotebookScopeOption>().Select(s => s.Scope));
                 Assert.Equal("Refresh Notebook", AutomationProperties.GetName((Button)view.FindName("NotebookRefresh")));
                 var newTag = (Button)view.FindName("NewTagButton");
-                var heading = Descendants<TextBlock>((Grid)newTag.Parent).Single(t => t.Text == "TAGS");
-                Centered(heading, newTag); Render("default");
+                var newFolder = (Button)view.FindName("NewFolderButton");
+                var catalog = (ItemsControl)view.FindName("TagFilters");
+                Assert.Equal(newFolder.TranslatePoint(new(), view).X, newTag.TranslatePoint(new(), view).X);
+                Assert.True(catalog.TranslatePoint(new(0, catalog.ActualHeight), view).Y <= newTag.TranslatePoint(new(), view).Y);
+                Render("default");
                 var refresh = (Button)view.FindName("NotebookRefresh");
                 Assert.Same(vm.RefreshCommand, refresh.Command); Assert.True(refresh.IsEnabled);
                 var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -65,18 +68,33 @@ public sealed class NotebookTagViewTests
                 }
                 finally { release.TrySetResult(); Pump(refreshing.WaitAsync(TimeSpan.FromSeconds(10))); fixture.Data.OnList = null; }
                 Layout(); Assert.False(vm.IsBusy); Assert.True(refresh.IsEnabled); Render("refresh-ready");
+                Assert.True(vm.BeginFolderCreation()); Layout();
+                var addFolder = (Button)view.FindName("AddFolderButton");
+                var cancelFolder = (Button)view.FindName("CancelFolderCreationButton");
+                var folderName = (TextBox)view.FindName("NewFolderName");
+                Assert.Equal(Visibility.Collapsed, addFolder.Visibility); CreationActions(folderName, addFolder, cancelFolder);
+                var folderCancelOrigin = cancelFolder.TranslatePoint(new(), view);
+                double folderFormHeight = ((FrameworkElement)view.FindName("FolderCreation")).ActualHeight;
+                Render("folder-creation-empty"); vm.FolderName = " \t "; Layout(); Assert.Equal(Visibility.Collapsed, addFolder.Visibility);
+                vm.FolderName = "New folder"; Layout(); Assert.Equal(Visibility.Visible, addFolder.Visibility);
+                Assert.Equal(folderCancelOrigin, cancelFolder.TranslatePoint(new(), view));
+                Assert.Equal(folderFormHeight, ((FrameworkElement)view.FindName("FolderCreation")).ActualHeight);
+                CreationActions(folderName, addFolder, cancelFolder); Render("folder-creation-populated");
+                vm.CancelFolderCreation(); Layout(); Assert.False(vm.IsFolderCreationOpen); Assert.Equal(0, fixture.Data.Writes);
                 vm.ShowNotification("An operation needs attention. Your existing notes, tag filters and recovery actions remain available while this wrapped message is displayed.", NotebookNotificationKind.Warning);
                 Layout(); Render("notification-visible"); vm.DismissNotificationCommand.Execute(null); Layout(); Render("notification-dismissed");
                 Assert.True(vm.BeginTagCreation()); Layout();
                 var add = (Button)view.FindName("AddNewTagButton"); var cancel = (Button)view.FindName("CancelTagCreationButton");
                 Assert.Equal(Visibility.Collapsed, add.Visibility); Assert.Equal(Visibility.Visible, cancel.Visibility);
                 Assert.True(cancel.ActualWidth > 0 && cancel.ActualHeight > 0); // Offscreen trees have no native IsVisible surface.
+                CreationActions((TextBox)view.FindName("NewTagName"), add, cancel);
+                Assert.True(newTag.TranslatePoint(new(0, newTag.ActualHeight), view).Y <= ((TextBox)view.FindName("NewTagName")).TranslatePoint(new(), view).Y);
                 var cancelOrigin = cancel.TranslatePoint(new(), view); double formHeight = ((FrameworkElement)view.FindName("TagCreation")).ActualHeight;
                 Render("creation-empty"); vm.TagName = " \t "; Layout(); Assert.Equal(Visibility.Collapsed, add.Visibility);
                 vm.TagName = "New global tag"; Layout(); Assert.Equal(Visibility.Visible, add.Visibility);
                 Assert.Equal(cancelOrigin, cancel.TranslatePoint(new(), view));
                 Assert.Equal(formHeight, ((FrameworkElement)view.FindName("TagCreation")).ActualHeight);
-                Centered(add, cancel); Bounds(add); Bounds(cancel); Bounds((TextBox)view.FindName("NewTagName")); Render("creation-populated");
+                CreationActions((TextBox)view.FindName("NewTagName"), add, cancel); Render("creation-populated");
                 vm.TagName = " "; Pump(vm.CreateTagCommand.ExecuteAsync(null)); Layout();
                 Assert.True(vm.IsTagCreationOpen); Assert.NotEmpty(vm.TagMessage); Assert.Equal(" ", vm.TagName);
                 Assert.Equal(0, fixture.Data.Writes); Render("creation-error"); vm.CancelTagForm();
@@ -128,6 +146,25 @@ public sealed class NotebookTagViewTests
                 }
                 Pump(vm.ClearFiltersCommand.ExecuteAsync(null)); Layout(); Render("cleared");
                 Assert.Single(vm.Notes); Assert.Empty(vm.SelectedTagFilters);
+                vm.Panel = 0;
+                var savedTags = fixture.Data.Tags.ToArray(); fixture.Data.Tags.Clear();
+                Pump(vm.RefreshCommand.ExecuteAsync(null)); Layout(); Assert.Empty(vm.Tags);
+                Bounds(newTag); Assert.True(newTag.IsEnabled); Render("empty-catalog");
+                Assert.True(vm.BeginTagCreation()); Layout();
+                CreationActions((TextBox)view.FindName("NewTagName"), add, cancel); Render("empty-catalog-creation-empty");
+                vm.TagName = "New catalog tag"; Layout();
+                CreationActions((TextBox)view.FindName("NewTagName"), add, cancel); Render("empty-catalog-creation-populated");
+                Assert.Empty(vm.SelectedTagFilters); Assert.Empty(fixture.Data.Tags);
+                vm.CancelTagForm(); fixture.Data.Tags.AddRange(savedTags);
+                for (int i = 0; i < 24; i++) fixture.Data.Tags.Add(new NotebookNamedItem(Guid.NewGuid(), $"Long catalog tag {i:00} with research context and observations", 0));
+                Pump(vm.RefreshCommand.ExecuteAsync(null)); Layout();
+                var organizationScroll = Assert.IsType<ScrollViewer>(((Border)view.FindName("OrganizationPanel")).Child);
+                Assert.True(organizationScroll.ScrollableHeight > 0); organizationScroll.ScrollToEnd(); Layout();
+                Bounds(newTag); var viewport = organizationScroll.TransformToAncestor(view).TransformBounds(new Rect(organizationScroll.RenderSize));
+                Assert.InRange(newTag.TranslatePoint(new(), view).Y, viewport.Top, viewport.Bottom - newTag.ActualHeight);
+                var lastAction = Descendants<Button>(catalog).Last(); Bounds(lastAction);
+                Assert.InRange(lastAction.TranslatePoint(new(), view).Y, viewport.Top, viewport.Bottom - lastAction.ActualHeight);
+                Render("long-catalog-bottom");
             }
             finally
             {
@@ -143,6 +180,17 @@ public sealed class NotebookTagViewTests
             {
                 var p = element.TranslatePoint(new(), view);
                 Assert.InRange(p.X, 0, width); Assert.InRange(p.X + element.ActualWidth, 0, width + 1);
+            }
+            void CreationActions(TextBox name, Button add, Button cancel)
+            {
+                Bounds(name); Bounds(cancel); Assert.Equal(Visibility.Visible, cancel.Visibility);
+                Assert.InRange(Math.Abs(name.TranslatePoint(new(name.ActualWidth, 0), view).X - cancel.TranslatePoint(new(cancel.ActualWidth, 0), view).X), 0, 1);
+                Assert.True(name.TranslatePoint(new(0, name.ActualHeight), view).Y <= cancel.TranslatePoint(new(), view).Y);
+                if (add.Visibility == Visibility.Visible)
+                {
+                    Centered(add, cancel); Bounds(add);
+                    Assert.True(add.TranslatePoint(new(add.ActualWidth, 0), view).X <= cancel.TranslatePoint(new(), view).X);
+                }
             }
             void Render(string state)
             {

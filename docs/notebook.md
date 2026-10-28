@@ -1,5 +1,62 @@
 # Notebook
 
+## M22.12A18 — Consistent folder and tag creation layout
+
+28 October 2026, one agent. Actual baseline: **clean develop / `5219ba238e771ddc07816e1e1d33d96ae140648f`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A15.3's two documentation files. Repository/ancestor inspection found no AGENTS.md. Existing changes and artifacts are preserved; HEAD remains unchanged. Evidence root: **`TestResults/m2212a18-verified/`**.
+
+### Layout and preserved behavior
+
+The supplied screenshot `C:/Users/Yovko/AppData/Local/Temp/codex-clipboard-2d2a7c64-8a3d-43d4-85f9-8dcfcaa64e9d.png` was opened. It shows folder Cancel on the left and New tag beside TAGS. The explicit A18 requirements take precedence over that current-state placement: **New tag moves below the catalog and More tag names**, left-aligned with New folder. Its field remains the next element below the button. Empty catalogs retain a directly accessible New tag below TAGS. Existing button typography, compact sizing, teal theme resources, tooltips and accessible names are retained; no incidental image styling was copied.
+
+Folder creation replaces its left-flow WrapPanel with the existing tag creation row's Grid arrangement: flexible leading space, a reserved 54-DIP Add column including its six-DIP gap, and an auto-sized Cancel column at the input's right edge. Both actions have a 32-DIP minimum height and centered alignment. Tag creation already had this arrangement and retains it. Add remains **Collapsed** for empty/whitespace-only names; its reserved space and the always-visible Cancel keep both the form height and Cancel origin stationary. At the supported normal and narrow layouts both actions fit on one row. Catalog scrolling keeps the relocated button and management controls reachable for long lists.
+
+The only production change is XAML layout. Existing click/key handlers, commands, name bindings, validation/pending/read-only bindings and focus ownership code are unchanged. Add remains before Cancel in traversal; global catalog/filter/paging controls remain before New tag. Creating a catalog tag still neither assigns it to the selected note nor selects its filter. Assigned-tag chips are unchanged. Existing validation/error retention, duplicate prevention, navigation consent, guarded selection and late-completion semantics continue through the same paths.
+
+### Commands and focused results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+pwsh -NoProfile -File TestResults/m2212a18-verified/run.ps1 -Name offscreen -Filter 'FullyQualifiedName~BoundTagsDistinguishFiltersAssignmentsAndGlobalDeletionWithRetainedEditor&DisplayName~Light&DisplayName~1280'
+pwsh -NoProfile -File TestResults/m2212a18-verified/run.ps1 -Name logic -Filter 'FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookFolderCreationTests'
+pwsh -NoProfile -File TestResults/m2212a18-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a18-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a18-verified/check-doc-links.ps1
+```
+
+The initial build (`build/output.log`, **74.72s**) failed with **one xUnit2013 analyzer error**, zero warnings: a newly added collection-count assertion needed `Assert.Empty` rather than `Assert.Equal(0, ...Count)`. The equivalent assertion was corrected; no test ran against that failed build. The final build (`build/final-output.log`, **20.49s**) passed **exit 0, zero warnings/errors**. Both logs remain retained. `binaries.json` identifies the final Release DLLs and `provenance.json` records HEAD plus the actual uncommitted files.
+
+| Selection | Parents passed/total | Separate children passed/total | Failures/skips | Exit | Command wall time |
+| --- | --- | --- | --- | --- | --- |
+| Existing offscreen tag-view matrix, extended with both forms and catalog scrolling | 1/1 | 4/4 | 0/0 | 0 | 36.393s |
+| Existing tag-form and folder-creation logic | 31/31 | None | 0/0 | 0 | 5.027s |
+
+**32 distinct parents and four distinct isolated children** passed, with no overlap between these selections and no runtime retries. The unchanged tag-view dispatcher launches all four Light/Dark × 1280/96 and 480/240 child rows from the one selected Light/1280 parent. The other three visible parents were not invoked, avoiding redundant whole-suite launches. The literal-path-safe audit validates the four intended complete, unique child identities, completeness and zero skipped/duplicate results. These identities overlap historical coverage and are not added to historical totals. Existing 90-second process / 30-second case deadlines and scheduling remain intact.
+
+The 31 logic cases comprise **17 folder-creation and 14 tag-form cases**: validation/persistence failure, retained draft/error, explicit cancellation, no automatic assignment/filtering, duplicate/in-flight prevention, late completion and guarded selection, plus captured global rename/delete ownership. Existing view assertions for assignment removal, filters and editor preservation remain. The obsolete heading/button vertical-centering assertion is replaced by the requested below-catalog/left-alignment geometry contract. New geometry checks verify both forms' field/Cancel right edges, Add-before-Cancel order, stable Cancel origin/form height, empty/whitespace visibility, empty catalogs and reaching New tag plus the last management button after scrolling a synthetic 26-tag catalog. This is layout/command evidence; no Window, native pointer, keyboard or focus helper was used. The restricted executor ran the checks without requesting input-desktop access. Native interaction was **not exercised**, and A15.3's passing native record remains scoped to its tested build and arrangement.
+
+### Inspected captures
+
+**Thirteen current-source PNGs were opened and inspected** from 88 generated by the existing matrix. `renders.json` maps copied paths, original paths and SHA-256 hashes. All copied paths below are beneath **`TestResults/m2212a18-verified/renders/`**; originals are beneath `offscreen/notebook-tags-20261028-204456-67d49ffcd1db42938cc0fe33164e3348/notebook-tag-renders/`.
+
+| Profile | Inspected filenames (profile prefix plus suffix and `.png`) |
+| --- | --- |
+| `Light-1280-96-` | `folder-creation-empty`, `folder-creation-populated`, `creation-empty`, `creation-populated` |
+| `Dark-480-240-` | `folder-creation-empty`, `folder-creation-populated`, `creation-empty`, `creation-populated` |
+| `Dark-1280-96-` | `empty-catalog`, `long-catalog-bottom` |
+| `Light-480-240-` | `empty-catalog-creation-populated`, `filters`, `long-catalog-bottom` |
+
+Both forms have readable, stable, right-aligned action rows. New tag is below the labels and left-aligned; empty catalogs keep it visible. Long names wrap beside reachable management buttons without overlap. Long-catalog bottom captures deliberately scroll Organization: preceding rows are naturally clipped at the viewport edge, while the final management action and New tag remain visible. No blocking A18 layout defect was found in the inspected images. No composite images, state forcing or native-interaction acceptance is claimed.
+
+### Exact inventory and deferred work
+
+Four modified files, **no added tracked files**, no pre-existing pending changes:
+
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — relocate New tag and align folder creation with the existing tag action row.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookTagViewTests.cs` — update the changed layout contract and extend existing offscreen coverage/captures for forms and catalog reachability.
+- `README.md` and `docs/notebook.md` — behavior, verification, inventory and handoff.
+
+Whitespace and local documentation-target checks are recorded in the evidence root. **A18 implementation and focused verification are complete. A15 focused regression acceptance remains passed.** Native/human/Narrator, journal workflow/restart and hosted compatibility are not newly established here. **A19 — Trash selection** and **A20 — note-switch refresh** are explicitly pending user-requested corrections; their causes have not been investigated or established in A18. No correction to either is claimed. **M22.12B is postponed and overall M22.12 acceptance remains pending.** No complete gate, persistence/schema/archive/export, CI/timeout, production/provider, publication or workflow-triggering change occurred.
+
 ## M22.12A15.3 — Sustainable desktop prerequisite
 
 28 October 2026, one agent. Initial state: **clean develop / `4dd5d0af158edb5d18343a17a983c39be28a359e`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A17.1's three files. Repository/ancestor inspection found no AGENTS.md. All changes and historical artifacts are preserved. Evidence root: **`TestResults/m2212a15-3-verified/`**.
