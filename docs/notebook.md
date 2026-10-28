@@ -1,5 +1,84 @@
 # Notebook
 
+## M22.12A15.3 — Sustainable desktop prerequisite
+
+28 October 2026, one agent. Initial state: **clean develop / `4dd5d0af158edb5d18343a17a983c39be28a359e`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A17.1's three files. Repository/ancestor inspection found no AGENTS.md. All changes and historical artifacts are preserved. Evidence root: **`TestResults/m2212a15-3-verified/`**.
+
+**Final status: A15 focused regression acceptance passed after the user confirmed an idle desktop with chat/browser windows minimized.** The initial withheld-launch record is preserved as `pre-readiness-summary.json`. On continuation HEAD was unchanged; only README.md and this document had been modified by A15.3. No code or binaries changed between the withheld launch and the successful run.
+
+### Provenance and execution observations
+
+`baseline.json` verifies all three A17.1 source/document hashes before documentation edits and both Release DLL hashes against the retained manifests. Desktop DLL SHA-256 remains `B64AD391958937411F3FE216ECAEFA1014E79AF4D89B6809D9803811721EA730`; the test DLL is `733CF58D4B9BDCAB58A478C27A178259D4C764EB2BF8021F6F6EAA04B485A05A`. Both hashes were checked again immediately before launch. No build, restore or separate discovery run was needed. The tested code from A17.1 is now committed at the actual HEAD; documentation changes do not change those binaries.
+
+The retained A15 failures are three distinct exact-dispatch rows of `OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard`: **Light/1280/96, Dark/1280/96, Light/480/240**. A15.1 identified Chrome over two later reproduction targets. A15.2 identified ChatGPT over three targets after an initially successful preflight. Neither identifies the unknown owner of the original A15 foreign foreground HWND. No new obstruction, production defect or fix is inferred today, and A17.1's resolved Refresh finding was not reopened.
+
+Read-only context commands, adapted from the existing A15.2 context observer (not a test runner):
+
+```powershell
+pwsh -NoProfile -File TestResults/m2212a15-3-verified/context-check.ps1
+# Same read-only observer through the supported executor, separately authorized:
+pwsh -NoProfile -File TestResults/m2212a15-3-verified/context-check.ps1 -OutputName supported-context.json -Execution 'Supported executor context; read-only observation only; no test launch, UAC request or scripted desktop/token switching'
+```
+
+- Default restricted executor: session 1, WinSta0, `CodexSandboxDesktop-d322985e9b4b74cf3eaaca9dacb9f4eb`, non-administrator; `GetCursorPos` failed with **error 5**. Observer exited **1**; this is an execution-prerequisite result, not a failed test.
+- Supported executor: session 1, **WinSta0/Default**, existing administrator token, cursor access **true/error 0**, observer **exit 0**. No UAC or scripted token/desktop switch was performed. CIM and process-name inventory showed **no dotnet/testhost/vstest process**. This proves access at observation time, not future target ownership.
+- **Initial launch was withheld** while waiting for the user to prepare the desktop. No WPF preflight or test was launched at that stage. The user subsequently replied “Ready — I will minimize them and leave the desktop idle.” `launch.json` records that arrangement; `launch-context.json` again confirms session 1 / WinSta0 / Default, cursor access and no competing test processes. The agent did not automate or close unrelated windows, switch desktops, add topmost behavior or change native input prerequisites.
+
+### Prepared selection and actionable execution arrangement
+
+The supported executor launched the existing PowerShell runner after the user prepared the unlocked desktop, with ChatGPT/Codex and browsers minimized and no user app switching during the run. The same outer invocation launched the exclusive selections serially, then the non-exclusive selection; no browser/computer-use actions were taken between children. The fixtures retained their ordinary activation path and **every per-interaction readiness/WindowFromPoint check**. Four separate menu invocations allowed subsequent launches to stop on the first nonzero exit without modifying scheduling or the harness. All passed, so all remaining selections ran once.
+
+`selection.json` records the smallest retained family selection, excluding the four subsequently added A16 save-status rows:
+
+| Selection | Expected parents | Expected isolated children | Coverage |
+| --- | --- | --- | --- |
+| Exclusive menus | 4 | 4 | All three original failures plus Dark/480/240; complete native toggle/dismissal/switching/owned-action matrix |
+| Exclusive split header | 2 | 2 | Complete template/Refresh/contextual cancellation family |
+| Exclusive notifications | 4 | 4 | Complete Light/Dark normal/high-DPI notification presentation family on current XAML |
+| Non-exclusive logic | 20 | 0 | 12 notification timing/state, 7 note-action ownership, 1 scheduling regression |
+
+The source-derived expected counts above were confirmed against actual TRX. The selections do not overlap. Every UI parent retains exact child selection and single-result identity/cardinality validation, case-owned Application/dispatcher lifetime, 90-second process deadline and 30-second watchdog. Exclusive membership, collection limits and helpers are unchanged. Since A15.2, changes affecting this UI are A16's header placement and A17's tag alignment; current notification/menu renders are therefore included. Existing A16 save-state/notification logic and A17.1 tag/Refresh evidence remain valid for their recorded scope; the unchanged isolation helper needs no speculative rerun. Historical results are not added to new totals.
+
+Executed commands (existing runner, fresh destination names, exclusive first):
+
+```powershell
+$env:PTJ_NOTEBOOK_MENU_DIAGNOSTICS = '1'
+$env:PTJ_INPUT_ORIGIN_TRACE = '1'
+foreach ($case in @(@('Light','1280'), @('Dark','1280'), @('Light','480'), @('Dark','480'))) {
+    $name = 'menus-' + $case[0] + '-' + $case[1]
+    $filter = 'Workload=ExclusiveWpf&FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard&DisplayName~' + $case[0] + '&DisplayName~' + $case[1]
+    pwsh -NoProfile -File TestResults/m2212a15-2-verified/run.ps1 -Name "../m2212a15-3-verified/$name" -Filter $filter
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/run.ps1 -Name '../m2212a15-3-verified/header-notifications' -Filter 'Workload=ExclusiveWpf&(FullyQualifiedName~SplitCreationMenusRefreshAndContextualCancellation|FullyQualifiedName~TopNotificationsWrapAcrossPanelsAndDismissWithoutResolvingFailedSave)'
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+pwsh -NoProfile -File TestResults/m2212a15-2-verified/run.ps1 -Name '../m2212a15-3-verified/logic' -Filter 'Workload!=ExclusiveWpf&(FullyQualifiedName~NotebookNotificationTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~ReleaseSchedulingTests)'
+pwsh -NoProfile -File TestResults/m2212a15-3-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a15-3-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a15-3-verified/check-doc-links.ps1
+```
+
+The existing runner uses Release `--no-build --no-restore`, durable output, TRX and unique child supervision directories. All six invocations and the outer command exited **0**. No new runner, production mechanism, scheduling change or additional deadline was introduced. `test-audit.json`, `results.json` and `coverage-audit.json` verify literal-path-safe TRX completeness, 30 unique parent identities, ten unique intended child identities, no extra/missing/skipped/duplicate results and ten confirmed child exits. Parent and child totals are kept separate.
+
+| Run directory | Parents | Children | Failures/skips | Exit | Command wall time |
+| --- | --- | --- | --- | --- | --- |
+| `menus-Light-1280` | 1/1 | 1/1 | 0/0 | 0 | 11.244s |
+| `menus-Dark-1280` | 1/1 | 1/1 | 0/0 | 0 | 10.625s |
+| `menus-Light-480` | 1/1 | 1/1 | 0/0 | 0 | 11.307s |
+| `menus-Dark-480` | 1/1 | 1/1 | 0/0 | 0 | 11.213s |
+| `header-notifications` | 6/6 | 6/6 | 0/0 | 0 | 47.038s |
+| `logic` | 20/20 | None | 0/0 | 0 | 3.887s |
+
+`readiness-audit.json` preserves **38 successful native target checks and 38 injections**, ten each in normal-width menu cases and nine each in narrow cases. Every actual hit HWND equals its intended HWND; zero failed readiness checks. The opt-in menu/input-origin diagnostics were enabled. The initial Light/1280 trace reports foreground **Progman** while the intended target point already belongs to the test window; the first click then foregrounds the test window. Foreground identity alone is therefore not used as proof of obstruction or ownership. Native WPF DPI is 2.5× on this desktop; parameter DPI 96/240 controls captured bitmap density and is not a claim that the desktop DPI changed per row. No notification manipulation or readiness bypass was used to obtain a pass. These are observations at each tested interaction, not a continuous desktop recording.
+
+Five current PNGs were opened and inspected; `renders.json` records their exact original paths and hashes beneath `header-notifications/notebook-notifications-*/notification-renders/`: **Light-1280-96-success.png, Dark-1280-96-information.png, Light-480-240-warning.png, Dark-480-240-error.png and Dark-480-240-dismissed-save-error.png**. All four severity presentations remain readable above the workspace, including wrapped narrow errors. The dismissed save-error image retains **Save paused**, explanatory failure text and Save/Discard, with no false green check. The generic error-severity sample has a canonically saved note, so its separate Saved locally state is expected. A16 status placement and A17 TAGS header alignment remain intact. No blocking defect was found in these inspected captures; unchanged A17.1 evidence is reused for populated tag rows and Refresh.
+
+### Result, inventory and limits
+
+**30/30 distinct parents and 10/10 distinct matching isolated children passed; zero failures/skips/incomplete cases; all exits 0.** Each selected identity executed once in this phase, with no retries. All identities overlap historical A15 coverage; A15.2's nine completed/six passed/three failed children and tenth incomplete child remain historical and are not added to today's totals. All ten supervision logs confirm child exit; final process-name inventory found no dotnet/testhost/vstest process (`after-context.json`). No unrelated process was terminated.
+
+Exact tracked inventory: **README.md and docs/notebook.md only**, including the earlier withheld-launch documentation. Ignored artifacts contain the read-only context observer, manifests, original results/logs/captures and audits. Whitespace and **224 local documentation targets** passed after edits; URL and fragment validation are outside that check. **A15 focused regression acceptance is complete under the user-prepared supported input-desktop conditions.** This pass does not identify the unknown original A15 foreground owner or prove every historical failure had the same cause. M22.12B and overall acceptance remain pending. Human/Narrator, native journal workflow/restart and matching hosted input/timing compatibility remain unverified. No complete gate, production/harness change, publication or workflow triggering occurred.
+
 ## M22.12A17.1 — Refresh render discrepancy resolved
 
 28 October 2026 (Europe/Kiev), one agent. Actual initial state: **clean develop / `54a8f57cbb3a78d30757db6da3569fa176e20eb0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A17's four changed files were committed in the intervening commit. Repository/ancestor inspection found no AGENTS.md. HEAD remains unchanged and all historical artifacts are preserved. Evidence root: **`TestResults/m2212a17-1-verified/`**.

@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A15.3 — Focused regression acceptance passed
+
+Actual baseline: `develop` / `4dd5d0af158edb5d18343a17a983c39be28a359e`; clean initially, then only the two A15.3 documentation files were modified before the user confirmed desktop readiness. Existing Release DLLs match A17.1, so no rebuild was needed. With chat/browser windows manually minimized and the desktop left idle, **30/30 distinct parents and 10/10 matching isolated children passed**, zero failures/skips/incomplete cases, all exits **0**. All **38 native target-readiness checks passed**; all ten child exits were confirmed.
+
+**A15 focused regression acceptance is complete under the recorded supported input-desktop conditions.** Five current notification captures were inspected. [Execution arrangement, exact commands, evidence reuse and two-file inventory](docs/notebook.md#m2212a153--sustainable-desktop-prerequisite). Evidence: `TestResults/m2212a15-3-verified/summary.json`. Historical failures and the original unknown foreground owner remain recorded; this pass does not establish hosted compatibility, human/Narrator or native journal workflow/restart acceptance. **M22.12B and overall acceptance remain pending.** A17.1's Refresh discrepancy remains resolved. No production/harness change or complete gate ran.
+
 ## M22.12A17.1 — Refresh render finding corrected
 
 **The retained Refresh icon was already present.** Original-resolution review and pixel comparison show identical icon regions in all six early/later Light/high-DPI captures, with 573 white icon pixels each. File hashes match the original A17 artifacts and manifest. The earlier missing-icon report was an incorrect visual assessment; no production rendering correction was needed.
