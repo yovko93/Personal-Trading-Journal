@@ -53,6 +53,10 @@
     <Trigger Property="IsEnabled" Value="False"><Setter Property="Background" Value="{DynamicResource PtjSurfaceBrush}"/><Setter Property="Foreground" Value="{DynamicResource PtjTextSecondaryBrush}"/><Setter Property="BorderBrush" Value="{DynamicResource PtjBorderBrush}"/></Trigger>
    </Style.Triggers>
   </Style>
+  <Style x:Key="NotebookCreationButton" TargetType="Button" BasedOn="{StaticResource NotebookActionButton}">
+   <Setter Property="Width" Value="112"/><Setter Property="Height" Value="34"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+  </Style>
   <Style x:Key="NotebookOverflowButton" TargetType="Button" BasedOn="{StaticResource NotebookActionButton}"><Setter Property="Width" Value="36"/><Setter Property="Height" Value="36"/><Setter Property="Padding" Value="8"/></Style>
   <Style x:Key="NotebookToolButton" TargetType="Button" BasedOn="{StaticResource PtjIconButtonStyle}">
    <Setter Property="Width" Value="32"/><Setter Property="Height" Value="32"/><Setter Property="MinHeight" Value="32"/><Setter Property="Padding" Value="6"/><Setter Property="Margin" Value="1,0"/><Setter Property="FontSize" Value="15"/>
@@ -182,7 +186,7 @@
       <ListBox x:Name="FolderScopeList" Style="{StaticResource NotebookList}" ItemsSource="{Binding Source={StaticResource FolderScopes}}" SelectionChanged="SelectPrimaryScope" IsSynchronizedWithCurrentItem="False" ItemTemplate="{StaticResource ScopeItem}" ItemContainerStyle="{StaticResource ScopeRow}" BorderThickness="0" Background="Transparent" AutomationProperties.Name="Notebook folders" ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
       <Button Content="More folders" Command="{Binding MoreFoldersCommand}" Visibility="{Binding HasMoreFolders, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,14"/>
      </StackPanel>
-      <Button x:Name="NewFolderButton" Style="{StaticResource NotebookActionButton}" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
+      <Button x:Name="NewFolderButton" Style="{StaticResource NotebookCreationButton}" Content="+ New folder" Click="OpenFolderCreation" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" Margin="0,8,0,8" ToolTip="Create a folder" AutomationProperties.Name="New folder"/>
       <StackPanel x:Name="FolderCreation" PreviewKeyDown="FolderCreationKeyDown" Visibility="{Binding IsFolderCreationOpen, Converter={StaticResource VisibleWhenTrue}}" Margin="0,0,0,12">
        <TextBox x:Name="NewFolderName" Text="{Binding FolderName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsFolderCreationPending}" MaxLength="128" AutomationProperties.Name="New folder name" AutomationProperties.HelpText="Enter creates the folder. Escape or Cancel clears and closes this form; a submitted creation may already be saved."/>
        <Grid Margin="0,6,0,0">
@@ -217,7 +221,7 @@
       </ItemsControl>
       <Button Grid.Row="2" Grid.ColumnSpan="2" Content="More tag names" Command="{Binding MoreTagsCommand}" Visibility="{Binding HasMoreTags, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0"/>
       </Grid>
-      <Button x:Name="NewTagButton" Content="+ New tag" Click="OpenTagCreation" Style="{StaticResource NotebookActionButton}" IsEnabled="{Binding CanManageTags}" Padding="6,4" MinHeight="32" FontSize="12" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Create a global tag" AutomationProperties.Name="New tag"/>
+      <Button x:Name="NewTagButton" Content="+ New tag" Click="OpenTagCreation" Style="{StaticResource NotebookCreationButton}" IsEnabled="{Binding CanManageTags}" HorizontalAlignment="Left" Margin="0,0,0,8" ToolTip="Create a global tag" AutomationProperties.Name="New tag"/>
       <StackPanel x:Name="TagCreation" Visibility="{Binding IsTagCreationOpen, Converter={StaticResource VisibleWhenTrue}}" PreviewKeyDown="TagFormKeyDown" Margin="0,0,0,8">
        <TextBox x:Name="NewTagName" Text="{Binding TagName, UpdateSourceTrigger=PropertyChanged}" IsReadOnly="{Binding IsTagOperationPending}" MaxLength="64" AutomationProperties.Name="New tag name" AutomationProperties.HelpText="Enter adds a global tag without assigning or filtering. Escape or Cancel clears this form; a submitted change may already be saved."/>
        <Grid Margin="0,6,0,0">

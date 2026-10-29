@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12A22 — Matching creation buttons
+
+New tag and New folder now share a Notebook-only **112 × 34 DIP** style, matching typography, padding, left-aligned plus signs, borders, corners and inherited teal interaction/focus states. Their positions and creation behavior are preserved.
+
+Release build passed with zero warnings/errors. **Four distinct parents and four matching isolated children passed**, zero failures/skips, exit 0; eight Light/Dark normal/narrow-high-DPI captures were inspected. [Commands, exact inventory, captures and verification limits](docs/notebook.md#m2212a22--matching-new-tag-and-new-folder-styling). Evidence: `TestResults/m2212a22-verified/summary.json`. **A23, resumed M22.12B and overall acceptance remain pending.** No native input or complete gate ran.
+
 ## M22.12A21 — Readable notes with explicit Edit / Done
 
 Existing notes now open in reading mode with a borderless title, selectable rich content, images/captions and reachable links. **Edit** beside Pin exposes the existing editor; **Done** uses the existing save pipeline and returns to reading only for the successfully saved, still-owned revision. New blank/template notes and duplicates enter Edit. Failures, conflicts, newer edits and recovery retain their drafts and contextual actions. Mode changes alone do not write content or reset undo history.

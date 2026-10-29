@@ -1,5 +1,47 @@
 # Notebook
 
+## M22.12A22 — Matching New tag and New folder styling
+
+29 October 2026, one agent. Actual baseline: clean `develop` / **`39651eda63567cb12a9944885c4e562becdfb3de`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A21's previously pending files were committed in the intervening commit. No repository/ancestor AGENTS.md or competing testhost was found. A21 and historical evidence are preserved. Tested source is this HEAD plus the four-file A22 inventory below.
+
+New tag previously overrode font size (12), padding (6,4) and minimum height (32). Both buttons now opt into `NotebookCreationButton`, derived from the existing teal `NotebookActionButton`, with shared width **112 DIP**, height **34 DIP** and left content alignment. Inherited Segoe UI 14/SemiBold, padding 10,6, one-DIP border and existing small corner radius match New folder's established presentation. The fixed width removes label-length sizing differences; left content alignment gives both plus signs the same inset and baseline. Existing theme hover/pressed/disabled colors and keyboard-focus rectangle are shared through the same style/template. No global resource changed.
+
+Both controls remain left-aligned beneath their respective lists. Click handlers, bindings, accessibility names/tooltips, owned focus, forms and right-aligned Cancel controls are unchanged. No creation, validation, asynchronous ownership, note-mode or tag-menu behavior changed. Existing creation-behavior evidence is reused; it is not counted as new verification.
+
+### Verification and commands
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/m2212a22-verified/presentation'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~CreationButtonsMatchDimensionsTypographyAndStateOffscreen' --logger 'trx;LogFileName=creation-buttons.trx' --results-directory TestResults/m2212a22-verified/presentation
+pwsh -NoProfile -File TestResults/m2212a22-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a22-verified/check-doc-links.ps1
+```
+
+Release build/dependencies: **zero warnings/errors, exit 0** (`build.log`). One focused invocation: **4/4 distinct parents and 4/4 matching distinct isolated children**, zero failures/skips, exit 0 (`presentation.log`, `presentation/creation-buttons.trx` and each child TRX/supervision log). No repeated selections, overlaps or initial failed attempts. Exact display-name selection, single-result validation, existing exclusive WPF collection, 90-second child deadline and 30-second watchdog are preserved.
+
+The offscreen checks compare actual arranged dimensions, font family/size/weight, padding, borders, corner radius and left alignment; measured label text fits without clipping. Both controls remain focusable and retain the template's keyboard-focus indicator trigger. A held synthetic New note write supplies a legitimate busy/disabled state; both buttons keep identical dimensions/colors, then re-enable on completion. No native pointer/focus state was forced. Hover/pressed/focus inheritance was inspected in the shared template; these states were not activated with native input.
+
+Eight actual images opened/inspected under `TestResults/m2212a22-verified/presentation/`. Append `/creation-button-renders/<prefix><state>.png`, where state is `enabled` or `busy-disabled`:
+
+| Theme / viewport / DPI | Child directory | Prefix |
+| --- | --- | --- |
+| Light / 1280 / 96 | `notebook-creation-buttons-20261029-131417-64e88f94e29646c58cc5c0c661a05cf1` | `Light-1280-96-` |
+| Light / 480 / 240 | `notebook-creation-buttons-20261029-131427-297d1c678d1244d8adf8b2fd67aaa20b` | `Light-480-240-` |
+| Dark / 1280 / 96 | `notebook-creation-buttons-20261029-131438-e017e1232b5445e19bf2709b953b25d0` | `Dark-1280-96-` |
+| Dark / 480 / 240 | `notebook-creation-buttons-20261029-131448-f590de2ea34e4bbd805c6a009074d791` | `Dark-480-240-` |
+
+Both buttons are visible together, equally sized and readable; no clipping/alignment defect was observed. Narrow captures select Organization using the existing panel layout. Evidence/hashes/identity audit: `TestResults/m2212a22-verified/summary.json`. Whitespace and local documentation-target checks passed after documentation edits. No native input, complete gate, provider/production access, publication, schema/format/CI/deadline changes or workflow trigger.
+
+Exact task inventory: **three modified files and one added file**, all A22:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.CreationButtons.cs` (new)
+
+**A22 focused presentation verification is complete. A23 tag-menu toggling, resumed M22.12B and overall acceptance remain pending.** A21's automated acceptance is preserved; this styling selection adds no native/human, Narrator, restart or hosted acceptance. The user's incomplete manual report remains separate from automated evidence.
+
 ## M22.12A21 — Readable note view with explicit Edit mode
 
 29 October 2026, one agent. Actual baseline: **clean `develop` / `672da3309a88aaf1e51969a4d24930f92475dc8b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit since `d2d981b` contains B2 documentation only. No AGENTS.md was found in the repository/ancestors. Existing implementation, isolated manual profile and historical evidence are preserved. Results apply to HEAD **plus the uncommitted A21 inventory below**, not HEAD alone. Source/binary hashes are in `TestResults/m2212a21-verified/`.
