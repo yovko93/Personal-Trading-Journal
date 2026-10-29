@@ -1,5 +1,76 @@
 # Notebook
 
+## M22.12A23 — Tag menu toggle and ownership
+
+29 October 2026, one agent. Actual baseline: **clean develop / `22d4e54b92ad658cdfae4d09f5a2984f566349bd`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A22 was committed in the intervening commit; its layout and A21 are preserved. Repository guidance and previous menu/focus evidence were read; no AGENTS.md or competing testhost was found. No native workflow/profile launch or capture troubleshooting occurred.
+
+### Confirmed code cause and correction
+
+Previously `OpenTagMenu` closed any existing tag popup and unconditionally created/opened another one. Thus another Button.Click could not leave the same trigger closed. WPF's outside-capture pointer-down can dismiss a ContextMenu before the underlying trigger's later click; testing IsOpen at that later moment alone cannot distinguish this gesture from a new open request. The note-menu implementation already records that trigger and pointer timestamp. This is the source-supported event-order explanation; no retrospective native trace of the user's original click is claimed.
+
+The existing note callback registration is extracted into `TrackOverflowDismissal`, now also registered for each dynamic tag menu. It records an inside-trigger left outside-down, retains it only for that pointer timestamp, and clears it on a different press or keyboard input. Tag activation consumes the marker and closes on either a still-open same-trigger menu or one dismissed by that press. A subsequent gesture opens normally. No delays, debounce, forced capture release or global input suppression were added. WPF still owns capture, ordinary outside dismissal, Escape and synchronous focus restoration.
+
+Switching tags or opening the note menu releases the previous tag menu's input/click handlers and clears the trigger's ContextMenu reference. Rename/Delete capture the workspace and catalog option identity/version instead of consulting a later selected tag. A consumed action cannot execute twice. Catalog replacement/removal or loss of management capability invalidates ownership through the view's existing PropertyChanged subscription; unload/context replacement releases dynamic handlers and popup state. Keyboard Apps/Shift+F10 clears any old mouse marker before opening. Existing PageFocus, creation commands, filters, note mode and A22 resources are unchanged.
+
+### Results and unresolved fixture failure
+
+Evidence root: **`TestResults/m2212a23-verified/`**, including original TRX, stdout/stderr, supervision and build logs. New test identities:
+
+- `NotebookHeaderViewTests.TagMenuRoutedToggleDismissalAndCapturedOwnership(theme: "Light", width: 1280, dpi: 96)`
+- `NotebookHeaderViewTests.TagMenuRoutedToggleDismissalAndCapturedOwnership(theme: "Dark", width: 480, dpi: 240)`
+
+Each parent retains exact display-name selection and one matching isolated child, with the existing exclusive WPF collection, 90-second process deadline and 30-second watchdog. Fixtures use actual Button.Click routes, live WPF ContextMenus and the production dismissal geometry/timestamp callback. They explicitly model MenuBase's automatic close before the click; **they do not inject a real pointer press/release**.
+
+| Retained run | Parents | Children | Observation |
+| --- | --- | --- | --- |
+| `before/` | 1 failed | 1 failed | Initial ownerless popup fixture failed to stay open. This development artifact is not an unchanged-source baseline reproduction. |
+| `corrected/` | 2 failed | 2 failed | Added owning window; reached Escape assertion, menu remained open without item keyboard focus. |
+| `final/` | 21 passed, 2 failed | 2 failed | Existing TagForm/Tag logic passed; explicit menu-item Focus prerequisite failed. |
+| `active-owner/` | 2 failed | 2 failed | Normal owner activation did not make item Focus succeed. |
+| `focus-diagnostic/` | 1 failed | 1 failed | Added compact state evidence, exact Light row only. |
+| `separated-probes/` | 2 failed | 2 failed | Moved stale detached-item replay after Escape to test whether it disturbed menu focus; same focus failure remained. Hypothesis not established. |
+
+**Distinct latest coverage: 23 parents (21 passed, 2 failed), two children (both failed), zero skips/aborts in result files.** Raw executions: **31 parents / 10 children**; ten parent failure results propagate the same ten failed child executions, representing two distinct affected rows rather than ten independent defects. All selections overlap those same two menu rows; logic ran once. Later checks within a failed case were not reached and are not credited as passed.
+
+The last two child failures occur at the retained `Assert.True(focusedItem.Focus())` before Escape. Both report **open=True, itemVisible=True, enabled=True, focusable=True, ownerActive=True, popupSource=True**, menu size approximately **176.747 × 83.24 DIP**, with focus remaining on **ScrollViewer**. This does not establish a foreign foreground owner, denied input desktop, PTJ unresponsiveness or a production Escape defect. Its precise WPF focus/menu-state cause remains unresolved. No assertion was weakened; further affected launches stopped. The original source defect is corrected, but **A23 focused acceptance is pending**.
+
+Before that final failure, both rows exercised open → close → reopen, same-gesture auto-dismiss suppression, later reopening, switching tag triggers and Rename targeting Beta with one synthetic catalog write. Escape completion, keyboard reopening, later global Delete/stale-refresh/unload and note-menu assertions occur after the failed prerequisite, so their new fixture coverage is **incomplete**. Existing passing logic covers global deletion, assignment separation and stale recovery; it does not substitute for the incomplete UI checks.
+
+Commands (all Release; each invocation sets `PTJ_TEST_RESULTS_DIRECTORY` to its absolute result directory):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$menu = 'FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $menu --logger 'trx;LogFileName=menus.trx' --results-directory TestResults/m2212a23-verified/separated-probes
+$combined = "$menu|FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookTagTests"
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $combined --logger 'trx;LogFileName=final.trx' --results-directory TestResults/m2212a23-verified/final
+```
+
+Other retained menu runs use the same project/options/filter, with `before` and `focus-diagnostic` adding `&DisplayName~Light`. Last build: `build-separated-probes.log`, **zero warnings/errors**. Last menu exit: **1**. No complete gate or runtime rerun for documentation edits. Source/binary hashes and literal-path result identity audit are in `summary.json`/`result-audit.json`.
+
+### Native limitation and short manual check
+
+No current uninterrupted desktop arrangement was established for a real press/release run. Native pointer timing, actual outside click and physical keyboard/focus return remain unverified; synthetic events and WPF Focus calls are not native mouse acceptance. The unresolved Computer Use frame-capture timeout is separate and no failed recovery was repeated. B2's [supported isolated-profile procedure](#m2212b2--prepared-human-native-verification) remains the launch reference; reconfirm its command line and current A23 binary hash before editing synthetic data.
+
+1. In the existing isolated profile, create/use synthetic Alpha and Beta tags. Click Alpha's ellipsis three times: open, closed, open. Click Beta: only Beta opens. Confirm filters/counts do not change merely by opening/closing.
+2. Press Escape, reopen using Space or Apps/Shift+F10, then click outside. Confirm dismissal and appropriate focus return. Repeat the note menu's open/close check.
+3. Rename Beta and confirm one intended change. Open another tag menu before global deletion; confirm the dialog names that tag. Cancel once, then delete only a disposable synthetic tag. Refresh/remove a tag with a menu open and confirm the old action cannot affect another tag.
+
+Report `Check | Passed / Failed / Not tested | Observation`; screenshots only for discrepancies/failures. Human results remain separate from automated evidence. No B2 IDs are marked passed by this task.
+
+### Exact inventory and status
+
+**Five modified files + one added test file**, all A23; no pre-existing uncommitted changes:
+
+- `README.md`
+- `docs/notebook.md`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Menus.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.Tags.cs`
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.TagMenus.cs` (new)
+
+Whitespace and local documentation-target checks run after these edits. Task-owned test windows/processes were closed by fixture/supervisor cleanup; the isolated human profile and historical artifacts are preserved. **A23 acceptance, M22.12B and overall acceptance remain pending.** No schema, persistence, format, CI, timeout/scheduling changes, production/provider access, publication or workflow trigger.
+
 ## M22.12A22 — Matching New tag and New folder styling
 
 29 October 2026, one agent. Actual baseline: clean `develop` / **`39651eda63567cb12a9944885c4e562becdfb3de`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A21's previously pending files were committed in the intervening commit. No repository/ancestor AGENTS.md or competing testhost was found. A21 and historical evidence are preserved. Tested source is this HEAD plus the four-file A22 inventory below.

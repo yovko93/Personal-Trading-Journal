@@ -175,6 +175,7 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void Changed(object? sender, PropertyChangedEventArgs e)
     {
+        RefreshTagMenuOwnership();
         RefreshNoteActionOwnership();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Scope)) SynchronizeScopeSelection();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.EditorRevision)) UpdatePreview();

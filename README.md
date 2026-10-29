@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A23 — Tag menu toggle correction; focused acceptance pending
+
+Tag menus now use the note menu's pointer-dismissal tracking: a second trigger click closes the menu even when WPF already dismissed its popup on pointer-down. Switching menus releases old handlers; captured tag actions are invalidated on catalog changes/unload and guarded against repeated invocation.
+
+Release build passed with zero warnings/errors. **21 existing tag/form logic parents passed; two new menu parents and their two matching isolated children failed**, zero skips. The final failure is a retained WPF menu-item focus prerequisite before Escape, despite an active owner and visible/enabled item. No native mouse or Computer Use capture attempt ran. [Exact evidence, limits, inventory and isolated-profile manual check](docs/notebook.md#m2212a23--tag-menu-toggle-and-ownership). Evidence: `TestResults/m2212a23-verified/summary.json`.
+
+**A23 focused acceptance remains pending. M22.12B and overall acceptance remain pending.** Earlier A21/A22 acceptance is preserved; no complete gate ran.
+
 ## M22.12A22 — Matching creation buttons
 
 New tag and New folder now share a Notebook-only **112 × 34 DIP** style, matching typography, padding, left-aligned plus signs, borders, corners and inherited teal interaction/focus states. Their positions and creation behavior are preserved.

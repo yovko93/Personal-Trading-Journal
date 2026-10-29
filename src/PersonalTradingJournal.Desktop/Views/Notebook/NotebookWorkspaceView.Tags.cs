@@ -11,6 +11,8 @@ public partial class NotebookWorkspaceView
 {
     private bool _ownsTagForm;
     private ContextMenu? _tagMenu;
+    private Action? _releaseTagMenu;
+    private Func<bool>? _tagMenuOwns;
     private Button? _tagFormOrigin;
     internal Task TagMenuTask { get; private set; } = Task.CompletedTask;
     private void OpenTagCreation(object sender, RoutedEventArgs e)
@@ -41,13 +43,17 @@ public partial class NotebookWorkspaceView
     private void TagMenuKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift)
-        { e.Handled = true; OpenTagMenu(sender, e); }
+        { e.Handled = true; _dismissedOverflowTrigger = null; OpenTagMenu(sender, e); }
     }
     private void OpenTagMenu(object sender, RoutedEventArgs e)
     {
         if (_model is not { CanManageTags: true } model || sender is not Button { DataContext: NotebookTagOption tag } trigger) return;
         e.Handled = true;
-        if (_tagMenu is { IsOpen: true }) _tagMenu.IsOpen = false;
+        bool dismissedByThisPress = _dismissedOverflowTrigger == trigger;
+        _dismissedOverflowTrigger = null;
+        if (_tagMenu?.PlacementTarget == trigger && (dismissedByThisPress || _tagMenu.IsOpen))
+        { _tagMenu.IsOpen = false; return; }
+        ReleaseTagMenu();
         CloseOverflowMenus();
         // Capture both identity/version and workspace; popup DataContext is not a live selected-tag binding.
         var menu = new ContextMenu { PlacementTarget = trigger, Placement = PlacementMode.Bottom };
@@ -58,25 +64,49 @@ public partial class NotebookWorkspaceView
         delete.SetResourceReference(StyleProperty, "PtjLifecycleMenuItemStyle");
         AutomationProperties.SetName(rename, $"Rename global tag: {tag.Name}");
         AutomationProperties.SetName(delete, $"Delete global tag: {tag.Name}");
-        rename.Click += (_, args) =>
+        bool used = false;
+        bool Owns() => !used && ReferenceEquals(_tagMenu, menu) && ReferenceEquals(_model, model) &&
+            model.CanManageTags && model.Tags.Any(t => ReferenceEquals(t, tag)) && ReferenceEquals(trigger.DataContext, tag);
+        RoutedEventHandler renameClick = (_, args) =>
         {
-            args.Handled = true; menu.IsOpen = false;
-            if (!ReferenceEquals(_model, model) || !model.BeginTagRename(tag)) return;
+            args.Handled = true;
+            if (!Owns()) return;
+            used = true; menu.IsOpen = false;
+            if (!model.BeginTagRename(tag)) return;
             _ownsTagForm = true; _tagFormOrigin = trigger;
             _folderFocus.Request(() => RenameTagName);
         };
-        delete.Click += async (_, args) =>
+        RoutedEventHandler deleteClick = async (_, args) =>
         {
-            args.Handled = true; menu.IsOpen = false;
-            if (ReferenceEquals(_model, model)) await (TagMenuTask = model.DeleteGlobalTagAsync(tag));
+            args.Handled = true;
+            if (!Owns()) return;
+            used = true; menu.IsOpen = false;
+            await (TagMenuTask = model.DeleteGlobalTagAsync(tag));
         };
+        rename.Click += renameClick; delete.Click += deleteClick;
         menu.Items.Add(rename); menu.Items.Add(delete);
-        trigger.ContextMenu = menu; _tagMenu = menu; menu.IsOpen = true;
+        trigger.ContextMenu = menu; _tagMenu = menu; _tagMenuOwns = Owns;
+        var releaseTracking = TrackOverflowDismissal(trigger, menu);
+        _releaseTagMenu = () =>
+        {
+            releaseTracking(); rename.Click -= renameClick; delete.Click -= deleteClick;
+            if (ReferenceEquals(trigger.ContextMenu, menu)) trigger.ContextMenu = null;
+        };
+        menu.IsOpen = true;
+    }
+    private void RefreshTagMenuOwnership()
+    {
+        if (_tagMenu is not null && _tagMenuOwns?.Invoke() != true) ReleaseTagMenu();
+    }
+    private void ReleaseTagMenu()
+    {
+        var menu = _tagMenu; _tagMenu = null; _tagMenuOwns = null;
+        if (menu is not null) menu.IsOpen = false;
+        _releaseTagMenu?.Invoke(); _releaseTagMenu = null;
     }
     private void ReleaseTagControls(NotebookWorkspaceViewModel? model)
     {
-        if (_tagMenu is not null) _tagMenu.IsOpen = false;
-        _tagMenu = null;
+        ReleaseTagMenu();
         if (_ownsTagForm) model?.DismissTagForm();
         _ownsTagForm = false; _tagFormOrigin = null;
     }
