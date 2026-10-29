@@ -11,6 +11,7 @@ public partial class NotebookWorkspaceView
     private Func<bool>? _linkEditOwns;
     private void ToggleTagAssignment(object sender, RoutedEventArgs e)
     {
+        if (_model?.CanUseEditor != true) return;
         TagAssignment.IsExpanded = !TagAssignment.IsExpanded;
         if (TagAssignment.IsExpanded) _folderFocus.Request(() => TagPicker);
     }
@@ -21,7 +22,7 @@ public partial class NotebookWorkspaceView
     }
     private void OpenLinkActions()
     {
-        if (_model is not { HasEditorContext: true } model) return;
+        if (_model is not { CanUseEditor: true } model) return;
         _linkEditDocument = Preview.Document;
         _linkEditStart = Preview.Selection.Start; _linkEditEnd = Preview.Selection.End;
         var owns = model.CaptureNoteActionOwnership();

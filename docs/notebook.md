@@ -1,5 +1,76 @@
 # Notebook
 
+## M22.12A21 — Readable note view with explicit Edit mode
+
+29 October 2026, one agent. Actual baseline: **clean `develop` / `672da3309a88aaf1e51969a4d24930f92475dc8b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit since `d2d981b` contains B2 documentation only. No AGENTS.md was found in the repository/ancestors. Existing implementation, isolated manual profile and historical evidence are preserved. Results apply to HEAD **plus the uncommitted A21 inventory below**, not HEAD alone. Source/binary hashes are in `TestResults/m2212a21-verified/`.
+
+### Behavior and ownership
+
+- Existing-note selection and clean activation/linked return load reading mode. The same allowlisted `NotebookEditorAdapter` / `RichTextBox` document remains in use: no plain-text flattening, format change, presentation-only save or mode-driven document replacement. Existing 15-DIP body text, 23-DIP line height, headings, paragraph spacing, emphasis, lists and checklist indicators are retained. Title input chrome and formatting/insertion/assignment-removal/image-edit controls hide while reading. Text remains selectable/copyable. Hyperlinks use the existing HTTP(S) validation/launch boundary; original-image viewing and linked-target opening remain available.
+- Header order is **persistent save status → Pin → Edit/Done → note menu**. Edit retains the same draft, document and undo stack. Checklist changes, paste/cut, formatting and image edits require the additional UI edit capability. Internal draft capabilities still serve autosave/recovery; this is not a parallel persistence/save-state machine.
+- Done calls `SaveDraftAsync`, including its serialized in-flight flush/checkpoint coordination. It returns to reading only after canonical save success, unchanged draft revision, retained selection/activation ownership and no dirty/saving/paused/conflicting/detached state. A recovery checkpoint alone never acknowledges Done or Saved locally. Failure/conflict/newer input retains Edit and recovery/retry feedback. No permanent Cancel or new autosave timing was introduced.
+- Blank and all four nonblank templates enter Edit after existing atomic creation; duplicates also enter Edit. Existing archived/trashed/unreadable content gains no edit capability. Explicit recovery opens its retained draft in Edit, read-only where existing capabilities require it, with persistent explanations. A20's read-only retained detail during loading, cancellation, latest-result checks and per-note history separation remain.
+- The rendered regression exposed an existing save-publication edge: `Notes.Clear()` makes WPF's bound ListBox briefly clear/reselect its row while `SaveCore` publishes refreshed membership. That advanced accepted-selection generation despite retaining the displayed editor, so Done refused to exit after a successful save. `AcceptSelection` now excludes **only `_publishing && IsSaving`** from navigation-generation advancement. Actual accepted navigation still advances it; user selection is already guarded during writes. A saved note outside its filter retains its editor ownership. No query, persistence or scheduling change was made.
+
+### Focused evidence
+
+Root: **`TestResults/m2212a21-verified/`**. `summary.json`, `result-audit.json`, `tested-source.json` and `inspected-captures.json` retain counts, identities, paths and hashes. Literal-path TRX auditing compares declared totals with result rows and rejects duplicate identities within each file. Existing exact child selection/validation, recursion protection, 90-second process deadlines and 30-second watchdogs are unchanged.
+
+| Selection / artifact | Parents | Children | Result |
+| --- | ---: | ---: | --- |
+| `logic-final/logic.trx`: ReadingMode, Editing, Autosave, DetailSwitch, NoteActions, Link, ImageCoordination | 93 | 0 | All passed, exit 0 |
+| `views-final/views.trx`: reading, A20 transition, A16 status, editor, links, images | 19 | 22 | 15 parents / 18 children passed; four image rows failed after Refresh returned to reading |
+| `images-corrected/images.trx`: complete image family, explicit Edit after Refresh | 4 | 4 | All passed, exit 0; overlaps those four rows |
+| `reading-history/reading.trx`: strengthened reading family, also WPF text-only undo across Done/Edit | 4 | 4 | All passed, exit 0; overlaps the four reading rows |
+| **Final distinct current-source coverage** | **112** | **22** | **All passed; zero remaining failures/skips/incomplete cases** |
+
+One selected legacy editor parent launches its four distinct child theme/DPI rows once. Other selected isolated parents retain exact one-row dispatch. Parent and child totals are **not added**. Coverage includes 16 new logic cases and four new isolated presentation cases. The native `NotebookPresentationViewTests` setup was adapted to enter Edit but that native family was not executed here.
+
+Retained failures: `logic/logic.trx` passed 15/16; its reactivation fixture refused the test's discard confirmation, corrected by explicitly approving that fake dialog. `render-initial/` and `render-diagnostic/` each retain one failed Light-normal parent/child; diagnostics showed **one successful write, unchanged draft revision, no dirty state and Saved**, establishing the selection-generation defect above. The four image failures in `views-final/` attempted paste after Refresh while read-only; setup now enters Edit before continuing the unchanged byte/ordering/caption/history assertions. The initial test build retained three compiler errors from declaring an encoded-content record as a string, corrected to its actual inferred type. No assertions were removed or trimmed. Development totals: **138 parent executions / 32 child executions**, including **seven parent / six child failure results**; overlaps are not extra coverage or hidden successes.
+
+Commands, from the repository (each test invocation also set `PTJ_TEST_RESULTS_DIRECTORY` to its absolute result directory; logs and exit files retained):
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$logic = 'FullyQualifiedName~NotebookReadingModeTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookDetailSwitchTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~NotebookLinkTests|FullyQualifiedName~NotebookImageCoordinationTests'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $logic --logger 'trx;LogFileName=logic.trx' --results-directory TestResults/m2212a21-verified/logic-final
+$views = 'FullyQualifiedName~ReadingAndEditShareRichDocumentAndHistoryOffscreen|FullyQualifiedName~DelayedNoteSwitchRetainsReadOnlyDetailAndWorkspaceGeometry|FullyQualifiedName~SaveStatusBesidePinReflectsCanonicalStateOffscreen|FullyQualifiedName~NotebookImageEditorTests|FullyQualifiedName~NotebookLinkViewTests|(FullyQualifiedName~NotebookEditorViewTests&DisplayName~Light&DisplayName~1280)'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $views --logger 'trx;LogFileName=views.trx' --results-directory TestResults/m2212a21-verified/views-final
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~NotebookImageEditorTests' --logger 'trx;LogFileName=images.trx' --results-directory TestResults/m2212a21-verified/images-corrected
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~ReadingAndEditShareRichDocumentAndHistoryOffscreen' --logger 'trx;LogFileName=reading.trx' --results-directory TestResults/m2212a21-verified/reading-history
+dotnet ef migrations has-pending-model-changes --project src/PersonalTradingJournal.Infrastructure --configuration Release --no-build
+pwsh -NoProfile -File TestResults/m2212a21-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a21-verified/check-doc-links.ps1
+```
+
+Final build `build-history.log`: **zero warnings/errors**, dependencies included. EF `ef.log`: no pending model changes, existing design-time factory. Whitespace covers tracked changes and three new files; local Markdown targets are checked after documentation edits. No runtime repetition for documentation-only changes and no complete gate.
+
+### Inspected captures and limits
+
+Twelve original offscreen images opened/inspected: `reading`, `reading-links`, `editing` states in each directory below, under **`TestResults/m2212a21-verified/views-final/`**. Append `/reading-renders/<prefix><state>.png`:
+
+| Theme / size / DPI | Child directory | Prefix |
+| --- | --- | --- |
+| Dark / 1280 / 96 | `notebook-reading-20261029-124808-03543d7c11dd4f5b8f352ff4b1405075` | `Dark-1280-96-` |
+| Dark / 480 / 240 | `notebook-reading-20261029-124816-4096db7ddba24a56bfd19131a2fb1279` | `Dark-480-240-` |
+| Light / 1280 / 96 | `notebook-reading-20261029-124824-38fd01dd356e4c08a5c7eb027b9f0790` | `Light-1280-96-` |
+| Light / 480 / 240 | `notebook-reading-20261029-124832-4d4cd1eca0c14c42981e22e3176dcaac` | `Light-480-240-` |
+
+No blocking clipping/contrast issue was observed in scope. Long titles wrap and the header actions remain reachable at 480 DIP/240 DPI. Reading content fits the 1050-DIP viewport, so bottom-scroll reading frames retain the same viewport; editing uses existing scrolling for lower linked records. Later test-only changes added explicit Edit to the old image fixture and appended text-only undo assertions after these captures; production and capture inputs are unchanged. Additional strengthened-run captures are retained without inflating the inspected count. Existing shell, explicit checklist text and recovery controls are retained deliberate differences.
+
+All automated interactions were offscreen WPF commands/routed events and synthetic image/link/clipboard ports. The hyperlink launch delegate was observed without opening a browser. **No native pointer/focus workflow, real clipboard/picker/viewer, journal restart, Narrator or hosted verification occurred.** The user's report of manual checks passing so far remains an incomplete human report; no B2 check ID was marked passed. B/B1 capture findings are unchanged; no troubleshooting resumed. B2's launch procedure/profile remains available, but its recorded binary hash predates A21 and must be rechecked before resumed manual verification.
+
+**A21 focused automated verification is complete. A22 — New tag sizing, A23 — tag-menu toggling, resumed M22.12B and overall acceptance remain pending.** No schema/format, CI/deadline/scheduling, production/provider, publication or workflow changes.
+
+### Exact A21 inventory
+
+**17 modified files + 3 additions**, all A21; initial worktree clean. Full paths are the prefix plus each filename below:
+
+- Documentation: `README.md`, `docs/notebook.md`.
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/`: `NotebookWorkspaceViewModel.cs`, `NotebookWorkspaceViewModel.Editing.cs`, `NotebookWorkspaceViewModel.Autosave.cs`, `NotebookWorkspaceViewModel.Lifecycle.cs`, `NotebookWorkspaceViewModel.CopyDelete.cs`; **new** `NotebookWorkspaceViewModel.Presentation.cs`.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/`: `NotebookWorkspaceView.xaml`, `NotebookWorkspaceView.xaml.cs`, `NotebookWorkspaceView.History.cs`, `NotebookWorkspaceView.Images.cs`, `NotebookWorkspaceView.Toolbar.cs`.
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/`: `NotebookHeaderViewTests.SaveStatus.cs`, `NotebookEditorViewTests.cs`, `NotebookImageEditorTests.cs`, `NotebookLinkViewTests.cs`, `NotebookPresentationViewTests.cs`; **new** `NotebookReadingModeTests.cs`, `NotebookHeaderViewTests.Reading.cs`.
+
 ## M22.12B2 — Prepared human native verification
 
 29 October 2026, one agent. Actual baseline: **clean develop / `d2d981becea04ed63f7239dd27aacc0e86b7b4fd`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains B1's two documentation files only. Repository/ancestor inspection found no AGENTS.md. Exact tracked B2 inventory: **README.md and docs/notebook.md only**. New ignored preparation evidence is under **`TestResults/m2212b2-manual/`**; B/B1 evidence and the existing profile are preserved.

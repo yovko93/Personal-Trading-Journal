@@ -63,7 +63,7 @@ public sealed class NotebookImageEditorTests
             view.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             try
             {
-                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(view.ImageLoadsTask); Layout();
+                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(vm.EditModeCommand.ExecuteAsync(null)); Pump(view.ImageLoadsTask); Layout();
                 var editor = (RichTextBox)view.FindName("Preview");
                 string original = codec.Encode(doc).Json;
                 Assert.Equal(original, codec.Encode(NotebookEditorAdapter.Read(editor.Document)).Json);
@@ -135,6 +135,8 @@ public sealed class NotebookImageEditorTests
                 // Reinstall through a genuine reload to populate the current preview and assert no render-only saves.
                 Pump(vm.RefreshCommand.ExecuteAsync(null)); Pump(view.ImageLoadsTask); Layout();
                 Assert.False(vm.IsDirty); Render("inline-caption-missing");
+                Assert.False(vm.IsEditing); Assert.True(editor.IsReadOnly);
+                Pump(vm.EditModeCommand.ExecuteAsync(null)); Layout();
                 var missingBlock = NotebookEditorAdapter.Images(editor.Document).Single(b => ((NotebookNode)b.Tag).ImageId == missing.ImageId);
                 var imageActions = ((StackPanel)((Border)missingBlock.Child).Child).Children.OfType<Expander>().Single();
                 Assert.Equal(((SolidColorBrush)view.FindResource("PtjTextPrimaryBrush")).Color, ((SolidColorBrush)imageActions.Foreground).Color);

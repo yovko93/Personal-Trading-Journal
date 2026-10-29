@@ -22,7 +22,7 @@ public partial class NotebookWorkspaceView
 
     private async void InsertImage(object sender, RoutedEventArgs e)
     {
-        if (_pickingImage || _model?.CanEditBody != true) return;
+        if (_pickingImage || _model?.CanUseEditor != true) return;
         _pickingImage = true;
         var model = _model; var document = Preview.Document; var id = model.Note!.Id;
         var start = Preview.Selection.Start; var end = Preview.Selection.End;
@@ -44,7 +44,7 @@ public partial class NotebookWorkspaceView
     }
     private async Task InsertBytesAsync(byte[] bytes, TextPointer? start = null, TextPointer? end = null, long? selectedRevision = null)
     {
-        if (_model?.CanEditBody != true) return;
+        if (_model?.CanUseEditor != true) return;
         var model = _model; var document = Preview.Document; var id = model.Note!.Id;
         start ??= Preview.Selection.Start; end ??= Preview.Selection.End;
         selectedRevision ??= model.DraftRevision;
@@ -119,14 +119,15 @@ public partial class NotebookWorkspaceView
         actions.Children.Add(original);
         var details = new StackPanel(); var expander = new Expander { Header = "Image actions", Content = details, Margin = new(4, 0, 0, 0) };
         expander.SetResourceReference(Control.ForegroundProperty, "PtjTextPrimaryBrush");
+        expander.SetBinding(VisibilityProperty, new Binding("IsEditing") { Converter = new BooleanToVisibilityConverter() });
         panel.Children.Add(expander);
         var captionInput = new TextBox { Text = node.Caption, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, MaxLength = NotebookLimits.Caption,
             MaxHeight = 90, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new(0, 4, 0, 4) };
         AutomationProperties.SetName(captionInput, "Image caption"); details.Children.Add(captionInput);
-        captionInput.SetBinding(TextBox.IsReadOnlyProperty, new Binding("BodyReadOnly"));
+        captionInput.SetBinding(TextBox.IsReadOnlyProperty, new Binding("EditorReadOnly"));
         var alternative = new TextBox { Text = node.AlternativeText, TextWrapping = TextWrapping.Wrap, MaxLength = NotebookLimits.AlternativeText, Margin = new(0, 0, 0, 4) };
         AutomationProperties.SetName(alternative, "Image alternative text"); details.Children.Add(alternative);
-        alternative.SetBinding(TextBox.IsReadOnlyProperty, new Binding("BodyReadOnly"));
+        alternative.SetBinding(TextBox.IsReadOnlyProperty, new Binding("EditorReadOnly"));
         var edits = new WrapPanel(); details.Children.Add(edits);
         var block = new BlockUIContainer(border) { Tag = node };
         AddEdit("Apply caption", () => NotebookEditorAdapter.CaptionImage(Preview, block, captionInput.Text, alternative.Text, CreateImageBlock));
@@ -136,7 +137,7 @@ public partial class NotebookWorkspaceView
         void AddEdit(string label, Action edit)
         {
             var button = Button(label, () => { if (block.Parent is not null) Edit(edit); return Task.CompletedTask; });
-            button.SetBinding(IsEnabledProperty, new Binding("CanEditBody")); edits.Children.Add(button);
+            button.SetBinding(IsEnabledProperty, new Binding("CanUseEditor")); edits.Children.Add(button);
         }
         if (_model?.Note is { } selected && _model.FindImage(node.ImageId!.Value) is { } metadata && _model.ImagePresentation is { } loader)
         {

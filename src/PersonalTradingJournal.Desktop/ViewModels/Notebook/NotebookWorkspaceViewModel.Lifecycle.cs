@@ -58,7 +58,7 @@ public sealed partial class NotebookWorkspaceViewModel
                 saved.FolderId != folder || saved.IsPinned || saved.Document.PlainText != NotebookTemplates.Create(template).PlainText ||
                 saved.Images.Length != 0 || saved.Links.Length != 0 || saved.TagIds.Length != 0)
             { ReportMessage("Creation could not be verified. Keep your draft and refresh before retrying.", NotebookNotificationKind.Error); return; }
-            AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = saved; InstallDraft();
+            AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = saved; InstallDraft(); SetEditing(true);
             ContentMessage = saved.Document.Blocks.Count == 0 ? "This note has no content." : "";
             _publishing = true;
             try

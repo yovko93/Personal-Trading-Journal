@@ -184,6 +184,7 @@ public sealed partial class NotebookWorkspaceViewModel
             _draftRevision = Math.Max(_draftRevision + 1, draft.Revision + 1);
             _detachedRecovery = Note is null || Note.State != NotebookNoteState.Active;
             _recoveryConflict = _detachedRecovery || Note!.Version != draft.ExpectedVersion;
+            SetEditing(true);
             _autosavePaused = true; // Recovery is explicit; first canonical save requires Save.
             _saveState = _recoveryConflict ? "Recovered draft conflicts with the current note — preserve its text or discard before refreshing."
                 : "Recovered unsaved draft — select Save to persist.";

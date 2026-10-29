@@ -58,7 +58,7 @@ public sealed class NotebookLinkViewTests
             view.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             try
             {
-                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Layout();
+                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(vm.EditModeCommand.ExecuteAsync(null)); Layout();
                 var scroll = (ScrollViewer)view.FindName("ContentScroll"); scroll.ScrollToBottom(); Layout(); Render("linked-items");
                 Assert.Equal(3, vm.LinkedItems.Count); Assert.Contains(vm.LinkedItems, x => !x.IsAvailable);
                 Assert.Equal("Linked items", AutomationProperties.GetName((StackPanel)((ItemsControl)view.FindName("LinkedItemList")).Parent));

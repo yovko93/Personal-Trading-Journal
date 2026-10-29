@@ -59,7 +59,8 @@ public sealed partial class NotebookHeaderViewTests
                 var pin = (Button)view.FindName("PinNoteButton"); var menu = (Button)view.FindName("NoteOverflow");
                 var actions = Assert.IsType<StackPanel>(group.Parent);
                 Assert.Same(pin, actions.Children[actions.Children.IndexOf(group) + 1]);
-                Assert.Same(menu, actions.Children[actions.Children.IndexOf(pin) + 1]);
+                Assert.Same(view.FindName("EditNoteButton"), actions.Children[actions.Children.IndexOf(pin) + 1]);
+                Assert.Same(menu, actions.Children[actions.Children.IndexOf(pin) + 2]);
                 Assert.Same(vm.PinCommand, pin.Command);
                 Assert.True(group.TranslatePoint(new Point(group.ActualWidth, 0), view).X <= pin.TranslatePoint(new Point(), view).X);
                 Assert.InRange(Math.Abs(group.TranslatePoint(new Point(0, group.ActualHeight / 2), view).Y - pin.TranslatePoint(new Point(0, pin.ActualHeight / 2), view).Y), 0, 1);

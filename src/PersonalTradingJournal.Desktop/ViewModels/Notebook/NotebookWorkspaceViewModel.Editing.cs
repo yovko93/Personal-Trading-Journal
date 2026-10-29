@@ -90,6 +90,7 @@ public sealed partial class NotebookWorkspaceViewModel
     }
     private void DraftChanged()
     {
+        NotifyPresentation();
         foreach (var name in new[] { nameof(HasEditorContext), nameof(CompactSaveState), nameof(IsDirty), nameof(SaveState), nameof(DraftError), nameof(DraftRevision), nameof(CanEditDraft), nameof(CanEditBody), nameof(BodyReadOnly) })
             OnPropertyChanged(name);
         SaveCommand?.NotifyCanExecuteChanged(); DiscardCommand?.NotifyCanExecuteChanged();

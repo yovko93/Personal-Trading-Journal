@@ -67,6 +67,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         MoreNotesCommand = new(() => ReadAsync(ct => ReadPageAsync(true, null, ct)), () => CanMutate && ScopeMatchesList && _cursor is not null);
         MoreFoldersCommand = new(LoadMoreFoldersAsync, () => CanMutate && _folderCursor is not null);
         MoreTagsCommand = new(LoadMoreTagsAsync, () => CanMutate && _tagCursor is not null);
+        InitializePresentation();
         NewNoteCommand = new(() => CreateFromTemplateAsync(NotebookTemplate.BlankNote), () => CanStartNoteOperation);
         InitializeLifecycle();
         CreateFolderCommand = new(CreateFolderAsync, () => CanMutate && !IsFolderCreationPending);
@@ -141,7 +142,10 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     {
         // Invalidate before notifications or the replacement detail read can yield.
         // A same-note save/list refresh is not a new accepted selection.
-        if (_selected?.Id != value?.Id) { ++_selectionGeneration; DismissNotification(); }
+        // WPF can clear/reselect the row while SaveCore publishes refreshed list items.
+        // That publication retains the displayed editor even if its saved row leaves a
+        // filter. It is not navigation; actual user selection remains guarded while writing.
+        if (_selected?.Id != value?.Id && !(_publishing && IsSaving)) { ++_selectionGeneration; DismissNotification(); }
         SetProperty(ref _selected, value, nameof(SelectedNote)); SelectionLabels();
     }
     public NotebookNoteSnapshot? Note { get => _note; private set { SetProperty(ref _note, value); OnPropertyChanged(nameof(NoteTitle)); OnPropertyChanged(nameof(Metadata)); OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(Breadcrumb)); OnPropertyChanged(nameof(PinText)); PublishTags(); NotifyCommands(); } }
@@ -416,7 +420,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         if (!Current(ct)) return;
         if (row is null)
         {
-            ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
+            ResetLinkPresentation(); _unavailable = null; Note = null; SetEditing(false); InstallDraft();
             ContentMessage = "Choose a note to read its content."; return;
         }
         ContentMessage = IsLoadingNote ? $"Loading {row.Title}… Previous content is read-only until it is ready." : "Loading note…";
@@ -426,14 +430,14 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         {
             if (Current(ct) && SelectedNote?.Id == row.Id)
             {
-                ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
+                ResetLinkPresentation(); _unavailable = null; Note = null; SetEditing(false); InstallDraft();
                 ContentMessage = "Note content could not be loaded. Select Refresh to try again.";
             }
             throw;
         }
         if (!Current(ct) || SelectedNote?.Id != row.Id) return;
         ResetLinkPresentation();
-        _unavailable = result.UnavailableMetadata; Note = result.Note;
+        _unavailable = result.UnavailableMetadata; Note = result.Note; SetEditing(false);
         InstallDraft();
         ContentMessage = result.Status switch
         {
@@ -493,6 +497,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     }
     private void NotifyCommands()
     {
+        NotifyPresentation();
         OnPropertyChanged(nameof(HasFolderActions)); OnPropertyChanged(nameof(CanChangeFolder));
         NotifyLifecycleCommands();
         NotifyTagCommands();

@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A21 — Readable notes with explicit Edit / Done
+
+Existing notes now open in reading mode with a borderless title, selectable rich content, images/captions and reachable links. **Edit** beside Pin exposes the existing editor; **Done** uses the existing save pipeline and returns to reading only for the successfully saved, still-owned revision. New blank/template notes and duplicates enter Edit. Failures, conflicts, newer edits and recovery retain their drafts and contextual actions. Mode changes alone do not write content or reset undo history.
+
+Focused Release evidence passes **112 distinct parents and 22 distinct isolated children**, counted separately, zero final failures/skips. Twelve Light/Dark normal/narrow-high-DPI captures were inspected. Builds have zero warnings/errors; EF consistency, whitespace and local documentation checks passed. [Commands, retained failures, exact inventory and limits](docs/notebook.md#m2212a21--readable-note-view-with-explicit-edit-mode). Evidence: `TestResults/m2212a21-verified/summary.json`.
+
+**A21 focused automated verification is complete. A22 (New tag sizing), A23 (tag-menu toggling), resumed M22.12B and overall acceptance remain pending.** The user reports manual checks passing so far, but no complete per-case matrix has been supplied. No native workflow, capture troubleshooting or complete gate ran here. B2's recorded binary identity predates A21 and must be reconfirmed for resumed manual work.
+
 ## M22.12B2 — Human native verification prepared
 
 The manual procedure reuses **`TestResults/m2212b-native/profile`** through the existing **`--isolated-data-root`** option. At clean `develop` / `d2d981becea04ed63f7239dd27aacc0e86b7b4fd`, current binary/source provenance and resolved isolation paths were rechecked; no build, application launch, capture or test was needed. [Quoted PowerShell launch command, profile confirmation, grouped checklist and result format](docs/notebook.md#m2212b2--prepared-human-native-verification).

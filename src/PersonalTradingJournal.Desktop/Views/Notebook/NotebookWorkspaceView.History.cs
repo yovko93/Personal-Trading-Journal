@@ -53,7 +53,7 @@ public partial class NotebookWorkspaceView
     private bool CanRedoEditor => _referenceHistory ? !_invalidEditor && _historyIndex + 1 < _editorHistory.Count : Preview.CanRedo;
     private void UndoEditor(bool redo)
     {
-        if (_model?.CanEditBody != true || !(redo ? CanRedoEditor : CanUndoEditor)) return;
+        if (_model?.CanUseEditor != true || !(redo ? CanRedoEditor : CanUndoEditor)) return;
         if (!_referenceHistory)
         {
             _nativeHistoryDirection = redo ? 1 : -1;

@@ -31,20 +31,21 @@ public partial class NotebookWorkspaceView : UserControl
         InputBindings.Add(new KeyBinding(new CommunityToolkit.Mvvm.Input.RelayCommand(() => SearchBox.Focus()), Key.F, ModifierKeys.Control));
         DataObject.AddPastingHandler(Preview, OnPaste);
         DataObject.AddPastingHandler(TitleEditor, OnTitlePaste);
+        Preview.AddHandler(Hyperlink.RequestNavigateEvent, new System.Windows.Navigation.RequestNavigateEventHandler(ReadLink));
         Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo, (_, e) => { e.Handled = true; UndoEditor(false); },
-            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanEditBody == true && CanUndoEditor; }));
+            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanUseEditor == true && CanUndoEditor; }));
         Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo, (_, e) => { e.Handled = true; UndoEditor(true); },
-            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanEditBody == true && CanRedoEditor; }));
+            (_, e) => { e.Handled = true; e.CanExecute = _model?.CanUseEditor == true && CanRedoEditor; }));
         Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Cut, (_, e) => CutText(e),
-            (_, e) => { e.CanExecute = _model?.CanEditBody == true && !Preview.Selection.IsEmpty; e.Handled = true; }));
+            (_, e) => { e.CanExecute = _model?.CanUseEditor == true && !Preview.Selection.IsEmpty; e.Handled = true; }));
         // Do not inspect the clipboard during CanExecute, activation or selection.
         Preview.CommandBindings.Add(new CommandBinding(ApplicationCommands.Paste, (_, e) => PasteFromClipboard(false, e),
-            (_, e) => { e.CanExecute = _model?.CanEditBody == true; e.Handled = true; }));
+            (_, e) => { e.CanExecute = _model?.CanUseEditor == true; e.Handled = true; }));
         TitleEditor.CommandBindings.Add(new CommandBinding(ApplicationCommands.Paste, (_, e) => PasteFromClipboard(true, e),
-            (_, e) => { e.CanExecute = _model?.CanEditDraft == true; e.Handled = true; }));
+            (_, e) => { e.CanExecute = _model?.CanUseEditor == true; e.Handled = true; }));
         Preview.PreviewMouseLeftButtonDown += (_, e) =>
         {
-            if (_model?.CanEditBody != true) return;
+            if (_model?.CanUseEditor != true) return;
             var position = Preview.GetPositionFromPoint(e.GetPosition(Preview), true);
             if (position is null) return;
             var item = NotebookEditorAdapter.Ancestor<ListItem>(position);
@@ -143,7 +144,7 @@ public partial class NotebookWorkspaceView : UserControl
     private void CutText(ExecutedRoutedEventArgs e)
     {
         e.Handled = true;
-        if (_model?.CanEditBody != true || Preview.Selection.IsEmpty) return;
+        if (_model?.CanUseEditor != true || Preview.Selection.IsEmpty) return;
         try
         {
             // Cut exports readable text only. Reference removal uses the same validated native undo unit.
@@ -177,6 +178,7 @@ public partial class NotebookWorkspaceView : UserControl
         RefreshNoteActionOwnership();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Scope)) SynchronizeScopeSelection();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.EditorRevision)) UpdatePreview();
+        if (e.PropertyName == nameof(NotebookWorkspaceViewModel.IsEditing)) ResetInlineActions();
         if (e.PropertyName == nameof(NotebookWorkspaceViewModel.Panel)) LayoutPanels();
     }
     private void UpdatePreview()
@@ -197,14 +199,14 @@ public partial class NotebookWorkspaceView : UserControl
     }
     private void BodyChanged(object sender, TextChangedEventArgs e)
     {
-        if (_updating || _model?.CanEditBody != true) return;
+        if (_updating || _model?.CanUseEditor != true) return;
         try { var document = NotebookEditorAdapter.Read(Preview.Document); _model.ValidateDocument(document); _model.SetDraftDocument(document); _invalidEditor = false; RecordHistory(document); }
         catch (ArgumentException) { _invalidEditor = true; _model.SetDraftError("Content exceeds its limits or has an unsupported structure. Undo or correct the change before saving."); }
         UpdateUndo();
     }
     private void Edit(Action action)
     {
-        if (_model?.CanEditBody != true) return;
+        if (_model?.CanUseEditor != true) return;
         try { Preview.Focus(); action(); BodyChanged(Preview, null!); EditorFeedback.Text = ""; SelectionChanged(Preview, new RoutedEventArgs()); }
         catch (ArgumentException ex) { EditorFeedback.Text = ex.Message; }
     }
@@ -262,10 +264,21 @@ public partial class NotebookWorkspaceView : UserControl
         if (!RestoreLinkSelection()) return;
         var link = NotebookEditorAdapter.SelectedLink(Preview.Selection);
         if (link?.NavigateUri is not { } uri) { EditorFeedback.Text = "Place the caret inside a link."; return; }
+        OpenSafeLink(uri);
+    }
+    private void ReadLink(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+        if (_model is { IsEditing: false, IsLoadingNote: false, Note: not null }) OpenSafeLink(e.Uri);
+    }
+    internal Action<Uri> LaunchLink { get; set; } = uri =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+    private void OpenSafeLink(Uri uri)
+    {
         try
         {
             _ = NotebookNode.Hyperlink(Guid.NewGuid(), uri.AbsoluteUri, []);
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            LaunchLink(uri);
         }
         catch (Exception ex) when (ex is ArgumentException or System.ComponentModel.Win32Exception or InvalidOperationException)
         { EditorFeedback.Text = "The link could not be opened."; }
@@ -276,13 +289,13 @@ public partial class NotebookWorkspaceView : UserControl
         { e.Handled = true; OpenLinkActions(); }
         else if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
         { e.Handled = true; ToggleCheck(sender, e); }
-        else if (_model?.CanEditBody == true && e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
+        else if (_model?.CanUseEditor == true && e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
             e.Handled = NotebookEditorAdapter.AddChecklistItem(Preview);
     }
     private void OnTitlePaste(object sender, DataObjectPastingEventArgs e)
     {
         e.CancelCommand();
-        if (_model?.CanEditDraft != true) return;
+        if (_model?.CanUseEditor != true) return;
         try
         {
             if (e.DataObject.GetData(DataFormats.UnicodeText, false) is not string text) throw new ArgumentException();
@@ -313,7 +326,7 @@ public partial class NotebookWorkspaceView : UserControl
     private async void OnPaste(object sender, DataObjectPastingEventArgs e)
     {
         e.CancelCommand();
-        if (_model?.CanEditBody != true) return;
+        if (_model?.CanUseEditor != true) return;
         var owner = _model;
         try
         {

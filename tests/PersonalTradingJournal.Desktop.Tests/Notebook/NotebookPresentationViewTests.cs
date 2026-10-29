@@ -67,7 +67,7 @@ public sealed class NotebookPresentationViewTests
             var window = new Window { Content = view, SizeToContent = SizeToContent.WidthAndHeight, ShowActivated = false, ShowInTaskbar = false };
             try
             {
-                window.Show(); Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(view.ImageLoadsTask); vm.Panel = 2; Layout();
+                window.Show(); Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(vm.EditModeCommand.ExecuteAsync(null)); Pump(view.ImageLoadsTask); vm.Panel = 2; Layout();
                 var editor = (RichTextBox)view.FindName("Preview");
                 Assert.Equal("Oct 04, 2024", vm.Notes[0].Updated);
                 Assert.Equal("Active · Updated Oct 04, 2024", vm.Metadata);

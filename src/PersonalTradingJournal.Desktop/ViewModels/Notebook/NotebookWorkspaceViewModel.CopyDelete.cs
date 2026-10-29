@@ -16,7 +16,7 @@ public sealed partial class NotebookWorkspaceViewModel
             copy.Title != NotebookDuplication.Title(source.Title) || copy.Document.PlainText != source.Document.PlainText ||
             !copy.TagIds.SequenceEqual(source.TagIds) || !copy.Links.SequenceEqual(source.Links))
         { ReportMessage("Duplication could not be verified. Keep your draft and refresh before retrying.", NotebookNotificationKind.Error); return; }
-        AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = copy; InstallDraft();
+        AcceptNoteDeparture(); ResetLinkPresentation(); _unavailable = null; Note = copy; InstallDraft(); SetEditing(true);
         ContentMessage = copy.Document.Blocks.Count == 0 ? "This note has no content." : "";
         _publishing = true;
         try { if (Scope?.Scope is NotebookScope.Archived or NotebookScope.Pinned) Scope = Scopes.First(x => x.Scope == NotebookScope.AllNotes); }

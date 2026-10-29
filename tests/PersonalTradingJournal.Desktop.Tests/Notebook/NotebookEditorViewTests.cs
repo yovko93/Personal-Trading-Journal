@@ -57,7 +57,7 @@ public sealed class NotebookEditorViewTests
             view.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             try
             {
-                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask);
+                Pump(vm.ActivateAsync()); vm.SelectedNote = vm.Notes[0]; Pump(vm.LoadTask); Pump(vm.EditModeCommand.ExecuteAsync(null));
                 Layout();
                 Assert.InRange(((ComboBox)view.FindName("ParagraphStyle")).SelectedIndex, 0, 3);
                 Render("long-title");
