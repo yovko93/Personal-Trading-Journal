@@ -1,5 +1,79 @@
 # Notebook
 
+## M22.12A23.1 — Tag-menu keyboard readiness and completed verification
+
+29 October 2026, one agent. Actual baseline: **clean develop / `ee5c005c2d60537c2c8169cbd07e9bfa83a235b0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains all six A23 files; none remained uncommitted. Repository guidance, README, A23 documentation, raw child output/TRX and supervision/readiness evidence were inspected before changes. No AGENTS.md or competing testhost was found. A23 artifacts are preserved unchanged.
+
+### Diagnosis and interaction contract
+
+The old fixture raised `Button.Click` synthetically, then directly asserted `MenuItem.Focus()`. That was neither real mouse opening nor keyboard opening. Its retained state established open/visible/enabled/focusable controls and an active owner, but did not establish a working input/capture context. A new keyboard-path reproduction used the existing bounded `UiKeyboardProbe.Ready` on the trigger, Apps and a popup readiness wait. Its restricted-executor log (`keyboard-corrected/.../keyboard-readiness.log`) recorded **mouseSource=null, expectedMouseSourceActive=False, foreground=0**, while trigger keyboard focus succeeded; popup keyboard focus still did not arrive. It therefore reproduces an input-readiness failure rather than demonstrating that the ownership handler redirects focus.
+
+In the .NET 10 [ContextMenu implementation](https://raw.githubusercontent.com/dotnet/wpf/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/ContextMenu.cs), popup opening enters menu mode before taking keyboard focus. [MenuBase](https://raw.githubusercontent.com/dotnet/wpf/v10.0.0/src/Microsoft.DotNet.Wpf/src/PresentationFramework/System/Windows/Controls/Primitives/MenuBase.cs) first requires mouse capture; failed capture prevents that menu-mode transition. Thus IsOpen and layout bounds alone do not establish keyboard readiness. These sources explain the required sequence; the original A23 logs do not contain the native capture failure code and cannot identify a historical foreign window owner. No Chrome/ChatGPT obstruction, production focus defect or OS permission error is inferred from those logs.
+
+The supported input-desktop execution used the user's explicit Ready/idle arrangement: chat/browser minimized, Windows unlocked, no user input/app switching. The native invocation used the approved unsandboxed executor instead of the restricted executor; this was disclosed before launch. Per-interaction checks retained actual target coordinates, expected/hit HWND ownership and foreground owner. Test windows used normal activation, without always-on-top or global foreground forcing. No unrelated process/window was closed and no Computer Use capture recovery was attempted.
+
+### Correction and completed assertions
+
+**Only the existing tag-menu test file changes at runtime. No production or shared input-helper change.** The fixture uses the existing native SendInput down/up and bounded HWND hit-test pattern before keyboard work. It then establishes trigger readiness through the existing helper, requests Apps opening and waits at most five seconds for a loaded popup with keyboard focus. Down/Down/Up must select Rename/Delete/Rename; Escape must close and restore the actual trigger. There is no post-action test-only focus assignment, forced capture release, sleep, increased deadline or weakened readiness assertion.
+
+The native sequence verifies repeated trigger clicks, automatic outside-down closure before click, reopening and switching to another exposed trigger. An initial native attempt correctly stopped when Alpha's popup covered Beta's coordinates: the hit HWND belonged to the **same test process**, not another application. The fixture now opens lower Beta and switches upward to exposed Alpha, retaining the hit guard. It does not click through a popup.
+
+Newly reached fixture issues were corrected explicitly: the subsequent Apps event must carry the trigger's real PresentationSource (the old null argument threw); outside dismissal of a keyboard-opened menu can consume the click and restore its opener. The fixture counts delivery: an invoked outside button must own focus; otherwise the opener must retain focus. **Both final rows observed zero delivered outside Clicks and correct opener focus**. The previous unconditional outside-button focus expectation was incorrect for this interaction. Dismissal and focus assertions remain.
+
+Both complete tag cases now reach all previously blocked checks:
+
+- Native open/close/reopen and exposed-trigger switching; real press/release and no stale reopen.
+- Apps, arrow navigation, Escape, actual focus return; popup focus scope/capture recorded.
+- Native outside dismissal, correct consumed-click focus behavior and reopening.
+- Rename of captured Alpha exactly once; stale switched-menu Delete cannot mutate data.
+- Catalog removal/Refresh invalidates the open Beta menu and its stale action.
+- Global Delete of captured renamed Alpha exactly once even on a repeated routed invocation; filters remain unchanged throughout.
+- Existing note-menu native toggle, A21 reading state and unload cleanup.
+
+At keyboard readiness, final Light/Dark traces report the ContextMenu as `Mouse.Captured`, **native capture HWND equal to popup source HWND**, ContextMenu focus scope and actual keyboard focus. This contrasts with the missing mouse-source prerequisite in the restricted reproduction. The original native capture failure return/code was not recorded; the verified correction is fixture interaction/readiness, not an application repair for an assumed external obstruction.
+
+### Commands, counts and retained failures
+
+Evidence root: **`TestResults/m2212a23-1-verified/`**. Final build `build-dismissal.log`: **zero warnings/errors, exit 0**. Runtime host provides WindowsDesktop 10.0.12; framework source references above are the .NET 10 baseline implementation, not a claim that the exact loaded patch was source-built here.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/m2212a23-1-verified/native'
+$env:PTJ_NOTEBOOK_MENU_DIAGNOSTICS = '1'
+$menus = 'FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership|FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $menus --logger 'trx;LogFileName=native.trx' --results-directory TestResults/m2212a23-1-verified/native
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/m2212a23-1-verified/dismissal'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership' --logger 'trx;LogFileName=menus.trx' --results-directory TestResults/m2212a23-1-verified/dismissal
+pwsh -NoProfile -File TestResults/m2212a23-1-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a23-1-verified/check-doc-links.ps1
+```
+
+| Retained selection | Parents | Children | Exit / evidence |
+| --- | --- | --- | --- |
+| `keyboard-corrected/`: bounded keyboard reproduction, restricted executor | 2 failed | 2 failed | 1; no popup keyboard focus |
+| `native/`: complete affected tag/note selection, supported desktop | 4 passed, 2 failed | 4 passed, 2 failed | 1; tag target covered by its own popup |
+| `exposed-trigger/`: corrected physical target ordering | 2 failed | 2 failed | 1; keyboard assertions passed, then old null key-event source threw |
+| `final/`: real key-event source | 2 failed | 2 failed | 1; outside click was consumed, so unconditional outside-focus assertion failed |
+| `dismissal/`: delivery-aware outside focus contract | **2 passed** | **2 passed** | **0; both complete cases finished** |
+
+Latest accepted coverage: **six distinct parents and six matching isolated children passed**, zero final failures/skips/incomplete or duplicate results. This combines the four note passes from `native/` with both complete corrected tag passes from `dismissal/`; **it does not relabel the first native invocation's exit 1 as success**. Only the tag fixture changed afterward, so unchanged note cases were not rerun. Existing **21 A23 tag/form logic passes** remain valid with unchanged production/logic sources; reused, not newly executed or added to the six-case run total.
+
+Raw A23.1 executions: **14 parents and 14 children**, including **eight failed parent/eight failed child results**; these repeat the same two tag identities and are not independent failures. The first build retained six compiler errors from a local function named Key shadowing the Key enum; renamed before tests, with no stale-binary test. All subsequent builds passed. No passing family was rerun merely for another sample; each repeated tag selection followed a concrete fixture correction. Original A23 failures and all A23.1 failures remain retained. Exact-name child selection, cardinality/identity validation, exclusive collection, process/watchdog deadlines and cleanup remain intact.
+
+`summary.json`, `result-audit.json` and source/binary hashes record the tested HEAD plus changes. Whitespace and local documentation-target checks run after these edits. No complete Release gate or runtime repetition for documentation-only changes.
+
+### Inventory, acceptance and limits
+
+Exact A23.1 inventory: **three modified files, no additions**:
+
+- `README.md`
+- `docs/notebook.md`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.TagMenus.cs`
+
+**A23 focused acceptance is passed under the recorded supported idle-desktop conditions.** Real native mouse press/release, hit testing and outside dismissal were verified on synthetic test windows. Keyboard events were routed through WPF with actual focus/capture assertions; Rename/Delete actions use routed menu activation and synthetic services. This is not human physical keyboard/Narrator, native journal workflow/profile/restart, codec or hosted acceptance. No new production or persistence change was needed. Test-owned processes/windows were cleaned up; no unrelated application or isolated human-profile data was modified.
+
+**M22.12B and overall acceptance remain pending.** For the existing isolated profile, human follow-up remains: triple-click a tag trigger, switch to another exposed tag, navigate by Apps/arrows/Escape, dismiss outside, and rename/delete only disposable synthetic tags while confirming filters remain unchanged. Report results by ID with observations; no human/B2 case is marked passed by these automated tests. No schema/export, CI, timeout, provider/production access, publication or workflow triggering occurred.
+
 ## M22.12A23 — Tag menu toggle and ownership
 
 29 October 2026, one agent. Actual baseline: **clean develop / `22d4e54b92ad658cdfae4d09f5a2984f566349bd`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. A22 was committed in the intervening commit; its layout and A21 are preserved. Repository guidance and previous menu/focus evidence were read; no AGENTS.md or competing testhost was found. No native workflow/profile launch or capture troubleshooting occurred.

@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A23.1 — Tag-menu focus verification complete
+
+The menu fixture now establishes real pointer ownership and keyboard readiness, opens through Apps, and verifies arrow navigation, Escape and focus return without assigning focus to a menu item. It preserves native hit testing and all toggle/ownership assertions. No production change was needed.
+
+**A23 focused acceptance passed: six distinct parents and six matching isolated children**, counted separately, zero final failures/skips. Four note-menu passes are reused from the first native selection; the two corrected tag cases passed their complete assertions. Earlier failures remain retained. Release build: zero warnings/errors; whitespace and local documentation checks passed. [Diagnosis, exact commands, overlaps and verification limits](docs/notebook.md#m2212a231--tag-menu-keyboard-readiness-and-completed-verification). Evidence: `TestResults/m2212a23-1-verified/summary.json`.
+
+The user supplied an idle desktop for native mouse checks. Keyboard events were routed through WPF with actual focus/capture observations; this is not human keyboard/Narrator or journal workflow/restart acceptance. **M22.12B and overall acceptance remain pending.** No complete gate or capture recovery ran. The A23 record below is historical.
+
 ## M22.12A23 — Tag menu toggle correction; focused acceptance pending
 
 Tag menus now use the note menu's pointer-dismissal tracking: a second trigger click closes the menu even when WPF already dismissed its popup on pointer-down. Switching menus releases old handlers; captured tag actions are invalidated on catalog changes/unload and guarded against repeated invocation.
