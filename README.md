@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12B — Native workflow verification blocked by window capture
+
+At clean `develop` / `656cfd75034d99a4643c0a950c0a4d4b87e585d0`, normal startup with the existing `--isolated-data-root` option launched the current Release executable as PID **10888**. Resolved database, image, recovery, backup, log and settings locations are isolated under `TestResults/m2212b-native/profile`. No real journal was used or copied. The binary matches A20's retained hash; no build or tests ran.
+
+The user prepared the idle desktop and approved app access. The supported context checks passed, but Computer Use window capture timed out on both the initial attempt and one fresh-selection recovery. No usable screenshot/accessibility state was returned. The task-owned journal closed normally with Alt+F4 and its process exit was confirmed. **M22.12B remains blocked**: workflows, A19/A20 native switching and representative-content process restart are not verified by this attempt. [Exact preparation, capture errors, workflow matrix and task inventory](docs/notebook.md#m2212b--native-workflow-prerequisites-and-window-capture-blocker). Evidence: `TestResults/m2212b-native/summary.json`. A15/A20 focused acceptance is preserved; overall M22.12 acceptance and the final complete Release gate remain pending.
+
 ## M22.12A20 — Stable workspace during note switching
 
 Clean note selection now retains the previous note **read-only** while its target loads, then replaces the editor once. Loading feedback stays in the detail header; Organization, list rows/scroll position and A19's navigation targets remain stable. Unchanged global tag options are reconciled instead of clearing the catalog. Failed/missing targets cannot expose the old draft as editable content; cancellation restores the displayed note's selection.

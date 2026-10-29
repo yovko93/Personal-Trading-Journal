@@ -1,5 +1,63 @@
 # Notebook
 
+## M22.12B — Native workflow prerequisites and window-capture blocker
+
+29 October 2026, one agent. Actual baseline: **clean develop / `656cfd75034d99a4643c0a950c0a4d4b87e585d0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit includes A20's six modified/two added files. No production, harness, schema, archive/export, CI or timeout change was made. Exact tracked task inventory is **README.md and docs/notebook.md only**; preparation scripts, a synthetic PNG, launch/context records and the disposable profile are ignored evidence under **`TestResults/m2212b-native/`**.
+
+### Isolation and build provenance
+
+Source inspection traced normal startup through `MaintenanceLaunch.Parse → DesktopApplicationPaths.FromArguments → LocalApplicationPaths`. The already-supported **`--isolated-data-root <absolute-root>`** option routes data without depending on a LOCALAPPDATA environment override. The current compiled `DesktopApplicationPaths.FromArguments` method was invoked read-only before launch; every returned property was checked to lie beneath this task's evidence root. `resolved-paths.json` records the actual constructor results:
+
+- Profile root: `C:/Users/Yovko/source/repos/Personal-Trading-Journal/TestResults/m2212b-native/profile`.
+- Database: `profile/PersonalTradingJournal/journal.db`; Notebook recovery checkpoints and ownership metadata reside in this SQLite database.
+- Originals/images: `profile/PersonalTradingJournal/screenshots` (Notebook's existing `notebook-*` namespace).
+- Settings, logs and backups: `profile/PersonalTradingJournal/{settings.json,logs,backups}`.
+- Provider choice/credential paths: `profile/PersonalTradingJournal.Secrets/{provider.txt,openai.dpapi,groq.dpapi}`. No credentials were read or provider requests made.
+
+The profile did not exist before launch. Only normal application startup created its database/directories; no database was copied, seeded or edited directly. `isolated-files-after-startup.json` records synthetic-directory metadata. A 640×240 procedural synthetic chart was prepared at `assets/synthetic-chart.png` for a future real picker operation; it has not been imported or copied to the clipboard. An initial reflection preparation call failed to bind the LocalApplicationPaths constructor; no profile/journal was accessed. Preparation was corrected to invoke the actual DesktopApplicationPaths factory, as recorded in `preparation.log`.
+
+`binaries.json` retains the A20 binary identity. The current production DLL SHA-256 is **`991EB49BA5B2356ADCB72C24BC1AE464DD2C8C5399D3F4E5510E9B26B3EC5178`**, matching A20's recorded Release build. HEAD contains that source, so no rebuild or focused rerun was necessary. **Zero test parents and zero isolated test children ran**, with no test/gate exit code asserted.
+
+### Desktop conditions, normal launch, capture blocker and cleanup
+
+The user explicitly replied **“Ready — I’ll minimize them and leave the desktop idle”** after commands/assets/profile verification were prepared. The existing read-only A15.3 context observer ran through the supported executor: **session 1 / WinSta0 / Default**, interactive, existing administrator token, cursor access true/error 0, no competing dotnet/testhost/vstest processes. There was no UAC, desktop/token switching, always-on-top behavior, forced input state or closure of unrelated applications. `supported-context.json` records this observation; it is not a guarantee that later target coordinates stay unobstructed.
+
+```powershell
+pwsh -NoProfile -File TestResults/m2212b-native/context-check.ps1 -OutputName supported-context.json -Execution 'Existing supported input desktop; user confirmed idle desktop; read-only context observer'
+pwsh -NoProfile -File TestResults/m2212b-native/launch.ps1 -Name first
+# The prepared launcher starts this existing executable normally, with ProcessStartInfo.ArgumentList:
+src/PersonalTradingJournal.Desktop/bin/Release/net10.0-windows/PersonalTradingJournal.Desktop.exe --isolated-data-root C:/Users/Yovko/source/repos/Personal-Trading-Journal/TestResults/m2212b-native/profile
+```
+
+`first-launch.json` records **PID 10888**, executable, source DLL hash, arguments and session 1. The normal startup log is under `profile/PersonalTradingJournal/logs/`; initialization completed and the app issued ordinary initial browse queries against its isolated database. Computer Use discovered the returned window **460268, Personal Trading Journal**, associated with the exact Release executable. The first `sky.activate_window` / `sky.get_window_state` sequence returned **“Computer Use app approval timed out”** before any native workflow interaction or screenshot could be confirmed. The call's exact completed sub-step is not separately reported, so activation is not claimed as verified. `computer-use-blocker.json` preserves that result.
+
+The user then replied **“Approved — continue with the isolated journal.”** App approval therefore ceased to be the blocker. A fresh `list_windows` selection returned the same unique task-owned executable/window. Its activation/state request failed **“FrameArrived timed out: timed out waiting on channel”**. One bounded recovery re-listed the window, rehydrated the returned window through `get_window`, and requested activation/state again; it failed **“window capture timed out: timed out waiting on channel”**. No usable screenshot or accessibility tree was returned by either attempt. `computer-use-events.json` records the sequence; the original approval-timeout artifact is preserved rather than overwritten.
+
+The supported Computer Use skill was read and used. Its [guidance](C:/Users/Yovko/.codex/plugins/cache/openai-bundled/computer-use/26.1023.50603/docs/guidance.md) says: **“If state capture or window activation fails, stop using prior coordinates or element indexes. Refresh the app/window selection and retry once; report the exact error if recovery fails.”** No direct PowerShell UI automation, alternate input helper, blind workflow input, permission bypass or speculative production correction was substituted. There is no evidence of a Notebook rendering/ownership defect from this blocked attempt. The smallest next action is to restore supported Computer Use capture of the isolated journal and obtain one usable current-window observation before resuming the native checklist. No additional test/gate run is justified by this tool failure.
+
+Cleanup alone used a freshly returned, unique task-owned journal window and the supported `sky.press_key(Alt_L+F4)` normal-close shortcut. It returned success; subsequent read-only process inventory confirmed **PID 10888 exited** (`cleanup.json`), and the isolated log records normal application shutdown. No unrelated application received input or was closed. No process was killed. This verifies normal startup/close and process exit, **not** the requested restart of representative persisted Notebook content. No second journal PID was launched because no native content/workflows could first be prepared or observed.
+
+### Workflow status matrix
+
+| Requested workflow | Status in B | Evidence / limitation |
+| --- | --- | --- |
+| Current source/binary identity and disposable profile resolution | Passed | `baseline.json`, `binaries.json`, `resolved-paths.json`; no real journal access |
+| Supported input-desktop prerequisites and normal executable startup | Passed at observation/startup | `supported-context.json`, `first-launch.json`, isolated startup log; not a native action pass |
+| A19 one-click Trash from All Notes/Pinned, matching scope/heading/rows | Blocked / not exercised | Capture timed out after approval and one recovery; historical A19 controlled native evidence remains separate |
+| A20 ordinary/rapid note switching, consistent target ownership, edits and Refresh | Blocked / not exercised | No production slowdown or native transition capture; A20 deterministic offscreen evidence remains separate |
+| Folder/tag Add/Cancel/Enter/Escape, alignment, rename/delete, filtering/assignment/global deletion | Blocked / not exercised | No synthetic notes/catalog entries created through controls |
+| Blank/template notes, formatting/checklist/link, undo/redo, pin/menu behavior | Blocked / not exercised | No native input performed |
+| Saved locally, approximately ten-second notification, Light/Dark/date readability | Blocked / not exercised | No current native screenshot or human visual assessment |
+| Real image picker/clipboard, viewer/caption/order/removal; installed WebP codec | Blocked / not exercised | Synthetic PNG prepared only; clipboard untouched, no restoration needed; WebP support not inferred |
+| Synthetic Trade/Setup links, navigate/return, duplication, Trash/Restore/permanent deletion | Blocked / not exercised | No synthetic targets or lifecycle changes performed |
+| Normal close and confirmed process exit | Passed for cleanup | Supported Alt+F4, PID 10888 exit and normal shutdown log; no unsaved synthetic edits existed |
+| New-PID relaunch and persisted representative content | Blocked / not exercised | No second PID/content could be prepared and observed; no process restart claimed |
+| Human keyboard/Narrator, real journal workflow, hosted compatibility | Unverified | Automated prerequisite observations cannot establish these |
+
+No user/test process was killed. All processes started by this task are closed; the isolated profile and evidence are retained. No workaround or forced termination was used. No complete Release gate, build, focused test, production/provider access, Git publication or workflow trigger ran. **M22.12B is blocked at native window capture; overall acceptance remains pending the final Release gate and unresolved native checks.** Historical A15 focused acceptance and A20 focused automated verification remain passed within their recorded scope.
+
+Whitespace and local documentation-target existence checks are recorded beside `summary.json`; external URLs/anchors are outside the local-target check's scope. Historical evidence is preserved.
+
 ## M22.12A20 — Stable workspace during note switching
 
 29 October 2026, one agent. Actual baseline: **clean develop / `8a6624c0829a0ecc06669887da92d7335d13767d`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporates A19's three modified files and added test file; those were not pending changes. HEAD remains unchanged. Repository/ancestor inspection found no AGENTS.md. All prior evidence is preserved. Evidence root: **`TestResults/m2212a20-verified/`**; `baseline.json`, `provenance.json` and `binaries.json` distinguish HEAD from the uncommitted implementation tested.
