@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12B1 — Capture diagnosis remains blocked
+
+At clean `develop` / `d2606d39fcf27cec122f179ecd2f3bd9f117653e`, the current Release binary and existing disposable profile were revalidated without a build. A harmless blank Paint comparison was inconclusive: capture explicitly reported minimized, and activation was blocked by a user-input guard after its requested state refresh. A fresh normally launched PTJ process (**PID 15676**, window **133322**) was discovered correctly, but its single explicit screenshot request still timed out.
+
+**M22.12B remains blocked.** The evidence narrows the failure to PTJ's state-capture request without proving a general graphics failure, PTJ unresponsiveness or a production rendering defect. PTJ exited normally; the user closed the task-owned blank Paint window after its normal-close shortcut met the same guard. [Diagnostic boundary, exact errors, tool-support handoff and two-file inventory](docs/notebook.md#m2212b1--bounded-native-capture-diagnosis). Evidence: `TestResults/m2212b1-native/summary.json`. No workflows, restart persistence, builds, tests or complete gate were performed. Overall acceptance remains pending.
+
 ## M22.12B — Native workflow verification blocked by window capture
 
 At clean `develop` / `656cfd75034d99a4643c0a950c0a4d4b87e585d0`, normal startup with the existing `--isolated-data-root` option launched the current Release executable as PID **10888**. Resolved database, image, recovery, backup, log and settings locations are isolated under `TestResults/m2212b-native/profile`. No real journal was used or copied. The binary matches A20's retained hash; no build or tests ran.

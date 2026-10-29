@@ -1,5 +1,54 @@
 # Notebook
 
+## M22.12B1 — Bounded native capture diagnosis
+
+29 October 2026, one agent. Actual baseline: **clean develop / `d2606d39fcf27cec122f179ecd2f3bd9f117653e`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit includes B's two documentation files only. All B artifacts, including its approval timeout and two capture errors, remain unchanged; new evidence is under **`TestResults/m2212b1-native/`**. Exact tracked task inventory: **README.md and docs/notebook.md only**. No production or test-harness changes were made.
+
+### Supported diagnostic boundary and new evidence
+
+The installed Computer Use SKILL.md and its complete guidance/API/confirmation documents were read. The documented surface exposes app/window discovery, activation, `get_window_state` with separate screenshot/text flags, and targeted input. The installed docs directory contains only `api.md`, `guidance.md` and `confirmations.md`; there is no documented capture-helper health/session, minimize-state mutation, graphics-backend reset or helper-restart endpoint. No undocumented API, helper executable/protocol, alternative screenshot mechanism, direct PowerShell UI automation, blind coordinate input or ChatGPT UI automation was used. Existing approvals were reused; no new app-approval timeout occurred.
+
+B's combined activation/capture calls did not identify the exact failing sub-operation. B1 separated the final PTJ screenshot request from activation, and changed the process/window lifetime rather than repeating B's fresh-selection retry against the same old HWND. A harmless blank comparison was prepared first: no Paint process/window existed initially, and supported `sky.launch_app` launched pre-existing `C:/Windows/System32/mspaint.exe`, returning **Untitled - Paint**, PID **22708**, window **1837138**, session **1**.
+
+| Order / operation | Exact observation | Interpretation |
+| --- | --- | --- |
+| Paint `get_window_state(screenshot=true, text=false)` without combined activation | `window is minimized; call activate_window, refresh with get_window, then retry get_window_state` | Explicit minimized-window prerequisite; no graphics frame delivered, so not a general capture failure test |
+| Paint `activate_window`, as directed | `user input was detected in this window; call get_window_state before continuing` | Supported activation blocked by input guard; no manual input event/cause is established by this message |
+| Required Paint `get_window` / state refresh | Same minimized diagnostic | Refreshed identity/state did not resolve the prerequisite |
+| Paint activation after that refresh | Same user-input guard | Stop this activation/state loop; no forced state or further Paint capture attempts |
+| Normal PTJ startup with existing profile; unique discovery | PID **15676**, window **133322**, exact Release executable app identity/title **Personal Trading Journal** | New process/window rather than B's PID 10888/window 460268; discovery succeeds |
+| **One** explicit PTJ `get_window_state(screenshot=true, text=false)`; no combined activation | **`window capture timed out: timed out waiting on channel`** | The failed public operation is now identified; no screenshot/accessibility state returned, no further PTJ capture attempted |
+
+`events.json` preserves this sequence. It does not assign fabricated per-operation timestamps. The harmless comparison is **inconclusive** because its minimized/input prerequisites prevented a valid frame-capture comparison; it cannot establish that capture fails across applications. No additional kernel reset/relaunch loop, longer timeout, alternate capture path or application rendering adjustment was justified.
+
+### Identity, isolation and session evidence
+
+The current production DLL still matches B/A20 SHA-256 **`991EB49BA5B2356ADCB72C24BC1AE464DD2C8C5399D3F4E5510E9B26B3EC5178`**. No build was needed. The compiled `DesktopApplicationPaths.FromArguments` factory was re-invoked read-only with the existing `--isolated-data-root` argument, and all returned paths were again checked beneath **`TestResults/m2212b-native/profile`**. `resolved-paths.json` records database, managed screenshots/originals, settings, logs, backups and credential-path locations; recovery remains in that isolated database. No real journal or provider was accessed, no database data was copied/edited, and no synthetic native fixtures were inserted.
+
+The existing supported executor's read-only observer records **session 1 / WinSta0 / Default**, cursor access true/error 0, interactive, its existing administrator token and no competing dotnet/testhost/vstest process (`supported-context.json`). The PTJ process and blank Paint process also reported session **1**. There was no token/desktop switch, always-on-top behavior, forced focus/capture/control state, or closure of unrelated apps. These caller/application observations do **not** expose or prove the Computer Use capture helper's desktop/session. A backend/session mismatch therefore remains unverified rather than excluded.
+
+Read-only process samples reported `Responding=true` for both processes (`window-process-evidence.json`). That metadata is not an accessibility/render responsiveness proof. PTJ processed a supported normal-close shortcut afterward and logged normal shutdown; the capture timeout alone does not establish an unresponsive application. PTJ minimized status, visible bounds, occlusion and graphics frame availability could not be inspected because no usable snapshot was returned. Unlike Paint, PTJ's error did not explicitly diagnose minimized state; that absence is not proof of visibility. Discovery tied the sole new PTJ window to the exact executable while the sole task-launched PTJ process was alive; B's stale window identity was never reused.
+
+```powershell
+# Existing supported input desktop; read-only observer followed by normal production startup:
+pwsh -NoProfile -File TestResults/m2212b1-native/context-check.ps1 -OutputName supported-context.json -Execution 'B1 supported executor; read-only desktop observation; no desktop/token switching'
+pwsh -NoProfile -File TestResults/m2212b1-native/launch.ps1
+pwsh -NoProfile -File TestResults/m2212b1-native/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212b1-native/check-doc-links.ps1
+```
+
+The launcher uses ProcessStartInfo.ArgumentList with the normal existing executable and **B's existing isolated profile**, not a replacement profile or runner. `launch.json` records PID/session/arguments/hash. Original application logs remain under `TestResults/m2212b-native/profile/PersonalTradingJournal/logs/`; B1's startup/shutdown appended to those isolated logs without replacing B's records. The public JS calls and their exact outcomes are listed in `events.json`. No request used an increased timeout.
+
+### Cleanup, acceptance and concrete handoff
+
+After the failed bounded capture, only cleanup input was sent: a freshly returned unique task-owned PTJ window received supported `Alt_L+F4`, which returned success; PID **15676** exited and the log recorded Application stopping/shutting down/stopped. The same normal-close attempt for the task-owned blank Paint hit the user-input guard. No capture retry or process kill was used to work around it. The user was asked to close only that blank Paint window and replied **“Closed the blank Paint window.”** Final process inventory is recorded in `cleanup.json`; no user application was closed by the agent. Clipboard content was untouched.
+
+**M22.12B remains blocked, with startup/close prerequisites partially verified only.** Zero native Notebook workflow cases, test parents or isolated test children completed; zero builds, tests and complete gates ran. No screenshots or transition recording could be captured. The requested first-click Trash, smooth switching/ownership, editing/autosave, real picker/clipboard/viewer, linked-target navigation, folder/tag/lifecycle workflows and representative-content restart matrix remains unexercised. PID 15676 is a fresh launch against the same isolated profile, but no representative content was prepared/observed before or after it; **no restart-persistence acceptance is claimed**. A15/A19/A20 historical focused evidence retains its original scope. Human/Narrator, installed-codec and matching hosted checks remain separately unverified; overall M22.12 acceptance remains pending.
+
+The concrete next action is a **Computer Use tool-support investigation** using `events.json`, `supported-context.json`, `window-process-evidence.json` and the fresh PTJ identity. Support must resolve (1) why the minimized Paint window's requested activation remains blocked after its required refresh and (2) why the fresh PTJ `get_window_state` receives no frame on the observed session. A supported visible blank-window capture and then a valid isolated-PTJ capture are prerequisites to resuming B. The documented API offers no further backend recovery command, so another identical PTJ launch/capture loop or test gate would not resolve the specified uncertainty. No production fix is proposed from these observations.
+
+Whitespace and local Markdown-target checks are recorded with `summary.json`; external URLs/anchors remain outside that check. No source/harness, schema/export, CI, timeout, publication or workflow-trigger change occurred. The isolated profile, synthetic PNG and all historical evidence are retained.
+
 ## M22.12B — Native workflow prerequisites and window-capture blocker
 
 29 October 2026, one agent. Actual baseline: **clean develop / `656cfd75034d99a4643c0a950c0a4d4b87e585d0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit includes A20's six modified/two added files. No production, harness, schema, archive/export, CI or timeout change was made. Exact tracked task inventory is **README.md and docs/notebook.md only**; preparation scripts, a synthetic PNG, launch/context records and the disposable profile are ignored evidence under **`TestResults/m2212b-native/`**.
