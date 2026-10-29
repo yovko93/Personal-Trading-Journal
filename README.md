@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12B2 — Manual verification resumed after A21–A23
+
+The existing isolated-profile procedure now starts with **E1–E6** for reading/Edit/Done, creation-button styling and tag menus, followed by the original checks with their IDs preserved. [Current launch command, isolation checks and grouped checklist](docs/notebook.md#m2212b2--prepared-human-native-verification). At clean `develop` / `56b91c37a1c8f5a680a83b57a52684888ddbdfd1`, the Release DLL matches A23.1's build; the compiled isolation factory was rechecked. No build, app launch, capture or tests were needed.
+
+**All 24 manual checks remain Not tested pending per-case human results. M22.12B and overall acceptance remain pending.** A23's synthetic-window native checks remain separate from real-application workflows. Current preparation evidence: `TestResults/m2212b2-manual/resume-a21-a23/summary.json`. Only README and Notebook documentation changed.
+
 ## M22.12A23.1 — Tag-menu focus verification complete
 
 The menu fixture now establishes real pointer ownership and keyboard readiness, opens through Apps, and verifies arrow navigation, Escape and focus return without assigning focus to a menu item. It preserves native hit testing and all toggle/ownership assertions. No production change was needed.

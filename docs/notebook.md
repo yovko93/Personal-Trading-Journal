@@ -260,19 +260,27 @@ All automated interactions were offscreen WPF commands/routed events and synthet
 
 ## M22.12B2 — Prepared human native verification
 
+**Resumed after A21–A23, 29 October 2026.** Actual current baseline: **clean develop / `56b91c37a1c8f5a680a83b57a52684888ddbdfd1`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains A23.1's test/documentation changes only; production source is unchanged since its verified build. Existing work and the synthetic profile are preserved. Current exact tracked inventory: **README.md and docs/notebook.md only**. New preparation metadata is under `TestResults/m2212b2-manual/resume-a21-a23/`; the existing response template/pending-results files were extended with E1–E6, retaining backups of the original 18-row files. No separate handoff document was created.
+
+The user's earlier “checks pass so far” remains provisional feedback without a per-case matrix. **All 24 IDs remain Not tested.** A23's automated native mouse checks used synthetic test windows; none are recorded as human real-application workflows. No build, application launch, tests, capture recovery, gate or production access occurred during this preparation. Narrator, matching hosted CI and abrupt-termination recovery remain separate.
+
+Initial B2 preparation record (historical; its binary identity is superseded by the current verification below):
+
 29 October 2026, one agent. Actual baseline: **clean develop / `d2d981becea04ed63f7239dd27aacc0e86b7b4fd`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains B1's two documentation files only. Repository/ancestor inspection found no AGENTS.md. Exact tracked B2 inventory: **README.md and docs/notebook.md only**. New ignored preparation evidence is under **`TestResults/m2212b2-manual/`**; B/B1 evidence and the existing profile are preserved.
 
 This phase prepares human verification; it does not operate the native application. No Computer Use/capture attempt, application launch, build, test, gate or production/harness change occurred. B/B1's accurate finding remains: **window discovery succeeded, frame capture timed out; general capture failure and PTJ unresponsiveness remain unproven**. Tool support was recommended previously; **no support investigation/ticket has been opened by the agent**. Human manual verification can proceed without claiming that capture has been repaired.
 
 ### Verified source, binary and isolation
 
-Only README/docs changed between B's verified source and current HEAD; no source/test/build-configuration successor invalidates its binaries. The production DLL still has SHA-256 **`991EB49BA5B2356ADCB72C24BC1AE464DD2C8C5399D3F4E5510E9B26B3EC5178`**, matching retained B/A20 evidence; the executable exists at the path below. `baseline.json` records source/hash/process observations. No PTJ or test process was active at preparation time. A rebuild was unnecessary.
+**Current resumed verification:** the Release Desktop DLL has SHA-256 **`D2A84B6E5F695C544FA5F2FD2ACCE5D6654FC81C080C987FF9E554C57E3B7590`**, exactly matching A23.1's retained successful build. The executable exists at the launch path below. The only source successor since that tested state is A23.1's test/documentation commit; no production/build-configuration change invalidates the application binaries. No PTJ or test process was active at preparation time; no rebuild was needed. `resume-a21-a23/provenance.json` records DLL/EXE hashes, current HEAD, parsed launch command and compiled path-factory results. Historical initial B2 DLL hash **`991EB49BA5B2356ADCB72C24BC1AE464DD2C8C5399D3F4E5510E9B26B3EC5178`** remains in the original artifacts; it described the pre-A21–A23 implementation and is not the current manual-run identity.
 
 The current compiled `DesktopApplicationPaths.FromArguments` factory was invoked read-only with **`--isolated-data-root`**, not an environment override. Every resolved path remains under:
 
 `C:/Users/Yovko/source/repos/Personal-Trading-Journal/TestResults/m2212b-native/profile`
 
 `resolved-paths.json` records the exact results. The database is `PersonalTradingJournal/journal.db`; Notebook recovery checkpoints and ownership metadata use this database. Managed images/originals are under `PersonalTradingJournal/screenshots`; logs/backups/settings use `PersonalTradingJournal/{logs,backups,settings.json}`. Credential/provider paths resolve to the sibling `PersonalTradingJournal.Secrets` beneath the same isolated profile. The existing database, image/backups/log directories and synthetic PNG were checked by filesystem metadata only; the real journal was not read/copied and the isolated database was not edited. No provider operation is part of this procedure.
+
+The resumed read-only factory invocation repeats this check against the **current compiled binary**; `resume-a21-a23/resolved-paths.json` records it. All returned paths remain beneath the same profile, and inspected profile ancestors/target directories are not reparse points. App startup passes this paths instance to persistence/logging, and the recovery store uses the same isolated context factory. This verifies configuration without reading the database, settings or credential contents. The existing database and synthetic data are preserved.
 
 ### Launch and confirm the profile before editing — P0
 
@@ -308,6 +316,21 @@ For C3, create **one synthetic manual Trade and one Trading Setup** through thei
 
 Every row below is initially **Not tested**. Perform manageable groups and return results by ID; failed or missing subchecks must be stated in Observation rather than hidden behind a group pass. No artificial production slowdown is needed.
 
+**First small group: E — A21–A23 application checks**
+
+Prepare or reuse two distinguishable synthetic notes and two disposable global tags in the confirmed isolated window. Use the existing synthetic PNG and local link targets described above; report missing rich-content/image/link prerequisites as Not tested rather than substituting a plain note. Existing notes now open in reading mode: choose **Edit** for the editing/import/assignment subchecks in the original groups below.
+
+| ID | Action | Expected result |
+| --- | --- | --- |
+| E1 | Open an existing populated note with headings/emphasis/checklist, an image/caption and linked records. Select readable text. | Clear title/rich content, image and links remain readable/reachable; formatting/insertion controls and title input border are hidden. Checklist changes require Edit. |
+| E2 | Choose Edit beside Pin. First use Edit→Done without changes and compare content. Then edit, use Done, switch away/back. | No content change from mode switching alone; edited content persists. Save state remains truthful; failure/conflict retains editing and recovery/retry actions. |
+| E3 | Create a blank note and one existing template. Make distinct edits on two notes and exercise Undo/Redo, including Edit→Done→Edit on one note. | New notes start editing; presentation changes retain that note's history, and switching notes never exposes another note's undo/content. |
+| E4 | Compare New folder and New tag; open each creation form with empty then nonblank input, then cancel. | Matching size/font/plus alignment; New tag remains below catalog; conditional Add does not shift right-aligned Cancel. Cancellation creates nothing. |
+| E5 | Click one tag ellipsis three times; switch to another exposed trigger (for example lower→upper). Try Apps/Shift+F10, arrow navigation, Escape and outside click. | Open→closed→open, correct menu switching/dismissal, appropriate focus return and unchanged filters. A popup covering a trigger is not a reachable click target; dismiss or use an exposed trigger. |
+| E6 | On disposable tags, open one menu then another; Rename and inspect global Delete confirmation. Cancel deletion once; confirm only for the intended disposable tag. | Exactly one action affects the captured tag; confirmation identifies it. Global deletion is distinct from note-assignment removal, preserves notes and does not accidentally change a different tag. |
+
+Return E1–E6 first using the format below; the original IDs remain pending and can follow in manageable groups. If a prompt/error or particular subcase was not observed, state that in Observation rather than assuming it passed.
+
 **A — Navigation and switching**
 
 1. **A1:** From All Notes, click Trash once; repeat from Pinned. **Expected:** Trash highlight, heading and only trashed rows/count agree on the first accepted click.
@@ -336,6 +359,8 @@ Every row below is initially **Not tested**. Perform manageable groups and retur
 2. **D2:** Use a different disposable synthetic note for permanent deletion: move it to Trash, inspect/cancel confirmation first, then explicitly confirm deletion. **Expected:** cancellation preserves it; confirmed Trash-only deletion removes only that disposable note. Do not use the representative restart note.
 3. **D3:** Prepare a representative note with text, assigned tags, an image/caption and both linked-record kinds. Wait for authoritative Saved locally, record its title/details and the first PID, then close normally. **Expected:** the old PID exits, relaunching with the **same launch block/profile** creates a different PID, and reopening the representative note shows persisted text/tags/image/caption/link targets and readable originals. Record old/new PIDs and the profile path. Merely seeing a new window/PID is insufficient.
 
+Use the **current verified binary** for both D3 launches; do not substitute an old shortcut/build or rebuild between the two launches. Record the DLL hash and representative content before closing, then verify that content after relaunch. Graceful restart does not establish abrupt-termination recovery. Partial earlier observations are not a restart pass for the post-A21–A23 implementation.
+
 After closing in D3, this read-only check should return **no process** before relaunch (record the first PID before reusing `$journalB2`):
 
 ```powershell
@@ -349,6 +374,12 @@ Return rows in this compact format; use exactly **Passed / Failed / Not tested**
 ```text
 Check ID | Passed / Failed / Not tested | Observation
 P0 | Not tested | PID and isolated command-line confirmation pending
+E1 | Not tested | Reading-mode check pending
+E2 | Not tested | Edit/Done persistence check pending
+E3 | Not tested | Creation mode and undo separation pending
+E4 | Not tested | Creation-button/form layout pending
+E5 | Not tested | Real-application menu behavior pending
+E6 | Not tested | Captured global tag action check pending
 A1 | Not tested | All Notes and Pinned first-click paths pending
 A2L | Not tested | Say whether the loading state was visible
 D3 | Not tested | Old PID, new PID, same profile and persisted content details pending
