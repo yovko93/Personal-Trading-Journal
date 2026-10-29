@@ -1,5 +1,105 @@
 # Notebook
 
+## M22.12B2 — Prepared human native verification
+
+29 October 2026, one agent. Actual baseline: **clean develop / `d2d981becea04ed63f7239dd27aacc0e86b7b4fd`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains B1's two documentation files only. Repository/ancestor inspection found no AGENTS.md. Exact tracked B2 inventory: **README.md and docs/notebook.md only**. New ignored preparation evidence is under **`TestResults/m2212b2-manual/`**; B/B1 evidence and the existing profile are preserved.
+
+This phase prepares human verification; it does not operate the native application. No Computer Use/capture attempt, application launch, build, test, gate or production/harness change occurred. B/B1's accurate finding remains: **window discovery succeeded, frame capture timed out; general capture failure and PTJ unresponsiveness remain unproven**. Tool support was recommended previously; **no support investigation/ticket has been opened by the agent**. Human manual verification can proceed without claiming that capture has been repaired.
+
+### Verified source, binary and isolation
+
+Only README/docs changed between B's verified source and current HEAD; no source/test/build-configuration successor invalidates its binaries. The production DLL still has SHA-256 **`991EB49BA5B2356ADCB72C24BC1AE464DD2C8C5399D3F4E5510E9B26B3EC5178`**, matching retained B/A20 evidence; the executable exists at the path below. `baseline.json` records source/hash/process observations. No PTJ or test process was active at preparation time. A rebuild was unnecessary.
+
+The current compiled `DesktopApplicationPaths.FromArguments` factory was invoked read-only with **`--isolated-data-root`**, not an environment override. Every resolved path remains under:
+
+`C:/Users/Yovko/source/repos/Personal-Trading-Journal/TestResults/m2212b-native/profile`
+
+`resolved-paths.json` records the exact results. The database is `PersonalTradingJournal/journal.db`; Notebook recovery checkpoints and ownership metadata use this database. Managed images/originals are under `PersonalTradingJournal/screenshots`; logs/backups/settings use `PersonalTradingJournal/{logs,backups,settings.json}`. Credential/provider paths resolve to the sibling `PersonalTradingJournal.Secrets` beneath the same isolated profile. The existing database, image/backups/log directories and synthetic PNG were checked by filesystem metadata only; the real journal was not read/copied and the isolated database was not edited. No provider operation is part of this procedure.
+
+### Launch and confirm the profile before editing — P0
+
+Run this **in PowerShell**. It works independently of the terminal's current directory and uses the same supported normal-startup option as B/B1. The quoted profile argument deliberately includes command-line quotes for Start-Process:
+
+```powershell
+$journalB2 = Start-Process -FilePath 'C:\Users\Yovko\source\repos\Personal-Trading-Journal\src\PersonalTradingJournal.Desktop\bin\Release\net10.0-windows\PersonalTradingJournal.Desktop.exe' `
+    -WorkingDirectory 'C:\Users\Yovko\source\repos\Personal-Trading-Journal\src\PersonalTradingJournal.Desktop\bin\Release\net10.0-windows' `
+    -ArgumentList '--isolated-data-root', '"C:\Users\Yovko\source\repos\Personal-Trading-Journal\TestResults\m2212b-native\profile"' -PassThru
+$journalB2.Id
+```
+
+Before editing, inspect that exact process with the following read-only command. Confirm its executable and **both** the `--isolated-data-root` switch and full profile path above in CommandLine. If PowerShell cannot read this metadata, inspect the same PID's Command line in Task Manager's Details view instead; do not infer the profile from the app title alone. Stop and report P0 as Failed/Not tested if it cannot be confirmed.
+
+```powershell
+Get-CimInstance Win32_Process -Filter "ProcessId = $($journalB2.Id)" |
+    Select-Object ProcessId, ExecutablePath, CommandLine
+```
+
+Also check that a newly timestamped startup entry appears in a `ptj-*.log` beneath the **isolated** `profile/PersonalTradingJournal/logs` directory. The factory/path verification above explains where this process stores its journal; neither a familiar window title nor an empty note list is sufficient proof by itself. Record **P0**, the PID and confirmed profile path. Use this launch command rather than a normal app shortcut, and use only the confirmed isolated window. Do not inspect, copy or edit the real journal to compare it.
+
+### Synthetic prerequisites
+
+Create fixtures through the application's existing controls only, after P0 is confirmed. Use clearly different synthetic titles/bodies such as **B2 Alpha — alpha text**, **B2 Beta — beta text**, **B2 Gamma — gamma text**, plus a disposable note moved to Trash. Keep Alpha unpinned and Beta pinned. Use a real synthetic folder, a retained tag and a spare global-deletion tag; leave the representative restart note separate from deletion fixtures. If needed, create these fixtures while working through the creation checks below, then return to group A.
+
+The existing synthetic PNG is:
+
+`C:/Users/Yovko/source/repos/Personal-Trading-Journal/TestResults/m2212b-native/assets/synthetic-chart.png`
+
+For C3, create **one synthetic manual Trade and one Trading Setup** through their existing application screens in this profile. Trade entry may require a local synthetic account and instrument; create/select appropriate local records without connecting a provider or importing real data. Record target names/IDs so correct navigation can be checked. Missing targets make C3 **Not tested**, not a pass based on another action. For C4, use a separately identified synthetic WebP only if available; no WebP fixture or installed-codec result is assumed. Before the clipboard check, preserve any clipboard content you need; record whether it could be restored afterward.
+
+### Short grouped manual checklist
+
+Every row below is initially **Not tested**. Perform manageable groups and return results by ID; failed or missing subchecks must be stated in Observation rather than hidden behind a group pass. No artificial production slowdown is needed.
+
+**A — Navigation and switching**
+
+1. **A1:** From All Notes, click Trash once; repeat from Pinned. **Expected:** Trash highlight, heading and only trashed rows/count agree on the first accepted click.
+2. **A2:** Switch Alpha/Beta/Gamma normally, then rapidly A→B→C and A→B→A with the list scrolled where possible. **Expected:** Organization/list geometry and scroll stay stable during clean selection, no whole-workspace blank/rebuild, and the final title/body/tags/images/links/save status all belong to the last accepted note. **A2L:** If a loading interval is visible, retained previous content is clearly identified and read-only. If too fast to observe, report A2L **Not tested — pending state not visible**, without introducing a delay or claiming it passed.
+3. **A3:** Edit a note, switch away and return. **Expected:** edits survive canonical autosave/leave handling and Saved locally appears only for saved current content. If a Save/Discard/Cancel prompt appears, Cancel retains the prior selection/draft; report that subcheck unobserved if no prompt appears. Newer edits must not be replaced by an older completion.
+4. **A4:** Use explicit Workspace Refresh. **Expected:** current stored results reload; current edits receive the existing save/navigation protection rather than disappearing.
+
+**B — Organization and editor**
+
+1. **B1:** Exercise New folder with empty/whitespace and populated names, Add and Enter, Cancel and Escape; rename a created folder, then confirm deletion of a synthetic folder containing a note. **Expected:** conditional Add, visible right-aligned Cancel that stays anchored, one creation per submission, no creation on cancellation, updated names, contained note preserved and All Notes selected after deletion.
+2. **B2:** Exercise New tag/Add/Enter/Cancel/Escape, tag filtering and its management menu. Rename the spare tag; assign tags to a note, remove one assigned chip, then globally delete only the spare tag through confirmation. **Expected:** New tag below the catalog, stable right-aligned Cancel, creation neither assigns nor filters automatically, chip removal keeps the global catalog tag, global deletion removes that tag/its assignments without deleting notes, and menu actions target the intended tag without toggling its filter.
+3. **B3:** Create a blank note using the main action and one existing template using its menu; use the main action again after choosing a template. Edit title/rich text, headings/lists/checklist and a hyperlink; exercise Undo/Redo. **Expected:** main action always blank, template content appears once, formatting affects the intended selection, checklist insertion and checked-state control remain distinct, and Undo never introduces another note's content. A synthetic URL can be entered without opening an external website.
+4. **B4:** Pin/unpin a synthetic note and toggle the note ellipsis plus a tag management menu with repeated clicks, Escape and outside click. **Expected:** authoritative pin state, first open/second close/reopen, no accidental action on opening/dismissing, one intended execution when choosing an item, and actions continue to target their captured note/tag after selection changes. Workspace Refresh stays directly reachable.
+5. **B5:** Observe Saved locally with its green check immediately left of pin, and an operation notification when one appears; time its automatic dismissal at approximately ten seconds and try manual dismissal on another. Inspect Light/Dark and a narrow/high-DPI layout if available. **Expected:** notifications do not take focus or clear persistent failure/recovery/save state; no routine autosave success-banner backlog; dates use English `MMM dd, yyyy` without time, controls/text remain readable. Record any unavailable theme/DPI/notification subcheck separately.
+
+**C — Images and linked records**
+
+1. **C1:** Import the synthetic PNG through the real file picker. Copy a synthetic bitmap from an image application and paste it through the real clipboard into a note. **Expected:** both insertions appear once at the intended positions without losing nearby text. State any clipboard-preservation/restoration limitation; a file-path paste is not the bitmap-paste check.
+2. **C2:** Caption an image, change image order, open its original/viewer, remove a disposable image reference and Undo/Redo. **Expected:** readable preview/caption, correct ordering/reference removal, original opens and retained originals resolve after undo. Keep an image/caption for D3.
+3. **C3:** Link the synthetic Trade and Trading Setup, open each and use the application's Notebook-return action. **Expected:** each correct target opens and return restores the originating note/context, not an unrelated selection. Record target IDs/names. If a target cannot be prepared, mark its subcheck Not tested.
+4. **C4:** If a synthetic WebP exists, import/open it using the installed codec path. **Expected:** record the actual successful decoding or exact rejection/error independently of PNG. Otherwise **Not tested — no suitable synthetic WebP**.
+
+**D — Lifecycle and actual process restart**
+
+1. **D1:** Duplicate a synthetic note, edit the copy, Trash and Restore it. **Expected:** source content remains independent; restored note is discoverable with its relationships/content preserved.
+2. **D2:** Use a different disposable synthetic note for permanent deletion: move it to Trash, inspect/cancel confirmation first, then explicitly confirm deletion. **Expected:** cancellation preserves it; confirmed Trash-only deletion removes only that disposable note. Do not use the representative restart note.
+3. **D3:** Prepare a representative note with text, assigned tags, an image/caption and both linked-record kinds. Wait for authoritative Saved locally, record its title/details and the first PID, then close normally. **Expected:** the old PID exits, relaunching with the **same launch block/profile** creates a different PID, and reopening the representative note shows persisted text/tags/image/caption/link targets and readable originals. Record old/new PIDs and the profile path. Merely seeing a new window/PID is insufficient.
+
+After closing in D3, this read-only check should return **no process** before relaunch (record the first PID before reusing `$journalB2`):
+
+```powershell
+Get-Process -Id $journalB2.Id -ErrorAction SilentlyContinue
+```
+
+### Results, evidence and pending status
+
+Return rows in this compact format; use exactly **Passed / Failed / Not tested** for each ID:
+
+```text
+Check ID | Passed / Failed / Not tested | Observation
+P0 | Not tested | PID and isolated command-line confirmation pending
+A1 | Not tested | All Notes and Pinned first-click paths pending
+A2L | Not tested | Say whether the loading state was visible
+D3 | Not tested | Old PID, new PID, same profile and persisted content details pending
+```
+
+Use the same format for all other IDs; `response-template.txt` under the preparation evidence root contains every ID initialized to Not tested. **Send screenshots only for visual discrepancies or failures**, identifying the check ID and action; success does not require screenshots. Human-reported outcomes will be labeled as such and retained separately from independently collected automated tests/render/metadata evidence. No workflow is passed until the user supplies its result. Partial/missing observations stay Not tested, including unobserved pending-state behavior and unavailable link/WebP/DPI prerequisites.
+
+Narrator assessment, hosted CI and abrupt-termination recovery are separate unverified categories; do not substitute ordinary keyboard use or graceful restart for them. No deliberate kill/crash is part of this checklist. No capture troubleshooting or support case was opened in B2. **M22.12B remains pending until human results are recorded and reviewed. Overall acceptance remains pending the final Release gate and required unresolved checks.** Preparation-only whitespace/local Markdown-target checks are recorded beside `summary.json`; no native workflow, test parent or isolated child was run. No CI, production/provider access, Git publication or workflow triggering occurred.
+
 ## M22.12B1 — Bounded native capture diagnosis
 
 29 October 2026, one agent. Actual baseline: **clean develop / `d2606d39fcf27cec122f179ecd2f3bd9f117653e`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit includes B's two documentation files only. All B artifacts, including its approval timeout and two capture errors, remain unchanged; new evidence is under **`TestResults/m2212b1-native/`**. Exact tracked task inventory: **README.md and docs/notebook.md only**. No production or test-harness changes were made.

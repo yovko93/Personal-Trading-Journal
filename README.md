@@ -1,5 +1,11 @@
 # Personal Trading Journal
 
+## M22.12B2 — Human native verification prepared
+
+The manual procedure reuses **`TestResults/m2212b-native/profile`** through the existing **`--isolated-data-root`** option. At clean `develop` / `d2d981becea04ed63f7239dd27aacc0e86b7b4fd`, current binary/source provenance and resolved isolation paths were rechecked; no build, application launch, capture or test was needed. [Quoted PowerShell launch command, profile confirmation, grouped checklist and result format](docs/notebook.md#m2212b2--prepared-human-native-verification).
+
+**M22.12B is pending human results. All prepared workflow rows are Not tested.** Human reports will be identified separately from automated evidence. B/B1's conclusion remains: discovery succeeded, frame capture timed out, and general capture failure/PTJ unresponsiveness remain unproven. No support investigation has been opened by this task. Evidence: `TestResults/m2212b2-manual/summary.json`. Overall acceptance and the final Release gate remain pending.
+
 ## M22.12B1 — Capture diagnosis remains blocked
 
 At clean `develop` / `d2606d39fcf27cec122f179ecd2f3bd9f117653e`, the current Release binary and existing disposable profile were revalidated without a build. A harmless blank Paint comparison was inconclusive: capture explicitly reported minimized, and activation was blocked by a user-input guard after its requested state refresh. A fresh normally launched PTJ process (**PID 15676**, window **133322**) was discovered correctly, but its single explicit screenshot request still timed out.
