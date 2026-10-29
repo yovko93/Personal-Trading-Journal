@@ -62,13 +62,10 @@ public sealed partial class NotebookWorkspaceViewModel
         var managed = ManagedTag?.Id; var picker = AssignmentTag?.Id;
         var known = AssignedTags.Concat(SelectedNote?.Item.Tags ?? []).Concat(_tags.Select(t => t.Item))
             .GroupBy(t => t.Id).ToDictionary(g => g.Key, g => g.Last());
-        Tags.Clear(); SelectedTagFilters.Clear();
-        foreach (var tag in _tags.OrderBy(t => t.Item.Name, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Item.Id))
-        {
-            var option = new NotebookTagOption(tag.Item.Id, tag.Item.Name, tag.Item.Version, tag.ActiveNoteCount,
-                _filterIds.Contains(tag.Item.Id), Note?.TagIds.Contains(tag.Item.Id) == true);
-            Tags.Add(option); if (option.IsSelected) SelectedTagFilters.Add(option);
-        }
+        var options = _tags.OrderBy(t => t.Item.Name, StringComparer.OrdinalIgnoreCase).ThenBy(t => t.Item.Id)
+            .Select(tag => new NotebookTagOption(tag.Item.Id, tag.Item.Name, tag.Item.Version, tag.ActiveNoteCount,
+                _filterIds.Contains(tag.Item.Id), Note?.TagIds.Contains(tag.Item.Id) == true)).ToArray();
+        PublishTagOptions(Tags, options); PublishTagOptions(SelectedTagFilters, options.Where(t => t.IsSelected).ToArray());
         AssignedTags.Clear();
         foreach (var id in Note?.TagIds ?? [])
             AssignedTags.Add(known.GetValueOrDefault(id) ?? new(id, "Unavailable tag", 0));
@@ -76,6 +73,21 @@ public sealed partial class NotebookWorkspaceViewModel
         AssignmentTag = Tags.FirstOrDefault(t => t.Id == picker);
         OnPropertyChanged(nameof(TagText)); OnPropertyChanged(nameof(TagCatalogText)); OnPropertyChanged(nameof(FilterSummary));
         OnPropertyChanged(nameof(CanSelectNote)); NotifyTagCommands();
+    }
+    private static void PublishTagOptions(ObservableCollection<NotebookTagOption> target, NotebookTagOption[] values)
+    {
+        for (int i = 0; i < values.Length; i++)
+        {
+            int found = -1;
+            for (int j = i; j < target.Count; j++) if (target[j].Id == values[i].Id) { found = j; break; }
+            if (found < 0) target.Insert(i, values[i]);
+            else
+            {
+                if (found != i) target.Move(found, i);
+                if (target[i] != values[i]) target[i] = values[i];
+            }
+        }
+        while (target.Count > values.Length) target.RemoveAt(target.Count - 1);
     }
     private void StopSearch() => _searchDelay?.Cancel();
     private void ScheduleSearch()

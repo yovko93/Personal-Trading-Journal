@@ -434,7 +434,7 @@
    </Border>
   </Grid>
   <!-- Busy feedback must not move scope rows beneath a pointer while ListBox owns a press. -->
-  <DockPanel x:Name="ActiveNotebookOperation" Grid.Row="4" Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0">
+  <DockPanel x:Name="ActiveNotebookOperation" Grid.Row="4" Visibility="{Binding IsWorkspaceBusy, Converter={StaticResource VisibleWhenTrue}}" Margin="0,8,0,0">
    <Button x:Name="CancelNotebookOperation" DockPanel.Dock="Right" Content="Cancel operation" Command="{Binding CancelCommand}" AutomationProperties.Name="Cancel active Notebook operation" ToolTip="Stop active work; a completed change may already be saved."/>
    <TextBlock Text="Notebook operation in progress…" Style="{StaticResource QuietText}" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite"/>
   </DockPanel>

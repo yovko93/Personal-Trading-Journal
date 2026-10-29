@@ -30,12 +30,12 @@ public sealed partial class NotebookWorkspaceViewModel
     public string DraftError => _draftError;
     private string _saveFeedback = "";
     public string SaveFeedback { get => _saveFeedback; private set => SetProperty(ref _saveFeedback, value); }
-    public string SaveState => IsSaving ? "Saving…" : _saveState;
+    public string SaveState => IsLoadingNote ? "Loading selected note — previous content is read-only." : IsSaving ? "Saving…" : _saveState;
     public bool IsSaving { get; private set; }
     public bool IsDirty => _detachedRecovery || Note is not null && (_draftError.Length != 0 || Signature(_draftTitle, _draftDocument) != _savedSignature);
     public bool HasDraft => Note is not null || _detachedRecovery;
     public bool HasEditorContext => HasDraft || _unavailable is not null || SelectedNote is not null;
-    public string CompactSaveState => IsSaving ? "Saving…" : _recoveryConflict ? "Conflict" :
+    public string CompactSaveState => IsLoadingNote ? "Loading note…" : IsSaving ? "Saving…" : _recoveryConflict ? "Conflict" :
         _detachedRecovery ? "Recovered draft" : _autosavePaused ? "Save paused" :
         IsDirty ? "Unsaved changes" : Note is null ? "Content unavailable" : "Saved locally";
     // Includes leave-and-return to the same note; saving that note may advance its version.
@@ -47,7 +47,7 @@ public sealed partial class NotebookWorkspaceViewModel
             activation?.IsCancellationRequested == false && selection == _selectionGeneration &&
             (Note?.Id ?? _unavailable?.Id) == id && HasEditorContext;
     }
-    public bool CanEditDraft => _active && !_disposed && !_detachedRecovery && !_committingNote && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
+    public bool CanEditDraft => _active && !_disposed && !IsLoadingNote && !_detachedRecovery && !_committingNote && Note?.State == NotebookNoteState.Active && (!IsBusy || IsSaving);
     public bool CanEditBody => CanEditDraft;
     public bool BodyReadOnly => !CanEditBody;
     public bool NeedsClosePreparation => IsDirty || IsWriting || _linkOperation || _noteOperation;

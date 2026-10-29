@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12A20 — Stable workspace during note switching
+
+Clean note selection now retains the previous note **read-only** while its target loads, then replaces the editor once. Loading feedback stays in the detail header; Organization, list rows/scroll position and A19's navigation targets remain stable. Unchanged global tag options are reconciled instead of clearing the catalog. Failed/missing targets cannot expose the old draft as editable content; cancellation restores the displayed note's selection.
+
+Focused Release verification passes **163 distinct parents and twelve distinct matching isolated children**, counted separately, zero final failures/skips, exits **0**. The baseline blank-editor regression and two subsequently corrected test-contract assumptions remain retained. Build: zero warnings/errors. Six corrected Light-normal/Dark-narrow-high-DPI transition frames and three baseline frames were inspected. [Cause, guard contracts, commands, overlaps, exact inventory and limitations](docs/notebook.md#m2212a20--stable-workspace-during-note-switching). Evidence: `TestResults/m2212a20-verified/summary.json`.
+
+**A20 focused automated verification is complete.** Native note switching was not exercised; offscreen transition evidence is not a native interaction or frame-rate claim. Existing saves still refresh stored search membership/counts, and explicit Refresh still reloads the workspace. **M22.12B and overall acceptance remain pending.** No complete gate ran; A15's acceptance and A18/A19 behavior are preserved.
+
 ## M22.12A19 — Stable scope targets while loading
 
 The scope mapping is correct. A deterministic regression instead found that the busy/cancel strip moved the navigation rows downward: the original Trash press point then lay inside **Pinned**. The existing active-operation feedback and Cancel command now appear below the panels, keeping scope targets stationary during a read. No query, draft guard, lifecycle or note-switch code changed.

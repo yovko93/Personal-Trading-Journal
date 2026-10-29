@@ -1,5 +1,89 @@
 # Notebook
 
+## M22.12A20 — Stable workspace during note switching
+
+29 October 2026, one agent. Actual baseline: **clean develop / `8a6624c0829a0ecc06669887da92d7335d13767d`**, existing worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporates A19's three modified files and added test file; those were not pending changes. HEAD remains unchanged. Repository/ancestor inspection found no AGENTS.md. All prior evidence is preserved. Evidence root: **`TestResults/m2212a20-verified/`**; `baseline.json`, `provenance.json` and `binaries.json` distinguish HEAD from the uncommitted implementation tested.
+
+### Demonstrated cause and correction
+
+The actual path is `NoteList.SelectedItem → SelectedNote → GuardedAsync → AcceptSelection → ReadAsync → ReadDetailAsync`. A clean selection already makes **no list/catalog service query**. However, `ReadAsync` marked the entire workspace busy, causing Loading notes above the list, disabling list selection and allocating A19's footer row. `ReadDetailAsync` cleared Note, links and draft **before awaiting the target**, replacing the editor with an empty document; after the await it installed the target a second time. Note publication also cleared/repopulated the global Tags/filter collections. The view rebuilds its RichTextBox document on EditorRevision, so the empty draft caused an avoidable visible blank frame and undo reset. A19's top-row movement was fixed already; it did not explain this additional detail-clearing behavior. Ordinary selection does not recreate the view or explicitly request focus; the problem was the changes published into the existing view.
+
+The controlled baseline held B's service response with a TaskCompletionSource after displaying A with an image, assigned tag and Trade link. Its new real-binding/offscreen regression **failed**: `retained=false`, `oldOwner=false`, one pending editor replacement and two total replacements; list disabled, Loading notes visible and footer visible. The list-query count stayed **1→1**, proving this was presentation work rather than an unavoidable list reload. Raw failed parent/child TRX, supervision logs, metrics and all three PNGs remain under `before/`.
+
+Ordinary detail reads now use a local loading classification while retaining internal busy/mutation guards. The displayed A title, body/image, assigned tags, metadata and links remain owned by A and read-only; status says Loading note rather than Saved locally. The requested B row can be selected while this explanation is visible. No A edit or management command can be applied as B. When the accepted target arrives, existing activation/cancellation/selection checks permit **one** draft/document installation, including the normal fresh undo history. The note list remains enabled for superseding selections. Global Tags and selected filter options reconcile by identity/value, preserving unchanged rows instead of Reset. No cache, animation, sleep or new global input lock was added.
+
+Cancellation/deactivation restores the displayed note's row before editing can resume. Superseding workspace reads restore that consistent starting ownership too. Missing, invalid, unsupported, oversized or failed targets clear the previous detail into the existing explicit unavailable/Refresh state; they never enable the retained A document as B. Existing guarded saves, recovery, expected versions, image ownership and operation ownership are unchanged. A successful save intentionally queries stored search membership/counts and republishes that result; this required write-side behavior is **not** claimed to be removed or scroll-stable by A20. Explicit Refresh/scope reads retain their full reload and contextual footer Cancel behavior. A detail load has local status and can be superseded by another selection; it does not allocate the workspace footer. Content-local loading explanation may wrap and move the document within the detail pane; the surrounding workspace/list geometry remains stable.
+
+### Commands and distinct focused results
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+# Controlled reproduction before the production correction:
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name before -Filter 'FullyQualifiedName~DelayedNoteSwitchRetainsReadOnlyDetailAndWorkspaceGeometry&DisplayName~Light'
+# Corrected transition checks, then relevant logic (not a historical suite union):
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name corrected -Filter 'FullyQualifiedName~DelayedNoteSwitchRetainsReadOnlyDetailAndWorkspaceGeometry'
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name logic -Filter 'FullyQualifiedName~NotebookDetailSwitchTests|FullyQualifiedName~NotebookWorkspaceTests|FullyQualifiedName~NotebookEditingTests|FullyQualifiedName~NotebookAutosaveTests|FullyQualifiedName~NotebookNoteActionsTests|FullyQualifiedName~NotebookTagTests|FullyQualifiedName~NotebookTagFormTests|FullyQualifiedName~NotebookLifecycleTests|FullyQualifiedName~NotebookLinkTests|FullyQualifiedName~NotebookNotificationTests|FullyQualifiedName~ReleaseSchedulingTests'
+# Strengthened unavailable-target assertions plus existing image coordination:
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name ownership-images -Filter 'FullyQualifiedName~NotebookDetailSwitchTests|FullyQualifiedName~NotebookImageCoordinationTests'
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name header-regressions -Filter 'Workload=ExclusiveWpf&(FullyQualifiedName~ScopeItemSelectionKeepsRequestQueryHeadingAndRowsConsistent|FullyQualifiedName~SaveStatusBesidePinReflectsCanonicalStateOffscreen)'
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name image-editor -Filter 'FullyQualifiedName~NotebookImageEditorTests'
+# Direct dirty-selection coverage gap, then corrected test contracts (production unchanged):
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name dirty-switch-guards -Filter 'FullyQualifiedName~DirtySelectionOnlyInstallsTargetAfterSuccessfulLeaveGuard|FullyQualifiedName~NewerEditDuringGuardSaveIsPersistedBeforeTargetIsInstalled'
+pwsh -NoProfile -File TestResults/m2212a20-verified/run.ps1 -Name dirty-switch-contracts -Filter 'FullyQualifiedName~DirtySelectionOnlyInstallsTargetAfterSuccessfulLeaveGuard|FullyQualifiedName~NewerEditDuringGuardSaveVetoesSwitchAndRetainsDraft'
+pwsh -NoProfile -File TestResults/m2212a20-verified/audit.ps1
+pwsh -NoProfile -File TestResults/m2212a20-verified/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212a20-verified/check-doc-links.ps1
+```
+
+The helper uses `dotnet test ... -c Release --no-build --no-restore --filter ... --logger trx --results-directory ...`, with separate durable output/result files for each invocation. The initial fixture build failed **CS0103** because its visual-tree helper had not been defined (`build/before.log`, 49.31s, one error/zero warnings); that authoring error was corrected before runtime. Subsequent builds passed with zero warnings/errors: `before-corrected.log` **10.85s**, `corrected.log` **16.14s**, `final.log` **7.21s**, `final-assertions.log` **6.82s**, `guard-cases.log` **25.26s**, `guard-cases-final.log` **17.67s**, and final `guard-contracts.log` **10.01s**. Builds followed source/assertion changes; there was no restore or complete gate. Final changes after the transition runs were confined to the independent logic-test file, so passing transition/image/header bodies and production source were not rerun without a concrete need.
+
+| Run | Parents passed/total | Separate children passed/total | Exit | Command wall time |
+| --- | --- | --- | --- | --- |
+| `before` | 0/1 | 0/1 | 1 | 10.879s |
+| `corrected` | 2/2 | 2/2 | 0 | 13.915s |
+| `logic` | 140/140 | None | 0 | 4.236s |
+| `ownership-images` | 15/15 | None | 0 | 3.184s |
+| `header-regressions` | 6/6 | 6/6 | 0 | 33.263s |
+| `image-editor` | 4/4 | 4/4 | 0 | 43.703s |
+| `dirty-switch-guards` | 3/5 | None | 1 | See retained result.json |
+| `dirty-switch-contracts` | 5/5 | None | 0 | 4.833s |
+
+The added dirty cases initially made two incorrect assumptions. Save success was expected to issue no list query, but SaveCore intentionally refreshes search membership/counts. The newer-edit case expected a second implicit save and B installation; the actual manual-guard contract is to veto the switch after the older commit, retain A's newer dirty draft, and let subsequent save/consent proceed. The revised exact assertions verify those contracts: persisted First/version+1, retained Newer/body under A, one write and no B load. No production guard/autosave change or weakened deadline was made. Both failed raw results remain in `dirty-switch-guards/`; the latter test was renamed to describe the correct contract. The literal-path-safe audit records that explicit superseded identity mapping without removing its original name/result.
+
+Final current coverage: **163 distinct passing parents and twelve distinct matching child cases**, zero final failures/skips/incomplete or duplicate results. Across development there are **178 parent executions / thirteen child executions** and **164 raw historical parent names**, including the one superseded test name. Nine `ownership-images` cases overlap `logic`; the baseline Light case and the five corrected guard identities repeat earlier cases and are not additional coverage. Twelve isolated children are two transition rows, two A19 scope rows, four save-status rows and four image-editor rows, each with exactly one matching child. All original failures remain visible in `test-audit.json`; `results.json` distinguishes executions from final current coverage. Existing exclusive collection/traits, collection limits, exact child validation, 90-second process deadline, 30-second case watchdog and cleanup remain intact. No competing test process was found before launching selections or after completion. A later Win32_Process metadata lookup was denied; the supported Get-Process fallback and retained supervised exit results were used. No unrelated process was stopped.
+
+| Requirement / risk | Current evidence and result |
+| --- | --- |
+| Stable clean selection through actual binding, list scroll and navigation layout | Two delayed WPF rows: document retained, zero pending replacements, one final replacement; zero Notes/Tags Resets, unchanged rows/scopes/list bounds; offset **8→8**, list queries **1→1** |
+| Displayed ownership during loading; fresh target undo history | A title/body/image/tag/Trade retained read-only; B has its own document, no assigned tags and Trading Setup link; fresh editor cannot Undo into A |
+| Rapid A→B→C and A→B→A; cancellation/deactivation | Four new controlled async logic cases, service deliberately ignores cancellation; late B never publishes; cancelled pending selection restores A |
+| Missing/unreadable/failed target and explicit Refresh | Five new exact failure-state cases; empty body/correct unavailable title, old draft not editable, Refresh queries and recovers B |
+| Dirty save/discard/cancel/failure and newer typing | Five direct selection cases plus existing editing/autosave/recovery tests; failed/cancelled guard retains A, newer typing vetoes departure without loss |
+| Images, tags, links, action ownership and A15 persistent status | Existing image coordination/editor, tag/form, link, note-action, notification and save-status regressions all pass; assignment/global-delete recovery protections retained |
+| A19 first-click scope behavior | Existing two actual selection-binding/held-read geometry rows pass; previous native A19 evidence retained, native mouse path not re-executed in A20 |
+
+### Transition evidence and limitations
+
+Nine actual PNGs were opened and inspected: three original Light frames and six corrected frames. `renders.json` lists original paths, hashes and identical convenience copies under `renders/`.
+
+- Baseline: `before/notebook-switch-20261028-234711-bb4482fcb76949e5bb2e41bcb54d7729/Light-1280-96-{01-before,02-pending,03-complete}.png`.
+- Corrected Light: `corrected/notebook-switch-20261028-234838-a70873f59e164cbdb2e6ee18cb9d2969/Light-1280-96-{01-before,02-pending,03-complete}.png`.
+- Corrected Dark/narrow/high-DPI: `corrected/notebook-switch-20261028-234833-5ac7dcc73841437694aad721c3539617/Dark-480-240-{01-before,02-pending,03-complete}.png`.
+
+These are ordered before/pending/completed captures around a held dependency, not only settled screenshots or fabricated composites. Pending Light keeps Organization and scrolled list intact; pending Dark keeps the old image/title/tag with readable wrapped loading text. Completed frames show B's own body/link and truthful saved status. Narrow layout intentionally uses the Content panel during the sequence; the fixture separately verifies Notes-panel geometry and unchanged scroll position. No blocking clipping, contrast or workspace-target displacement was observed. The detail-local explanation can wrap while the target loads, and different target content naturally changes the detail height. This is **offscreen WPF binding/layout/command evidence** (no Window/HwndSource, pointer/focus test, or forced focus), not a native switching recording, compositor/frame-rate guarantee or human/Narrator assessment. Linked records use synthetic unavailable targets, with actual opening/navigation coordination covered separately by existing logic tests.
+
+Exact task inventory: **six modified files and two added files**, no pre-existing pending changes:
+
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.cs` — local detail loading, retain/install ownership, cancellation restoration and list selection capability.
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Editing.cs` — loading/read-only capability and persistent status derived from the same state.
+- `src/PersonalTradingJournal.Desktop/ViewModels/Notebook/NotebookWorkspaceViewModel.Tags.cs` — identity/value reconciliation for global catalog/filter options.
+- `src/PersonalTradingJournal.Desktop/Views/Notebook/NotebookWorkspaceView.xaml` — reserve global busy footer for workspace reads.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookDetailSwitchTests.cs` — fourteen controlled ownership/guard/failure cases.
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Switching.cs` — two exact isolated transition cases and artifact capture.
+- `README.md` and `docs/notebook.md` — cause, evidence, exact contracts/counts and handoff.
+
+Whitespace and local Markdown target-existence checks passed after documentation edits; anchors/external URLs are outside that check's scope. A20 focused automated verification is complete. A15 focused acceptance remains passed; A18 layout and A19 stable navigation behavior are preserved. **M22.12B and overall acceptance remain pending.** Native journal workflow/restart, human/Narrator, real clipboard/picker/viewer/codec and matching hosted timing/input compatibility remain unverified. No persistence, schema, document/archive/export, CI or timeout change, publication, workflow trigger or production/provider access occurred.
+
 ## M22.12A19 — Stable scope targets during asynchronous reads
 
 28 October 2026, one agent. Actual baseline: **clean develop / `32bc081c7b49ccb2e4e8f47fc79585debee1686b`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit incorporates A18's four files. Repository/ancestor inspection found no AGENTS.md. Existing work and historical evidence are preserved; HEAD remains unchanged. Evidence root: **`TestResults/m2212a19-verified/`**.

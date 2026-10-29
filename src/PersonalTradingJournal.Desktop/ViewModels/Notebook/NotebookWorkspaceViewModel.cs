@@ -132,7 +132,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             {
                 AcceptSelection(value);
                 if (value is not null) Panel = 2;
-                await ReadAsync(ct => ReadDetailAsync(value, ct));
+                await ReadAsync(ct => ReadDetailAsync(value, ct), detailOnly: true);
             });
             OnPropertyChanged(nameof(SelectedNote));
         }
@@ -162,7 +162,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public bool HasMoreNotes => _cursor is not null;
     public bool HasMoreFolders => _folderCursor is not null;
     public bool HasMoreTags => _tagCursor is not null;
-    public string EmptyMessage => IsBusy ? "Loading notes…" : Notes.Count != 0 ? "" :
+    public string EmptyMessage => IsWorkspaceBusy ? "Loading notes…" : Notes.Count != 0 ? "" :
         _query.Search.Length != 0 || _query.TagIds.Length != 0 ? "No notes match these filters. Clear filters or change the search." :
         "No notes in this view. Create a note or choose another scope.";
     public string Message { get => _message; private set => SetProperty(ref _message, value); }
@@ -171,10 +171,13 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public NotebookFolderOption? ManagedFolder { get => _managedFolder; set { SetProperty(ref _managedFolder, value); NotifyCommands(); } }
     public NotebookFolderOption? MoveFolder { get => _moveFolder; set { SetProperty(ref _moveFolder, value); NotifyCommands(); } }
     public int Panel { get => _panel; set { if (SetProperty(ref _panel, value)) { ++_panelGeneration; if (IsFolderCreationPending) DismissFolderCreation(); if (IsTagOperationPending) DismissTagForm(); } } }
-    public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); NotifyCommands(); } }
+    private bool _loadingNote;
+    public bool IsLoadingNote { get => _loadingNote; private set { if (SetProperty(ref _loadingNote, value)) { OnPropertyChanged(nameof(IsWorkspaceBusy)); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); DraftChanged(); } } }
+    public bool IsWorkspaceBusy => IsBusy && !IsLoadingNote;
+    public bool IsBusy { get => _busy; private set { SetProperty(ref _busy, value); OnPropertyChanged(nameof(IsWorkspaceBusy)); OnPropertyChanged(nameof(EmptyMessage)); OnPropertyChanged(nameof(CanSelectNote)); NotifyCommands(); } }
     public bool IsWriting { get => _writing; private set { SetProperty(ref _writing, value); OnPropertyChanged(nameof(CanInteract)); NotifyCommands(); } }
     public bool CanInteract => !_disposed && !IsWriting && !_noteOperation;
-    public bool CanSelectNote => CanInteract && !IsBusy && ScopeMatchesList;
+    public bool CanSelectNote => CanInteract && (!IsBusy || IsLoadingNote) && ScopeMatchesList;
     private bool ScopeMatchesList => (Scope is null || (_query.Scope == Scope.Scope && _query.FolderId == Scope.FolderId)) &&
         _query.Search == SearchText && _query.TagIds.Order().SequenceEqual(_filterIds.Order()) && _query.Sort == Sort.Value;
     private bool CanRead => _active && !_disposed && !IsWriting && !_noteOperation;
@@ -232,6 +235,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     public void Deactivate()
     {
         _active = false; ++_generation;
+        RestoreCancelledDetailSelection(); IsLoadingNote = false;
         DismissNotification();
         _lifetime?.Cancel(); StopDebounce(); StopSearch(); StopLinkTargetRead(); _read?.Cancel(); _write?.Cancel();
         DeactivationTask = CompletionTask;
@@ -245,6 +249,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         if (!_disposed)
         {
             _lifetime?.Dispose(); _lifetime = new();
+            RestoreCancelledDetailSelection(); IsLoadingNote = false;
             RestoreAppliedFilters();
             IsBusy = false;
             ReportMessage("Operation stopped. Refresh to reload stored data; a completed change may already be saved.", NotebookNotificationKind.Warning);
@@ -268,9 +273,18 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
         if (IsDirty && !_guarding) return GuardedAsync(() => ReloadAsync(preserveSelection));
         return ReadAsync(ct => ReadPageAsync(false, preserveSelection ? SelectedNote?.Id : null, ct));
     }
-    private Task ReadAsync(Func<CancellationToken, Task> work)
+    private void RestoreCancelledDetailSelection()
     {
+        if (!IsLoadingNote) return;
+        var id = Note?.Id ?? _unavailable?.Id;
+        AcceptSelection(Notes.FirstOrDefault(n => n.Id == id));
+        ContentMessage = "Note loading stopped. The previous note is retained; select another note or Refresh.";
+    }
+    private Task ReadAsync(Func<CancellationToken, Task> work, bool detailOnly = false)
+    {
+        if (!detailOnly) RestoreCancelledDetailSelection();
         _read?.Cancel(); var owner = CancellationTokenSource.CreateLinkedTokenSource(_lifetime?.Token ?? CancellationToken.None); _read = owner; var generation = ++_generation;
+        IsLoadingNote = detailOnly;
         IsBusy = true; Message = "";
         return LoadTask = Track(RunAsync());
         async Task RunAsync()
@@ -289,7 +303,7 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
             }
             finally
             {
-                if (generation == _generation && !_disposed) IsBusy = false;
+                if (generation == _generation && !_disposed) { IsBusy = false; IsLoadingNote = false; }
                 if (ReferenceEquals(_read, owner)) _read = null;
                 owner.Dispose();
             }
@@ -400,11 +414,25 @@ public sealed partial class NotebookWorkspaceViewModel : ObservableObject, IDisp
     private async Task ReadDetailAsync(NotebookRow? row, CancellationToken ct)
     {
         if (!Current(ct)) return;
-        ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
-        ContentMessage = row is null ? "Choose a note to read its content." : "Loading note…";
-        if (row is null) return;
-        var result = await Task.Run(() => _service.LoadAsync(row.Id, ct), ct);
+        if (row is null)
+        {
+            ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
+            ContentMessage = "Choose a note to read its content."; return;
+        }
+        ContentMessage = IsLoadingNote ? $"Loading {row.Title}… Previous content is read-only until it is ready." : "Loading note…";
+        NotebookLoadResult result;
+        try { result = await Task.Run(() => _service.LoadAsync(row.Id, ct), ct); }
+        catch
+        {
+            if (Current(ct) && SelectedNote?.Id == row.Id)
+            {
+                ResetLinkPresentation(); _unavailable = null; Note = null; InstallDraft();
+                ContentMessage = "Note content could not be loaded. Select Refresh to try again.";
+            }
+            throw;
+        }
         if (!Current(ct) || SelectedNote?.Id != row.Id) return;
+        ResetLinkPresentation();
         _unavailable = result.UnavailableMetadata; Note = result.Note;
         InstallDraft();
         ContentMessage = result.Status switch
