@@ -1,5 +1,100 @@
 # Notebook
 
+## M22.12C3 — Hosted Daily Review watchdog and Test-step timeout
+
+1 November 2026; one agent. Actual baseline: **clean develop / `43ee05cb9dcc0520908392a6c1b65891efacc016`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. Repository guidance, README, retained C1 evidence, workflow, gate script and the supplied hosted log were inspected before diagnosis. No competing testhost was found. No tests, builds, application/native-input operations, workflow triggers or retries ran in C3. Existing evidence is preserved. Exact tracked task inventory: **`README.md` and `docs/notebook.md` only**; no production, fixture, scheduling, deadline or CI changes.
+
+### Provenance and retained evidence
+
+[CI #106](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41247637014), attempt 1, PR #26, validate job **124674283899**, used Windows Server 2025 and Actions runner **2.338.2**. The API branch SHA is `43ee05cb9dcc0520908392a6c1b65891efacc016`; checkout actually tested **PR merge `8caec8aa5c351745c0a4a0171ffe0deb402acb62`**, merging that branch into `a279aaf28845e614b8ca94a2e533aaa52f45957c`. Current branch and tested merge share tree **`2566d6256c128871bb8e3af14bdf98d716e690c3`**, with zero files in the read-only GitHub comparison. C1 corrections are included. The C1 commit changes Notebook fixtures/helpers and documentation, not Daily Review, its database initializer or shared dispatch/scheduling. The three C1 native failures are covered by the passing exclusive TRX; all four C1 workspace rows report Passed in the retained parallel-host protocol, which is weaker evidence than a final parallel TRX.
+
+Evidence root **`TestResults/m2212c3-diagnosis/`** contains `attached-ci-log.txt`, full `ci-job.log`, `provenance.json` (run, job steps, artifact metadata and source comparison), `ci106.zip`, `summary.json`, `host-results-audit.json`, extracted result messages and dump-analysis logs. Original artifact **13060268129**, `windows-test-results`, was retrieved read-only. ZIP SHA-256 **`193F1E09111950ACD90FC15327A2740D90AA8200CE58DE0E9631A35DC136B386`** matches the published digest.
+
+In the paths below, **G** means `TestResults/m2212c3-diagnosis/ci106/release-20261031-222101-e564f7c10bf341b1842e1f6946d6f44e`; **C** means `G/parallel/daily-review-acceptance-20261031-222730-172d79329f874cafb6ebf6995257ecf4`. Original files were not edited:
+
+- `G/exclusive-wpf/` has its final Desktop parent TRX; `G/parallel/` has Domain and Application parent TRX, VSTest/host logs and child directories. **Final Infrastructure and parallel Desktop parent TRX are absent**, not silently replaced by parsed messages. `G/summary.json` contains only the completed exclusive stage.
+- C contains `daily-review-acceptance.trx`, `stdout.log`, `stderr.log`, `process-supervision.log` and `dfd23df1-1cb7-4d30-adde-aa58106838e7/Sequence_84ef610c63314dafb8416435e98c9512.xml` plus `testhost_8576_20261031T222801_hangdump.dmp`. TRX attachment copies are retained too. Dump SHA-256: **`07BC0C1592FABC371329DD3EED538BE192352E7BFFA378E8A5573C8E0D45289E`**.
+- No child VSTest diagnostic start timestamp, pre-database phase log or CPU/I/O/scheduler trace was retained. There is no Daily Review STA phase log: this execution had not reached its first UI dispatch. Runner signal-level diagnostics and a final hosted process-tree snapshot are also unavailable.
+
+### A — One child watchdog, two failed parents
+
+`Navigation/DailyReviewAcceptanceTests.cs:47` awaits a **static `Lazy<Task>`** running the `DailyReviewAcceptance` method selection once, with recursion protection, **two-minute process deadline** and **30-second case inactivity watchdog**. Both parameterized parents await that same task. It is not two child launches or an optimization opportunity from repeated whole-suite dispatch.
+
+| Identity / evidence | Observed result |
+| --- | --- |
+| Parent `DailyReviewAcceptanceCompiledShellKeepsCapturedEvidenceOrCancelsOnSourceNotification(notifyChange: True)` | Failed after reported duration **41.8674745s**; start **22:27:30.3431251Z**, end **22:28:12.2184346Z**. |
+| Parent `... (notifyChange: False)` | Same cached child failure, duration **0.0002173s**; start **22:28:12.2288212Z**. No second launch. |
+| Child `notifyChange: True` | The only Sequence XML row, **Completed=False**. Inactivity watchdog fired; zero completed child results. |
+| Child `notifyChange: False` | Never started. Not a separately failing child or a completed/skipped case. |
+
+All times here are 31 October **UTC**. Supervision started dotnet **PID 6136** at **22:27:30.3517440Z**; child testhost was **8576**. The dump filename identifies watchdog collection at **22:28:01**. TRX finishes at **22:28:11.9135094Z**; supervised dotnet exits **1** at **22:28:12.2089764Z**, with cleanup/exit confirmed immediately afterward. Supervised wall time is **41.8572324s**, below the outer two-minute deadline. The child output explicitly records 30-second inactivity and successful dump collection; its generic “test host process crashed” result is not evidence of an independent crash preceding that watchdog.
+
+The adapter reports discovery at relative **0.18–0.51s** and start at **0.54s**. Its origin is not the supervision start, so these do not provide an exact process-startup/test-action split. Dump writing itself reports **5,456ms**. Do not attribute all 41.857 seconds to test behavior or subtract overlapping dump/termination intervals as though they were independent phases.
+
+Managed dump analysis used workspace-local **dotnet-dump 10.0.750501**. Initial DAC loading failed with **0x80004002** (`dump-initial.log`): the hosted target is **.NET 10.0.14**, while local installed runtime is 10.0.12. Enabling the supported Microsoft symbol server loaded the matching DAC **10.0.1426.52326**, commit `0427b9abbead3fa64c6655eb4290c537397131fa`, and produced all managed stacks (`dump-stacks.log`); signature validation was not disabled. [Supported dump/symbol workflow](https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-dump).
+
+The active test stack on OS thread **0x135c** is anonymous migration-column `get_RuleId` prestub/reflection → EF `MigrationBuilder.CreateTable` → **`AddTradingRules.Up`** → migration operation/SQL generation → `MigrateAsync` → **`JournalDatabaseInitializer.InitializeAsync`** → **`JournalTestDatabase.CreateAsync`** → the first awaited call of the True test row. Its fixture creates a fresh GUID directory and executes the complete real database initializer. Account/trade/journal seeding, synthetic provider invocation, window construction, dispatcher work and source-notification assertions had not been reached. No foreground/capture, application-notification or Notebook regression is demonstrated by this stack.
+
+This is one managed minidump snapshot, not proof that one method consumed the entire watchdog interval or that a deadlock exists. Metadata records process creation at 22:27:30Z, dump writing at 22:28:11Z, and rounded aggregate user/kernel CPU of **4/0 seconds**. Those CPU fields are not wall-clock phase timings; they cannot identify scheduler contention, JIT, storage latency or a particular blocking operation. Native stacks/resource history are not established by the managed-stack output. [Minidump process-time field semantics](https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ns-minidumpapiset-minidump_misc_info).
+
+The prior CI #105 child with unchanged Daily Review source completed both rows (True **6.317529s**, False **2.895736s**; supervision **11.945272s**). This retained comparison establishes neither the reason for #106 nor a controlled performance difference; workload/order differs. It does not justify calling the abort flaky or resolved.
+
+**Smallest justified next action:** add opt-in elapsed/phase diagnostics specifically around fresh fixture creation, migration and seeding, before the existing STA breadcrumbs, and perform one bounded affected-child diagnostic under a recorded matching runtime/load. Retain both rows, shared dispatch, assertions, 30-second watchdog and two-minute process deadline. Measure cold setup before choosing any fixture optimization. Do not move required work outside the watchdog or change production to manufacture a pass. The exact excessive-setup cause remains open; no behavior correction is justified yet. No local reproduction was launched here because an unchanged passing run would not recover the missing historical timing.
+
+### B — Independent whole-step timeout and cancellation cleanup
+
+The workflow Test step invokes `./scripts/Test-Release.ps1 -ResultsDirectory TestResults` with **timeout-minutes: 15**. Restore and build are separate successful steps. The gate retains exclusive-first ordering, four-project parallel stage, per-child watchdogs and completeness checks. It intentionally continues after test failures. It has no debugger command or breakpoint at line 74.
+
+| Recorded interval / event | UTC / elapsed | Interpretation |
+| --- | --- | --- |
+| Restore | 22:19:26–22:20:06 / **40s** | Job API timestamps, second resolution; outside Test budget. |
+| Release build | 22:20:06–22:21:00 / **54s** | Successful; outside Test budget. |
+| Exclusive stage | 22:21:01.2487682–22:24:44.4291961 / **223.1804279s** | Includes stage command/accounting; 140/140 passed. |
+| Parallel stage start | **22:24:44.4483746** | Domain/Application complete shortly afterward; Desktop/Infrastructure continue. |
+| Daily Review supervised child | 22:27:30.3517440–22:28:12.2089764 / **41.8572324s** | Contained within Desktop and parallel elapsed time; not added to either. |
+| Last Infrastructure completed result | **22:35:59.881399** | `PlaybookPersistenceTests.ChangesAfterPreviewConflictWithoutUpdatingClassification(change: "execution")`. Next test starts 22:36:00.373. |
+| Cancellation message | **22:36:00.8611866** | About **676.413s** after parallel start and **899.612s** after exclusive start; Test step itself began 22:21:00 at API precision. |
+| Desktop completion message attempted | **22:36:00.988** | Host finishes while transport is being canceled; no final parent TRX. |
+| Debug prompt / line 74 / timeout error | **22:36:09.4118035 / .4127027 / .4497193** | Occur after cancellation, not the original cause. |
+| Artifact upload | 22:36:09–22:36:14 | Succeeded after Test failure; outside Test work. |
+
+At cancellation **both Infrastructure testhost PID 3056 and Desktop testhost PID 636 remained active**. Infrastructure's host log (`vstest.host.26-10-31_22-24-46_28904_5.log`) records a forcibly closed socket at 22:36:00.815 and parent runner PID 1048 exiting. Desktop (`vstest.host.26-10-31_22-24-52_23322_5.log`) continues Trades view-model cases until 22:36:00.969, then attempts its completion message; transport writes fail. The Daily Review process had exited nearly eight minutes earlier. Fixing that child alone does not establish that all required parallel work would fit the Test budget.
+
+| Result source | Completed / observed accounting | Limit |
+| --- | --- | --- |
+| Exclusive Desktop final parent TRX | **140 passed / 140**, zero failures/skips | Complete partition. |
+| Domain final parent TRX | **602/602**, zero failures/skips | Complete project. |
+| Application final parent TRX | **1,050/1,050**, zero failures/skips | Complete project. |
+| Parallel Desktop protocol completion | **2,129 passed / 2,131; two failed** | Host reports IsCanceled/IsAborted false, but completion transport fails during overall cancellation; no final parent TRX. |
+| Infrastructure protocol messages | **1,535 distinct passing results** | Partial observations only; no completion/final TRX. No final total or missing-case count inferred. |
+| Daily Review isolated child | **0 completed**, one running row aborted, one unstarted | Two parent failures share this single child; children are not added to parent totals. |
+
+`audit-host-results.ps1` reads original host protocol JSON using literal paths and `ConvertFrom-Json -DateKind String`, deduplicates by test identity, and includes the completion message's last result batch. Its extracted messages are diagnostic evidence, not replacement TRX. There is **no complete-gate total or normal final script exit code** for this interrupted run; the Test step is failed by timeout. No skipped results were observed in the finalized projects, but incomplete coverage cannot be declared complete from that fact. No overlapping project times or post-command `StageFinishedUtc` values were used to infer individual completion.
+
+At line 74, `finally` restores `$env:PTJ_TEST_RESULTS_DIRECTORY`; it is ordinary cleanup. Runner **2.338.2** cancellation code sends Ctrl+C, then Ctrl+Break if needed, then terminates the process tree. PowerShell can enter its debugger on Ctrl+Break. The observed ordering is consistent with cancellation escalation interrupting cleanup, not a pre-existing script hang; exact signal delivery is not recorded in the uploaded logs. [Matching runner source](https://raw.githubusercontent.com/actions/runner/v2.338.2/src/Runner.Sdk/ProcessInvoker.cs), [PowerShell debugger behavior](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_debuggers?view=powershell-7.6). No change to line 74 or debugger suppression is warranted by this evidence. Daily Review supervision confirms its own process exit; the hosted runner's final process-tree cleanup cannot be independently audited without runner diagnostics.
+
+**Smallest justified next action for the overall timeout:** retain per-project completion/phase and resource observations in a scoped follow-up, using these two still-active project paths as the targets. First establish which required setup/test work consumes their elapsed envelopes, independently of the Daily Review abort. Do not change the 15-minute limit, concurrency or assertions based on this incomplete run. Before another complete gate, the affected Daily Review family must complete both rows with exact child accounting under the existing deadlines, and any evidenced fixture correction must pass its focused regressions. A passing isolated child alone cannot settle the independent hosted budget question.
+
+### Commands, checks and status
+
+Read-only GitHub connector operations retrieved run/job metadata, logs, artifact metadata/download and branch-to-merge comparison. Local inspection used `git status --short`, `git rev-parse HEAD`, `git rev-parse 'HEAD^{tree}'`, source/history reads, literal-path TRX/XML/JSON reads and the retained audit script. Diagnostic commands (no application build/test execution):
+
+```powershell
+dotnet tool install dotnet-dump --tool-path TestResults/m2212c3-diagnosis/tools --add-source https://api.nuget.org/v3/index.json
+$gate = 'TestResults/m2212c3-diagnosis/ci106/release-20261031-222101-e564f7c10bf341b1842e1f6946d6f44e'
+$child = Join-Path $gate 'parallel/daily-review-acceptance-20261031-222730-172d79329f874cafb6ebf6995257ecf4'
+$dump = Join-Path $child 'dfd23df1-1cb7-4d30-adde-aa58106838e7/testhost_8576_20261031T222801_hangdump.dmp'
+& ./TestResults/m2212c3-diagnosis/tools/dotnet-dump.exe analyze $dump -c 'runtimes' -c 'clrthreads' -c 'clrstack -all' -c 'exit'
+& ./TestResults/m2212c3-diagnosis/tools/dotnet-dump.exe analyze $dump -c 'setsymbolserver -ms' -c 'clrthreads' -c 'clrstack -all' -c 'exit'
+pwsh -NoProfile -File TestResults/m2212c3-diagnosis/audit-host-results.ps1
+pwsh -NoProfile -File TestResults/m2212c3-diagnosis/check-whitespace.ps1
+pwsh -NoProfile -File TestResults/m2212c3-diagnosis/check-doc-links.ps1
+```
+
+Initial DAC failure is retained, not counted as a failed test; matching-DAC analysis and result parsing completed successfully. Tool installation, symbol download and artifact retrieval used approved network access solely for diagnosis. Whitespace checks passed; documentation checks passed **237 local targets, zero missing**, covering target existence, not external URLs/fragments. Local test/build/native counts for C3 are **zero**. Only ignored diagnostic artifacts/tool files were added outside the two documentation edits; no fixture instrumentation was necessary for this phase. No task-owned test/application process was started or left running.
+
+**C3 diagnosis is complete to the retained evidence boundary; neither failure is claimed corrected.** The child was aborted in database setup, with the source of its excess elapsed time unresolved. The overall gate was independently incomplete at its configured deadline. C1's local focused acceptance remains passed. This hosted failure, human B2 workflow results, real-application restart, Narrator, installed-codec and abrupt-termination recovery remain separate. **M22.12B and overall acceptance remain pending.**
+
 ## M22.12C1 — Recorded CI Notebook failures
 
 31 October 2026; one agent. Started on **clean develop / `d38d822c531c411ce0e65ceee54ae3a2998532fb`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The prior manual-handoff documentation was committed. Repository/ancestor guidance, README, this record, WPF CI guidance and the supplied log were inspected; no AGENTS.md or competing testhost was found. No application/provider data was opened.

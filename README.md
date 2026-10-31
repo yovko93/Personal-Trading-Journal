@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12C3 — Hosted watchdog and Test-step timeout diagnosis
+
+Read-only review of [CI #106 / PR #26](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41247637014) confirms two separate failures. The two Daily Review parents share **one child launch**: its `notifyChange: True` row was still creating a fresh database in EF migration when the 30-second inactivity watchdog collected a dump; the False child row never started. Matching-runtime dump analysis reached `AddTradingRules.Up`, before UI setup. The reason that setup exceeded the watchdog remains unresolved; no production defect or foreground interference is established.
+
+The later **900-second Test-step timeout** interrupted ongoing Infrastructure and Desktop work. Exclusive Desktop **140/140**, Domain **602/602** and Application **1,050/1,050** have final TRX. Parallel Desktop reported **2,129 passed / 2,131, two failed** during cancellation, but has no final parent TRX; Infrastructure retained **1,535 passing result messages** without completion. These are not complete-gate totals. The debug prompt at `Test-Release.ps1:74` follows cancellation and is not evidence that the cleanup assignment caused the timeout.
+
+Current clean-source baseline `develop` / **`43ee05cb9dcc0520908392a6c1b65891efacc016`** has the same tree as tested merge `8caec8aa5c351745c0a4a0171ffe0deb402acb62`, including C1 corrections. Only README and Notebook documentation change in C3. No tests, builds, workflow retries or behavior changes were made. [Diagnosis, timing, evidence gaps and next actions](docs/notebook.md#m2212c3--hosted-daily-review-watchdog-and-test-step-timeout). Evidence: `TestResults/m2212c3-diagnosis/summary.json`. **M22.12B and overall acceptance remain pending.** C1 local focused passes are preserved; this hosted gate is incomplete and failed.
+
 ## M22.12C1 — CI Notebook failure corrections
 
 Read-only retrieval identified [CI #105 / PR #26](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41242044641): checkout tested merge `98c8c9fdd8f14a3a4222c57a581371019529a6e3`, with the same tree as current `develop` / `d38d822c531c411ce0e65ceee54ae3a2998532fb`. Original logs, TRX and diagnostics are retained under `TestResults/m2212c1-verified/ci105/`.
