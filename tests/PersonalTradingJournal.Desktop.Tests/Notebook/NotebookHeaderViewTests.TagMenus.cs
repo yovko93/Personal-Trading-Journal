@@ -43,14 +43,15 @@ public sealed partial class NotebookHeaderViewTests
             var outside = new Button { Content = "Outside Notebook", Height = 32 };
             int outsideClicks = 0; outside.Click += (_, _) => outsideClicks++;
             var host = new DockPanel(); DockPanel.SetDock(outside, Dock.Top); host.Children.Add(outside); host.Children.Add(view);
-            var window = new Window { Content = host, Width = width, Height = 950, ShowInTaskbar = false };
+            var window = NotebookMenuLayout.Window(host, width, 932);
             var trace = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "input-sequence.log");
             try
             {
                 window.Show(); Pump(vm.ActivateAsync()); vm.Panel = 0; Layout();
                 Button Trigger(string name) => SwitchDescendants<Button>((ItemsControl)view.FindName("TagFilters"))
                     .Single(b => AutomationProperties.GetName(b) == $"Manage global tag: {name}");
-                // The lower popup must not cover the next native target. Switch upward.
+                // The fitted host keeps both triggers inside the desktop. Record actual
+                // popup geometry below: placement can flip at a work-area edge.
                 var a = Trigger("Beta"); var b = Trigger("Alpha");
                 Click(a); var first = a.ContextMenu!; Assert.True(first.IsOpen);
                 Click(a); Assert.False(a.ContextMenu?.IsOpen == true); // Fails on the old unconditional reopen.
@@ -103,7 +104,7 @@ public sealed partial class NotebookHeaderViewTests
                 Assert.Null(b.ContextMenu); Assert.False(note.ContextMenu.IsOpen);
             }
             finally { window.Close(); vm.Deactivate(); Pump(vm.DeactivationTask); app.Shutdown(); SynchronizationContext.SetSynchronizationContext(prior); }
-            void Layout() { view.Measure(new Size(width, 900)); view.Arrange(new Rect(0, 0, width, 900)); view.UpdateLayout(); Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle); }
+            void Layout() { window.UpdateLayout(); Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ContextIdle); }
             void Click(Button button)
             {
                 Assert.True(button.IsVisible && button.IsEnabled); button.BringIntoView(); Layout();
@@ -123,6 +124,9 @@ public sealed partial class NotebookHeaderViewTests
                 try { Dispatcher.PushFrame(frame); }
                 finally { timer.Stop(); timer.Tick -= Check; }
                 File.AppendAllText(trace, $"{DateTimeOffset.UtcNow:O} target={AutomationProperties.GetName(button)}; point={point}; expected={DescribeWindow(source.Handle)}; hit={DescribeWindow(WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)))}; foreground={DescribeWindow(GetForegroundWindow())}; activeMouseSource={Mouse.PrimaryDevice.ActiveSource}; hitReady={hit}\n");
+                GetWindowRect(source.Handle, out var ownerBounds);
+                GetWindowRect(WindowFromPoint(new NativePoint((int)point.X, (int)point.Y)), out var hitBounds);
+                File.AppendAllText(trace, $"ownerBounds={ownerBounds}; hitBounds={hitBounds}; workArea={SystemParameters.WorkArea}; logicalHost={host.ActualWidth},{host.ActualHeight}; targetBounds={button.TransformToAncestor(host).TransformBounds(new Rect(button.RenderSize))}; layoutValid={button.IsMeasureValid}/{button.IsArrangeValid}\n");
                 Assert.True(hit, "Intended control does not own the native target coordinates.");
                 int ups = 0;
                 void Input(object sender, ProcessInputEventArgs e) { if (e.StagingItem.Input.RoutedEvent == Mouse.MouseUpEvent) { ups++; Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => frame.Continue = false); } }

@@ -45,7 +45,7 @@ public sealed partial class NotebookHeaderViewTests
             var view = new NotebookWorkspaceView { DataContext = vm, Width = width, Height = 900 };
             var outside = new Button { Content = "Outside Notebook", Height = 32 };
             var host = new DockPanel(); DockPanel.SetDock(outside, Dock.Top); host.Children.Add(outside); host.Children.Add(view);
-            var window = new Window { Content = host, SizeToContent = SizeToContent.WidthAndHeight, ShowInTaskbar = false };
+            var window = NotebookMenuLayout.Window(host, width, 932);
             string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "menu-evidence");
             Directory.CreateDirectory(directory);
             var log = new List<string>(); int mouseUps = 0;

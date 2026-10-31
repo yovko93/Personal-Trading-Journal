@@ -86,12 +86,34 @@ public sealed class NotebookViewTests
                 Pump(vm.RefreshCommand.ExecuteAsync(null)); Layout();
                 Assert.Same(vm.Scope, folders.SelectedItem); Assert.Equal(folder.Id, vm.Scope!.FolderId);
                 vm.SelectedNote = vm.Notes.Single(n => n.Title.StartsWith("NQ")); Pump(vm.LoadTask); Layout();
+                var preview = (RichTextBox)view.FindName("Preview");
+                var title = (TextBox)view.FindName("TitleEditor");
+                var toolbar = (WrapPanel)view.FindName("FormattingToolbar");
+                var mode = (Button)view.FindName("EditNoteButton");
+                var originalDocument = preview.Document;
+                string originalText = new TextRange(preview.Document.ContentStart, preview.Document.ContentEnd).Text;
+                Assert.False(vm.IsEditing); Assert.True(preview.IsReadOnly); Assert.True(title.IsReadOnly);
+                Assert.Equal(Visibility.Collapsed, ((Border)toolbar.Parent).Visibility);
+                Assert.Equal("Edit", AutomationProperties.GetName(mode));
+                Assert.Contains("Observation", originalText); Assert.Contains("Checked", originalText);
+                Assert.Single(NotebookEditorAdapter.Read(preview.Document).ImageNodes);
+                Assert.NotNull(new RichTextBoxAutomationPeer(preview).GetPattern(PatternInterface.Text));
+                Render("reading");
+                // Enter through the actual bound command before exercising the original
+                // editable-content and dirty-navigation safety contract.
+                Assert.Same(vm.EditModeCommand, mode.Command);
+                Pump(((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)mode.Command!).ExecuteAsync(mode.CommandParameter)); Layout();
+                Assert.True(vm.IsEditing); Assert.False(title.IsReadOnly);
+                Assert.Equal(Visibility.Visible, ((Border)toolbar.Parent).Visibility);
+                Assert.Equal("Done", AutomationProperties.GetName(mode));
+                Assert.Same(originalDocument, preview.Document);
+                Assert.Equal(originalText, new TextRange(preview.Document.ContentStart, preview.Document.ContentEnd).Text);
+                Assert.Equal(0, data.Writes);
                 var savedTitle = vm.DraftTitle; vm.DraftTitle = "Retained dirty draft";
                 workspace.SetCurrentValue(ListBox.SelectedItemProperty, workspace.Items[2]); Pump(vm.LoadTask); Layout();
                 Assert.Equal(folder.Id, vm.Scope!.FolderId); Assert.Same(vm.Scope, folders.SelectedItem); Assert.Null(workspace.SelectedItem);
                 Assert.Equal("Retained dirty draft", vm.DraftTitle); Assert.True(vm.IsDirty);
                 vm.DraftTitle = savedTitle;
-                var preview = (RichTextBox)view.FindName("Preview");
                 string text = new TextRange(preview.Document.ContentStart, preview.Document.ContentEnd).Text;
                 Assert.Contains("Observation", text); Assert.Contains("Checked", text);
                 Assert.Single(NotebookEditorAdapter.Read(preview.Document).ImageNodes);

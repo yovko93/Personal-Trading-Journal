@@ -28,9 +28,19 @@ internal static class NotebookOverflowEvidence
             (int)Math.Ceiling(root.ActualHeight * scale), dpi, dpi, PixelFormats.Pbgra32);
         surface.Render(root);
         var atRoot = button.TranslatePoint(new Point(0, 0), root);
-        var bitmap = new CroppedBitmap(surface, new Int32Rect((int)Math.Round(atRoot.X * scale),
+        var crop = new Int32Rect((int)Math.Round(atRoot.X * scale),
             (int)Math.Round(atRoot.Y * scale), (int)Math.Floor(button.ActualWidth * scale),
-            (int)Math.Floor(button.ActualHeight * scale)));
+            (int)Math.Floor(button.ActualHeight * scale));
+        string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "overflow-evidence");
+        Directory.CreateDirectory(directory);
+        File.AppendAllText(Path.Combine(directory, "crop.jsonl"), JsonSerializer.Serialize(new {
+            state, dpi, root.ActualWidth, root.ActualHeight, surface.PixelWidth, surface.PixelHeight,
+            Origin = atRoot.ToString(), Crop = crop.ToString(),
+            RootLayoutValid = root.IsMeasureValid && root.IsArrangeValid,
+            ButtonLayoutValid = button.IsMeasureValid && button.IsArrangeValid
+        }) + Environment.NewLine);
+        AssertValidCrop(crop, surface.PixelWidth, surface.PixelHeight);
+        var bitmap = new CroppedBitmap(surface, crop);
         int stride = bitmap.PixelWidth * 4;
         var pixels = new byte[stride * bitmap.PixelHeight]; bitmap.CopyPixels(pixels, stride, 0);
         int y = (int)((rect.Top + rect.Height / 2) * scale);
@@ -44,8 +54,6 @@ internal static class NotebookOverflowEvidence
             if (ink && !inside) runs.Add(x);
             inside = ink;
         }
-        string directory = Path.Combine(Environment.GetEnvironmentVariable("PTJ_TEST_RESULTS_DIRECTORY")!, "overflow-evidence");
-        Directory.CreateDirectory(directory);
         string name = AutomationProperties.GetName(button);
         File.AppendAllText(Path.Combine(directory, "geometry.jsonl"), JsonSerializer.Serialize(new
         {
@@ -57,4 +65,9 @@ internal static class NotebookOverflowEvidence
         using (var file = File.Create(Path.Combine(directory, state + ".png"))) encoder.Save(file);
         Assert.True(runs.Count == 3, $"{name} / {state}: expected three separated visible dots, found {runs.Count}.");
     }
+
+    internal static void AssertValidCrop(Int32Rect crop, int width, int height) =>
+        Assert.True(crop.Width > 0 && crop.Height > 0 && crop.X >= 0 && crop.Y >= 0 &&
+            (long)crop.X + crop.Width <= width && (long)crop.Y + crop.Height <= height,
+            $"Overflow control crop {crop} must be wholly inside rendered root {width}x{height}; no clamping or empty evidence is allowed.");
 }

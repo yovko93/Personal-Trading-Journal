@@ -1,5 +1,71 @@
 # Notebook
 
+## M22.12C1 — Recorded CI Notebook failures
+
+31 October 2026; one agent. Started on **clean develop / `d38d822c531c411ce0e65ceee54ae3a2998532fb`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The prior manual-handoff documentation was committed. Repository/ancestor guidance, README, this record, WPF CI guidance and the supplied log were inspected; no AGENTS.md or competing testhost was found. No application/provider data was opened.
+
+### Original provenance and failure mapping
+
+[CI #105](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41242044641), attempt 1, PR #26, validate job `124657759555`, ran on Windows Server 2025. The API's branch SHA is `d38d822c531c411ce0e65ceee54ae3a2998532fb`; checkout logs identify the **actual tested PR merge SHA `98c8c9fdd8f14a3a4222c57a581371019529a6e3`**, merging it into `a279aaf28845e614b8ca94a2e533aaa52f45957c`. Both branch and merge have tree **`6b0ff47efd8b4294d0dc485c0fa4e1399f17a91a`**; GitHub compare reports no file differences. Current source therefore matches the tested source before C1 edits, rather than merely resembling its line numbers.
+
+The original `windows-test-results` artifact, ID `13057469570`, was downloaded read-only through the GitHub connector. ZIP SHA-256 **`3886cd86dea9bdc58300553e125faa681f3135159d27b2deec375b91fde627c6`** matches its published digest. Evidence root **`TestResults/m2212c1-verified/`** retains `attached-ci-log.txt`, `ci-job.log`, `provenance.json`, `ci105.zip`, extracted `ci105/release-20261031-210852-f0f4b473cb5c4f9285d09216dd28e2b9/` and literal-path-safe `ci-failures.json`. No hang dump was present. No workflow was triggered or retried. Initial restricted network download was denied; the approved download succeeded without changing repository/network configuration.
+
+Original result: **5,519 passed / 5,526 total, seven failed, zero skipped, exit 1**. Domain **602/602**, Application **1,050/1,050**, Infrastructure **1,608/1,608**; Desktop exclusive **137/140**, parallel **2,122/2,126**. These are retained failures, not replaced by local results.
+
+| Group | Original parent / child evidence under the extracted gate | Mechanism and responsibility |
+| --- | --- | --- |
+| Overflow: `OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard`, Light and Dark / 1280 / 96 | `exclusive-wpf/notebook-menus-20261031-211109-2dece4e3e8104f508e064d0791ef243d/` and `notebook-menus-20261031-211113-f5d7aa6029e94341b06cd5f2193ac458/`; raw TRX, keyboard readiness and `menu-evidence/*-NoteOverflow-closed.png` | Both fail before native clicking, at `NotebookOverflowEvidence.Verify` crop creation. The retained wide image is visibly clipped before the right-hand note actions. The same run's native log records a **1024×768** desktop. The fixed 1280×900 child can exceed Windows' constrained SizeToContent host; the root-sized bitmap then cannot contain the button crop. This is a native fixture viewport defect, not evidence of malformed ellipsis geometry or a production DPI conversion defect. Original failing runs did not record numerical crop/root bounds before throwing. |
+| Tag: `TagMenuRoutedToggleDismissalAndCapturedOwnership`, Light / 1280 / 96 | `exclusive-wpf/notebook-tag-menus-20261031-211121-09fa38d34b2c41f9a96e44ecabdf130c/input-sequence.log` and TRX | Five Beta clicks at **(339,642)** pass native ownership. The switch to Alpha at **(339,602)** fails after the unchanged three-second readiness bound: expected owner **0x110146**, hit **0x40124**, both **PID 6248 / TID 8892**, with the owner still foreground. This is same-child popup obstruction, not evidenced Chrome/ChatGPT interference. The fixed-height fixture and assumption that switching upward always avoids the popup do not account for screen-edge placement. Original popup bounds were not retained, so the precise placement-flip geometry remains an inference, not a recorded fact. |
+| Workspace: `CompiledWorkspaceProjectsSafeContentAndKeepsPanelsActionsReachable`, Light/Dark × 1280/96 and 480/240 | Parallel Desktop outer TRX and four `parallel/notebook-workspace-*` directories | Line 98 expected the editor writable immediately after selecting an existing note. A21 deliberately defaults existing notes to reading mode. This is an outdated fixture expectation/setup, not a production failure to enter Edit. The original rich-content, automation and dirty-navigation safety purpose remains required. |
+
+There are **seven failed parent identities** and **seven distinct failed child identities**, but **19 failed child executions**: four workspace parents each dispatch all four rows (16 failures), plus the three individually selected native failures. The mapping contains 26 failed result records including parent propagation. Whole-class workspace dispatch remains unchanged; optimizing it is outside C1.
+
+### Narrow corrections
+
+`NotebookMenuLayout` gives the two native menu fixtures a fixed logical viewport inside a down-only Viewbox and an ordinary window bounded/positioned within `SystemParameters.WorkArea`. Thus all theme/size cases retain their logical layout while native controls fit the actual desktop. It does not change application layout, screen resolution, popup placement, foreground policies, production commands, deadlines or input readiness. The tag fixture now lets the owner arrange its content instead of manually arranging its child to a conflicting native size. Native traces additionally retain owner/hit bounds, logical-host size, work area and layout validity.
+
+The overflow helper retains full-root rendering and the **three separated visible-dot** assertion. It now records DPI, root/pixel dimensions, crop and layout validity **before** cropping, and explicitly rejects nonpositive, negative or outside rectangles. It does not clamp, skip, substitute a child-only bitmap or accept empty evidence. Controlled small-surface tests retain 1280/96 and 480/240 logical cases; invalid-region regressions require failure.
+
+The workspace scenario now asserts existing-note reading mode, read-only title/body, hidden formatting, rich text/checklist/image reference and accessible text. It invokes the actual bound Edit command, verifies the same document/text and zero writes, then continues the original editable-content and dirty-navigation/cancel assertions. All four theme/size rows and the later unavailable/error/loading/empty checks remain.
+
+### Focused verification
+
+Release build: **zero warnings/errors, exit 0**, `build.log`. No production sources changed. The non-native invocation passed **33 parents**, zero failures/skips, exit 0: four workspace rows, five layout/crop regressions, 23 exact-selection regressions and one scheduling check. Workspace child execution is **16 passes across four distinct identities**, not 16 new cases. Selection-negative probes additionally produce one deliberately wrong-row passing child and a zero-match TRX; their parent tests verify rejection, so these are not application coverage or hidden missing results. `non-native-audit.json` records every TRX.
+
+```powershell
+dotnet build tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path (Get-Location) 'TestResults/m2212c1-verified/non-native'
+$filter = 'FullyQualifiedName~NotebookViewTests|FullyQualifiedName~NotebookMenuLayoutTests|FullyQualifiedName~IsolatedTestSelectionTests|FullyQualifiedName~ReleaseSchedulingTests'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter $filter --logger 'trx;LogFileName=focused.trx' --results-directory TestResults/m2212c1-verified/non-native
+# User-confirmed idle desktop; separate existing exclusive collection, no overlapping testhosts:
+pwsh -NoProfile -File TestResults/m2212c1-verified/run-native.ps1
+```
+
+The retained native script selects all four note-menu rows, both tag-menu rows and all four presentation rows sharing the overflow evidence helper, with `PTJ_NOTEBOOK_MENU_DIAGNOSTICS=1`. Existing exact child selection/cardinality, exclusive collection, 90-second process/30-second case watchdogs and cleanup remain unchanged. The non-native selection completed before native work. The user confirmed the idle desktop; no Computer Use capture recovery was attempted.
+
+The native/shared-presentation selection passed **10/10 parents and 10/10 exactly matching isolated children**, zero failures/skips, exit 0. `native-audit.json` verifies one result per child, ten distinct identities matching the parents, and all ten supervision logs confirm exit/cleanup. No testhost remained. All previously failing native rows completed their full assertions; no local failure or retry occurred. The user supplied an idle desktop, and this invocation used the approved supported executor with input-desktop access. Local work area was **1536×824 DIP** at the actual Windows DPI (native traces use screen pixels); requested 96/240 DPI values remain bitmap evidence settings, not a claim that the physical monitor switched DPI. Target ownership stayed checked for every interaction. No unrelated process was closed, no focus/capture guard bypassed, and no Computer Use recovery ran.
+
+Combined, non-overlapping C1 selections pass **43 distinct parents**. Notebook child results are **26 passing executions across 14 distinct identities**: workspace 16 executions/four identities plus native/presentation ten executions/ten identities. The exact-selection negative probes add one deliberately wrong-row child result and one zero-match result file, explicitly excluded from Notebook coverage; their parent assertions pass by rejecting those results. All original CI failures remain retained. The original seven failed groups are corrected within the verified local scope; no production correction was warranted.
+
+For the corrected wide crop, retained geometry is **1280×932 pixels**, button origin **(1227,111.62 DIP)**, crop **(1227,112,36,36)** at 96 DPI, both root and button layout valid. Narrow 240-DPI roots are **1200×2330 pixels**, crop **(1068,451,90,90)**. Every focus/open/hover/disabled check still requires three separated visible dots. Inspected actual crops: `native/notebook-menus-20261031-214918-d4e7885322e34d3e99f90d59319c5d12/overflow-evidence/Light-1280-96-NoteOverflow-focus.png`, `native/notebook-menus-20261031-214925-b4116b6db5d148f5a667a5c7aac00064/overflow-evidence/Dark-1280-96-NoteOverflow-open.png`, `native/notebook-menus-20261031-214932-345ae7d4e3b94b569d8fd620bc90eea6/overflow-evidence/Light-480-240-NoteOverflow-disabled.png`, and `native/notebook-menus-20261031-214910-9dfd7dac88e14970a07b3a861341d6dc/overflow-evidence/Dark-480-240-NoteOverflow-hover.png`; all show three readable dots, with focus decoration preserved where applicable.
+
+`workspace-renders/Light-1280-96-reading.png` and `workspace-renders/Dark-480-240-content.png` were also visually inspected: mode-dependent chrome and complete note actions are readable; the synthetic unavailable-image placeholder intentionally preserves its reference. Other workspace renders are retained, not all claimed inspected. Local fixture success cannot establish matching hosted acceptance, human keyboard/Narrator or real-journal workflows. Native mouse checks use synthetic test windows; keyboard events follow the retained WPF helper with actual focus/capture checks, not a human keyboard assessment.
+
+### Inventory and handoff
+
+Exact C1 inventory: **six modified files and two added files**, no pre-existing changes:
+
+- `README.md`
+- `docs/notebook.md`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.Menus.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookHeaderViewTests.TagMenus.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookOverflowEvidence.cs`
+- `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookViewTests.cs`
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookMenuLayout.cs`
+- Added `tests/PersonalTradingJournal.Desktop.Tests/Notebook/NotebookMenuLayoutTests.cs`
+
+Supporting checks after documentation edits passed: `check-whitespace.ps1` covers tracked changes and both new files; `check-doc-links.ps1` checked **236 local targets, zero missing** (target existence, not external URL or fragment validation). Both scripts and outputs are in the evidence root. No schema/export/archive, scheduling, isolation, CI configuration or timeout changes. **C1 focused verification passed; M22.12B and overall acceptance remain pending.** A complete Release gate is the next automated acceptance step; it was not launched here and no hosted workflow was triggered. The user can resume normal desktop use. Human manual results, real-application restart, installed-codec, abrupt-termination recovery and matching hosted verification remain separate. The original CI tag log did not retain popup bounds, so its exact screen-edge placement remains a qualified inference even though the corrected local full interaction passes.
+
 ## M22.12A23.1 — Tag-menu keyboard readiness and completed verification
 
 29 October 2026, one agent. Actual baseline: **clean develop / `ee5c005c2d60537c2c8169cbd07e9bfa83a235b0`**, worktree `C:/Users/Yovko/source/repos/Personal-Trading-Journal`. The intervening commit contains all six A23 files; none remained uncommitted. Repository guidance, README, A23 documentation, raw child output/TRX and supervision/readiness evidence were inspected before changes. No AGENTS.md or competing testhost was found. A23 artifacts are preserved unchanged.

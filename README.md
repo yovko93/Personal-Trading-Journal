@@ -1,5 +1,13 @@
 # Personal Trading Journal
 
+## M22.12C1 — CI Notebook failure corrections
+
+Read-only retrieval identified [CI #105 / PR #26](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41242044641): checkout tested merge `98c8c9fdd8f14a3a4222c57a581371019529a6e3`, with the same tree as current `develop` / `d38d822c531c411ce0e65ceee54ae3a2998532fb`. Original logs, TRX and diagnostics are retained under `TestResults/m2212c1-verified/ci105/`.
+
+The corrections are confined to fixtures: fit native menu hosts to the available desktop without changing logical case dimensions, diagnose invalid bitmap crops without clamping, and verify A21 reading mode before explicitly entering Edit in the workspace scenario. Release build passed with zero warnings/errors. **43 distinct parents passed** across two non-overlapping selections, zero failures/skips, both exits 0. Notebook children passed **26 executions / 14 distinct identities**; the workspace family still repeats its four-row child suite four times. Native menu and shared presentation checks passed on the user-prepared idle desktop. [Diagnosis, inventory and evidence](docs/notebook.md#m2212c1--recorded-ci-notebook-failures). Summary: `TestResults/m2212c1-verified/summary.json`.
+
+**C1 focused verification passed. M22.12B and overall acceptance remain pending.** The next automated acceptance step is a complete Release gate; none ran here. Local focused evidence is not matching hosted acceptance.
+
 ## M22.12B2 — Manual verification resumed after A21–A23
 
 The existing isolated-profile procedure now starts with **E1–E6** for reading/Edit/Done, creation-button styling and tag menus, followed by the original checks with their IDs preserved. [Current launch command, isolation checks and grouped checklist](docs/notebook.md#m2212b2--prepared-human-native-verification). At clean `develop` / `56b91c37a1c8f5a680a83b57a52684888ddbdfd1`, the Release DLL matches A23.1's build; the compiled isolation factory was rechecked. No build, app launch, capture or tests were needed.
