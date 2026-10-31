@@ -276,6 +276,16 @@ public sealed class TradingSetupsViewModel : ObservableObject
     private async Task ViewAsync(Guid setupId, CancellationToken token) =>
         _ = await LoadDetailsAsync(setupId, token);
 
+    /// <summary>Read-only identity navigation; independent of list membership/activation.</summary>
+    public async Task<bool> OpenDetailsByIdAsync(Guid setupId, CancellationToken token = default)
+    {
+        if (setupId == Guid.Empty || IsCreateFormVisible || IsEditFormVisible) return false;
+        // Drain the destination's existing list loader before invoking its normal details use case.
+        await _loadGate.WaitAsync(token); _loadGate.Release();
+        if (IsBusy) return false;
+        return (await LoadDetailsAsync(setupId, token))?.Id == setupId;
+    }
+
     private async Task EditAsync(Guid setupId, CancellationToken token)
     {
         TradingSetupDetails? setup = await LoadDetailsAsync(setupId, token);

@@ -30,6 +30,8 @@
              xmlns:ruleViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Rules"
              xmlns:planViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.TradingPlans"
              xmlns:planViews="clr-namespace:PersonalTradingJournal.Desktop.Views.TradingPlans"
+             xmlns:notebookViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Notebook"
+             xmlns:notebookViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Notebook"
              xmlns:settingsViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Settings"
              xmlns:settingsViews="clr-namespace:PersonalTradingJournal.Desktop.Views.Settings"
              xmlns:tradeViewModels="clr-namespace:PersonalTradingJournal.Desktop.ViewModels.Trades"
@@ -56,6 +58,9 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type planViewModels:TradingPlanWorkspaceViewModel}">
                 <planViews:TradingPlanWorkspaceView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type notebookViewModels:NotebookWorkspaceViewModel}">
+                <notebookViews:NotebookWorkspaceView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type breakdownViewModels:BreakdownViewModel}">
                 <breakdownViews:BreakdownView />

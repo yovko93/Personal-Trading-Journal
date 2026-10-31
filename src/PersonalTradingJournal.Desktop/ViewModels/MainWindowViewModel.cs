@@ -20,7 +20,7 @@ using PersonalTradingJournal.Desktop.ViewModels.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.ViewModels;
 
-public sealed class MainWindowViewModel : ObservableObject, IDisposable
+public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
     private readonly AccountsViewModel _accountsViewModel;
     private readonly DashboardViewModel _dashboardViewModel;
@@ -35,6 +35,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
     private readonly PlaybookViewModel? _playbookViewModel;
     private readonly RulesViewModel? _rulesViewModel;
     private readonly TradingPlanWorkspaceViewModel? _tradingPlan;
+    private readonly PersonalTradingJournal.Desktop.ViewModels.Notebook.NotebookWorkspaceViewModel? _notebook;
     private bool _planNavigation;
     public Task PlanNavigationTask { get; private set; } = Task.CompletedTask;
     private readonly PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? _periodReviews;
@@ -75,7 +76,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         RulesViewModel? rulesViewModel = null,
         PersonalTradingJournal.Desktop.ViewModels.PeriodReviews.PeriodReviewWorkspaces? periodReviews = null,
         BreakdownViewModel? breakdownViewModel = null,
-        TradingPlanWorkspaceViewModel? tradingPlan = null)
+        TradingPlanWorkspaceViewModel? tradingPlan = null,
+        PersonalTradingJournal.Desktop.ViewModels.Notebook.NotebookWorkspaceViewModel? notebook = null)
     {
         ArgumentNullException.ThrowIfNull(dashboardViewModel);
         ArgumentNullException.ThrowIfNull(calendarViewModel);
@@ -102,6 +104,9 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         _playbookViewModel = playbookViewModel;
         _rulesViewModel = rulesViewModel;
         _tradingPlan = tradingPlan;
+        _notebook = notebook;
+        if (_notebook is not null) _notebook.OpenLinkedTarget = OpenNotebookTargetAsync;
+        ReturnToNotebookCommand = new RelayCommand(() => Navigate(NavigationDestination.Notebook), () => CanReturnToNotebook);
         if (tradingPlan is not null)
         {
             tradingPlan.OpenPlaybook = OpenPlanPlaybookAsync;
@@ -269,6 +274,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     internal bool CanCloseWindow()
     {
+        if (CurrentDestination == NavigationDestination.Notebook && _notebook?.TryLeave() == false) return false;
         if (_tradingPlan?.HasLeaveConsent == false) return false;
         if (CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return false;
         if (_settingsViewModel.DataBackups?.TryLeave() == false) return false;
@@ -290,6 +296,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     internal void CompleteWindowClose()
     {
+        _notebook?.CompleteLeave();
+        _notebook?.Deactivate();
         _tradingPlan?.CompleteLeave();
         _tradesViewModel.DeactivateBrowse();
         _breakdownViewModel?.Deactivate();
@@ -301,6 +309,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        if (_notebook is not null) _notebook.OpenLinkedTarget = null;
+        _notebook?.Dispose();
         if (_tradingPlan is not null) { _tradingPlan.OpenDailyReview = null; _tradingPlan.ReturnToReview = null; }
         _tradingPlan?.Dispose();
         _tradesViewModel.DisposeBrowse(); _tradesViewModel.ReturnToBreakdownAsync = null;
@@ -449,16 +459,36 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
     private void Navigate(NavigationDestination destination) => Navigate(destination, null);
 
-    internal bool NeedsPlanClosePreparation => _tradingPlan?.NeedsClosePreparation == true;
-    internal Task<bool> PreparePlanCloseAsync() => _tradingPlan?.PrepareLeaveAsync() ?? Task.FromResult(true);
-    internal void CancelPlanClose() => _tradingPlan?.ClearLeaveConsent();
+    internal bool NeedsPlanClosePreparation => _tradingPlan?.NeedsClosePreparation == true ||
+        CurrentDestination == NavigationDestination.Notebook && _notebook?.NeedsClosePreparation == true;
+    internal async Task<bool> PreparePlanCloseAsync()
+    {
+        if (_tradingPlan is not null && !await _tradingPlan.PrepareLeaveAsync()) return false;
+        if (CurrentDestination == NavigationDestination.Notebook && _notebook is not null && !await _notebook.PrepareLeaveAsync())
+        { _tradingPlan?.ClearLeaveConsent(); return false; }
+        return true;
+    }
+    internal void CancelPlanClose() { _tradingPlan?.ClearLeaveConsent(); _notebook?.ClearLeaveConsent(); }
 
     private void Navigate(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null)
     {
         if (_planNavigation) return;
+        if (CurrentDestination == NavigationDestination.Notebook && destination != CurrentDestination && _notebook?.NeedsClosePreparation == true)
+        { PlanNavigationTask = NavigateWithNotebookGuardAsync(destination, expectedJournalId, breakdownScope); return; }
         if (destination != NavigationDestination.TradingPlan && destination != CurrentDestination && _tradingPlan?.NeedsClosePreparation == true)
         { PlanNavigationTask = NavigateWithPlanGuardAsync(destination, expectedJournalId, breakdownScope); return; }
         NavigateCore(destination, expectedJournalId, breakdownScope);
+    }
+    private async Task NavigateWithNotebookGuardAsync(NavigationDestination destination, Guid? journal, BreakdownTradeContext? scope)
+    {
+        _planNavigation = true;
+        try
+        {
+            if (!await PreparePlanCloseAsync() || _disposed) return;
+            NavigateCore(destination, journal, scope);
+            if (CurrentDestination == destination) { _notebook!.CompleteLeave(); _tradingPlan?.CompleteLeave(); }
+        }
+        finally { CancelPlanClose(); _planNavigation = false; }
     }
     private async Task NavigateWithPlanGuardAsync(NavigationDestination destination, Guid? journal, BreakdownTradeContext? scope)
     {
@@ -521,9 +551,11 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         return _dailyReviewViewModel.LoadTask;
     }
 
-    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null, bool retainReview = false)
+    private void NavigateCore(NavigationDestination destination, Guid? expectedJournalId, BreakdownTradeContext? breakdownScope = null, bool retainReview = false, Func<bool>? commitGuard = null)
     {
         if (_disposed) return;
+        if (destination == NavigationDestination.Notebook && destination == CurrentDestination) return;
+        if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Notebook && _notebook?.TryLeave() == false) return;
         if (destination != CurrentDestination && CurrentDestination == NavigationDestination.Trades && !_tradesViewModel.TryLeaveBreakdownScope()) return;
         if (destination == CurrentDestination && ActivePeriod is not null) return;
         if (destination != CurrentDestination && _settingsViewModel.DataBackups?.TryLeave() == false) return;
@@ -540,6 +572,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
             !_journalViewModel.TryLeave())
             return;
 
+        if (commitGuard?.Invoke() == false) return; // Synchronous leave guards can pump modal UI.
         var changed = InvalidateTopstepChanges();
         if (changed.Trades) OnTradeDataCommitted(this, EventArgs.Empty);
         ExpandContainingSection(destination);
@@ -555,6 +588,7 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         bool returningToBreakdown = destination == NavigationDestination.Breakdown && CurrentDestination == NavigationDestination.Trades && _tradesViewModel.HasBreakdownScope;
         if (breakdownScope is not null && !_tradesViewModel.SetBreakdownScope(breakdownScope)) return;
+        if (commitGuard?.Invoke() == false) return;
         if (CurrentDestination == NavigationDestination.Trades) _tradesViewModel.DeactivateBrowse();
         if (CurrentDestination == NavigationDestination.Dashboard) _dashboardViewModel.Deactivate();
         if (CurrentDestination == NavigationDestination.Breakdown) _breakdownViewModel?.Deactivate();
@@ -564,11 +598,14 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
         if (CurrentDestination == NavigationDestination.DailyReview) _dailyReviewViewModel?.Deactivate(retainReview);
         if (CurrentDestination == NavigationDestination.Playbook) _playbookViewModel?.Deactivate();
         if (CurrentDestination == NavigationDestination.Rules) _rulesViewModel?.Deactivate();
+        if (CurrentDestination == NavigationDestination.Notebook) _notebook?.Deactivate();
         CurrentDestination = destination;
+        NotifyNotebookReturn();
         UpdateNavigationSelection(destination);
         CurrentContentViewModel = destination switch
         {
             NavigationDestination.Dashboard => _dashboardViewModel,
+            NavigationDestination.Notebook when _notebook is not null => _notebook,
             NavigationDestination.Breakdown when _breakdownViewModel is not null => _breakdownViewModel,
             NavigationDestination.Calendar => _calendarViewModel,
             NavigationDestination.Journal => _journalViewModel,
@@ -590,6 +627,8 @@ public sealed class MainWindowViewModel : ObservableObject, IDisposable
 
         if (destination == NavigationDestination.Calendar)
             _ = _calendarViewModel.ActivateAsync();
+        if (destination == NavigationDestination.Notebook && _notebook is not null)
+            _ = _notebook.ActivateAsync();
         if (destination == NavigationDestination.Breakdown && _breakdownViewModel is not null)
         {
             _ = _breakdownViewModel.ActivateAsync();

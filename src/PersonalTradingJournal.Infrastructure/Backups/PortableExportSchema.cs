@@ -1,6 +1,6 @@
 namespace PersonalTradingJournal.Infrastructure.Backups;
 
-// Deliberate version-14 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
+// Deliberate version-18 allowlist, not reflection over future DB columns. Any field/semantic change requires contract review.
 internal enum ExportValueKind { Text, Id, Decimal, Integer, Boolean, Utc, NewYorkDate }
 internal sealed record ExportColumn(string Column, ExportValueKind Kind, string? Alias = null)
 {
@@ -18,6 +18,26 @@ internal static class PortableExportSchema
     private static ExportColumn Y(string n, string alias) => new(n, ExportValueKind.NewYorkDate, alias);
     internal static readonly ExportTable[] Tables =
     [
+        new("notebookOwnedImageFiles", "NotebookOwnedImageFiles", "Id", false,
+            [I("Id"), I("NoteId"), T("StorageKey"), N("SizeBytes"), T("Sha256"), B("CleanupPending")]),
+        new("notebookRecoveryDrafts", "NotebookRecoveryDrafts", "Id", false,
+            [I("Id"), I("NoteId"), N("EnvelopeVersion"), N("ExpectedVersion"), N("Revision"),
+             T("Title"), T("DocumentJson"), U("CheckpointedAtUtc")]),
+        new("notebookFolders", "NotebookFolders", "Id", false,
+            [I("Id"), T("Name"), T("NameKey"), N("Version"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
+        new("notebookTags", "NotebookTags", "Id", false,
+            [I("Id"), T("Name"), T("NameKey"), N("Version"), U("CreatedAtUtc"), U("UpdatedAtUtc")]),
+        new("notebookNotes", "NotebookNotes", "Id", false,
+            [I("Id"), T("Title"), T("TitleKey"), T("DocumentJson"), N("ContentVersion"), T("PlainText"), T("SearchText"),
+             I("FolderId"), N("State"), B("IsPinned"), N("PreviousState"), I("PreviousFolderId"), N("Version"),
+             U("CreatedAtUtc"), U("UpdatedAtUtc")]),
+        new("notebookTagAssignments", "NotebookTagAssignments", "NoteId,TagId", false,
+            [I("NoteId"), I("TagId")]),
+        new("notebookLinks", "NotebookLinks", "NoteId,Kind,TargetId", false,
+            [I("NoteId"), N("Kind"), I("TargetId"), T("LastKnownLabel")]),
+        new("notebookImages", "NotebookImages", "NoteId,Position,Id", false,
+            [I("NoteId"), I("Id"), N("Position"), N("Ownership"), T("StorageKey"), N("SizeBytes"), T("Sha256"),
+             I("TradeId"), I("TradeScreenshotId"), T("Caption"), T("AlternativeText")]),
         new("dailyTradingPrinciples", "DailyTradingPrinciples", "Position,Id", false,
             [I("Id"), T("Text"), N("Position"), U("CreatedAtUtc")]),
         new("dailyTradingPrincipleState", "DailyTradingPrincipleState", "Id", false, [N("Id"), N("Version")]),
