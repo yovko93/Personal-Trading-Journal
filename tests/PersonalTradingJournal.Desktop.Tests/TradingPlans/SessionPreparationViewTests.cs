@@ -12,6 +12,8 @@ using PersonalTradingJournal.Desktop.Views.TradingPlans;
 
 namespace PersonalTradingJournal.Desktop.Tests.TradingPlans;
 
+[Collection(ExclusiveWpfCollection.Name)]
+[Trait(ExclusiveWpfCollection.Trait, ExclusiveWpfCollection.Value)]
 public sealed class SessionPreparationViewTests
 {
     private const string Host = "PTJ_PLAN_PREPARATION_VIEW_HOST";
@@ -20,8 +22,10 @@ public sealed class SessionPreparationViewTests
     {
         if (Environment.GetEnvironmentVariable(Host) != "1")
         {
+            string? expected = ValidationFocusTrace.Enabled ? $"{typeof(SessionPreparationViewTests).FullName}.{nameof(CompiledBindingsAccessibleInputsValidationAndResponsiveLightDarkRenders)}" : null;
             await IsolatedTestProcess.RunSuiteAsync(typeof(SessionPreparationViewTests), "plan-preparation", Host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30));
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: expected is null ? null : IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected);
             return;
         }
         var f = new SessionPreparationTests.Fixture();
@@ -99,20 +103,29 @@ public sealed class SessionPreparationViewTests
             // Real compiled owner/focus routing, not a human keyboard or screen-reader test.
             var nativeSection = new SessionPreparationSection { DataContext = vm };
             var window = new Window { Content = new ScrollViewer { Content = nativeSection }, Width = 650, Height = 750 };
+            var diagnostic = ValidationFocusTrace.Attach("plan-preparation", window, vm);
             window.Show();
             try
             {
+                diagnostic?.Record("shown");
+                ValidationFocusOwner.Ready(window, nativeSection);
+                diagnostic?.Record("owner-ready-before-validation");
                 vm.InstrumentToAdd = f.Catalog.Items[1]; vm.AddInstrumentCommand.Execute(null);
                 vm.Contexts[0].Levels[0].Text = "invalid in another context";
                 Assert.NotSame(vm.Contexts[0], vm.SelectedInstrument);
-                vm.SaveAsync().GetAwaiter().GetResult();
+                diagnostic?.Record("before-level-save");
+                // Selection/bindings must still be changed by validation, not by setup.
+                ValidationFocusOwner.AssertReady(window, (FrameworkElement)nativeSection.FindName("LevelFields"));
+                var save = vm.SaveAsync(); diagnostic?.Record("level-save-returned", new { save.IsCompleted, save.Status });
+                save.GetAwaiter().GetResult(); diagnostic?.Record("level-save-awaited");
                 window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+                diagnostic?.Record("level-after-original-idle");
                 Assert.Same(vm.Contexts[0], vm.SelectedInstrument);
                 var focused = Assert.IsType<TextBox>(System.Windows.Input.Keyboard.FocusedElement);
                 Assert.Equal("Previous Day High", AutomationProperties.GetName(focused));
                 Assert.True(FormValidation.GetIsInvalid(focused));
             }
-            finally { window.Close(); }
+            finally { diagnostic?.Record("before-window-close"); window.Close(); diagnostic?.Dispose(); }
         }, shutdownDispatcher: false);
     }
     private static IEnumerable<DependencyObject> Descendants(DependencyObject root)

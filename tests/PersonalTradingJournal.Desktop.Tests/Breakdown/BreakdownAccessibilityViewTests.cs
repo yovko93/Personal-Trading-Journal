@@ -31,12 +31,17 @@ public sealed class BreakdownAccessibilityViewTests
         const string host = "PTJ_BREAKDOWN_ACCESSIBILITY_HOST";
         if (Environment.GetEnvironmentVariable(host) != "1")
         {
+            string expected = $"{typeof(BreakdownAccessibilityViewTests).FullName}.{nameof(ScopedTradesEntryDetailReturnMissingRowAndExitUseLiveFocusTargets)}(inputDuringDelete: {inputDuringDelete})";
             await IsolatedTestProcess.RunSuiteAsync(typeof(BreakdownAccessibilityViewTests), "breakdown-accessibility", host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30)); return;
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected); return;
         }
         await CalendarStaTest.RunAsync(() =>
         {
-            var app = System.Windows.Application.Current ?? new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            UiKeyboardProbe.Origin("Scoped STA action entry / before fixture and Application");
+            Assert.Null(System.Windows.Application.Current); // Exactly one case owns this child/STA.
+            var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            AssertLiveApplication(app);
             app.Resources = CalendarViewLayoutTests.SharedThemeResources("Light");
             app.Resources["UtcToTradingTimeConverter"] = new PersonalTradingJournal.Desktop.Converters.UtcToTradingTimeConverter();
             app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/PersonalTradingJournal.Desktop;component/Views/Trades/TradeEntryForm.xaml", UriKind.Relative) });
@@ -56,11 +61,25 @@ public sealed class BreakdownAccessibilityViewTests
             var prior = SynchronizationContext.Current; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try
             {
-                reader.EnqueuePage([row], 1); Pump(vm.EnsureLoadedAsync()); window.Show(); Idle();
+                reader.EnqueuePage([row], 1); Pump(vm.EnsureLoadedAsync());
+                UiKeyboardProbe.Origin("Scoped before Window.Show", view);
+                window.Show(); Idle();
+                UiKeyboardProbe.Origin("Scoped after Window.Show / ContextIdle", view);
                 Assert.Same(view.FindName("BackToBreakdownButton"), FocusManager.GetFocusedElement(view));
                 Button RowAction() => Descendants<Button>(view).Single(b => ReferenceEquals(b.Command, vm.ShowTradeDetailCommand));
                 var action = RowAction(); Assert.Contains("TEST", AutomationProperties.GetName(action));
-                details.EnqueueResult(detail); PressSpace(action); Pump(vm.ShowTradeDetailCommand.ExecutionTask!); Idle();
+                void OpenDetail(Button target)
+                {
+                    var response = new TaskCompletionSource<TradeDetail?>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    details.EnqueueBehavior(_ => response.Task);
+                    int before = details.CallCount;
+                    Task command = UiKeyboardProbe.SpaceCommand(target);
+                    Assert.Equal(before + 1, details.CallCount);
+                    Assert.False(command.IsCompleted);
+                    response.SetResult(detail);
+                    Pump(command);
+                }
+                OpenDetail(action); Idle();
                 Assert.Same(view.FindName("TradeDetailsHeading"), FocusManager.GetFocusedElement(view));
                 var close = Descendants<Button>(view).Single(b => ReferenceEquals(b.Command, vm.CloseTradeDetailCommand));
                 FocusManager.SetFocusedElement(view, close); PressSpace(close); Idle();
@@ -69,7 +88,7 @@ public sealed class BreakdownAccessibilityViewTests
                 reader.EnqueuePage([], 0); Pump(vm.RefreshCommand.ExecuteAsync(null)); Idle();
                 Assert.Same(view.FindName("TradesRefreshButton"), FocusManager.GetFocusedElement(view));
                 reader.EnqueuePage([row], 1); Pump(vm.RefreshCommand.ExecuteAsync(null)); Idle();
-                details.EnqueueResult(detail); PressSpace(RowAction()); Pump(vm.ShowTradeDetailCommand.ExecutionTask!); Idle();
+                OpenDetail(RowAction()); Idle();
                 var reload = new TaskCompletionSource<TradeListPage>(TaskCreationOptions.RunContinuationsAsynchronously);
                 reader.EnqueuePageBehavior((_, _) => reload.Task);
                 var deleting = vm.DeleteSelectedTradeCommand.ExecuteAsync(null); Idle();
@@ -83,10 +102,17 @@ public sealed class BreakdownAccessibilityViewTests
                 Assert.Equal(1, deletion.CallCount); Assert.Equal(row.Id, deletion.RequestedTradeId);
                 Assert.Same(inputDuringDelete ? view.Content : view.FindName("TradesRefreshButton"), FocusManager.GetFocusedElement(view));
                 var exit = Descendants<Button>(view).Single(b => ReferenceEquals(b.Command, vm.ExitBreakdownScopeCommand));
-                FocusManager.SetFocusedElement(view, exit); PressSpace(exit); Pump(vm.ExitBreakdownScopeCommand.ExecutionTask!); Idle();
+                FocusManager.SetFocusedElement(view, exit); Pump(UiKeyboardProbe.SpaceCommand(exit)); Idle();
                 Assert.False(vm.HasBreakdownScope); Assert.Same(view.FindName("TradesRefreshButton"), FocusManager.GetFocusedElement(view));
             }
-            finally { window.Close(); vm.DisposeBrowse(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); }
+            finally
+            {
+                UiKeyboardProbe.Origin("Scoped cleanup begins / before Window.Close", view);
+                window.Close();
+                UiKeyboardProbe.Origin("Scoped after Window.Close", view);
+                vm.DisposeBrowse(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown();
+                UiKeyboardProbe.Origin("Scoped cleanup completed / Application shutdown");
+            }
         });
     }
 
@@ -96,20 +122,28 @@ public sealed class BreakdownAccessibilityViewTests
         const string host = "PTJ_BREAKDOWN_ACCESSIBILITY_HOST";
         if (Environment.GetEnvironmentVariable(host) != "1")
         {
+            string expected = $"{typeof(BreakdownAccessibilityViewTests).FullName}.{nameof(OwnedFocusValidationAutomationAndRetainedStatesInBothThemes)}";
             await IsolatedTestProcess.RunSuiteAsync(typeof(BreakdownAccessibilityViewTests), "breakdown-accessibility", host,
-                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30)); return;
+                TimeSpan.FromSeconds(90), caseHangTimeout: TimeSpan.FromSeconds(30),
+                testCaseFilter: IsolatedTestProcess.ExactDisplayNameFilter(expected), expectedTestName: expected); return;
         }
         await CalendarStaTest.RunAsync(() =>
         {
+            UiKeyboardProbe.Origin("Owned STA action entry / before fixture and Application");
             using var f = new BreakdownFixture();
-            var app = System.Windows.Application.Current ?? new() { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Assert.Null(System.Windows.Application.Current); // Themes below retain this live STA until final cleanup.
+            var app = new System.Windows.Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            AssertLiveApplication(app);
             app.Resources = CalendarViewLayoutTests.SharedThemeResources("Light");
             var view = new BreakdownView { DataContext = f.Vm };
             var window = new Window { Content = view, Width = 1000, Height = 900, ShowActivated = false, ShowInTaskbar = false };
             var prior = SynchronizationContext.Current; SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext());
             try
             {
-                Pump(f.Vm.ActivateAsync()); window.Show(); Idle();
+                Pump(f.Vm.ActivateAsync());
+                UiKeyboardProbe.Origin("Owned before Window.Show", view);
+                window.Show(); Idle();
+                UiKeyboardProbe.Origin("Owned after Window.Show / ContextIdle", view);
                 var currency = (TextBox)view.FindName("CurrencyFilter");
                 var period = (ComboBox)view.FindName("PeriodFilter");
                 Assert.Same(period, FocusManager.GetFocusedElement(view));
@@ -146,17 +180,20 @@ public sealed class BreakdownAccessibilityViewTests
                 var moreAction = (Button)view.FindName("MoreFiltersButton");
                 foreach (string stateTheme in new[] { "Light", "Dark" })
                 {
+                    AssertLiveApplication(app);
                     app.Resources = CalendarViewLayoutTests.SharedThemeResources(stateTheme); Idle();
                     int reads = f.Reader.Calls.Count;
                     var normal = CaptureAction("normal");
                     FocusManager.SetFocusedElement(view, moreAction); Idle();
                     Assert.Same(moreAction, FocusManager.GetFocusedElement(view));
-                    var source = PresentationSource.FromVisual(moreAction);
-                    moreAction.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyDownEvent });
-                    Idle(); Assert.True(moreAction.IsPressed);
-                    Assert.False(normal.SequenceEqual(CaptureAction("pressed")));
-                    moreAction.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyUpEvent });
-                    Idle(); Assert.False(moreAction.IsPressed);
+                    UiKeyboardProbe.Observe(moreAction, $"{stateTheme}: before Space");
+                    UiKeyboardProbe.Space(moreAction, () =>
+                    {
+                        Idle(); Assert.True(moreAction.IsPressed);
+                        Assert.False(normal.SequenceEqual(CaptureAction("pressed")));
+                    });
+                    Idle(); UiKeyboardProbe.Observe(moreAction, $"{stateTheme}: existing ContextIdle completed / release assertion");
+                    Assert.False(moreAction.IsPressed);
                     Assert.True(((Expander)view.FindName("MoreFilters")).IsExpanded);
                     ((Expander)view.FindName("MoreFilters")).IsExpanded = false; Idle();
                     moreAction.IsEnabled = false; Idle();
@@ -234,6 +271,7 @@ public sealed class BreakdownAccessibilityViewTests
                 Assert.Same(dateText, FocusManager.GetFocusedElement(view));
                 Assert.Equal("2026-", dateText.Text);
                 Assert.NotEmpty(AutomationProperties.GetItemStatus(dateText));
+                UiKeyboardProbe.Ready(dateText);
                 dateText.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, PresentationSource.FromVisual(dateText), 0, Key.F4)
                     { RoutedEvent = Keyboard.PreviewKeyDownEvent }); Idle();
                 Assert.True(datePicker.IsDropDownOpen);
@@ -248,6 +286,7 @@ public sealed class BreakdownAccessibilityViewTests
                 foreach (string theme in new[] { "Light", "Dark" })
                 foreach (var (width, dpi) in new[] { (1280, 96), (700, 240) })
                 {
+                    AssertLiveApplication(app);
                     // Fresh off-screen roots avoid retaining the HWND's layout constraints/DPI.
                     window.Content = null; Idle();
                     BreakdownView? rendered = null;
@@ -281,14 +320,22 @@ public sealed class BreakdownAccessibilityViewTests
                 guard.Request(() => period); window.Content = null; Idle();
                 Assert.False(view.IsLoaded); // Unloaded views do not accept delayed focus.
             }
-            finally { window.Close(); view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); }
+            finally
+            {
+                UiKeyboardProbe.Origin("Owned cleanup begins / before Window.Close", view);
+                window.Close();
+                UiKeyboardProbe.Origin("Owned after Window.Close", view);
+                view.DataContext = null; SynchronizationContext.SetSynchronizationContext(prior); app.Shutdown();
+                UiKeyboardProbe.Origin("Owned cleanup completed / Application shutdown");
+            }
         });
     }
-    private static void PressSpace(UIElement button)
+    private static void PressSpace(ButtonBase button) => UiKeyboardProbe.Space(button);
+    private static void AssertLiveApplication(System.Windows.Application app)
     {
-        var source = PresentationSource.FromVisual(button);
-        button.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyDownEvent });
-        button.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, 0, Key.Space) { RoutedEvent = Keyboard.KeyUpEvent });
+        Assert.Same(Dispatcher.CurrentDispatcher, app.Dispatcher);
+        Assert.False(app.Dispatcher.HasShutdownStarted);
+        Assert.False(app.Dispatcher.HasShutdownFinished);
     }
     private static double Contrast(Color a, Color b)
     {

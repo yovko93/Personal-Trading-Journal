@@ -18,6 +18,9 @@ public sealed class DataBackupsTests
         Assert.Equal(1, f.Exports); Assert.Contains("Not a restorable backup", vm.Status); Assert.Equal(f.Target, vm.OutputLocation);
         Assert.Contains("unencrypted", DataBackupsViewModel.BackupDisclosure);
         Assert.Contains("excludes AI API keys", DataBackupsViewModel.BackupDisclosure);
+        Assert.Contains("required original images", DataBackupsViewModel.BackupDisclosure);
+        Assert.Contains("Notebook notes, saved recovery drafts", DataBackupsViewModel.BackupDisclosure);
+        Assert.Contains("Only saved or checkpointed edits", DataBackupsViewModel.BackupDisclosure);
         Assert.Contains("four CSVs", DataBackupsViewModel.ExportDisclosure);
         Assert.Contains("metadata only", DataBackupsViewModel.ExportDisclosure);
     }

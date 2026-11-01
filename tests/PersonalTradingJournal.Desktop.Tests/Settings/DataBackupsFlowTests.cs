@@ -17,6 +17,11 @@ using PersonalTradingJournal.Application.DailyReview.Coaching;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using PersonalTradingJournal.Application.Notebook;
+using PersonalTradingJournal.Domain.Notebook;
+using PersonalTradingJournal.Desktop.Screenshots;
+using PersonalTradingJournal.Desktop.Tests.TestDoubles;
+using PersonalTradingJournal.Desktop.ViewModels.Notebook;
 
 namespace PersonalTradingJournal.Desktop.Tests.Settings;
 
@@ -27,7 +32,8 @@ public sealed class DataBackupsFlowTests
     {
         string root = Path.Combine(Path.GetTempPath(), "ptj-ui-" + Guid.NewGuid().ToString("N"));
         var paths = new LocalApplicationPaths(root); paths.EnsureDirectoriesExist();
-        using var services = new ServiceCollection().AddPersistence(paths).BuildServiceProvider();
+        using var services = new ServiceCollection().AddPersistence(paths)
+            .AddSingleton<INotebookImageValidator, WpfNotebookImageValidator>().BuildServiceProvider();
         string archive = Path.Combine(root, "synthetic.ptjbackup");
         var f = new BackupUiFixture { Target = archive }; f.Dialogs.ConfirmationResult = true;
         try
@@ -42,6 +48,20 @@ public sealed class DataBackupsFlowTests
                 await db.SaveChangesAsync();
             }
             await SeedRelatedData(services, paths, id);
+            var notes = services.GetRequiredService<INotebookService>();
+            var note = (await notes.ExecuteAsync(new CreateNotebookNote(null, "Notebook backup", NotebookTemplate.MarketStudy))).Note!;
+            var imageId = Guid.NewGuid();
+            var document = new NotebookDocument([.. note.Document.Blocks, NotebookNode.Image(Guid.NewGuid(), imageId, "Saved original")]);
+            using (var input = new MemoryStream(NotebookOriginalBytes))
+            {
+                var imported = await services.GetRequiredService<INotebookImages>().ImportAsync(new(note.Id, note.Version, imageId, document), input);
+                Assert.Equal(NotebookWriteStatus.Success, imported.Status); note = imported.Note!;
+            }
+            var draftId = Guid.NewGuid();
+            Assert.Equal(NotebookWriteStatus.Success, await services.GetRequiredService<INotebookRecoveryStore>().PutAsync(
+                new(draftId, note.Id, note.Version, 1, "Unsaved recovery title", note.Document, DateTimeOffset.UtcNow), 0));
+            // Advance the canonical note after its checkpoint: fresh Desktop recovery must detect this conflict.
+            note = (await notes.ExecuteAsync(new UpdateNotebookTitle(note.Id, note.Version, "Newer saved title"))).Note!;
             var vm = new DataBackupsViewModel(services.GetRequiredService<IBackupArchiveService>(), services.GetRequiredService<IPortableExportService>(),
                 services.GetRequiredService<IRestorePreflightService>(), f, f.Dialogs, root);
             await vm.CreateBackupCommand.ExecuteAsync(null); Assert.Equal(archive, vm.OutputLocation); Assert.True(File.Exists(archive));
@@ -88,6 +108,21 @@ public sealed class DataBackupsFlowTests
             string restoredExport = Path.Combine(root, "restored-export");
             Assert.True((await restarted.GetRequiredService<IPortableExportService>().CreateAsync(restoredExport)).Succeeded);
             Assert.Equal(originalTables, InspectExport(restoredExport, id)); // Every logical value, not only counts.
+            using (var notebook = new NotebookWorkspaceViewModel(restarted.GetRequiredService<INotebookService>(), new FakeDialogService(),
+                codec: restarted.GetRequiredService<INotebookContentCodec>(), recovery: restarted.GetRequiredService<INotebookRecoveryStore>(),
+                images: restarted.GetRequiredService<INotebookImages>()))
+            {
+                await notebook.ActivateAsync();
+                Assert.Equal(note.Id, Assert.Single(notebook.Notes).Id);
+                var draft = Assert.Single(notebook.RecoveryDrafts); Assert.Equal(draftId, draft.Id);
+                await notebook.RecoverCommand.ExecuteAsync(draft);
+                Assert.Equal("Unsaved recovery title", notebook.DraftTitle);
+                Assert.Contains("conflict", notebook.SaveState, StringComparison.OrdinalIgnoreCase);
+                await notebook.SaveCommand.ExecuteAsync(null); // A conflict may checkpoint the draft, but cannot overwrite canonical content.
+                Assert.Equal("Newer saved title", (await restarted.GetRequiredService<INotebookService>().LoadAsync(note.Id)).Note!.Title);
+                var original = await restarted.GetRequiredService<INotebookImages>().ReadOriginalAsync(note.Id, imageId);
+                Assert.Equal(NotebookImageStatus.Success, original.Status); Assert.Equal(NotebookOriginalBytes, original.Original);
+            }
             Assert.Equal(ScreenshotBytes, await File.ReadAllBytesAsync(Path.Combine(paths.ScreenshotsDirectory, "synthetic.png")));
             await using var fresh = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = paths.DatabasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
             await fresh.OpenAsync(); using var query = fresh.CreateCommand(); query.CommandText = "SELECT Name FROM TradingAccounts";
@@ -108,6 +143,9 @@ public sealed class DataBackupsFlowTests
 
     private static readonly byte[] ScreenshotBytes = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aCioAAAAASUVORK5CYII=");
+    // The managed import uses the decoder-tested PNG fixture; the historical Trade bytes remain unchanged.
+    private static readonly byte[] NotebookOriginalBytes = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
     private static async Task SeedRelatedData(ServiceProvider services, LocalApplicationPaths paths, Guid account)
     {
@@ -148,8 +186,8 @@ public sealed class DataBackupsFlowTests
         var manifest = JsonSerializer.Deserialize<BackupManifest>(json, BackupArchiveContract.JsonOptions)!;
         Assert.Equal(BackupArchiveContract.Version, manifest.ArchiveVersion);
         Assert.Equal(TimeSpan.Zero, manifest.CreatedAtUtc.Offset);
-        Assert.Equal(3, zip.Entries.Count); // Manifest, DB, one screenshot. No credential/log/cache payloads.
-        Assert.Equal(2, manifest.Files.Length);
+        Assert.Equal(4, zip.Entries.Count); // Manifest, DB, Trade screenshot and Notebook original. No credential/log/cache payloads.
+        Assert.Equal(3, manifest.Files.Length);
         foreach (var file in manifest.Files)
         {
             var entry = zip.GetEntry(file.Path)!; Assert.Equal(file.SizeBytes, entry.Length);

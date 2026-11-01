@@ -8,7 +8,7 @@ namespace PersonalTradingJournal.Desktop.ViewModels.Settings;
 
 public sealed class DataBackupsViewModel : ObservableObject
 {
-    public const string BackupDisclosure = "Backup contains the database and referenced Trade screenshots, including Journal revisions and saved AI analyses. It is unencrypted and excludes AI API keys.";
+    public const string BackupDisclosure = "Backup contains the database and required original images, including Notebook notes, saved recovery drafts, Journal revisions and saved AI analyses. Only saved or checkpointed edits are included. It is unencrypted and excludes AI API keys.";
     public const string ExportDisclosure = "Export contains JSON, four CSVs and an inventory. Screenshots are metadata only. Exports are unencrypted and cannot be restored as backups.";
     private readonly IBackupArchiveService backup;
     private readonly IPortableExportService export;

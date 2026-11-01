@@ -90,7 +90,7 @@ public sealed class DailyTradingPrincipleTests
         Assert.True((await f.Get<IPortableExportService>().CreateAsync(export)).Succeeded);
         using (var json = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(export, "journal.json"))))
         {
-            Assert.Equal(14, json.RootElement.GetProperty("version").GetInt32());
+            Assert.Equal(18, json.RootElement.GetProperty("version").GetInt32());
             var row = Assert.Single(json.RootElement.GetProperty("tables").GetProperty("dailyTradingPrinciples").EnumerateArray());
             Assert.Equal(expected.Entries[0].Id, row.GetProperty("id").GetGuid()); Assert.Equal(expected.Entries[0].Text, row.GetProperty("text").GetString());
         }

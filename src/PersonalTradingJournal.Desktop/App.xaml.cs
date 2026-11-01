@@ -84,6 +84,8 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton(applicationPaths);
             builder.Services.AddSingleton<IApplicationPaths>(applicationPaths);
             builder.Services.AddPersistence(applicationPaths);
+            builder.Services.AddSingleton<PersonalTradingJournal.Application.Notebook.INotebookImageValidator,
+                WpfNotebookImageValidator>();
             builder.Services.AddSingleton(new CoachingConfiguration(applicationPaths.CoachingProviderPath,
                 new(applicationPaths.CoachingCredentialsPath, () => Environment.GetEnvironmentVariable("OPENAI_API_KEY")),
                 new(applicationPaths.GroqCredentialsPath, () => Environment.GetEnvironmentVariable("GROQ_API_KEY")),
@@ -167,6 +169,10 @@ public partial class App : System.Windows.Application
             builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.ITradingPlanInteraction, PersonalTradingJournal.Desktop.Views.TradingPlans.WpfTradingPlanInteraction>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.TradingPlans.TradingPlanWorkspaceViewModel>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RulesViewModel>();
+            builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Notebook.NotebookWorkspaceViewModel>();
+            builder.Services.AddTransient<PersonalTradingJournal.Desktop.Screenshots.INotebookImagePresentation,
+                PersonalTradingJournal.Desktop.Screenshots.NotebookImagePresentation>();
+            builder.Services.AddSingleton<PersonalTradingJournal.Desktop.ViewModels.Notebook.INotebookInteraction, PersonalTradingJournal.Desktop.Views.Notebook.NotebookLeaveInteraction>();
             builder.Services.AddTransient<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>();
             builder.Services.AddSingleton<IRuleAssessmentDialog>(s => new WpfRuleAssessmentDialog(
                 () => s.GetRequiredService<PersonalTradingJournal.Desktop.ViewModels.Rules.RuleAssessmentViewModel>()));

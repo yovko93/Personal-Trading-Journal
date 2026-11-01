@@ -36,6 +36,8 @@ using PersonalTradingJournal.Infrastructure.Setups;
 using PersonalTradingJournal.Infrastructure.Trades;
 using PersonalTradingJournal.Application.TradingPlans;
 using PersonalTradingJournal.Infrastructure.TradingPlans;
+using PersonalTradingJournal.Application.Notebook;
+using PersonalTradingJournal.Infrastructure.Notebook;
 
 namespace PersonalTradingJournal.Infrastructure.Persistence;
 
@@ -61,6 +63,13 @@ public static class PersistenceServiceCollectionExtensions
             options.UseSqlite(connectionString).AddInterceptors(new JournalSessionConnectionInterceptor(session));
         });
         services.AddTransient<JournalDatabaseInitializer>();
+        services.AddSingleton<INotebookContentCodec, NotebookJsonCodec>();
+        services.AddSingleton<INotebookImageValidator, UnavailableNotebookImageValidator>();
+        services.AddTransient<INotebookImageFiles>(provider => new NotebookImageFiles(applicationPaths,
+            provider.GetRequiredService<IDbContextFactory<JournalDbContext>>(), provider.GetRequiredService<INotebookImageValidator>()));
+        services.AddTransient<INotebookImages, NotebookImageService>();
+        services.AddTransient<INotebookService, NotebookService>();
+        services.AddTransient<INotebookRecoveryStore, NotebookRecoveryStore>();
         services.AddTransient<ITradingPlanStore, TradingPlanStore>();
         services.AddTransient<IDailyTradingPrincipleStore, DailyTradingPrincipleStore>();
         services.AddTransient<ITradingPlanReferenceReader, TradingPlanReferenceReader>();

@@ -135,6 +135,9 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderAction" />
                     </Grid.ColumnDefinitions>
+                    <Button Content="Back to Notebook" Command="{Binding ReturnToNotebookCommand}" VerticalAlignment="Center" Margin="0,0,8,0">
+                        <Button.Style><Style TargetType="Button" BasedOn="{StaticResource PtjSecondaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding CanReturnToNotebook}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                    </Button>
                     <Border x:Name="PageTitleTreatment" Grid.Column="1" VerticalAlignment="Center" CornerRadius="10"
                             HorizontalAlignment="Center" MaxWidth="760" Padding="18,7" BorderThickness="1"
                             Background="{DynamicResource PtjPageHeaderSurfaceBrush}" BorderBrush="{DynamicResource PtjPageHeaderBorderBrush}">
