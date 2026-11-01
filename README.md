@@ -187,7 +187,8 @@ Bug reports, usability feedback, documentation improvements, and focused pull re
 1. [Open an issue](https://github.com/yovko93/Personal-Trading-Journal/issues) with reproduction steps, expected behavior, and relevant environment details. Use sanitized examples for trade data and logs.
 2. Keep changes focused and follow the [architecture boundaries](docs/architecture.md).
 3. Add or update tests when behavior changes, and run the Release checks above.
-4. Update the relevant feature guide and describe validation and any remaining limitations in your pull request.
+4. After any major or important change, update this README in the same pull request. Keep the overview, status, features, and setup instructions accurate; place detailed milestone and verification notes in `docs/`.
+5. Update the relevant feature guide and describe validation and any remaining limitations in your pull request. See [Repository Instructions](AGENTS.md) for the README maintenance rule.
 
 ## License
 
