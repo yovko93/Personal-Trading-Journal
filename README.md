@@ -63,7 +63,7 @@ The CI badge tracks `main`; it does not certify every development change. The la
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
 
-N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, 227 shell/navigation checks, Light/Dark header checks at 100% and 250%, and built/published EXE icon inspections pass. The complete Release gate finished with **5,530 passed and 5 Notebook native-menu failures**; native visual acceptance remains pending after screenshot timeouts. See [Application Branding](docs/application-branding.md) for results and remaining checks.
+N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, recorded 227 shell/navigation checks, Light/Dark renders at 100% and 250%, and built/published EXE icon inspections pass. On 2 November, all five earlier Notebook menu failures passed unchanged in focused and complete-gate reruns. The latest complete Release gate finished with **5,510 passed / 25 failed / zero skipped** in other Desktop checks; overall acceptance remains open. Native visual checks remain pending. See [Application Branding](docs/application-branding.md#verification-follow-up--2-november-2026) for the diagnosis, retained historical results, and manual checklist.
 
 ## Quickstart
 
