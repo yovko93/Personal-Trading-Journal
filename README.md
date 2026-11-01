@@ -59,9 +59,11 @@ The CI badge tracks `main`; it does not certify every development change. The la
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
-| **Appearance** | Choose System, Light, or Dark themes. |
+| **Appearance** | Choose System, Light, or Dark themes, with the selected N26 Emerald Bull artwork in the sidebar and Windows application icon. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
+
+N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, 227 shell/navigation checks, Light/Dark header checks at 100% and 250%, and built/published EXE icon inspections pass. The complete Release gate finished with **5,530 passed and 5 Notebook native-menu failures**; native visual acceptance remains pending after screenshot timeouts. See [Application Branding](docs/application-branding.md) for results and remaining checks.
 
 ## Quickstart
 
@@ -176,6 +178,7 @@ The test runner executes exclusive WPF tests first, followed by the complementar
 | Planning | [Playbook](docs/playbook.md) · [Trading Plan](docs/trading-plan.md) · [Trading Rules](docs/trading-rules.md) |
 | Storage and recovery | [Persistence](docs/persistence.md) · [Backup and Restore](docs/backup-restore.md) |
 | Engineering | [Architecture](docs/architecture.md) · [Desktop UI](docs/desktop-ui.md) · [WPF tests](docs/ci-wpf-tests.md) · [SQLite tests](docs/sqlite-test-lifetimes.md) |
+| Visual identity | [Application Branding](docs/application-branding.md) |
 | Project history | [Milestones and verification records](docs/development-history.md) |
 
 Feature guides include dated implementation and acceptance notes. Read their current behavior sections alongside the historical entries.
