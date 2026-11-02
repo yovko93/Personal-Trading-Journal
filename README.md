@@ -41,11 +41,11 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Automated coverage spans Domain, Application, Infrastructure, and Desktop. Complete Release and manual acceptance remain pending in the latest recorded verification. |
+| Verification | Latest local complete Release gate: **5,535 passed, zero failures/skips**. Automated coverage spans Domain, Application, Infrastructure, and Desktop. Native manual and matching hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. The latest [recorded CI diagnosis](docs/notebook.md#m2212c3--hosted-daily-review-watchdog-and-test-step-timeout) documents an incomplete, failed hosted gate. Detailed milestone results and remaining checks are retained in the [development history](docs/development-history.md).
+The CI badge tracks `main`; it does not certify every development change. The latest [recorded hosted CI diagnosis](docs/notebook.md#m2212c3--hosted-daily-review-watchdog-and-test-step-timeout) documents an incomplete, failed hosted gate; the newer local Release result does not replace hosted acceptance. Detailed milestone results and remaining checks are retained in the [development history](docs/development-history.md).
 
 ## Features
 
@@ -63,7 +63,7 @@ The CI badge tracks `main`; it does not certify every development change. The la
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
 
-N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, recorded 227 shell/navigation checks, Light/Dark renders at 100% and 250%, and built/published EXE icon inspections pass. On 2 November, all five earlier Notebook menu failures passed unchanged in focused and complete-gate reruns. The latest complete Release gate finished with **5,510 passed / 25 failed / zero skipped** in other Desktop checks; overall acceptance remains open. Native visual checks remain pending. See [Application Branding](docs/application-branding.md#verification-follow-up--2-november-2026) for the diagnosis, retained historical results, and manual checklist.
+N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, recorded shell/navigation checks, Light/Dark renders at 100% and 250%, and built/published EXE icon inspections pass. On 2 November, all 25 subsequent gate failures passed unchanged in affected-group checks and a complete Release rerun: **5,535 passed / zero failed / zero skipped**. Historical timeout stages were diagnosed, but the underlying timing variation remains unproven; no speculative lifecycle fix was made. Native branding checks remain pending. See [Release lifecycle investigation](docs/release-gate-lifecycle.md) and [Application Branding](docs/application-branding.md) for evidence and the manual checklist.
 
 ## Quickstart
 

@@ -1,5 +1,11 @@
 # Application Branding
 
+## Current Release status — 2 November 2026
+
+The latest local complete Release gate passed **5,535/5,535**, zero failures/skips, exit 0. All 25 failures from the previous gate passed unchanged both in the affected-group run and in this complete rerun. Retained dumps and phase logs identify primary construction/layout/render deadlines and an aggregate suite timeout, rather than a demonstrated shared owner-close cleanup defect. No production or fixture correction was justified; the underlying historical timing variation remains unproven.
+
+See [Release gate lifecycle investigation](release-gate-lifecycle.md) for exact parent/child identities, first failures, completed stages, dump stacks, cleanup distinctions, focused coverage and final totals. That current result supersedes the failed local gate as the latest automated status; the historical results below are preserved. The branding assets and implementation are unchanged. Native branding, Explorer/taskbar and screen-reader checks remain pending; no screenshot retry or hosted run occurred.
+
 ## N26 Emerald Bull
 
 Implemented on 1 November 2026 in the existing checkout, starting from clean commit `1fe01fc`. The supplied branding-package README and patch were reference material; its branch-creation instructions were not followed. The selected artwork is copied unchanged, including its lettering and transparency.
