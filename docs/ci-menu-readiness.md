@@ -2,9 +2,43 @@
 
 ## Current status — 2 November 2026
 
-**Intermittent failure, unresolved cause; not fixed.** The exact failing case originally passed unchanged locally. All menu parameterizations and related tag-menu/layout regressions also passed. Failure-only diagnostic instrumentation has since been added; no corrective change to production, native input, readiness requirements, deadlines, concurrency or branding is justified. No complete gate or hosted rerun was triggered by this diagnostic-only task.
+**Historical intermittent mouse-readiness failure: unresolved cause; not fixed.** The exact failing case originally passed unchanged locally. All menu parameterizations and related tag-menu/layout regressions also passed. Failure-only diagnostic instrumentation has since been added. The subsequent scheduling-contract correction below passed one complete local Release gate: **5,540 passed / 0 failed / 0 skipped**, exit 0. That result does not establish a cause or correction for the earlier readiness failure; updated hosted acceptance and native branding manual checks remain pending.
 
-The hosted result remains **5,534 passed / 1 failed / 0 skipped**, exit 1. The failed parent and its matching failed isolated child describe **one failed top-level case**, not two.
+The original CI #109 result was **5,534 passed / 1 failed / 0 skipped**, exit 1. The failed parent and its matching failed isolated child describe **one failed top-level case**, not two. The subsequent scheduling-contract failure is separate, as described below.
+
+## Release scheduling-contract correction
+
+The subsequently reported CI gate had **5,539 passed / 1 failed / 0 skipped**, including **145/145 exclusive cases passed**. Its sole failure was `ReleaseSchedulingTests.ExclusiveTraitAndCollectionCoverRequiredNativeClassesWithoutSerializingOtherTests`: the actual exclusive-class set contained `NotebookMouseReadinessEvidenceTests`, but the independently maintained expected set omitted it.
+
+That class must retain its `ExclusiveWpf` trait and collection. Its controlled popup probe starts an isolated child, creates a real WPF Window and ContextMenu, acquires popup mouse capture, and compares native cursor/foreground and managed mouse state. Process isolation does not isolate the shared interactive desktop. The four other cases in the class are lightweight diagnostic contracts; preserving the established class-level scheduling convention is the smallest correct change.
+
+The correction adds only `typeof(NotebookMouseReadinessEvidenceTests)` to the explicit expected set in `ReleaseSchedulingTests.cs`. The exact-set equality, collection/trait consistency checks, nonparallel exclusive collection, and checks preserving parallel execution elsewhere remain intact. Diagnostic behavior, native readiness requirements, deadlines, publishing and branding are unchanged. Base checkout: `6457b75301b33e19efdca96ed55cb0b94196cd9a`; local evidence: `TestResults/readiness-scheduling/`.
+
+This fixes the demonstrated scheduling inconsistency. It does not establish a cause or correction for the historical intermittent `DuplicateNoteButton.IsMouseOver` readiness failure.
+
+Release build passed with **0 warnings / 0 errors**. The focused selection passed **17 top-level cases / 0 failures / 0 skipped**, plus **7 matching isolated children**: the scheduling guard (1), diagnostic contracts (5), overflow parameterizations (4), tag menus (2), and layout/crop regressions (5). Child counts are evidence, not extra top-level cases.
+
+The complete gate ran **once**, after focused checks passed, and exited **0**:
+
+| Stage/project | Passed | Failed | Skipped |
+| --- | ---: | ---: | ---: |
+| Exclusive Desktop | 145 | 0 | 0 |
+| Parallel Domain | 602 | 0 | 0 |
+| Parallel Application | 1,050 | 0 | 0 |
+| Parallel Infrastructure | 1,608 | 0 | 0 |
+| Parallel Desktop | 2,135 | 0 | 0 |
+| **Total** | **5,540** | **0** | **0** |
+
+Retained run: `TestResults/readiness-scheduling/complete/release-20261102-202648-89d71949933e41eaa693c51da7f35271/`, including `summary.json` and five top-level TRX files. `stage-audit.json` verifies **5,540 unique top-level identities**, no duplicates, all five diagnostic cases exclusively in `exclusive-wpf`, and the scheduling guard once in `parallel`. The unchanged complementary filters cover the same 5,540-case set as the reported CI run, with every case executed and none skipped. Nested child TRX files are excluded from the gate totals.
+
+Changed files for this correction: `tests/PersonalTradingJournal.Desktop.Tests/TestDoubles/ReleaseSchedulingTests.cs`, `README.md`, and this guide. No test class was reclassified, no unrelated test was serialized, and no hosted workflow, push, PR or merge was performed.
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path $PWD 'TestResults/readiness-scheduling/focused'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~ReleaseSchedulingTests|FullyQualifiedName~NotebookMouseReadinessEvidenceTests|FullyQualifiedName~OverflowTriggersToggleThroughNativeMouseAndOwnedKeyboard|FullyQualifiedName~TagMenuRoutedToggleDismissalAndCapturedOwnership|FullyQualifiedName~NotebookMenuLayoutTests' --logger trx --results-directory TestResults/readiness-scheduling/focused
+./scripts/Test-Release.ps1 -ResultsDirectory TestResults/readiness-scheduling/complete
+```
 
 ## Failure-boundary instrumentation — 2 November 2026
 
@@ -57,13 +91,13 @@ The controlled popup probe deliberately supplies a false readiness result to exe
 
 During probe development, the new popup test completed its assertions but timed out in dispatcher cleanup (`probes/`, `probes-final/`, `probe-dump/`). A retained targeted dump (`probe-cleanup.dmp`, `probe-cleanup-stacks.log`) shows WPF destroying its popup HWND/releasing capture during shutdown, then waiting in `PenThreadWorker.WorkerGetTabletsInfo`. The probe now cancels its queued sentinel and allows **its own popup close** to finish in bounded teardown before shutting down the dispatcher. Final probe results above pass. This test-only setup/teardown correction changes no existing menu deadline or input behavior and establishes no cause for the original CI readiness failure.
 
-No complete Release gate was repeated, and no hosted failure-boundary snapshot has yet been observed. The new local snapshots belong to controlled diagnostic probes; passing native menu reruns do not explain the original managed mouse-over failure. Branding assets and behavior remain unchanged; native branding/Explorer/taskbar/screen-reader acceptance stays pending.
+The instrumentation task did not repeat the complete Release gate; the subsequent scheduling correction's gate is recorded above. No hosted failure-boundary snapshot has yet been observed. The local snapshots belong to controlled diagnostic probes; passing native menu reruns do not explain the original managed mouse-over failure. Branding assets and behavior remain unchanged; native branding/Explorer/taskbar/screen-reader acceptance stays pending.
 
 ## Tested source and retained evidence
 
 - [CI run #109](https://github.com/yovko93/Personal-Trading-Journal/actions/runs/41446986433), attempt 1, PR #27, job `125282451335`.
 - Checkout at the original investigation: `bc083bc31ead006e8fb6fdcf493cff2ee017ff25` (approved Bull and Bear artwork). Instrumentation was added on base `d595acef90cacb4b0c2755c3e714aedc17f69b48`.
-- Job checkout tested merge `5280345666314ebb899de38daa4b342718801c1b`. The GitHub comparison against the current checkout reports **zero changed files**. Source mapping below therefore applies to the exact tested file, not an assumed line match.
+- Job checkout tested merge `5280345666314ebb899de38daa4b342718801c1b`. The GitHub comparison against the original investigation checkout reports **zero changed files**. Source mapping below therefore applies to the exact tested file, not an assumed line match.
 - Artifact `13144086450`, `windows-test-results`, downloaded read-only. ZIP SHA-256 `07847D092A36B4146F873A153F661ADC706C65CFFC90C09F5E3BED9C66731C2B` matches the published digest.
 - Evidence root: `TestResults/ci109-menu/` (ignored local artifacts). It retains the supplied attachment, complete job log, provenance, verified ZIP/extraction, child result/stack JSON, exact and focused reruns, and native input traces.
 
@@ -134,4 +168,4 @@ Reproduction used the existing Release binaries; no new build result is claimed 
 
 If this case fails again, retain the automatic boundary JSON alongside `input-sequence.log`, the matching child TRX and phase/supervisor logs. Optional menu diagnostics can supplement this evidence, but are no longer needed to enable the terminal snapshot. A failure under these observations, preferably on the matching hosted runtime/desktop, can distinguish managed hover/capture, geometry, popup behavior and external ownership before choosing a correction. The original CI trace still lacks those observations; adding instrumentation does not fill its historical gaps.
 
-The original investigation changed only `README.md` and this note. The subsequent instrumentation adds `NotebookMouseReadinessEvidence.cs` and its contract tests, and updates `NotebookHeaderViewTests.Menus.cs` plus these two documentation files. No product correction, complete gate, workflow rerun, asset modification, push, PR or merge was performed.
+The original investigation changed only `README.md` and this note. The subsequent instrumentation added `NotebookMouseReadinessEvidence.cs` and its contract tests, and updated `NotebookHeaderViewTests.Menus.cs` plus these two documentation files. Those earlier tasks performed no product correction, complete gate, workflow rerun, asset modification, push, PR or merge. The later scheduling-contract correction and its complete gate are recorded above.

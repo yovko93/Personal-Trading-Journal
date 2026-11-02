@@ -41,7 +41,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Branding build, focused checks and built/published EXE icon inspection pass. Latest inspected hosted gate: **5,534 passed / 1 failed**; the menu-item readiness failure passes locally but remains intermittent and unresolved. Native manual and hosted acceptance remain pending. |
+| Verification | Local complete Release gate: **5,540 passed / 0 failed / 0 skipped** after correcting the exclusive scheduling contract. Branding build and embedded-icon checks pass. The historical intermittent menu-readiness cause remains unresolved; native manual and updated hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
