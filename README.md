@@ -41,11 +41,11 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Current branding: Release build and **40 focused checks passed**; built/published EXE icons verified. The most recent complete Release gate, before these branding updates, passed **5,535 tests**. Native manual and matching hosted acceptance remain pending. |
+| Verification | Branding build, focused checks and built/published EXE icon inspection pass. Latest inspected hosted gate: **5,534 passed / 1 failed**; the menu-item readiness failure passes locally but remains intermittent and unresolved. Native manual and hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
-The CI badge tracks `main`; it does not certify every development change. The latest [recorded hosted CI diagnosis](docs/notebook.md#m2212c3--hosted-daily-review-watchdog-and-test-step-timeout) documents an incomplete, failed hosted gate; the newer local Release result does not replace hosted acceptance. Detailed milestone results and remaining checks are retained in the [development history](docs/development-history.md).
+The CI badge tracks `main`; it does not certify every development change. See the [CI #109 menu-readiness diagnosis](docs/ci-menu-readiness.md) for the tested source, exact failing operation, local reruns and remaining evidence gaps. Historical milestone results are retained in the [development history](docs/development-history.md).
 
 ## Features
 
