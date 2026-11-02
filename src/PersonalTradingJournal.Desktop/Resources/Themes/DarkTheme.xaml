@@ -57,6 +57,9 @@
     <SolidColorBrush x:Key="PtjCalendarDangerHoverBrush" Color="#553441" />
     <!-- Sidebar has a distinct dark palette in both modes; content accents retain text contrast. -->
     <SolidColorBrush x:Key="PtjSidebarBrush" Color="#0E1444" />
+    <SolidColorBrush x:Key="PtjSidebarBrandBackgroundBrush" Color="#123A32" />
+    <SolidColorBrush x:Key="PtjSidebarBrandTextBrush" Color="#F2F8F5" />
+    <SolidColorBrush x:Key="PtjSidebarBrandDividerBrush" Color="#326354" />
     <SolidColorBrush x:Key="PtjSidebarTextBrush" Color="#E9EDF4" />
     <SolidColorBrush x:Key="PtjSidebarMutedBrush" Color="#B4BCCB" />
     <SolidColorBrush x:Key="PtjSidebarSelectionBrush" Color="#293260" />

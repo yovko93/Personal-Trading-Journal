@@ -82,15 +82,16 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border Padding="24,24,24,20"
-                        BorderBrush="{DynamicResource PtjBorderBrush}"
+                <Border x:Name="SidebarBrandSurface" Padding="20"
+                        Background="{DynamicResource PtjSidebarBrandBackgroundBrush}"
+                        BorderBrush="{DynamicResource PtjSidebarBrandDividerBrush}"
                         BorderThickness="0,0,0,1">
                     <Grid x:Name="SidebarBrandHeader">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <interactions:DecorativeImage x:Name="SidebarBrandLogo" Width="48" Height="48"
+                        <interactions:DecorativeImage x:Name="SidebarBrandLogo" Width="72" Height="72"
                                Margin="0,0,12,0" VerticalAlignment="Center"
                                Source="pack://application:,,,/PersonalTradingJournal.Desktop;component/Resources/Branding/ptj-logo-n26.png"
                                Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
@@ -98,7 +99,7 @@
                         <TextBlock x:Name="SidebarApplicationTitle" Grid.Column="1"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource PtjSectionTitleTextStyle}"
-                                   Foreground="{DynamicResource PtjSidebarTextBrush}"
+                                   Foreground="{DynamicResource PtjSidebarBrandTextBrush}"
                                    Text="{Binding ApplicationTitle}"
                                    TextWrapping="Wrap" />
                     </Grid>

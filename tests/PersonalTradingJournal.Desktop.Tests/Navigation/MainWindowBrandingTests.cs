@@ -38,11 +38,19 @@ public sealed partial class MainWindowViewModelTests
                 VisualTreeHelper.SetRootDpi(root, new DpiScale(dpi / 96d, dpi / 96d));
                 root.Measure(new(1000, 650)); root.Arrange(new(0, 0, 1000, 650)); root.UpdateLayout();
                 var header = (Grid)window.FindName("SidebarBrandHeader");
+                var surface = (Border)window.FindName("SidebarBrandSurface");
                 var logo = (Image)window.FindName("SidebarBrandLogo");
                 var title = (TextBlock)window.FindName("SidebarApplicationTitle");
 
                 Assert.Equal(252, root.ColumnDefinitions[0].ActualWidth);
-                Assert.Equal(48, logo.ActualWidth); Assert.Equal(48, logo.ActualHeight);
+                Assert.Equal(72, logo.ActualWidth); Assert.Equal(72, logo.ActualHeight);
+                Assert.Equal(new Thickness(20), surface.Padding);
+                Assert.True(double.IsNaN(surface.Height));
+                Assert.Equal(new Thickness(0, 0, 0, 1), surface.BorderThickness);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandBackgroundBrush"]).Color, ((SolidColorBrush)surface.Background).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandDividerBrush"]).Color, ((SolidColorBrush)surface.BorderBrush).Color);
+                Assert.NotEqual(((SolidColorBrush)app.Resources["PtjSidebarBrush"]).Color, ((SolidColorBrush)surface.Background).Color);
+                Assert.True(Contrast(((SolidColorBrush)title.Foreground).Color, ((SolidColorBrush)surface.Background).Color) >= 4.5);
                 Assert.Equal(Stretch.Uniform, logo.Stretch);
                 Assert.Equal(BitmapScalingMode.HighQuality, RenderOptions.GetBitmapScalingMode(logo));
                 Assert.False(logo.Focusable); Assert.False(logo.IsHitTestVisible);
@@ -52,7 +60,7 @@ public sealed partial class MainWindowViewModelTests
                 Assert.Equal(fixture.Main.ApplicationTitle, title.Text);
                 Assert.Equal("ApplicationTitle", BindingOperations.GetBinding(title, TextBlock.TextProperty)?.Path.Path);
                 Assert.Equal(TextWrapping.Wrap, title.TextWrapping);
-                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarTextBrush"]).Color, ((SolidColorBrush)title.Foreground).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandTextBrush"]).Color, ((SolidColorBrush)title.Foreground).Color);
                 double logoRight = logo.TranslatePoint(new(logo.ActualWidth, 0), header).X;
                 double titleLeft = title.TranslatePoint(new(), header).X;
                 Assert.InRange(titleLeft - logoRight, 11.5, 12.5);
@@ -62,6 +70,9 @@ public sealed partial class MainWindowViewModelTests
                     UseLayoutRounding = title.UseLayoutRounding, Language = title.Language };
                 TextOptions.SetTextFormattingMode(natural, TextOptions.GetTextFormattingMode(title));
                 VisualTreeHelper.SetRootDpi(natural, new DpiScale(dpi / 96d, dpi / 96d));
+                natural.Measure(new(title.ActualWidth, double.PositiveInfinity));
+                Assert.InRange(title.ActualHeight - natural.DesiredSize.Height, -1, 1);
+                natural.Text = "Personal Trading\nJournal";
                 natural.Measure(new(title.ActualWidth, double.PositiveInfinity));
                 Assert.InRange(title.ActualHeight - natural.DesiredSize.Height, -1, 1);
                 Assert.True(title.ActualHeight > title.FontSize * 2, "The full application name must wrap naturally.");
@@ -80,13 +91,27 @@ public sealed partial class MainWindowViewModelTests
                         (int)Math.Ceiling(sidebar.ActualHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
                     bitmap.Render(sidebar);
                     var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                    using var output = File.Create(Path.Combine(directory, $"branding-{theme}-{dpi}.png"));
-                    encoder.Save(output);
+                    using (var output = File.Create(Path.Combine(directory, $"branding-{theme}-{dpi}.png"))) encoder.Save(output);
                 }
+
+                double normalHeight = surface.ActualHeight;
+                title.DataContext = new { ApplicationTitle = "Personal Trading Journal — detailed trading preparation, execution analysis, performance review and long-term learning notebook" };
+                root.Measure(new(1000, 650)); root.Arrange(new(0, 0, 1000, 650)); root.UpdateLayout();
+                Assert.True(surface.ActualHeight > normalHeight, "Long titles must expand the automatic header height.");
+                natural.Text = title.Text;
+                natural.Measure(new(title.ActualWidth, double.PositiveInfinity));
+                Assert.InRange(title.ActualHeight - natural.DesiredSize.Height, -1, 1);
+                var sidebarGrid = (Grid)surface.Parent;
+                var navigation = sidebarGrid.Children.OfType<ScrollViewer>().Single();
+                Assert.True(navigation.TranslatePoint(new(), sidebarGrid).Y >= surface.ActualHeight);
+                Assert.InRange(title.TranslatePoint(new(0, title.ActualHeight), header).Y, 0, header.ActualHeight + 0.5);
 
                 app.Resources = CalendarViewLayoutTests.SharedThemeResources(theme == "Light" ? "Dark" : "Light");
                 root.UpdateLayout();
-                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarTextBrush"]).Color, ((SolidColorBrush)title.Foreground).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandTextBrush"]).Color, ((SolidColorBrush)title.Foreground).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandBackgroundBrush"]).Color, ((SolidColorBrush)surface.Background).Color);
+                Assert.Equal(((SolidColorBrush)app.Resources["PtjSidebarBrandDividerBrush"]).Color, ((SolidColorBrush)surface.BorderBrush).Color);
+                Assert.True(Contrast(((SolidColorBrush)title.Foreground).Color, ((SolidColorBrush)surface.Background).Color) >= 4.5);
             }
             finally
             {
@@ -96,6 +121,17 @@ public sealed partial class MainWindowViewModelTests
                 Directory.Delete(unrelatedDirectory);
             }
         }, shutdownDispatcher: false);
+    }
+
+    private static double Contrast(Color foreground, Color background)
+    {
+        static double L(Color color)
+        {
+            static double Channel(byte value) { double c = value / 255d; return c <= .04045 ? c / 12.92 : Math.Pow((c + .055) / 1.055, 2.4); }
+            return .2126 * Channel(color.R) + .7152 * Channel(color.G) + .0722 * Channel(color.B);
+        }
+        double a = L(foreground), b = L(background);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
     }
 
     private static void VerifyEmbeddedAsset(string filename, string sha256, int[] sizes)

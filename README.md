@@ -41,7 +41,7 @@ The guiding principle is simple: **process quality and financial outcome are sep
 | --- | --- |
 | Desktop application | Windows WPF application targeting .NET 10; build and run from source. |
 | Core workflows | Trade capture, CSV import, analytics, journaling, planning, reviews, and Notebook are implemented. |
-| Verification | Latest local complete Release gate: **5,535 passed, zero failures/skips**. Automated coverage spans Domain, Application, Infrastructure, and Desktop. Native manual and matching hosted acceptance remain pending. |
+| Verification | Sidebar header update: Release build and **40 focused checks passed**. The most recent complete Release gate, before this header update, passed **5,535 tests**. Native manual and matching hosted acceptance remain pending. |
 | Known gaps | The separate **Performance** navigation page remains a placeholder. Use **Dashboard** and **Breakdown** for implemented analytics. |
 | Deployment scope | Local Windows desktop application; web, multi-user, and cloud synchronization are not implemented. |
 
@@ -59,11 +59,11 @@ The CI badge tracks `main`; it does not certify every development change. The la
 | **Reviews** | Review daily, weekly, and monthly evidence, retain saved analyses, and optionally use AI-assisted coaching or the manual ChatGPT prompt workflow. |
 | **Notebook** | Organize rich-text notes with folders, tags, images, templates, pinned notes, linked trades and setups, autosave, and recovery. |
 | **Data management** | Create complete backups, validate and restore compatible archives, and export data as JSON or CSV. |
-| **Appearance** | Choose System, Light, or Dark themes, with the selected N26 Emerald Bull artwork in the sidebar and Windows application icon. |
+| **Appearance** | Choose System, Light, or Dark themes, with a prominent N26 Emerald Bull logo, a distinct emerald sidebar header, and the selected Windows application icon. |
 
 Analytics preserve currency boundaries and expose missing costs or incomplete evidence. Each view documents its Gross/Net policy; unavailable values are not silently treated as zero.
 
-N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The Release build, recorded shell/navigation checks, Light/Dark renders at 100% and 250%, and built/published EXE icon inspections pass. On 2 November, all 25 subsequent gate failures passed unchanged in affected-group checks and a complete Release rerun: **5,535 passed / zero failed / zero skipped**. Historical timeout stages were diagnosed, but the underlying timing variation remains unproven; no speculative lifecycle fix was made. Native branding checks remain pending. See [Release lifecycle investigation](docs/release-gate-lifecycle.md) and [Application Branding](docs/application-branding.md) for evidence and the manual checklist.
+N26 branding uses the supplied PNG and multi-resolution ICO unchanged. The sidebar header has a larger logo, dedicated Light/Dark emerald colors, and a naturally wrapping application name. Its Release build, 40 focused header/theme checks, and inspected renders at 100% and 250% pass. Native visual acceptance remains pending. See [Application Branding](docs/application-branding.md) for current results and [Release lifecycle investigation](docs/release-gate-lifecycle.md) for earlier complete-gate evidence.
 
 ## Quickstart
 

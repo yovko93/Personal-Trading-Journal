@@ -1,8 +1,41 @@
 # Application Branding
 
-## Current Release status — 2 November 2026
+## Current sidebar header — 2 November 2026
 
-The latest local complete Release gate passed **5,535/5,535**, zero failures/skips, exit 0. All 25 failures from the previous gate passed unchanged both in the affected-group run and in this complete rerun. Retained dumps and phase logs identify primary construction/layout/render deadlines and an aggregate suite timeout, rather than a demonstrated shared owner-close cleanup defect. No production or fixture correction was justified; the underlying historical timing variation remains unproven.
+The header uses the unchanged supplied artwork at **72 × 72 DIP**, up from 48 × 48, with uniform aspect ratio and high-quality scaling. The sidebar stays **252 DIP** wide; header padding is **20 DIP**, the logo/title gap remains **12 DIP**, and the logo is vertically centered. The existing 16-DIP Segoe UI Semibold typography and `ApplicationTitle` binding are preserved. The normal title wraps into two lines; longer titles expand the automatic header height and push the navigation down without overlap.
+
+Three dedicated DynamicResource brushes are defined in each existing theme dictionary and consumed only by the branding header:
+
+| Theme | Background | Text | Bottom divider | Text contrast |
+| --- | --- | --- | --- | ---: |
+| Light | `#DDEFE8` | `#153D34` | `#A7CDBD` | 10.06:1 |
+| Dark | `#123A32` | `#F2F8F5` | `#326354` | 11.64:1 |
+
+The brushes are `PtjSidebarBrandBackgroundBrush`, `PtjSidebarBrandTextBrush`, and `PtjSidebarBrandDividerBrush`. The coordinated divider is one DIP high. Navigation colors are unchanged. `DecorativeImage` still excludes the logo from UIA control/content views, focus and pointer input. The native title bar, icon declarations, PNG and ICO are unchanged.
+
+Verification for this header change:
+
+- Release solution build passed with **zero warnings/errors**.
+- **40 focused parent checks passed**, zero failures/skips: the existing shared-header cases plus theme checks. The isolated shell-header child passed **19/19**; child counts are separate from parent counts.
+- Four compiled WPF sidebar renders were inspected: Light/Dark at 96/240 DPI (100%/250%). The larger logo and separate emerald surface are visible, the application title uses two lines, and neither title nor navigation clips or overlaps.
+- Extended branding assertions verify 72-DIP sizing, 20-DIP padding, 12-DIP gap, unchanged sidebar width, two-line title height, automatic long-title growth, navigation separation, readable contrast, themed divider/background, and live switching of all three header brushes. Existing resource hashes, ICO frame decoding, pack-URI loading and decorative automation assertions still pass.
+- Evidence: `TestResults/n26-header/build.log`, `focused.log`, final parent/child TRX under `focused/`, and `renders/branding-{Light|Dark}-{96|240}.png`.
+- No complete Release gate was rerun for this scoped header update; the prior complete-gate pass below predates it. No native capture was attempted. Native branding, Explorer/taskbar and screen-reader acceptance remain pending; these WPF renders are offscreen evidence.
+
+Commands, from the repository root:
+
+```powershell
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_HEADER_RENDER_DIRECTORY = Join-Path $PWD 'TestResults/n26-header/renders'
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path $PWD 'TestResults/n26-header/focused'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~SharedPageHeader|FullyQualifiedName~.Theming.' --logger trx --results-directory TestResults/n26-header/focused
+```
+
+Changed files: `README.md`, this guide, `MainWindow.xaml`, `Resources/Themes/LightTheme.xaml`, `Resources/Themes/DarkTheme.xaml`, and `Navigation/MainWindowBrandingTests.cs`. No asset, application-icon or project configuration file changed.
+
+## Prior complete Release status — 2 November 2026
+
+Before the sidebar header update above, the local complete Release gate passed **5,535/5,535**, zero failures/skips, exit 0. All 25 failures from the previous gate passed unchanged both in the affected-group run and in this complete rerun. Retained dumps and phase logs identify primary construction/layout/render deadlines and an aggregate suite timeout, rather than a demonstrated shared owner-close cleanup defect. No production or fixture correction was justified; the underlying historical timing variation remains unproven.
 
 See [Release gate lifecycle investigation](release-gate-lifecycle.md) for exact parent/child identities, first failures, completed stages, dump stacks, cleanup distinctions, focused coverage and final totals. That current result supersedes the failed local gate as the latest automated status; the historical results below are preserved. The branding assets and implementation are unchanged. Native branding, Explorer/taskbar and screen-reader checks remain pending; no screenshot retry or hosted run occurred.
 
@@ -81,7 +114,7 @@ Only `README.md` and `docs/application-branding.md` change in this follow-up. Br
 | [Sidebar PNG](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-logo-n26.png) | 1254 × 1254, 8-bit RGBA | `52511600342FB22C4C6282055899BC532B3B781D30AE569621415E83E63CC4EE` |
 | [Windows ICO](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-app-n26.ico) | 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256 pixel frames | `964C1CA092D69D60B6DF1445D22CB568F952A298179B3BA0B3868A5568B859D3` |
 
-## Sidebar and accessibility
+## Original sidebar and accessibility — historical
 
 The existing sidebar header contains a 48 × 48 DIP image followed by a 12 DIP gap and the application name. `Stretch="Uniform"` preserves the artwork's aspect ratio; high-quality bitmap scaling handles display density changes. The title retains its `ApplicationTitle` binding, existing section-title style, dynamic sidebar text brush, and natural wrapping. The sidebar remains 252 DIP wide, with the same navigation structure and scrolling behavior.
 
