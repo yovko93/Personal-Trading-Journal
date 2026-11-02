@@ -1,6 +1,53 @@
 # Application Branding
 
-## Current sidebar header — 2 November 2026
+## Current selected artwork — Bull and Bear, 2 November 2026
+
+The exact approved `Bull and Bear Trading Journal.png` replaces N26 Emerald Bull. It depicts the green bull on the left facing the blue bear on the right, an open ivory journal with a copper ribbon, three rising green candlesticks on the left page and three descending red candlesticks on the right, on a rounded navy background. The source is copied **byte-for-byte**, with no regeneration, redraw, recoloring, cropping or added text.
+
+| Current embedded asset | Properties | SHA-256 |
+| --- | --- | --- |
+| [ptj-logo.png](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-logo.png) | 1254 × 1254, RGBA; exact supplied PNG | `5B0B94CFEEF80A4210334D8ED28EC6684ED8B535BDF3CDBC31E56675F1DA3331` |
+| [ptj-app.ico](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-app.ico) | True ICO directory with ten 32-bit PNG-compressed frames: 16, 20, 24, 32, 40, 48, 64, 96, 128 and 256 pixels | `51B25021BB2981BB60258FA20074C57A8813F151630E4FB767318467245DEA8F` |
+
+ICO conversion resamples the complete source image using high-quality bitmap scaling onto transparent square frames. Aspect ratio and alpha are retained; there is no crop or content edit. Every frame decodes with transparent, visible and partial-alpha pixels. The conversion script and pixel-count audit are retained locally in `TestResults/bull-bear-branding/generate-icon.ps1` and `frame-decode.json`.
+
+Neutral resource names replace the old `ptj-*-n26` files, which are removed from the current resource directory. The existing WPF `Resource`/`None Remove` declarations, assembly-qualified pack URIs and `ApplicationIcon` configuration now reference `ptj-logo.png` and `ptj-app.ico`. There is exactly one resource item per asset, no redundant runtime image copies, and no dependency on the working directory. `MainWindow.Icon` configures the new artwork for the title bar and normal Windows taskbar/Alt+Tab representation; those native presentations still need manual verification.
+
+The approved header is preserved: **72 × 72 DIP**, uniform/high-quality scaling, **20 DIP padding**, **12 DIP gap**, **252 DIP sidebar**, emerald Light/Dark brushes and divider, unchanged typography and `ApplicationTitle` wrapping. Decorative accessibility behavior is unchanged.
+
+### Artwork replacement verification
+
+- Final Release solution build: **passed, zero warnings/errors**.
+- Existing focused header/theme tests: **40/40 parents passed**, zero failures/skips. The isolated shell-header child passed **19/19**; these totals are separate.
+- Asset-dependent expectations now assert the new exact hashes and filenames. Existing frame-size, transparent-pixel, layout, live-theme-switch, long-title, contrast, pack-URI and decorative automation assertions are retained. A nonempty-visible-pixel assertion prevents an all-transparent frame from passing.
+- The compiled shell and both embedded assets load from an empty temporary working directory.
+- Four new offscreen sidebar renders were inspected: Light/Dark at 96/240 DPI (100%/250%). The Bull and Bear artwork is visible with preserved aspect ratio; title and navigation remain unclipped and separate.
+- Built EXE resource inspection: all ten `RT_ICON` payloads and group entries match the generated ICO exactly.
+- Default framework-dependent Release publish: **passed**. No existing publish profile was found. The published EXE also embeds all ten exact new frames; its output contains no loose PNG or ICO files.
+- Evidence is under `TestResults/bull-bear-branding/`: source/hash metadata, generation script, frame decode audit, `build-final.log`, `focused.log`, parent/child TRX, `renders/`, `resource-items.json`, `publish.log`, `built-exe-icons.json` and `published-exe-icons.json`.
+- No full Release gate or native UI/Explorer/taskbar/screen-reader check was run for this artwork replacement. Earlier complete-gate results below predate the replacement and remain historical. No native capture retry, push, PR or merge occurred.
+
+Commands from the repository root (the local evidence scripts are retained with the results):
+
+```powershell
+pwsh -NoProfile -STA -File TestResults/bull-bear-branding/generate-icon.ps1
+dotnet build PersonalTradingJournal.sln -c Release --no-restore
+$env:PTJ_HEADER_RENDER_DIRECTORY = Join-Path $PWD 'TestResults/bull-bear-branding/renders'
+$env:PTJ_TEST_RESULTS_DIRECTORY = Join-Path $PWD 'TestResults/bull-bear-branding/focused'
+dotnet test tests/PersonalTradingJournal.Desktop.Tests/PersonalTradingJournal.Desktop.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~SharedPageHeader|FullyQualifiedName~.Theming.' --logger trx --results-directory TestResults/bull-bear-branding/focused
+dotnet publish src/PersonalTradingJournal.Desktop/PersonalTradingJournal.Desktop.csproj -c Release --no-build --no-restore -o TestResults/bull-bear-branding/publish
+```
+
+Changed files: `README.md`, this guide, Desktop `MainWindow.xaml` and `.csproj`, `Navigation/MainWindowBrandingTests.cs`, and replacement assets `Resources/Branding/ptj-logo.png` and `ptj-app.ico` (replacing the two N26 files).
+
+Pending manual acceptance for the new artwork:
+
+- [ ] Sidebar in native Light/Dark at Windows 100% and 250% scaling.
+- [ ] Title-bar, Alt+Tab and normal taskbar icons, including the published app.
+- [ ] Built and published EXE icons in Explorer; distinguish fresh launches from cached pinned shortcuts.
+- [ ] Screen-reader and Tab navigation: no logo focus stop or duplicate announcement.
+
+## Prior N26 sidebar header — historical, 2 November 2026
 
 The header uses the unchanged supplied artwork at **72 × 72 DIP**, up from 48 × 48, with uniform aspect ratio and high-quality scaling. The sidebar stays **252 DIP** wide; header padding is **20 DIP**, the logo/title gap remains **12 DIP**, and the logo is vertically centered. The existing 16-DIP Segoe UI Semibold typography and `ApplicationTitle` binding are preserved. The normal title wraps into two lines; longer titles expand the automatic header height and push the navigation down without overlap.
 
@@ -111,8 +158,8 @@ Only `README.md` and `docs/application-branding.md` change in this follow-up. Br
 
 | Asset | Properties | SHA-256 |
 | --- | --- | --- |
-| [Sidebar PNG](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-logo-n26.png) | 1254 × 1254, 8-bit RGBA | `52511600342FB22C4C6282055899BC532B3B781D30AE569621415E83E63CC4EE` |
-| [Windows ICO](../src/PersonalTradingJournal.Desktop/Resources/Branding/ptj-app-n26.ico) | 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256 pixel frames | `964C1CA092D69D60B6DF1445D22CB568F952A298179B3BA0B3868A5568B859D3` |
+| Historical sidebar PNG: `ptj-logo-n26.png` | 1254 × 1254, 8-bit RGBA | `52511600342FB22C4C6282055899BC532B3B781D30AE569621415E83E63CC4EE` |
+| Historical Windows ICO: `ptj-app-n26.ico` | 16, 20, 24, 32, 40, 48, 64, 96, 128, and 256 pixel frames | `964C1CA092D69D60B6DF1445D22CB568F952A298179B3BA0B3868A5568B859D3` |
 
 ## Original sidebar and accessibility — historical
 

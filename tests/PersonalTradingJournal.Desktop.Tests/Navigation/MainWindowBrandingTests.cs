@@ -80,8 +80,8 @@ public sealed partial class MainWindowViewModelTests
                 Assert.NotNull(window.Icon);
                 Assert.IsAssignableFrom<BitmapSource>(logo.Source);
 
-                VerifyEmbeddedAsset("ptj-logo-n26.png", "52511600342FB22C4C6282055899BC532B3B781D30AE569621415E83E63CC4EE", [1254]);
-                VerifyEmbeddedAsset("ptj-app-n26.ico", "964C1CA092D69D60B6DF1445D22CB568F952A298179B3BA0B3868A5568B859D3", [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]);
+                VerifyEmbeddedAsset("ptj-logo.png", "5B0B94CFEEF80A4210334D8ED28EC6684ED8B535BDF3CDBC31E56675F1DA3331", [1254]);
+                VerifyEmbeddedAsset("ptj-app.ico", "51B25021BB2981BB60258FA20074C57A8813F151630E4FB767318467245DEA8F", [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]);
 
                 if (Environment.GetEnvironmentVariable("PTJ_HEADER_RENDER_DIRECTORY") is { Length: > 0 } directory)
                 {
@@ -150,6 +150,7 @@ public sealed partial class MainWindowViewModelTests
             byte[] pixels = new byte[rgba.PixelWidth * rgba.PixelHeight * 4];
             rgba.CopyPixels(pixels, rgba.PixelWidth * 4, 0);
             Assert.Contains(Enumerable.Range(0, rgba.PixelWidth * rgba.PixelHeight), pixel => pixels[pixel * 4 + 3] == 0);
+            Assert.Contains(Enumerable.Range(0, rgba.PixelWidth * rgba.PixelHeight), pixel => pixels[pixel * 4 + 3] > 0);
         }
     }
 }

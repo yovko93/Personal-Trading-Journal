@@ -7,7 +7,7 @@
         xmlns:interactions="clr-namespace:PersonalTradingJournal.Desktop.Interactions"
         mc:Ignorable="d"
         Title="{Binding ApplicationTitle}"
-        Icon="pack://application:,,,/PersonalTradingJournal.Desktop;component/Resources/Branding/ptj-app-n26.ico"
+        Icon="pack://application:,,,/PersonalTradingJournal.Desktop;component/Resources/Branding/ptj-app.ico"
         Width="1280"
         Height="800"
         MinWidth="1000"
@@ -93,7 +93,7 @@
                         </Grid.ColumnDefinitions>
                         <interactions:DecorativeImage x:Name="SidebarBrandLogo" Width="72" Height="72"
                                Margin="0,0,12,0" VerticalAlignment="Center"
-                               Source="pack://application:,,,/PersonalTradingJournal.Desktop;component/Resources/Branding/ptj-logo-n26.png"
+                               Source="pack://application:,,,/PersonalTradingJournal.Desktop;component/Resources/Branding/ptj-logo.png"
                                Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"
                                IsHitTestVisible="False" Focusable="False" />
                         <TextBlock x:Name="SidebarApplicationTitle" Grid.Column="1"

@@ -17,14 +17,14 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Resources\Branding\ptj-app-n26.ico</ApplicationIcon>
+    <ApplicationIcon>Resources\Branding\ptj-app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Resources\Branding\ptj-app-n26.ico" />
-    <None Remove="Resources\Branding\ptj-logo-n26.png" />
-    <Resource Include="Resources\Branding\ptj-app-n26.ico" />
-    <Resource Include="Resources\Branding\ptj-logo-n26.png" />
+    <None Remove="Resources\Branding\ptj-app.ico" />
+    <None Remove="Resources\Branding\ptj-logo.png" />
+    <Resource Include="Resources\Branding\ptj-app.ico" />
+    <Resource Include="Resources\Branding\ptj-logo.png" />
   </ItemGroup>
 
 </Project>
